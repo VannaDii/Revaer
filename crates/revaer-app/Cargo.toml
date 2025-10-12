@@ -1,0 +1,22 @@
+[package]
+name = "revaer-app"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+revaer-api = { path = "../revaer-api" }
+revaer-cli = { path = "../revaer-cli", optional = true }
+revaer-config = { path = "../revaer-config" }
+revaer-fsops = { path = "../revaer-fsops" }
+revaer-telemetry = { path = "../revaer-telemetry" }
+revaer-torrent-core = { path = "../revaer-torrent-core" }
+revaer-torrent-libt = { path = "../revaer-torrent-libt", optional = true }
+
+[features]
+default = ["libtorrent"]
+libtorrent = ["revaer-torrent-libt"]
+cli = ["dep:revaer-cli"]

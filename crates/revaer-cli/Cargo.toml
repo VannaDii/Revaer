@@ -1,0 +1,11 @@
+[package]
+name = "revaer-cli"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+revaer-config = { path = "../revaer-config" }

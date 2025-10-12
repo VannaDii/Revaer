@@ -1,0 +1,12 @@
+[package]
+name = "revaer-torrent-libt"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+anyhow.workspace = true
+async-trait.workspace = true
+tracing.workspace = true
+uuid.workspace = true
+revaer-torrent-core = { path = "../revaer-torrent-core" }

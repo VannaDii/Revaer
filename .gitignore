@@ -1,0 +1,10 @@
+/target
+**/target
+/.idea
+/.vscode
+Cargo.lock
+*.log
+.DS_Store
+/.env
+/tmp
+/dist
