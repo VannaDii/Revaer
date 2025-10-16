@@ -9,3 +9,15 @@ anyhow.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 revaer-config = { path = "../revaer-config" }
+clap = { version = "4.5", features = ["derive", "env"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+serde.workspace = true
+serde_json.workspace = true
+rpassword = "7.4"
+rand.workspace = true
+url = "2.5"
+uuid.workspace = true
+
+[dev-dependencies]
+httpmock = "0.7"
+chrono.workspace = true

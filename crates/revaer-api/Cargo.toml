@@ -13,3 +13,15 @@ tokio.workspace = true
 tracing.workspace = true
 revaer-config = { path = "../revaer-config" }
 revaer-telemetry = { path = "../revaer-telemetry" }
+revaer-torrent-core = { path = "../revaer-torrent-core" }
+chrono.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+revaer-events = { path = "../revaer-events" }
+uuid.workspace = true
+async-stream = "0.3"
+futures-core = "0.3"
+futures-util = "0.3"
+
+[dev-dependencies]
+async-trait.workspace = true

@@ -1,16 +1,13 @@
 [package]
-name = "revaer-telemetry"
+name = "revaer-events"
 version = "0.1.0"
 edition = "2021"
 publish = false
 
 [dependencies]
 anyhow.workspace = true
-tracing.workspace = true
-tracing-subscriber.workspace = true
-once_cell.workspace = true
+chrono.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-prometheus.workspace = true
-tower-http.workspace = true
 tokio.workspace = true
+uuid.workspace = true

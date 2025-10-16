@@ -1,0 +1,683 @@
+{
+  "components": {
+    "schemas": {
+      "ConfigSnapshot": {
+        "properties": {
+          "app_profile": {
+            "type": "object"
+          },
+          "engine_profile": {
+            "type": "object"
+          },
+          "fs_policy": {
+            "type": "object"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "revision",
+          "app_profile",
+          "engine_profile",
+          "fs_policy"
+        ],
+        "type": "object"
+      },
+      "DiscoveredFile": {
+        "properties": {
+          "path": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path",
+          "size_bytes"
+        ],
+        "type": "object"
+      },
+      "HealthComponent": {
+        "properties": {
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      },
+      "HealthResponse": {
+        "properties": {
+          "database": {
+            "$ref": "#/components/schemas/HealthComponent"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "mode",
+          "database"
+        ],
+        "type": "object"
+      },
+      "ProblemDetails": {
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "title",
+          "status"
+        ],
+        "type": "object"
+      },
+      "SettingsChangeset": {
+        "properties": {
+          "api_keys": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "app_profile": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "engine_profile": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "fs_policy": {
+            "type": [
+              "object",
+              "null"
+            ]
+          },
+          "secrets": {
+            "items": {
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "SetupStartRequest": {
+        "properties": {
+          "issued_by": {
+            "type": "string"
+          },
+          "ttl_seconds": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SetupStartResponse": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "expires_at"
+        ],
+        "type": "object"
+      },
+      "TorrentCreateRequest": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "TorrentProgressResponse": {
+        "properties": {
+          "bytes_downloaded": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "bytes_total": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "percent_complete": {
+            "format": "float",
+            "type": "number"
+          }
+        },
+        "required": [
+          "bytes_downloaded",
+          "bytes_total",
+          "percent_complete"
+        ],
+        "type": "object"
+      },
+      "TorrentStatusResponse": {
+        "properties": {
+          "failure_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/DiscoveredFile"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "last_updated": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "library_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "progress": {
+            "$ref": "#/components/schemas/TorrentProgressResponse"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "progress",
+          "last_updated"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "in": "header",
+        "name": "x-revaer-api-key",
+        "type": "apiKey"
+      },
+      "SetupToken": {
+        "in": "header",
+        "name": "x-revaer-setup-token",
+        "type": "apiKey"
+      }
+    }
+  },
+  "info": {
+    "title": "Revaer Control Plane API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/.well-known/revaer.json": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigSnapshot"
+                }
+              }
+            },
+            "description": "Configuration document"
+          }
+        },
+        "summary": "Retrieve the configuration snapshot exposed to clients"
+      }
+    },
+    "/admin/settings": {
+      "patch": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsChangeset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigSnapshot"
+                }
+              }
+            },
+            "description": "Updated configuration snapshot"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Validation error"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Apply configuration mutations"
+      }
+    },
+    "/admin/setup/complete": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SettingsChangeset"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfigSnapshot"
+                }
+              }
+            },
+            "description": "Snapshot after setup"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid setup token"
+          }
+        },
+        "security": [
+          {
+            "SetupToken": []
+          }
+        ],
+        "summary": "Complete initial setup and persist configuration"
+      }
+    },
+    "/admin/setup/start": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetupStartRequest"
+              }
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SetupStartResponse"
+                }
+              }
+            },
+            "description": "Setup token issued"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "System already configured"
+          }
+        },
+        "summary": "Issue a one-time setup token"
+      }
+    },
+    "/admin/torrents": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TorrentStatusResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Current torrent catalogue"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Torrent workflow unavailable"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "List torrents and their current status"
+      },
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TorrentCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Torrent accepted"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Torrent workflow unavailable"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Submit a torrent descriptor to the engine"
+      }
+    },
+    "/admin/torrents/{id}": {
+      "delete": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Torrent removal requested"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication failed"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Torrent workflow unavailable"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Request torrent removal"
+      },
+      "get": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TorrentStatusResponse"
+                }
+              }
+            },
+            "description": "Torrent status"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication failed"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Torrent not found"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Torrent workflow unavailable"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Fetch torrent status by identifier"
+      }
+    },
+    "/docs/openapi.json": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OpenAPI document"
+          }
+        },
+        "summary": "Serve the generated OpenAPI specification"
+      }
+    },
+    "/health": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Health snapshot"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Service unavailable"
+          }
+        },
+        "summary": "Read the lightweight health probe"
+      }
+    },
+    "/metrics": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Prometheus metrics"
+          }
+        },
+        "summary": "Expose Prometheus metrics"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:7070"
+    }
+  ]
+}

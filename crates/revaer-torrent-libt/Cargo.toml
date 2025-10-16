@@ -10,3 +10,7 @@ async-trait.workspace = true
 tracing.workspace = true
 uuid.workspace = true
 revaer-torrent-core = { path = "../revaer-torrent-core" }
+revaer-events = { path = "../revaer-events" }
+
+[dev-dependencies]
+tokio.workspace = true

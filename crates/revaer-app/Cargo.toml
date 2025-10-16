@@ -15,6 +15,13 @@ revaer-fsops = { path = "../revaer-fsops" }
 revaer-telemetry = { path = "../revaer-telemetry" }
 revaer-torrent-core = { path = "../revaer-torrent-core" }
 revaer-torrent-libt = { path = "../revaer-torrent-libt", optional = true }
+revaer-events = { path = "../revaer-events" }
+uuid.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
 
 [features]
 default = ["libtorrent"]

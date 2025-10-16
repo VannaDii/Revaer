@@ -6,8 +6,8 @@
 
 use anyhow::{anyhow, ensure, Context, Result};
 use argon2::password_hash::{
-    rand_core::OsRng, Error as PasswordHashError, PasswordHash, PasswordHasher,
-    PasswordVerifier, SaltString,
+    rand_core::OsRng, Error as PasswordHashError, PasswordHash, PasswordHasher, PasswordVerifier,
+    SaltString,
 };
 use argon2::Argon2;
 use async_trait::async_trait;
@@ -23,7 +23,8 @@ use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::Duration;
 use thiserror::Error;
-use tracing::instrument;
+use tokio::time::sleep;
+use tracing::{instrument, warn};
 use uuid::Uuid;
 
 const APP_PROFILE_ID: &str = "00000000-0000-0000-0000-000000000001";
@@ -169,6 +170,7 @@ pub struct SettingsChangeset {
     pub engine_profile: Option<Value>,
     pub fs_policy: Option<Value>,
     pub api_keys: Vec<ApiKeyPatch>,
+    pub secrets: Vec<SecretPatch>,
 }
 
 /// Patch description for API keys.
@@ -187,8 +189,16 @@ pub enum ApiKeyPatch {
     },
 }
 
+/// Patch description for secrets stored in `settings_secret`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "op", rename_all = "lowercase")]
+pub enum SecretPatch {
+    Set { name: String, value: String },
+    Delete { name: String },
+}
+
 /// Context returned after applying a changeset.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct AppliedChanges {
     pub revision: i64,
     pub app_profile: Option<AppProfile>,
@@ -266,15 +276,171 @@ impl ConfigService {
             fs_policy: fs,
         })
     }
+
+    /// Subscribe to configuration changes, falling back to polling if LISTEN fails.
+    #[allow(clippy::missing_errors_doc)]
+    pub async fn watch_settings(
+        &self,
+        poll_interval: Duration,
+    ) -> Result<(ConfigSnapshot, ConfigWatcher)> {
+        let snapshot = self.snapshot().await?;
+        let stream = match self.subscribe_changes().await {
+            Ok(stream) => Some(stream),
+            Err(err) => {
+                warn!(error = ?err, "failed to initialize LISTEN stream; polling only");
+                None
+            }
+        };
+
+        let watcher = ConfigWatcher {
+            service: self.clone(),
+            stream,
+            poll_interval,
+            last_revision: snapshot.revision,
+        };
+
+        Ok((snapshot, watcher))
+    }
+
+    #[allow(clippy::missing_errors_doc)]
+    pub async fn validate_setup_token(&self, token: &str) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+        cleanup_expired_setup_tokens(&mut tx).await?;
+
+        let active = sqlx::query_as::<_, ActiveTokenRow>(
+            r"
+            SELECT id, token_hash, expires_at
+            FROM setup_tokens
+            WHERE consumed_at IS NULL
+            ORDER BY issued_at DESC
+            LIMIT 1
+            FOR UPDATE
+            ",
+        )
+        .fetch_optional(tx.as_mut())
+        .await
+        .context("failed to query setup tokens")?;
+
+        let Some(active) = active else {
+            tx.rollback().await?;
+            return Err(anyhow!("no active setup token"));
+        };
+
+        if active.expires_at <= Utc::now() {
+            tx.rollback().await?;
+            return Err(anyhow!("setup token expired"));
+        }
+
+        let matches = match verify_secret(&active.token_hash, token) {
+            Ok(result) => result,
+            Err(err) => {
+                tx.rollback().await?;
+                return Err(err);
+            }
+        };
+
+        tx.rollback().await?;
+
+        if matches {
+            Ok(())
+        } else {
+            Err(anyhow!("invalid setup token"))
+        }
+    }
+
+    #[allow(clippy::missing_errors_doc)]
+    pub async fn verify_api_key(&self, key_id: &str, secret: &str) -> Result<bool> {
+        let record = sqlx::query_as::<_, ApiKeyAuthRow>(
+            r"
+            SELECT hash, enabled
+            FROM auth_api_keys
+            WHERE key_id = $1
+            LIMIT 1
+            ",
+        )
+        .bind(key_id)
+        .fetch_optional(&self.pool)
+        .await
+        .context("failed to verify API key")?;
+
+        let Some(record) = record else {
+            return Ok(false);
+        };
+
+        if !record.enabled {
+            return Ok(false);
+        }
+
+        let matches = verify_secret(&record.hash, secret)?;
+        Ok(matches)
+    }
 }
 
 /// Captures a consistent view of configuration at a given revision.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigSnapshot {
     pub revision: i64,
     pub app_profile: AppProfile,
     pub engine_profile: EngineProfile,
     pub fs_policy: FsPolicy,
+}
+
+/// Watches configuration changes, automatically falling back to polling if
+/// LISTEN/NOTIFY connectivity is interrupted.
+pub struct ConfigWatcher {
+    service: ConfigService,
+    stream: Option<SettingsStream>,
+    poll_interval: Duration,
+    last_revision: i64,
+}
+
+impl ConfigWatcher {
+    /// Await the next configuration snapshot reflecting any applied changes.
+    #[allow(clippy::missing_errors_doc)]
+    pub async fn next(&mut self) -> Result<ConfigSnapshot> {
+        loop {
+            if let Some(stream) = &mut self.stream {
+                match stream.next().await {
+                    Some(Ok(change)) => {
+                        let snapshot = self.service.snapshot().await?;
+                        self.last_revision = change.revision.max(snapshot.revision);
+                        return Ok(snapshot);
+                    }
+                    Some(Err(err)) => {
+                        warn!(error = ?err, "LISTEN connection dropped; switching to polling");
+                        self.stream = None;
+                    }
+                    None => {
+                        warn!("LISTEN stream closed; switching to polling");
+                        self.stream = None;
+                    }
+                }
+            }
+
+            sleep(self.poll_interval).await;
+
+            let snapshot = self.service.snapshot().await?;
+            if snapshot.revision > self.last_revision {
+                self.last_revision = snapshot.revision;
+                if self.stream.is_none() {
+                    match self.service.subscribe_changes().await {
+                        Ok(stream) => {
+                            self.stream = Some(stream);
+                        }
+                        Err(err) => {
+                            warn!(error = ?err, "failed to re-establish LISTEN connection");
+                        }
+                    }
+                }
+                return Ok(snapshot);
+            }
+        }
+    }
+
+    /// Force the watcher into polling mode, discarding the current LISTEN stream.
+    pub fn disable_listen(&mut self) {
+        self.stream = None;
+    }
 }
 
 #[async_trait]
@@ -352,13 +518,37 @@ impl SettingsFacade for ConfigService {
             }
         }
 
+        let mut api_keys_changed = false;
         if !changeset.api_keys.is_empty() {
             let before = fetch_api_keys_json(tx.as_mut()).await?;
             if apply_api_key_patches(&mut tx, &changeset.api_keys, &immutable_keys).await? {
                 let after = fetch_api_keys_json(tx.as_mut()).await?;
                 history_entries.push(("auth_api_keys", Some(before), Some(after)));
                 any_change = true;
+                api_keys_changed = true;
             }
+        }
+
+        let mut secret_events = Vec::new();
+        if !changeset.secrets.is_empty() {
+            secret_events =
+                apply_secret_patches(&mut tx, &changeset.secrets, actor, &immutable_keys).await?;
+            if !secret_events.is_empty() {
+                history_entries.push((
+                    "settings_secret",
+                    None,
+                    Some(Value::Array(secret_events.clone())),
+                ));
+                any_change = true;
+            }
+        }
+
+        let mutated_via_triggers = applied_app.is_some()
+            || applied_engine.is_some()
+            || applied_fs.is_some()
+            || api_keys_changed;
+        if !secret_events.is_empty() && !mutated_via_triggers {
+            bump_revision(&mut tx, "settings_secret").await?;
         }
 
         let revision = fetch_revision(tx.as_mut()).await?;
@@ -558,13 +748,19 @@ struct ActiveTokenRow {
     expires_at: DateTime<Utc>,
 }
 
+#[derive(FromRow)]
+struct ApiKeyAuthRow {
+    hash: String,
+    enabled: bool,
+}
+
 async fn fetch_app_profile<'e, E>(executor: E) -> Result<AppProfile>
 where
     E: Executor<'e, Database = Postgres>,
 {
     let row = sqlx::query_as::<_, AppProfileRow>(
         r"
-        SELECT id, instance_name, mode, version, http_port, bind_addr, telemetry, features, immutable_keys
+        SELECT id, instance_name, mode, version, http_port, bind_addr::text AS bind_addr, telemetry, features, immutable_keys
         FROM app_profile
         WHERE id = $1
         ",
@@ -582,10 +778,7 @@ where
         mode,
         version: row.version,
         http_port: row.http_port,
-        bind_addr: row
-            .bind_addr
-            .parse::<IpAddr>()
-            .context("invalid bind_addr stored in app_profile")?,
+        bind_addr: parse_bind_addr(&row.bind_addr)?,
         telemetry: row.telemetry,
         features: row.features,
         immutable_keys: row.immutable_keys,
@@ -1697,6 +1890,74 @@ async fn apply_api_key_patches(
     Ok(changed)
 }
 
+async fn apply_secret_patches(
+    tx: &mut Transaction<'_, Postgres>,
+    patches: &[SecretPatch],
+    actor: &str,
+    immutable_keys: &HashSet<String>,
+) -> Result<Vec<Value>> {
+    let mut events = Vec::new();
+    for patch in patches {
+        match patch {
+            SecretPatch::Set { name, value } => {
+                ensure_mutable(immutable_keys, "settings_secret", name)?;
+                let ciphertext = hash_secret(value)?;
+                sqlx::query(
+                    r"
+                    INSERT INTO settings_secret (name, ciphertext, created_by, created_at)
+                    VALUES ($1, $2, $3, now())
+                    ON CONFLICT (name)
+                    DO UPDATE SET ciphertext = EXCLUDED.ciphertext,
+                                   created_by = EXCLUDED.created_by,
+                                   created_at = now()
+                    ",
+                )
+                .bind(name)
+                .bind(ciphertext.into_bytes())
+                .bind(actor)
+                .execute(tx.as_mut())
+                .await?;
+                events.push(json!({ "op": "set", "name": name }));
+            }
+            SecretPatch::Delete { name } => {
+                ensure_mutable(immutable_keys, "settings_secret", name)?;
+                let result = sqlx::query("DELETE FROM settings_secret WHERE name = $1")
+                    .bind(name)
+                    .execute(tx.as_mut())
+                    .await?;
+                if result.rows_affected() > 0 {
+                    events.push(json!({ "op": "delete", "name": name }));
+                }
+            }
+        }
+    }
+    Ok(events)
+}
+
+async fn bump_revision(tx: &mut Transaction<'_, Postgres>, source_table: &str) -> Result<i64> {
+    let revision: i64 = sqlx::query(
+        r"
+        UPDATE settings_revision
+        SET revision = revision + 1,
+            updated_at = now()
+        WHERE id = 1
+        RETURNING revision
+        ",
+    )
+    .map(|row: PgRow| row.get::<i64, _>("revision"))
+    .fetch_one(tx.as_mut())
+    .await?;
+
+    let payload = format!("{source_table}:{revision}:UPDATE");
+    sqlx::query("SELECT pg_notify($1, $2)")
+        .bind(SETTINGS_CHANNEL)
+        .bind(&payload)
+        .execute(tx.as_mut())
+        .await?;
+
+    Ok(revision)
+}
+
 async fn cleanup_expired_setup_tokens(tx: &mut Transaction<'_, Postgres>) -> Result<()> {
     sqlx::query("DELETE FROM setup_tokens WHERE consumed_at IS NULL AND expires_at <= now()")
         .execute(tx.as_mut())
@@ -1790,4 +2051,17 @@ fn ensure_mutable(
 
 fn parse_uuid(value: &str) -> Result<Uuid> {
     Uuid::parse_str(value).with_context(|| format!("invalid UUID literal '{value}'"))
+}
+
+fn parse_bind_addr(value: &str) -> Result<IpAddr> {
+    if let Ok(addr) = value.parse::<IpAddr>() {
+        return Ok(addr);
+    }
+
+    let Some(host) = value.split('/').next() else {
+        return Err(anyhow!("invalid bind address '{value}'"));
+    };
+
+    host.parse::<IpAddr>()
+        .with_context(|| format!("invalid bind address '{value}'"))
 }

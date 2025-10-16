@@ -8,4 +8,10 @@ publish = false
 anyhow.workspace = true
 serde.workspace = true
 tracing.workspace = true
+uuid.workspace = true
 revaer-config = { path = "../revaer-config" }
+revaer-events = { path = "../revaer-events" }
+tokio.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true

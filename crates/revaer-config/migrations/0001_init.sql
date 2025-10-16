@@ -98,7 +98,7 @@ ON CONFLICT (id) DO NOTHING;
 CREATE TABLE IF NOT EXISTS auth_api_keys (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     key_id TEXT NOT NULL UNIQUE,
-    hash BYTEA NOT NULL,
+    hash TEXT NOT NULL,
     label TEXT,
     enabled BOOLEAN NOT NULL DEFAULT TRUE,
     rate_limit JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -137,11 +137,11 @@ CREATE TABLE IF NOT EXISTS settings_secret (
 
 CREATE TABLE IF NOT EXISTS setup_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    token_hash BYTEA NOT NULL,
+    token_hash TEXT NOT NULL,
     issued_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at TIMESTAMPTZ NOT NULL,
     consumed_at TIMESTAMPTZ,
-    issued_by TEXT,
+    issued_by TEXT
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS setup_tokens_active_unique
