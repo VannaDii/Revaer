@@ -4,14 +4,14 @@ use std::path::{Path, PathBuf};
 use std::process;
 use std::time::Duration;
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use clap::{Args, Parser, Subcommand};
-use rand::distr::Alphanumeric;
 use rand::Rng;
+use rand::distr::Alphanumeric;
 use reqwest::{Client, StatusCode, Url};
 use revaer_config::{ApiKeyPatch, AppMode, ConfigSnapshot, SecretPatch, SettingsChangeset};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use uuid::Uuid;
 
 const HEADER_SETUP_TOKEN: &str = "x-revaer-setup-token";
@@ -152,8 +152,10 @@ enum TorrentCommand {
 
 #[derive(Args)]
 struct TorrentAddArgs {
-    #[arg(long, help = "Human-readable torrent name")]
-    name: String,
+    #[arg(help = "Magnet URI or path to a .torrent file")]
+    source: String,
+    #[arg(long, help = "Optional human-readable torrent name")]
+    name: Option<String>,
     #[arg(long, help = "Optional torrent identifier (defaults to random UUID)")]
     id: Option<Uuid>,
 }
@@ -364,9 +366,21 @@ async fn handle_torrent_add(ctx: &AppContext, args: TorrentAddArgs) -> CliResult
         CliError::validation("API key is required (pass --api-key or set REVAER_API_KEY)")
     })?;
 
+    let magnet = args.source.trim();
+    if magnet.is_empty() {
+        return Err(CliError::validation("magnet URI must not be empty"));
+    }
+
+    if !magnet.starts_with("magnet:") {
+        return Err(CliError::validation(
+            "only magnet URIs are supported; .torrent ingestion is not yet implemented",
+        ));
+    }
+
     let id = args.id.unwrap_or_else(Uuid::new_v4);
     let payload = json!({
         "id": id,
+        "magnet": magnet,
         "name": args.name,
     });
 
@@ -713,6 +727,7 @@ mod tests {
     async fn torrent_add_issues_post_request() {
         let server = MockServer::start_async().await;
         let id = Uuid::new_v4();
+        let magnet = "magnet:?xt=urn:btih:demo";
         let name = "demo.torrent";
 
         let mock = server.mock(|when, then| {
@@ -721,6 +736,7 @@ mod tests {
                 .header(HEADER_API_KEY, "key:secret")
                 .json_body(json!({
                     "id": id,
+                    "magnet": magnet,
                     "name": name,
                 }));
             then.status(202);
@@ -728,7 +744,8 @@ mod tests {
 
         let ctx = context_for(&server);
         let args = TorrentAddArgs {
-            name: name.to_string(),
+            source: magnet.to_string(),
+            name: Some(name.to_string()),
             id: Some(id),
         };
 

@@ -1,6 +1,6 @@
 //! Filesystem post-processing placeholder crate.
 
-use anyhow::{ensure, Result};
+use anyhow::{Result, ensure};
 use revaer_config::FsPolicy;
 use revaer_events::{Event, EventBus};
 use tracing::info;
@@ -62,7 +62,7 @@ mod tests {
     use super::*;
     use revaer_events::{Event, EventBus};
     use serde_json::json;
-    use tokio::time::{timeout, Duration};
+    use tokio::time::{Duration, timeout};
 
     fn policy(root: &str) -> FsPolicy {
         FsPolicy {

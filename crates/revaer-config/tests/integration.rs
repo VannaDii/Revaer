@@ -83,7 +83,9 @@ fn configure_docker_host() {
     }
 
     if Path::new("/var/run/docker.sock").exists() {
-        std::env::set_var("DOCKER_HOST", "unix:///var/run/docker.sock");
+        unsafe {
+            std::env::set_var("DOCKER_HOST", "unix:///var/run/docker.sock");
+        }
         return;
     }
 
@@ -92,7 +94,9 @@ fn configure_docker_host() {
         path.push(".docker/run/docker.sock");
         if path.exists() {
             let host = format!("unix://{}", path.display());
-            std::env::set_var("DOCKER_HOST", host);
+            unsafe {
+                std::env::set_var("DOCKER_HOST", host);
+            }
         }
     }
 }

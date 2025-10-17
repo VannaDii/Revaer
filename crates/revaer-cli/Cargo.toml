@@ -1,7 +1,7 @@
 [package]
 name = "revaer-cli"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 publish = false
 
 [dependencies]
@@ -19,5 +19,5 @@ url = "2.5"
 uuid.workspace = true
 
 [dev-dependencies]
-httpmock = "0.7"
+httpmock = "0.8"
 chrono.workspace = true

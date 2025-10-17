@@ -9,7 +9,8 @@ use revaer_config::{EngineProfile, FsPolicy};
 use revaer_events::{Event, EventBus, TorrentState};
 use revaer_fsops::FsOpsService;
 use revaer_torrent_core::{
-    TorrentDescriptor, TorrentEngine, TorrentInspector, TorrentProgress, TorrentStatus,
+    AddTorrent, FilePriority, FileSelectionUpdate, RemoveTorrent, TorrentEngine, TorrentFile,
+    TorrentInspector, TorrentProgress, TorrentRateLimit, TorrentRates, TorrentStatus,
     TorrentWorkflow,
 };
 use tokio::{sync::RwLock, task::JoinHandle};
@@ -76,8 +77,8 @@ where
     }
 
     /// Delegate torrent admission to the engine.
-    pub async fn add_torrent(&self, descriptor: TorrentDescriptor) -> Result<()> {
-        self.engine.add_torrent(descriptor).await
+    pub async fn add_torrent(&self, request: AddTorrent) -> Result<()> {
+        self.engine.add_torrent(request).await
     }
 
     /// Apply the filesystem policy to a completed torrent.
@@ -126,8 +127,8 @@ where
     }
 
     /// Remove the torrent from the engine.
-    pub async fn remove_torrent(&self, id: Uuid) -> Result<()> {
-        self.engine.remove_torrent(id).await
+    pub async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> Result<()> {
+        self.engine.remove_torrent(id, options).await
     }
 }
 
@@ -160,12 +161,44 @@ impl<E> TorrentWorkflow for TorrentOrchestrator<E>
 where
     E: TorrentEngine + EngineConfigurator + 'static,
 {
-    async fn add_torrent(&self, descriptor: TorrentDescriptor) -> anyhow::Result<()> {
-        TorrentOrchestrator::add_torrent(self, descriptor).await
+    async fn add_torrent(&self, request: AddTorrent) -> anyhow::Result<()> {
+        TorrentOrchestrator::add_torrent(self, request).await
     }
 
-    async fn remove_torrent(&self, id: Uuid) -> anyhow::Result<()> {
-        TorrentOrchestrator::remove_torrent(self, id).await
+    async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> anyhow::Result<()> {
+        TorrentOrchestrator::remove_torrent(self, id, options).await
+    }
+
+    async fn pause_torrent(&self, id: Uuid) -> anyhow::Result<()> {
+        self.engine.pause_torrent(id).await
+    }
+
+    async fn resume_torrent(&self, id: Uuid) -> anyhow::Result<()> {
+        self.engine.resume_torrent(id).await
+    }
+
+    async fn set_sequential(&self, id: Uuid, sequential: bool) -> anyhow::Result<()> {
+        self.engine.set_sequential(id, sequential).await
+    }
+
+    async fn update_limits(
+        &self,
+        id: Option<Uuid>,
+        limits: TorrentRateLimit,
+    ) -> anyhow::Result<()> {
+        self.engine.update_limits(id, limits).await
+    }
+
+    async fn update_selection(&self, id: Uuid, rules: FileSelectionUpdate) -> anyhow::Result<()> {
+        self.engine.update_selection(id, rules).await
+    }
+
+    async fn reannounce(&self, id: Uuid) -> anyhow::Result<()> {
+        self.engine.reannounce(id).await
+    }
+
+    async fn recheck(&self, id: Uuid) -> anyhow::Result<()> {
+        self.engine.recheck(id).await
     }
 }
 
@@ -195,6 +228,7 @@ impl TorrentCatalog {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
     async fn observe(&self, event: &Event) {
         let mut guard = self.entries.write().await;
         match event {
@@ -206,13 +240,30 @@ impl TorrentCatalog {
                 entry.state = TorrentState::Queued;
                 entry.progress = TorrentProgress::default();
                 entry.library_path = None;
+                entry.rates = TorrentRates::default();
+                entry.added_at = Utc::now();
                 entry.last_updated = Utc::now();
             }
             Event::FilesDiscovered { torrent_id, files } => {
                 let entry = guard
                     .entry(*torrent_id)
                     .or_insert_with(|| Self::blank_status(*torrent_id));
-                entry.files = Some(files.clone());
+                let mapped: Vec<TorrentFile> = files
+                    .iter()
+                    .enumerate()
+                    .map(|(index, file)| {
+                        let index_u32 = u32::try_from(index).unwrap_or(u32::MAX);
+                        TorrentFile {
+                            index: index_u32,
+                            path: file.path.clone(),
+                            size_bytes: file.size_bytes,
+                            bytes_completed: 0,
+                            priority: FilePriority::Normal,
+                            selected: true,
+                        }
+                    })
+                    .collect();
+                entry.files = Some(mapped);
                 entry.last_updated = Utc::now();
             }
             Event::Progress {
@@ -225,6 +276,16 @@ impl TorrentCatalog {
                     .or_insert_with(|| Self::blank_status(*torrent_id));
                 entry.progress.bytes_downloaded = *bytes_downloaded;
                 entry.progress.bytes_total = *bytes_total;
+                entry.progress.eta_seconds = None;
+                entry.rates.download_bps = 0;
+                entry.rates.upload_bps = 0;
+                #[allow(clippy::cast_precision_loss)]
+                let ratio = if *bytes_total == 0 {
+                    0.0
+                } else {
+                    (*bytes_downloaded as f64) / (*bytes_total as f64)
+                };
+                entry.rates.ratio = ratio;
                 entry.last_updated = Utc::now();
             }
             Event::StateChanged { torrent_id, state } => {
@@ -243,6 +304,7 @@ impl TorrentCatalog {
                     .or_insert_with(|| Self::blank_status(*torrent_id));
                 entry.state = TorrentState::Completed;
                 entry.library_path = Some(library_path.clone());
+                entry.completed_at = Some(Utc::now());
                 entry.last_updated = Utc::now();
             }
             Event::FsopsFailed {
@@ -286,14 +348,20 @@ impl TorrentCatalog {
     }
 
     fn blank_status(id: Uuid) -> TorrentStatus {
+        let now = Utc::now();
         TorrentStatus {
             id,
             name: None,
             state: TorrentState::Queued,
             progress: TorrentProgress::default(),
+            rates: TorrentRates::default(),
             files: None,
             library_path: None,
-            last_updated: Utc::now(),
+            download_dir: None,
+            sequential: false,
+            added_at: now,
+            completed_at: None,
+            last_updated: now,
         }
     }
 
@@ -318,11 +386,11 @@ impl TorrentCatalog {
 mod tests {
     use super::*;
     use revaer_events::{Event, EventBus};
-    use revaer_torrent_core::TorrentDescriptor;
+    use revaer_torrent_core::{AddTorrent, AddTorrentOptions, TorrentSource};
     use serde_json::json;
     use tokio::{
         task::yield_now,
-        time::{timeout, Duration},
+        time::{Duration, timeout},
     };
 
     fn sample_fs_policy(library_root: &str) -> FsPolicy {
@@ -374,9 +442,13 @@ mod tests {
 
         let mut stream = bus.subscribe(None);
         orchestrator
-            .add_torrent(TorrentDescriptor {
+            .add_torrent(AddTorrent {
                 id: Uuid::new_v4(),
-                name: "demo".to_string(),
+                source: TorrentSource::magnet("magnet:?xt=urn:btih:demo"),
+                options: AddTorrentOptions {
+                    name_hint: Some("demo".to_string()),
+                    ..AddTorrentOptions::default()
+                },
             })
             .await?;
 
@@ -489,6 +561,7 @@ mod tests {
 mod engine_refresh_tests {
     use super::*;
     use revaer_events::EventBus;
+    use revaer_torrent_core::{AddTorrent, RemoveTorrent};
     use serde_json::json;
     use tokio::sync::RwLock;
 
@@ -499,11 +572,11 @@ mod engine_refresh_tests {
 
     #[async_trait]
     impl TorrentEngine for RecordingEngine {
-        async fn add_torrent(&self, _descriptor: TorrentDescriptor) -> anyhow::Result<()> {
+        async fn add_torrent(&self, _request: AddTorrent) -> anyhow::Result<()> {
             Ok(())
         }
 
-        async fn remove_torrent(&self, _id: Uuid) -> anyhow::Result<()> {
+        async fn remove_torrent(&self, _id: Uuid, _options: RemoveTorrent) -> anyhow::Result<()> {
             Ok(())
         }
     }

@@ -10,35 +10,36 @@ use std::time::Duration;
 use anyhow::Result;
 use async_stream::stream;
 use axum::{
+    Json, Router,
     body::Body,
     extract::{Extension, MatchedPath, Path as AxumPath, State},
-    http::{header::CONTENT_TYPE, HeaderMap, Request, StatusCode},
+    http::{HeaderMap, Request, StatusCode, header::CONTENT_TYPE},
     middleware::{self, Next},
     response::{
-        sse::{self, Sse},
         IntoResponse, Response,
+        sse::{self, Sse},
     },
     routing::{get, patch, post},
-    Json, Router,
 };
 use chrono::{DateTime, Utc};
 use futures_util::StreamExt;
 use revaer_config::{
     AppMode, ConfigError, ConfigService, ConfigSnapshot, SettingsChangeset, SettingsFacade,
 };
-use revaer_events::{
-    DiscoveredFile, Event as CoreEvent, EventBus, EventEnvelope, EventId, TorrentState,
-};
+use revaer_events::{Event as CoreEvent, EventBus, EventEnvelope, EventId, TorrentState};
 use revaer_telemetry::{
-    build_sha, record_app_mode, set_request_context, with_request_context, Metrics,
+    Metrics, build_sha, record_app_mode, set_request_context, with_request_context,
 };
-use revaer_torrent_core::{TorrentDescriptor, TorrentInspector, TorrentStatus, TorrentWorkflow};
+use revaer_torrent_core::{
+    AddTorrent, AddTorrentOptions, FilePriority, FileSelectionRules, RemoveTorrent,
+    TorrentInspector, TorrentRateLimit, TorrentSource, TorrentStatus, TorrentWorkflow,
+};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use tokio::net::TcpListener;
-use tower::{layer::Layer, Service, ServiceBuilder};
+use tower::{Service, ServiceBuilder, layer::Layer};
 use tower_http::trace::TraceLayer;
-use tracing::{error, info, warn, Span};
+use tracing::{Span, error, info, warn};
 use uuid::Uuid;
 
 const HEADER_SETUP_TOKEN: &str = "x-revaer-setup-token";
@@ -236,6 +237,8 @@ struct ProblemDetails {
     status: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
     detail: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    invalid_params: Option<Vec<InvalidParam>>,
 }
 
 #[derive(Debug)]
@@ -244,6 +247,7 @@ struct ApiError {
     kind: &'static str,
     title: &'static str,
     detail: Option<String>,
+    invalid_params: Option<Vec<InvalidParam>>,
 }
 
 impl ApiError {
@@ -253,11 +257,17 @@ impl ApiError {
             kind,
             title,
             detail: None,
+            invalid_params: None,
         }
     }
 
     fn with_detail(mut self, detail: impl Into<String>) -> Self {
         self.detail = Some(detail.into());
+        self
+    }
+
+    fn with_invalid_params(mut self, params: Vec<InvalidParam>) -> Self {
+        self.invalid_params = Some(params);
         self
     }
 
@@ -331,9 +341,16 @@ impl IntoResponse for ApiError {
             title: self.title.to_string(),
             status: self.status.as_u16(),
             detail: self.detail,
+            invalid_params: self.invalid_params,
         };
         (self.status, Json(body)).into_response()
     }
+}
+
+#[derive(Clone, Debug, Serialize)]
+struct InvalidParam {
+    pointer: String,
+    message: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -366,6 +383,24 @@ struct TorrentProgressResponse {
     bytes_downloaded: u64,
     bytes_total: u64,
     percent_complete: f64,
+    eta_seconds: Option<u64>,
+}
+
+#[derive(Serialize)]
+struct TorrentRatesResponse {
+    download_bps: u64,
+    upload_bps: u64,
+    ratio: f64,
+}
+
+#[derive(Serialize)]
+struct TorrentFileResponse {
+    index: u32,
+    path: String,
+    size_bytes: u64,
+    bytes_completed: u64,
+    priority: String,
+    selected: bool,
 }
 
 #[derive(Serialize)]
@@ -375,8 +410,13 @@ struct TorrentStatusResponse {
     state: String,
     failure_message: Option<String>,
     progress: TorrentProgressResponse,
-    files: Option<Vec<DiscoveredFile>>,
+    rates: TorrentRatesResponse,
+    files: Option<Vec<TorrentFileResponse>>,
     library_path: Option<String>,
+    download_dir: Option<String>,
+    sequential: bool,
+    added_at: DateTime<Utc>,
+    completed_at: Option<DateTime<Utc>>,
     last_updated: DateTime<Utc>,
 }
 
@@ -392,6 +432,25 @@ impl From<TorrentStatus> for TorrentStatusResponse {
             TorrentState::Stopped => ("stopped".to_string(), None),
         };
 
+        let files = status.files.map(|items| {
+            items
+                .into_iter()
+                .map(|file| TorrentFileResponse {
+                    index: file.index,
+                    path: file.path,
+                    size_bytes: file.size_bytes,
+                    bytes_completed: file.bytes_completed,
+                    priority: match file.priority {
+                        FilePriority::Skip => "skip".to_string(),
+                        FilePriority::Low => "low".to_string(),
+                        FilePriority::Normal => "normal".to_string(),
+                        FilePriority::High => "high".to_string(),
+                    },
+                    selected: file.selected,
+                })
+                .collect()
+        });
+
         Self {
             id: status.id,
             name: status.name,
@@ -401,18 +460,49 @@ impl From<TorrentStatus> for TorrentStatusResponse {
                 bytes_downloaded: status.progress.bytes_downloaded,
                 bytes_total: status.progress.bytes_total,
                 percent_complete: status.progress.percent_complete(),
+                eta_seconds: status.progress.eta_seconds,
             },
-            files: status.files,
+            rates: TorrentRatesResponse {
+                download_bps: status.rates.download_bps,
+                upload_bps: status.rates.upload_bps,
+                ratio: status.rates.ratio,
+            },
+            files,
             library_path: status.library_path,
+            download_dir: status.download_dir,
+            sequential: status.sequential,
+            added_at: status.added_at,
+            completed_at: status.completed_at,
             last_updated: status.last_updated,
         }
     }
 }
 
-#[derive(Clone, Deserialize)]
+#[derive(Clone, Deserialize, Default)]
 struct TorrentCreateRequest {
     id: Uuid,
-    name: String,
+    #[serde(default)]
+    magnet: Option<String>,
+    #[serde(default)]
+    metainfo: Option<String>,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    sequential: Option<bool>,
+    #[serde(default)]
+    include: Vec<String>,
+    #[serde(default)]
+    exclude: Vec<String>,
+    #[serde(default)]
+    skip_fluff: bool,
+    #[serde(default)]
+    download_dir: Option<String>,
+    #[serde(default)]
+    tags: Vec<String>,
+    #[serde(default)]
+    max_download_bps: Option<u64>,
+    #[serde(default)]
+    max_upload_bps: Option<u64>,
 }
 
 impl ApiServer {
@@ -595,7 +685,7 @@ async fn setup_complete(
         AuthContext::ApiKey { .. } => {
             return Err(ApiError::internal(
                 "invalid authentication context for setup completion",
-            ))
+            ));
         }
     };
 
@@ -656,7 +746,7 @@ async fn settings_patch(
         AuthContext::SetupToken(_) => {
             return Err(ApiError::internal(
                 "invalid authentication context for settings patch",
-            ))
+            ));
         }
     };
 
@@ -688,12 +778,13 @@ async fn create_torrent(
         AuthContext::SetupToken(_) => {
             return Err(ApiError::unauthorized(
                 "setup authentication context cannot manage torrents",
-            ))
+            ));
         }
     }
 
     dispatch_torrent_add(state.torrent.as_ref(), &request).await?;
-    info!(torrent_id = %request.id, torrent_name = %request.name, "torrent submission requested");
+    let torrent_name = request.name.as_deref().unwrap_or("<unspecified>");
+    info!(torrent_id = %request.id, torrent_name = %torrent_name, "torrent submission requested");
     state.update_torrent_metrics().await;
 
     Ok(StatusCode::ACCEPTED)
@@ -709,7 +800,7 @@ async fn delete_torrent(
         AuthContext::SetupToken(_) => {
             return Err(ApiError::unauthorized(
                 "setup authentication context cannot manage torrents",
-            ))
+            ));
         }
     }
 
@@ -812,7 +903,7 @@ async fn stream_events(
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.parse::<EventId>().ok());
 
-    let stream = event_sse_stream(&state.events, last_id);
+    let stream = event_sse_stream(state.events.clone(), last_id);
 
     Sse::new(stream).keep_alive(
         sse::KeepAlive::new()
@@ -843,11 +934,11 @@ async fn openapi_document_handler(State(state): State<Arc<ApiState>>) -> Json<Va
 }
 
 fn event_replay_stream(
-    bus: &EventBus,
+    bus: EventBus,
     since: Option<EventId>,
 ) -> impl futures_core::Stream<Item = EventEnvelope> + Send {
-    let mut stream = bus.subscribe(since);
     stream! {
+        let mut stream = bus.subscribe(since);
         while let Some(envelope) = stream.next().await {
             yield envelope;
         }
@@ -855,7 +946,7 @@ fn event_replay_stream(
 }
 
 fn event_sse_stream(
-    bus: &EventBus,
+    bus: EventBus,
     since: Option<EventId>,
 ) -> impl futures_core::Stream<Item = Result<sse::Event, Infallible>> + Send {
     event_replay_stream(bus, since).filter_map(|envelope| async move {
@@ -1285,26 +1376,50 @@ fn build_openapi_document() -> Value {
                     "type": "object",
                     "properties": {
                         "id": { "type": "string", "format": "uuid" },
-                        "name": { "type": "string" }
+                        "magnet": { "type": "string" },
+                        "metainfo": { "type": ["string", "null"], "format": "byte" },
+                        "name": { "type": ["string", "null"] },
+                        "sequential": { "type": ["boolean", "null"] },
+                        "include": { "type": "array", "items": { "type": "string" } },
+                        "exclude": { "type": "array", "items": { "type": "string" } },
+                        "skip_fluff": { "type": "boolean" },
+                        "download_dir": { "type": ["string", "null"] },
+                        "tags": { "type": "array", "items": { "type": "string" } },
+                        "max_download_bps": { "type": ["integer", "null"], "format": "int64" },
+                        "max_upload_bps": { "type": ["integer", "null"], "format": "int64" }
                     },
-                    "required": ["id", "name"]
-                },
-                "DiscoveredFile": {
-                    "type": "object",
-                    "properties": {
-                        "path": { "type": "string" },
-                        "size_bytes": { "type": "integer", "format": "int64" }
-                    },
-                    "required": ["path", "size_bytes"]
+                    "required": ["id", "magnet"]
                 },
                 "TorrentProgressResponse": {
                     "type": "object",
                     "properties": {
                         "bytes_downloaded": { "type": "integer", "format": "int64" },
                         "bytes_total": { "type": "integer", "format": "int64" },
-                        "percent_complete": { "type": "number", "format": "float" }
+                        "percent_complete": { "type": "number", "format": "float" },
+                        "eta_seconds": { "type": ["integer", "null"], "format": "int64" }
                     },
                     "required": ["bytes_downloaded", "bytes_total", "percent_complete"]
+                },
+                "TorrentRatesResponse": {
+                    "type": "object",
+                    "properties": {
+                        "download_bps": { "type": "integer", "format": "int64" },
+                        "upload_bps": { "type": "integer", "format": "int64" },
+                        "ratio": { "type": "number", "format": "float" }
+                    },
+                    "required": ["download_bps", "upload_bps", "ratio"]
+                },
+                "TorrentFileResponse": {
+                    "type": "object",
+                    "properties": {
+                        "index": { "type": "integer", "format": "int32" },
+                        "path": { "type": "string" },
+                        "size_bytes": { "type": "integer", "format": "int64" },
+                        "bytes_completed": { "type": "integer", "format": "int64" },
+                        "priority": { "type": "string" },
+                        "selected": { "type": "boolean" }
+                    },
+                    "required": ["index", "path", "size_bytes", "bytes_completed", "priority", "selected"]
                 },
                 "TorrentStatusResponse": {
                     "type": "object",
@@ -1314,14 +1429,27 @@ fn build_openapi_document() -> Value {
                         "state": { "type": "string" },
                         "failure_message": { "type": ["string", "null"] },
                         "progress": { "$ref": "#/components/schemas/TorrentProgressResponse" },
+                        "rates": { "$ref": "#/components/schemas/TorrentRatesResponse" },
                         "files": {
                             "type": ["array", "null"],
-                            "items": { "$ref": "#/components/schemas/DiscoveredFile" }
+                            "items": { "$ref": "#/components/schemas/TorrentFileResponse" }
                         },
                         "library_path": { "type": ["string", "null"] },
+                        "download_dir": { "type": ["string", "null"] },
+                        "sequential": { "type": "boolean" },
+                        "added_at": { "type": "string", "format": "date-time" },
+                        "completed_at": { "type": ["string", "null"], "format": "date-time" },
                         "last_updated": { "type": "string", "format": "date-time" }
                     },
-                    "required": ["id", "state", "progress", "last_updated"]
+                    "required": [
+                        "id",
+                        "state",
+                        "progress",
+                        "rates",
+                        "sequential",
+                        "added_at",
+                        "last_updated"
+                    ]
                 }
             }
         }
@@ -1418,13 +1546,56 @@ fn map_config_error(err: anyhow::Error, context: &'static str) -> ApiError {
     match err.downcast::<ConfigError>() {
         Ok(config_err) => {
             warn!(error = %config_err, "{context}");
-            ApiError::config_invalid(config_err.to_string())
+            let mut api_error = ApiError::config_invalid(config_err.to_string());
+            let params = invalid_params_for_config_error(&config_err);
+            if !params.is_empty() {
+                api_error = api_error.with_invalid_params(params);
+            }
+            api_error
         }
         Err(other) => {
             error!(error = %other, "{context}");
             ApiError::internal(context)
         }
     }
+}
+
+fn invalid_params_for_config_error(error: &ConfigError) -> Vec<InvalidParam> {
+    match error {
+        ConfigError::ImmutableField { section, field } => vec![InvalidParam {
+            pointer: pointer_for(section, field),
+            message: format!("field '{field}' in '{section}' is immutable"),
+        }],
+        ConfigError::InvalidField {
+            section,
+            field,
+            message,
+        } => vec![InvalidParam {
+            pointer: pointer_for(section, field),
+            message: message.clone(),
+        }],
+        ConfigError::UnknownField { section, field } => vec![InvalidParam {
+            pointer: pointer_for(section, field),
+            message: format!("unknown field '{field}' in '{section}'"),
+        }],
+    }
+}
+
+fn pointer_for(section: &str, field: &str) -> String {
+    let mut pointer = String::new();
+    pointer.push('/');
+    pointer.push_str(&encode_pointer_segment(section));
+
+    if field != "<root>" && !field.is_empty() {
+        pointer.push('/');
+        pointer.push_str(&encode_pointer_segment(field));
+    }
+
+    pointer
+}
+
+fn encode_pointer_segment(segment: &str) -> String {
+    segment.replace('~', "~0").replace('/', "~1")
 }
 
 async fn dispatch_torrent_add(
@@ -1434,12 +1605,11 @@ async fn dispatch_torrent_add(
     let handles =
         handles.ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
 
+    let add_request = build_add_torrent(request)?;
+
     handles
         .workflow()
-        .add_torrent(TorrentDescriptor {
-            id: request.id,
-            name: request.name.clone(),
-        })
+        .add_torrent(add_request)
         .await
         .map_err(|err| {
             error!(error = %err, "failed to add torrent through workflow");
@@ -1454,9 +1624,57 @@ async fn dispatch_torrent_remove(
     let handles =
         handles.ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
 
-    handles.workflow().remove_torrent(id).await.map_err(|err| {
-        error!(error = %err, "failed to remove torrent through workflow");
-        ApiError::internal("failed to remove torrent")
+    handles
+        .workflow()
+        .remove_torrent(id, RemoveTorrent::default())
+        .await
+        .map_err(|err| {
+            error!(error = %err, "failed to remove torrent through workflow");
+            ApiError::internal("failed to remove torrent")
+        })
+}
+
+fn build_add_torrent(request: &TorrentCreateRequest) -> Result<AddTorrent, ApiError> {
+    let magnet = request
+        .magnet
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+
+    let source = if let Some(magnet) = magnet {
+        TorrentSource::magnet(magnet.to_string())
+    } else if request.metainfo.as_ref().is_some() {
+        return Err(ApiError::bad_request(
+            "metainfo uploads are not yet supported via JSON; provide a magnet URI",
+        ));
+    } else {
+        return Err(ApiError::bad_request(
+            "magnet URI is required until metainfo uploads are supported",
+        ));
+    };
+
+    let file_rules = FileSelectionRules {
+        include: request.include.clone(),
+        exclude: request.exclude.clone(),
+        skip_fluff: request.skip_fluff,
+    };
+
+    let options = AddTorrentOptions {
+        name_hint: request.name.clone(),
+        download_dir: request.download_dir.clone(),
+        sequential: request.sequential,
+        file_rules,
+        rate_limit: TorrentRateLimit {
+            download_bps: request.max_download_bps,
+            upload_bps: request.max_upload_bps,
+        },
+        tags: request.tags.clone(),
+    };
+
+    Ok(AddTorrent {
+        id: request.id,
+        source,
+        options,
     })
 }
 
@@ -1466,13 +1684,15 @@ mod tests {
     use async_trait::async_trait;
     use axum::http::StatusCode;
     use chrono::Utc;
-    use futures_util::{pin_mut, StreamExt};
+    use futures_util::{StreamExt, pin_mut};
+    use revaer_config::ConfigError;
     use revaer_torrent_core::{
-        TorrentDescriptor, TorrentInspector, TorrentProgress, TorrentStatus, TorrentWorkflow,
+        AddTorrent, RemoveTorrent, TorrentInspector, TorrentProgress, TorrentRates, TorrentSource,
+        TorrentStatus, TorrentWorkflow,
     };
     use std::sync::Arc;
-    use tokio::sync::{oneshot, Mutex};
-    use tokio::time::{sleep, timeout, Duration};
+    use tokio::sync::{Mutex, oneshot};
+    use tokio::time::{Duration, sleep, timeout};
     use uuid::Uuid;
 
     #[tokio::test]
@@ -1490,7 +1710,7 @@ mod tests {
             library_path: "/library/b".to_string(),
         });
 
-        let stream = event_replay_stream(&bus, Some(first_id));
+        let stream = event_replay_stream(bus.clone(), Some(first_id));
         pin_mut!(stream);
         let envelope = stream.next().await.expect("expected event");
 
@@ -1513,7 +1733,7 @@ mod tests {
                 name: "example".to_string(),
             });
         });
-        let stream = event_sse_stream(&bus, None);
+        let stream = event_sse_stream(bus.clone(), None);
         pin_mut!(stream);
         match timeout(Duration::from_millis(200), stream.next())
             .await
@@ -1525,8 +1745,47 @@ mod tests {
     }
 
     #[test]
+    fn map_config_error_exposes_pointer_for_immutable_field() {
+        let err = ConfigError::ImmutableField {
+            section: "app_profile".to_string(),
+            field: "instance_name".to_string(),
+        };
+        let api_error = map_config_error(err.into(), "failed");
+        assert_eq!(api_error.status, StatusCode::UNPROCESSABLE_ENTITY);
+        let params = api_error
+            .invalid_params
+            .expect("immutable field should set invalid params");
+        assert_eq!(params.len(), 1);
+        assert_eq!(params[0].pointer, "/app_profile/instance_name");
+        assert!(
+            params[0].message.contains("immutable"),
+            "message should mention immutability"
+        );
+    }
+
+    #[test]
+    fn map_config_error_handles_root_pointer() {
+        let err = ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "<root>".to_string(),
+            message: "changeset must be a JSON object".to_string(),
+        };
+        let api_error = map_config_error(err.into(), "failed");
+        let params = api_error
+            .invalid_params
+            .expect("invalid field should set invalid params");
+        assert_eq!(params.len(), 1);
+        assert_eq!(params[0].pointer, "/engine_profile");
+        assert!(
+            params[0].message.contains("must be a JSON object"),
+            "message should echo validation failure"
+        );
+    }
+
+    #[test]
     fn torrent_status_response_formats_state() {
         let id = Uuid::new_v4();
+        let now = Utc::now();
         let status = TorrentStatus {
             id,
             name: Some("ubuntu.iso".to_string()),
@@ -1536,10 +1795,20 @@ mod tests {
             progress: TorrentProgress {
                 bytes_downloaded: 512,
                 bytes_total: 1024,
+                eta_seconds: Some(90),
+            },
+            rates: TorrentRates {
+                download_bps: 2_048,
+                upload_bps: 512,
+                ratio: 0.5,
             },
             files: None,
             library_path: None,
-            last_updated: Utc::now(),
+            download_dir: None,
+            sequential: false,
+            added_at: now,
+            completed_at: None,
+            last_updated: now,
         };
 
         let response: TorrentStatusResponse = status.into();
@@ -1552,6 +1821,12 @@ mod tests {
         assert_eq!(response.progress.bytes_downloaded, 512);
         assert_eq!(response.progress.bytes_total, 1024);
         assert!((response.progress.percent_complete - 50.0).abs() < f64::EPSILON);
+        assert_eq!(response.progress.eta_seconds, Some(90));
+        assert_eq!(response.rates.download_bps, 2_048);
+        assert_eq!(response.rates.upload_bps, 512);
+        assert!((response.rates.ratio - 0.5).abs() < f64::EPSILON);
+        assert_eq!(response.added_at, now);
+        assert!(response.completed_at.is_none());
     }
 
     #[tokio::test]
@@ -1563,7 +1838,7 @@ mod tests {
             library_path: "/library/a".to_string(),
         });
 
-        let stream = event_replay_stream(&bus, Some(last_id));
+        let stream = event_replay_stream(bus.clone(), Some(last_id));
         pin_mut!(stream);
 
         let (tx, rx) = oneshot::channel();
@@ -1612,17 +1887,28 @@ mod tests {
     async fn fetch_all_torrents_returns_statuses() {
         let workflow = Arc::new(RecordingWorkflow::default());
         let workflow_trait: Arc<dyn TorrentWorkflow> = workflow.clone();
+        let now = Utc::now();
         let sample_status = TorrentStatus {
             id: Uuid::new_v4(),
             name: Some("ubuntu.iso".to_string()),
             state: TorrentState::Downloading,
             progress: TorrentProgress {
                 bytes_downloaded: 512,
-                bytes_total: 1024,
+                bytes_total: 1_024,
+                eta_seconds: Some(120),
+            },
+            rates: TorrentRates {
+                download_bps: 4_096,
+                upload_bps: 1_024,
+                ratio: 0.5,
             },
             files: None,
             library_path: None,
-            last_updated: Utc::now(),
+            download_dir: Some("/downloads".to_string()),
+            sequential: true,
+            added_at: now,
+            completed_at: None,
+            last_updated: now,
         };
         let inspector = Arc::new(StubInspector::with_statuses(vec![sample_status.clone()]));
         let inspector_trait: Arc<dyn TorrentInspector> = inspector.clone();
@@ -1653,29 +1939,29 @@ mod tests {
 
     #[derive(Default)]
     struct RecordingWorkflow {
-        added: Mutex<Vec<TorrentDescriptor>>,
-        removed: Mutex<Vec<Uuid>>,
+        added: Mutex<Vec<AddTorrent>>,
+        removed: Mutex<Vec<(Uuid, RemoveTorrent)>>,
         should_fail_add: bool,
         should_fail_remove: bool,
     }
 
     #[async_trait]
     impl TorrentWorkflow for RecordingWorkflow {
-        async fn add_torrent(&self, descriptor: TorrentDescriptor) -> anyhow::Result<()> {
+        async fn add_torrent(&self, request: AddTorrent) -> anyhow::Result<()> {
             if self.should_fail_add {
                 anyhow::bail!("injected failure");
             }
             let mut guard = self.added.lock().await;
-            guard.push(descriptor);
+            guard.push(request);
             Ok(())
         }
 
-        async fn remove_torrent(&self, _id: Uuid) -> anyhow::Result<()> {
+        async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> anyhow::Result<()> {
             if self.should_fail_remove {
                 anyhow::bail!("remove failure");
             }
             let mut guard = self.removed.lock().await;
-            guard.push(_id);
+            guard.push((id, options));
             Ok(())
         }
     }
@@ -1695,7 +1981,9 @@ mod tests {
     async fn create_torrent_requires_workflow() {
         let request = TorrentCreateRequest {
             id: Uuid::new_v4(),
-            name: "example".to_string(),
+            magnet: Some("magnet:?xt=urn:btih:example".to_string()),
+            name: Some("example".to_string()),
+            ..TorrentCreateRequest::default()
         };
 
         let err = dispatch_torrent_add(None, &request)
@@ -1709,7 +1997,13 @@ mod tests {
         let workflow = Arc::new(RecordingWorkflow::default());
         let request = TorrentCreateRequest {
             id: Uuid::new_v4(),
-            name: "ubuntu.iso".to_string(),
+            magnet: Some("magnet:?xt=urn:btih:ubuntu".to_string()),
+            name: Some("ubuntu.iso".to_string()),
+            sequential: Some(true),
+            include: vec!["*/include.mkv".to_string()],
+            skip_fluff: true,
+            max_download_bps: Some(1_000_000),
+            ..TorrentCreateRequest::default()
         };
 
         let workflow_trait: Arc<dyn TorrentWorkflow> = workflow.clone();
@@ -1721,8 +2015,25 @@ mod tests {
             .expect("torrent creation should succeed");
         let recorded = workflow.added.lock().await;
         assert_eq!(recorded.len(), 1);
-        assert_eq!(recorded[0].id, request.id);
-        assert_eq!(recorded[0].name, request.name);
+        let recorded_entry = &recorded[0];
+        assert_eq!(recorded_entry.id, request.id);
+        match &recorded_entry.source {
+            TorrentSource::Magnet { uri } => {
+                assert!(uri.contains("ubuntu"));
+            }
+            TorrentSource::Metainfo { .. } => panic!("expected magnet source"),
+        }
+        assert_eq!(
+            recorded_entry.options.name_hint.as_deref(),
+            request.name.as_deref()
+        );
+        assert_eq!(recorded_entry.options.sequential, Some(true));
+        assert_eq!(recorded_entry.options.file_rules.include, request.include);
+        assert!(recorded_entry.options.file_rules.skip_fluff);
+        assert_eq!(
+            recorded_entry.options.rate_limit.download_bps,
+            request.max_download_bps
+        );
         Ok(())
     }
 
@@ -1750,7 +2061,7 @@ mod tests {
 
         let recorded = workflow.removed.lock().await;
         assert_eq!(recorded.len(), 1);
-        assert_eq!(recorded[0], id);
+        assert_eq!(recorded[0].0, id);
         Ok(())
     }
 }

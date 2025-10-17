@@ -4,18 +4,18 @@
 //! that coordinates migrations, safe reads, and LISTEN/NOTIFY driven updates
 //! for runtime configuration.
 
-use anyhow::{anyhow, ensure, Context, Result};
-use argon2::password_hash::{
-    rand_core::OsRng, Error as PasswordHashError, PasswordHash, PasswordHasher, PasswordVerifier,
-    SaltString,
-};
+use anyhow::{Context, Result, anyhow, ensure};
 use argon2::Argon2;
+use argon2::password_hash::{
+    Error as PasswordHashError, PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
+    rand_core::OsRng,
+};
 use async_trait::async_trait;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use rand::distr::Alphanumeric;
 use rand::Rng;
+use rand::distr::Alphanumeric;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use sqlx::postgres::{PgListener, PgNotification, PgPoolOptions, PgRow};
 use sqlx::{Executor, FromRow, Postgres, Row, Transaction};
 use std::collections::HashSet;

@@ -7,13 +7,13 @@ use std::future::Future;
 use std::path::Path;
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use once_cell::sync::OnceCell;
 use prometheus::{Encoder, IntCounterVec, IntGauge, Opts, Registry, TextEncoder};
 use serde_json::Value;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
-use tracing::{span::Entered, Span};
-use tracing_subscriber::{fmt, EnvFilter};
+use tracing::{Span, span::Entered};
+use tracing_subscriber::{EnvFilter, fmt};
 
 /// Default logging target when `RUST_LOG` is not provided.
 const DEFAULT_LOG_LEVEL: &str = "info";

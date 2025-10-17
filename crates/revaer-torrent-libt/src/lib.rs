@@ -3,23 +3,44 @@
 //! The adapter is responsible for translating libtorrent state callbacks into the shared
 //! workspace event bus so downstream consumers (API/SSE, telemetry) observe real-time changes.
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use revaer_events::{DiscoveredFile, Event, EventBus, TorrentState};
-use revaer_torrent_core::{TorrentDescriptor, TorrentEngine};
-use tracing::info;
+use revaer_torrent_core::{
+    AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentEngine, TorrentRateLimit, TorrentSource,
+};
+use tokio::sync::mpsc;
+use tracing::{debug, info, warn};
 use uuid::Uuid;
+
+const COMMAND_BUFFER: usize = 128;
 
 /// Thin wrapper around the libtorrent bindings that also emits domain events.
 #[derive(Clone)]
 pub struct LibtorrentEngine {
     events: EventBus,
+    commands: mpsc::Sender<EngineCommand>,
 }
 
 impl LibtorrentEngine {
     /// Construct a new engine publisher hooked up to the shared event bus.
     #[must_use]
     pub fn new(events: EventBus) -> Self {
-        Self { events }
+        let (commands, mut rx) = mpsc::channel(COMMAND_BUFFER);
+        let worker_events = events.clone();
+        tokio::spawn(async move {
+            while let Some(command) = rx.recv().await {
+                handle_command(&worker_events, command);
+            }
+        });
+
+        Self { events, commands }
+    }
+
+    async fn send_command(&self, command: EngineCommand) -> Result<()> {
+        self.commands
+            .send(command)
+            .await
+            .map_err(|err| anyhow!("failed to enqueue libtorrent command: {err}"))
     }
 
     /// Emit a torrent progress update.
@@ -63,32 +84,161 @@ impl LibtorrentEngine {
         self.publish_state(torrent_id, TorrentState::Failed { message });
     }
 
-    fn publish_added(&self, descriptor: &TorrentDescriptor) {
-        let _ = self.events.publish(Event::TorrentAdded {
-            torrent_id: descriptor.id,
-            name: descriptor.name.clone(),
-        });
-        self.publish_state(descriptor.id, TorrentState::Queued);
-    }
-
-    fn publish_stopped(&self, torrent_id: Uuid) {
-        self.publish_state(torrent_id, TorrentState::Stopped);
-    }
 }
 
 #[async_trait::async_trait]
 impl TorrentEngine for LibtorrentEngine {
-    async fn add_torrent(&self, descriptor: TorrentDescriptor) -> Result<()> {
-        info!("Pretend to add torrent {}", descriptor.name);
-        self.publish_added(&descriptor);
-        Ok(())
+    async fn add_torrent(&self, request: AddTorrent) -> Result<()> {
+        self.send_command(EngineCommand::Add(request)).await
     }
 
-    async fn remove_torrent(&self, id: Uuid) -> Result<()> {
-        info!("Pretend to remove torrent {}", id);
-        self.publish_stopped(id);
-        Ok(())
+    async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> Result<()> {
+        self.send_command(EngineCommand::Remove { id, options })
+            .await
     }
+
+    async fn pause_torrent(&self, id: Uuid) -> Result<()> {
+        self.send_command(EngineCommand::Pause { id }).await
+    }
+
+    async fn resume_torrent(&self, id: Uuid) -> Result<()> {
+        self.send_command(EngineCommand::Resume { id }).await
+    }
+
+    async fn set_sequential(&self, id: Uuid, sequential: bool) -> Result<()> {
+        self.send_command(EngineCommand::SetSequential { id, sequential })
+            .await
+    }
+
+    async fn update_limits(&self, id: Option<Uuid>, limits: TorrentRateLimit) -> Result<()> {
+        self.send_command(EngineCommand::UpdateLimits { id, limits })
+            .await
+    }
+
+    async fn update_selection(&self, id: Uuid, rules: FileSelectionUpdate) -> Result<()> {
+        self.send_command(EngineCommand::UpdateSelection { id, rules })
+            .await
+    }
+
+    async fn reannounce(&self, id: Uuid) -> Result<()> {
+        self.send_command(EngineCommand::Reannounce { id }).await
+    }
+
+    async fn recheck(&self, id: Uuid) -> Result<()> {
+        self.send_command(EngineCommand::Recheck { id }).await
+    }
+}
+
+#[derive(Debug)]
+enum EngineCommand {
+    Add(AddTorrent),
+    Remove {
+        id: Uuid,
+        options: RemoveTorrent,
+    },
+    Pause {
+        id: Uuid,
+    },
+    Resume {
+        id: Uuid,
+    },
+    SetSequential {
+        id: Uuid,
+        sequential: bool,
+    },
+    UpdateLimits {
+        id: Option<Uuid>,
+        limits: TorrentRateLimit,
+    },
+    UpdateSelection {
+        id: Uuid,
+        rules: FileSelectionUpdate,
+    },
+    Reannounce {
+        id: Uuid,
+    },
+    Recheck {
+        id: Uuid,
+    },
+}
+
+fn handle_command(events: &EventBus, command: EngineCommand) {
+    match command {
+        EngineCommand::Add(request) => {
+            let name = request
+                .options
+                .name_hint
+                .clone()
+                .unwrap_or_else(|| format!("torrent-{}", request.id));
+            let source_desc = match &request.source {
+                TorrentSource::Magnet { uri } => {
+                    format!("magnet:{}", uri.chars().take(32).collect::<String>())
+                }
+                TorrentSource::Metainfo { .. } => "metainfo-bytes".to_string(),
+            };
+            info!(
+                torrent_id = %request.id,
+                torrent_name = %name,
+                source = %source_desc,
+                "libtorrent stub add command processed"
+            );
+            emit_added(events, &request);
+        }
+        EngineCommand::Remove { id, options } => {
+            info!(torrent_id = %id, with_data = options.with_data, "libtorrent stub remove command processed");
+            emit_state(events, id, TorrentState::Stopped);
+        }
+        EngineCommand::Pause { id } => {
+            info!(torrent_id = %id, "libtorrent stub pause command processed");
+        }
+        EngineCommand::Resume { id } => {
+            info!(torrent_id = %id, "libtorrent stub resume command processed");
+        }
+        EngineCommand::SetSequential { id, sequential } => {
+            debug!(torrent_id = %id, sequential, "libtorrent stub sequential command processed");
+        }
+        EngineCommand::UpdateLimits { id, limits } => {
+            debug!(
+                torrent_id = ?id,
+                download_bps = ?limits.download_bps,
+                upload_bps = ?limits.upload_bps,
+                "libtorrent stub rate limit command processed"
+            );
+        }
+        EngineCommand::UpdateSelection { id, rules } => {
+            debug!(
+                torrent_id = %id,
+                include = rules.include.len(),
+                exclude = rules.exclude.len(),
+                priorities = rules.priorities.len(),
+                skip_fluff = rules.skip_fluff,
+                "libtorrent stub selection command processed"
+            );
+        }
+        EngineCommand::Reannounce { id } => {
+            warn!(torrent_id = %id, "libtorrent stub reannounce command processed");
+        }
+        EngineCommand::Recheck { id } => {
+            warn!(torrent_id = %id, "libtorrent stub recheck command processed");
+        }
+    }
+}
+
+fn emit_state(events: &EventBus, torrent_id: Uuid, state: TorrentState) {
+    let _ = events.publish(Event::StateChanged { torrent_id, state });
+}
+
+fn emit_added(events: &EventBus, request: &AddTorrent) {
+    let name = request
+        .options
+        .name_hint
+        .clone()
+        .unwrap_or_else(|| format!("torrent-{}", request.id));
+    let _ = events.publish(Event::TorrentAdded {
+        torrent_id: request.id,
+        name,
+    });
+    emit_state(events, request.id, TorrentState::Queued);
 }
 
 #[cfg(test)]
@@ -96,7 +246,7 @@ mod tests {
     use super::*;
     use anyhow::Result;
     use revaer_events::{Event, EventBus};
-    use revaer_torrent_core::TorrentDescriptor;
+    use revaer_torrent_core::{AddTorrent, AddTorrentOptions, TorrentSource};
     use tokio::time::{timeout, Duration};
 
     async fn next_event(stream: &mut revaer_events::EventStream) -> Event {
@@ -111,9 +261,13 @@ mod tests {
     async fn add_torrent_emits_added_and_state_events() -> Result<()> {
         let bus = EventBus::with_capacity(8);
         let engine = LibtorrentEngine::new(bus.clone());
-        let descriptor = TorrentDescriptor {
+        let descriptor = AddTorrent {
             id: Uuid::new_v4(),
-            name: "ubuntu.iso".to_string(),
+            source: TorrentSource::magnet("magnet:?xt=urn:btih:demo"),
+            options: AddTorrentOptions {
+                name_hint: Some("ubuntu.iso".to_string()),
+                ..AddTorrentOptions::default()
+            },
         };
         let mut stream = bus.subscribe(None);
 
@@ -122,7 +276,7 @@ mod tests {
         match next_event(&mut stream).await {
             Event::TorrentAdded { torrent_id, name } => {
                 assert_eq!(torrent_id, descriptor.id);
-                assert_eq!(name, descriptor.name);
+                assert_eq!(name, descriptor.options.name_hint.clone().unwrap());
             }
             other => panic!("unexpected event {other:?}"),
         }

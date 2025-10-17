@@ -25,22 +25,6 @@
         ],
         "type": "object"
       },
-      "DiscoveredFile": {
-        "properties": {
-          "path": {
-            "type": "string"
-          },
-          "size_bytes": {
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "path",
-          "size_bytes"
-        ],
-        "type": "object"
-      },
       "HealthComponent": {
         "properties": {
           "revision": {
@@ -162,17 +146,111 @@
       },
       "TorrentCreateRequest": {
         "properties": {
+          "download_dir": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "exclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "id": {
             "format": "uuid",
             "type": "string"
           },
-          "name": {
+          "include": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "magnet": {
             "type": "string"
+          },
+          "max_download_bps": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "max_upload_bps": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "metainfo": {
+            "format": "byte",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "sequential": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "skip_fluff": {
+            "type": "boolean"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
           "id",
-          "name"
+          "magnet"
+        ],
+        "type": "object"
+      },
+      "TorrentFileResponse": {
+        "properties": {
+          "bytes_completed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "index": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string"
+          },
+          "selected": {
+            "type": "boolean"
+          },
+          "size_bytes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "index",
+          "path",
+          "size_bytes",
+          "bytes_completed",
+          "priority",
+          "selected"
         ],
         "type": "object"
       },
@@ -186,6 +264,13 @@
             "format": "int64",
             "type": "integer"
           },
+          "eta_seconds": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "percent_complete": {
             "format": "float",
             "type": "number"
@@ -198,8 +283,47 @@
         ],
         "type": "object"
       },
+      "TorrentRatesResponse": {
+        "properties": {
+          "download_bps": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ratio": {
+            "format": "float",
+            "type": "number"
+          },
+          "upload_bps": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "download_bps",
+          "upload_bps",
+          "ratio"
+        ],
+        "type": "object"
+      },
       "TorrentStatusResponse": {
         "properties": {
+          "added_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "completed_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "download_dir": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "failure_message": {
             "type": [
               "string",
@@ -208,7 +332,7 @@
           },
           "files": {
             "items": {
-              "$ref": "#/components/schemas/DiscoveredFile"
+              "$ref": "#/components/schemas/TorrentFileResponse"
             },
             "type": [
               "array",
@@ -238,6 +362,12 @@
           "progress": {
             "$ref": "#/components/schemas/TorrentProgressResponse"
           },
+          "rates": {
+            "$ref": "#/components/schemas/TorrentRatesResponse"
+          },
+          "sequential": {
+            "type": "boolean"
+          },
           "state": {
             "type": "string"
           }
@@ -246,6 +376,9 @@
           "id",
           "state",
           "progress",
+          "rates",
+          "sequential",
+          "added_at",
           "last_updated"
         ],
         "type": "object"

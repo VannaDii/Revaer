@@ -4,9 +4,9 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{ensure, Context, Result};
+use anyhow::{Context, Result, bail, ensure};
 use revaer_api::TorrentHandles;
-use revaer_config::ConfigService;
+use revaer_config::{AppMode, ConfigService};
 use revaer_events::EventBus;
 use revaer_telemetry::{GlobalContextGuard, LoggingConfig};
 use tracing::{info, warn};
@@ -90,6 +90,14 @@ async fn main() -> Result<()> {
 
     let api = revaer_api::ApiServer::new(config.clone(), events.clone(), torrent_handles)
         .context("failed to build API server")?;
+
+    if snapshot.app_profile.mode == AppMode::Setup && !snapshot.app_profile.bind_addr.is_loopback()
+    {
+        bail!(
+            "app_profile.bind_addr must remain on a loopback interface during setup mode (found {})",
+            snapshot.app_profile.bind_addr,
+        );
+    }
 
     let port = u16::try_from(snapshot.app_profile.http_port)
         .context("app_profile.http_port must fit inside a u16")?;
