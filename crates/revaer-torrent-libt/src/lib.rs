@@ -6,8 +6,10 @@
 use anyhow::{anyhow, Result};
 use revaer_events::{DiscoveredFile, Event, EventBus, TorrentState};
 use revaer_torrent_core::{
-    AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentEngine, TorrentRateLimit, TorrentSource,
+    AddTorrent, FileSelectionRules, FileSelectionUpdate, RemoveTorrent, TorrentEngine,
+    TorrentRateLimit, TorrentSource,
 };
+use std::collections::HashMap;
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
@@ -28,8 +30,11 @@ impl LibtorrentEngine {
         let (commands, mut rx) = mpsc::channel(COMMAND_BUFFER);
         let worker_events = events.clone();
         tokio::spawn(async move {
+            let mut state = WorkerState::new(worker_events);
             while let Some(command) = rx.recv().await {
-                handle_command(&worker_events, command);
+                if let Err(err) = state.handle(command) {
+                    warn!(error = %err, "libtorrent command handling failed");
+                }
             }
         });
 
@@ -83,7 +88,6 @@ impl LibtorrentEngine {
         let message = message.into();
         self.publish_state(torrent_id, TorrentState::Failed { message });
     }
-
 }
 
 #[async_trait::async_trait]
@@ -162,64 +166,143 @@ enum EngineCommand {
     },
 }
 
-fn handle_command(events: &EventBus, command: EngineCommand) {
-    match command {
-        EngineCommand::Add(request) => {
-            let name = request
-                .options
-                .name_hint
-                .clone()
-                .unwrap_or_else(|| format!("torrent-{}", request.id));
-            let source_desc = match &request.source {
-                TorrentSource::Magnet { uri } => {
-                    format!("magnet:{}", uri.chars().take(32).collect::<String>())
+struct WorkerState {
+    events: EventBus,
+    torrents: HashMap<Uuid, StubTorrent>,
+}
+
+impl WorkerState {
+    fn new(events: EventBus) -> Self {
+        Self {
+            events,
+            torrents: HashMap::new(),
+        }
+    }
+
+    fn handle(&mut self, command: EngineCommand) -> Result<()> {
+        match command {
+            EngineCommand::Add(request) => {
+                let stub = StubTorrent::from_add(&request);
+                if self.torrents.insert(request.id, stub).is_some() {
+                    warn!(torrent_id = %request.id, "replacing existing torrent in stub engine");
                 }
-                TorrentSource::Metainfo { .. } => "metainfo-bytes".to_string(),
-            };
-            info!(
-                torrent_id = %request.id,
-                torrent_name = %name,
-                source = %source_desc,
-                "libtorrent stub add command processed"
-            );
-            emit_added(events, &request);
+                let name = request
+                    .options
+                    .name_hint
+                    .clone()
+                    .unwrap_or_else(|| format!("torrent-{}", request.id));
+                let source_desc = match &request.source {
+                    TorrentSource::Magnet { uri } => {
+                        format!("magnet:{}", uri.chars().take(32).collect::<String>())
+                    }
+                    TorrentSource::Metainfo { .. } => "metainfo-bytes".to_string(),
+                };
+                info!(
+                    torrent_id = %request.id,
+                    torrent_name = %name,
+                    source = %source_desc,
+                    "libtorrent stub add command processed"
+                );
+                emit_added(&self.events, &request);
+            }
+            EngineCommand::Remove { id, options } => {
+                if self.torrents.remove(&id).is_some() {
+                    info!(
+                        torrent_id = %id,
+                        with_data = options.with_data,
+                        "libtorrent stub remove command processed"
+                    );
+                    emit_state(&self.events, id, TorrentState::Stopped);
+                } else {
+                    return Err(anyhow!("unknown torrent {id} for remove command"));
+                }
+            }
+            EngineCommand::Pause { id } => {
+                let torrent = self.torrent_mut(id)?;
+                torrent.state = TorrentState::Stopped;
+                emit_state(&self.events, id, TorrentState::Stopped);
+            }
+            EngineCommand::Resume { id } => {
+                let torrent = self.torrent_mut(id)?;
+                torrent.state = TorrentState::Downloading;
+                emit_state(&self.events, id, TorrentState::Downloading);
+            }
+            EngineCommand::SetSequential { id, sequential } => {
+                let torrent = self.torrent_mut(id)?;
+                torrent.sequential = sequential;
+                debug!(torrent_id = %id, sequential, "updated sequential flag");
+            }
+            EngineCommand::UpdateLimits { id, limits } => {
+                if let Some(target) = id {
+                    let torrent = self.torrent_mut(target)?;
+                    torrent.rate_limit = limits.clone();
+                } else {
+                    for torrent in self.torrents.values_mut() {
+                        torrent.rate_limit = limits.clone();
+                    }
+                }
+                debug!(
+                    torrent_id = ?id,
+                    download_bps = ?limits.download_bps,
+                    upload_bps = ?limits.upload_bps,
+                    "updated rate limits"
+                );
+            }
+            EngineCommand::UpdateSelection { id, rules } => {
+                let torrent = self.torrent_mut(id)?;
+                torrent.selection.include.clone_from(&rules.include);
+                torrent.selection.exclude.clone_from(&rules.exclude);
+                torrent.selection.skip_fluff = rules.skip_fluff;
+                debug!(
+                    torrent_id = %id,
+                    include = torrent.selection.include.len(),
+                    exclude = torrent.selection.exclude.len(),
+                    priorities = rules.priorities.len(),
+                    skip_fluff = torrent.selection.skip_fluff,
+                    "updated file selection"
+                );
+            }
+            EngineCommand::Reannounce { id } => {
+                if self.torrents.contains_key(&id) {
+                    warn!(torrent_id = %id, "reannounce requested (stubbed)");
+                } else {
+                    return Err(anyhow!("unknown torrent {id} for reannounce"));
+                }
+            }
+            EngineCommand::Recheck { id } => {
+                if self.torrents.contains_key(&id) {
+                    warn!(torrent_id = %id, "recheck requested (stubbed)");
+                } else {
+                    return Err(anyhow!("unknown torrent {id} for recheck"));
+                }
+            }
         }
-        EngineCommand::Remove { id, options } => {
-            info!(torrent_id = %id, with_data = options.with_data, "libtorrent stub remove command processed");
-            emit_state(events, id, TorrentState::Stopped);
-        }
-        EngineCommand::Pause { id } => {
-            info!(torrent_id = %id, "libtorrent stub pause command processed");
-        }
-        EngineCommand::Resume { id } => {
-            info!(torrent_id = %id, "libtorrent stub resume command processed");
-        }
-        EngineCommand::SetSequential { id, sequential } => {
-            debug!(torrent_id = %id, sequential, "libtorrent stub sequential command processed");
-        }
-        EngineCommand::UpdateLimits { id, limits } => {
-            debug!(
-                torrent_id = ?id,
-                download_bps = ?limits.download_bps,
-                upload_bps = ?limits.upload_bps,
-                "libtorrent stub rate limit command processed"
-            );
-        }
-        EngineCommand::UpdateSelection { id, rules } => {
-            debug!(
-                torrent_id = %id,
-                include = rules.include.len(),
-                exclude = rules.exclude.len(),
-                priorities = rules.priorities.len(),
-                skip_fluff = rules.skip_fluff,
-                "libtorrent stub selection command processed"
-            );
-        }
-        EngineCommand::Reannounce { id } => {
-            warn!(torrent_id = %id, "libtorrent stub reannounce command processed");
-        }
-        EngineCommand::Recheck { id } => {
-            warn!(torrent_id = %id, "libtorrent stub recheck command processed");
+
+        Ok(())
+    }
+
+    fn torrent_mut(&mut self, id: Uuid) -> Result<&mut StubTorrent> {
+        self.torrents
+            .get_mut(&id)
+            .ok_or_else(|| anyhow!("unknown torrent {id}"))
+    }
+}
+
+#[derive(Clone)]
+struct StubTorrent {
+    selection: FileSelectionRules,
+    rate_limit: TorrentRateLimit,
+    sequential: bool,
+    state: TorrentState,
+}
+
+impl StubTorrent {
+    fn from_add(request: &AddTorrent) -> Self {
+        Self {
+            selection: request.options.file_rules.clone(),
+            rate_limit: request.options.rate_limit.clone(),
+            sequential: request.options.sequential.unwrap_or(false),
+            state: TorrentState::Queued,
         }
     }
 }
@@ -407,5 +490,43 @@ mod tests {
             }
             other => panic!("unexpected event {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn pause_and_resume_emit_state_changes() -> Result<()> {
+        let bus = EventBus::with_capacity(16);
+        let engine = LibtorrentEngine::new(bus.clone());
+        let mut stream = bus.subscribe(None);
+
+        let descriptor = AddTorrent {
+            id: Uuid::new_v4(),
+            source: TorrentSource::magnet("magnet:?xt=urn:btih:demo"),
+            options: AddTorrentOptions::default(),
+        };
+
+        engine.add_torrent(descriptor.clone()).await?;
+
+        let _ = next_event(&mut stream).await; // TorrentAdded
+        let _ = next_event(&mut stream).await; // Initial state change
+
+        engine.pause_torrent(descriptor.id).await?;
+        match next_event(&mut stream).await {
+            Event::StateChanged { torrent_id, state } => {
+                assert_eq!(torrent_id, descriptor.id);
+                assert!(matches!(state, TorrentState::Stopped));
+            }
+            other => panic!("unexpected event {other:?}"),
+        }
+
+        engine.resume_torrent(descriptor.id).await?;
+        match next_event(&mut stream).await {
+            Event::StateChanged { torrent_id, state } => {
+                assert_eq!(torrent_id, descriptor.id);
+                assert!(matches!(state, TorrentState::Downloading));
+            }
+            other => panic!("unexpected event {other:?}"),
+        }
+
+        Ok(())
     }
 }

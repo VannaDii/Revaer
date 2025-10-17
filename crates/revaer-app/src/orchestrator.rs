@@ -561,13 +561,23 @@ mod tests {
 mod engine_refresh_tests {
     use super::*;
     use revaer_events::EventBus;
-    use revaer_torrent_core::{AddTorrent, RemoveTorrent};
+    use revaer_torrent_core::{
+        AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentWorkflow,
+    };
     use serde_json::json;
     use tokio::sync::RwLock;
 
     #[derive(Default)]
     struct RecordingEngine {
         applied: RwLock<Vec<EngineProfile>>,
+        removed: RwLock<Vec<(Uuid, RemoveTorrent)>>,
+        paused: RwLock<Vec<Uuid>>,
+        resumed: RwLock<Vec<Uuid>>,
+        sequential: RwLock<Vec<(Uuid, bool)>>,
+        limits: RwLock<Vec<(Option<Uuid>, TorrentRateLimit)>>,
+        selections: RwLock<Vec<(Uuid, FileSelectionUpdate)>>,
+        reannounced: RwLock<Vec<Uuid>>,
+        rechecked: RwLock<Vec<Uuid>>,
     }
 
     #[async_trait]
@@ -576,7 +586,59 @@ mod engine_refresh_tests {
             Ok(())
         }
 
-        async fn remove_torrent(&self, _id: Uuid, _options: RemoveTorrent) -> anyhow::Result<()> {
+        async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> anyhow::Result<()> {
+            let mut guard = self.removed.write().await;
+            guard.push((id, options));
+            Ok(())
+        }
+
+        async fn pause_torrent(&self, id: Uuid) -> anyhow::Result<()> {
+            let mut guard = self.paused.write().await;
+            guard.push(id);
+            Ok(())
+        }
+
+        async fn resume_torrent(&self, id: Uuid) -> anyhow::Result<()> {
+            let mut guard = self.resumed.write().await;
+            guard.push(id);
+            Ok(())
+        }
+
+        async fn set_sequential(&self, id: Uuid, sequential: bool) -> anyhow::Result<()> {
+            let mut guard = self.sequential.write().await;
+            guard.push((id, sequential));
+            Ok(())
+        }
+
+        async fn update_limits(
+            &self,
+            id: Option<Uuid>,
+            limits: TorrentRateLimit,
+        ) -> anyhow::Result<()> {
+            let mut guard = self.limits.write().await;
+            guard.push((id, limits));
+            Ok(())
+        }
+
+        async fn update_selection(
+            &self,
+            id: Uuid,
+            rules: FileSelectionUpdate,
+        ) -> anyhow::Result<()> {
+            let mut guard = self.selections.write().await;
+            guard.push((id, rules));
+            Ok(())
+        }
+
+        async fn reannounce(&self, id: Uuid) -> anyhow::Result<()> {
+            let mut guard = self.reannounced.write().await;
+            guard.push(id);
+            Ok(())
+        }
+
+        async fn recheck(&self, id: Uuid) -> anyhow::Result<()> {
+            let mut guard = self.rechecked.write().await;
+            guard.push(id);
             Ok(())
         }
     }
@@ -649,6 +711,57 @@ mod engine_refresh_tests {
         assert_eq!(applied.len(), 1);
         assert_eq!(applied[0].implementation, updated.implementation);
         assert_eq!(applied[0].listen_port, updated.listen_port);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn workflow_operations_forward_to_engine() -> Result<()> {
+        let engine = Arc::new(RecordingEngine::default());
+        let bus = EventBus::new();
+        let fsops = FsOpsService::new(bus.clone());
+        let orchestrator = Arc::new(TorrentOrchestrator::new(
+            Arc::clone(&engine),
+            fsops,
+            bus,
+            sample_fs_policy(),
+            engine_profile("ops"),
+        ));
+
+        let torrent_id = Uuid::new_v4();
+        let limit = TorrentRateLimit {
+            download_bps: Some(1_000),
+            upload_bps: Some(500),
+        };
+        let selection = FileSelectionUpdate {
+            include: vec!["*.mkv".to_string()],
+            exclude: vec!["*.tmp".to_string()],
+            skip_fluff: true,
+            ..FileSelectionUpdate::default()
+        };
+
+        TorrentWorkflow::pause_torrent(&*orchestrator, torrent_id).await?;
+        TorrentWorkflow::resume_torrent(&*orchestrator, torrent_id).await?;
+        TorrentWorkflow::set_sequential(&*orchestrator, torrent_id, true).await?;
+        TorrentWorkflow::update_limits(&*orchestrator, Some(torrent_id), limit.clone()).await?;
+        TorrentWorkflow::update_limits(&*orchestrator, None, limit.clone()).await?;
+        TorrentWorkflow::update_selection(&*orchestrator, torrent_id, selection.clone()).await?;
+        TorrentWorkflow::reannounce(&*orchestrator, torrent_id).await?;
+        TorrentWorkflow::recheck(&*orchestrator, torrent_id).await?;
+        TorrentWorkflow::remove_torrent(
+            &*orchestrator,
+            torrent_id,
+            RemoveTorrent { with_data: true },
+        )
+        .await?;
+
+        assert_eq!(engine.paused.read().await.len(), 1);
+        assert_eq!(engine.resumed.read().await.len(), 1);
+        assert_eq!(engine.sequential.read().await.len(), 1);
+        assert_eq!(engine.limits.read().await.len(), 2);
+        assert_eq!(engine.selections.read().await.len(), 1);
+        assert_eq!(engine.reannounced.read().await.len(), 1);
+        assert_eq!(engine.rechecked.read().await.len(), 1);
+        assert_eq!(engine.removed.read().await.len(), 1);
         Ok(())
     }
 }
