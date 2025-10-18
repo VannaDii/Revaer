@@ -15,7 +15,7 @@ pub struct FsOpsService {
 impl FsOpsService {
     /// Construct a new filesystem operations service backed by the shared event bus.
     #[must_use]
-    pub fn new(events: EventBus) -> Self {
+    pub const fn new(events: EventBus) -> Self {
         Self { events }
     }
 

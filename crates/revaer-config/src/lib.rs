@@ -24,7 +24,7 @@ use std::str::FromStr;
 use std::time::Duration;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{instrument, warn};
+use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
 const APP_PROFILE_ID: &str = "00000000-0000-0000-0000-000000000001";
@@ -59,8 +59,8 @@ impl FromStr for AppMode {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "setup" => Ok(AppMode::Setup),
-            "active" => Ok(AppMode::Active),
+            "setup" => Ok(Self::Setup),
+            "active" => Ok(Self::Active),
             other => Err(anyhow!("invalid app mode '{other}'")),
         }
     }
@@ -68,10 +68,10 @@ impl FromStr for AppMode {
 
 impl AppMode {
     #[must_use]
-    pub fn as_str(&self) -> &'static str {
+    pub const fn as_str(&self) -> &'static str {
         match self {
-            AppMode::Setup => "setup",
-            AppMode::Active => "active",
+            Self::Setup => "setup",
+            Self::Active => "active",
         }
     }
 }
@@ -258,7 +258,7 @@ impl ConfigService {
     }
 
     #[must_use]
-    pub fn pool(&self) -> &sqlx::PgPool {
+    pub const fn pool(&self) -> &sqlx::PgPool {
         &self.pool
     }
 
@@ -399,39 +399,13 @@ impl ConfigWatcher {
     #[allow(clippy::missing_errors_doc)]
     pub async fn next(&mut self) -> Result<ConfigSnapshot> {
         loop {
-            if let Some(stream) = &mut self.stream {
-                match stream.next().await {
-                    Some(Ok(change)) => {
-                        let snapshot = self.service.snapshot().await?;
-                        self.last_revision = change.revision.max(snapshot.revision);
-                        return Ok(snapshot);
-                    }
-                    Some(Err(err)) => {
-                        warn!(error = ?err, "LISTEN connection dropped; switching to polling");
-                        self.stream = None;
-                    }
-                    None => {
-                        warn!("LISTEN stream closed; switching to polling");
-                        self.stream = None;
-                    }
-                }
+            if let Some(snapshot) = self.listen_once().await? {
+                return Ok(snapshot);
             }
 
             sleep(self.poll_interval).await;
 
-            let snapshot = self.service.snapshot().await?;
-            if snapshot.revision > self.last_revision {
-                self.last_revision = snapshot.revision;
-                if self.stream.is_none() {
-                    match self.service.subscribe_changes().await {
-                        Ok(stream) => {
-                            self.stream = Some(stream);
-                        }
-                        Err(err) => {
-                            warn!(error = ?err, "failed to re-establish LISTEN connection");
-                        }
-                    }
-                }
+            if let Some(snapshot) = self.poll_once().await? {
                 return Ok(snapshot);
             }
         }
@@ -440,6 +414,55 @@ impl ConfigWatcher {
     /// Force the watcher into polling mode, discarding the current LISTEN stream.
     pub fn disable_listen(&mut self) {
         self.stream = None;
+    }
+
+    async fn listen_once(&mut self) -> Result<Option<ConfigSnapshot>> {
+        if let Some(stream) = &mut self.stream {
+            match stream.next().await {
+                Some(Ok(change)) => {
+                    let snapshot = self.service.snapshot().await?;
+                    self.last_revision = change.revision.max(snapshot.revision);
+                    return Ok(Some(snapshot));
+                }
+                Some(Err(err)) => {
+                    warn!(
+                        error = ?err,
+                        "LISTEN connection dropped; switching to polling"
+                    );
+                    self.stream = None;
+                }
+                None => {
+                    warn!("LISTEN stream closed; switching to polling");
+                    self.stream = None;
+                }
+            }
+        }
+        Ok(None)
+    }
+
+    async fn poll_once(&mut self) -> Result<Option<ConfigSnapshot>> {
+        let snapshot = self.service.snapshot().await?;
+        if snapshot.revision > self.last_revision {
+            self.last_revision = snapshot.revision;
+            self.try_reattach_listen().await;
+            return Ok(Some(snapshot));
+        }
+        Ok(None)
+    }
+
+    async fn try_reattach_listen(&mut self) {
+        if self.stream.is_some() {
+            return;
+        }
+
+        match self.service.subscribe_changes().await {
+            Ok(stream) => {
+                self.stream = Some(stream);
+            }
+            Err(err) => {
+                warn!(error = ?err, "failed to re-establish LISTEN connection");
+            }
+        }
     }
 }
 
@@ -617,6 +640,13 @@ impl SettingsFacade for ConfigService {
 
         tx.commit().await?;
 
+        info!(
+            issued_by,
+            expires_at = %expires_at,
+            ttl_ms = ttl.as_millis(),
+            "setup token issued"
+        );
+
         Ok(SetupToken {
             plaintext,
             expires_at,
@@ -643,6 +673,7 @@ impl SettingsFacade for ConfigService {
 
         let Some(active) = active else {
             tx.rollback().await?;
+            warn!("setup token consumption attempted without an active token");
             return Err(anyhow!("no active setup token"));
         };
 
@@ -653,12 +684,14 @@ impl SettingsFacade for ConfigService {
                 .await
                 .context("failed to expire stale token")?;
             tx.commit().await?;
+            warn!("setup token expired prior to consumption");
             return Err(anyhow!("setup token expired"));
         }
 
         let matches = verify_secret(&active.token_hash, token)?;
         if !matches {
             tx.rollback().await?;
+            warn!("setup token consumption failed due to invalid secret");
             return Err(anyhow!("invalid setup token"));
         }
 
@@ -681,6 +714,7 @@ impl SettingsFacade for ConfigService {
         .await?;
 
         tx.commit().await?;
+        info!("setup token consumed successfully");
         Ok(())
     }
 }
@@ -1789,58 +1823,68 @@ async fn apply_api_key_patches(
                         .await?;
 
                 if let Some(_hash) = existing_hash {
-                    let mut touched = false;
+                    let secret_updated = match secret.as_ref() {
+                        Some(secret_value) => {
+                            ensure_mutable(immutable_keys, "auth_api_keys", "secret")?;
+                            let hash = hash_secret(secret_value)?;
+                            sqlx::query(
+                                "UPDATE auth_api_keys SET hash = $1, updated_at = now() WHERE key_id = $2",
+                            )
+                            .bind(hash)
+                            .bind(&key_id)
+                            .execute(tx.as_mut())
+                            .await?;
+                            true
+                        }
+                        None => false,
+                    };
 
-                    if let Some(secret) = secret {
-                        ensure_mutable(immutable_keys, "auth_api_keys", "secret")?;
-                        let hash = hash_secret(&secret)?;
-                        sqlx::query(
-                            "UPDATE auth_api_keys SET hash = $1, updated_at = now() WHERE key_id = $2",
-                        )
-                        .bind(hash)
-                        .bind(&key_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                        touched = true;
-                    }
+                    let label_updated = match label.clone() {
+                        Some(label_value) => {
+                            ensure_mutable(immutable_keys, "auth_api_keys", "label")?;
+                            sqlx::query(
+                                "UPDATE auth_api_keys SET label = $1, updated_at = now() WHERE key_id = $2",
+                            )
+                            .bind(label_value)
+                            .bind(&key_id)
+                            .execute(tx.as_mut())
+                            .await?;
+                            true
+                        }
+                        None => false,
+                    };
 
-                    if let Some(label) = label {
-                        ensure_mutable(immutable_keys, "auth_api_keys", "label")?;
-                        sqlx::query(
-                            "UPDATE auth_api_keys SET label = $1, updated_at = now() WHERE key_id = $2",
-                        )
-                        .bind(label)
-                        .bind(&key_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                        touched = true;
-                    }
+                    let enabled_updated = match enabled {
+                        Some(enabled_value) => {
+                            ensure_mutable(immutable_keys, "auth_api_keys", "enabled")?;
+                            sqlx::query(
+                                "UPDATE auth_api_keys SET enabled = $1, updated_at = now() WHERE key_id = $2",
+                            )
+                            .bind(enabled_value)
+                            .bind(&key_id)
+                            .execute(tx.as_mut())
+                            .await?;
+                            true
+                        }
+                        None => false,
+                    };
 
-                    if let Some(enabled) = enabled {
-                        ensure_mutable(immutable_keys, "auth_api_keys", "enabled")?;
-                        sqlx::query(
-                            "UPDATE auth_api_keys SET enabled = $1, updated_at = now() WHERE key_id = $2",
-                        )
-                        .bind(enabled)
-                        .bind(&key_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                        touched = true;
-                    }
+                    let rate_limit_updated = match rate_limit.clone() {
+                        Some(rate_limit_value) => {
+                            ensure_mutable(immutable_keys, "auth_api_keys", "rate_limit")?;
+                            sqlx::query(
+                                "UPDATE auth_api_keys SET rate_limit = $1, updated_at = now() WHERE key_id = $2",
+                            )
+                            .bind(rate_limit_value)
+                            .bind(&key_id)
+                            .execute(tx.as_mut())
+                            .await?;
+                            true
+                        }
+                        None => false,
+                    };
 
-                    if let Some(rate_limit) = rate_limit {
-                        ensure_mutable(immutable_keys, "auth_api_keys", "rate_limit")?;
-                        sqlx::query(
-                            "UPDATE auth_api_keys SET rate_limit = $1, updated_at = now() WHERE key_id = $2",
-                        )
-                        .bind(rate_limit)
-                        .bind(&key_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                        touched = true;
-                    }
-
-                    if touched {
+                    if secret_updated || label_updated || enabled_updated || rate_limit_updated {
                         changed = true;
                     }
                 } else {

@@ -14,8 +14,11 @@ use revaer_torrent_core::{
     TorrentWorkflow,
 };
 use tokio::{sync::RwLock, task::JoinHandle};
-use tracing::{error, info};
+use tracing::{error, info, warn};
 use uuid::Uuid;
+
+/// Upper bound for rate limits before emitting guard-rail warnings (≈5 Gbps).
+const RATE_LIMIT_GUARD_BPS: u64 = 5_000_000_000;
 
 #[async_trait]
 pub trait EngineConfigurator: Send + Sync {
@@ -123,13 +126,79 @@ where
             let mut guard = self.engine_profile.write().await;
             *guard = profile.clone();
         }
-        self.engine.apply_engine_profile(&profile).await
+        let download_limit = profile
+            .max_download_bps
+            .and_then(|limit| u64::try_from(limit).ok());
+        let upload_limit = profile
+            .max_upload_bps
+            .and_then(|limit| u64::try_from(limit).ok());
+
+        info!(
+            implementation = %profile.implementation,
+            listen_port = ?profile.listen_port,
+            max_active = ?profile.max_active,
+            download_bps = ?download_limit,
+            upload_bps = ?upload_limit,
+            "applying engine profile update"
+        );
+
+        log_rate_guardrail("download", download_limit);
+        log_rate_guardrail("upload", upload_limit);
+
+        self.engine.apply_engine_profile(&profile).await?;
+        self.engine
+            .update_limits(
+                None,
+                TorrentRateLimit {
+                    download_bps: download_limit,
+                    upload_bps: upload_limit,
+                },
+            )
+            .await?;
+        Ok(())
     }
 
     /// Remove the torrent from the engine.
     pub async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> Result<()> {
         self.engine.remove_torrent(id, options).await
     }
+}
+
+fn log_rate_guardrail(direction: &str, limit: Option<u64>) {
+    if let Some(value) = limit {
+        log_rate_value(direction, value);
+    } else {
+        warn!(
+            direction = direction,
+            "global {direction} rate limit disabled; running without throttling"
+        );
+    }
+}
+
+fn log_rate_value(direction: &str, value: u64) {
+    if value == 0 {
+        warn!(
+            direction = direction,
+            "global {direction} rate limit set to 0 bps; transfers will halt"
+        );
+        return;
+    }
+
+    if value >= RATE_LIMIT_GUARD_BPS {
+        warn!(
+            direction = direction,
+            current_bps = value,
+            guard_bps = RATE_LIMIT_GUARD_BPS,
+            "global {direction} rate limit exceeds guard rail"
+        );
+        return;
+    }
+
+    info!(
+        direction = direction,
+        current_bps = value,
+        "applied global {direction} rate limit"
+    );
 }
 
 #[cfg(feature = "libtorrent")]
@@ -162,11 +231,11 @@ where
     E: TorrentEngine + EngineConfigurator + 'static,
 {
     async fn add_torrent(&self, request: AddTorrent) -> anyhow::Result<()> {
-        TorrentOrchestrator::add_torrent(self, request).await
+        Self::add_torrent(self, request).await
     }
 
     async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> anyhow::Result<()> {
-        TorrentOrchestrator::remove_torrent(self, id, options).await
+        Self::remove_torrent(self, id, options).await
     }
 
     async fn pause_torrent(&self, id: Uuid) -> anyhow::Result<()> {
@@ -230,121 +299,131 @@ impl TorrentCatalog {
 
     #[allow(clippy::too_many_lines)]
     async fn observe(&self, event: &Event) {
-        let mut guard = self.entries.write().await;
-        match event {
-            Event::TorrentAdded { torrent_id, name } => {
-                let entry = guard
-                    .entry(*torrent_id)
-                    .or_insert_with(|| Self::blank_status(*torrent_id));
-                entry.name = Some(name.clone());
-                entry.state = TorrentState::Queued;
-                entry.progress = TorrentProgress::default();
-                entry.library_path = None;
-                entry.rates = TorrentRates::default();
-                entry.added_at = Utc::now();
-                entry.last_updated = Utc::now();
+        if matches!(event, Event::FilesDiscovered { files, .. } if files.is_empty()) {
+            return;
+        }
+
+        {
+            let mut entries = self.entries.write().await;
+            match event {
+                Event::TorrentAdded { torrent_id, name } => {
+                    let entry = entries
+                        .entry(*torrent_id)
+                        .or_insert_with(|| Self::blank_status(*torrent_id));
+                    entry.name = Some(name.clone());
+                    entry.state = TorrentState::Queued;
+                    entry.progress = TorrentProgress::default();
+                    entry.library_path = None;
+                    entry.rates = TorrentRates::default();
+                    entry.added_at = Utc::now();
+                    entry.last_updated = Utc::now();
+                }
+                Event::FilesDiscovered { torrent_id, files } => {
+                    let entry = entries
+                        .entry(*torrent_id)
+                        .or_insert_with(|| Self::blank_status(*torrent_id));
+                    let mapped: Vec<TorrentFile> = files
+                        .iter()
+                        .enumerate()
+                        .map(|(index, file)| {
+                            let index_u32 = u32::try_from(index).unwrap_or(u32::MAX);
+                            TorrentFile {
+                                index: index_u32,
+                                path: file.path.clone(),
+                                size_bytes: file.size_bytes,
+                                bytes_completed: 0,
+                                priority: FilePriority::Normal,
+                                selected: true,
+                            }
+                        })
+                        .collect();
+                    entry.files = Some(mapped);
+                    entry.last_updated = Utc::now();
+                }
+                Event::Progress {
+                    torrent_id,
+                    bytes_downloaded,
+                    bytes_total,
+                } => {
+                    let entry = entries
+                        .entry(*torrent_id)
+                        .or_insert_with(|| Self::blank_status(*torrent_id));
+                    entry.progress.bytes_downloaded = *bytes_downloaded;
+                    entry.progress.bytes_total = *bytes_total;
+                    entry.progress.eta_seconds = None;
+                    entry.rates.download_bps = 0;
+                    entry.rates.upload_bps = 0;
+                    #[allow(clippy::cast_precision_loss)]
+                    let ratio = if *bytes_total == 0 {
+                        0.0
+                    } else {
+                        (*bytes_downloaded as f64) / (*bytes_total as f64)
+                    };
+                    entry.rates.ratio = ratio;
+                    entry.last_updated = Utc::now();
+                }
+                Event::StateChanged { torrent_id, state } => {
+                    let entry = entries
+                        .entry(*torrent_id)
+                        .or_insert_with(|| Self::blank_status(*torrent_id));
+                    entry.state = state.clone();
+                    entry.last_updated = Utc::now();
+                }
+                Event::Completed {
+                    torrent_id,
+                    library_path,
+                } => {
+                    let entry = entries
+                        .entry(*torrent_id)
+                        .or_insert_with(|| Self::blank_status(*torrent_id));
+                    entry.state = TorrentState::Completed;
+                    entry.library_path = Some(library_path.clone());
+                    entry.completed_at = Some(Utc::now());
+                    entry.last_updated = Utc::now();
+                }
+                Event::FsopsFailed {
+                    torrent_id,
+                    message,
+                } => {
+                    let entry = entries
+                        .entry(*torrent_id)
+                        .or_insert_with(|| Self::blank_status(*torrent_id));
+                    entry.state = TorrentState::Failed {
+                        message: message.clone(),
+                    };
+                    entry.last_updated = Utc::now();
+                }
+                Event::FsopsStarted { torrent_id } | Event::FsopsCompleted { torrent_id } => {
+                    let entry = entries
+                        .entry(*torrent_id)
+                        .or_insert_with(|| Self::blank_status(*torrent_id));
+                    entry.last_updated = Utc::now();
+                }
+                Event::FsopsProgress { torrent_id, .. } => {
+                    let entry = entries
+                        .entry(*torrent_id)
+                        .or_insert_with(|| Self::blank_status(*torrent_id));
+                    entry.last_updated = Utc::now();
+                }
+                Event::SettingsChanged { .. }
+                | Event::HealthChanged { .. }
+                | Event::SelectionReconciled { .. } => {}
             }
-            Event::FilesDiscovered { torrent_id, files } => {
-                let entry = guard
-                    .entry(*torrent_id)
-                    .or_insert_with(|| Self::blank_status(*torrent_id));
-                let mapped: Vec<TorrentFile> = files
-                    .iter()
-                    .enumerate()
-                    .map(|(index, file)| {
-                        let index_u32 = u32::try_from(index).unwrap_or(u32::MAX);
-                        TorrentFile {
-                            index: index_u32,
-                            path: file.path.clone(),
-                            size_bytes: file.size_bytes,
-                            bytes_completed: 0,
-                            priority: FilePriority::Normal,
-                            selected: true,
-                        }
-                    })
-                    .collect();
-                entry.files = Some(mapped);
-                entry.last_updated = Utc::now();
-            }
-            Event::Progress {
-                torrent_id,
-                bytes_downloaded,
-                bytes_total,
-            } => {
-                let entry = guard
-                    .entry(*torrent_id)
-                    .or_insert_with(|| Self::blank_status(*torrent_id));
-                entry.progress.bytes_downloaded = *bytes_downloaded;
-                entry.progress.bytes_total = *bytes_total;
-                entry.progress.eta_seconds = None;
-                entry.rates.download_bps = 0;
-                entry.rates.upload_bps = 0;
-                #[allow(clippy::cast_precision_loss)]
-                let ratio = if *bytes_total == 0 {
-                    0.0
-                } else {
-                    (*bytes_downloaded as f64) / (*bytes_total as f64)
-                };
-                entry.rates.ratio = ratio;
-                entry.last_updated = Utc::now();
-            }
-            Event::StateChanged { torrent_id, state } => {
-                let entry = guard
-                    .entry(*torrent_id)
-                    .or_insert_with(|| Self::blank_status(*torrent_id));
-                entry.state = state.clone();
-                entry.last_updated = Utc::now();
-            }
-            Event::Completed {
-                torrent_id,
-                library_path,
-            } => {
-                let entry = guard
-                    .entry(*torrent_id)
-                    .or_insert_with(|| Self::blank_status(*torrent_id));
-                entry.state = TorrentState::Completed;
-                entry.library_path = Some(library_path.clone());
-                entry.completed_at = Some(Utc::now());
-                entry.last_updated = Utc::now();
-            }
-            Event::FsopsFailed {
-                torrent_id,
-                message,
-            } => {
-                let entry = guard
-                    .entry(*torrent_id)
-                    .or_insert_with(|| Self::blank_status(*torrent_id));
-                entry.state = TorrentState::Failed {
-                    message: message.clone(),
-                };
-                entry.last_updated = Utc::now();
-            }
-            Event::FsopsStarted { torrent_id } | Event::FsopsCompleted { torrent_id } => {
-                let entry = guard
-                    .entry(*torrent_id)
-                    .or_insert_with(|| Self::blank_status(*torrent_id));
-                entry.last_updated = Utc::now();
-            }
-            Event::FsopsProgress { torrent_id, .. } => {
-                let entry = guard
-                    .entry(*torrent_id)
-                    .or_insert_with(|| Self::blank_status(*torrent_id));
-                entry.last_updated = Utc::now();
-            }
-            Event::SettingsChanged { .. } | Event::HealthChanged { .. } => {}
+            drop(entries);
         }
     }
 
     async fn list(&self) -> Vec<TorrentStatus> {
-        let guard = self.entries.read().await;
-        let mut values: Vec<_> = guard.values().cloned().collect();
+        let mut values: Vec<_> = {
+            let entries = self.entries.read().await;
+            entries.values().cloned().collect()
+        };
         values.sort_by(Self::compare_status);
         values
     }
 
     async fn get(&self, id: Uuid) -> Option<TorrentStatus> {
-        let guard = self.entries.read().await;
-        guard.get(&id).cloned()
+        self.entries.read().await.get(&id).cloned()
     }
 
     fn blank_status(id: Uuid) -> TorrentStatus {
@@ -587,26 +666,22 @@ mod engine_refresh_tests {
         }
 
         async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> anyhow::Result<()> {
-            let mut guard = self.removed.write().await;
-            guard.push((id, options));
+            self.removed.write().await.push((id, options));
             Ok(())
         }
 
         async fn pause_torrent(&self, id: Uuid) -> anyhow::Result<()> {
-            let mut guard = self.paused.write().await;
-            guard.push(id);
+            self.paused.write().await.push(id);
             Ok(())
         }
 
         async fn resume_torrent(&self, id: Uuid) -> anyhow::Result<()> {
-            let mut guard = self.resumed.write().await;
-            guard.push(id);
+            self.resumed.write().await.push(id);
             Ok(())
         }
 
         async fn set_sequential(&self, id: Uuid, sequential: bool) -> anyhow::Result<()> {
-            let mut guard = self.sequential.write().await;
-            guard.push((id, sequential));
+            self.sequential.write().await.push((id, sequential));
             Ok(())
         }
 
@@ -615,8 +690,7 @@ mod engine_refresh_tests {
             id: Option<Uuid>,
             limits: TorrentRateLimit,
         ) -> anyhow::Result<()> {
-            let mut guard = self.limits.write().await;
-            guard.push((id, limits));
+            self.limits.write().await.push((id, limits));
             Ok(())
         }
 
@@ -625,20 +699,17 @@ mod engine_refresh_tests {
             id: Uuid,
             rules: FileSelectionUpdate,
         ) -> anyhow::Result<()> {
-            let mut guard = self.selections.write().await;
-            guard.push((id, rules));
+            self.selections.write().await.push((id, rules));
             Ok(())
         }
 
         async fn reannounce(&self, id: Uuid) -> anyhow::Result<()> {
-            let mut guard = self.reannounced.write().await;
-            guard.push(id);
+            self.reannounced.write().await.push(id);
             Ok(())
         }
 
         async fn recheck(&self, id: Uuid) -> anyhow::Result<()> {
-            let mut guard = self.rechecked.write().await;
-            guard.push(id);
+            self.rechecked.write().await.push(id);
             Ok(())
         }
     }
@@ -646,8 +717,7 @@ mod engine_refresh_tests {
     #[async_trait]
     impl EngineConfigurator for RecordingEngine {
         async fn apply_engine_profile(&self, profile: &EngineProfile) -> Result<()> {
-            let mut guard = self.applied.write().await;
-            guard.push(profile.clone());
+            self.applied.write().await.push(profile.clone());
             Ok(())
         }
     }
@@ -701,16 +771,33 @@ mod engine_refresh_tests {
             engine_profile("initial"),
         ));
 
-        let updated = engine_profile("updated");
+        let mut updated = engine_profile("updated");
+        updated.max_download_bps = Some(1_500_000);
+        updated.max_upload_bps = Some(750_000);
         orchestrator
             .update_engine_profile(updated.clone())
             .await
             .expect("profile update");
 
-        let applied = engine.applied.read().await;
-        assert_eq!(applied.len(), 1);
-        assert_eq!(applied[0].implementation, updated.implementation);
-        assert_eq!(applied[0].listen_port, updated.listen_port);
+        let applied_profiles = {
+            let guard = engine.applied.read().await;
+            guard.clone()
+        };
+        assert_eq!(applied_profiles.len(), 1);
+        assert_eq!(applied_profiles[0].implementation, updated.implementation);
+        assert_eq!(applied_profiles[0].listen_port, updated.listen_port);
+
+        let recorded_limits = {
+            let guard = engine.limits.read().await;
+            guard.clone()
+        };
+        assert_eq!(recorded_limits.len(), 1);
+        assert!(
+            recorded_limits[0].0.is_none(),
+            "expected global rate limit update"
+        );
+        assert_eq!(recorded_limits[0].1.download_bps, Some(1_500_000));
+        assert_eq!(recorded_limits[0].1.upload_bps, Some(750_000));
         Ok(())
     }
 

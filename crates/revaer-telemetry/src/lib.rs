@@ -80,11 +80,11 @@ pub enum LogFormat {
 impl LogFormat {
     /// Choose a sensible default for the current build.
     #[must_use]
-    pub fn infer() -> Self {
+    pub const fn infer() -> Self {
         if cfg!(debug_assertions) {
-            LogFormat::Pretty
+            Self::Pretty
         } else {
-            LogFormat::Json
+            Self::Json
         }
     }
 }

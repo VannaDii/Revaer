@@ -9,7 +9,6 @@ anyhow.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 revaer-api = { path = "../revaer-api" }
-revaer-cli = { path = "../revaer-cli", optional = true }
 revaer-config = { path = "../revaer-config" }
 revaer-fsops = { path = "../revaer-fsops" }
 revaer-telemetry = { path = "../revaer-telemetry" }
@@ -26,4 +25,3 @@ serde_json.workspace = true
 [features]
 default = ["libtorrent"]
 libtorrent = ["revaer-torrent-libt"]
-cli = ["dep:revaer-cli"]

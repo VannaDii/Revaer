@@ -97,7 +97,7 @@ struct ApiState {
 }
 
 impl ApiState {
-    fn new(
+    const fn new(
         config: ConfigService,
         telemetry: Metrics,
         openapi_document: Arc<Value>,
@@ -116,12 +116,20 @@ impl ApiState {
     }
 
     fn record_health_status(&self, degraded: Vec<String>) {
-        let mut last = self
-            .health_status
-            .lock()
-            .expect("health status mutex poisoned");
-        if last.as_ref() != Some(&degraded) {
-            *last = Some(degraded.clone());
+        let should_publish = {
+            let mut last = self
+                .health_status
+                .lock()
+                .expect("health status mutex poisoned");
+            if last.as_ref() == Some(&degraded) {
+                false
+            } else {
+                *last = Some(degraded.clone());
+                true
+            }
+        };
+
+        if should_publish {
             let _ = self.events.publish(CoreEvent::HealthChanged { degraded });
         }
     }
@@ -167,7 +175,7 @@ struct HttpMetricsLayer {
 }
 
 impl HttpMetricsLayer {
-    fn new(telemetry: Metrics) -> Self {
+    const fn new(telemetry: Metrics) -> Self {
         Self { telemetry }
     }
 }
@@ -251,7 +259,7 @@ struct ApiError {
 }
 
 impl ApiError {
-    fn new(status: StatusCode, kind: &'static str, title: &'static str) -> Self {
+    const fn new(status: StatusCode, kind: &'static str, title: &'static str) -> Self {
         Self {
             status,
             kind,
@@ -522,10 +530,11 @@ impl ApiServer {
         let openapi_document = Arc::new(build_openapi_document());
         revaer_telemetry::persist_openapi(Path::new("docs/api/openapi.json"), &openapi_document)?;
 
+        let telemetry_for_state = telemetry.clone();
         let state = Arc::new(ApiState::new(
             config,
-            telemetry.clone(),
-            openapi_document.clone(),
+            telemetry_for_state,
+            openapi_document,
             events,
             torrent,
         ));
@@ -576,7 +585,7 @@ impl ApiServer {
             .layer(revaer_telemetry::propagate_request_id_layer())
             .layer(revaer_telemetry::set_request_id_layer())
             .layer(trace_layer)
-            .layer(HttpMetricsLayer::new(telemetry.clone()));
+            .layer(HttpMetricsLayer::new(telemetry));
 
         let router = Router::new()
             .route("/health", get(health))
@@ -680,21 +689,40 @@ async fn setup_complete(
     Extension(context): Extension<AuthContext>,
     Json(mut changeset): Json<SettingsChangeset>,
 ) -> Result<Json<ConfigSnapshot>, ApiError> {
-    let token = match context {
-        AuthContext::SetupToken(token) => token,
-        AuthContext::ApiKey { .. } => {
-            return Err(ApiError::internal(
-                "invalid authentication context for setup completion",
-            ));
-        }
-    };
+    let token = extract_setup_token(context)?;
+    ensure_valid_setup_token(&state, &token).await?;
+    coerce_app_profile_patch(&mut changeset)?;
 
-    if let Err(err) = state.config.validate_setup_token(&token).await {
-        warn!(error = %err, "setup token validation failed");
-        return Err(ApiError::unauthorized("invalid setup token"));
+    let snapshot = apply_setup_changes(&state, changeset, &token).await?;
+
+    let _ = state.events.publish(CoreEvent::SettingsChanged {
+        description: format!("setup_complete revision {}", snapshot.revision),
+    });
+
+    Ok(Json(snapshot))
+}
+
+fn extract_setup_token(context: AuthContext) -> Result<String, ApiError> {
+    match context {
+        AuthContext::SetupToken(token) => Ok(token),
+        AuthContext::ApiKey { .. } => Err(ApiError::internal(
+            "invalid authentication context for setup completion",
+        )),
     }
+}
 
-    let updated_app_patch = match changeset.app_profile.take() {
+async fn ensure_valid_setup_token(state: &ApiState, token: &str) -> Result<(), ApiError> {
+    match state.config.validate_setup_token(token).await {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            warn!(error = %err, "setup token validation failed");
+            Err(ApiError::unauthorized("invalid setup token"))
+        }
+    }
+}
+
+fn coerce_app_profile_patch(changeset: &mut SettingsChangeset) -> Result<(), ApiError> {
+    let updated = match changeset.app_profile.take() {
         Some(Value::Object(mut map)) => {
             map.insert("mode".to_string(), json!("active"));
             Value::Object(map)
@@ -711,29 +739,30 @@ async fn setup_complete(
             ));
         }
     };
-    changeset.app_profile = Some(updated_app_patch);
+    changeset.app_profile = Some(updated);
+    Ok(())
+}
 
+async fn apply_setup_changes(
+    state: &ApiState,
+    changeset: SettingsChangeset,
+    token: &str,
+) -> Result<ConfigSnapshot, ApiError> {
     state
         .config
         .apply_changeset("setup", "setup_complete", changeset)
         .await
         .map_err(|err| map_config_error(err, "failed to apply setup changes"))?;
 
-    if let Err(err) = state.config.consume_setup_token(&token).await {
+    if let Err(err) = state.config.consume_setup_token(token).await {
         error!(error = %err, "failed to consume setup token after completion");
         return Err(ApiError::internal("failed to finalize setup"));
     }
 
-    let snapshot = state.config.snapshot().await.map_err(|err| {
+    state.config.snapshot().await.map_err(|err| {
         error!(error = %err, "failed to load configuration snapshot");
         ApiError::internal("failed to load configuration snapshot")
-    })?;
-
-    let _ = state.events.publish(CoreEvent::SettingsChanged {
-        description: format!("setup_complete revision {}", snapshot.revision),
-    });
-
-    Ok(Json(snapshot))
+    })
 }
 
 async fn settings_patch(
@@ -1951,8 +1980,7 @@ mod tests {
             if self.should_fail_add {
                 anyhow::bail!("injected failure");
             }
-            let mut guard = self.added.lock().await;
-            guard.push(request);
+            self.added.lock().await.push(request);
             Ok(())
         }
 
@@ -1960,8 +1988,7 @@ mod tests {
             if self.should_fail_remove {
                 anyhow::bail!("remove failure");
             }
-            let mut guard = self.removed.lock().await;
-            guard.push((id, options));
+            self.removed.lock().await.push((id, options));
             Ok(())
         }
     }
@@ -2013,9 +2040,11 @@ mod tests {
         dispatch_torrent_add(Some(&handles), &request)
             .await
             .expect("torrent creation should succeed");
-        let recorded = workflow.added.lock().await;
-        assert_eq!(recorded.len(), 1);
-        let recorded_entry = &recorded[0];
+        let recorded_entry = {
+            let recorded = workflow.added.lock().await;
+            assert_eq!(recorded.len(), 1);
+            recorded[0].clone()
+        };
         assert_eq!(recorded_entry.id, request.id);
         match &recorded_entry.source {
             TorrentSource::Magnet { uri } => {
@@ -2059,9 +2088,12 @@ mod tests {
             .await
             .expect("torrent removal should succeed");
 
-        let recorded = workflow.removed.lock().await;
-        assert_eq!(recorded.len(), 1);
-        assert_eq!(recorded[0].0, id);
+        {
+            let recorded = workflow.removed.lock().await;
+            assert_eq!(recorded.len(), 1);
+            assert_eq!(recorded[0].0, id);
+            drop(recorded);
+        }
         Ok(())
     }
 }

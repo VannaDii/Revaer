@@ -9,7 +9,7 @@ use revaer_api::TorrentHandles;
 use revaer_config::{AppMode, ConfigService};
 use revaer_events::EventBus;
 use revaer_telemetry::{GlobalContextGuard, LoggingConfig};
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 #[cfg(feature = "libtorrent")]
 use orchestrator::spawn_libtorrent_orchestrator;
@@ -52,7 +52,7 @@ async fn main() -> Result<()> {
         let inspector: Arc<dyn TorrentInspector> = orchestrator.clone();
         let handles = TorrentHandles::new(workflow, inspector);
         let mut local_watcher = watcher;
-        let orchestrator_for_updates = orchestrator.clone();
+        let orchestrator_for_updates = Arc::clone(&orchestrator);
         let config_task = tokio::spawn(async move {
             loop {
                 match local_watcher.next().await {
@@ -67,6 +67,11 @@ async fn main() -> Result<()> {
                             warn!(
                                 error = %err,
                                 "failed to apply engine profile update from watcher"
+                            );
+                        } else {
+                            info!(
+                                revision = update.revision,
+                                "applied configuration update from watcher"
                             );
                         }
                     }
@@ -93,6 +98,10 @@ async fn main() -> Result<()> {
 
     if snapshot.app_profile.mode == AppMode::Setup && !snapshot.app_profile.bind_addr.is_loopback()
     {
+        error!(
+            bind_addr = %snapshot.app_profile.bind_addr,
+            "refusing to bind setup mode API listener to non-loopback address"
+        );
         bail!(
             "app_profile.bind_addr must remain on a loopback interface during setup mode (found {})",
             snapshot.app_profile.bind_addr,

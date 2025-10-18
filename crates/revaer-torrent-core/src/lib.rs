@@ -218,6 +218,10 @@ pub enum EngineEvent {
         name: Option<String>,
         download_dir: Option<String>,
     },
+    ResumeData {
+        torrent_id: Uuid,
+        payload: Vec<u8>,
+    },
     Error {
         torrent_id: Uuid,
         message: String,

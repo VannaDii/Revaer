@@ -1,4 +1,5 @@
 //! Core event bus for the Revaer platform.
+#![allow(clippy::multiple_crate_versions)]
 //!
 //! The bus provides a typed event enum, sequential identifiers, and support for
 //! replaying recent events when subscribers reconnect (e.g. SSE clients that
@@ -21,7 +22,7 @@ pub type EventId = u64;
 const DEFAULT_REPLAY_CAPACITY: usize = 1_024;
 
 /// Typed domain events surfaced across the system.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Event {
     TorrentAdded {
@@ -65,31 +66,36 @@ pub enum Event {
     HealthChanged {
         degraded: Vec<String>,
     },
+    SelectionReconciled {
+        torrent_id: Uuid,
+        reason: String,
+    },
 }
 
 impl Event {
     /// Machine-friendly discriminator for SSE consumers.
     #[must_use]
-    pub fn kind(&self) -> &'static str {
+    pub const fn kind(&self) -> &'static str {
         match self {
-            Event::TorrentAdded { .. } => "torrent_added",
-            Event::FilesDiscovered { .. } => "files_discovered",
-            Event::Progress { .. } => "progress",
-            Event::StateChanged { .. } => "state_changed",
-            Event::Completed { .. } => "completed",
-            Event::FsopsStarted { .. } => "fsops_started",
-            Event::FsopsProgress { .. } => "fsops_progress",
-            Event::FsopsCompleted { .. } => "fsops_completed",
-            Event::FsopsFailed { .. } => "fsops_failed",
-            Event::SettingsChanged { .. } => "settings_changed",
-            Event::HealthChanged { .. } => "health_changed",
+            Self::TorrentAdded { .. } => "torrent_added",
+            Self::FilesDiscovered { .. } => "files_discovered",
+            Self::Progress { .. } => "progress",
+            Self::StateChanged { .. } => "state_changed",
+            Self::Completed { .. } => "completed",
+            Self::FsopsStarted { .. } => "fsops_started",
+            Self::FsopsProgress { .. } => "fsops_progress",
+            Self::FsopsCompleted { .. } => "fsops_completed",
+            Self::FsopsFailed { .. } => "fsops_failed",
+            Self::SettingsChanged { .. } => "settings_changed",
+            Self::HealthChanged { .. } => "health_changed",
+            Self::SelectionReconciled { .. } => "selection_reconciled",
         }
     }
 }
 
 /// Metadata wrapper around events. Each envelope tracks the event id and
 /// emission timestamp.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct EventEnvelope {
     pub id: EventId,
     pub timestamp: DateTime<Utc>,
@@ -97,14 +103,14 @@ pub struct EventEnvelope {
 }
 
 /// Individual file discovered within a torrent.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct DiscoveredFile {
     pub path: String,
     pub size_bytes: u64,
 }
 
 /// High-level torrent states that downstream consumers care about.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TorrentState {
     Queued,

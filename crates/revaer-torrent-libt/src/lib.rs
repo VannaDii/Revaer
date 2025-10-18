@@ -1,17 +1,24 @@
-//! Libtorrent adapter stub.
+//! Libtorrent adapter scaffold.
 //!
-//! The adapter is responsible for translating libtorrent state callbacks into the shared
-//! workspace event bus so downstream consumers (API/SSE, telemetry) observe real-time changes.
+//! Once the real libtorrent bindings are wired in, the engine will translate
+//! session events into the shared workspace event bus so downstream consumers
+//! (API/SSE, telemetry) observe real-time changes.
+
+mod command;
+mod session;
+mod store;
+mod worker;
+
+pub use store::{FastResumeStore, StoredTorrentMetadata, StoredTorrentState};
 
 use anyhow::{anyhow, Result};
+use command::EngineCommand;
 use revaer_events::{DiscoveredFile, Event, EventBus, TorrentState};
 use revaer_torrent_core::{
-    AddTorrent, FileSelectionRules, FileSelectionUpdate, RemoveTorrent, TorrentEngine,
-    TorrentRateLimit, TorrentSource,
+    AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentEngine, TorrentRateLimit,
 };
-use std::collections::HashMap;
+use session::{LibtSession, StubSession};
 use tokio::sync::mpsc;
-use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 const COMMAND_BUFFER: usize = 128;
@@ -21,24 +28,48 @@ const COMMAND_BUFFER: usize = 128;
 pub struct LibtorrentEngine {
     events: EventBus,
     commands: mpsc::Sender<EngineCommand>,
+    #[allow(dead_code)]
+    resume_store: Option<FastResumeStore>,
 }
 
 impl LibtorrentEngine {
     /// Construct a new engine publisher hooked up to the shared event bus.
     #[must_use]
     pub fn new(events: EventBus) -> Self {
-        let (commands, mut rx) = mpsc::channel(COMMAND_BUFFER);
-        let worker_events = events.clone();
-        tokio::spawn(async move {
-            let mut state = WorkerState::new(worker_events);
-            while let Some(command) = rx.recv().await {
-                if let Err(err) = state.handle(command) {
-                    warn!(error = %err, "libtorrent command handling failed");
-                }
-            }
-        });
+        Self::build(events, None, Box::new(StubSession::default()))
+    }
 
-        Self { events, commands }
+    /// Construct an engine with a configured fast-resume store.
+    #[must_use]
+    pub fn with_resume_store(events: EventBus, store: FastResumeStore) -> Self {
+        Self::build(events, Some(store), Box::new(StubSession::default()))
+    }
+
+    #[cfg(test)]
+    #[allow(dead_code)]
+    pub(crate) fn with_custom_session(
+        events: EventBus,
+        store: Option<FastResumeStore>,
+        session: Box<dyn LibtSession>,
+    ) -> Self {
+        Self::build(events, store, session)
+    }
+
+    fn build(
+        events: EventBus,
+        store: Option<FastResumeStore>,
+        session: Box<dyn LibtSession>,
+    ) -> Self {
+        let (commands, rx) = mpsc::channel(COMMAND_BUFFER);
+        let worker_store = store.clone();
+        // TODO: swap the stub implementation with the real libtorrent session wiring.
+        worker::spawn(events.clone(), rx, worker_store, session);
+
+        Self {
+            events,
+            commands,
+            resume_store: store,
+        }
     }
 
     async fn send_command(&self, command: EngineCommand) -> Result<()> {
@@ -133,204 +164,20 @@ impl TorrentEngine for LibtorrentEngine {
     }
 }
 
-#[derive(Debug)]
-enum EngineCommand {
-    Add(AddTorrent),
-    Remove {
-        id: Uuid,
-        options: RemoveTorrent,
-    },
-    Pause {
-        id: Uuid,
-    },
-    Resume {
-        id: Uuid,
-    },
-    SetSequential {
-        id: Uuid,
-        sequential: bool,
-    },
-    UpdateLimits {
-        id: Option<Uuid>,
-        limits: TorrentRateLimit,
-    },
-    UpdateSelection {
-        id: Uuid,
-        rules: FileSelectionUpdate,
-    },
-    Reannounce {
-        id: Uuid,
-    },
-    Recheck {
-        id: Uuid,
-    },
-}
-
-struct WorkerState {
-    events: EventBus,
-    torrents: HashMap<Uuid, StubTorrent>,
-}
-
-impl WorkerState {
-    fn new(events: EventBus) -> Self {
-        Self {
-            events,
-            torrents: HashMap::new(),
-        }
-    }
-
-    fn handle(&mut self, command: EngineCommand) -> Result<()> {
-        match command {
-            EngineCommand::Add(request) => {
-                let stub = StubTorrent::from_add(&request);
-                if self.torrents.insert(request.id, stub).is_some() {
-                    warn!(torrent_id = %request.id, "replacing existing torrent in stub engine");
-                }
-                let name = request
-                    .options
-                    .name_hint
-                    .clone()
-                    .unwrap_or_else(|| format!("torrent-{}", request.id));
-                let source_desc = match &request.source {
-                    TorrentSource::Magnet { uri } => {
-                        format!("magnet:{}", uri.chars().take(32).collect::<String>())
-                    }
-                    TorrentSource::Metainfo { .. } => "metainfo-bytes".to_string(),
-                };
-                info!(
-                    torrent_id = %request.id,
-                    torrent_name = %name,
-                    source = %source_desc,
-                    "libtorrent stub add command processed"
-                );
-                emit_added(&self.events, &request);
-            }
-            EngineCommand::Remove { id, options } => {
-                if self.torrents.remove(&id).is_some() {
-                    info!(
-                        torrent_id = %id,
-                        with_data = options.with_data,
-                        "libtorrent stub remove command processed"
-                    );
-                    emit_state(&self.events, id, TorrentState::Stopped);
-                } else {
-                    return Err(anyhow!("unknown torrent {id} for remove command"));
-                }
-            }
-            EngineCommand::Pause { id } => {
-                let torrent = self.torrent_mut(id)?;
-                torrent.state = TorrentState::Stopped;
-                emit_state(&self.events, id, TorrentState::Stopped);
-            }
-            EngineCommand::Resume { id } => {
-                let torrent = self.torrent_mut(id)?;
-                torrent.state = TorrentState::Downloading;
-                emit_state(&self.events, id, TorrentState::Downloading);
-            }
-            EngineCommand::SetSequential { id, sequential } => {
-                let torrent = self.torrent_mut(id)?;
-                torrent.sequential = sequential;
-                debug!(torrent_id = %id, sequential, "updated sequential flag");
-            }
-            EngineCommand::UpdateLimits { id, limits } => {
-                if let Some(target) = id {
-                    let torrent = self.torrent_mut(target)?;
-                    torrent.rate_limit = limits.clone();
-                } else {
-                    for torrent in self.torrents.values_mut() {
-                        torrent.rate_limit = limits.clone();
-                    }
-                }
-                debug!(
-                    torrent_id = ?id,
-                    download_bps = ?limits.download_bps,
-                    upload_bps = ?limits.upload_bps,
-                    "updated rate limits"
-                );
-            }
-            EngineCommand::UpdateSelection { id, rules } => {
-                let torrent = self.torrent_mut(id)?;
-                torrent.selection.include.clone_from(&rules.include);
-                torrent.selection.exclude.clone_from(&rules.exclude);
-                torrent.selection.skip_fluff = rules.skip_fluff;
-                debug!(
-                    torrent_id = %id,
-                    include = torrent.selection.include.len(),
-                    exclude = torrent.selection.exclude.len(),
-                    priorities = rules.priorities.len(),
-                    skip_fluff = torrent.selection.skip_fluff,
-                    "updated file selection"
-                );
-            }
-            EngineCommand::Reannounce { id } => {
-                if self.torrents.contains_key(&id) {
-                    warn!(torrent_id = %id, "reannounce requested (stubbed)");
-                } else {
-                    return Err(anyhow!("unknown torrent {id} for reannounce"));
-                }
-            }
-            EngineCommand::Recheck { id } => {
-                if self.torrents.contains_key(&id) {
-                    warn!(torrent_id = %id, "recheck requested (stubbed)");
-                } else {
-                    return Err(anyhow!("unknown torrent {id} for recheck"));
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn torrent_mut(&mut self, id: Uuid) -> Result<&mut StubTorrent> {
-        self.torrents
-            .get_mut(&id)
-            .ok_or_else(|| anyhow!("unknown torrent {id}"))
-    }
-}
-
-#[derive(Clone)]
-struct StubTorrent {
-    selection: FileSelectionRules,
-    rate_limit: TorrentRateLimit,
-    sequential: bool,
-    state: TorrentState,
-}
-
-impl StubTorrent {
-    fn from_add(request: &AddTorrent) -> Self {
-        Self {
-            selection: request.options.file_rules.clone(),
-            rate_limit: request.options.rate_limit.clone(),
-            sequential: request.options.sequential.unwrap_or(false),
-            state: TorrentState::Queued,
-        }
-    }
-}
-
-fn emit_state(events: &EventBus, torrent_id: Uuid, state: TorrentState) {
-    let _ = events.publish(Event::StateChanged { torrent_id, state });
-}
-
-fn emit_added(events: &EventBus, request: &AddTorrent) {
-    let name = request
-        .options
-        .name_hint
-        .clone()
-        .unwrap_or_else(|| format!("torrent-{}", request.id));
-    let _ = events.publish(Event::TorrentAdded {
-        torrent_id: request.id,
-        name,
-    });
-    emit_state(events, request.id, TorrentState::Queued);
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::store::{FastResumeStore, StoredTorrentMetadata};
     use anyhow::Result;
+    use chrono::Utc;
     use revaer_events::{Event, EventBus};
-    use revaer_torrent_core::{AddTorrent, AddTorrentOptions, TorrentSource};
-    use tokio::time::{timeout, Duration};
+    use revaer_torrent_core::{
+        AddTorrent, AddTorrentOptions, FilePriority, FilePriorityOverride, FileSelectionRules,
+        FileSelectionUpdate, RemoveTorrent, TorrentSource,
+    };
+    use std::fs;
+    use tempfile::TempDir;
+    use tokio::time::{sleep, timeout, Duration};
 
     async fn next_event(stream: &mut revaer_events::EventStream) -> Event {
         timeout(Duration::from_millis(100), stream.next())
@@ -371,6 +218,111 @@ mod tests {
             }
             other => panic!("unexpected event {other:?}"),
         }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn resume_reconciliation_emits_selection_event() -> Result<()> {
+        let temp = TempDir::new()?;
+        let store = FastResumeStore::new(temp.path());
+        let torrent_id = Uuid::new_v4();
+
+        let metadata = StoredTorrentMetadata {
+            selection: FileSelectionRules {
+                include: vec!["movies/**".to_string()],
+                exclude: vec!["extras/**".to_string()],
+                skip_fluff: true,
+            },
+            priorities: vec![FilePriorityOverride {
+                index: 0,
+                priority: FilePriority::High,
+            }],
+            download_dir: Some("/persisted/downloads".to_string()),
+            sequential: true,
+            updated_at: Utc::now(),
+        };
+        store.write_metadata(torrent_id, &metadata)?;
+        store.write_fastresume(torrent_id, br#"{"resume":"data"}"#)?;
+
+        let bus = EventBus::with_capacity(64);
+        let bus_for_engine = bus.clone();
+        let store_for_engine = store.clone();
+        let engine = LibtorrentEngine::with_resume_store(bus_for_engine, store_for_engine);
+        let mut stream = bus.subscribe(None);
+
+        let descriptor = AddTorrent {
+            id: torrent_id,
+            source: TorrentSource::magnet("magnet:?xt=urn:btih:demo"),
+            options: AddTorrentOptions::default(),
+        };
+
+        engine.add_torrent(descriptor).await?;
+
+        let mut reconciled = false;
+        for _ in 0..10 {
+            let event = next_event(&mut stream).await;
+            if let Event::SelectionReconciled { torrent_id: id, .. } = event {
+                if id == torrent_id {
+                    reconciled = true;
+                    break;
+                }
+            }
+        }
+        assert!(
+            reconciled,
+            "expected selection reconciliation when resume metadata differs"
+        );
+
+        // Allow the worker to flush metadata writes.
+        sleep(Duration::from_millis(50)).await;
+
+        let persisted = store
+            .load_all()?
+            .into_iter()
+            .find(|state| state.torrent_id == torrent_id)
+            .expect("metadata persisted");
+        let persisted_meta = persisted.metadata.expect("metadata present");
+        assert!(persisted_meta.sequential);
+        assert_eq!(persisted_meta.selection.include, metadata.selection.include);
+        assert_eq!(persisted_meta.priorities.len(), metadata.priorities.len());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn resume_data_persisted_on_engine_events() -> Result<()> {
+        let temp = TempDir::new()?;
+        let store = FastResumeStore::new(temp.path());
+        let bus = EventBus::with_capacity(32);
+        let engine = {
+            let bus_for_engine = bus.clone();
+            let store_for_engine = store.clone();
+            LibtorrentEngine::with_resume_store(bus_for_engine, store_for_engine)
+        };
+        let torrent_id = Uuid::new_v4();
+        let mut stream = bus.subscribe(None);
+
+        let descriptor = AddTorrent {
+            id: torrent_id,
+            source: TorrentSource::magnet("magnet:?xt=urn:btih:resume"),
+            options: AddTorrentOptions::default(),
+        };
+
+        engine.add_torrent(descriptor).await?;
+        // Drain the initial torrent_added/state_changed events.
+        let _ = next_event(&mut stream).await;
+        let _ = next_event(&mut stream).await;
+
+        sleep(Duration::from_millis(50)).await;
+
+        let state = store
+            .load_all()?
+            .into_iter()
+            .find(|entry| entry.torrent_id == torrent_id)
+            .expect("resume state persisted");
+        let payload = state.fastresume.expect("fastresume payload recorded");
+        assert!(!payload.is_empty(), "expected non-empty fastresume payload");
 
         Ok(())
     }
@@ -428,6 +380,37 @@ mod tests {
             }
             other => panic!("unexpected event {other:?}"),
         }
+    }
+
+    #[tokio::test]
+    async fn remove_torrent_emits_stopped_event() -> Result<()> {
+        let bus = EventBus::with_capacity(16);
+        let engine = LibtorrentEngine::new(bus.clone());
+        let mut stream = bus.subscribe(None);
+
+        let descriptor = AddTorrent {
+            id: Uuid::new_v4(),
+            source: TorrentSource::magnet("magnet:?xt=urn:btih:demo"),
+            options: AddTorrentOptions::default(),
+        };
+
+        engine.add_torrent(descriptor.clone()).await?;
+        let _ = next_event(&mut stream).await; // TorrentAdded
+        let _ = next_event(&mut stream).await; // Initial state change
+
+        engine
+            .remove_torrent(descriptor.id, RemoveTorrent { with_data: true })
+            .await?;
+
+        match next_event(&mut stream).await {
+            Event::StateChanged { torrent_id, state } => {
+                assert_eq!(torrent_id, descriptor.id);
+                assert!(matches!(state, TorrentState::Stopped));
+            }
+            other => panic!("unexpected event {other:?}"),
+        }
+
+        Ok(())
     }
 
     #[tokio::test]
@@ -526,6 +509,97 @@ mod tests {
             }
             other => panic!("unexpected event {other:?}"),
         }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn engine_with_resume_store_retains_store() -> Result<()> {
+        let bus = EventBus::with_capacity(4);
+        let temp = TempDir::new()?;
+        let store = FastResumeStore::new(temp.path());
+
+        let engine = LibtorrentEngine::with_resume_store(bus, store);
+
+        assert!(engine.resume_store.is_some());
+        engine
+            .resume_store
+            .as_ref()
+            .expect("resume store missing")
+            .ensure_initialized()?;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn metadata_persists_on_add_and_selection_updates() -> Result<()> {
+        let bus = EventBus::with_capacity(32);
+        let temp = TempDir::new()?;
+        let store = FastResumeStore::new(temp.path());
+        let engine = {
+            let bus_for_engine = bus.clone();
+            LibtorrentEngine::with_resume_store(bus_for_engine, store)
+        };
+        let torrent_id = Uuid::new_v4();
+
+        let descriptor = AddTorrent {
+            id: torrent_id,
+            source: TorrentSource::magnet("magnet:?xt=urn:btih:demo"),
+            options: AddTorrentOptions {
+                name_hint: Some("demo.torrent".into()),
+                download_dir: Some("/downloads".into()),
+                sequential: Some(true),
+                file_rules: FileSelectionRules {
+                    include: vec!["**/*.mkv".into()],
+                    exclude: vec![],
+                    skip_fluff: true,
+                },
+                ..AddTorrentOptions::default()
+            },
+        };
+        let metadata_path = temp.path().join(format!("{torrent_id}.meta.json"));
+        let mut stream = bus.subscribe(None);
+
+        engine.add_torrent(descriptor.clone()).await?;
+        // Wait for add + initial state to ensure worker processed command.
+        let _ = next_event(&mut stream).await;
+        let _ = next_event(&mut stream).await;
+        sleep(Duration::from_millis(50)).await;
+
+        let initial = fs::read_to_string(&metadata_path)?;
+        let mut metadata: StoredTorrentMetadata = serde_json::from_str(&initial)?;
+        assert_eq!(
+            metadata.selection.include,
+            descriptor.options.file_rules.include
+        );
+        assert_eq!(metadata.download_dir.as_deref(), Some("/downloads"));
+        assert!(metadata.sequential);
+
+        let update = FileSelectionUpdate {
+            include: vec!["Season1/**".into()],
+            exclude: vec!["**/extras/**".into()],
+            skip_fluff: false,
+            priorities: vec![FilePriorityOverride {
+                index: 0,
+                priority: FilePriority::High,
+            }],
+        };
+
+        engine.update_selection(torrent_id, update.clone()).await?;
+        sleep(Duration::from_millis(50)).await;
+
+        let after = fs::read_to_string(&metadata_path)?;
+        metadata = serde_json::from_str(&after)?;
+        assert_eq!(metadata.selection.include, update.include);
+        assert_eq!(metadata.selection.exclude, update.exclude);
+        assert_eq!(metadata.priorities.len(), 1);
+        assert!(!metadata.selection.skip_fluff);
+
+        engine.set_sequential(torrent_id, false).await?;
+        sleep(Duration::from_millis(50)).await;
+        let after_seq = fs::read_to_string(&metadata_path)?;
+        metadata = serde_json::from_str(&after_seq)?;
+        assert!(!metadata.sequential);
 
         Ok(())
     }

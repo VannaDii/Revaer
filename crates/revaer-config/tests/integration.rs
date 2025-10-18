@@ -1,6 +1,6 @@
 use std::future::Future;
 use std::path::Path;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
 use revaer_config::{AppMode, ConfigService, SettingsChangeset, SettingsFacade, SettingsPayload};
@@ -306,6 +306,43 @@ async fn revision_monotonicity_for_multi_table_changes() -> Result<()> {
 
         let after = service.snapshot().await?.revision;
         assert_eq!(after, before + 1, "revision should bump once");
+
+        Ok(())
+    })
+    .await
+}
+
+#[tokio::test]
+#[serial]
+async fn engine_profile_updates_propagate_within_two_seconds() -> Result<()> {
+    const DEADLINE: Duration = Duration::from_secs(2);
+    with_config_service(|service| async move {
+        let (_initial, mut watcher) = service.watch_settings(Duration::from_millis(100)).await?;
+        let new_limit = 2_500_000_i64;
+        let start = Instant::now();
+
+        service
+            .apply_changeset(
+                "tester",
+                "rate_limit_adjustment",
+                SettingsChangeset {
+                    engine_profile: Some(json!({ "max_download_bps": new_limit })),
+                    ..SettingsChangeset::default()
+                },
+            )
+            .await?;
+
+        let updated = timeout(DEADLINE, watcher.next()).await??;
+        let elapsed = start.elapsed();
+        assert!(
+            elapsed <= DEADLINE,
+            "engine profile update took {elapsed:?}, expected <= {DEADLINE:?}"
+        );
+        assert_eq!(
+            updated.engine_profile.max_download_bps,
+            Some(new_limit),
+            "max_download_bps did not propagate"
+        );
 
         Ok(())
     })
