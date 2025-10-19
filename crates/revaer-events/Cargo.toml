@@ -3,11 +3,12 @@ name = "revaer-events"
 version = "0.1.0"
 edition = "2024"
 publish = false
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
 
 [dependencies]
-anyhow.workspace = true
 chrono.workspace = true
 serde.workspace = true
-serde_json.workspace = true
 tokio.workspace = true
 uuid.workspace = true

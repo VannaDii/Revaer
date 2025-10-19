@@ -25,16 +25,30 @@ build-rel:
     @cargo build --workspace --release --all-features
 
 udeps:
-    @cargo +stable udeps --workspace --all-targets
+    @rustup toolchain install nightly --profile minimal --no-self-update >/dev/null 2>&1 || true
+    @if ! command -v cargo-udeps >/dev/null 2>&1; then \
+        cargo +nightly install cargo-udeps --locked; \
+    fi
+    @cargo +nightly udeps --workspace --all-targets
 
 audit:
-    @cargo audit
+    @if ! command -v cargo-audit >/dev/null 2>&1; then \
+        cargo install cargo-audit --locked; \
+    fi
+    @cargo audit --deny warnings
 
 deny:
+    @if ! command -v cargo-deny >/dev/null 2>&1; then \
+        cargo install cargo-deny --locked; \
+    fi
     @cargo deny check
 
 cov:
-    @cargo llvm-cov --workspace --fail-under 80
+    @if ! command -v cargo-llvm-cov >/dev/null 2>&1; then \
+        cargo install cargo-llvm-cov --locked; \
+    fi
+    @rustup component add llvm-tools-preview
+    @cargo llvm-cov --workspace --fail-under-lines 80 --fail-under-functions 80 --fail-under-regions 80
 
 api-export:
     @cargo run -p revaer-api --bin generate_openapi

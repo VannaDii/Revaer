@@ -3,6 +3,9 @@ name = "revaer-app"
 version = "0.1.0"
 edition = "2024"
 publish = false
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
 
 [dependencies]
 anyhow.workspace = true

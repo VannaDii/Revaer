@@ -38,7 +38,24 @@ revaer/
 ## Development Tasks
 - `just fmt` – format sources.
 - `just lint` – run clippy with warnings as errors.
-- `just test` – execute the test suite (currently placeholder).
+- `just test` – execute the full test suite (integration + unit).
+- `just build` – build the workspace with all features enabled.
+- `just udeps` – detect unused dependencies (installs `cargo-udeps` on first run).
+- `just audit` – scan dependencies for published advisories (`cargo-audit`).
+- `just deny` – enforce the license and advisory policy (`cargo-deny`).
+- `just cov` – run source-based coverage with LLVM (requires `llvm-tools-preview`).
+- `just ci` – execute all required quality gates locally.
+
+### Required Tooling
+Install the following Cargo subcommands before running the quality gates locally (the `just` recipes will also install them on first use):
+
+```bash
+cargo install cargo-udeps --locked
+cargo install cargo-audit --locked
+cargo install cargo-deny --locked
+cargo install cargo-llvm-cov --locked
+rustup component add llvm-tools-preview
+```
 
 ## Next Steps
 - Implement the migrations and configuration schema inside `revaer-config`.

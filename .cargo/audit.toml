@@ -1,0 +1,6 @@
+[advisories]
+ignore = [
+    # sqlx currently enables the mysql feature which depends on rsa 0.9.8.
+    # Phase One follow-up: drop the mysql feature or upgrade once sqlx ships a fix.
+    "RUSTSEC-2023-0071",
+]
