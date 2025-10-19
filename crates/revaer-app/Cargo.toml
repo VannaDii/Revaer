@@ -2,6 +2,7 @@
 name = "revaer-app"
 version = "0.1.0"
 edition = "2024"
+rust-version.workspace = true
 publish = false
 license.workspace = true
 repository.workspace = true
@@ -24,6 +25,7 @@ chrono.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
+tempfile = "3.10"
 
 [features]
 default = ["libtorrent"]

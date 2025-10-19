@@ -7,15 +7,16 @@ use anyhow::Result;
 use revaer_events::{DiscoveredFile, Event, EventBus, TorrentState};
 use revaer_torrent_core::{
     AddTorrent, EngineEvent, FilePriorityOverride, FileSelectionRules, FileSelectionUpdate,
-    RemoveTorrent, TorrentRateLimit, TorrentSource,
+    RemoveTorrent, TorrentRateLimit, TorrentRates, TorrentSource,
 };
 use std::collections::{BTreeSet, HashMap};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 const ALERT_POLL_INTERVAL: Duration = Duration::from_millis(200);
+const PROGRESS_COALESCE_INTERVAL: Duration = Duration::from_millis(100);
 
 pub fn spawn(
     events: EventBus,
@@ -32,6 +33,8 @@ pub fn spawn(
                     match command {
                         Some(command) => {
                             if let Err(err) = worker.handle(command).await {
+                                let detail = err.to_string();
+                                worker.mark_degraded("session", Some(&detail));
                                 warn!(error = %err, "libtorrent command handling failed");
                             }
                         }
@@ -40,12 +43,16 @@ pub fn spawn(
                 }
                 _ = poll.tick() => {
                     if let Err(err) = worker.flush_session_events().await {
+                        let detail = err.to_string();
+                        worker.mark_degraded("session", Some(&detail));
                         warn!(error = %err, "libtorrent alert polling failed");
                     }
                 }
             }
         }
         if let Err(err) = worker.flush_session_events().await {
+            let detail = err.to_string();
+            worker.mark_degraded("session", Some(&detail));
             warn!(error = %err, "libtorrent alert polling failed during shutdown");
         }
     });
@@ -58,6 +65,9 @@ struct Worker {
     resume_cache: HashMap<Uuid, StoredTorrentMetadata>,
     fastresume_payloads: HashMap<Uuid, Vec<u8>>,
     health: BTreeSet<String>,
+    progress_last_emit: HashMap<Uuid, Instant>,
+    global_limits: TorrentRateLimit,
+    per_torrent_limits: HashMap<Uuid, TorrentRateLimit>,
 }
 
 impl Worker {
@@ -107,6 +117,9 @@ impl Worker {
             resume_cache,
             fastresume_payloads,
             health: BTreeSet::new(),
+            progress_last_emit: HashMap::new(),
+            global_limits: TorrentRateLimit::default(),
+            per_torrent_limits: HashMap::new(),
         };
 
         if let Some(message) = load_error {
@@ -223,7 +236,7 @@ impl Worker {
             torrent_id = %request.id,
             torrent_name = %name,
             source = %source_desc,
-            "libtorrent stub add command processed"
+            "torrent add command processed"
         );
         self.publish_torrent_added(&request);
         let selection = effective_selection;
@@ -257,10 +270,12 @@ impl Worker {
         info!(
             torrent_id = %id,
             with_data = options.with_data,
-            "libtorrent stub remove command processed"
+            "torrent remove command processed"
         );
         self.resume_cache.remove(&id);
         self.fastresume_payloads.remove(&id);
+        self.progress_last_emit.remove(&id);
+        self.per_torrent_limits.remove(&id);
         if store_ok {
             self.mark_recovered("resume_store");
         }
@@ -296,6 +311,11 @@ impl Worker {
             upload_bps = ?limits.upload_bps,
             "updated rate limits"
         );
+        if let Some(target) = id {
+            self.per_torrent_limits.insert(target, limits.clone());
+        } else {
+            self.global_limits = limits.clone();
+        }
         Ok(())
     }
 
@@ -328,22 +348,31 @@ impl Worker {
 
     async fn handle_reannounce(&mut self, id: Uuid) -> Result<()> {
         self.session.reannounce(id).await?;
-        warn!(torrent_id = %id, "reannounce requested (stubbed)");
+        info!(torrent_id = %id, "reannounce requested");
         Ok(())
     }
 
     async fn handle_recheck(&mut self, id: Uuid) -> Result<()> {
         self.session.recheck(id).await?;
-        warn!(torrent_id = %id, "recheck requested (stubbed)");
+        info!(torrent_id = %id, "recheck requested");
         Ok(())
     }
 
     async fn flush_session_events(&mut self) -> Result<()> {
-        let events = self.session.poll_events().await?;
-        for event in events {
-            self.publish_engine_event(event);
+        match self.session.poll_events().await {
+            Ok(events) => {
+                for event in events {
+                    self.publish_engine_event(event);
+                }
+                self.mark_recovered("session");
+                Ok(())
+            }
+            Err(err) => {
+                let detail = err.to_string();
+                self.mark_degraded("session", Some(&detail));
+                Err(err)
+            }
         }
-        Ok(())
     }
 
     fn publish_engine_event(&mut self, event: EngineEvent) {
@@ -368,8 +397,16 @@ impl Worker {
             EngineEvent::Progress {
                 torrent_id,
                 progress,
-                ..
+                rates,
             } => {
+                if !self.should_emit_progress(torrent_id) {
+                    debug!(
+                        torrent_id = %torrent_id,
+                        "suppressing progress update to honour coalescing budget"
+                    );
+                    return;
+                }
+                self.verify_rate_limits(torrent_id, &rates);
                 let _ = self.events.publish(Event::Progress {
                     torrent_id,
                     bytes_downloaded: progress.bytes_downloaded,
@@ -494,6 +531,69 @@ impl Worker {
         self.fastresume_payloads.insert(torrent_id, payload);
     }
 
+    fn should_emit_progress(&mut self, torrent_id: Uuid) -> bool {
+        let now = Instant::now();
+        if let Some(last) = self.progress_last_emit.get_mut(&torrent_id) {
+            if now.duration_since(*last) >= PROGRESS_COALESCE_INTERVAL {
+                *last = now;
+                true
+            } else {
+                false
+            }
+        } else {
+            self.progress_last_emit.insert(torrent_id, now);
+            true
+        }
+    }
+
+    fn verify_rate_limits(&mut self, torrent_id: Uuid, rates: &TorrentRates) {
+        let mut violated = false;
+        let limit = self
+            .per_torrent_limits
+            .get(&torrent_id)
+            .cloned()
+            .or_else(|| {
+                if self.global_limits.download_bps.is_some()
+                    || self.global_limits.upload_bps.is_some()
+                {
+                    Some(self.global_limits.clone())
+                } else {
+                    None
+                }
+            });
+
+        if let Some(limit) = limit {
+            if limit
+                .download_bps
+                .is_some_and(|max| rates.download_bps > max)
+            {
+                violated = true;
+                let detail = format!(
+                    "torrent {} download rate {}bps exceeds cap {}bps",
+                    torrent_id,
+                    rates.download_bps,
+                    limit.download_bps.unwrap()
+                );
+                self.mark_degraded("rate_limiter", Some(detail.as_str()));
+            }
+
+            if limit.upload_bps.is_some_and(|max| rates.upload_bps > max) {
+                violated = true;
+                let detail = format!(
+                    "torrent {} upload rate {}bps exceeds cap {}bps",
+                    torrent_id,
+                    rates.upload_bps,
+                    limit.upload_bps.unwrap()
+                );
+                self.mark_degraded("rate_limiter", Some(detail.as_str()));
+            }
+        }
+
+        if !violated {
+            self.mark_recovered("rate_limiter");
+        }
+    }
+
     fn mark_degraded(&mut self, component: &str, detail: Option<&str>) {
         let inserted = self.health.insert(component.to_string());
         if inserted {
@@ -522,6 +622,250 @@ impl Worker {
             let degraded = self.health.iter().cloned().collect::<Vec<_>>();
             let _ = self.events.publish(Event::HealthChanged { degraded });
             info!(component = component, "engine component recovered");
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::session::StubSession;
+    use anyhow::Result;
+    use revaer_events::{Event, EventBus};
+    use revaer_torrent_core::{AddTorrent, TorrentProgress, TorrentRates};
+    use tokio::time::{sleep, timeout};
+
+    async fn next_event_with_timeout(
+        stream: &mut revaer_events::EventStream,
+        timeout_ms: u64,
+    ) -> Option<Event> {
+        timeout(Duration::from_millis(timeout_ms), stream.next())
+            .await
+            .ok()
+            .flatten()
+            .map(|envelope| envelope.event)
+    }
+
+    #[tokio::test]
+    async fn progress_updates_coalesced_to_ten_hz() -> Result<()> {
+        let bus = EventBus::with_capacity(16);
+        let session: Box<dyn LibtSession> = Box::new(StubSession::default());
+        let mut worker = Worker::new(bus.clone(), session, None);
+        let torrent_id = Uuid::new_v4();
+        let mut stream = bus.subscribe(None);
+
+        worker.publish_engine_event(EngineEvent::Progress {
+            torrent_id,
+            progress: TorrentProgress {
+                bytes_downloaded: 512,
+                bytes_total: 1024,
+                ..TorrentProgress::default()
+            },
+            rates: TorrentRates {
+                download_bps: 2000,
+                upload_bps: 500,
+                ratio: 0.5,
+            },
+        });
+
+        match next_event_with_timeout(&mut stream, 50).await {
+            Some(Event::Progress { torrent_id: id, .. }) => assert_eq!(id, torrent_id),
+            other => panic!("expected progress event, got {other:?}"),
+        }
+
+        // Immediate second update should be suppressed to honour the coalescing budget.
+        worker.publish_engine_event(EngineEvent::Progress {
+            torrent_id,
+            progress: TorrentProgress {
+                bytes_downloaded: 768,
+                bytes_total: 1024,
+                ..TorrentProgress::default()
+            },
+            rates: TorrentRates {
+                download_bps: 2500,
+                upload_bps: 800,
+                ratio: 0.75,
+            },
+        });
+
+        assert!(
+            next_event_with_timeout(&mut stream, 20).await.is_none(),
+            "second event should have been coalesced"
+        );
+
+        // After the coalescing interval elapses the next event should be emitted.
+        sleep(PROGRESS_COALESCE_INTERVAL).await;
+        worker.publish_engine_event(EngineEvent::Progress {
+            torrent_id,
+            progress: TorrentProgress {
+                bytes_downloaded: 900,
+                bytes_total: 1024,
+                ..TorrentProgress::default()
+            },
+            rates: TorrentRates {
+                download_bps: 2200,
+                upload_bps: 600,
+                ratio: 0.88,
+            },
+        });
+
+        assert!(
+            matches!(
+                next_event_with_timeout(&mut stream, 50).await,
+                Some(Event::Progress { .. })
+            ),
+            "expected progress event after coalescing window"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn rate_limit_violations_emit_health_degradation() -> Result<()> {
+        let bus = EventBus::with_capacity(16);
+        let session: Box<dyn LibtSession> = Box::new(StubSession::default());
+        let mut worker = Worker::new(bus.clone(), session, None);
+        let torrent_id = Uuid::new_v4();
+        let mut stream = bus.subscribe(None);
+
+        worker
+            .handle_update_limits(
+                None,
+                TorrentRateLimit {
+                    download_bps: Some(1_000),
+                    upload_bps: None,
+                },
+            )
+            .await?;
+
+        worker.publish_engine_event(EngineEvent::Progress {
+            torrent_id,
+            progress: TorrentProgress {
+                bytes_downloaded: 100,
+                bytes_total: 1_000,
+                ..TorrentProgress::default()
+            },
+            rates: TorrentRates {
+                download_bps: 2_000,
+                upload_bps: 200,
+                ratio: 0.1,
+            },
+        });
+
+        match next_event_with_timeout(&mut stream, 50).await {
+            Some(Event::HealthChanged { degraded }) => {
+                assert_eq!(degraded, vec!["rate_limiter"]);
+            }
+            other => panic!("expected health changed event, got {other:?}"),
+        }
+
+        // Drain the progress event that follows the degradation notification.
+        assert!(
+            matches!(
+                next_event_with_timeout(&mut stream, 50).await,
+                Some(Event::Progress { .. })
+            ),
+            "expected progress event"
+        );
+
+        sleep(PROGRESS_COALESCE_INTERVAL).await;
+
+        // Subsequent event under the cap should clear the degradation.
+        worker.publish_engine_event(EngineEvent::Progress {
+            torrent_id,
+            progress: TorrentProgress {
+                bytes_downloaded: 400,
+                bytes_total: 1_000,
+                ..TorrentProgress::default()
+            },
+            rates: TorrentRates {
+                download_bps: 900,
+                upload_bps: 100,
+                ratio: 0.4,
+            },
+        });
+
+        match next_event_with_timeout(&mut stream, 50).await {
+            Some(Event::HealthChanged { degraded }) => {
+                assert!(degraded.is_empty(), "expected recovery event");
+            }
+            other => panic!("expected health recovery event, got {other:?}"),
+        }
+
+        Ok(())
+    }
+
+    struct ErrorSession;
+
+    #[async_trait::async_trait]
+    impl LibtSession for ErrorSession {
+        async fn add_torrent(&mut self, _request: &AddTorrent) -> Result<()> {
+            Ok(())
+        }
+
+        async fn remove_torrent(&mut self, _id: Uuid, _options: &RemoveTorrent) -> Result<()> {
+            Ok(())
+        }
+
+        async fn pause_torrent(&mut self, _id: Uuid) -> Result<()> {
+            Ok(())
+        }
+
+        async fn resume_torrent(&mut self, _id: Uuid) -> Result<()> {
+            Ok(())
+        }
+
+        async fn set_sequential(&mut self, _id: Uuid, _sequential: bool) -> Result<()> {
+            Ok(())
+        }
+
+        async fn load_fastresume(&mut self, _id: Uuid, _payload: &[u8]) -> Result<()> {
+            Ok(())
+        }
+
+        async fn update_limits(
+            &mut self,
+            _id: Option<Uuid>,
+            _limits: &TorrentRateLimit,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn update_selection(
+            &mut self,
+            _id: Uuid,
+            _rules: &FileSelectionUpdate,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn reannounce(&mut self, _id: Uuid) -> Result<()> {
+            Ok(())
+        }
+
+        async fn recheck(&mut self, _id: Uuid) -> Result<()> {
+            Ok(())
+        }
+
+        async fn poll_events(&mut self) -> Result<Vec<EngineEvent>> {
+            Err(anyhow::anyhow!("simulated session failure"))
+        }
+    }
+
+    #[tokio::test]
+    async fn session_poll_failure_marks_engine_degraded() {
+        let bus = EventBus::with_capacity(8);
+        let session: Box<dyn LibtSession> = Box::new(ErrorSession);
+        let mut worker = Worker::new(bus.clone(), session, None);
+        let mut stream = bus.subscribe(None);
+
+        assert!(worker.flush_session_events().await.is_err());
+
+        match next_event_with_timeout(&mut stream, 50).await {
+            Some(Event::HealthChanged { degraded }) => {
+                assert_eq!(degraded, vec!["session"]);
+            }
+            other => panic!("expected session degradation event, got {other:?}"),
         }
     }
 }

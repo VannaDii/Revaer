@@ -1,6 +1,6 @@
 # 003 – Libtorrent Session Runner Architecture
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2025-10-16
 
 ## Context
@@ -23,7 +23,5 @@
 - Health reporting integrates with the existing telemetry crate, providing operators visibility into session failures or missing dependencies (e.g., absent resume directory).
 
 ## Follow-up
-- Implement the real `SessionWorker`, `FastResumeStore`, and `AlertPump` modules inside `revaer-torrent-libt`.
-- Add integration tests behind the `libtorrent` feature flag that exercise add/pause/resume/remove, selection persistence, and progress debouncing.
-- Extend `/health/full` and CLI status commands to reflect engine degraded states surfaced by the worker.
-- Document resume directory layout and dependencies (libtorrent version, extractor tooling) in the operator guide.
+- Maintain regression coverage for the `libtorrent` feature path, ensuring fast-resume reconciliation and guard-rail health events remain stable.
+- Track upstream libtorrent upgrades and refresh the operator documentation whenever the resume layout or dependency expectations shift.

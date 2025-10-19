@@ -19,6 +19,7 @@ use serde_json::{Map, Value, json};
 use sqlx::postgres::{PgListener, PgNotification, PgPoolOptions, PgRow};
 use sqlx::{Executor, FromRow, Postgres, Row, Transaction};
 use std::collections::HashSet;
+use std::convert::TryFrom;
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::Duration;
@@ -214,6 +215,32 @@ pub struct SetupToken {
     pub expires_at: DateTime<Utc>,
 }
 
+/// Authentication context returned for a validated API key.
+#[derive(Debug, Clone)]
+pub struct ApiKeyAuth {
+    pub key_id: String,
+    pub label: Option<String>,
+    pub rate_limit: Option<ApiKeyRateLimit>,
+}
+
+/// Token-bucket rate limit configuration applied per API key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ApiKeyRateLimit {
+    pub burst: u32,
+    pub replenish_period: Duration,
+}
+
+impl ApiKeyRateLimit {
+    /// Serialise the rate limit into a stable JSON representation.
+    #[must_use]
+    pub fn to_json(&self) -> Value {
+        json!({
+            "burst": self.burst,
+            "per_seconds": self.replenish_period.as_secs(),
+        })
+    }
+}
+
 /// Stream wrapper around a `PostgreSQL` LISTEN connection.
 pub struct SettingsStream {
     pool: sqlx::PgPool,
@@ -349,10 +376,14 @@ impl ConfigService {
     }
 
     #[allow(clippy::missing_errors_doc)]
-    pub async fn verify_api_key(&self, key_id: &str, secret: &str) -> Result<bool> {
+    pub async fn authenticate_api_key(
+        &self,
+        key_id: &str,
+        secret: &str,
+    ) -> Result<Option<ApiKeyAuth>> {
         let record = sqlx::query_as::<_, ApiKeyAuthRow>(
             r"
-            SELECT hash, enabled
+            SELECT hash, enabled, label, rate_limit
             FROM auth_api_keys
             WHERE key_id = $1
             LIMIT 1
@@ -364,15 +395,26 @@ impl ConfigService {
         .context("failed to verify API key")?;
 
         let Some(record) = record else {
-            return Ok(false);
+            return Ok(None);
         };
 
         if !record.enabled {
-            return Ok(false);
+            return Ok(None);
         }
 
         let matches = verify_secret(&record.hash, secret)?;
-        Ok(matches)
+        if !matches {
+            return Ok(None);
+        }
+
+        let rate_limit = parse_api_key_rate_limit(&record.rate_limit)
+            .context("invalid rate_limit payload for API key")?;
+
+        Ok(Some(ApiKeyAuth {
+            key_id: key_id.to_string(),
+            label: record.label,
+            rate_limit,
+        }))
     }
 }
 
@@ -786,6 +828,8 @@ struct ActiveTokenRow {
 struct ApiKeyAuthRow {
     hash: String,
     enabled: bool,
+    label: Option<String>,
+    rate_limit: Value,
 }
 
 async fn fetch_app_profile<'e, E>(executor: E) -> Result<AppProfile>
@@ -1872,10 +1916,12 @@ async fn apply_api_key_patches(
                     let rate_limit_updated = match rate_limit.clone() {
                         Some(rate_limit_value) => {
                             ensure_mutable(immutable_keys, "auth_api_keys", "rate_limit")?;
+                            let parsed = parse_api_key_rate_limit_for_config(&rate_limit_value)?;
+                            let stored = serialise_rate_limit(parsed.as_ref());
                             sqlx::query(
                                 "UPDATE auth_api_keys SET rate_limit = $1, updated_at = now() WHERE key_id = $2",
                             )
-                            .bind(rate_limit_value)
+                            .bind(stored)
                             .bind(&key_id)
                             .execute(tx.as_mut())
                             .await?;
@@ -1910,7 +1956,11 @@ async fn apply_api_key_patches(
 
                     let hash = hash_secret(&secret)?;
                     let enabled = enabled.unwrap_or(true);
-                    let rate_limit_value = rate_limit.unwrap_or_else(|| Value::Object(Map::new()));
+                    let rate_limit_config = rate_limit
+                        .map(|value| parse_api_key_rate_limit_for_config(&value))
+                        .transpose()?;
+                    let rate_limit_option = rate_limit_config.flatten();
+                    let rate_limit_value = serialise_rate_limit(rate_limit_option.as_ref());
 
                     sqlx::query(
                         r"
@@ -1976,6 +2026,88 @@ async fn apply_secret_patches(
         }
     }
     Ok(events)
+}
+
+fn parse_api_key_rate_limit(value: &Value) -> Result<Option<ApiKeyRateLimit>> {
+    parse_api_key_rate_limit_for_config(value).map_err(Into::into)
+}
+
+fn parse_api_key_rate_limit_for_config(
+    value: &Value,
+) -> Result<Option<ApiKeyRateLimit>, ConfigError> {
+    let Value::Object(map) = value else {
+        if value.is_null() {
+            return Ok(None);
+        }
+        return Err(ConfigError::InvalidField {
+            section: "auth_api_keys".to_string(),
+            field: "rate_limit".to_string(),
+            message: "must be a JSON object with burst and per_seconds fields".to_string(),
+        });
+    };
+
+    if map.is_empty() {
+        return Ok(None);
+    }
+
+    let burst = map
+        .get("burst")
+        .ok_or_else(|| ConfigError::InvalidField {
+            section: "auth_api_keys".to_string(),
+            field: "rate_limit".to_string(),
+            message: "missing 'burst' field".to_string(),
+        })?
+        .as_u64()
+        .ok_or_else(|| ConfigError::InvalidField {
+            section: "auth_api_keys".to_string(),
+            field: "rate_limit".to_string(),
+            message: "'burst' must be a positive integer".to_string(),
+        })?;
+
+    if burst == 0 {
+        return Err(ConfigError::InvalidField {
+            section: "auth_api_keys".to_string(),
+            field: "rate_limit".to_string(),
+            message: "'burst' must be between 1 and 4_294_967_295".to_string(),
+        });
+    }
+
+    let burst = u32::try_from(burst).map_err(|_| ConfigError::InvalidField {
+        section: "auth_api_keys".to_string(),
+        field: "rate_limit".to_string(),
+        message: "'burst' must be between 1 and 4_294_967_295".to_string(),
+    })?;
+
+    let per_seconds = map
+        .get("per_seconds")
+        .ok_or_else(|| ConfigError::InvalidField {
+            section: "auth_api_keys".to_string(),
+            field: "rate_limit".to_string(),
+            message: "missing 'per_seconds' field".to_string(),
+        })?
+        .as_u64()
+        .ok_or_else(|| ConfigError::InvalidField {
+            section: "auth_api_keys".to_string(),
+            field: "rate_limit".to_string(),
+            message: "'per_seconds' must be a positive integer".to_string(),
+        })?;
+
+    if per_seconds == 0 {
+        return Err(ConfigError::InvalidField {
+            section: "auth_api_keys".to_string(),
+            field: "rate_limit".to_string(),
+            message: "'per_seconds' must be greater than zero".to_string(),
+        });
+    }
+
+    Ok(Some(ApiKeyRateLimit {
+        burst,
+        replenish_period: Duration::from_secs(per_seconds),
+    }))
+}
+
+fn serialise_rate_limit(limit: Option<&ApiKeyRateLimit>) -> Value {
+    limit.map_or_else(|| Value::Object(Map::new()), ApiKeyRateLimit::to_json)
 }
 
 async fn bump_revision(tx: &mut Transaction<'_, Postgres>, source_table: &str) -> Result<i64> {
@@ -2108,4 +2240,43 @@ fn parse_bind_addr(value: &str) -> Result<IpAddr> {
 
     host.parse::<IpAddr>()
         .with_context(|| format!("invalid bind address '{value}'"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use std::time::Duration;
+
+    #[test]
+    fn parse_rate_limit_accepts_empty_object() {
+        let value = Value::Object(Map::new());
+        let parsed =
+            parse_api_key_rate_limit_for_config(&value).expect("empty object should be accepted");
+        assert!(parsed.is_none());
+    }
+
+    #[test]
+    fn parse_rate_limit_valid_configuration() {
+        let value = json!({ "burst": 10, "per_seconds": 60 });
+        let parsed =
+            parse_api_key_rate_limit_for_config(&value).expect("valid configuration should parse");
+        let limit = parsed.expect("limit should be present");
+        assert_eq!(limit.burst, 10);
+        assert_eq!(limit.replenish_period, Duration::from_secs(60));
+    }
+
+    #[test]
+    fn parse_rate_limit_rejects_zero_burst() {
+        let value = json!({ "burst": 0, "per_seconds": 30 });
+        let err = parse_api_key_rate_limit_for_config(&value).unwrap_err();
+        assert!(matches!(err, ConfigError::InvalidField { .. }));
+    }
+
+    #[test]
+    fn parse_rate_limit_rejects_missing_fields() {
+        let value = json!({ "burst": 5 });
+        let err = parse_api_key_rate_limit_for_config(&value).unwrap_err();
+        assert!(matches!(err, ConfigError::InvalidField { .. }));
+    }
 }

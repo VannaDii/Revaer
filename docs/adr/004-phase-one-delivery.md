@@ -1,6 +1,6 @@
 # 004 – Phase One Delivery Track
 
-- Status: In Progress
+- Status: Accepted
 - Date: 2025-10-17
 
 ## Motivation
@@ -25,6 +25,15 @@ Phase One bundles the remaining work required to transition Revaer from the curr
 - `just ci` serves as the baseline verification target. Each workstream delivers focused unit tests, integration coverage, and feature-flagged live tests (for libtorrent, Postgres, FsOps).
 - Coverage gates are enforced via `cargo llvm-cov` with `--fail-under 80` across library crates.
 - Integration suites will rely on `testcontainers` (Postgres, libtorrent) and workspace-specific fixtures for FsOps pipelines and API/CLI flows, including the configuration watcher hot-reload test and new libtorrent-feature tests for resume restoration and fastresume persistence.
+
+## Outcome
+
+- All public surfaces now enforce API-key authentication with token-bucket rate limiting, `429` Problem+JSON responses, and telemetry counters exported via Prometheus and `/health/full`.
+- SSE endpoints honour the same auth and Last-Event-ID semantics, with CLI resume support persisting state between reconnects.
+- The CLI propagates `x-request-id`, standardises exit codes (`0` success, `2` validation, `3` runtime), and emits optional telemetry events to `REVAER_TELEMETRY_ENDPOINT`.
+- A release-ready Docker image (`Dockerfile`) packages the API binary and documentation on a non-root, read-only-friendly runtime with health checks and volume mounts for config/data.
+- CI now publishes release artefacts (`revaer-app`, OpenAPI) and runs MSRV and container security jobs via `just` targets; binaries are checksummed alongside provenance metadata.
+- Documentation additions cover FsOps design, API/CLI contracts, security posture, operator runbook, telemetry reference, and the phase-one release checklist.
 
 ## Observability Updates
 

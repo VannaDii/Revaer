@@ -1,3 +1,7 @@
+pub mod models;
+
+use base64::{Engine as _, engine::general_purpose};
+use std::collections::{HashMap, HashSet};
 use std::convert::{Infallible, TryFrom};
 use std::future::Future;
 use std::net::SocketAddr;
@@ -5,14 +9,14 @@ use std::path::Path;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use async_stream::stream;
 use axum::{
     Json, Router,
     body::Body,
-    extract::{Extension, MatchedPath, Path as AxumPath, State},
+    extract::{Extension, MatchedPath, Path as AxumPath, Query, State},
     http::{HeaderMap, Request, StatusCode, header::CONTENT_TYPE},
     middleware::{self, Next},
     response::{
@@ -22,17 +26,22 @@ use axum::{
     routing::{get, patch, post},
 };
 use chrono::{DateTime, Utc};
-use futures_util::StreamExt;
+use futures_util::{StreamExt, future};
+use models::{
+    ProblemDetails, ProblemInvalidParam, TorrentAction, TorrentCreateRequest, TorrentDetail,
+    TorrentListResponse, TorrentSelectionRequest, TorrentStateKind, TorrentSummary,
+};
 use revaer_config::{
-    AppMode, ConfigError, ConfigService, ConfigSnapshot, SettingsChangeset, SettingsFacade,
+    ApiKeyRateLimit, AppMode, ConfigError, ConfigService, ConfigSnapshot, SettingsChangeset,
+    SettingsFacade,
 };
 use revaer_events::{Event as CoreEvent, EventBus, EventEnvelope, EventId, TorrentState};
 use revaer_telemetry::{
     Metrics, build_sha, record_app_mode, set_request_context, with_request_context,
 };
 use revaer_torrent_core::{
-    AddTorrent, AddTorrentOptions, FilePriority, FileSelectionRules, RemoveTorrent,
-    TorrentInspector, TorrentRateLimit, TorrentSource, TorrentStatus, TorrentWorkflow,
+    AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentInspector, TorrentRateLimit,
+    TorrentSource, TorrentStatus, TorrentWorkflow,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -56,6 +65,24 @@ const PROBLEM_CONFIG_INVALID: &str = "https://revaer.dev/problems/config-invalid
 const PROBLEM_SETUP_REQUIRED: &str = "https://revaer.dev/problems/setup-required";
 const PROBLEM_SERVICE_UNAVAILABLE: &str = "https://revaer.dev/problems/service-unavailable";
 const PROBLEM_NOT_FOUND: &str = "https://revaer.dev/problems/not-found";
+const PROBLEM_RATE_LIMITED: &str = "https://revaer.dev/problems/rate-limited";
+const MAX_METAINFO_BYTES: usize = 5 * 1024 * 1024;
+const DEFAULT_PAGE_SIZE: usize = 50;
+const MAX_PAGE_SIZE: usize = 200;
+const EVENT_KIND_WHITELIST: &[&str] = &[
+    "torrent_added",
+    "files_discovered",
+    "progress",
+    "state_changed",
+    "completed",
+    "fsops_started",
+    "fsops_progress",
+    "fsops_completed",
+    "fsops_failed",
+    "settings_changed",
+    "health_changed",
+    "selection_reconciled",
+];
 
 #[derive(Clone)]
 pub struct TorrentHandles {
@@ -92,12 +119,14 @@ struct ApiState {
     telemetry: Metrics,
     openapi_document: Arc<Value>,
     events: EventBus,
-    health_status: Mutex<Option<Vec<String>>>,
+    health_status: Mutex<Vec<String>>,
+    rate_limiters: Mutex<HashMap<String, RateLimiter>>,
+    torrent_metadata: Mutex<HashMap<Uuid, TorrentMetadata>>,
     torrent: Option<TorrentHandles>,
 }
 
 impl ApiState {
-    const fn new(
+    fn new(
         config: ConfigService,
         telemetry: Metrics,
         openapi_document: Arc<Value>,
@@ -110,28 +139,48 @@ impl ApiState {
             telemetry,
             openapi_document,
             events,
-            health_status: Mutex::new(None),
+            health_status: Mutex::new(Vec::new()),
+            rate_limiters: Mutex::new(HashMap::new()),
+            torrent_metadata: Mutex::new(HashMap::new()),
             torrent,
         }
     }
 
-    fn record_health_status(&self, degraded: Vec<String>) {
-        let should_publish = {
-            let mut last = self
-                .health_status
-                .lock()
-                .expect("health status mutex poisoned");
-            if last.as_ref() == Some(&degraded) {
-                false
-            } else {
-                *last = Some(degraded.clone());
-                true
-            }
-        };
-
-        if should_publish {
-            let _ = self.events.publish(CoreEvent::HealthChanged { degraded });
+    fn add_degraded_component(&self, component: &str) -> bool {
+        let mut guard = self
+            .health_status
+            .lock()
+            .expect("health status mutex poisoned");
+        if guard.iter().any(|entry| entry == component) {
+            return false;
         }
+        guard.push(component.to_string());
+        guard.sort();
+        guard.dedup();
+        let snapshot = guard.clone();
+        drop(guard);
+        let _ = self
+            .events
+            .publish(CoreEvent::HealthChanged { degraded: snapshot });
+        true
+    }
+
+    fn remove_degraded_component(&self, component: &str) -> bool {
+        let mut guard = self
+            .health_status
+            .lock()
+            .expect("health status mutex poisoned");
+        let previous = guard.len();
+        guard.retain(|entry| entry != component);
+        if guard.len() == previous {
+            return false;
+        }
+        let snapshot = guard.clone();
+        drop(guard);
+        let _ = self
+            .events
+            .publish(CoreEvent::HealthChanged { degraded: snapshot });
+        true
     }
 
     fn record_torrent_metrics(&self, statuses: &[TorrentStatus]) {
@@ -161,12 +210,325 @@ impl ApiState {
             self.record_torrent_metrics(&[]);
         }
     }
+
+    fn current_health_degraded(&self) -> Vec<String> {
+        self.health_status
+            .lock()
+            .expect("health status mutex poisoned")
+            .clone()
+    }
+
+    fn enforce_rate_limit(
+        &self,
+        key_id: &str,
+        limit: Option<&ApiKeyRateLimit>,
+    ) -> Result<(), ApiError> {
+        limit.map_or_else(
+            || {
+                if self.add_degraded_component("api_rate_limit_guard") {
+                    self.telemetry.inc_guardrail_violation();
+                    warn!("api key guard rail triggered: missing or unlimited rate limit");
+                }
+                Ok(())
+            },
+            |limit| {
+                self.remove_degraded_component("api_rate_limit_guard");
+                let mut guard = self
+                    .rate_limiters
+                    .lock()
+                    .expect("rate limiters mutex poisoned");
+                let limiter = guard
+                    .entry(key_id.to_string())
+                    .or_insert_with(|| RateLimiter::new(limit.clone()));
+                let now = Instant::now();
+                let allowed = limiter.allow(limit, now);
+                drop(guard);
+                if allowed {
+                    Ok(())
+                } else {
+                    self.telemetry.inc_rate_limit_throttled();
+                    warn!(api_key = %key_id, "API key rate limit exceeded");
+                    Err(ApiError::too_many_requests(
+                        "API key rate limit exceeded; try again later",
+                    ))
+                }
+            },
+        )
+    }
+
+    fn set_metadata(&self, id: Uuid, metadata: TorrentMetadata) {
+        let mut guard = self
+            .torrent_metadata
+            .lock()
+            .expect("torrent metadata mutex poisoned");
+        guard.insert(id, metadata);
+    }
+
+    fn get_metadata(&self, id: &Uuid) -> TorrentMetadata {
+        self.torrent_metadata
+            .lock()
+            .expect("torrent metadata mutex poisoned")
+            .get(id)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    fn remove_metadata(&self, id: &Uuid) {
+        self.torrent_metadata
+            .lock()
+            .expect("torrent metadata mutex poisoned")
+            .remove(id);
+    }
+}
+
+#[derive(Clone, Default)]
+struct TorrentMetadata {
+    tags: Vec<String>,
+    trackers: Vec<String>,
+}
+
+impl TorrentMetadata {
+    #[allow(clippy::missing_const_for_fn)]
+    fn new(tags: Vec<String>, trackers: Vec<String>) -> Self {
+        Self { tags, trackers }
+    }
+}
+
+fn summary_from_components(status: TorrentStatus, metadata: TorrentMetadata) -> TorrentSummary {
+    TorrentSummary::from(status).with_metadata(metadata.tags, metadata.trackers)
+}
+
+fn detail_from_components(status: TorrentStatus, metadata: TorrentMetadata) -> TorrentDetail {
+    let mut detail = TorrentDetail::from(status);
+    detail.summary = detail
+        .summary
+        .with_metadata(metadata.tags, metadata.trackers);
+    detail
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct TorrentListQuery {
+    #[serde(default)]
+    limit: Option<u32>,
+    #[serde(default)]
+    cursor: Option<String>,
+    #[serde(default)]
+    state: Option<String>,
+    #[serde(default)]
+    tracker: Option<String>,
+    #[serde(default)]
+    extension: Option<String>,
+    #[serde(default)]
+    tags: Option<String>,
+    #[serde(default)]
+    name: Option<String>,
+}
+
+#[derive(Clone)]
+struct StatusEntry {
+    status: TorrentStatus,
+    metadata: TorrentMetadata,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CursorToken {
+    last_updated: DateTime<Utc>,
+    id: Uuid,
+}
+
+#[derive(Debug, Default, Deserialize)]
+struct SseQuery {
+    #[serde(default)]
+    torrent: Option<String>,
+    #[serde(default)]
+    event: Option<String>,
+    #[serde(default)]
+    state: Option<String>,
+}
+
+#[derive(Clone, Default)]
+struct SseFilter {
+    torrent_ids: HashSet<Uuid>,
+    event_kinds: HashSet<String>,
+    states: HashSet<TorrentStateKind>,
+}
+
+fn encode_cursor_from_entry(entry: &StatusEntry) -> Result<String, ApiError> {
+    let token = CursorToken {
+        last_updated: entry.status.last_updated,
+        id: entry.status.id,
+    };
+    let json = serde_json::to_vec(&token).map_err(|err| {
+        error!(error = %err, "failed to serialise cursor token");
+        ApiError::internal("failed to encode pagination cursor")
+    })?;
+    Ok(general_purpose::STANDARD.encode(json))
+}
+
+fn decode_cursor_token(value: &str) -> Result<CursorToken, ApiError> {
+    let bytes = general_purpose::STANDARD
+        .decode(value)
+        .map_err(|_| ApiError::bad_request("cursor token was not valid base64"))?;
+    serde_json::from_slice(&bytes).map_err(|_| ApiError::bad_request("cursor token malformed"))
+}
+
+fn parse_state_filter(value: &str) -> Result<TorrentStateKind, ApiError> {
+    match value {
+        "queued" => Ok(TorrentStateKind::Queued),
+        "fetching_metadata" => Ok(TorrentStateKind::FetchingMetadata),
+        "downloading" => Ok(TorrentStateKind::Downloading),
+        "seeding" => Ok(TorrentStateKind::Seeding),
+        "completed" => Ok(TorrentStateKind::Completed),
+        "failed" => Ok(TorrentStateKind::Failed),
+        "stopped" => Ok(TorrentStateKind::Stopped),
+        other => Err(ApiError::bad_request(format!(
+            "state filter '{other}' is not recognised"
+        ))),
+    }
+}
+
+fn split_comma_separated(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(|part| part.trim().to_lowercase())
+        .filter(|part| !part.is_empty())
+        .collect()
+}
+
+fn normalise_lower(value: &str) -> String {
+    value.trim().to_lowercase()
+}
+
+fn build_sse_filter(query: &SseQuery) -> Result<SseFilter, ApiError> {
+    let mut filter = SseFilter::default();
+
+    if let Some(torrent) = query.torrent.as_deref() {
+        for value in split_comma_separated(torrent) {
+            let parsed = Uuid::parse_str(&value).map_err(|_| {
+                ApiError::bad_request(format!("torrent filter '{value}' is not a valid UUID"))
+            })?;
+            filter.torrent_ids.insert(parsed);
+        }
+    }
+
+    if let Some(events) = query.event.as_deref() {
+        for value in split_comma_separated(events) {
+            if !EVENT_KIND_WHITELIST.contains(&value.as_str()) {
+                return Err(ApiError::bad_request(format!(
+                    "event filter '{value}' is not recognised"
+                )));
+            }
+            filter.event_kinds.insert(value);
+        }
+    }
+
+    if let Some(states) = query.state.as_deref() {
+        for value in split_comma_separated(states) {
+            let parsed = parse_state_filter(&value)?;
+            filter.states.insert(parsed);
+        }
+    }
+
+    Ok(filter)
+}
+
+fn matches_sse_filter(envelope: &EventEnvelope, filter: &SseFilter) -> bool {
+    if !filter.event_kinds.is_empty() && !filter.event_kinds.contains(envelope.event.kind()) {
+        return false;
+    }
+
+    if !filter.torrent_ids.is_empty() {
+        let torrent_id = match &envelope.event {
+            CoreEvent::TorrentAdded { torrent_id, .. }
+            | CoreEvent::FilesDiscovered { torrent_id, .. }
+            | CoreEvent::Progress { torrent_id, .. }
+            | CoreEvent::StateChanged { torrent_id, .. }
+            | CoreEvent::Completed { torrent_id, .. }
+            | CoreEvent::FsopsStarted { torrent_id, .. }
+            | CoreEvent::FsopsProgress { torrent_id, .. }
+            | CoreEvent::FsopsCompleted { torrent_id, .. }
+            | CoreEvent::FsopsFailed { torrent_id, .. }
+            | CoreEvent::SelectionReconciled { torrent_id, .. } => torrent_id,
+            CoreEvent::SettingsChanged { .. } | CoreEvent::HealthChanged { .. } => {
+                return false;
+            }
+        };
+
+        if !filter.torrent_ids.contains(torrent_id) {
+            return false;
+        }
+    }
+
+    if !filter.states.is_empty() {
+        match &envelope.event {
+            CoreEvent::StateChanged { state, .. } => {
+                let mapped = TorrentStateKind::from(state.clone());
+                if !filter.states.contains(&mapped) {
+                    return false;
+                }
+            }
+            CoreEvent::Completed { .. } => {
+                if !filter.states.contains(&TorrentStateKind::Completed) {
+                    return false;
+                }
+            }
+            _ => return false,
+        }
+    }
+
+    true
 }
 
 #[derive(Clone)]
 enum AuthContext {
     SetupToken(String),
     ApiKey { key_id: String },
+}
+
+struct RateLimiter {
+    config: ApiKeyRateLimit,
+    tokens: f64,
+    last_refill: Instant,
+}
+
+impl RateLimiter {
+    fn new(config: ApiKeyRateLimit) -> Self {
+        let capacity = f64::from(config.burst);
+        Self {
+            config,
+            tokens: capacity,
+            last_refill: Instant::now(),
+        }
+    }
+
+    fn allow(&mut self, config: &ApiKeyRateLimit, now: Instant) -> bool {
+        if self.config != *config {
+            self.config = config.clone();
+            self.tokens = f64::from(config.burst);
+            self.last_refill = now;
+        }
+
+        let elapsed = now.saturating_duration_since(self.last_refill);
+        if elapsed >= self.config.replenish_period {
+            self.tokens = f64::from(self.config.burst);
+            self.last_refill = now;
+        } else if elapsed > Duration::ZERO {
+            let refill_rate =
+                f64::from(self.config.burst) / self.config.replenish_period.as_secs_f64();
+            let replenished = refill_rate * elapsed.as_secs_f64();
+            if replenished > 0.0 {
+                self.tokens = (self.tokens + replenished).clamp(0.0, f64::from(self.config.burst));
+                self.last_refill = now;
+            }
+        }
+
+        if self.tokens >= 1.0 {
+            self.tokens -= 1.0;
+            true
+        } else {
+            false
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -237,25 +599,13 @@ where
     }
 }
 
-#[derive(Serialize)]
-struct ProblemDetails {
-    #[serde(rename = "type")]
-    kind: String,
-    title: String,
-    status: u16,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    detail: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    invalid_params: Option<Vec<InvalidParam>>,
-}
-
 #[derive(Debug)]
 struct ApiError {
     status: StatusCode,
     kind: &'static str,
     title: &'static str,
     detail: Option<String>,
-    invalid_params: Option<Vec<InvalidParam>>,
+    invalid_params: Option<Vec<ProblemInvalidParam>>,
 }
 
 impl ApiError {
@@ -274,7 +624,7 @@ impl ApiError {
         self
     }
 
-    fn with_invalid_params(mut self, params: Vec<InvalidParam>) -> Self {
+    fn with_invalid_params(mut self, params: Vec<ProblemInvalidParam>) -> Self {
         self.invalid_params = Some(params);
         self
     }
@@ -340,6 +690,15 @@ impl ApiError {
         )
         .with_detail(detail)
     }
+
+    fn too_many_requests(detail: impl Into<String>) -> Self {
+        Self::new(
+            StatusCode::TOO_MANY_REQUESTS,
+            PROBLEM_RATE_LIMITED,
+            "rate limit exceeded",
+        )
+        .with_detail(detail)
+    }
 }
 
 impl IntoResponse for ApiError {
@@ -353,12 +712,6 @@ impl IntoResponse for ApiError {
         };
         (self.status, Json(body)).into_response()
     }
-}
-
-#[derive(Clone, Debug, Serialize)]
-struct InvalidParam {
-    pointer: String,
-    message: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -387,130 +740,30 @@ struct HealthResponse {
 }
 
 #[derive(Serialize)]
-struct TorrentProgressResponse {
-    bytes_downloaded: u64,
-    bytes_total: u64,
-    percent_complete: f64,
-    eta_seconds: Option<u64>,
+struct FullHealthResponse {
+    status: &'static str,
+    mode: AppMode,
+    revision: i64,
+    build: String,
+    degraded: Vec<String>,
+    metrics: HealthMetricsResponse,
+    torrent: TorrentHealthSnapshot,
 }
 
 #[derive(Serialize)]
-struct TorrentRatesResponse {
-    download_bps: u64,
-    upload_bps: u64,
-    ratio: f64,
+struct HealthMetricsResponse {
+    config_watch_latency_ms: i64,
+    config_apply_latency_ms: i64,
+    config_update_failures_total: u64,
+    config_watch_slow_total: u64,
+    guardrail_violations_total: u64,
+    rate_limit_throttled_total: u64,
 }
 
 #[derive(Serialize)]
-struct TorrentFileResponse {
-    index: u32,
-    path: String,
-    size_bytes: u64,
-    bytes_completed: u64,
-    priority: String,
-    selected: bool,
-}
-
-#[derive(Serialize)]
-struct TorrentStatusResponse {
-    id: Uuid,
-    name: Option<String>,
-    state: String,
-    failure_message: Option<String>,
-    progress: TorrentProgressResponse,
-    rates: TorrentRatesResponse,
-    files: Option<Vec<TorrentFileResponse>>,
-    library_path: Option<String>,
-    download_dir: Option<String>,
-    sequential: bool,
-    added_at: DateTime<Utc>,
-    completed_at: Option<DateTime<Utc>>,
-    last_updated: DateTime<Utc>,
-}
-
-impl From<TorrentStatus> for TorrentStatusResponse {
-    fn from(status: TorrentStatus) -> Self {
-        let (state, failure_message) = match status.state {
-            TorrentState::Queued => ("queued".to_string(), None),
-            TorrentState::FetchingMetadata => ("fetching_metadata".to_string(), None),
-            TorrentState::Downloading => ("downloading".to_string(), None),
-            TorrentState::Seeding => ("seeding".to_string(), None),
-            TorrentState::Completed => ("completed".to_string(), None),
-            TorrentState::Failed { message } => ("failed".to_string(), Some(message)),
-            TorrentState::Stopped => ("stopped".to_string(), None),
-        };
-
-        let files = status.files.map(|items| {
-            items
-                .into_iter()
-                .map(|file| TorrentFileResponse {
-                    index: file.index,
-                    path: file.path,
-                    size_bytes: file.size_bytes,
-                    bytes_completed: file.bytes_completed,
-                    priority: match file.priority {
-                        FilePriority::Skip => "skip".to_string(),
-                        FilePriority::Low => "low".to_string(),
-                        FilePriority::Normal => "normal".to_string(),
-                        FilePriority::High => "high".to_string(),
-                    },
-                    selected: file.selected,
-                })
-                .collect()
-        });
-
-        Self {
-            id: status.id,
-            name: status.name,
-            state,
-            failure_message,
-            progress: TorrentProgressResponse {
-                bytes_downloaded: status.progress.bytes_downloaded,
-                bytes_total: status.progress.bytes_total,
-                percent_complete: status.progress.percent_complete(),
-                eta_seconds: status.progress.eta_seconds,
-            },
-            rates: TorrentRatesResponse {
-                download_bps: status.rates.download_bps,
-                upload_bps: status.rates.upload_bps,
-                ratio: status.rates.ratio,
-            },
-            files,
-            library_path: status.library_path,
-            download_dir: status.download_dir,
-            sequential: status.sequential,
-            added_at: status.added_at,
-            completed_at: status.completed_at,
-            last_updated: status.last_updated,
-        }
-    }
-}
-
-#[derive(Clone, Deserialize, Default)]
-struct TorrentCreateRequest {
-    id: Uuid,
-    #[serde(default)]
-    magnet: Option<String>,
-    #[serde(default)]
-    metainfo: Option<String>,
-    #[serde(default)]
-    name: Option<String>,
-    #[serde(default)]
-    sequential: Option<bool>,
-    #[serde(default)]
-    include: Vec<String>,
-    #[serde(default)]
-    exclude: Vec<String>,
-    #[serde(default)]
-    skip_fluff: bool,
-    #[serde(default)]
-    download_dir: Option<String>,
-    #[serde(default)]
-    tags: Vec<String>,
-    #[serde(default)]
-    max_download_bps: Option<u64>,
-    #[serde(default)]
-    max_upload_bps: Option<u64>,
+struct TorrentHealthSnapshot {
+    active: i64,
+    queue_depth: i64,
 }
 
 impl ApiServer {
@@ -525,8 +778,8 @@ impl ApiServer {
         config: ConfigService,
         events: EventBus,
         torrent: Option<TorrentHandles>,
+        telemetry: Metrics,
     ) -> Result<Self> {
-        let telemetry = Metrics::new()?;
         let openapi_document = Arc::new(build_openapi_document());
         revaer_telemetry::persist_openapi(Path::new("docs/api/openapi.json"), &openapi_document)?;
 
@@ -589,6 +842,7 @@ impl ApiServer {
 
         let router = Router::new()
             .route("/health", get(health))
+            .route("/health/full", get(health_full))
             .route("/.well-known/revaer.json", get(well_known))
             .route("/admin/setup/start", post(setup_start))
             .route(
@@ -629,7 +883,56 @@ impl ApiServer {
                     >(state.clone(), require_api_key),
                 ),
             )
-            .route("/v1/events", get(stream_events))
+            .route(
+                "/v1/torrents",
+                get(list_torrents).post(create_torrent).route_layer(
+                    middleware::from_fn_with_state::<
+                        _,
+                        Arc<ApiState>,
+                        (State<Arc<ApiState>>, Request<Body>),
+                    >(state.clone(), require_api_key),
+                ),
+            )
+            .route(
+                "/v1/torrents/:id",
+                get(get_torrent).route_layer(middleware::from_fn_with_state::<
+                    _,
+                    Arc<ApiState>,
+                    (State<Arc<ApiState>>, Request<Body>),
+                >(state.clone(), require_api_key)),
+            )
+            .route(
+                "/v1/torrents/:id/select",
+                post(select_torrent).route_layer(middleware::from_fn_with_state::<
+                    _,
+                    Arc<ApiState>,
+                    (State<Arc<ApiState>>, Request<Body>),
+                >(state.clone(), require_api_key)),
+            )
+            .route(
+                "/v1/torrents/:id/action",
+                post(action_torrent).route_layer(middleware::from_fn_with_state::<
+                    _,
+                    Arc<ApiState>,
+                    (State<Arc<ApiState>>, Request<Body>),
+                >(state.clone(), require_api_key)),
+            )
+            .route(
+                "/v1/events",
+                get(stream_events).route_layer(middleware::from_fn_with_state::<
+                    _,
+                    Arc<ApiState>,
+                    (State<Arc<ApiState>>, Request<Body>),
+                >(state.clone(), require_api_key)),
+            )
+            .route(
+                "/v1/torrents/events",
+                get(stream_events).route_layer(middleware::from_fn_with_state::<
+                    _,
+                    Arc<ApiState>,
+                    (State<Arc<ApiState>>, Request<Body>),
+                >(state.clone(), require_api_key)),
+            )
             .route("/metrics", get(metrics))
             .route("/docs/openapi.json", get(openapi_document_handler))
             .route_layer(layered)
@@ -812,6 +1115,10 @@ async fn create_torrent(
     }
 
     dispatch_torrent_add(state.torrent.as_ref(), &request).await?;
+    state.set_metadata(
+        request.id,
+        TorrentMetadata::new(request.tags.clone(), request.trackers.clone()),
+    );
     let torrent_name = request.name.as_deref().unwrap_or("<unspecified>");
     info!(torrent_id = %request.id, torrent_name = %torrent_name, "torrent submission requested");
     state.update_torrent_metrics().await;
@@ -835,8 +1142,102 @@ async fn delete_torrent(
 
     dispatch_torrent_remove(state.torrent.as_ref(), id).await?;
     info!(torrent_id = %id, "torrent removal requested");
+    state.remove_metadata(&id);
     state.update_torrent_metrics().await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+async fn select_torrent(
+    State(state): State<Arc<ApiState>>,
+    Extension(context): Extension<AuthContext>,
+    AxumPath(id): AxumPath<Uuid>,
+    Json(request): Json<TorrentSelectionRequest>,
+) -> Result<StatusCode, ApiError> {
+    match context {
+        AuthContext::ApiKey { .. } => {}
+        AuthContext::SetupToken(_) => {
+            return Err(ApiError::unauthorized(
+                "setup authentication context cannot manage torrents",
+            ));
+        }
+    }
+
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+    let update: FileSelectionUpdate = request.into();
+    handles
+        .workflow()
+        .update_selection(id, update)
+        .await
+        .map_err(|err| {
+            error!(error = %err, torrent_id = %id, "failed to update torrent selection");
+            ApiError::internal("failed to update torrent selection")
+        })?;
+    info!(torrent_id = %id, "torrent selection update requested");
+    Ok(StatusCode::ACCEPTED)
+}
+
+async fn action_torrent(
+    State(state): State<Arc<ApiState>>,
+    Extension(context): Extension<AuthContext>,
+    AxumPath(id): AxumPath<Uuid>,
+    Json(action): Json<TorrentAction>,
+) -> Result<StatusCode, ApiError> {
+    match context {
+        AuthContext::ApiKey { .. } => {}
+        AuthContext::SetupToken(_) => {
+            return Err(ApiError::unauthorized(
+                "setup authentication context cannot manage torrents",
+            ));
+        }
+    }
+
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+    let workflow = handles.workflow();
+
+    let result = match &action {
+        TorrentAction::Pause => workflow.pause_torrent(id).await,
+        TorrentAction::Resume => workflow.resume_torrent(id).await,
+        TorrentAction::Remove { delete_data } => {
+            let options = RemoveTorrent {
+                with_data: *delete_data,
+            };
+            workflow.remove_torrent(id, options).await
+        }
+        TorrentAction::Reannounce => workflow.reannounce(id).await,
+        TorrentAction::Recheck => workflow.recheck(id).await,
+        TorrentAction::Sequential { enable } => workflow.set_sequential(id, *enable).await,
+        TorrentAction::Rate {
+            download_bps,
+            upload_bps,
+        } => {
+            workflow
+                .update_limits(
+                    Some(id),
+                    TorrentRateLimit {
+                        download_bps: *download_bps,
+                        upload_bps: *upload_bps,
+                    },
+                )
+                .await
+        }
+    };
+
+    result.map_err(|err| {
+        error!(error = %err, torrent_id = %id, "torrent action failed");
+        ApiError::internal("failed to execute torrent action")
+    })?;
+
+    if matches!(action, TorrentAction::Remove { .. }) {
+        state.remove_metadata(&id);
+    }
+    info!(torrent_id = %id, action = ?action, "torrent action dispatched");
+    Ok(StatusCode::ACCEPTED)
 }
 
 async fn fetch_all_torrents(handles: &TorrentHandles) -> Result<Vec<TorrentStatus>, ApiError> {
@@ -861,40 +1262,167 @@ async fn fetch_torrent_status(
         .ok_or_else(|| ApiError::not_found("torrent not found"))
 }
 
+#[allow(clippy::too_many_lines)]
 async fn list_torrents(
     State(state): State<Arc<ApiState>>,
-) -> Result<Json<Vec<TorrentStatusResponse>>, ApiError> {
+    Query(query): Query<TorrentListQuery>,
+) -> Result<Json<TorrentListResponse>, ApiError> {
     let handles = state
         .torrent
         .as_ref()
         .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
     let statuses = fetch_all_torrents(handles).await?;
     state.record_torrent_metrics(&statuses);
-    Ok(Json(
-        statuses
-            .into_iter()
-            .map(TorrentStatusResponse::from)
-            .collect(),
-    ))
+
+    let state_filter = if let Some(filter) = query.state.as_deref() {
+        Some(parse_state_filter(filter)?)
+    } else {
+        None
+    };
+    let tag_filters = query
+        .tags
+        .as_deref()
+        .map(split_comma_separated)
+        .unwrap_or_default();
+    let tracker_filter = query.tracker.as_ref().map(|value| normalise_lower(value));
+    let extension_filter = query
+        .extension
+        .as_ref()
+        .map(|value| normalise_lower(value.trim_start_matches('.')));
+    let name_filter = query.name.as_ref().map(|value| normalise_lower(value));
+
+    let mut entries: Vec<StatusEntry> = statuses
+        .into_iter()
+        .map(|status| StatusEntry {
+            metadata: state.get_metadata(&status.id),
+            status,
+        })
+        .collect();
+
+    entries.retain(|entry| {
+        if let Some(expected) = state_filter {
+            let current = TorrentStateKind::from(entry.status.state.clone());
+            if current != expected {
+                return false;
+            }
+        }
+
+        if !tag_filters.is_empty() {
+            let tags = entry
+                .metadata
+                .tags
+                .iter()
+                .map(|tag| tag.to_lowercase())
+                .collect::<HashSet<_>>();
+            if !tag_filters.iter().all(|filter| tags.contains(filter)) {
+                return false;
+            }
+        }
+
+        if let Some(ref tracker) = tracker_filter {
+            if !entry
+                .metadata
+                .trackers
+                .iter()
+                .any(|value| value.to_lowercase().contains(tracker))
+            {
+                return false;
+            }
+        }
+
+        if let Some(ref extension) = extension_filter {
+            let matches_extension = entry.status.files.as_ref().is_some_and(|files| {
+                files.iter().any(|file| {
+                    file.path
+                        .rsplit_once('.')
+                        .is_some_and(|(_, ext)| normalise_lower(ext) == *extension)
+                })
+            });
+            if !matches_extension {
+                return false;
+            }
+        }
+
+        if let Some(ref needle) = name_filter {
+            let matched = entry
+                .status
+                .name
+                .as_ref()
+                .is_some_and(|name| name.to_lowercase().contains(needle));
+            if !matched {
+                return false;
+            }
+        }
+
+        true
+    });
+
+    entries.sort_by(|a, b| {
+        b.status
+            .last_updated
+            .cmp(&a.status.last_updated)
+            .then_with(|| a.status.id.cmp(&b.status.id))
+    });
+
+    let cursor = if let Some(token) = query.cursor.as_ref() {
+        Some(decode_cursor_token(token)?)
+    } else {
+        None
+    };
+
+    let mut start_index = 0;
+    if let Some(cursor) = &cursor {
+        while start_index < entries.len() {
+            let status = &entries[start_index].status;
+            if status.last_updated > cursor.last_updated
+                || (status.last_updated == cursor.last_updated && status.id >= cursor.id)
+            {
+                start_index += 1;
+            } else {
+                break;
+            }
+        }
+    }
+
+    let limit = query
+        .limit
+        .map_or(DEFAULT_PAGE_SIZE, |value| value as usize)
+        .clamp(1, MAX_PAGE_SIZE);
+    let end_index = (start_index + limit).min(entries.len());
+    let slice = &entries[start_index..end_index];
+
+    let torrents: Vec<TorrentSummary> = slice
+        .iter()
+        .map(|entry| summary_from_components(entry.status.clone(), entry.metadata.clone()))
+        .collect();
+
+    let next = if end_index < entries.len() && !torrents.is_empty() {
+        Some(encode_cursor_from_entry(&entries[end_index - 1])?)
+    } else {
+        None
+    };
+
+    Ok(Json(TorrentListResponse { torrents, next }))
 }
 
 async fn get_torrent(
     State(state): State<Arc<ApiState>>,
     AxumPath(id): AxumPath<Uuid>,
-) -> Result<Json<TorrentStatusResponse>, ApiError> {
+) -> Result<Json<TorrentDetail>, ApiError> {
     let handles = state
         .torrent
         .as_ref()
         .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
     let status = fetch_torrent_status(handles, id).await?;
     state.record_torrent_metrics(std::slice::from_ref(&status));
-    Ok(Json(status.into()))
+    let metadata = state.get_metadata(&status.id);
+    Ok(Json(detail_from_components(status, metadata)))
 }
 
 async fn health(State(state): State<Arc<ApiState>>) -> Result<Json<HealthResponse>, ApiError> {
     match state.config.snapshot().await {
         Ok(snapshot) => {
-            state.record_health_status(Vec::new());
+            state.remove_degraded_component("database");
             record_app_mode(snapshot.app_profile.mode.as_str());
             Ok(Json(HealthResponse {
                 status: "ok",
@@ -906,8 +1434,55 @@ async fn health(State(state): State<Arc<ApiState>>) -> Result<Json<HealthRespons
             }))
         }
         Err(err) => {
-            state.record_health_status(vec!["database".to_string()]);
+            state.add_degraded_component("database");
             warn!(error = %err, "health check failed to reach database");
+            Err(ApiError::service_unavailable(
+                "database is currently unavailable",
+            ))
+        }
+    }
+}
+
+async fn health_full(
+    State(state): State<Arc<ApiState>>,
+) -> Result<Json<FullHealthResponse>, ApiError> {
+    match state.config.snapshot().await {
+        Ok(snapshot) => {
+            state.remove_degraded_component("database");
+            record_app_mode(snapshot.app_profile.mode.as_str());
+            state.update_torrent_metrics().await;
+            let metrics_snapshot = state.telemetry.snapshot();
+            let metrics = HealthMetricsResponse {
+                config_watch_latency_ms: metrics_snapshot.config_watch_latency_ms,
+                config_apply_latency_ms: metrics_snapshot.config_apply_latency_ms,
+                config_update_failures_total: metrics_snapshot.config_update_failures_total,
+                config_watch_slow_total: metrics_snapshot.config_watch_slow_total,
+                guardrail_violations_total: metrics_snapshot.guardrail_violations_total,
+                rate_limit_throttled_total: metrics_snapshot.rate_limit_throttled_total,
+            };
+            let torrent = TorrentHealthSnapshot {
+                active: metrics_snapshot.active_torrents,
+                queue_depth: metrics_snapshot.queue_depth,
+            };
+            let degraded = state.current_health_degraded();
+            let status = if degraded.is_empty() {
+                "ok"
+            } else {
+                "degraded"
+            };
+            Ok(Json(FullHealthResponse {
+                status,
+                mode: snapshot.app_profile.mode.clone(),
+                revision: snapshot.revision,
+                build: build_sha().to_string(),
+                degraded,
+                metrics,
+                torrent,
+            }))
+        }
+        Err(err) => {
+            state.add_degraded_component("database");
+            warn!(error = %err, "full health check failed to reach database");
             Err(ApiError::service_unavailable(
                 "database is currently unavailable",
             ))
@@ -926,19 +1501,22 @@ async fn well_known(State(state): State<Arc<ApiState>>) -> Result<Json<ConfigSna
 async fn stream_events(
     State(state): State<Arc<ApiState>>,
     headers: HeaderMap,
-) -> Sse<impl futures_core::Stream<Item = Result<sse::Event, Infallible>> + Send> {
+    Query(query): Query<SseQuery>,
+) -> Result<Sse<impl futures_core::Stream<Item = Result<sse::Event, Infallible>> + Send>, ApiError>
+{
     let last_id = headers
         .get(HEADER_LAST_EVENT_ID)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.parse::<EventId>().ok());
 
-    let stream = event_sse_stream(state.events.clone(), last_id);
+    let filter = build_sse_filter(&query)?;
+    let stream = event_sse_stream(state.events.clone(), last_id, filter);
 
-    Sse::new(stream).keep_alive(
+    Ok(Sse::new(stream).keep_alive(
         sse::KeepAlive::new()
             .interval(Duration::from_secs(SSE_KEEP_ALIVE_SECS))
             .text("keep-alive"),
-    )
+    ))
 }
 
 async fn metrics(State(state): State<Arc<ApiState>>) -> Result<Response, ApiError> {
@@ -977,19 +1555,35 @@ fn event_replay_stream(
 fn event_sse_stream(
     bus: EventBus,
     since: Option<EventId>,
+    filter: SseFilter,
 ) -> impl futures_core::Stream<Item = Result<sse::Event, Infallible>> + Send {
-    event_replay_stream(bus, since).filter_map(|envelope| async move {
-        match serde_json::to_string(&envelope) {
-            Ok(payload) => Some(Ok(sse::Event::default()
-                .id(envelope.id.to_string())
-                .event(envelope.event.kind())
-                .data(payload))),
-            Err(err) => {
-                error!(error = %err, "failed to serialise SSE event payload");
-                None
+    let filter = Arc::new(filter);
+    event_replay_stream(bus, since)
+        .filter({
+            let filter = Arc::clone(&filter);
+            move |envelope| future::ready(matches_sse_filter(envelope, &filter))
+        })
+        .scan(None, move |last_id: &mut Option<EventId>, envelope| {
+            if last_id.is_some_and(|prev| prev == envelope.id) {
+                future::ready(Some(None))
+            } else {
+                *last_id = Some(envelope.id);
+                future::ready(Some(Some(envelope)))
             }
-        }
-    })
+        })
+        .filter_map(|maybe| async move { maybe })
+        .filter_map(|envelope| async move {
+            match serde_json::to_string(&envelope) {
+                Ok(payload) => Some(Ok(sse::Event::default()
+                    .id(envelope.id.to_string())
+                    .event(envelope.event.kind())
+                    .data(payload))),
+                Err(err) => {
+                    error!(error = %err, "failed to serialise SSE event payload");
+                    None
+                }
+            }
+        })
 }
 
 #[allow(clippy::too_many_lines)]
@@ -1013,6 +1607,29 @@ fn build_openapi_document() -> Value {
                             "content": {
                                 "application/json": {
                                     "schema": { "$ref": "#/components/schemas/HealthResponse" }
+                                }
+                            }
+                        },
+                        "503": {
+                            "description": "Service unavailable",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/health/full": {
+                "get": {
+                    "summary": "Read the extended health probe",
+                    "responses": {
+                        "200": {
+                            "description": "Detailed health snapshot",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/FullHealthResponse" }
                                 }
                             }
                         },
@@ -1134,6 +1751,14 @@ fn build_openapi_document() -> Value {
                                 }
                             }
                         },
+                        "429": {
+                            "description": "Rate limit exceeded",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
+                                }
+                            }
+                        },
                         "422": {
                             "description": "Validation error",
                             "content": {
@@ -1145,24 +1770,46 @@ fn build_openapi_document() -> Value {
                     }
                 }
             },
-            "/admin/torrents": {
+    "/v1/torrents": {
                 "get": {
-                    "summary": "List torrents and their current status",
+                    "summary": "List torrents with pagination and filters",
                     "security": [ { "ApiKeyAuth": [] } ],
+                    "parameters": [
+                        { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 200 } },
+                        { "name": "cursor", "in": "query", "schema": { "type": "string" } },
+                        { "name": "state", "in": "query", "schema": { "type": "string", "enum": ["queued", "fetching_metadata", "downloading", "seeding", "completed", "failed", "stopped"] } },
+                        { "name": "tracker", "in": "query", "schema": { "type": "string" } },
+                        { "name": "extension", "in": "query", "schema": { "type": "string" } },
+                        { "name": "tags", "in": "query", "schema": { "type": "string" }, "description": "Comma separated list of tags" },
+                        { "name": "name", "in": "query", "schema": { "type": "string" } }
+                    ],
                     "responses": {
                         "200": {
-                            "description": "Current torrent catalogue",
+                            "description": "Torrent collection",
                             "content": {
                                 "application/json": {
-                                    "schema": {
-                                        "type": "array",
-                                        "items": { "$ref": "#/components/schemas/TorrentStatusResponse" }
-                                    }
+                                    "schema": { "$ref": "#/components/schemas/TorrentListResponse" }
+                                }
+                            }
+                        },
+                        "400": {
+                            "description": "Invalid filters",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
                                 }
                             }
                         },
                         "401": {
                             "description": "Authentication failed",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
+                                }
+                            }
+                        },
+                        "429": {
+                            "description": "Rate limit exceeded",
                             "content": {
                                 "application/json": {
                                     "schema": { "$ref": "#/components/schemas/ProblemDetails" }
@@ -1194,8 +1841,24 @@ fn build_openapi_document() -> Value {
                         "202": {
                             "description": "Torrent accepted"
                         },
+                        "400": {
+                            "description": "Invalid submission",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
+                                }
+                            }
+                        },
                         "401": {
                             "description": "Authentication failed",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
+                                }
+                            }
+                        },
+                        "429": {
+                            "description": "Rate limit exceeded",
                             "content": {
                                 "application/json": {
                                     "schema": { "$ref": "#/components/schemas/ProblemDetails" }
@@ -1213,29 +1876,32 @@ fn build_openapi_document() -> Value {
                     }
                 }
             },
-            "/admin/torrents/{id}": {
+            "/v1/torrents/{id}": {
                 "get": {
-                    "summary": "Fetch torrent status by identifier",
+                    "summary": "Fetch torrent detail by identifier",
                     "security": [ { "ApiKeyAuth": [] } ],
                     "parameters": [
-                        {
-                            "name": "id",
-                            "in": "path",
-                            "required": true,
-                            "schema": { "type": "string", "format": "uuid" }
-                        }
+                        { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
                     ],
                     "responses": {
                         "200": {
-                            "description": "Torrent status",
+                            "description": "Torrent detail",
                             "content": {
                                 "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/TorrentStatusResponse" }
+                                    "schema": { "$ref": "#/components/schemas/TorrentDetail" }
                                 }
                             }
                         },
                         "401": {
                             "description": "Authentication failed",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
+                                }
+                            }
+                        },
+                        "429": {
+                            "description": "Rate limit exceeded",
                             "content": {
                                 "application/json": {
                                     "schema": { "$ref": "#/components/schemas/ProblemDetails" }
@@ -1259,21 +1925,32 @@ fn build_openapi_document() -> Value {
                             }
                         }
                     }
-                },
-                "delete": {
-                    "summary": "Request torrent removal",
+                }
+            },
+            "/v1/torrents/{id}/select": {
+                "post": {
+                    "summary": "Update a torrent's file selection",
                     "security": [ { "ApiKeyAuth": [] } ],
                     "parameters": [
-                        {
-                            "name": "id",
-                            "in": "path",
-                            "required": true,
-                            "schema": { "type": "string", "format": "uuid" }
-                        }
+                        { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
                     ],
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "schema": { "$ref": "#/components/schemas/TorrentSelectionRequest" }
+                            }
+                        }
+                    },
                     "responses": {
-                        "204": {
-                            "description": "Torrent removal requested"
+                        "202": { "description": "Selection update accepted" },
+                        "400": {
+                            "description": "Invalid selection payload",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
+                                }
+                            }
                         },
                         "401": {
                             "description": "Authentication failed",
@@ -1283,8 +1960,113 @@ fn build_openapi_document() -> Value {
                                 }
                             }
                         },
+                        "429": {
+                            "description": "Rate limit exceeded",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
+                                }
+                            }
+                        },
                         "503": {
                             "description": "Torrent workflow unavailable",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/v1/torrents/{id}/action": {
+                "post": {
+                    "summary": "Trigger a torrent control action",
+                    "security": [ { "ApiKeyAuth": [] } ],
+                    "parameters": [
+                        { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+                    ],
+                    "requestBody": {
+                        "required": true,
+                        "content": {
+                            "application/json": {
+                                "schema": { "$ref": "#/components/schemas/TorrentAction" }
+                            }
+                        }
+                    },
+                    "responses": {
+                        "202": { "description": "Action accepted" },
+                        "400": {
+                            "description": "Invalid action payload",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
+                                }
+                            }
+                        },
+                        "401": {
+                            "description": "Authentication failed",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
+                                }
+                            }
+                        },
+                        "429": {
+                            "description": "Rate limit exceeded",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
+                                }
+                            }
+                        },
+                        "503": {
+                            "description": "Torrent workflow unavailable",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "/v1/torrents/events": {
+                "get": {
+                    "summary": "Subscribe to torrent events via SSE",
+                    "security": [ { "ApiKeyAuth": [] } ],
+                    "parameters": [
+                        { "name": "torrent", "in": "query", "schema": { "type": "string" }, "description": "Comma separated torrent identifiers" },
+                        { "name": "event", "in": "query", "schema": { "type": "string" }, "description": "Comma separated event kinds" },
+                        { "name": "state", "in": "query", "schema": { "type": "string" }, "description": "Filter state change events by new state" }
+                    ],
+                    "responses": {
+                        "200": {
+                            "description": "SSE stream",
+                            "content": {
+                                "text/event-stream": {
+                                    "schema": { "type": "string" }
+                                }
+                            }
+                        },
+                        "401": {
+                            "description": "Authentication failed",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
+                                }
+                            }
+                        },
+                        "429": {
+                            "description": "Rate limit exceeded",
+                            "content": {
+                                "application/json": {
+                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
+                                }
+                            }
+                        },
+                        "503": {
+                            "description": "Event stream unavailable",
                             "content": {
                                 "application/json": {
                                     "schema": { "$ref": "#/components/schemas/ProblemDetails" }
@@ -1405,21 +2187,61 @@ fn build_openapi_document() -> Value {
                     "type": "object",
                     "properties": {
                         "id": { "type": "string", "format": "uuid" },
-                        "magnet": { "type": "string" },
+                        "magnet": { "type": ["string", "null"] },
                         "metainfo": { "type": ["string", "null"], "format": "byte" },
                         "name": { "type": ["string", "null"] },
+                        "download_dir": { "type": ["string", "null"] },
                         "sequential": { "type": ["boolean", "null"] },
                         "include": { "type": "array", "items": { "type": "string" } },
                         "exclude": { "type": "array", "items": { "type": "string" } },
                         "skip_fluff": { "type": "boolean" },
-                        "download_dir": { "type": ["string", "null"] },
                         "tags": { "type": "array", "items": { "type": "string" } },
+                        "trackers": { "type": "array", "items": { "type": "string" } },
                         "max_download_bps": { "type": ["integer", "null"], "format": "int64" },
                         "max_upload_bps": { "type": ["integer", "null"], "format": "int64" }
                     },
-                    "required": ["id", "magnet"]
+                    "required": ["id"]
                 },
-                "TorrentProgressResponse": {
+                "FilePriorityOverride": {
+                    "type": "object",
+                    "properties": {
+                        "index": { "type": "integer", "format": "int32" },
+                        "priority": { "type": "string", "enum": ["skip", "low", "normal", "high"] }
+                    },
+                    "required": ["index", "priority"]
+                },
+                "TorrentSelectionRequest": {
+                    "type": "object",
+                    "properties": {
+                        "include": { "type": "array", "items": { "type": "string" } },
+                        "exclude": { "type": "array", "items": { "type": "string" } },
+                        "skip_fluff": { "type": "boolean" },
+                        "priorities": {
+                            "type": "array",
+                            "items": { "$ref": "#/components/schemas/FilePriorityOverride" }
+                        }
+                    }
+                },
+                "TorrentStateView": {
+                    "type": "object",
+                    "properties": {
+                        "kind": {
+                            "type": "string",
+                            "enum": [
+                                "queued",
+                                "fetching_metadata",
+                                "downloading",
+                                "seeding",
+                                "completed",
+                                "failed",
+                                "stopped"
+                            ]
+                        },
+                        "failure_message": { "type": ["string", "null"] }
+                    },
+                    "required": ["kind"]
+                },
+                "TorrentProgressView": {
                     "type": "object",
                     "properties": {
                         "bytes_downloaded": { "type": "integer", "format": "int64" },
@@ -1429,7 +2251,7 @@ fn build_openapi_document() -> Value {
                     },
                     "required": ["bytes_downloaded", "bytes_total", "percent_complete"]
                 },
-                "TorrentRatesResponse": {
+                "TorrentRatesView": {
                     "type": "object",
                     "properties": {
                         "download_bps": { "type": "integer", "format": "int64" },
@@ -1438,47 +2260,120 @@ fn build_openapi_document() -> Value {
                     },
                     "required": ["download_bps", "upload_bps", "ratio"]
                 },
-                "TorrentFileResponse": {
+                "TorrentFileView": {
                     "type": "object",
                     "properties": {
                         "index": { "type": "integer", "format": "int32" },
                         "path": { "type": "string" },
                         "size_bytes": { "type": "integer", "format": "int64" },
                         "bytes_completed": { "type": "integer", "format": "int64" },
-                        "priority": { "type": "string" },
+                        "priority": { "type": "string", "enum": ["skip", "low", "normal", "high"] },
                         "selected": { "type": "boolean" }
                     },
                     "required": ["index", "path", "size_bytes", "bytes_completed", "priority", "selected"]
                 },
-                "TorrentStatusResponse": {
+                "TorrentSummary": {
                     "type": "object",
                     "properties": {
                         "id": { "type": "string", "format": "uuid" },
                         "name": { "type": ["string", "null"] },
-                        "state": { "type": "string" },
-                        "failure_message": { "type": ["string", "null"] },
-                        "progress": { "$ref": "#/components/schemas/TorrentProgressResponse" },
-                        "rates": { "$ref": "#/components/schemas/TorrentRatesResponse" },
-                        "files": {
-                            "type": ["array", "null"],
-                            "items": { "$ref": "#/components/schemas/TorrentFileResponse" }
-                        },
+                        "state": { "$ref": "#/components/schemas/TorrentStateView" },
+                        "progress": { "$ref": "#/components/schemas/TorrentProgressView" },
+                        "rates": { "$ref": "#/components/schemas/TorrentRatesView" },
                         "library_path": { "type": ["string", "null"] },
                         "download_dir": { "type": ["string", "null"] },
                         "sequential": { "type": "boolean" },
+                        "tags": { "type": "array", "items": { "type": "string" } },
+                        "trackers": { "type": "array", "items": { "type": "string" } },
                         "added_at": { "type": "string", "format": "date-time" },
                         "completed_at": { "type": ["string", "null"], "format": "date-time" },
                         "last_updated": { "type": "string", "format": "date-time" }
                     },
+                    "required": ["id", "state", "progress", "rates", "sequential", "tags", "trackers", "added_at", "last_updated"]
+                },
+                "TorrentDetail": {
+                    "type": "object",
+                    "properties": {
+                        "summary": { "$ref": "#/components/schemas/TorrentSummary" },
+                        "files": {
+                            "type": ["array", "null"],
+                            "items": { "$ref": "#/components/schemas/TorrentFileView" }
+                        }
+                    },
+                    "required": ["summary"]
+                },
+                "TorrentListResponse": {
+                    "type": "object",
+                    "properties": {
+                        "torrents": {
+                            "type": "array",
+                            "items": { "$ref": "#/components/schemas/TorrentSummary" }
+                        },
+                        "next": { "type": ["string", "null"] }
+                    },
+                    "required": ["torrents"]
+                },
+                "TorrentAction": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "type": "string",
+                            "enum": [
+                                "pause",
+                                "resume",
+                                "remove",
+                                "reannounce",
+                                "recheck",
+                                "sequential",
+                                "rate"
+                            ]
+                        },
+                        "delete_data": { "type": ["boolean", "null"] },
+                        "enable": { "type": ["boolean", "null"] },
+                        "download_bps": { "type": ["integer", "null"], "format": "int64" },
+                        "upload_bps": { "type": ["integer", "null"], "format": "int64" }
+                    },
+                    "required": ["type"]
+                },
+                "HealthMetricsResponse": {
+                    "type": "object",
+                    "properties": {
+                        "config_watch_latency_ms": { "type": "integer", "format": "int64" },
+                        "config_apply_latency_ms": { "type": "integer", "format": "int64" },
+                        "config_update_failures_total": { "type": "integer", "format": "int64" },
+                        "config_watch_slow_total": { "type": "integer", "format": "int64" },
+                        "guardrail_violations_total": { "type": "integer", "format": "int64" },
+                        "rate_limit_throttled_total": { "type": "integer", "format": "int64" }
+                    },
                     "required": [
-                        "id",
-                        "state",
-                        "progress",
-                        "rates",
-                        "sequential",
-                        "added_at",
-                        "last_updated"
+                        "config_watch_latency_ms",
+                        "config_apply_latency_ms",
+                        "config_update_failures_total",
+                        "config_watch_slow_total",
+                        "guardrail_violations_total",
+                        "rate_limit_throttled_total"
                     ]
+                },
+                "TorrentHealthSnapshot": {
+                    "type": "object",
+                    "properties": {
+                        "active": { "type": "integer", "format": "int64" },
+                        "queue_depth": { "type": "integer", "format": "int64" }
+                    },
+                    "required": ["active", "queue_depth"]
+                },
+                "FullHealthResponse": {
+                    "type": "object",
+                    "properties": {
+                        "status": { "type": "string" },
+                        "mode": { "type": "string" },
+                        "revision": { "type": "integer", "format": "int64" },
+                        "build": { "type": "string" },
+                        "degraded": { "type": "array", "items": { "type": "string" } },
+                        "metrics": { "$ref": "#/components/schemas/HealthMetricsResponse" },
+                        "torrent": { "$ref": "#/components/schemas/TorrentHealthSnapshot" }
+                    },
+                    "required": ["status", "mode", "revision", "build", "degraded", "metrics", "torrent"]
                 }
             }
         }
@@ -1551,21 +2446,23 @@ async fn require_api_key(
         .split_once(':')
         .ok_or_else(|| ApiError::unauthorized("API key must be provided as key_id:secret"))?;
 
-    let valid = state
+    let auth = state
         .config
-        .verify_api_key(key_id, secret)
+        .authenticate_api_key(key_id, secret)
         .await
         .map_err(|err| {
             error!(error = %err, "failed to verify API key");
             ApiError::internal("failed to verify API key")
         })?;
 
-    if !valid {
+    let Some(auth) = auth else {
         return Err(ApiError::unauthorized("invalid API key"));
-    }
+    };
+
+    state.enforce_rate_limit(&auth.key_id, auth.rate_limit.as_ref())?;
 
     req.extensions_mut().insert(AuthContext::ApiKey {
-        key_id: key_id.to_string(),
+        key_id: auth.key_id,
     });
 
     Ok(next.run(req).await)
@@ -1589,9 +2486,9 @@ fn map_config_error(err: anyhow::Error, context: &'static str) -> ApiError {
     }
 }
 
-fn invalid_params_for_config_error(error: &ConfigError) -> Vec<InvalidParam> {
+fn invalid_params_for_config_error(error: &ConfigError) -> Vec<ProblemInvalidParam> {
     match error {
-        ConfigError::ImmutableField { section, field } => vec![InvalidParam {
+        ConfigError::ImmutableField { section, field } => vec![ProblemInvalidParam {
             pointer: pointer_for(section, field),
             message: format!("field '{field}' in '{section}' is immutable"),
         }],
@@ -1599,11 +2496,11 @@ fn invalid_params_for_config_error(error: &ConfigError) -> Vec<InvalidParam> {
             section,
             field,
             message,
-        } => vec![InvalidParam {
+        } => vec![ProblemInvalidParam {
             pointer: pointer_for(section, field),
             message: message.clone(),
         }],
-        ConfigError::UnknownField { section, field } => vec![InvalidParam {
+        ConfigError::UnknownField { section, field } => vec![ProblemInvalidParam {
             pointer: pointer_for(section, field),
             message: format!("unknown field '{field}' in '{section}'"),
         }],
@@ -1672,33 +2569,23 @@ fn build_add_torrent(request: &TorrentCreateRequest) -> Result<AddTorrent, ApiEr
 
     let source = if let Some(magnet) = magnet {
         TorrentSource::magnet(magnet.to_string())
-    } else if request.metainfo.as_ref().is_some() {
-        return Err(ApiError::bad_request(
-            "metainfo uploads are not yet supported via JSON; provide a magnet URI",
-        ));
+    } else if let Some(encoded) = &request.metainfo {
+        let bytes = general_purpose::STANDARD
+            .decode(encoded)
+            .map_err(|_| ApiError::bad_request("metainfo payload must be base64 encoded"))?;
+        if bytes.len() > MAX_METAINFO_BYTES {
+            return Err(ApiError::bad_request(
+                "metainfo payload exceeds the 5 MiB limit",
+            ));
+        }
+        TorrentSource::metainfo(bytes)
     } else {
         return Err(ApiError::bad_request(
-            "magnet URI is required until metainfo uploads are supported",
+            "either magnet or metainfo payload must be provided",
         ));
     };
 
-    let file_rules = FileSelectionRules {
-        include: request.include.clone(),
-        exclude: request.exclude.clone(),
-        skip_fluff: request.skip_fluff,
-    };
-
-    let options = AddTorrentOptions {
-        name_hint: request.name.clone(),
-        download_dir: request.download_dir.clone(),
-        sequential: request.sequential,
-        file_rules,
-        rate_limit: TorrentRateLimit {
-            download_bps: request.max_download_bps,
-            upload_bps: request.max_upload_bps,
-        },
-        tags: request.tags.clone(),
-    };
+    let options = request.to_options();
 
     Ok(AddTorrent {
         id: request.id,
@@ -1720,8 +2607,9 @@ mod tests {
         TorrentStatus, TorrentWorkflow,
     };
     use std::sync::Arc;
+    use std::time::{Duration, Instant};
     use tokio::sync::{Mutex, oneshot};
-    use tokio::time::{Duration, sleep, timeout};
+    use tokio::time::{sleep, timeout};
     use uuid::Uuid;
 
     #[tokio::test]
@@ -1750,6 +2638,33 @@ mod tests {
         }
     }
 
+    #[test]
+    fn rate_limiter_blocks_after_burst_exhausted() {
+        let limit = ApiKeyRateLimit {
+            burst: 2,
+            replenish_period: Duration::from_secs(60),
+        };
+        let mut limiter = RateLimiter::new(limit.clone());
+        let start = Instant::now();
+        assert!(limiter.allow(&limit, start));
+        assert!(limiter.allow(&limit, start));
+        assert!(!limiter.allow(&limit, start + Duration::from_secs(1)));
+    }
+
+    #[test]
+    fn rate_limiter_refills_after_period() {
+        let limit = ApiKeyRateLimit {
+            burst: 1,
+            replenish_period: Duration::from_secs(1),
+        };
+        let mut limiter = RateLimiter::new(limit.clone());
+        let start = Instant::now();
+        assert!(limiter.allow(&limit, start));
+        assert!(!limiter.allow(&limit, start + Duration::from_millis(100)));
+        let later = start + Duration::from_secs(2);
+        assert!(limiter.allow(&limit, later));
+    }
+
     #[tokio::test]
     async fn sse_stream_emits_event_for_torrent_added() {
         let bus = EventBus::with_capacity(16);
@@ -1762,7 +2677,7 @@ mod tests {
                 name: "example".to_string(),
             });
         });
-        let stream = event_sse_stream(bus.clone(), None);
+        let stream = event_sse_stream(bus.clone(), None, SseFilter::default());
         pin_mut!(stream);
         match timeout(Duration::from_millis(200), stream.next())
             .await
@@ -1770,6 +2685,42 @@ mod tests {
         {
             Some(Ok(_)) => {}
             other => panic!("expected SSE event, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn sse_filter_by_torrent_id() {
+        let bus = EventBus::with_capacity(16);
+        let target = Uuid::new_v4();
+        let other = Uuid::new_v4();
+        let publisher = bus.clone();
+
+        tokio::spawn(async move {
+            let _ = publisher.publish(CoreEvent::TorrentAdded {
+                torrent_id: other,
+                name: "other".to_string(),
+            });
+            let _ = publisher.publish(CoreEvent::TorrentAdded {
+                torrent_id: target,
+                name: "matching".to_string(),
+            });
+        });
+
+        let mut filter = SseFilter::default();
+        filter.torrent_ids.insert(target);
+
+        let stream = event_replay_stream(bus, None).filter(move |envelope| {
+            let filter = filter.clone();
+            future::ready(matches_sse_filter(envelope, &filter))
+        });
+        pin_mut!(stream);
+        let envelope = timeout(Duration::from_millis(200), stream.next())
+            .await
+            .expect("timed out waiting for filtered event")
+            .expect("stream terminated");
+        match envelope.event {
+            CoreEvent::TorrentAdded { torrent_id, .. } => assert_eq!(torrent_id, target),
+            other => panic!("unexpected event {other:?}"),
         }
     }
 
@@ -1840,22 +2791,22 @@ mod tests {
             last_updated: now,
         };
 
-        let response: TorrentStatusResponse = status.into();
-        assert_eq!(response.id, id);
-        assert_eq!(response.state, "failed");
+        let detail = detail_from_components(status, TorrentMetadata::default());
+        assert_eq!(detail.summary.id, id);
+        assert_eq!(detail.summary.state.kind, TorrentStateKind::Failed);
         assert_eq!(
-            response.failure_message.as_deref(),
+            detail.summary.state.failure_message.as_deref(),
             Some("disk quota exceeded")
         );
-        assert_eq!(response.progress.bytes_downloaded, 512);
-        assert_eq!(response.progress.bytes_total, 1024);
-        assert!((response.progress.percent_complete - 50.0).abs() < f64::EPSILON);
-        assert_eq!(response.progress.eta_seconds, Some(90));
-        assert_eq!(response.rates.download_bps, 2_048);
-        assert_eq!(response.rates.upload_bps, 512);
-        assert!((response.rates.ratio - 0.5).abs() < f64::EPSILON);
-        assert_eq!(response.added_at, now);
-        assert!(response.completed_at.is_none());
+        assert_eq!(detail.summary.progress.bytes_downloaded, 512);
+        assert_eq!(detail.summary.progress.bytes_total, 1024);
+        assert!((detail.summary.progress.percent_complete - 50.0).abs() < f64::EPSILON);
+        assert_eq!(detail.summary.progress.eta_seconds, Some(90));
+        assert_eq!(detail.summary.rates.download_bps, 2_048);
+        assert_eq!(detail.summary.rates.upload_bps, 512);
+        assert!((detail.summary.rates.ratio - 0.5).abs() < f64::EPSILON);
+        assert_eq!(detail.summary.added_at, now);
+        assert!(detail.summary.completed_at.is_none());
     }
 
     #[tokio::test]
@@ -2064,6 +3015,37 @@ mod tests {
             request.max_download_bps
         );
         Ok(())
+    }
+
+    #[test]
+    fn summary_includes_metadata() {
+        let id = Uuid::new_v4();
+        let now = Utc::now();
+        let status = TorrentStatus {
+            id,
+            name: Some("demo".to_string()),
+            state: TorrentState::Completed,
+            progress: TorrentProgress {
+                bytes_downloaded: 42,
+                bytes_total: 42,
+                eta_seconds: None,
+            },
+            rates: TorrentRates::default(),
+            files: None,
+            library_path: Some("/library/demo".to_string()),
+            download_dir: None,
+            sequential: false,
+            added_at: now,
+            completed_at: Some(now),
+            last_updated: now,
+        };
+        let metadata = TorrentMetadata::new(
+            vec!["tagA".to_string(), "tagB".to_string()],
+            vec!["http://tracker".to_string()],
+        );
+        let summary = summary_from_components(status, metadata);
+        assert_eq!(summary.tags, vec!["tagA".to_string(), "tagB".to_string()]);
+        assert_eq!(summary.trackers, vec!["http://tracker".to_string()]);
     }
 
     #[tokio::test]

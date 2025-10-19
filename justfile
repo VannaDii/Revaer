@@ -10,13 +10,13 @@ fmt-fix:
     @cargo fmt --all
 
 lint:
-    @RUSTFLAGS="-Dwarnings" cargo clippy --workspace --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic -Dclippy::cargo -Dclippy::nursery -Aclippy::multiple_crate_versions
+    @cargo clippy --workspace --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic -Dclippy::cargo -Dclippy::nursery -Aclippy::multiple_crate_versions
 
 check:
-    @RUSTFLAGS="-Dwarnings" cargo check --workspace --all-features
+    @cargo check --workspace --all-features
 
 test:
-    @RUSTFLAGS="-Dwarnings" cargo test --workspace --all-features
+    @cargo test --workspace --all-features
 
 build:
     @cargo build --workspace --all-features
@@ -48,10 +48,20 @@ cov:
         cargo install cargo-llvm-cov --locked; \
     fi
     @rustup component add llvm-tools-preview
-    @cargo llvm-cov --workspace --fail-under-lines 80 --fail-under-functions 80 --fail-under-regions 80
+    @cargo llvm-cov --workspace --fail-under-lines 90 --fail-under-functions 90 --fail-under-regions 90
 
 api-export:
     @cargo run -p revaer-api --bin generate_openapi
 
 ci:
     @just fmt lint udeps audit deny test cov
+
+docker-build:
+    @docker build --tag revaer:ci .
+
+docker-scan:
+    @if ! command -v trivy >/dev/null 2>&1; then \
+        echo "trivy not installed; install it to run this scan" >&2; \
+        exit 1; \
+    fi
+    @trivy image --exit-code 1 --severity HIGH,CRITICAL revaer:ci

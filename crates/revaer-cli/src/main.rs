@@ -1,44 +1,83 @@
+use std::convert::TryFrom;
+use std::env;
 use std::io::{self, IsTerminal};
 use std::net::IpAddr;
 use std::path::{Path, PathBuf};
 use std::process;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, anyhow};
-use clap::{Args, Parser, Subcommand};
+use base64::{Engine as _, engine::general_purpose};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use rand::Rng;
 use rand::distr::Alphanumeric;
+use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, StatusCode, Url};
-use revaer_config::{ApiKeyPatch, AppMode, ConfigSnapshot, SecretPatch, SettingsChangeset};
+use revaer_api::models::{
+    ProblemDetails, TorrentAction as ApiTorrentAction, TorrentCreateRequest, TorrentDetail,
+    TorrentListResponse, TorrentSelectionRequest, TorrentStateKind,
+};
+use revaer_config::{ApiKeyPatch, ConfigSnapshot, SecretPatch, SettingsChangeset};
+use revaer_events::EventEnvelope;
+use revaer_torrent_core::{FilePriority, FilePriorityOverride};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use std::fs;
+use tokio::time::sleep;
 use uuid::Uuid;
 
 const HEADER_SETUP_TOKEN: &str = "x-revaer-setup-token";
 const HEADER_API_KEY: &str = "x-revaer-api-key";
+const HEADER_REQUEST_ID: &str = "x-request-id";
+const HEADER_LAST_EVENT_ID: &str = "Last-Event-ID";
 const DEFAULT_TIMEOUT_SECS: u64 = 10;
 const DEFAULT_API_URL: &str = "http://127.0.0.1:7070";
 
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
-    if let Err(err) = run(cli).await {
-        match err {
-            CliError::Validation(message) => {
-                eprintln!("error: {message}");
-                process::exit(2);
-            }
-            CliError::Failure(error) => {
-                eprintln!("error: {error:#}");
-                process::exit(1);
-            }
+    let command_name = command_label(&cli.command);
+    let trace_id = Uuid::new_v4().to_string();
+    let telemetry = TelemetryEmitter::from_env();
+
+    let result = run(cli, &trace_id).await;
+
+    let (exit_code, message, outcome) = match result {
+        Ok(()) => (0, None, "success"),
+        Err(err) => {
+            let exit_code = err.exit_code();
+            let message = err.display_message();
+            eprintln!("error: {message}");
+            (exit_code, Some(message), "error")
         }
+    };
+
+    if let Some(emitter) = &telemetry {
+        emitter
+            .emit(
+                &trace_id,
+                command_name,
+                outcome,
+                exit_code,
+                message.as_deref(),
+            )
+            .await;
+    }
+
+    if exit_code != 0 {
+        process::exit(exit_code);
     }
 }
 
-async fn run(cli: Cli) -> CliResult<()> {
+async fn run(cli: Cli, trace_id: &str) -> CliResult<()> {
+    let mut default_headers = HeaderMap::new();
+    let request_id = HeaderValue::from_str(trace_id)
+        .map_err(|_| CliError::failure(anyhow!("trace identifier contains invalid characters")))?;
+    default_headers.insert(HEADER_REQUEST_ID, request_id);
+
     let client = Client::builder()
         .timeout(Duration::from_secs(cli.timeout))
+        .default_headers(default_headers)
         .build()
         .map_err(|err| CliError::failure(anyhow!("failed to build HTTP client: {err}")))?;
 
@@ -58,11 +97,15 @@ async fn run(cli: Cli) -> CliResult<()> {
         Command::Settings(settings) => match settings {
             SettingsCommand::Patch(args) => handle_settings_patch(&ctx, args).await,
         },
-        Command::Torrents(torrents) => match torrents {
+        Command::Torrent(torrents) => match torrents {
             TorrentCommand::Add(args) => handle_torrent_add(&ctx, args).await,
             TorrentCommand::Remove(args) => handle_torrent_remove(&ctx, args).await,
         },
-        Command::Status => handle_status(&ctx).await,
+        Command::Ls(args) => handle_torrent_list(&ctx, args).await,
+        Command::Status(args) => handle_torrent_status(&ctx, args).await,
+        Command::Select(args) => handle_torrent_select(&ctx, args).await,
+        Command::Action(args) => handle_torrent_action(&ctx, args).await,
+        Command::Tail(args) => handle_tail(&ctx, args).await,
     }
 }
 
@@ -97,8 +140,12 @@ enum Command {
     #[command(subcommand)]
     Settings(SettingsCommand),
     #[command(subcommand)]
-    Torrents(TorrentCommand),
-    Status,
+    Torrent(TorrentCommand),
+    Ls(TorrentListArgs),
+    Status(TorrentStatusArgs),
+    Select(TorrentSelectArgs),
+    Action(TorrentActionArgs),
+    Tail(TailArgs),
 }
 
 #[derive(Subcommand)]
@@ -172,6 +219,110 @@ struct SettingsPatchArgs {
     file: PathBuf,
 }
 
+#[derive(Args, Default)]
+struct TorrentListArgs {
+    #[arg(long)]
+    limit: Option<u32>,
+    #[arg(long)]
+    cursor: Option<String>,
+    #[arg(long)]
+    state: Option<String>,
+    #[arg(long)]
+    tracker: Option<String>,
+    #[arg(long)]
+    extension: Option<String>,
+    #[arg(long)]
+    tags: Option<String>,
+    #[arg(long)]
+    name: Option<String>,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
+    format: OutputFormat,
+}
+
+#[derive(Args)]
+struct TorrentStatusArgs {
+    #[arg(help = "Torrent identifier")]
+    id: Uuid,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
+    format: OutputFormat,
+}
+
+#[derive(Clone, Debug)]
+struct FilePriorityOverrideArg {
+    index: u32,
+    priority: FilePriority,
+}
+
+#[derive(Args, Default)]
+struct TorrentSelectArgs {
+    #[arg(help = "Torrent identifier")]
+    id: Uuid,
+    #[arg(long, value_delimiter = ',')]
+    include: Vec<String>,
+    #[arg(long, value_delimiter = ',')]
+    exclude: Vec<String>,
+    #[arg(long)]
+    skip_fluff: bool,
+    #[arg(
+        long = "priority",
+        value_parser = parse_priority_override,
+        help = "Specify per-file priority overrides as index=priority"
+    )]
+    priorities: Vec<FilePriorityOverrideArg>,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum ActionType {
+    Pause,
+    Resume,
+    Remove,
+    Reannounce,
+    Recheck,
+    Sequential,
+    Rate,
+}
+
+#[derive(Args)]
+struct TorrentActionArgs {
+    #[arg(help = "Torrent identifier")]
+    id: Uuid,
+    #[arg(value_enum)]
+    action: ActionType,
+    #[arg(long, help = "Delete data when removing a torrent")]
+    delete_data: bool,
+    #[arg(long, help = "Enable sequential download when action=sequential")]
+    enable: Option<bool>,
+    #[arg(long, help = "Per-torrent download cap (bps) when action=rate")]
+    download: Option<u64>,
+    #[arg(long, help = "Per-torrent upload cap (bps) when action=rate")]
+    upload: Option<u64>,
+}
+
+#[derive(Args, Default)]
+struct TailArgs {
+    #[arg(long, value_delimiter = ',', help = "Filter to torrent IDs")]
+    torrent: Vec<Uuid>,
+    #[arg(long, value_delimiter = ',', help = "Filter to event kinds")]
+    event: Vec<String>,
+    #[arg(long, value_delimiter = ',', help = "Filter to state names")]
+    state: Vec<String>,
+    #[arg(long, help = "Persist Last-Event-ID to this file")]
+    resume_file: Option<PathBuf>,
+    #[arg(
+        long,
+        default_value_t = 5,
+        help = "Seconds to wait before reconnecting"
+    )]
+    retry_secs: u64,
+}
+
+#[derive(Copy, Clone, Debug, Default, ValueEnum)]
+enum OutputFormat {
+    #[default]
+    Table,
+    Json,
+}
+
 struct AppContext {
     client: Client,
     base_url: Url,
@@ -205,6 +356,103 @@ impl CliError {
 
     fn failure(error: impl Into<anyhow::Error>) -> Self {
         Self::Failure(error.into())
+    }
+
+    const fn exit_code(&self) -> i32 {
+        match self {
+            Self::Validation(_) => 2,
+            Self::Failure(_) => 3,
+        }
+    }
+
+    fn display_message(&self) -> String {
+        match self {
+            Self::Validation(message) => message.clone(),
+            Self::Failure(error) => format!("{error:#}"),
+        }
+    }
+}
+
+struct TelemetryEmitter {
+    client: Client,
+    endpoint: Url,
+}
+
+impl TelemetryEmitter {
+    fn from_env() -> Option<Self> {
+        let endpoint = env::var("REVAER_TELEMETRY_ENDPOINT").ok()?;
+        let endpoint = endpoint.parse().ok()?;
+        let client = Client::builder()
+            .timeout(Duration::from_secs(2))
+            .build()
+            .ok()?;
+        Some(Self { client, endpoint })
+    }
+
+    async fn emit(
+        &self,
+        trace_id: &str,
+        command: &str,
+        outcome: &str,
+        exit_code: i32,
+        message: Option<&str>,
+    ) {
+        let event = TelemetryEvent {
+            command,
+            outcome,
+            trace_id,
+            exit_code,
+            message,
+            timestamp_ms: timestamp_now_ms(),
+        };
+
+        let _ = self
+            .client
+            .post(self.endpoint.clone())
+            .json(&event)
+            .send()
+            .await;
+    }
+}
+
+#[derive(Serialize)]
+struct TelemetryEvent<'a> {
+    command: &'a str,
+    outcome: &'a str,
+    trace_id: &'a str,
+    exit_code: i32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<&'a str>,
+    timestamp_ms: u64,
+}
+
+fn timestamp_now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| u64::try_from(duration.as_millis()).unwrap_or(u64::MAX))
+        .unwrap_or(0)
+}
+
+const fn command_label(command: &Command) -> &'static str {
+    match command {
+        Command::Setup(SetupCommand::Start(_)) => "setup_start",
+        Command::Setup(SetupCommand::Complete(_)) => "setup_complete",
+        Command::Settings(SettingsCommand::Patch(_)) => "settings_patch",
+        Command::Torrent(TorrentCommand::Add(_)) => "torrent_add",
+        Command::Torrent(TorrentCommand::Remove(_)) => "torrent_remove",
+        Command::Ls(_) => "ls",
+        Command::Status(_) => "status",
+        Command::Select(_) => "select",
+        Command::Action(args) => match args.action {
+            ActionType::Pause => "action_pause",
+            ActionType::Resume => "action_resume",
+            ActionType::Remove => "action_remove",
+            ActionType::Reannounce => "action_reannounce",
+            ActionType::Recheck => "action_recheck",
+            ActionType::Sequential => "action_sequential",
+            ActionType::Rate => "action_rate",
+        },
+        Command::Tail(_) => "tail",
     }
 }
 
@@ -366,37 +614,60 @@ async fn handle_torrent_add(ctx: &AppContext, args: TorrentAddArgs) -> CliResult
         CliError::validation("API key is required (pass --api-key or set REVAER_API_KEY)")
     })?;
 
-    let magnet = args.source.trim();
-    if magnet.is_empty() {
-        return Err(CliError::validation("magnet URI must not be empty"));
-    }
-
-    if !magnet.starts_with("magnet:") {
-        return Err(CliError::validation(
-            "only magnet URIs are supported; .torrent ingestion is not yet implemented",
-        ));
-    }
-
     let id = args.id.unwrap_or_else(Uuid::new_v4);
-    let payload = json!({
-        "id": id,
-        "magnet": magnet,
-        "name": args.name,
-    });
+    let source = args.source.trim();
+    if source.is_empty() {
+        return Err(CliError::validation("source must not be empty"));
+    }
+
+    let mut request = TorrentCreateRequest {
+        id,
+        magnet: None,
+        metainfo: None,
+        name: args.name,
+        download_dir: None,
+        sequential: None,
+        include: Vec::new(),
+        exclude: Vec::new(),
+        skip_fluff: false,
+        tags: Vec::new(),
+        trackers: Vec::new(),
+        max_download_bps: None,
+        max_upload_bps: None,
+    };
+
+    if source.starts_with("magnet:") {
+        request.magnet = Some(source.to_string());
+    } else {
+        let path = Path::new(source);
+        let bytes = fs::read(path).map_err(|err| {
+            CliError::failure(anyhow!(
+                "failed to read torrent file '{}': {err}",
+                path.display()
+            ))
+        })?;
+        request.metainfo = Some(general_purpose::STANDARD.encode(&bytes));
+        if request.name.is_none() {
+            request.name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .map(str::to_string);
+        }
+    }
 
     let url = ctx
         .base_url
-        .join("/admin/torrents")
+        .join("/v1/torrents")
         .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
 
     let response = ctx
         .client
         .post(url)
         .header(HEADER_API_KEY, creds.header_value())
-        .json(&payload)
+        .json(&request)
         .send()
         .await
-        .map_err(|err| CliError::failure(anyhow!("request to /admin/torrents failed: {err}")))?;
+        .map_err(|err| CliError::failure(anyhow!("request to /v1/torrents failed: {err}")))?;
 
     if response.status().is_success() {
         println!("Torrent submission requested (id: {id})");
@@ -414,17 +685,18 @@ async fn handle_torrent_remove(ctx: &AppContext, args: TorrentRemoveArgs) -> Cli
 
     let url = ctx
         .base_url
-        .join(&format!("/admin/torrents/{id}"))
+        .join(&format!("/v1/torrents/{id}/action"))
         .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
 
     let response = ctx
         .client
-        .delete(url)
+        .post(url)
         .header(HEADER_API_KEY, creds.header_value())
+        .json(&ApiTorrentAction::Remove { delete_data: false })
         .send()
         .await
         .map_err(|err| {
-            CliError::failure(anyhow!("request to /admin/torrents/{id} failed: {err}"))
+            CliError::failure(anyhow!("request to /v1/torrents/{id}/action failed: {err}"))
         })?;
 
     if response.status().is_success() {
@@ -433,6 +705,461 @@ async fn handle_torrent_remove(ctx: &AppContext, args: TorrentRemoveArgs) -> Cli
     } else {
         Err(classify_problem(response).await)
     }
+}
+
+async fn handle_torrent_list(ctx: &AppContext, args: TorrentListArgs) -> CliResult<()> {
+    let mut url = ctx
+        .base_url
+        .join("/v1/torrents")
+        .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
+
+    {
+        let mut pairs = url.query_pairs_mut();
+        if let Some(limit) = args.limit {
+            pairs.append_pair("limit", &limit.to_string());
+        }
+        if let Some(cursor) = &args.cursor {
+            pairs.append_pair("cursor", cursor);
+        }
+        if let Some(state) = &args.state {
+            pairs.append_pair("state", state);
+        }
+        if let Some(tracker) = &args.tracker {
+            pairs.append_pair("tracker", tracker);
+        }
+        if let Some(extension) = &args.extension {
+            pairs.append_pair("extension", extension);
+        }
+        if let Some(tags) = &args.tags {
+            pairs.append_pair("tags", tags);
+        }
+        if let Some(name) = &args.name {
+            pairs.append_pair("name", name);
+        }
+    }
+
+    let response = ctx
+        .client
+        .get(url)
+        .send()
+        .await
+        .map_err(|err| CliError::failure(anyhow!("request to /v1/torrents failed: {err}")))?;
+
+    if response.status().is_success() {
+        let list = response
+            .json::<TorrentListResponse>()
+            .await
+            .map_err(|err| CliError::failure(anyhow!("failed to parse torrent list: {err}")))?;
+        render_torrent_list(&list, args.format)?;
+        Ok(())
+    } else {
+        Err(classify_problem(response).await)
+    }
+}
+
+async fn handle_torrent_status(ctx: &AppContext, args: TorrentStatusArgs) -> CliResult<()> {
+    let url = ctx
+        .base_url
+        .join(&format!("/v1/torrents/{}", args.id))
+        .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
+    let response = ctx.client.get(url.as_ref()).send().await.map_err(|err| {
+        CliError::failure(anyhow!("request to /v1/torrents/{{id}} failed: {err}"))
+    })?;
+
+    if response.status().is_success() {
+        let detail = response
+            .json::<TorrentDetail>()
+            .await
+            .map_err(|err| CliError::failure(anyhow!("failed to parse torrent detail: {err}")))?;
+        render_torrent_detail(&detail, args.format)?;
+        Ok(())
+    } else {
+        Err(classify_problem(response).await)
+    }
+}
+
+async fn handle_torrent_select(ctx: &AppContext, args: TorrentSelectArgs) -> CliResult<()> {
+    let creds = ctx.api_key.as_ref().ok_or_else(|| {
+        CliError::validation("API key is required (pass --api-key or set REVAER_API_KEY)")
+    })?;
+
+    let mut request = TorrentSelectionRequest {
+        include: args.include.clone(),
+        exclude: args.exclude.clone(),
+        skip_fluff: Some(args.skip_fluff),
+        priorities: Vec::new(),
+    };
+    for entry in &args.priorities {
+        request.priorities.push(FilePriorityOverride {
+            index: entry.index,
+            priority: entry.priority,
+        });
+    }
+
+    let url = ctx
+        .base_url
+        .join(&format!("/v1/torrents/{}/select", args.id))
+        .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
+
+    let response = ctx
+        .client
+        .post(url)
+        .header(HEADER_API_KEY, creds.header_value())
+        .json(&request)
+        .send()
+        .await
+        .map_err(|err| {
+            CliError::failure(anyhow!(
+                "request to /v1/torrents/{{id}}/select failed: {err}"
+            ))
+        })?;
+
+    if response.status().is_success() {
+        println!("Selection update accepted (id: {})", args.id);
+        Ok(())
+    } else {
+        Err(classify_problem(response).await)
+    }
+}
+
+async fn handle_torrent_action(ctx: &AppContext, args: TorrentActionArgs) -> CliResult<()> {
+    let creds = ctx.api_key.as_ref().ok_or_else(|| {
+        CliError::validation("API key is required (pass --api-key or set REVAER_API_KEY)")
+    })?;
+
+    let action_payload = build_action_payload(&args)?;
+
+    let url = ctx
+        .base_url
+        .join(&format!("/v1/torrents/{}/action", args.id))
+        .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
+
+    let response = ctx
+        .client
+        .post(url)
+        .header(HEADER_API_KEY, creds.header_value())
+        .json(&action_payload)
+        .send()
+        .await
+        .map_err(|err| {
+            CliError::failure(anyhow!(
+                "request to /v1/torrents/{{id}}/action failed: {err}"
+            ))
+        })?;
+
+    if response.status().is_success() {
+        println!("Action dispatched (id: {})", args.id);
+        Ok(())
+    } else {
+        Err(classify_problem(response).await)
+    }
+}
+
+async fn handle_tail(ctx: &AppContext, args: TailArgs) -> CliResult<()> {
+    let mut resume_id = args
+        .resume_file
+        .as_ref()
+        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|value| value.trim().parse::<u64>().ok());
+
+    loop {
+        let mut url = ctx
+            .base_url
+            .join("/v1/torrents/events")
+            .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
+
+        {
+            let mut pairs = url.query_pairs_mut();
+            if !args.torrent.is_empty() {
+                let value = args
+                    .torrent
+                    .iter()
+                    .map(Uuid::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                pairs.append_pair("torrent", &value);
+            }
+            if !args.event.is_empty() {
+                let value = args.event.join(",");
+                pairs.append_pair("event", &value);
+            }
+            if !args.state.is_empty() {
+                let value = args.state.join(",");
+                pairs.append_pair("state", &value);
+            }
+        }
+
+        let builder = ctx.client.get(url);
+        let builder = if let Some(id) = resume_id {
+            builder.header(HEADER_LAST_EVENT_ID, id.to_string())
+        } else {
+            builder
+        };
+
+        let response = match builder.send().await {
+            Ok(resp) => resp,
+            Err(err) => {
+                eprintln!(
+                    "stream connection failed: {err:?}. retrying in {}s",
+                    args.retry_secs
+                );
+                sleep(Duration::from_secs(args.retry_secs)).await;
+                continue;
+            }
+        };
+
+        if !response.status().is_success() {
+            return Err(classify_problem(response).await);
+        }
+
+        match stream_events(response, &args, resume_id.as_mut()).await {
+            Ok(last_id) => resume_id = last_id,
+            Err(err) => {
+                eprintln!("stream error: {err:?}. retrying in {}s", args.retry_secs);
+                sleep(Duration::from_secs(args.retry_secs)).await;
+            }
+        }
+    }
+}
+
+fn render_torrent_list(list: &TorrentListResponse, format: OutputFormat) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => {
+            let text = serde_json::to_string_pretty(list)
+                .map_err(|err| CliError::failure(anyhow!("failed to format JSON: {err}")))?;
+            println!("{text}");
+        }
+        OutputFormat::Table => {
+            println!("{:<36} {:<18} {:>7} NAME", "ID", "STATE", "PROG");
+            for summary in &list.torrents {
+                let progress = format!("{:.1}%", summary.progress.percent_complete);
+                let name = summary.name.as_deref().unwrap_or("<unnamed>");
+                println!(
+                    "{:<36} {:<18} {:>7} {}",
+                    summary.id,
+                    state_to_str(summary.state.kind),
+                    progress,
+                    name
+                );
+            }
+            if let Some(next) = &list.next {
+                println!("next cursor: {next}");
+            }
+        }
+    }
+    Ok(())
+}
+
+fn render_torrent_detail(detail: &TorrentDetail, format: OutputFormat) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => {
+            let text = serde_json::to_string_pretty(detail)
+                .map_err(|err| CliError::failure(anyhow!("failed to format JSON: {err}")))?;
+            println!("{text}");
+        }
+        OutputFormat::Table => {
+            let summary = &detail.summary;
+            println!("id: {}", summary.id);
+            if let Some(name) = &summary.name {
+                println!("name: {name}");
+            }
+            println!("state: {}", state_to_str(summary.state.kind));
+            if let Some(message) = &summary.state.failure_message {
+                println!("reason: {message}");
+            }
+            println!(
+                "progress: {:.1}% ({}/{})",
+                summary.progress.percent_complete,
+                format_bytes(summary.progress.bytes_downloaded),
+                format_bytes(summary.progress.bytes_total)
+            );
+            println!(
+                "rates: down {} / up {}",
+                format_bytes(summary.rates.download_bps),
+                format_bytes(summary.rates.upload_bps)
+            );
+            if let Some(path) = &summary.library_path {
+                println!("library: {path}");
+            }
+            if !summary.tags.is_empty() {
+                println!("tags: {}", summary.tags.join(", "));
+            }
+            if !summary.trackers.is_empty() {
+                println!("trackers: {}", summary.trackers.join(", "));
+            }
+            println!("sequential: {}", summary.sequential);
+            println!("added: {}", summary.added_at);
+            println!("updated: {}", summary.last_updated);
+            if let Some(files) = &detail.files {
+                println!("files:");
+                println!(
+                    "  {:>5} {:>12} {:>12} {:<8} path",
+                    "index", "size", "done", "priority"
+                );
+                for file in files {
+                    println!(
+                        "  {:>5} {:>12} {:>12} {:<8} {}",
+                        file.index,
+                        format_bytes(file.size_bytes),
+                        format_bytes(file.bytes_completed),
+                        format_priority(file.priority),
+                        file.path
+                    );
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+const fn format_priority(priority: FilePriority) -> &'static str {
+    match priority {
+        FilePriority::Skip => "skip",
+        FilePriority::Low => "low",
+        FilePriority::Normal => "normal",
+        FilePriority::High => "high",
+    }
+}
+
+const fn state_to_str(kind: TorrentStateKind) -> &'static str {
+    match kind {
+        TorrentStateKind::Queued => "queued",
+        TorrentStateKind::FetchingMetadata => "fetching_metadata",
+        TorrentStateKind::Downloading => "downloading",
+        TorrentStateKind::Seeding => "seeding",
+        TorrentStateKind::Completed => "completed",
+        TorrentStateKind::Failed => "failed",
+        TorrentStateKind::Stopped => "stopped",
+    }
+}
+
+#[allow(clippy::cast_precision_loss)]
+fn format_bytes(bytes: u64) -> String {
+    const KIB: f64 = 1024.0;
+    const MIB: f64 = KIB * 1024.0;
+    const GIB: f64 = MIB * 1024.0;
+    let value = bytes as f64;
+    if value >= GIB {
+        format!("{:.2} GiB", value / GIB)
+    } else if value >= MIB {
+        format!("{:.2} MiB", value / MIB)
+    } else if value >= KIB {
+        format!("{:.2} KiB", value / KIB)
+    } else {
+        format!("{bytes} B")
+    }
+}
+
+fn build_action_payload(args: &TorrentActionArgs) -> CliResult<ApiTorrentAction> {
+    let action = match args.action {
+        ActionType::Pause => ApiTorrentAction::Pause,
+        ActionType::Resume => ApiTorrentAction::Resume,
+        ActionType::Remove => ApiTorrentAction::Remove {
+            delete_data: args.delete_data,
+        },
+        ActionType::Reannounce => ApiTorrentAction::Reannounce,
+        ActionType::Recheck => ApiTorrentAction::Recheck,
+        ActionType::Sequential => {
+            let enable = args.enable.ok_or_else(|| {
+                CliError::validation("--enable must be provided for sequential action")
+            })?;
+            ApiTorrentAction::Sequential { enable }
+        }
+        ActionType::Rate => {
+            if args.download.is_none() && args.upload.is_none() {
+                return Err(CliError::validation(
+                    "provide --download and/or --upload when action=rate",
+                ));
+            }
+            ApiTorrentAction::Rate {
+                download_bps: args.download,
+                upload_bps: args.upload,
+            }
+        }
+    };
+    Ok(action)
+}
+
+fn parse_priority_override(value: &str) -> Result<FilePriorityOverrideArg, String> {
+    let (index_str, priority_str) = value
+        .split_once('=')
+        .ok_or_else(|| "expected format index=priority".to_string())?;
+    let index = index_str
+        .trim()
+        .parse::<u32>()
+        .map_err(|_| "index must be an integer".to_string())?;
+    let priority = match priority_str.trim().to_ascii_lowercase().as_str() {
+        "skip" => FilePriority::Skip,
+        "low" => FilePriority::Low,
+        "normal" => FilePriority::Normal,
+        "high" => FilePriority::High,
+        other => return Err(format!("unknown priority '{other}'")),
+    };
+    Ok(FilePriorityOverrideArg { index, priority })
+}
+
+async fn stream_events(
+    response: reqwest::Response,
+    args: &TailArgs,
+    mut resume_slot: Option<&mut u64>,
+) -> CliResult<Option<u64>> {
+    use futures_util::StreamExt;
+
+    let mut stream = response.bytes_stream();
+    let mut buffer = String::new();
+    let mut current_event_id: Option<u64> = None;
+    let mut current_data = Vec::new();
+    let mut last_seen = resume_slot.as_ref().map(|slot| **slot);
+
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk
+            .map_err(|err| CliError::failure(anyhow!("failed to read event stream: {err}")))?;
+        buffer.push_str(&String::from_utf8_lossy(&chunk));
+
+        while let Some(pos) = buffer.find('\n') {
+            let line = buffer[..pos].trim_end_matches('\r').to_string();
+            buffer.drain(..=pos);
+            if line.is_empty() {
+                if current_data.is_empty() {
+                    current_event_id = None;
+                    continue;
+                }
+                let payload = current_data.join("\n");
+                current_data.clear();
+                if let Some(id) = current_event_id.take() {
+                    if Some(id) == last_seen {
+                        continue;
+                    }
+                    last_seen = Some(id);
+                    if let Some(slot) = resume_slot.as_mut() {
+                        **slot = id;
+                    }
+                    if let Some(path) = &args.resume_file {
+                        let _ = fs::write(path, id.to_string());
+                    }
+                }
+                match serde_json::from_str::<EventEnvelope>(&payload) {
+                    Ok(event) => {
+                        let text = serde_json::to_string_pretty(&event).map_err(|err| {
+                            CliError::failure(anyhow!("failed to format event JSON: {err}"))
+                        })?;
+                        println!("{text}");
+                    }
+                    Err(err) => {
+                        eprintln!("discarding malformed event payload: {err} -- {payload}");
+                    }
+                }
+            } else if let Some(data) = line.strip_prefix("data:") {
+                current_data.push(data.trim_start().to_string());
+            } else if let Some(id) = line.strip_prefix("id:") {
+                if let Ok(value) = id.trim_start().parse::<u64>() {
+                    current_event_id = Some(value);
+                }
+            }
+        }
+    }
+
+    Ok(last_seen)
 }
 
 async fn handle_settings_patch(ctx: &AppContext, args: SettingsPatchArgs) -> CliResult<()> {
@@ -467,106 +1194,6 @@ async fn handle_settings_patch(ctx: &AppContext, args: SettingsPatchArgs) -> Cli
     } else {
         Err(classify_problem(response).await)
     }
-}
-
-async fn fetch_torrent_catalog(
-    ctx: &AppContext,
-    creds: &ApiKeyCredential,
-) -> CliResult<Vec<TorrentStatusSummary>> {
-    let url = ctx
-        .base_url
-        .join("/admin/torrents")
-        .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
-
-    let response = ctx
-        .client
-        .get(url)
-        .header(HEADER_API_KEY, creds.header_value())
-        .send()
-        .await
-        .map_err(|err| CliError::failure(anyhow!("request to /admin/torrents failed: {err}")))?;
-
-    if response.status().is_success() {
-        response
-            .json::<Vec<TorrentStatusSummary>>()
-            .await
-            .map_err(|err| {
-                CliError::failure(anyhow!("failed to parse torrent status response: {err}"))
-            })
-    } else {
-        Err(classify_problem(response).await)
-    }
-}
-
-async fn handle_status(ctx: &AppContext) -> CliResult<()> {
-    let health = {
-        let url = ctx
-            .base_url
-            .join("/health")
-            .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
-        ctx.client
-            .get(url)
-            .send()
-            .await
-            .map_err(|err| CliError::failure(anyhow!("request to /health failed: {err}")))?
-            .json::<HealthResponse>()
-            .await
-            .map_err(|err| CliError::failure(anyhow!("failed to parse /health response: {err}")))?
-    };
-
-    let snapshot = {
-        let url = ctx
-            .base_url
-            .join("/.well-known/revaer.json")
-            .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
-        ctx.client
-            .get(url)
-            .send()
-            .await
-            .map_err(|err| {
-                CliError::failure(anyhow!("request to /.well-known/revaer.json failed: {err}"))
-            })?
-            .json::<ConfigSnapshot>()
-            .await
-            .map_err(|err| {
-                CliError::failure(anyhow!("failed to parse configuration snapshot: {err}"))
-            })?
-    };
-
-    println!("mode: {}", health.mode.as_str());
-    println!("instance: {}", snapshot.app_profile.instance_name);
-    println!("revision: {}", snapshot.revision);
-    println!(
-        "health: {} (db: {}, revision: {:?})",
-        health.status, health.database.status, health.database.revision
-    );
-
-    if let Some(creds) = &ctx.api_key {
-        let torrents = fetch_torrent_catalog(ctx, creds).await?;
-        if torrents.is_empty() {
-            println!("torrents: none tracked");
-        } else {
-            println!("torrents ({}):", torrents.len());
-            for torrent in torrents.iter().take(10) {
-                let name = torrent.name.as_deref().unwrap_or("<unnamed>");
-                let failure = torrent
-                    .failure_message
-                    .as_deref()
-                    .map_or(String::new(), |msg| format!(" (failure: {msg})"));
-                println!(
-                    "- {} ({}) [{}] {:.1}%{}",
-                    torrent.id, name, torrent.state, torrent.progress.percent_complete, failure
-                );
-            }
-            if torrents.len() > 10 {
-                println!("... and {} more torrents", torrents.len() - 10);
-            }
-        }
-    } else {
-        println!("torrents: (authentication required; pass --api-key)");
-    }
-
-    Ok(())
 }
 
 fn build_fs_policy_patch(library_root: &str, download_root: &str, resume_dir: &str) -> Value {
@@ -666,48 +1293,9 @@ struct SetupStartResponse {
     expires_at: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct ProblemDetails {
-    title: String,
-    status: u16,
-    detail: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct HealthComponent {
-    status: String,
-    revision: Option<i64>,
-}
-
-#[derive(Debug, Deserialize)]
-struct HealthResponse {
-    status: String,
-    mode: AppMode,
-    database: HealthComponent,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Deserialize)]
-struct TorrentProgressStatus {
-    bytes_downloaded: u64,
-    bytes_total: u64,
-    percent_complete: f64,
-}
-
-#[derive(Debug, Deserialize)]
-struct TorrentStatusSummary {
-    id: Uuid,
-    name: Option<String>,
-    state: String,
-    #[serde(default)]
-    failure_message: Option<String>,
-    progress: TorrentProgressStatus,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::Utc;
     use httpmock::prelude::*;
     use reqwest::Client;
     use serde_json::json;
@@ -732,12 +1320,22 @@ mod tests {
 
         let mock = server.mock(|when, then| {
             when.method(POST)
-                .path("/admin/torrents")
+                .path("/v1/torrents")
                 .header(HEADER_API_KEY, "key:secret")
                 .json_body(json!({
                     "id": id,
                     "magnet": magnet,
+                    "metainfo": null,
                     "name": name,
+                    "download_dir": null,
+                    "sequential": null,
+                    "include": [],
+                    "exclude": [],
+                    "skip_fluff": false,
+                    "tags": [],
+                    "trackers": [],
+                    "max_download_bps": null,
+                    "max_upload_bps": null
                 }));
             then.status(202);
         });
@@ -760,12 +1358,16 @@ mod tests {
         let server = MockServer::start_async().await;
         let id = Uuid::new_v4();
 
-        let path = format!("/admin/torrents/{id}");
+        let path = format!("/v1/torrents/{id}/action");
         let mock = server.mock(move |when, then| {
-            when.method(DELETE)
+            when.method(POST)
                 .path(path.as_str())
-                .header(HEADER_API_KEY, "key:secret");
-            then.status(204);
+                .header(HEADER_API_KEY, "key:secret")
+                .json_body(json!({
+                    "type": "remove",
+                    "delete_data": false
+                }));
+            then.status(202);
         });
 
         let ctx = context_for(&server);
@@ -775,99 +1377,5 @@ mod tests {
             .await
             .expect("torrent remove should succeed");
         mock.assert();
-    }
-
-    #[tokio::test]
-    async fn status_fetches_torrent_catalog_when_authenticated() {
-        let server = MockServer::start_async().await;
-
-        let health_mock = server.mock(|when, then| {
-            when.method(GET).path("/health");
-            then.status(200).json_body(json!({
-                "status": "ok",
-                "mode": "active",
-                "database": { "status": "ok", "revision": 42 }
-            }));
-        });
-
-        let snapshot_mock = server.mock(|when, then| {
-            when.method(GET).path("/.well-known/revaer.json");
-            then.status(200).json_body(json!({
-                "revision": 42,
-                "app_profile": {
-                    "id": Uuid::new_v4(),
-                    "instance_name": "demo",
-                    "mode": "active",
-                    "version": 1,
-                    "http_port": 7070,
-                    "bind_addr": "127.0.0.1",
-                    "telemetry": json!({}),
-                    "features": json!({}),
-                    "immutable_keys": json!({}),
-                },
-                "engine_profile": {
-                    "id": Uuid::new_v4(),
-                    "implementation": "libtorrent",
-                    "listen_port": 6881,
-                    "dht": true,
-                    "encryption": "prefer",
-                    "max_active": null,
-                    "max_download_bps": null,
-                    "max_upload_bps": null,
-                    "sequential_default": false,
-                    "resume_dir": "/tmp/resume",
-                    "download_root": "/downloads",
-                    "tracker": json!([]),
-                },
-                "fs_policy": {
-                    "id": Uuid::new_v4(),
-                    "library_root": "/library",
-                    "extract": false,
-                    "par2": "disabled",
-                    "flatten": false,
-                    "move_mode": "copy",
-                    "cleanup_keep": json!([]),
-                    "cleanup_drop": json!([]),
-                    "chmod_file": null,
-                    "chmod_dir": null,
-                    "owner": null,
-                    "group": null,
-                    "umask": null,
-                    "allow_paths": json!([]),
-                }
-            }));
-        });
-
-        let torrent_id = Uuid::new_v4();
-        let torrents_mock = server.mock(move |when, then| {
-            when.method(GET)
-                .path("/admin/torrents")
-                .header(HEADER_API_KEY, "key:secret");
-            then.status(200).json_body(json!([
-                {
-                    "id": torrent_id,
-                    "name": "demo",
-                    "state": "downloading",
-                    "failure_message": null,
-                    "progress": {
-                        "bytes_downloaded": 512,
-                        "bytes_total": 1024,
-                        "percent_complete": 50.0
-                    },
-                    "files": null,
-                    "library_path": null,
-                    "last_updated": Utc::now().to_rfc3339()
-                }
-            ]));
-        });
-
-        let ctx = context_for(&server);
-        handle_status(&ctx)
-            .await
-            .expect("status command should succeed");
-
-        health_mock.assert();
-        snapshot_mock.assert();
-        torrents_mock.assert();
     }
 }

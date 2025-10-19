@@ -11,7 +11,7 @@ mod worker;
 
 pub use store::{FastResumeStore, StoredTorrentMetadata, StoredTorrentState};
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use command::EngineCommand;
 use revaer_events::{DiscoveredFile, Event, EventBus, TorrentState};
 use revaer_torrent_core::{
@@ -177,7 +177,7 @@ mod tests {
     };
     use std::fs;
     use tempfile::TempDir;
-    use tokio::time::{sleep, timeout, Duration};
+    use tokio::time::{Duration, sleep, timeout};
 
     async fn next_event(stream: &mut revaer_events::EventStream) -> Event {
         timeout(Duration::from_millis(100), stream.next())

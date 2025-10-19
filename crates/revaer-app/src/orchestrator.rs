@@ -467,6 +467,7 @@ mod tests {
     use revaer_events::{Event, EventBus};
     use revaer_torrent_core::{AddTorrent, AddTorrentOptions, TorrentSource};
     use serde_json::json;
+    use tempfile::TempDir;
     use tokio::{
         task::yield_now,
         time::{Duration, timeout},
@@ -511,13 +512,17 @@ mod tests {
     #[tokio::test]
     async fn orchestrator_applies_fsops_on_completion() -> Result<()> {
         let bus = EventBus::with_capacity(64);
-        let (engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
-            &bus,
-            sample_fs_policy("/library/media"),
-            sample_engine_profile(),
-        )
-        .await
-        .expect("failed to spawn orchestrator");
+        let temp = TempDir::new()?;
+        let library_root = temp.path().join("library");
+        let policy = sample_fs_policy(
+            library_root
+                .to_str()
+                .expect("library root path should be valid UTF-8"),
+        );
+        let (engine, orchestrator, worker) =
+            spawn_libtorrent_orchestrator(&bus, policy, sample_engine_profile())
+                .await
+                .expect("failed to spawn orchestrator");
 
         let mut stream = bus.subscribe(None);
         orchestrator
@@ -537,7 +542,7 @@ mod tests {
 
         let mut fsops_completed = false;
         let mut fsops_started = false;
-        for _ in 0..8 {
+        for _ in 0..12 {
             let envelope = timeout(Duration::from_millis(500), stream.next())
                 .await
                 .expect("event stream timed out")
@@ -723,9 +728,10 @@ mod engine_refresh_tests {
     }
 
     fn sample_fs_policy() -> FsPolicy {
+        let root = std::env::temp_dir().join(format!("revaer-fsops-{}", Uuid::new_v4()));
         FsPolicy {
             id: Uuid::new_v4(),
-            library_root: "/library".to_string(),
+            library_root: root.display().to_string(),
             extract: false,
             par2: "disabled".to_string(),
             flatten: false,

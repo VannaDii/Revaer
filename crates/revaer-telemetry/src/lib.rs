@@ -3,13 +3,16 @@
 //! This crate centralises logging, metrics, and cross-service tracing helpers so the
 //! application and delivery surfaces can adopt a consistent observability story.
 
+use std::convert::TryFrom;
 use std::future::Future;
 use std::path::Path;
 use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::{Context, Result, anyhow};
 use once_cell::sync::OnceCell;
-use prometheus::{Encoder, IntCounterVec, IntGauge, Opts, Registry, TextEncoder};
+use prometheus::{Encoder, IntCounter, IntCounterVec, IntGauge, Opts, Registry, TextEncoder};
+use serde::Serialize;
 use serde_json::Value;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tracing::{Span, span::Entered};
@@ -194,6 +197,25 @@ struct MetricsInner {
     queue_depth: IntGauge,
     engine_bytes_in: IntGauge,
     engine_bytes_out: IntGauge,
+    config_watch_latency_ms: IntGauge,
+    config_apply_latency_ms: IntGauge,
+    config_update_failures_total: IntCounter,
+    config_watch_slow_total: IntCounter,
+    guardrail_violations_total: IntCounter,
+    rate_limit_throttled_total: IntCounter,
+}
+
+/// Snapshot of selected gauges and counters for health reporting.
+#[derive(Debug, Clone, Serialize)]
+pub struct MetricsSnapshot {
+    pub active_torrents: i64,
+    pub queue_depth: i64,
+    pub config_watch_latency_ms: i64,
+    pub config_apply_latency_ms: i64,
+    pub config_update_failures_total: u64,
+    pub config_watch_slow_total: u64,
+    pub guardrail_violations_total: u64,
+    pub rate_limit_throttled_total: u64,
 }
 
 impl Metrics {
@@ -229,6 +251,30 @@ impl Metrics {
             IntGauge::with_opts(Opts::new("engine_bytes_in", "Bytes received by the engine"))?;
         let engine_bytes_out =
             IntGauge::with_opts(Opts::new("engine_bytes_out", "Bytes sent by the engine"))?;
+        let config_watch_latency_ms = IntGauge::with_opts(Opts::new(
+            "config_watch_latency_ms",
+            "Time spent waiting for configuration updates (ms)",
+        ))?;
+        let config_apply_latency_ms = IntGauge::with_opts(Opts::new(
+            "config_apply_latency_ms",
+            "Time taken to apply configuration updates (ms)",
+        ))?;
+        let config_update_failures_total = IntCounter::with_opts(Opts::new(
+            "config_update_failures_total",
+            "Configuration update failures",
+        ))?;
+        let config_watch_slow_total = IntCounter::with_opts(Opts::new(
+            "config_watch_slow_total",
+            "Configuration updates exceeding the latency guard rail",
+        ))?;
+        let guardrail_violations_total = IntCounter::with_opts(Opts::new(
+            "config_guardrail_violations_total",
+            "Configuration and setup guardrail violations",
+        ))?;
+        let rate_limit_throttled_total = IntCounter::with_opts(Opts::new(
+            "api_rate_limit_throttled_total",
+            "Requests rejected due to API rate limiting",
+        ))?;
 
         registry.register(Box::new(http_requests_total.clone()))?;
         registry.register(Box::new(events_emitted_total.clone()))?;
@@ -237,6 +283,12 @@ impl Metrics {
         registry.register(Box::new(queue_depth.clone()))?;
         registry.register(Box::new(engine_bytes_in.clone()))?;
         registry.register(Box::new(engine_bytes_out.clone()))?;
+        registry.register(Box::new(config_watch_latency_ms.clone()))?;
+        registry.register(Box::new(config_apply_latency_ms.clone()))?;
+        registry.register(Box::new(config_update_failures_total.clone()))?;
+        registry.register(Box::new(config_watch_slow_total.clone()))?;
+        registry.register(Box::new(guardrail_violations_total.clone()))?;
+        registry.register(Box::new(rate_limit_throttled_total.clone()))?;
 
         Ok(Self {
             inner: Arc::new(MetricsInner {
@@ -248,6 +300,12 @@ impl Metrics {
                 queue_depth,
                 engine_bytes_in,
                 engine_bytes_out,
+                config_watch_latency_ms,
+                config_apply_latency_ms,
+                config_update_failures_total,
+                config_watch_slow_total,
+                guardrail_violations_total,
+                rate_limit_throttled_total,
             }),
         })
     }
@@ -296,6 +354,40 @@ impl Metrics {
         self.inner.engine_bytes_out.set(value);
     }
 
+    /// Record the observed latency while waiting for configuration updates.
+    pub fn observe_config_watch_latency(&self, duration: Duration) {
+        self.inner
+            .config_watch_latency_ms
+            .set(Self::duration_to_ms(duration));
+    }
+
+    /// Record the observed latency for applying configuration updates.
+    pub fn observe_config_apply_latency(&self, duration: Duration) {
+        self.inner
+            .config_apply_latency_ms
+            .set(Self::duration_to_ms(duration));
+    }
+
+    /// Increment the configuration update failure counter.
+    pub fn inc_config_update_failure(&self) {
+        self.inner.config_update_failures_total.inc();
+    }
+
+    /// Increment the counter tracking slow configuration applications.
+    pub fn inc_config_watch_slow(&self) {
+        self.inner.config_watch_slow_total.inc();
+    }
+
+    /// Increment the guardrail violation counter (e.g. setup loopback enforcement).
+    pub fn inc_guardrail_violation(&self) {
+        self.inner.guardrail_violations_total.inc();
+    }
+
+    /// Increment the API rate limiter throttle counter.
+    pub fn inc_rate_limit_throttled(&self) {
+        self.inner.rate_limit_throttled_total.inc();
+    }
+
     /// Render the metrics registry using the Prometheus text exposition format.
     ///
     /// # Errors
@@ -310,6 +402,25 @@ impl Metrics {
             .encode(&metric_families, &mut buffer)
             .context("failed to encode Prometheus metrics")?;
         String::from_utf8(buffer).context("metrics output was not valid UTF-8")
+    }
+
+    /// Take a point-in-time snapshot of the most relevant gauges and counters.
+    #[must_use]
+    pub fn snapshot(&self) -> MetricsSnapshot {
+        MetricsSnapshot {
+            active_torrents: self.inner.active_torrents.get(),
+            queue_depth: self.inner.queue_depth.get(),
+            config_watch_latency_ms: self.inner.config_watch_latency_ms.get(),
+            config_apply_latency_ms: self.inner.config_apply_latency_ms.get(),
+            config_update_failures_total: self.inner.config_update_failures_total.get(),
+            config_watch_slow_total: self.inner.config_watch_slow_total.get(),
+            guardrail_violations_total: self.inner.guardrail_violations_total.get(),
+            rate_limit_throttled_total: self.inner.rate_limit_throttled_total.get(),
+        }
+    }
+
+    fn duration_to_ms(duration: Duration) -> i64 {
+        i64::try_from(duration.as_millis()).unwrap_or(i64::MAX)
     }
 }
 

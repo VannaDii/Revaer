@@ -2,6 +2,7 @@
 name = "revaer-cli"
 version = "0.1.0"
 edition = "2024"
+rust-version.workspace = true
 publish = false
 license.workspace = true
 repository.workspace = true
@@ -13,13 +14,18 @@ tokio.workspace = true
 tracing.workspace = true
 revaer-config = { path = "../revaer-config" }
 clap = { version = "4.5", features = ["derive", "env"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "stream"] }
 serde.workspace = true
 serde_json.workspace = true
 rpassword = "7.4"
 rand.workspace = true
 url = "2.5"
 uuid.workspace = true
+revaer-api = { path = "../revaer-api" }
+revaer-events = { path = "../revaer-events" }
+revaer-torrent-core = { path = "../revaer-torrent-core" }
+base64.workspace = true
+futures-util = "0.3"
 
 [dev-dependencies]
 httpmock = "0.8"
