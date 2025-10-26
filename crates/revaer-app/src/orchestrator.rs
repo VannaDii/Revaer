@@ -8,6 +8,7 @@ use chrono::Utc;
 use revaer_config::{EngineProfile, FsPolicy};
 use revaer_events::{Event, EventBus, TorrentState};
 use revaer_fsops::FsOpsService;
+use revaer_telemetry::Metrics;
 use revaer_torrent_core::{
     AddTorrent, FilePriority, FileSelectionUpdate, RemoveTorrent, TorrentEngine, TorrentFile,
     TorrentInspector, TorrentProgress, TorrentRateLimit, TorrentRates, TorrentStatus,
@@ -204,6 +205,7 @@ fn log_rate_value(direction: &str, value: u64) {
 #[cfg(feature = "libtorrent")]
 pub async fn spawn_libtorrent_orchestrator(
     events: &EventBus,
+    metrics: Metrics,
     fs_policy: FsPolicy,
     engine_profile: EngineProfile,
 ) -> Result<(
@@ -213,7 +215,7 @@ pub async fn spawn_libtorrent_orchestrator(
 )> {
     let engine = Arc::new(LibtorrentEngine::new(events.clone()));
     engine.apply_engine_profile(&engine_profile).await?;
-    let fsops = FsOpsService::new(events.clone());
+    let fsops = FsOpsService::new(events.clone(), metrics.clone());
     let orchestrator = Arc::new(TorrentOrchestrator::new(
         Arc::clone(&engine),
         fsops,
@@ -512,6 +514,7 @@ mod tests {
     #[tokio::test]
     async fn orchestrator_applies_fsops_on_completion() -> Result<()> {
         let bus = EventBus::with_capacity(64);
+        let metrics = Metrics::new()?;
         let temp = TempDir::new()?;
         let library_root = temp.path().join("library");
         let policy = sample_fs_policy(
@@ -520,7 +523,7 @@ mod tests {
                 .expect("library root path should be valid UTF-8"),
         );
         let (engine, orchestrator, worker) =
-            spawn_libtorrent_orchestrator(&bus, policy, sample_engine_profile())
+            spawn_libtorrent_orchestrator(&bus, metrics, policy, sample_engine_profile())
                 .await
                 .expect("failed to spawn orchestrator");
 
@@ -580,10 +583,15 @@ mod tests {
     #[tokio::test]
     async fn orchestrator_reports_fsops_failures() {
         let bus = EventBus::with_capacity(16);
-        let (_engine, orchestrator, worker) =
-            spawn_libtorrent_orchestrator(&bus, sample_fs_policy("   "), sample_engine_profile())
-                .await
-                .expect("failed to spawn orchestrator");
+        let metrics = Metrics::new().expect("metrics registry");
+        let (_engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
+            &bus,
+            metrics,
+            sample_fs_policy("   "),
+            sample_engine_profile(),
+        )
+        .await
+        .expect("failed to spawn orchestrator");
         let mut stream = bus.subscribe(None);
 
         let torrent_id = Uuid::new_v4();
@@ -591,7 +599,7 @@ mod tests {
         assert!(result.is_err(), "expected fsops to fail for blank policy");
 
         let mut saw_failure = false;
-        for _ in 0..3 {
+        for _ in 0..6 {
             let envelope = timeout(Duration::from_millis(100), stream.next())
                 .await
                 .expect("event stream timed out")
@@ -613,10 +621,15 @@ mod tests {
     #[tokio::test]
     async fn orchestrator_updates_policy_dynamically() -> Result<()> {
         let bus = EventBus::with_capacity(16);
-        let (_engine, orchestrator, worker) =
-            spawn_libtorrent_orchestrator(&bus, sample_fs_policy("   "), sample_engine_profile())
-                .await
-                .expect("failed to spawn orchestrator");
+        let metrics = Metrics::new()?;
+        let (_engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
+            &bus,
+            metrics,
+            sample_fs_policy("   "),
+            sample_engine_profile(),
+        )
+        .await
+        .expect("failed to spawn orchestrator");
         let mut stream = bus.subscribe(None);
 
         orchestrator
@@ -768,7 +781,8 @@ mod engine_refresh_tests {
     async fn update_engine_profile_notifies_engine() -> Result<()> {
         let engine = Arc::new(RecordingEngine::default());
         let bus = EventBus::new();
-        let fsops = FsOpsService::new(bus.clone());
+        let metrics = Metrics::new()?;
+        let fsops = FsOpsService::new(bus.clone(), metrics);
         let orchestrator = Arc::new(TorrentOrchestrator::new(
             Arc::clone(&engine),
             fsops,
@@ -811,7 +825,8 @@ mod engine_refresh_tests {
     async fn workflow_operations_forward_to_engine() -> Result<()> {
         let engine = Arc::new(RecordingEngine::default());
         let bus = EventBus::new();
-        let fsops = FsOpsService::new(bus.clone());
+        let metrics = Metrics::new()?;
+        let fsops = FsOpsService::new(bus.clone(), metrics);
         let orchestrator = Arc::new(TorrentOrchestrator::new(
             Arc::clone(&engine),
             fsops,

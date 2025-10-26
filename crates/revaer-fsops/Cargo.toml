@@ -17,6 +17,7 @@ tracing.workspace = true
 uuid.workspace = true
 revaer-config = { path = "../revaer-config" }
 revaer-events = { path = "../revaer-events" }
+revaer-telemetry = { path = "../revaer-telemetry" }
 tokio.workspace = true
 globset = "0.4"
 

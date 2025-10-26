@@ -47,6 +47,7 @@ async fn main() -> Result<()> {
     let (fsops_worker, config_task, torrent_handles) = {
         let (_engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
             &events,
+            telemetry.clone(),
             snapshot.fs_policy.clone(),
             snapshot.engine_profile.clone(),
         )

@@ -1,7 +1,7 @@
 # cargo-deny configuration aligned with the Phase One licensing policy.
 
 [advisories]
-ignore = []
+ignore = ["RUSTSEC-2025-0111"] # tokio-tar via testcontainers; monitor upstream (review by 2026-03-31)
 
 [licenses]
 allow = [

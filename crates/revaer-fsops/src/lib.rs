@@ -9,6 +9,7 @@ use chrono::{DateTime, Utc};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use revaer_config::FsPolicy;
 use revaer_events::{Event, EventBus};
+use revaer_telemetry::Metrics;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tracing::{info, warn};
@@ -26,19 +27,95 @@ const SKIP_FLUFF_PATTERNS: &[&str] = &[
     "**/screens/**",
 ];
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum StepKind {
+    ValidatePolicy,
+    Allowlist,
+    PrepareDirectories,
+    CompileRules,
+    Finalise,
+}
+
+impl StepKind {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::ValidatePolicy => "validate_policy",
+            Self::Allowlist => "allowlist",
+            Self::PrepareDirectories => "prepare_directories",
+            Self::CompileRules => "compile_rules",
+            Self::Finalise => "finalise",
+        }
+    }
+
+    const fn progress_label(self) -> &'static str {
+        match self {
+            Self::ValidatePolicy => "validate",
+            Self::Allowlist => "allowlist",
+            Self::PrepareDirectories => "prepare_directories",
+            Self::CompileRules => "compile_rules",
+            Self::Finalise => "finalise",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum StepStatus {
+    Started,
+    Completed,
+    Failed,
+}
+
+impl StepStatus {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Started => "started",
+            Self::Completed => "completed",
+            Self::Failed => "failed",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct StepRecord {
+    name: String,
+    status: StepStatus,
+    detail: Option<String>,
+    updated_at: DateTime<Utc>,
+}
+
+#[derive(Clone, Copy)]
+struct StepPersistence {
+    start: bool,
+    success: bool,
+    failure: bool,
+}
+
+impl StepPersistence {
+    const fn new(start: bool, success: bool, failure: bool) -> Self {
+        Self {
+            start,
+            success,
+            failure,
+        }
+    }
+}
+
 /// Service responsible for executing filesystem post-processing steps after torrent completion.
 #[derive(Clone)]
 pub struct FsOpsService {
     events: EventBus,
+    metrics: Metrics,
     health_degraded: Arc<Mutex<bool>>,
 }
 
 impl FsOpsService {
     /// Construct a new filesystem operations service backed by the shared event bus.
     #[must_use]
-    pub fn new(events: EventBus) -> Self {
+    pub fn new(events: EventBus, metrics: Metrics) -> Self {
         Self {
             events,
+            metrics,
             health_degraded: Arc::new(Mutex::new(false)),
         }
     }
@@ -71,23 +148,11 @@ impl FsOpsService {
     }
 
     fn execute_pipeline(&self, torrent_id: Uuid, policy: &FsPolicy) -> Result<()> {
-        ensure!(
-            !policy.library_root.trim().is_empty(),
-            "filesystem policy library root cannot be empty"
-        );
-
         let root = PathBuf::from(&policy.library_root);
-        self.emit_progress(torrent_id, "validate");
-
         let meta_dir = root.join(META_DIR_NAME);
         let meta_path = meta_dir.join(format!("{torrent_id}{META_SUFFIX}"));
 
-        let mut meta = if meta_path.exists() {
-            self.emit_progress(torrent_id, "load_meta");
-            load_meta(&meta_path)?
-        } else {
-            FsOpsMeta::new(torrent_id, policy.id)
-        };
+        let mut meta = self.load_or_initialise_meta(torrent_id, policy.id, &meta_path)?;
 
         if meta.completed {
             self.emit_progress(torrent_id, "resume");
@@ -95,31 +160,82 @@ impl FsOpsService {
             return Ok(());
         }
 
-        self.emit_progress(torrent_id, "allowlist");
-        enforce_allow_paths(&root, &policy.allow_paths)?;
+        self.execute_step(
+            torrent_id,
+            &mut meta,
+            &meta_path,
+            StepKind::ValidatePolicy,
+            StepPersistence::new(false, false, false),
+            |_| {
+                ensure!(
+                    !policy.library_root.trim().is_empty(),
+                    "filesystem policy library root cannot be empty"
+                );
+                Ok(())
+            },
+        )?;
 
-        self.emit_progress(torrent_id, "prepare_directories");
-        fs::create_dir_all(&root).with_context(|| {
-            format!(
-                "failed to create library root directory at {}",
-                root.display()
-            )
-        })?;
-        fs::create_dir_all(&meta_dir).with_context(|| {
-            format!(
-                "failed to create fsops metadata directory at {}",
-                meta_dir.display()
-            )
-        })?;
+        self.execute_step(
+            torrent_id,
+            &mut meta,
+            &meta_path,
+            StepKind::Allowlist,
+            StepPersistence::new(false, false, false),
+            |_| {
+                enforce_allow_paths(&root, &policy.allow_paths)?;
+                Ok(())
+            },
+        )?;
 
-        self.emit_progress(torrent_id, "compile_rules");
+        self.execute_step(
+            torrent_id,
+            &mut meta,
+            &meta_path,
+            StepKind::PrepareDirectories,
+            StepPersistence::new(false, true, false),
+            |_| {
+                fs::create_dir_all(&root).with_context(|| {
+                    format!(
+                        "failed to create library root directory at {}",
+                        root.display()
+                    )
+                })?;
+                fs::create_dir_all(&meta_dir).with_context(|| {
+                    format!(
+                        "failed to create fsops metadata directory at {}",
+                        meta_dir.display()
+                    )
+                })?;
+                Ok(())
+            },
+        )?;
+
+        self.execute_step(
+            torrent_id,
+            &mut meta,
+            &meta_path,
+            StepKind::CompileRules,
+            StepPersistence::new(true, true, true),
+            |_| {
+                let _ = RuleSet::from_policy(policy)?;
+                Ok(())
+            },
+        )?;
+
+        self.execute_step(
+            torrent_id,
+            &mut meta,
+            &meta_path,
+            StepKind::Finalise,
+            StepPersistence::new(true, true, true),
+            |meta| {
+                meta.completed = true;
+                meta.updated_at = Utc::now();
+                Ok(())
+            },
+        )?;
+
         let rules = RuleSet::from_policy(policy)?;
-        meta.steps.push("rules_compiled".to_string());
-        meta.updated_at = Utc::now();
-
-        self.emit_progress(torrent_id, "finalise");
-        meta.completed = true;
-        persist_meta(&meta_path, &meta)?;
         info!(
             torrent_id = %torrent_id,
             library_root = %root.display(),
@@ -135,6 +251,94 @@ impl FsOpsService {
             torrent_id,
             step: step.to_string(),
         });
+    }
+
+    fn load_or_initialise_meta(
+        &self,
+        torrent_id: Uuid,
+        policy_id: Uuid,
+        meta_path: &Path,
+    ) -> Result<FsOpsMeta> {
+        if meta_path.exists() {
+            self.emit_progress(torrent_id, "load_meta");
+            load_meta(meta_path)
+        } else {
+            Ok(FsOpsMeta::new(torrent_id, policy_id))
+        }
+    }
+
+    fn execute_step<F>(
+        &self,
+        torrent_id: Uuid,
+        meta: &mut FsOpsMeta,
+        meta_path: &Path,
+        step: StepKind,
+        persistence: StepPersistence,
+        op: F,
+    ) -> Result<()>
+    where
+        F: FnOnce(&mut FsOpsMeta) -> Result<()>,
+    {
+        if meta.step_status(step) == Some(StepStatus::Completed)
+            && (step != StepKind::Finalise || meta.completed)
+        {
+            return Ok(());
+        }
+
+        self.emit_progress(torrent_id, step.progress_label());
+        self.record_step(
+            meta,
+            meta_path,
+            step,
+            StepStatus::Started,
+            None,
+            persistence.start,
+        )?;
+
+        match op(meta) {
+            Ok(()) => {
+                self.record_step(
+                    meta,
+                    meta_path,
+                    step,
+                    StepStatus::Completed,
+                    None,
+                    persistence.success,
+                )?;
+                Ok(())
+            }
+            Err(err) => {
+                let detail = err.to_string();
+                let _ = self.record_step(
+                    meta,
+                    meta_path,
+                    step,
+                    StepStatus::Failed,
+                    Some(&detail),
+                    persistence.failure,
+                );
+                Err(err)
+            }
+        }
+    }
+
+    fn record_step(
+        &self,
+        meta: &mut FsOpsMeta,
+        meta_path: &Path,
+        step: StepKind,
+        status: StepStatus,
+        detail: Option<&str>,
+        persist: bool,
+    ) -> Result<()> {
+        let changed = meta.update_step(step, status, detail.map(str::to_string));
+        if changed {
+            if persist {
+                persist_meta(meta_path, meta)?;
+            }
+            self.metrics.inc_fsops_step(step.as_str(), status.as_str());
+        }
+        Ok(())
     }
 
     fn mark_degraded(&self, detail: &str) {
@@ -182,7 +386,7 @@ struct FsOpsMeta {
     policy_id: Uuid,
     completed: bool,
     updated_at: DateTime<Utc>,
-    steps: Vec<String>,
+    steps: Vec<StepRecord>,
 }
 
 impl FsOpsMeta {
@@ -194,6 +398,43 @@ impl FsOpsMeta {
             updated_at: Utc::now(),
             steps: Vec::new(),
         }
+    }
+
+    fn step_status(&self, step: StepKind) -> Option<StepStatus> {
+        self.steps
+            .iter()
+            .find(|record| record.name == step.as_str())
+            .map(|record| record.status)
+    }
+
+    fn update_step(&mut self, step: StepKind, status: StepStatus, detail: Option<String>) -> bool {
+        let now = Utc::now();
+        let mut updated = false;
+        if let Some(record) = self
+            .steps
+            .iter_mut()
+            .find(|record| record.name == step.as_str())
+        {
+            let detail_changed = detail != record.detail;
+            if record.status != status || detail_changed {
+                record.status = status;
+                record.detail = detail;
+                record.updated_at = now;
+                updated = true;
+            }
+        } else {
+            self.steps.push(StepRecord {
+                name: step.as_str().to_string(),
+                status,
+                detail,
+                updated_at: now,
+            });
+            updated = true;
+        }
+        if updated {
+            self.updated_at = now;
+        }
+        updated
     }
 }
 
@@ -400,7 +641,8 @@ mod tests {
     #[tokio::test]
     async fn pipeline_emits_lifecycle_and_persists_meta() -> Result<()> {
         let bus = EventBus::with_capacity(32);
-        let service = FsOpsService::new(bus.clone());
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus.clone(), metrics.clone());
         let mut stream = bus.subscribe(None);
         let torrent_id = Uuid::new_v4();
         let temp = TempDir::new()?;
@@ -425,7 +667,20 @@ mod tests {
         assert!(meta_path.exists(), "meta file should be persisted");
         let meta = load_meta(&meta_path)?;
         assert!(meta.completed);
-        assert!(meta.steps.contains(&"rules_compiled".to_string()));
+        assert_eq!(
+            meta.step_status(StepKind::CompileRules),
+            Some(StepStatus::Completed)
+        );
+        assert_eq!(
+            meta.step_status(StepKind::Finalise),
+            Some(StepStatus::Completed)
+        );
+
+        let rendered = metrics.render()?;
+        assert!(
+            rendered.contains(r#"fsops_steps_total{status="completed",step="finalise"} 1"#),
+            "expected fsops finalise metric to increment"
+        );
 
         Ok(())
     }
@@ -433,7 +688,8 @@ mod tests {
     #[tokio::test]
     async fn pipeline_is_idempotent_when_meta_completed() -> Result<()> {
         let bus = EventBus::with_capacity(16);
-        let service = FsOpsService::new(bus.clone());
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus.clone(), metrics);
         let torrent_id = Uuid::new_v4();
         let temp = TempDir::new()?;
         let root = temp.path().join("library");
@@ -456,7 +712,8 @@ mod tests {
     #[tokio::test]
     async fn pipeline_resumes_incomplete_meta() -> Result<()> {
         let bus = EventBus::with_capacity(16);
-        let service = FsOpsService::new(bus.clone());
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus.clone(), metrics);
         let torrent_id = Uuid::new_v4();
         let temp = TempDir::new()?;
         let root = temp.path().join("library");
@@ -479,7 +736,8 @@ mod tests {
     #[tokio::test]
     async fn pipeline_enforces_allowlist() {
         let bus = EventBus::with_capacity(16);
-        let service = FsOpsService::new(bus.clone());
+        let metrics = Metrics::new().expect("metrics");
+        let service = FsOpsService::new(bus.clone(), metrics);
         let mut stream = bus.subscribe(None);
         let torrent_id = Uuid::new_v4();
         let temp = TempDir::new().expect("tempdir");
@@ -501,7 +759,8 @@ mod tests {
     #[tokio::test]
     async fn pipeline_marks_degraded_and_recovers() -> Result<()> {
         let bus = EventBus::with_capacity(16);
-        let service = FsOpsService::new(bus.clone());
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus.clone(), metrics);
         let mut stream = bus.subscribe(None);
         let torrent_id = Uuid::new_v4();
         let temp = TempDir::new()?;
