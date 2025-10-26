@@ -1,0 +1,21 @@
+[book]
+title = "Revaer Documentation"
+author = "Revaer Contributors"
+language = "en"
+src = "docs"
+multilingual = false
+
+[output.html]
+default-theme = "rust"
+preferred-dark-theme = "coal"
+copy-fonts = true
+no-section-label = true
+git-repository-url = "https://github.com/VannaDii/revaer"
+additional-js = ["scripts/mermaid.min.js", "scripts/mermaid-init.js"]
+
+[output.html.search]
+enable = true
+limit-results = 30
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"

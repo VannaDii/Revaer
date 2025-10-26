@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Revaer Docs Manifest",
+  "type": "object",
+  "required": ["version", "generated", "entries"],
+  "properties": {
+    "version": { "type": "string" },
+    "generated": { "type": "string", "format": "date-time" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "summary", "href"],
+        "properties": {
+          "id": { "type": "string", "minLength": 3 },
+          "title": { "type": "string", "minLength": 3 },
+          "summary": { "type": "string", "minLength": 10 },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "href": { "type": "string", "pattern": "^/[-a-z0-9_/]+/?$" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

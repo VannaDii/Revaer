@@ -1,0 +1,76 @@
+name: docs
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+concurrency: docs-${{ github.ref }}
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Just
+        uses: extractions/setup-just@v2
+
+      - name: Install documentation tooling
+        run: just install-docs
+
+      - name: Build docs
+        run: just docs-build
+
+      - name: Generate LLM manifests
+        run: just docs-index
+
+      - name: Guardrails
+        run: |
+          ! grep -R --include='*.md' -E '(AKIA[0-9A-Z]{16}|SECRET_KEY|token=|password=|x-api-key)' docs || (echo "Secret-like pattern found" && exit 1)
+          ! git ls-files docs | grep -E '\.(py|ipynb|html)$' && echo "OK" || (echo "Forbidden file type present" && exit 1)
+
+      - name: Link check (optional)
+        if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+        run: |
+          cargo install --locked lychee
+          lychee --verbose --no-progress docs || true
+
+      - name: Prepare deployment directory
+        run: |
+          mkdir -p deploy
+          rsync -a book/ deploy/
+          mkdir -p deploy/llm
+          rsync -a docs/llm/ deploy/llm/
+          echo "Generated on: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" > deploy/.deployment-info
+          echo "Source commit: ${GITHUB_SHA}" >> deploy/.deployment-info
+          echo "Workflow run: ${GITHUB_RUN_ID}" >> deploy/.deployment-info
+          echo "Trigger: ${GITHUB_EVENT_NAME}" >> deploy/.deployment-info
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./deploy
+          enable_jekyll: false
+          commit_message: |
+            docs: deploy documentation
+
+            Source commit: ${{ github.sha }}
+            Workflow run: ${{ github.run_id }}
+            Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+            Trigger: ${{ github.event_name }}
+
+            This deployment contains:
+            - Static documentation site (from mdbook build)
+            - LLM integration manifests (from docs-index)
+            - Deployment metadata

@@ -65,3 +65,27 @@ docker-scan:
         exit 1; \
     fi
     @trivy image --exit-code 1 --severity HIGH,CRITICAL revaer:ci
+
+install-docs:
+    @if ! command -v mdbook >/dev/null 2>&1; then \
+        cargo install --locked mdbook; \
+    fi
+    @if ! command -v mdbook-mermaid >/dev/null 2>&1; then \
+        cargo install --locked mdbook-mermaid; \
+    fi
+    @mdbook-mermaid install .
+    @mkdir -p scripts
+    @mv -f mermaid*.js scripts/ 2>/dev/null || true
+
+docs-build:
+    @mdbook build
+
+docs-serve:
+    @mdbook serve --open
+
+docs-index:
+    @cargo run -p revaer-doc-indexer --release
+
+docs:
+    @just docs-build
+    @just docs-index

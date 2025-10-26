@@ -1,0 +1,17 @@
+[package]
+name = "revaer-doc-indexer"
+version = "0.1.0"
+edition = "2024"
+description = "Revaer mdBook companion that builds machine-readable documentation manifests."
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/VannaDii/revaer"
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+chrono = { workspace = true }
+jsonschema = { workspace = true }
+regex = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+walkdir = { workspace = true }

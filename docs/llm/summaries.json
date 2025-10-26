@@ -1,0 +1,270 @@
+[
+  {
+    "id": "adr/001-configuration-revisioning",
+    "title": "001 – Global Configuration Revisioning",
+    "summary": "Status: Proposed Date: 2025-02-23",
+    "tags": [
+      "consequences",
+      "context",
+      "decision",
+      "follow-up"
+    ],
+    "href": "/adr/001-configuration-revisioning/"
+  },
+  {
+    "id": "adr/002-setup-token-lifecycle",
+    "title": "002 – Setup Token Lifecycle & Secrets Bootstrap",
+    "summary": "Status: Proposed Date: 2025-02-23",
+    "tags": [
+      "consequences",
+      "context",
+      "decision",
+      "follow-up"
+    ],
+    "href": "/adr/002-setup-token-lifecycle/"
+  },
+  {
+    "id": "adr/003-libtorrent-session-runner",
+    "title": "003 – Libtorrent Session Runner Architecture",
+    "summary": "Status: Accepted Date: 2025-10-16",
+    "tags": [
+      "consequences",
+      "context",
+      "decision",
+      "follow-up"
+    ],
+    "href": "/adr/003-libtorrent-session-runner/"
+  },
+  {
+    "id": "adr/004-phase-one-delivery",
+    "title": "004 – Phase One Delivery Track",
+    "summary": "Status: Accepted Date: 2025-10-17",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "outcome",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/004-phase-one-delivery/"
+  },
+  {
+    "id": "adr/005-fsops-pipeline",
+    "title": "005 – FsOps Pipeline Hardening",
+    "summary": "Status: Accepted Date: 2025-10-17",
+    "tags": [
+      "consequences",
+      "context",
+      "decision",
+      "verification"
+    ],
+    "href": "/adr/005-fsops-pipeline/"
+  },
+  {
+    "id": "adr/006-api-cli-contract",
+    "title": "006 – Unified API & CLI Contract",
+    "summary": "Status: Accepted Date: 2025-10-17",
+    "tags": [
+      "consequences",
+      "context",
+      "decision",
+      "verification"
+    ],
+    "href": "/adr/006-api-cli-contract/"
+  },
+  {
+    "id": "adr/007-security-posture",
+    "title": "007 – API Key Security & Rate Limiting",
+    "summary": "Status: Accepted Date: 2025-10-17",
+    "tags": [
+      "consequences",
+      "context",
+      "decision",
+      "verification"
+    ],
+    "href": "/adr/007-security-posture/"
+  },
+  {
+    "id": "adr/008-phase-one-remaining-task",
+    "title": "008 – Phase One Remaining Delivery (Task Record)",
+    "summary": "Status: In Progress Date: 2025-10-17",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/008-phase-one-remaining-task/"
+  },
+  {
+    "id": "adr/index",
+    "title": "Architecture Decision Records",
+    "summary": "ADR documents capture the rationale behind significant technical decisions.",
+    "tags": [
+      "suggested-workflow"
+    ],
+    "href": "/adr/index/"
+  },
+  {
+    "id": "adr/template",
+    "title": "{ADR Title}",
+    "summary": "Status: {Proposed|Accepted|Superseded} Date: {YYYY-MM-DD} Context: What problem are we solving? What constraints or forces shape the decision? Decision: Summary of the choice made. Alternatives considered. Consequences: Positive outcomes. Risks or trade-offs. Follow-up: Implementation tasks. Review checkpoints.",
+    "tags": [],
+    "href": "/adr/template/"
+  },
+  {
+    "id": "api/guides/bootstrap",
+    "title": "Bootstrap & Workflow Lifecycle",
+    "summary": "This guide explains how the Revaer application stitches configuration, orchestration, and observability components together once the binary starts.",
+    "tags": [
+      "error-handling",
+      "operational-signals",
+      "runtime-updates",
+      "startup-flow"
+    ],
+    "href": "/api/guides/bootstrap/"
+  },
+  {
+    "id": "api/guides/cli",
+    "title": "CLI Usage Guide",
+    "summary": "The revaer CLI provides parity with the public API while honouring the same authentication, pagination, and SSE semantics.",
+    "tags": [
+      "commands",
+      "exit-codes",
+      "global-flags",
+      "telemetry"
+    ],
+    "href": "/api/guides/cli/"
+  },
+  {
+    "id": "api/guides/operations",
+    "title": "Operational Setup & Security",
+    "summary": "Issue keys via settings changesets (SettingsChangeset::api_keys) including:\\n+ json\\n+ {\\n+ \\\"op\\\": \\\"upsert\\\",\\n+ \\\"key_id\\\": \\\"automation\\\",\\n+ \\\"label\\\": \\\"CI\\\",\\n+ \\\"secret\\\": \\\"<generated>\\\",\\n+ \\\"rate_limit\\\": { \\\"burst\\\": 60, \\\"per_seconds\\\": 60 }\\n+ }\\n+ \\n+2. Secrets are hashed at rest; rotate keys by supplying a new secret value.\\n+3. Disable keys with { \\\"op\\\": \\\"upsert\\\", \\\"key_id\\\": \\\"automation\\\", \\\"enabled\\\": false }.\\n+4. Remove keys with { \\\"op\\\": \\\"delete\\\", \\\"key_id\\\": \\\"automation\\\" }.\\n+\\n+Invalid rate-limit payloads (missing fields, zero burst) are rejected during configuration apply with RFC9457 errors.\\n+\\n+## Rate Limiting\\n+\\n+- Token bucket with parameters burst (maximum outstanding requests) and per_seconds (replenish interval).\\n+- Requests exceeding limits receive 429 Problem+JSON responses; CLI maps these to exit code",
+    "tags": [
+      "api-key-lifecycle"
+    ],
+    "href": "/api/guides/operations/"
+  },
+  {
+    "id": "api/guides/telemetry",
+    "title": "Telemetry & Metrics Reference",
+    "summary": "Revaer exposes structured telemetry via Prometheus metrics, tracing spans, CLI events, and health endpoints.",
+    "tags": [
+      "cli-telemetry",
+      "health-endpoints",
+      "prometheus-metrics",
+      "runbook-validation",
+      "tracing"
+    ],
+    "href": "/api/guides/telemetry/"
+  },
+  {
+    "id": "api/index",
+    "title": "API Documentation",
+    "summary": "This directory hosts HTTP API specifications, generated OpenAPI documents, and usage guides for the Revaer control plane.",
+    "tags": [
+      "contents",
+      "current-coverage",
+      "next-steps"
+    ],
+    "href": "/api/index/"
+  },
+  {
+    "id": "api/openapi",
+    "title": "OpenAPI Reference",
+    "summary": "Canonical machine-readable description of the Revaer control plane surface.",
+    "tags": [],
+    "href": "/api/openapi/"
+  },
+  {
+    "id": "index",
+    "title": "Revaer",
+    "summary": "Centralized torrent orchestration with hot-reloadable configuration, consistent CLI/API surfaces, and observability-first defaults.",
+    "tags": [
+      "contributing-updates",
+      "what-youll-find-here"
+    ],
+    "href": "/index/"
+  },
+  {
+    "id": "phase-one-remaining-spec",
+    "title": "Phase One Remaining Engineering Specification",
+    "summary": "Deliver a production-ready public interface (HTTP API, SSE, CLI) for torrent orchestration. Ship FsOps-backed artefacts through API, CLI, telemetry, and documentation with demonstrable reliability. Produce release artefacts (containers, binaries, documentation) that satisfy existing security, observability, and quality gates.",
+    "tags": [
+      "acceptance-criteria",
+      "cross-cutting-deliverables",
+      "detailed-work-breakdown",
+      "objectives",
+      "scope-overview",
+      "security-observability-requirements-cross-cutting",
+      "sequencing-suggested"
+    ],
+    "href": "/phase-one-remaining-spec/"
+  },
+  {
+    "id": "phase-one-roadmap",
+    "title": "Phase One Roadmap",
+    "summary": "_Last updated: 2025-10-16_ This document captures the current delta between the Phase One objective and the existing codebase. It should be kept in sync as work progresses across the eight workstreams.",
+    "tags": [
+      "next-steps-tracking",
+      "remaining-scope-specification",
+      "snapshot"
+    ],
+    "href": "/phase-one-roadmap/"
+  },
+  {
+    "id": "platform/api",
+    "title": "HTTP API",
+    "summary": "REST + SSE surface exposed by `revaer-api`. The OpenAPI document at `/docs/openapi.json` is generated by `just api-export`.",
+    "tags": [
+      "authentication",
+      "endpoint-inventory"
+    ],
+    "href": "/platform/api/"
+  },
+  {
+    "id": "platform/cli",
+    "title": "CLI Reference",
+    "summary": "`revaer-cli` provides parity with the API for setup, configuration management, torrent lifecycle, and observability.",
+    "tags": [
+      "configuration-maintenance",
+      "event-streaming",
+      "global-flags-environment",
+      "setup-flow",
+      "torrent-lifecycle"
+    ],
+    "href": "/platform/cli/"
+  },
+  {
+    "id": "platform/configuration",
+    "title": "Configuration Surface",
+    "summary": "Canonical reference for the PostgreSQL-backed settings documents that drive Revaer’s runtime behaviour.",
+    "tags": [
+      "change-workflows",
+      "snapshot-components"
+    ],
+    "href": "/platform/configuration/"
+  },
+  {
+    "id": "release-checklist",
+    "title": "Phase One Release Checklist",
+    "summary": "**Branch Hygiene** Ensure main is green (CI pipeline complete). Review outstanding ADRs and docs for freshness. **Build & Test** just ci just build-rel just api-export **Artefact Verification** Binary: target/release/revaer-app Checksum: sha256sum target/release/revaer-app OpenAPI: docs/api/openapi.json Docker image: just docker-build && just docker-scan **Runbook Execution** Follow docs/runbook.md Archive CLI telemetry, /metrics, /health/full snapshots. **Documentation Refresh** Verify ADRs 005–007 reflect current design. Update user guides (docs/api/guides/*.md) with any behavioural changes. **Tag & Publish** Create annotated tag: git tag -a vX.Y.Z -m \"Phase One release\" Push tag: git push origin vX.Y.Z Attach artefacts generated by the build-release workflow. **Post-Release Monitoring** Watch rate-limit and guard-rail",
+    "tags": [],
+    "href": "/release-checklist/"
+  },
+  {
+    "id": "runbook",
+    "title": "Phase One Runbook",
+    "summary": "This runbook exercises the end-to-end control plane, validating FsOps, telemetry, and guard rails.",
+    "tags": [
+      "prerequisites",
+      "scenario",
+      "verification-artifacts"
+    ],
+    "href": "/runbook/"
+  }
+]

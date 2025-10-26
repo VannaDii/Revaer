@@ -57,6 +57,15 @@ cargo install cargo-llvm-cov --locked
 rustup component add llvm-tools-preview
 ```
 
+## Documentation
+The documentation site is powered by [mdBook](https://rust-lang.github.io/mdBook/) and mirrors the auto-publishing pipeline used in RustyGPT.
+
+1. Install the tooling once with `just install-docs` (installs `mdbook` and `mdbook-mermaid`).
+2. Build and index the docs with `just docs` (runs `docs-build` followed by `docs-index`).
+3. Preview locally via `just docs-serve`.
+
+Pushes to `main` invoke the docs workflow to rebuild the book, refresh the LLM manifests under `docs/llm/`, and publish the static site to GitHub Pages.
+
 ## Next Steps
 - Implement the migrations and configuration schema inside `revaer-config`.
 - Wire the setup flow and runtime hot-reload between `revaer-app`, `revaer-api`, `revaer-torrent-*`, and `revaer-fsops`.

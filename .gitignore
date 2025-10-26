@@ -8,3 +8,5 @@ Cargo.lock
 /.env
 /tmp
 /dist
+/book
+/deploy

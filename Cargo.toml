@@ -6,6 +6,7 @@ members = [
     "crates/revaer-config",
     "crates/revaer-fsops",
     "crates/revaer-events",
+    "crates/revaer-doc-indexer",
     "crates/revaer-telemetry",
     "crates/revaer-torrent-core",
     "crates/revaer-torrent-libt",
@@ -41,3 +42,6 @@ once_cell = "1.21"
 tower = "0.5"
 tower-http = { version = "0.6", features = ["trace", "request-id"] }
 base64 = "0.22"
+regex = "1.11"
+walkdir = "2.5"
+jsonschema = "0.17"
