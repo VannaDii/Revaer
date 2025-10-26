@@ -1,0 +1,1238 @@
+<!DOCTYPE HTML>
+<html lang="en" class="rust sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Revaer Documentation</title>
+        <meta name="robots" content="noindex">
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "rust";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('rust')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Revaer Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/VannaDii/revaer" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="revaer"><a class="header" href="#revaer">Revaer</a></h1>
+<blockquote>
+<p>Centralized torrent orchestration with hot-reloadable configuration, consistent CLI/API surfaces, and observability-first defaults.</p>
+</blockquote>
+<p>Revaer is a Rust workspace that coordinates torrent ingestion, filesystem operations, and operational guardrails from a PostgreSQL-backed control plane. The <code>revaer-app</code> binary composes focused crates covering the API, CLI, filesystem pipeline, telemetry, and libtorrent adapter.</p>
+<h2 id="what-youll-find-here"><a class="header" href="#what-youll-find-here">What You’ll Find Here</a></h2>
+<ul>
+<li><strong>Roadmap &amp; Specs</strong> – Track the current Phase One scope and remaining delivery deltas.</li>
+<li><strong>Platform Interfaces</strong> – Configuration schema, HTTP API endpoints, and CLI command reference that match the current codebase.</li>
+<li><strong>Operational Guides</strong> – Runbook, release checklist, and setup flows for operators.</li>
+<li><strong>Architecture Decisions</strong> – ADRs documenting trade-offs across configuration, security, and engine integration.</li>
+<li><strong>API Reference</strong> – Generated OpenAPI description and usage guidance for the control plane surface.</li>
+</ul>
+<p>Use the sidebar navigation (or <code>[</code> and <code>]</code> shortcuts) to explore individual topics. Most pages include headings that double as tags for machine-readable manifests generated by the docs indexer.</p>
+<h2 id="contributing-updates"><a class="header" href="#contributing-updates">Contributing Updates</a></h2>
+<p>Documentation lives next to the code. Add or edit Markdown files under <code>docs/</code>, then run:</p>
+<pre><code class="language-bash">just docs
+</code></pre>
+<p>This builds the mdBook site and refreshes the LLM manifests that power the documentation search experience.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="phase-one-roadmap"><a class="header" href="#phase-one-roadmap">Phase One Roadmap</a></h1>
+<p><em>Last updated: 2025-10-16</em></p>
+<p>This document captures the current delta between the Phase One objective and the existing codebase. It should be kept in sync as work progresses across the eight workstreams.</p>
+<h2 id="snapshot"><a class="header" href="#snapshot">Snapshot</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Workstream</th><th>Current State</th><th>Key Gaps</th><th>Immediate Actions</th></tr></thead><tbody>
+<tr><td>Control Plane &amp; Setup</td><td>Postgres schema, ConfigService watcher, setup CLI/API, immutable-key guard, history logging; loopback enforcement + RFC7807 pointers live</td><td>Engine hot-reload not yet exercising throttles; setup token lifecycle/error telemetry still thin</td><td>Add watcher-driven throttle tests, expand setup diagnostics and rate-limit guardrails</td></tr>
+<tr><td>Torrent Domain &amp; Adapter</td><td>Event bus, orchestrator scaffold, enriched torrent DTOs, stub session worker now persists resume metadata/fastresume, reconciles selection/sequential flags, enforces throttle guard rails, and surfaces degraded health</td><td>Real libtorrent FFI binding and alert pump still pending; need to exercise live fast-resume blobs and real libtorrent rate/health controls</td><td>Replace stub session with libtorrent bindings, translate real alerts, and validate against native libtorrent in the feature-gated suite</td></tr>
+<tr><td>File Selection &amp; FsOps</td><td>FsOpsService emits lifecycle events and validates library root</td><td>No extraction/flatten/move-perms/cleanup pipeline, no <code>.revaer.meta</code>, no allow-list enforcement</td><td>Model FsOps plan, implement idempotent steps with allow-list + metadata tracking, add fixtures/tests</td></tr>
+<tr><td>Public HTTP API &amp; SSE</td><td>Admin setup/settings/torrent CRUD, SSE stream, metrics stub, OpenAPI generator</td><td><code>/v1/torrents/*</code> family absent, no cursor pagination/filters, SSE replay lacks Last-Event-ID tests, health endpoints minimal</td><td>Define domain DTOs, implement public routes + filtering, extend SSE replay handling/tests, flesh out health</td></tr>
+<tr><td>CLI Parity</td><td>Supports setup start/complete, settings patch, admin torrent add/remove (magnet-aware), status</td><td>Missing <code>select</code>, <code>action</code>, <code>ls</code>, <code>status</code> detail view, <code>tail</code> SSE client, richer validation</td><td>Extend CLI command surface to mirror API, add reconnecting SSE tailer, flesh out filtering and exit-code contract</td></tr>
+<tr><td>Security &amp; Observability</td><td>API key storage hashed, tracing initialised, metrics registry struct</td><td>No per-key rate limits, no X-RateLimit headers, magnet/body bounds missing, tracing not propagated to engine/fsops, metrics unused</td><td>Introduce token-bucket middleware, enforce payload bounds, propagate spans through orchestrator/fsops, export Prometheus counters</td></tr>
+<tr><td>CI &amp; Packaging</td><td>Workspace compiles, justfile for fmt/lint/test</td><td>No CI workflows, cargo-deny/audit missing, no env access guard, no Docker packaging or healthcheck</td><td>Author GitHub Actions (lint, security, tests, build), enforce env guard lint, build minimal non-root container with HEALTHCHECK</td></tr>
+<tr><td>Operational End-to-End</td><td>Bootstrap skeleton and event bus exist</td><td>Torrent download, fs pipeline, restart resume, throttling, degraded health scenarios unimplemented</td><td>Sequence implementation/testing to satisfy runbook once engine/fsops/API parity are in place</td></tr>
+</tbody></table>
+</div>
+<h2 id="remaining-scope-specification"><a class="header" href="#remaining-scope-specification">Remaining Scope Specification</a></h2>
+<h3 id="1-torrent-engine-integration"><a class="header" href="#1-torrent-engine-integration">1. Torrent Engine Integration</a></h3>
+<ul>
+<li>Swap the stubbed <code>LibtSession</code> for the real libtorrent binding so the existing worker drives a native session while continuing to process commands for add/pause/resume/remove, sequential toggles, rate limits, selection updates, reannounce, and force-recheck.</li>
+<li>Validate persisted fast-resume payloads, priorities, target directories, and sequential flags against the live session on startup; continue emitting reconciliation events when divergence is detected.</li>
+<li>Translate libtorrent alerts into EventBus messages (<code>FilesDiscovered</code>, <code>Progress</code>, <code>StateChanged</code>, <code>Completed</code>, <code>Failure</code>) while respecting the ≤10 Hz per-torrent coalescing rule; recover from alert polling failures by degrading health and attempting bounded restarts.</li>
+<li>Ensure global and per-torrent rate caps driven by <code>engine_profile</code> updates are enforced by libtorrent within two seconds, with audit logs surfaced when caps change.</li>
+<li>Extend the feature-gated integration suite to execute against the native libtorrent build (resume restore, rate-limit enforcement, alert mapping) in addition to the in-process stub.</li>
+</ul>
+<h3 id="2-file-selection--fsops-pipeline"><a class="header" href="#2-file-selection--fsops-pipeline">2. File Selection &amp; FsOps Pipeline</a></h3>
+<ul>
+<li>Implement include/exclude glob logic with <code>skip-fluff</code> presets backed by the allow-list; synchronize selection changes to libtorrent file priorities and issue corresponding EventBus notifications.</li>
+<li>Build the FsOps pipeline stages: extraction (7z), optional flattening, move/hardlink/copy into library roots, chmod/chown/umask adjustments, metadata capture, cleanup, and optional checksum calculation; each stage must record outcomes in <code>.revaer.meta</code> for idempotency.</li>
+<li>Enforce DB-driven allow-lists, refusing to access paths outside permitted roots and emitting structured errors when policies block execution.</li>
+<li>Degrade pipeline health when dependencies are missing (e.g., extractor binaries), ensuring both EventBus and <code>/health/full</code> reflect the condition; resume normal health once remediation succeeds.</li>
+<li>Back the pipeline with unit coverage for rule parsing and integration coverage for an end-to-end torrent completion to library handoff, including restart scenarios that reuse <code>.revaer.meta</code>.</li>
+</ul>
+<h3 id="3-public-http-api--sse"><a class="header" href="#3-public-http-api--sse">3. Public HTTP API &amp; SSE</a></h3>
+<ul>
+<li>Ship <code>/v1/torrents</code> endpoints: <code>POST</code> (magnet or multipart <code>.torrent</code>), <code>GET</code> collection with cursor pagination and filters (name, state, tracker, extension), <code>GET</code> detail, <code>POST /select</code>, and <code>POST /action</code> (pause/resume/remove with optional data deletion, reannounce, recheck, sequential toggle); enforce validation aligned with domain rules.</li>
+<li>Adopt Problem+JSON responses that include JSON Pointer references for every validation failure; extend shared error helpers so CLI can mirror the structure.</li>
+<li>Enhance SSE with Last-Event-ID replay, duplicate suppression, resumable connections, and explicit event type exposure for new workflow outputs.</li>
+<li>Expand health reporting to <code>/health/full</code>, surfacing engine, FsOps, and database status with latency measurements, dependency readiness, and revision metadata.</li>
+<li>Update OpenAPI specs and golden request/response samples to cover the new surfaces; add integration tests that exercise pagination, filters, and SSE replay.</li>
+</ul>
+<h3 id="4-cli-parity"><a class="header" href="#4-cli-parity">4. CLI Parity</a></h3>
+<ul>
+<li>Add commands <code>revaer ls</code>, <code>status</code>, <code>select</code>, <code>action</code>, and <code>tail</code>, mirroring API filters, selection arguments (include/exclude/skip-fluff), sequential toggles, and data deletion flags.</li>
+<li>Implement an SSE tailer that reconnects on failure, honors Last-Event-ID, and avoids duplicate terminal output.</li>
+<li>Standardize exit codes (0 success, 2 validation, &gt;2 runtime failures) and surface RFC7807 payloads, including pointer metadata, in human-readable CLI output.</li>
+<li>Provide CLI integration tests that run against the API fixture stack, covering filter combinations, sequential toggles, and tail reconnection behaviour.</li>
+</ul>
+<h3 id="5-security--observability"><a class="header" href="#5-security--observability">5. Security &amp; Observability</a></h3>
+<ul>
+<li>Introduce API key lifecycle endpoints (issue, rotate, revoke) with hashed-at-rest storage, returning secrets only once; enforce per-key token-bucket rate limiting and include <code>X-RateLimit-*</code> headers.</li>
+<li>Harden inputs by bounding magnet length, multipart size, filter glob counts, and header values; return Problem+JSON validation errors without panics for malformed requests.</li>
+<li>Propagate tracing spans (request IDs) through the API, engine, and FsOps layers; ensure metrics cover HTTP status, event flow, queue depth, libtorrent transfer, and FsOps step durations, exposed via <code>/metrics</code>.</li>
+<li>Reflect degraded health when tools are missing, engine sessions fault, or queue depth exceeds thresholds; emit corresponding <code>SettingsChanged</code> and <code>HealthChanged</code> events.</li>
+<li>Document operational expectations for rate limiting, key rotation, and observability dashboards.</li>
+</ul>
+<h3 id="6-ci--packaging"><a class="header" href="#6-ci--packaging">6. CI &amp; Packaging</a></h3>
+<ul>
+<li>Create GitHub Actions (or equivalent) workflows for formatting (<code>cargo fmt</code>), linting (<code>cargo clippy -D warnings</code>), security scans (<code>cargo deny</code>, <code>cargo audit</code>), tests (unit/integration with Postgres and libtorrent behind an opt-in guard), and cross-compilation artifacts for Linux x86_64 and aarch64.</li>
+<li>Enforce an environment-access lint that fails CI if <code>std::env</code> reads occur outside the composition root (excluding <code>DATABASE_URL</code>).</li>
+<li>Produce a non-root Docker image with read-only root filesystem, declared volumes, and a healthcheck hitting <code>/health</code>; ensure runtime documentation validates within the image.</li>
+<li>Publish build artifacts and container digests with provenance metadata; wire CI status into the roadmap release checklist.</li>
+</ul>
+<h3 id="7-operational-runbook-automation"><a class="header" href="#7-operational-runbook-automation">7. Operational Runbook Automation</a></h3>
+<ul>
+<li>Author a script to execute the full phase objective on both x86_64 and aarch64: bootstrap using <code>DATABASE_URL</code>, complete setup token flow, add a magnet, monitor <code>FilesDiscovered</code>/<code>Progress</code>/<code>Completed</code>, run FsOps, simulate crash/restart with fast-resume recovery, adjust throttles, and validate degraded health when extractors are absent.</li>
+<li>Capture assertions and logs for each phase, producing artifacts suitable for runbook review and CI retention; ensure failures mark the engine or pipeline health accordingly.</li>
+<li>Include cleanup routines to return environments to a reusable state while retaining diagnostic logs.</li>
+</ul>
+<h3 id="8-documentation--final-polish"><a class="header" href="#8-documentation--final-polish">8. Documentation &amp; Final Polish</a></h3>
+<ul>
+<li>Update <code>docs/phase-one-roadmap.md</code> continuously and add ADRs covering engine architecture, FsOps design, API/CLI contracts, and security posture.</li>
+<li>Regenerate <code>docs/api/openapi.json</code> alongside illustrative request/response examples for new endpoints.</li>
+<li>Extend user-facing guides for CLI usage, health/metrics references, and operational setup covering API keys, rate limits, and degraded-mode recovery.</li>
+<li>Provide a final Phase One release checklist that ties documentation, runbook, and CI artifacts together.</li>
+</ul>
+<h2 id="next-steps-tracking"><a class="header" href="#next-steps-tracking">Next Steps Tracking</a></h2>
+<ol>
+<li>Land setup/network hardening and control-plane polish.</li>
+<li>Replace the stub worker with a real libtorrent session, resume store, and alert-driven event bridge.</li>
+<li>Implement FsOps pipeline with allow-listed execution and metadata.</li>
+<li>Expose <code>/v1/*</code> APIs + CLI parity and reinforce security/observability.</li>
+<li>Stand up CI, packaging, and full runbook validation.</li>
+</ol>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="phase-one-remaining-engineering-specification"><a class="header" href="#phase-one-remaining-engineering-specification">Phase One Remaining Engineering Specification</a></h1>
+<h2 id="objectives"><a class="header" href="#objectives">Objectives</a></h2>
+<ul>
+<li>Deliver a production-ready public interface (HTTP API, SSE, CLI) for torrent orchestration.</li>
+<li>Ship FsOps-backed artefacts through API, CLI, telemetry, and documentation with demonstrable reliability.</li>
+<li>Produce release artefacts (containers, binaries, documentation) that satisfy existing security, observability, and quality gates.</li>
+</ul>
+<h2 id="scope-overview"><a class="header" href="#scope-overview">Scope Overview</a></h2>
+<ol>
+<li>
+<p><strong>Public HTTP API &amp; SSE Enhancements</strong></p>
+<ul>
+<li><code>/v1/torrents</code> CRUD-style endpoints with cursor pagination, filtering, torrent actions, file selection updates, rate adjustments, and Problem+JSON responses.</li>
+<li>SSE stream upgrades: Last-Event-ID replay, subscription filters, duplicate suppression, jitter-tolerant reconnect logic.</li>
+<li><code>/health/full</code> exposing engine/FsOps/config readiness, dependency metrics, and revision metadata.</li>
+<li>Regenerated OpenAPI (JSON + examples) reflecting the full public surface.</li>
+</ul>
+</li>
+<li>
+<p><strong>CLI Parity</strong></p>
+<ul>
+<li>Commands covering list/status/select/action/tail flows with shared filtering + pagination options.</li>
+<li>SSE-backed <code>tail</code> command with Last-Event-ID resume, dedupe, and retry semantics aligned with the API.</li>
+<li>Problem+JSON error output, structured exit codes (<code>0</code> success, <code>2</code> validation, <code>&gt;2</code> runtime failures).</li>
+</ul>
+</li>
+<li>
+<p><strong>Packaging &amp; Documentation</strong></p>
+<ul>
+<li>Release-ready Docker image (non-root, readonly FS, volumes, healthcheck) bundling API server + docs.</li>
+<li>Provenance-signed binaries for supported architectures, plus GitHub Actions workflows for build, docker, msrv, and coverage gates.</li>
+<li>Updated ADRs, runbook, user guides, OpenAPI artefacts, and release checklist referencing the telemetry and security posture.</li>
+<li>Documentation of new metrics/traces/guardrails (config watcher latency, FsOps events, API counters).</li>
+</ul>
+</li>
+</ol>
+<h2 id="security--observability-requirements-cross-cutting"><a class="header" href="#security--observability-requirements-cross-cutting">Security &amp; Observability Requirements (Cross-Cutting)</a></h2>
+<ul>
+<li>All new API routes enforce API-key authentication with per-key rate limiting and guard-rail metrics.</li>
+<li>Problem+JSON responses are mandatory; eliminate <code>unwrap</code>/panic paths and include <code>invalid_params</code> pointers on validation failure.</li>
+<li>Trace propagation from API → engine → FsOps; CLI should emit/propagate TraceId when available.</li>
+<li>Metrics: extend existing Prometheus registry with route labels, FsOps step counters, config watcher latency/failure gauges, and rate-limiter guardrails.</li>
+<li>Health degradation events (<code>Event::HealthChanged</code>) must accompany any new guard-rail/latency breach or pipeline failure.</li>
+<li>CLI commands should mask secrets in logs and optionally emit telemetry when configured (<code>REVAER_TELEMETRY_ENDPOINT</code>).</li>
+</ul>
+<h2 id="detailed-work-breakdown"><a class="header" href="#detailed-work-breakdown">Detailed Work Breakdown</a></h2>
+<h3 id="1-public-api--sse"><a class="header" href="#1-public-api--sse">1. Public API &amp; SSE</a></h3>
+<p><strong>Design Considerations</strong></p>
+<ul>
+<li>Introduce DTO module (<code>api::models</code>) for request/response structs to share with the CLI.</li>
+<li>Cursor pagination: encode UUID/timestamp as opaque cursor in <code>next</code> token; align Last-Event-ID semantics with event stream IDs.</li>
+<li>Filtering: support state, tracker, extension, tags, and name substring; guard invalid combinations with Problem+JSON.</li>
+<li>SSE filtering: permit query parameters for torrent subset, replays based on event type/state.</li>
+</ul>
+<p><strong>Implementation Tasks</strong></p>
+<ul>
+<li>Routes:
+<ul>
+<li><code>POST /v1/torrents</code> – magnet or .torrent upload (streamed, payload size guard).</li>
+<li><code>GET /v1/torrents</code> – cursor pagination + filters.</li>
+<li><code>GET /v1/torrents/{id}</code> – detail view with FsOps metadata.</li>
+<li><code>POST /v1/torrents/{id}/select</code> – file selection update with validation.</li>
+<li><code>POST /v1/torrents/{id}/action</code> – pause/resume/remove (with data), reannounce, recheck, sequential toggle, rate limits.</li>
+</ul>
+</li>
+<li>SSE:
+<ul>
+<li>Accept <code>Last-Event-ID</code> header, deduplicate by event ID, filter streams by torrent ID/state.</li>
+<li>Simulate jitter/disconnects in tests (<code>tokio::time::pause</code>, <code>transport::Stream</code>).</li>
+</ul>
+</li>
+<li>Health endpoint:
+<ul>
+<li>Aggregate config watcher metrics (latency, failures), FsOps status, engine guardrails, revision hash.</li>
+</ul>
+</li>
+<li>Problem+JSON mapping for all new errors with <code>invalid_params</code> pointer data.</li>
+<li>OpenAPI:
+<ul>
+<li>Regenerate spec covering new endpoints, Problem responses, SSE details, and sample payloads.</li>
+</ul>
+</li>
+<li>Testing:
+<ul>
+<li>Unit tests for filter parsing, DTO validation, Problem+JSON outputs.</li>
+<li>Integration tests using <code>tower::Service</code> harness for each route.</li>
+<li>SSE reconnection tests with simulated delays and Last-Event-ID resume.</li>
+<li><code>/health/full</code> integration test verifying new fields and degraded scenarios.</li>
+</ul>
+</li>
+</ul>
+<h3 id="2-cli-parity"><a class="header" href="#2-cli-parity">2. CLI Parity</a></h3>
+<p><strong>Design Considerations</strong></p>
+<ul>
+<li>Reuse DTOs from API models; consider shared crate/module for request structs and Problem+JSON parsing.</li>
+<li>Introduce output formatting with optional JSON/pretty table modes.</li>
+<li>Provide configuration via env vars and CLI flags; align defaults with API (e.g., <code>REVAER_API_URL</code>, <code>REVAER_API_KEY</code>).</li>
+</ul>
+<p><strong>Implementation Tasks</strong></p>
+<ul>
+<li>Commands:
+<ul>
+<li><code>revaer ls</code> – list torrents, support pagination (<code>--cursor</code>, <code>--limit</code>), filters (state/tracker/extension/tags).</li>
+<li><code>revaer status &lt;id&gt;</code> – torrent detail view, optional follow mode.</li>
+<li><code>revaer select &lt;id&gt;</code> – send selection rules from file/JSON (validate before submit).</li>
+<li><code>revaer action &lt;id&gt;</code> – actions (<code>pause</code>, <code>resume</code>, <code>remove</code>, <code>remove-data</code>, <code>reannounce</code>, <code>recheck</code>, <code>sequential</code>, <code>rate</code>).</li>
+<li><code>revaer tail</code> – SSE tail with Last-Event-ID persist (local file) and dedupe.</li>
+</ul>
+</li>
+<li>Problem+JSON handling:
+<ul>
+<li>Standardised pretty printer summarising <code>title</code>, <code>detail</code>, <code>invalid_params</code>; respect exit codes.</li>
+</ul>
+</li>
+<li>Telemetry:
+<ul>
+<li>Optional metrics emission (success/failure counters) when telemetry endpoint configured.</li>
+</ul>
+</li>
+<li>Testing:
+<ul>
+<li>Integration tests using <code>httpmock</code> to assert HTTP interactions and exit codes.</li>
+<li>SSE tail tests with mocked stream delivering duplicates/disconnects.</li>
+<li>Snapshot tests for JSON outputs (ensuring deterministic fields).</li>
+</ul>
+</li>
+</ul>
+<h3 id="3-packaging--documentation"><a class="header" href="#3-packaging--documentation">3. Packaging &amp; Documentation</a></h3>
+<p><strong>Design Considerations</strong></p>
+<ul>
+<li>Multi-stage Docker build: compile with Rust image, run on minimal base (distroless/alpine/ubi) with non-root user.</li>
+<li>Healthcheck script hitting <code>/health/full</code> with timeout.</li>
+<li>Release workflows should run on GitHub Actions with provenance metadata (supply-chain compliance).</li>
+</ul>
+<p><strong>Implementation Tasks</strong></p>
+<ul>
+<li>Dockerfile + <code>Makefile</code>/<code>just</code> target:
+<ul>
+<li>Build release binary, copy <code>docs/api/openapi.json</code>, set <code>/app</code> as workdir.</li>
+<li>Define volumes for data/config, create user <code>revaer</code>, configure entrypoint.</li>
+</ul>
+</li>
+<li>GitHub Actions (update <code>.github/workflows</code>):
+<ul>
+<li><code>build-release</code>: run <code>just build-rel</code>, <code>just api-export</code>, attach binaries/docs.</li>
+<li><code>docker</code>: build image, run <code>docker scan</code> (<code>trivy</code>/<code>grype</code>), and push on release tags.</li>
+<li><code>msrv</code>: run <code>just fmt lint test</code> with pinned toolchain (documented in workflow).</li>
+<li><code>cov</code>: ensure <code>just cov</code> gate passes (≥80% lines/functions).</li>
+</ul>
+</li>
+<li>Documentation:
+<ul>
+<li>ADRs: update <code>003-libtorrent-session-runner</code>, add FsOps design ADR, API/CLI contract ADR, security posture update (API keys, rate limits).</li>
+<li>Runbook: scripted scenario covering bootstrap → torrent add → FsOps pipeline → restart resume → rate throttle adjustments → degraded health simulation → recovery.</li>
+<li>User guides: CLI usage, metrics/telemetry reference, operational setup (keys, rate limits, config watcher health).</li>
+<li>OpenAPI: regenerate JSON, include sample Problem+JSON payloads and SSE description.</li>
+<li>Release checklist: steps to run <code>just ci</code>, verify coverage, run docker scan, execute runbook, and tag release.</li>
+</ul>
+</li>
+<li>Testing:
+<ul>
+<li>Validate Docker container runtime (healthcheck, volume mounts, non-root permissions).</li>
+<li>Perform coverage review ensuring new tests bring line/function coverage ≥80%.</li>
+<li>Execute runbook; capture logs/metrics and link in docs.</li>
+</ul>
+</li>
+</ul>
+<h2 id="cross-cutting-deliverables"><a class="header" href="#cross-cutting-deliverables">Cross-Cutting Deliverables</a></h2>
+<ul>
+<li>API key lifecycle (issue/rotate/revoke) extended with per-key rate limiting, recorded in telemetry and docs.</li>
+<li>Config watcher telemetry integrated into <code>/health/full</code> and metrics registry.</li>
+<li>CLI and API emit guard-rail telemetry on violations (loopback enforcement, FsOps errors, rate-limit breaches).</li>
+<li>All new code paths covered by unit/integration tests; follow-up to update <code>just cov</code> gating.</li>
+<li>Documentation kept up-to-date with implementation details and tested flows.</li>
+</ul>
+<h2 id="sequencing-suggested"><a class="header" href="#sequencing-suggested">Sequencing (Suggested)</a></h2>
+<ol>
+<li>Build API models and endpoints (foundation for CLI).</li>
+<li>Implement SSE enhancements while adding API integration tests.</li>
+<li>Extend CLI commands leveraging shared DTOs.</li>
+<li>Embed telemetry (metrics/traces) throughout API/CLI/FsOps changes.</li>
+<li>Stand up Docker build + CI workflows.</li>
+<li>Update ADRs, runbook, user guides, OpenAPI, and release checklist.</li>
+<li>Execute full QA cycle (coverage, docker scan, runbook, manual verification) and prepare for release tagging.</li>
+</ol>
+<h2 id="acceptance-criteria"><a class="header" href="#acceptance-criteria">Acceptance Criteria</a></h2>
+<ul>
+<li><code>just lint</code>, <code>just test</code>, <code>just cov</code> and full <code>just ci</code> pass locally and in CI.</li>
+<li>Coverage (lines + functions) ≥ 80% across workspace.</li>
+<li>Docker image passes security scan with zero unwaived high severity findings.</li>
+<li>Runbook executed end-to-end; results referenced in documentation.</li>
+<li>OpenAPI specification and CLI docs match implemented behaviour.</li>
+<li>Release checklist completed with artefacts attached (binaries, Docker image, OpenAPI, docs).</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="phase-one-runbook"><a class="header" href="#phase-one-runbook">Phase One Runbook</a></h1>
+<p>This runbook exercises the end-to-end control plane, validating FsOps, telemetry, and guard rails.</p>
+<h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
+<ul>
+<li>Docker image <code>revaer:ci</code> (built via <code>just docker-build</code>) or a local <code>revaer-app</code> binary (<code>just build-rel</code>).</li>
+<li>PostgreSQL instance accessible to the application.</li>
+<li>API key with a conservative rate limit (e.g., burst <code>5</code>, period <code>60s</code>).</li>
+<li>CLI configured with <code>REVAER_API_URL</code>, <code>REVAER_API_KEY</code>, and optional <code>REVAER_TELEMETRY_ENDPOINT</code>.</li>
+</ul>
+<h2 id="scenario"><a class="header" href="#scenario">Scenario</a></h2>
+<ol>
+<li>
+<p><strong>Bootstrap</strong></p>
+<ul>
+<li>Issue a setup token: <code>revaer setup start --issued-by runbook</code>.</li>
+<li>Complete configuration with CLI secrets and directories: <code>revaer setup complete --instance runbook --bind 127.0.0.1 --resume-dir /data/resume --download-root /data/downloads --library-root /data/library --api-key-label runbook --passphrase &lt;pass&gt;</code>.</li>
+<li>Confirm <code>/health/full</code> returns <code>status=ok</code> and <code>guardrail_violations_total=0</code>.</li>
+</ul>
+</li>
+<li>
+<p><strong>Add Torrent &amp; Observe FsOps</strong></p>
+<ul>
+<li>Add a torrent: <code>revaer torrent add &lt;magnet&gt; --name runbook</code>.</li>
+<li>Tail events: <code>revaer tail --event torrent_added,progress,state_changed --resume-file /tmp/revaer.tail</code>.</li>
+<li>Verify FsOps emits <code>fsops_started</code>, <code>fsops_completed</code>, and Prometheus counters <code>fsops_steps_total</code> increase.</li>
+</ul>
+</li>
+<li>
+<p><strong>Restart &amp; Resume</strong></p>
+<ul>
+<li>Stop the application, restart it, and ensure the torrent catalog repopulates.</li>
+<li>Confirm <code>SelectionReconciled</code> (if metadata diverges) and <code>HealthChanged</code> clears once resume succeeds.</li>
+</ul>
+</li>
+<li>
+<p><strong>Rate Limit Guard-Rail</strong></p>
+<ul>
+<li>Apply a tight API key limit (burst <code>1</code> / <code>per_seconds 60</code>) via <code>config apply</code>.</li>
+<li>Execute three rapid CLI calls (e.g., <code>revaer status &lt;id&gt;</code>). The third should exit with code <code>3</code>, displaying a <code>429</code> Problem+JSON response.</li>
+<li>Inspect <code>/metrics</code> to verify <code>api_rate_limit_throttled_total</code> incremented and <code>/health/full</code> reflects <code>degraded=["api_rate_limit_guard"]</code>.</li>
+</ul>
+</li>
+<li>
+<p><strong>Recovery</strong></p>
+<ul>
+<li>Restore the API key limit to an acceptable value.</li>
+<li>Re-run <code>revaer status &lt;id&gt;</code> to confirm success, <code>guardrail_violations_total</code> stops increasing, and <code>degraded</code> returns to <code>[]</code>.</li>
+</ul>
+</li>
+<li>
+<p><strong>FsOps Failure Simulation</strong></p>
+<ul>
+<li>Temporarily revoke write permissions on the library directory and re-run a completion.</li>
+<li>Observe <code>fsops_failed</code> events, <code>HealthChanged</code> with <code>["fsops"]</code>, and guard-rail telemetry.</li>
+<li>Restore permissions and confirm recovery events.</li>
+</ul>
+</li>
+</ol>
+<h2 id="verification-artifacts"><a class="header" href="#verification-artifacts">Verification Artifacts</a></h2>
+<ul>
+<li>Archive CLI telemetry emitted to <code>REVAER_TELEMETRY_ENDPOINT</code>.</li>
+<li>Capture Prometheus scrapings (<code>/metrics</code>) before and after the run.</li>
+<li>Record <code>/health/full</code> JSON snapshots for each phase.</li>
+</ul>
+<p>Successful completion of this runbook satisfies the operational validation gate defined in <code>AGENT.md</code>.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="phase-one-release-checklist"><a class="header" href="#phase-one-release-checklist">Phase One Release Checklist</a></h1>
+<ol>
+<li>
+<p><strong>Branch Hygiene</strong></p>
+<ul>
+<li>Ensure <code>main</code> is green (CI pipeline complete).</li>
+<li>Review outstanding ADRs and docs for freshness.</li>
+</ul>
+</li>
+<li>
+<p><strong>Build &amp; Test</strong></p>
+<ul>
+<li><code>just ci</code></li>
+<li><code>just build-rel</code></li>
+<li><code>just api-export</code></li>
+</ul>
+</li>
+<li>
+<p><strong>Artefact Verification</strong></p>
+<ul>
+<li>Binary: <code>target/release/revaer-app</code></li>
+<li>Checksum: <code>sha256sum target/release/revaer-app</code></li>
+<li>OpenAPI: <code>docs/api/openapi.json</code></li>
+<li>Docker image: <code>just docker-build &amp;&amp; just docker-scan</code></li>
+</ul>
+</li>
+<li>
+<p><strong>Runbook Execution</strong></p>
+<ul>
+<li>Follow <code>docs/runbook.md</code></li>
+<li>Archive CLI telemetry, <code>/metrics</code>, <code>/health/full</code> snapshots.</li>
+</ul>
+</li>
+<li>
+<p><strong>Documentation Refresh</strong></p>
+<ul>
+<li>Verify ADRs 005–007 reflect current design.</li>
+<li>Update user guides (<code>docs/api/guides/*.md</code>) with any behavioural changes.</li>
+</ul>
+</li>
+<li>
+<p><strong>Tag &amp; Publish</strong></p>
+<ul>
+<li>Create annotated tag: <code>git tag -a vX.Y.Z -m "Phase One release"</code></li>
+<li>Push tag: <code>git push origin vX.Y.Z</code></li>
+<li>Attach artefacts generated by the <code>build-release</code> workflow.</li>
+</ul>
+</li>
+<li>
+<p><strong>Post-Release Monitoring</strong></p>
+<ul>
+<li>Watch rate-limit and guard-rail metrics.</li>
+<li>Confirm <code>HealthChanged</code> events return to empty degraded set.</li>
+<li>Validate automation telemetry for CLI success rates.</li>
+</ul>
+</li>
+</ol>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="configuration-surface"><a class="header" href="#configuration-surface">Configuration Surface</a></h1>
+<blockquote>
+<p>Canonical reference for the PostgreSQL-backed settings documents that drive Revaer’s runtime behaviour.</p>
+</blockquote>
+<p>Revaer persists all operator-facing configuration inside the <code>settings_*</code> tables. The API (<code>ConfigService</code>) exposes strongly-typed snapshots that are consumed by the API server, torrent engine, filesystem pipeline, and CLI. Every change flows through a <code>SettingsChangeset</code>, ensuring a single validation path whether commands originate from the setup flow or the admin API.</p>
+<h2 id="snapshot-components"><a class="header" href="#snapshot-components">Snapshot Components</a></h2>
+<p>The <code>/ .well-known/revaer.json</code> endpoint and <code>revaer setup complete</code> CLI command both return the same structure:</p>
+<pre><code class="language-json">{
+  "revision": 42,
+  "app_profile": { /* see below */ },
+  "engine_profile": { /*…*/ },
+  "fs_policy": { /*…*/ },
+  "api_keys": [
+    { "key_id": "admin", "label": "bootstrap", "enabled": true, "rate_limit": null }
+  ]
+}
+</code></pre>
+<h3 id="app-profile-settings_app_profile"><a class="header" href="#app-profile-settings_app_profile">App Profile (<code>settings_app_profile</code>)</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>id</code></td><td>UUID</td><td>Singleton identifier for the current document.</td></tr>
+<tr><td><code>instance_name</code></td><td>string</td><td>Human readable label surfaced in the CLI after setup.</td></tr>
+<tr><td><code>mode</code></td><td><code>"setup"</code> or <code>"active"</code></td><td>Gatekeeper for the authentication middleware. Setup requests are rejected once the system enters <code>active</code>.</td></tr>
+<tr><td><code>version</code></td><td>integer</td><td>Optimistic locking counter maintained by <code>ConfigService</code>.</td></tr>
+<tr><td><code>http_port</code></td><td>integer</td><td>Published TCP port for the API server.</td></tr>
+<tr><td><code>bind_addr</code></td><td>string (IPv4/IPv6)</td><td>Listen address for the API server.</td></tr>
+<tr><td><code>telemetry</code></td><td>object</td><td>Free-form map for logging + metrics toggles (e.g. <code>log_level</code>, <code>prometheus</code>).</td></tr>
+<tr><td><code>features</code></td><td>object</td><td>Feature switches such as <code>fs_extract</code>, <code>par2</code>, <code>sse_backpressure</code>.</td></tr>
+<tr><td><code>immutable_keys</code></td><td>array</td><td>List of fields that cannot be mutated via patches (<code>ConfigError::ImmutableField</code>).</td></tr>
+</tbody></table>
+</div>
+<h3 id="engine-profile-settings_engine_profile"><a class="header" href="#engine-profile-settings_engine_profile">Engine Profile (<code>settings_engine_profile</code>)</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>implementation</code></td><td>string</td><td>Currently <code>libtorrent</code>. Used to select the torrent workflow implementation.</td></tr>
+<tr><td><code>listen_port</code></td><td>integer?</td><td>Optional external listen port override for the engine.</td></tr>
+<tr><td><code>dht</code></td><td>bool</td><td>Enables/disables the DHT module.</td></tr>
+<tr><td><code>encryption</code></td><td>string</td><td>Encryption requirement (<code>require</code>, <code>prefer</code>, etc.).</td></tr>
+<tr><td><code>max_active</code></td><td>integer?</td><td>Cap on concurrently-active torrents; <code>null</code> means unlimited.</td></tr>
+<tr><td><code>max_download_bps</code> / <code>max_upload_bps</code></td><td>integer?</td><td>Global rate limits applied by the engine.</td></tr>
+<tr><td><code>sequential_default</code></td><td>bool</td><td>Default sequential downloading behaviour for new torrents.</td></tr>
+<tr><td><code>resume_dir</code></td><td>string</td><td>Filesystem location where fast-resume artefacts are stored.</td></tr>
+<tr><td><code>download_root</code></td><td>string</td><td>Directory used for in-progress torrent payloads.</td></tr>
+<tr><td><code>tracker</code></td><td>object</td><td>Tracker configuration (user-agent, announce overrides).</td></tr>
+</tbody></table>
+</div>
+<h3 id="filesystem-policy-settings_fs_policy"><a class="header" href="#filesystem-policy-settings_fs_policy">Filesystem Policy (<code>settings_fs_policy</code>)</a></h3>
+<div class="table-wrapper"><table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>library_root</code></td><td>string</td><td>Destination directory for completed artefacts.</td></tr>
+<tr><td><code>extract</code></td><td>bool</td><td>Whether completed payloads are extracted.</td></tr>
+<tr><td><code>par2</code></td><td>string</td><td><code>off</code>, <code>verify</code>, or <code>repair</code> depending on PAR2 behaviour.</td></tr>
+<tr><td><code>flatten</code></td><td>bool</td><td>Collapses single-file directories when moving into the library.</td></tr>
+<tr><td><code>move_mode</code></td><td>string</td><td><code>copy</code>, <code>move</code>, or <code>hardlink</code> semantics for the FsOps pipeline.</td></tr>
+<tr><td><code>cleanup_keep</code> / <code>cleanup_drop</code></td><td>array</td><td>Glob patterns retaining or removing files during cleanup.</td></tr>
+<tr><td><code>chmod_file</code> / <code>chmod_dir</code></td><td>string?</td><td>Optional octal permissions applied to outputs.</td></tr>
+<tr><td><code>owner</code> / <code>group</code></td><td>string?</td><td>Optional ownership override for the library root.</td></tr>
+<tr><td><code>umask</code></td><td>string?</td><td>Umask applied during FsOps.</td></tr>
+<tr><td><code>allow_paths</code></td><td>array</td><td>Allowed staging/library paths the pipeline accepts.</td></tr>
+</tbody></table>
+</div>
+<h3 id="api-keys--secrets"><a class="header" href="#api-keys--secrets">API Keys &amp; Secrets</a></h3>
+<p>Patches can create, update, or revoke keys and named secrets. The request format mirrors <code>SettingsChangeset</code>:</p>
+<pre><code class="language-jsonc">{
+  "api_keys": [
+    {
+      "op": "upsert",
+      "key_id": "admin",
+      "label": "primary",
+      "enabled": true,
+      "secret": "optional-override",
+      "rate_limit": { "burst": 10, "per_seconds": 1 }
+    }
+  ],
+  "secrets": [
+    { "op": "set", "name": "libtorrent.passphrase", "value": "..." }
+  ]
+}
+</code></pre>
+<p>The API server enforces bucketed rate limits if <code>rate_limit</code> is supplied (<code>burst</code> per <code>per_seconds</code>). Invalid field names or mutations against <code>immutable_keys</code> yield RFC9457 <code>ProblemDetails</code> responses with an <code>invalid_params</code> array matching the JSON pointer returned by <code>ConfigError</code>.</p>
+<h2 id="change-workflows"><a class="header" href="#change-workflows">Change Workflows</a></h2>
+<ul>
+<li><strong>Setup</strong> – <code>POST /admin/setup/start</code> issues a one-time token. <code>POST /admin/setup/complete</code> consumes that token, applies the provided <code>SettingsChangeset</code>, forces <code>app_profile.mode</code> to <code>active</code>, and returns the hydrated snapshot along with the generated API key (also echoed in the CLI output).</li>
+<li><strong>Ongoing updates</strong> – <code>PATCH /admin/settings</code> (CLI: <code>revaer settings patch --file changes.json</code>) requires an API key and supports partial documents. Any field omitted from the payload remains untouched.</li>
+<li><strong>Snapshot access</strong> – <code>GET /.well-known/revaer.json</code> (no auth) and <code>GET /health/full</code> both return the revision and enable automation to verify configuration drift. Automation and dashboards can poll these endpoints without authenticating.</li>
+</ul>
+<p>Revaer publishes <code>SettingsChanged</code> events on every successful mutation, ensuring subscribers refresh in-memory caches without polling.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="http-api"><a class="header" href="#http-api">HTTP API</a></h1>
+<blockquote>
+<p>REST + SSE surface exposed by <code>revaer-api</code>. The OpenAPI document at <code>/docs/openapi.json</code> is generated by <code>just api-export</code>.</p>
+</blockquote>
+<h2 id="authentication"><a class="header" href="#authentication">Authentication</a></h2>
+<ul>
+<li><strong>Setup flow</strong> – Requests to <code>/admin/setup/start</code> are open. <code>/admin/setup/complete</code> requires the <code>x-revaer-setup-token</code> header with the one-time token returned by <code>setup_start</code>. The server refuses setup calls once the app profile switches to <code>active</code>.</li>
+<li><strong>Operator actions</strong> – All <code>/admin/*</code> (after setup) and <code>/v1/*</code> endpoints require <code>x-revaer-api-key: {key_id}:{secret}</code>. The middleware validates the key via <code>ConfigService</code>, enforces per-key rate limiting, and rejects calls while the instance remains in setup mode.</li>
+<li><strong>Request correlation</strong> – An optional <code>x-request-id</code> header is echoed into tracing spans and surfaced on SSE traffic. The CLI auto-populates this header per invocation.</li>
+</ul>
+<p>Error responses follow RFC9457 (<code>ProblemDetails</code>), populated with <code>invalid_params</code> entries whenever validation pinpoints a JSON pointer within the payload.</p>
+<h2 id="endpoint-inventory"><a class="header" href="#endpoint-inventory">Endpoint Inventory</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>GET</code></td><td><code>/health</code></td><td>none</td><td>Lightweight readiness probe returning mode + database status.</td></tr>
+<tr><td><code>GET</code></td><td><code>/health/full</code></td><td>none</td><td>Extended health snapshot with build SHA, metrics counters, and torrent queue depth.</td></tr>
+<tr><td><code>GET</code></td><td><code>/.well-known/revaer.json</code></td><td>none</td><td>Full configuration snapshot (<code>ConfigSnapshot</code>) including current revision.</td></tr>
+<tr><td><code>POST</code></td><td><code>/admin/setup/start</code></td><td>none</td><td>Issues a setup token; optionally accepts <code>issued_by</code> + <code>ttl_seconds</code>.</td></tr>
+<tr><td><code>POST</code></td><td><code>/admin/setup/complete</code></td><td>setup token</td><td>Applies a <code>SettingsChangeset</code>, promotes the instance to <code>active</code>, consumes the token, and returns the hydrated snapshot.</td></tr>
+<tr><td><code>PATCH</code></td><td><code>/admin/settings</code></td><td>API key</td><td>Applies partial configuration updates (<code>SettingsChangeset</code>) and broadcasts <code>SettingsChanged</code>.</td></tr>
+<tr><td><code>GET</code></td><td><code>/admin/torrents</code></td><td>API key</td><td>Same as <code>GET /v1/torrents</code>; retained for admin tooling.</td></tr>
+<tr><td><code>POST</code></td><td><code>/admin/torrents</code></td><td>API key</td><td>Alias for <code>POST /v1/torrents</code>.</td></tr>
+<tr><td><code>GET</code></td><td><code>/admin/torrents/:id</code></td><td>API key</td><td>Alias for <code>GET /v1/torrents/:id</code>.</td></tr>
+<tr><td><code>DELETE</code></td><td><code>/admin/torrents/:id</code></td><td>API key</td><td>Alias for invoking the <code>remove</code> action.</td></tr>
+<tr><td><code>GET</code></td><td><code>/v1/torrents</code></td><td>API key</td><td>Cursor-paginated torrent summaries with filtering (state, tracker, extension, tags, name).</td></tr>
+<tr><td><code>POST</code></td><td><code>/v1/torrents</code></td><td>API key</td><td>Submits a magnet URI or base64-encoded <code>.torrent</code>, optional tags/trackers, file rules, and per-torrent rate limits.</td></tr>
+<tr><td><code>GET</code></td><td><code>/v1/torrents/:id</code></td><td>API key</td><td>Detailed torrent view including file metadata when available.</td></tr>
+<tr><td><code>POST</code></td><td><code>/v1/torrents/:id/select</code></td><td>API key</td><td>Adjusts inclusion/exclusion globs, fluff skipping, and per-file priorities.</td></tr>
+<tr><td><code>POST</code></td><td><code>/v1/torrents/:id/action</code></td><td>API key</td><td>Lifecycle management (<code>pause</code>, <code>resume</code>, <code>remove</code>, <code>reannounce</code>, <code>recheck</code>, <code>sequential</code>, <code>rate</code>).</td></tr>
+<tr><td><code>GET</code></td><td><code>/v1/events</code></td><td>API key</td><td>Server-sent events stream (alias: <code>/v1/torrents/events</code>). Supports filtering by torrent ID, state, and event kind.</td></tr>
+<tr><td><code>GET</code></td><td><code>/metrics</code></td><td>none</td><td>Prometheus-formatted metrics from <code>revaer-telemetry</code>.</td></tr>
+<tr><td><code>GET</code></td><td><code>/docs/openapi.json</code></td><td>none</td><td>Static OpenAPI document used by the docs site and clients.</td></tr>
+</tbody></table>
+</div>
+<p>All torrent-managing endpoints ensure the torrent workflow is wired. If the engine is unavailable, the API returns <code>503 Service Unavailable</code>.</p>
+<h3 id="torrent-submission-post-v1torrents"><a class="header" href="#torrent-submission-post-v1torrents">Torrent Submission (<code>POST /v1/torrents</code>)</a></h3>
+<p>Required headers: <code>x-revaer-api-key</code>. Provide either <code>magnet</code> or <code>metainfo</code>; the server rejects payloads missing both. Optional fields:</p>
+<ul>
+<li><code>download_dir</code> – Overrides the engine profile’s staging directory.</li>
+<li><code>sequential</code> – Enables sequential downloading for this torrent only.</li>
+<li><code>tags</code> / <code>trackers</code> – Stored alongside the torrent for filtering and bookkeeping.</li>
+<li><code>include</code> / <code>exclude</code> / <code>skip_fluff</code> – File selection bootstrap applied before metadata fetch completes.</li>
+<li><code>max_download_bps</code> / <code>max_upload_bps</code> – Per-torrent rate limits (bps) passed to the workflow.</li>
+</ul>
+<p>On success the server returns <code>202 Accepted</code> after dispatching <code>TorrentWorkflow::add_torrent</code>. The torrent ID in the payload becomes the canonical identifier.</p>
+<h3 id="listing--filtering-get-v1torrents"><a class="header" href="#listing--filtering-get-v1torrents">Listing &amp; Filtering (<code>GET /v1/torrents</code>)</a></h3>
+<p>Query parameters:</p>
+<ul>
+<li><code>limit</code> (default 50, max 200)</li>
+<li><code>cursor</code> – Base64 token returned in <code>next</code>.</li>
+<li><code>state</code>, <code>tracker</code>, <code>extension</code>, <code>tags</code>, <code>name</code> – Comma-separated filters (case-insensitive).</li>
+</ul>
+<p>The response body is <code>TorrentListResponse</code> with an optional <code>next</code> cursor when additional pages exist.</p>
+<h3 id="torrent-actions-post-v1torrentsidaction"><a class="header" href="#torrent-actions-post-v1torrentsidaction">Torrent Actions (<code>POST /v1/torrents/:id/action</code>)</a></h3>
+<p><code>type</code> determines the shape of the body:</p>
+<pre><code class="language-json">{ "type": "remove", "delete_data": true }
+{ "type": "sequential", "enable": false }
+{ "type": "rate", "download_bps": 1048576, "upload_bps": null }
+</code></pre>
+<p>Failures propagate engine errors as <code>500 Internal Server Error</code> with a descriptive message in <code>detail</code>.</p>
+<h3 id="sse-stream-get-v1events"><a class="header" href="#sse-stream-get-v1events">SSE Stream (<code>GET /v1/events</code>)</a></h3>
+<p>Headers:</p>
+<ul>
+<li><code>x-revaer-api-key</code></li>
+<li>Optional <code>Last-Event-ID</code> – resuming from a previously stored ID (the CLI stores this via <code>--resume-file</code>).</li>
+</ul>
+<p>Query parameters:</p>
+<ul>
+<li><code>torrent</code> – Comma-separated UUIDs.</li>
+<li><code>event</code> – Comma-separated event kinds. Valid values: <code>torrent_added</code>, <code>files_discovered</code>, <code>progress</code>, <code>state_changed</code>, <code>completed</code>, <code>fsops_started</code>, <code>fsops_progress</code>, <code>fsops_completed</code>, <code>fsops_failed</code>, <code>settings_changed</code>, <code>health_changed</code>, <code>selection_reconciled</code>.</li>
+<li><code>state</code> – Comma-separated torrent states (<code>downloading</code>, <code>completed</code>, etc.).</li>
+</ul>
+<p>The server maintains a 20-second keep-alive ping and enforces filtering before events hit the wire.</p>
+<h3 id="health--metrics"><a class="header" href="#health--metrics">Health &amp; Metrics</a></h3>
+<ul>
+<li><code>GET /health</code> – Primary readiness probe used by orchestration systems. Adds <code>database</code> to the degraded list if PostgreSQL is unreachable.</li>
+<li><code>GET /health/full</code> – Returns the deployment revision, build SHA (<code>build_sha()</code>), metrics snapshot (<code>config_watch_latency_ms</code>, <code>guardrail_violations_total</code>, <code>rate_limit_throttled_total</code>, etc.), and torrent queue depth.</li>
+<li><code>GET /metrics</code> – Exposes the same counters for Prometheus scraping.</li>
+</ul>
+<p>For the complete schema definitions, consult the generated OpenAPI (<code>just api-export</code>).</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="cli-reference"><a class="header" href="#cli-reference">CLI Reference</a></h1>
+<blockquote>
+<p><code>revaer-cli</code> provides parity with the API for setup, configuration management, torrent lifecycle, and observability.</p>
+</blockquote>
+<h2 id="global-flags--environment"><a class="header" href="#global-flags--environment">Global Flags &amp; Environment</a></h2>
+<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Environment</th><th>Default</th><th>Description</th></tr></thead><tbody>
+<tr><td><code>--api-url &lt;URL&gt;</code></td><td><code>REVAER_API_URL</code></td><td><code>http://127.0.0.1:7070</code></td><td>Base URL for API requests.</td></tr>
+<tr><td><code>--api-key &lt;key_id:secret&gt;</code></td><td><code>REVAER_API_KEY</code></td><td><em>none</em></td><td>Required for all post-setup commands that mutate or read torrents.</td></tr>
+<tr><td><code>--timeout &lt;secs&gt;</code></td><td><code>REVAER_HTTP_TIMEOUT_SECS</code></td><td><code>10</code></td><td>Per-request HTTP timeout.</td></tr>
+</tbody></table>
+</div>
+<p>Each invocation bubbles a unique <code>x-request-id</code> through the API; the CLI also emits optional telemetry events when <code>REVAER_TELEMETRY_ENDPOINT</code> is set.</p>
+<h2 id="setup-flow"><a class="header" href="#setup-flow">Setup Flow</a></h2>
+<h3 id="revaer-setup-start---issued-by-label---ttl-seconds-secs"><a class="header" href="#revaer-setup-start---issued-by-label---ttl-seconds-secs"><code>revaer setup start [--issued-by &lt;label&gt;] [--ttl-seconds &lt;secs&gt;]</code></a></h3>
+<ul>
+<li>Calls <code>POST /admin/setup/start</code>.</li>
+<li>Prints the plaintext token followed by its ISO8601 expiry.</li>
+<li>Use <code>--issued-by</code> to tag the token source (defaults to <code>api</code>).</li>
+</ul>
+<h3 id="revaer-setup-complete---instance-name---bind-addr---port-port---resume-dir-path---download-root-path---library-root-path---api-key-label-label---api-key-id-id---passphrase-value---token-token"><a class="header" href="#revaer-setup-complete---instance-name---bind-addr---port-port---resume-dir-path---download-root-path---library-root-path---api-key-label-label---api-key-id-id---passphrase-value---token-token"><code>revaer setup complete --instance &lt;name&gt; --bind &lt;addr&gt; --port &lt;port&gt; --resume-dir &lt;path&gt; --download-root &lt;path&gt; --library-root &lt;path&gt; --api-key-label &lt;label&gt; [--api-key-id &lt;id&gt;] [--passphrase &lt;value&gt;] [--token &lt;token&gt;]</code></a></h3>
+<ul>
+<li>Loads the setup token either from <code>--token</code> or <code>REVAER_SETUP_TOKEN</code>.</li>
+<li>Builds a <code>SettingsChangeset</code> containing the app profile, engine profile, filesystem policy, API key, and optional secret.</li>
+<li>Forces <code>app_profile.mode = "active"</code>.</li>
+<li>Echoes the generated API key (<code>key_id:secret</code>) on success; store it securely before continuing.</li>
+</ul>
+<h2 id="configuration-maintenance"><a class="header" href="#configuration-maintenance">Configuration Maintenance</a></h2>
+<h3 id="revaer-settings-patch---file-path"><a class="header" href="#revaer-settings-patch---file-path"><code>revaer settings patch --file &lt;path&gt;</code></a></h3>
+<ul>
+<li>Reads a JSON file containing a partial <code>SettingsChangeset</code>.</li>
+<li>Requires an API key.</li>
+<li>Returns a formatted <code>ProblemDetails</code> message if validation fails (immutable fields, unknown keys, etc.).</li>
+</ul>
+<h2 id="torrent-lifecycle"><a class="header" href="#torrent-lifecycle">Torrent Lifecycle</a></h2>
+<h3 id="revaer-torrent-add-magnettorrent---name-label---id-uuid"><a class="header" href="#revaer-torrent-add-magnettorrent---name-label---id-uuid"><code>revaer torrent add &lt;magnet|.torrent&gt; [--name &lt;label&gt;] [--id &lt;uuid&gt;]</code></a></h3>
+<ul>
+<li>Accepts a magnet URI or a filesystem path to a <code>.torrent</code>.</li>
+<li>Automatically base64-encodes torrent files for the API.</li>
+<li>Optional overrides: <code>--name</code> sets the human-friendly label; <code>--id</code> lets you supply a deterministic UUID instead of the auto-generated value.</li>
+</ul>
+<h3 id="revaer-torrent-remove-uuid"><a class="header" href="#revaer-torrent-remove-uuid"><code>revaer torrent remove &lt;uuid&gt;</code></a></h3>
+<ul>
+<li>Issues <code>POST /v1/torrents/{id}/action</code> with <code>{ "type": "remove" }</code>.</li>
+<li>Use the more general <code>action</code> command for <code>delete_data</code> semantics.</li>
+</ul>
+<h3 id="revaer-ls---limit-n---cursor-token---state-state---tracker-url---extension-ext---tags-tag1tag2---name-fragment---format-tablejson"><a class="header" href="#revaer-ls---limit-n---cursor-token---state-state---tracker-url---extension-ext---tags-tag1tag2---name-fragment---format-tablejson"><code>revaer ls [--limit &lt;n&gt;] [--cursor &lt;token&gt;] [--state &lt;state&gt;] [--tracker &lt;url&gt;] [--extension &lt;ext&gt;] [--tags &lt;tag1,tag2&gt;] [--name &lt;fragment&gt;] [--format table|json]</code></a></h3>
+<ul>
+<li>Lists torrents with the same filters supported by the REST API.</li>
+<li>Default output is a table summarising id, name, state, and progress.</li>
+<li>JSON output matches <code>TorrentListResponse</code>.</li>
+</ul>
+<h3 id="revaer-status-uuid---format-tablejson"><a class="header" href="#revaer-status-uuid---format-tablejson"><code>revaer status &lt;uuid&gt; [--format table|json]</code></a></h3>
+<ul>
+<li>Returns a detailed view of a single torrent.</li>
+<li>JSON output is the full <code>TorrentDetail</code> (including file metadata when available).</li>
+</ul>
+<h3 id="revaer-select-uuid---include-globglob---exclude-globglob---skip-fluff---priority-indexpriority"><a class="header" href="#revaer-select-uuid---include-globglob---exclude-globglob---skip-fluff---priority-indexpriority"><code>revaer select &lt;uuid&gt; [--include &lt;glob,glob&gt;] [--exclude &lt;glob,glob&gt;] [--skip-fluff] [--priority index=priority,…]</code></a></h3>
+<ul>
+<li>Updates file-selection rules via <code>POST /v1/torrents/{id}/select</code>.</li>
+<li><code>--priority</code> accepts repeated <code>index=priority</code> pairs (<code>skip|low|normal|high</code>) mapped onto the engine’s <code>FilePriority</code>.</li>
+</ul>
+<h3 id="revaer-action-uuid-pauseresumeremovereannouncerechecksequentialrate---delete-data---enable-bool---download-bps---upload-bps"><a class="header" href="#revaer-action-uuid-pauseresumeremovereannouncerechecksequentialrate---delete-data---enable-bool---download-bps---upload-bps"><code>revaer action &lt;uuid&gt; &lt;pause|resume|remove|reannounce|recheck|sequential|rate&gt; [--delete-data] [--enable &lt;bool&gt;] [--download &lt;bps&gt;] [--upload &lt;bps&gt;]</code></a></h3>
+<ul>
+<li>One-stop entry point for all torrent actions.</li>
+<li><code>sequential</code> toggles sequential downloads via <code>--enable true|false</code>.</li>
+<li><code>rate</code> updates per-torrent bandwidth caps (bps). Provide <code>--download</code> and/or <code>--upload</code>.</li>
+<li><code>remove</code> honours <code>--delete-data</code>.</li>
+</ul>
+<h2 id="event-streaming"><a class="header" href="#event-streaming">Event Streaming</a></h2>
+<h3 id="revaer-tail---torrent-idid---event-kindkind---state-statestate---resume-file-path---retry-secs-n"><a class="header" href="#revaer-tail---torrent-idid---event-kindkind---state-statestate---resume-file-path---retry-secs-n"><code>revaer tail [--torrent &lt;id,id&gt;] [--event &lt;kind,kind&gt;] [--state &lt;state,state&gt;] [--resume-file &lt;path&gt;] [--retry-secs &lt;n&gt;]</code></a></h3>
+<ul>
+<li>Connects to <code>/v1/events</code> using SSE.</li>
+<li>Filters match the API query parameters and enforce UUID/event-kind validation before the request is made.</li>
+<li>When <code>--resume-file</code> is supplied, the CLI persists the last event ID across reconnects so the stream can resume after transient failures.</li>
+<li><code>--retry-secs</code> controls the backoff between reconnect attempts (default: 5 seconds).</li>
+</ul>
+<p>All torrent commands require an API key. The CLI surfaces API problems exactly as the server returns them, including RFC9457 validation errors and rate-limit responses (<code>429 Too Many Requests</code> with retry metadata in the body).</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="api-documentation"><a class="header" href="#api-documentation">API Documentation</a></h1>
+<p>This directory hosts HTTP API specifications, generated OpenAPI documents, and usage guides for the Revaer control plane.</p>
+<h2 id="contents"><a class="header" href="#contents">Contents</a></h2>
+<ul>
+<li><code>schema/</code> – Published OpenAPI payloads and supporting artefacts.</li>
+<li><code>guides/</code> – Scenario-based walkthroughs (bootstrap, hot reload validation, torrent lifecycle).</li>
+<li><code>examples/</code> – HTTP request/response samples captured from real workflows.</li>
+</ul>
+<h2 id="current-coverage"><a class="header" href="#current-coverage">Current Coverage</a></h2>
+<ul>
+<li><strong>Setup &amp; configuration</strong> – <code>/admin/setup/*</code> and <code>/admin/settings</code> flows with CLI parity.</li>
+<li><strong>Orchestration</strong> – <code>/admin/torrents</code> (POST/DELETE/GET) for submitting or removing torrents, plus <code>/admin/torrents/{id}</code> for status inspection.</li>
+<li><strong>Observability</strong> – <code>/v1/events</code> SSE stream (tested for replay/keep-alive) and <code>/metrics</code> Prometheus surface with torrent gauges.</li>
+</ul>
+<p>See <code>guides/bootstrap.md</code> for an end-to-end description of the bootstrap lifecycle, background workers, and error handling expectations.</p>
+<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
+<ul>
+<li>Capture worked examples for torrent status reconciliation (list + selective GET).</li>
+<li>Provide troubleshooting recipes for common workflow failures (engine unavailable, filesystem policy rejection).</li>
+<li>Expand SSE consumer documentation with incremental backfill strategies.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="openapi-reference"><a class="header" href="#openapi-reference">OpenAPI Reference</a></h1>
+<blockquote>
+<p>Canonical machine-readable description of the Revaer control plane surface.</p>
+</blockquote>
+<p>The generated OpenAPI specification lives alongside the documentation at <a href="api/openapi.json"><code>docs/api/openapi.json</code></a>. Regenerate it with:</p>
+<pre><code class="language-bash">just api-export
+</code></pre>
+<p>Once refreshed, rebuild the documentation (<code>just docs</code>) to publish the updated schema to the static site and LLM manifests. API consumers can download the JSON directly from the deployed documentation site or via the repository.</p>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="architecture-decision-records"><a class="header" href="#architecture-decision-records">Architecture Decision Records</a></h1>
+<p>ADR documents capture the rationale behind significant technical decisions.</p>
+<h2 id="suggested-workflow"><a class="header" href="#suggested-workflow">Suggested Workflow</a></h2>
+<ol>
+<li>Create a new ADR using the template in <code>docs/adr/template.md</code>.</li>
+<li>Give it a sequential identifier (e.g., <code>001</code>, <code>002</code>) and a concise title.</li>
+<li>Capture context, decision, consequences, and follow-up actions.</li>
+<li>Reference ADRs from code comments or docs where the decision applies.</li>
+</ol>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="001--global-configuration-revisioning"><a class="header" href="#001--global-configuration-revisioning">001 – Global Configuration Revisioning</a></h1>
+<ul>
+<li>Status: Proposed</li>
+<li>Date: 2025-02-23</li>
+</ul>
+<h2 id="context"><a class="header" href="#context">Context</a></h2>
+<ul>
+<li>All runtime configuration must be hot-reloadable across multiple crates.</li>
+<li>Consumers need a consistent ordering guarantee for applying changes received via LISTEN/NOTIFY, with a fallback to polling.</li>
+<li>We require a DB-native mechanism that can be incremented from triggers without race conditions and that carries across deployments.</li>
+</ul>
+<h2 id="decision"><a class="header" href="#decision">Decision</a></h2>
+<ul>
+<li>Introduce a singleton <code>settings_revision</code> table with an ever-incrementing <code>revision</code> counter.</li>
+<li>Wrap updates to configuration tables (<code>app_profile</code>, <code>engine_profile</code>, <code>fs_policy</code>, <code>auth_api_keys</code>, <code>query_presets</code>) in triggers that:
+<ol>
+<li>Update <code>settings_revision.revision = revision + 1</code>.</li>
+<li>Emit <code>NOTIFY revaer_settings_changed, '&lt;table&gt;:&lt;revision&gt;:&lt;op&gt;'</code>.</li>
+</ol>
+</li>
+<li><code>ConfigService</code> exposes <code>ConfigSnapshot</code> to materialize a consistent view (revision + documents) for the application bootstrap path.</li>
+<li>The revision remains monotonic even if polling is used (consumers record the last seen revision and request deltas if they miss notifications).</li>
+<li>Mutation APIs validate payloads server-side, applying field-level type checks and respecting <code>app_profile.immutable_keys</code>. Violations surface as structured errors with section/field metadata, preventing silent drift.</li>
+</ul>
+<h2 id="consequences"><a class="header" href="#consequences">Consequences</a></h2>
+<ul>
+<li>Multi-table updates executed inside a transaction surface as a single revision bump, preserving ordering for consumers.</li>
+<li>LISTEN subscribers that drop their connection can reconcile by reloading <code>settings_revision</code> and querying deltas &gt; last_seen_revision.</li>
+<li>Trigger-level logic slightly increases write cost but keeps business code free of manual revision management.</li>
+</ul>
+<h2 id="follow-up"><a class="header" href="#follow-up">Follow-up</a></h2>
+<ul>
+<li>Implement <code>apply_changeset</code> to write history rows with the associated revision.</li>
+<li>Add integration tests that exercise transactionally updating multiple tables and verifying a single revision increment.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="002--setup-token-lifecycle--secrets-bootstrap"><a class="header" href="#002--setup-token-lifecycle--secrets-bootstrap">002 – Setup Token Lifecycle &amp; Secrets Bootstrap</a></h1>
+<ul>
+<li>Status: Proposed</li>
+<li>Date: 2025-02-23</li>
+</ul>
+<h2 id="context-1"><a class="header" href="#context-1">Context</a></h2>
+<ul>
+<li>Initial deployments must boot in a locked-down "Setup Mode" where only a one-time token grants access to the setup API.</li>
+<li>Tokens should be observable/auditable, expire automatically, and support regeneration without requiring an application restart.</li>
+<li>A follow-on requirement is to collect an encryption passphrase or server-side key for pgcrypto-backed secrets before exiting Setup Mode.</li>
+</ul>
+<h2 id="decision-1"><a class="header" href="#decision-1">Decision</a></h2>
+<ul>
+<li>Store tokens in the <code>setup_tokens</code> table with <code>token_hash</code>, <code>issued_at</code>, <code>expires_at</code>, <code>consumed_at</code>, and <code>issued_by</code>.</li>
+<li>Enforce at most one active token via a partial unique index on rows where <code>consumed_at IS NULL</code>.</li>
+<li><code>ConfigService</code> will:
+<ul>
+<li>Generate tokens using cryptographically secure randomness.</li>
+<li>Persist only a hashed representation (argon2id) along with metadata.</li>
+<li>Emit history entries and <code>NOTIFY</code> events on token creation/consumption.</li>
+</ul>
+</li>
+<li>The CLI/API surfaces token issuance and completion flows; the process prints the token to stdout only at generation time.</li>
+<li>During completion, the caller must supply the encryption materials (passphrase or reference to pgcrypto role). The handler verifies secrets are persisted before flipping <code>app_profile.mode</code> to <code>active</code>.</li>
+</ul>
+<h2 id="consequences-1"><a class="header" href="#consequences-1">Consequences</a></h2>
+<ul>
+<li>Operators can recover by issuing a new token if the previous one expires without restarting the service.</li>
+<li>Tokens are auditable; failed attempts can be recorded against the hashed token id (future enhancement).</li>
+<li>The bootstrap path ensures secrets exist before runtime modules that require them start, preventing a partially configured system.</li>
+</ul>
+<h2 id="follow-up-1"><a class="header" href="#follow-up-1">Follow-up</a></h2>
+<ul>
+<li>Implement argon2id hashing helpers and audit logging in <code>revaer-config</code>.</li>
+<li>Define the CLI workflow (<code>revaer-cli setup</code>) that wraps token issuance and completion for headless environments.</li>
+<li>Add problem detail responses for expired/consumed tokens in the API.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="003--libtorrent-session-runner-architecture"><a class="header" href="#003--libtorrent-session-runner-architecture">003 – Libtorrent Session Runner Architecture</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2025-10-16</li>
+</ul>
+<h2 id="context-2"><a class="header" href="#context-2">Context</a></h2>
+<ul>
+<li>The current <code>revaer-torrent-libt</code> crate is a stub that simulates torrent actions without touching libtorrent, preventing real downloads, fast-resume, or alert handling.</li>
+<li>Phase One requires a production-grade engine: a single async task must own the libtorrent session, persist fast-resume data/selection state, debounce high-volume alerts, and surface health to the event bus.</li>
+<li>The engine must enforce rate limits and selections within libtorrent, react within two seconds of configuration changes, and survive restarts by restoring torrents from <code>resume_dir</code>.</li>
+</ul>
+<h2 id="decision-2"><a class="header" href="#decision-2">Decision</a></h2>
+<ul>
+<li>Introduce a dedicated <code>SessionWorker</code> spawned by <code>LibtorrentEngine::new</code>. It owns the libtorrent <code>Session</code>, receives <code>EngineCommand</code> messages, and emits <code>EngineEvent</code>s via an internal channel that feeds the shared <code>EventBus</code>.</li>
+<li>Wrap the libtorrent FFI in a thin adapter trait (<code>LibtSession</code>) to encapsulate blocking calls (<code>add_torrent</code>, <code>pause</code>, <code>set_sequential</code>, <code>apply_rate_limits</code>, <code>file_priorities</code>, alert polling). The real implementation uses <code>tokio::task::spawn_blocking</code> to call into C++ safely.</li>
+<li>Add a <code>FastResumeStore</code> service that reads/writes <code>.fastresume</code> blobs plus JSON metadata (selection, priorities, download directory, sequential flag) inside <code>resume_dir</code>. On startup the worker loads the store, attempts to match existing handles, and emits reconciliation events if the stored state diverges.</li>
+<li>Run an <code>AlertPump</code> loop that waits on libtorrent <code>alerts_waitnotify</code>, drains all alerts, and funnels them through an <code>AlertTranslator</code> that converts them into domain <code>EngineEvent</code>s (<code>FilesDiscovered</code>, <code>Progress</code>, <code>StateChanged</code>, <code>Completed</code>, <code>Error</code>). A <code>ProgressCoalescer</code> throttles updates to 10 Hz per torrent.</li>
+<li>Integrate health tracking: fatal session errors transition the engine into a degraded state and emit both <code>HealthChanged</code> and per-torrent <code>Error</code> events. The worker attempts limited restarts with exponential back-off before marking the engine unhealthy.</li>
+<li>Rate limit updates from <code>EngineCommand::UpdateLimits</code> and configuration watcher updates call into libtorrent immediately; a watchdog verifies application within two seconds and logs warnings if the session reports stale caps.</li>
+</ul>
+<h2 id="consequences-2"><a class="header" href="#consequences-2">Consequences</a></h2>
+<ul>
+<li>The engine crate gains clear separation between command handling, libtorrent FFI, alert translation, and persistence, making it easier to test components in isolation using mock <code>LibtSession</code> implementations.</li>
+<li>Persisted state in <code>resume_dir</code> enables crash-restart flows to resume downloads, leveraging libtorrent fastresume and our own selection metadata.</li>
+<li>Debouncing progress events reduces SSE pressure while preserving responsiveness; coalescing happens before events hit the shared bus.</li>
+<li>Health reporting integrates with the existing telemetry crate, providing operators visibility into session failures or missing dependencies (e.g., absent resume directory).</li>
+</ul>
+<h2 id="follow-up-2"><a class="header" href="#follow-up-2">Follow-up</a></h2>
+<ul>
+<li>Maintain regression coverage for the <code>libtorrent</code> feature path, ensuring fast-resume reconciliation and guard-rail health events remain stable.</li>
+<li>Track upstream libtorrent upgrades and refresh the operator documentation whenever the resume layout or dependency expectations shift.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="004--phase-one-delivery-track"><a class="header" href="#004--phase-one-delivery-track">004 – Phase One Delivery Track</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2025-10-17</li>
+</ul>
+<h2 id="motivation"><a class="header" href="#motivation">Motivation</a></h2>
+<p>Phase One bundles the remaining work required to transition Revaer from the current stubs into a production-ready torrent orchestration platform. This record captures the implementation notes, decisions, and verification evidence for each workstream item enumerated in <code>docs/phase-one-roadmap.md</code>.</p>
+<h2 id="design-notes"><a class="header" href="#design-notes">Design Notes</a></h2>
+<ul>
+<li>Follow the library-first structure outlined in <code>AGENT.md</code> with crate-specific modules for configuration, engine integration, filesystem operations, public API, CLI, security, and packaging.</li>
+<li>Apply tight configuration validation and hot-reload behaviour to guarantee that throttle and policy updates propagate within two seconds.</li>
+<li>Emit guard-rail telemetry whenever global throttles are disabled, driven to zero, or configured above the 5 Gbps warning threshold so operators can react quickly.</li>
+<li>Replace the stub libtorrent adapter with a session worker that owns state, persists fast-resume metadata, and surfaces alert-driven events with bounded fan-out.</li>
+<li>Persist resume metadata and fastresume payloads via <code>FastResumeStore</code>, reconcile on startup, and emit <code>SelectionReconciled</code> events plus health degradations when store contents diverge or writes fail.</li>
+<li>Build deterministic include/exclude rule evaluation and an idempotent FsOps pipeline anchored by <code>.revaer.meta</code>.</li>
+<li>Expose a consistent Problem+JSON contract across HTTP and CLI surfaces, including pagination and SSE replay support.</li>
+<li>Enforce observability invariants: structured tracing with context propagation, bounded rate limits, Prometheus metrics, and degraded health signalling when dependencies fail.</li>
+<li>Ensure every workflow is reproducible via <code>just</code> targets and validated in CI, with container packaging aligned to the non-root, read-only expectations.</li>
+<li>Follow the canonical <code>just</code> recipe surface (fmt, lint, test, ci, etc.). Coloned variants are mapped to hyphenated recipe names (<code>fmt-fix</code>, <code>build-rel</code>, <code>api-export</code>) because <code>just</code> 1.43.0 rejects colons in recipe identifiers without unstable modules; the semantics remain identical.</li>
+</ul>
+<h2 id="test-coverage-summary"><a class="header" href="#test-coverage-summary">Test Coverage Summary</a></h2>
+<ul>
+<li><code>just ci</code> serves as the baseline verification target. Each workstream delivers focused unit tests, integration coverage, and feature-flagged live tests (for libtorrent, Postgres, FsOps).</li>
+<li>Coverage gates are enforced via <code>cargo llvm-cov</code> with <code>--fail-under 80</code> across library crates.</li>
+<li>Integration suites will rely on <code>testcontainers</code> (Postgres, libtorrent) and workspace-specific fixtures for FsOps pipelines and API/CLI flows, including the configuration watcher hot-reload test and new libtorrent-feature tests for resume restoration and fastresume persistence.</li>
+</ul>
+<h2 id="outcome"><a class="header" href="#outcome">Outcome</a></h2>
+<ul>
+<li>All public surfaces now enforce API-key authentication with token-bucket rate limiting, <code>429</code> Problem+JSON responses, and telemetry counters exported via Prometheus and <code>/health/full</code>.</li>
+<li>SSE endpoints honour the same auth and Last-Event-ID semantics, with CLI resume support persisting state between reconnects.</li>
+<li>The CLI propagates <code>x-request-id</code>, standardises exit codes (<code>0</code> success, <code>2</code> validation, <code>3</code> runtime), and emits optional telemetry events to <code>REVAER_TELEMETRY_ENDPOINT</code>.</li>
+<li>A release-ready Docker image (<code>Dockerfile</code>) packages the API binary and documentation on a non-root, read-only-friendly runtime with health checks and volume mounts for config/data.</li>
+<li>CI now publishes release artefacts (<code>revaer-app</code>, OpenAPI) and runs MSRV and container security jobs via <code>just</code> targets; binaries are checksummed alongside provenance metadata.</li>
+<li>Documentation additions cover FsOps design, API/CLI contracts, security posture, operator runbook, telemetry reference, and the phase-one release checklist.</li>
+</ul>
+<h2 id="observability-updates"><a class="header" href="#observability-updates">Observability Updates</a></h2>
+<ul>
+<li>Telemetry enhancements include structured logs for setup token issuance/consumption, loopback enforcement failures, configuration watcher updates, rate-limit guard-rail decisions, and resume store degradation/recovery.</li>
+<li>Metrics will expand to track HTTP request outcomes, SSE fan-out, event queue depth, torrent throughput, FsOps step durations, and health degradation counts.</li>
+<li><code>/health/full</code> will report engine, FsOps, and database readiness with latency measurements and revision hashes, mirrored by CLI status commands.</li>
+</ul>
+<h2 id="risk--rollback-plan"><a class="header" href="#risk--rollback-plan">Risk &amp; Rollback Plan</a></h2>
+<ul>
+<li>Maintain incremental commits gated by <code>just ci</code> to isolate regressions. Any new dependency introductions require explicit justification and fallbacks documented here.</li>
+<li>Where feature flags guard libtorrent integration, provide mockable interfaces so tests can fall back to stub implementations if the environment lacks native bindings.</li>
+<li>Persist fast-resume metadata and <code>.revaer.meta</code> files so failed deployments can roll back without corrupting state; ensure migrations remain additive.</li>
+</ul>
+<h2 id="dependency-rationale"><a class="header" href="#dependency-rationale">Dependency Rationale</a></h2>
+<p>No new dependencies have been added yet. Future additions (e.g., libtorrent bindings, glob evaluators, archive tools) must include:</p>
+<ul>
+<li>Why the crate/tool is necessary.</li>
+<li>Alternatives considered (including bespoke implementations) and why they were rejected.</li>
+<li>Security and maintenance assessment (license compatibility, release cadence).</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="005--fsops-pipeline-hardening"><a class="header" href="#005--fsops-pipeline-hardening">005 – FsOps Pipeline Hardening</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2025-10-17</li>
+</ul>
+<h2 id="context-3"><a class="header" href="#context-3">Context</a></h2>
+<ul>
+<li>Phase One promotes filesystem post-processing from a best-effort helper to a first-class workflow with explicit health semantics.</li>
+<li>The orchestrator must ensure every completed torrent flows through a deterministic FsOps state machine, emitting structured telemetry and reconciling mismatches with persisted metadata.</li>
+<li>Operators require visibility into FsOps latency, failures, and guard-rail breaches (e.g., missing extraction tools, permission errors) via <code>/health/full</code>, Prometheus, and the shared EventBus.</li>
+</ul>
+<h2 id="decision-3"><a class="header" href="#decision-3">Decision</a></h2>
+<ul>
+<li>FsOps responsibilities live inside <code>revaer-fsops</code>, invoked by the orchestrator (<code>TorrentOrchestrator::apply_fsops</code>) whenever a <code>Completed</code> event surfaces.</li>
+<li>Each pipeline step (<code>extract</code>, <code>par2</code>, <code>move</code>, <code>cleanup</code>) records start/completion/failure events and increments Prometheus counters via <code>Metrics::inc_fsops_step</code>.</li>
+<li>Metadata is persisted alongside <code>.revaer.meta</code> to reconcile selection overrides and resume directories across restarts; mismatches trigger <code>SelectionReconciled</code> events plus guard-rail telemetry.</li>
+<li>Health degradation is published when FsOps detects latency guard rails, missing tools, or unrecoverable IO errors; recovery clears the <code>fsops</code> component from the degrade set.</li>
+</ul>
+<h2 id="consequences-3"><a class="header" href="#consequences-3">Consequences</a></h2>
+<ul>
+<li>FsOps execution becomes observable and retry-friendly, enabling operator runbooks to diagnose stuck jobs with concrete metrics and events.</li>
+<li>Pipeline regressions now fail CI thanks to targeted unit/integration tests under <code>revaer-fsops</code> and orchestrator-level tests driving the shared event bus.</li>
+<li>The orchestration layer remains single-owner of FsOps invocation, simplifying future extensions (e.g., checksum verification, media tagging) without leaking concerns into the API.</li>
+</ul>
+<h2 id="verification"><a class="header" href="#verification">Verification</a></h2>
+<ul>
+<li><code>just test</code> exercises FsOps unit cases, while orchestrator integration tests validate event emission, degradation flows, and metadata reconciliation.</li>
+<li><code>/health/full</code> and Prometheus snapshots display FsOps metrics during the runbook, confirming latency guard rails and failure counters behave as expected.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="006--unified-api--cli-contract"><a class="header" href="#006--unified-api--cli-contract">006 – Unified API &amp; CLI Contract</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2025-10-17</li>
+</ul>
+<h2 id="context-4"><a class="header" href="#context-4">Context</a></h2>
+<ul>
+<li>Phase One requires parity between the public HTTP interface and the administrative CLI so operators can automate without reverse engineering payloads.</li>
+<li>Prior iterations lacked shared DTOs, consistent Problem+JSON responses, and stable pagination/SSE semantics across API and CLI.</li>
+<li>New rate limiting and telemetry features must surface identically on both surfaces to satisfy observability and security requirements.</li>
+</ul>
+<h2 id="decision-4"><a class="header" href="#decision-4">Decision</a></h2>
+<ul>
+<li>Shared request/response models live in <code>revaer-api::models</code> and are re-exported to the CLI, ensuring identical JSON encoding/decoding paths.</li>
+<li>All routes return RFC9457 Problem+JSON payloads on validation/runtime errors, including <code>invalid_params</code> pointers for user-correctable mistakes; the CLI pretty-prints these problems and maps validation to exit code <code>2</code>.</li>
+<li>Cursor pagination, filter semantics, and SSE replay (<code>Last-Event-ID</code>) are implemented once in the API and exercised by dedicated CLI commands (<code>ls</code>, <code>status</code>, <code>tail</code>).</li>
+<li>The CLI propagates <code>x-request-id</code> headers, emits structured telemetry events to <code>REVAER_TELEMETRY_ENDPOINT</code>, and redacts secrets in logs; runtime failures exit with code <code>3</code> to distinguish from validation issues.</li>
+</ul>
+<h2 id="consequences-4"><a class="header" href="#consequences-4">Consequences</a></h2>
+<ul>
+<li>Changes to the API contract require updates in a single module (<code>revaer-api::models</code>), reducing the risk of CLI drift.</li>
+<li>Downstream tooling can rely on deterministic exit codes and Problem+JSON payloads, simplifying automation.</li>
+<li>Telemetry pipelines receive consistent trace identifiers regardless of whether requests originate from the CLI or other clients.</li>
+</ul>
+<h2 id="verification-1"><a class="header" href="#verification-1">Verification</a></h2>
+<ul>
+<li>Integration tests cover pagination, filter validation, SSE replay, and CLI HTTP interactions via <code>httpmock</code>, ensuring behaviour remains in lockstep.</li>
+<li><code>just api-export</code> regenerates <code>docs/api/openapi.json</code>, and CI asserts the CLI uses the shared DTOs by compiling with the workspace feature set.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="007--api-key-security--rate-limiting"><a class="header" href="#007--api-key-security--rate-limiting">007 – API Key Security &amp; Rate Limiting</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2025-10-17</li>
+</ul>
+<h2 id="context-5"><a class="header" href="#context-5">Context</a></h2>
+<ul>
+<li>API keys were previously verified but not throttled, allowing abusive clients to starve the control plane and masking guard-rail violations.</li>
+<li>Operators need guard-rail metrics, health events, and documentation describing key lifecycle, rate limits, and rotation workflows.</li>
+<li>CLI tooling must respect the same security posture, including masking secrets and surfacing authentication failures with actionable errors.</li>
+</ul>
+<h2 id="decision-5"><a class="header" href="#decision-5">Decision</a></h2>
+<ul>
+<li>Each API key stores a JSON rate limit (<code>burst</code>, <code>per_seconds</code>) validated by <code>ConfigService</code>; token-bucket state is maintained per key inside the API layer.</li>
+<li>Requests exceeding the configured budget return <code>429 Too Many Requests</code> Problem+JSON responses, increment Prometheus counters (<code>api_rate_limit_throttled_total</code>), and emit <code>HealthChanged</code> events when guard rails (e.g., unlimited keys) are breached.</li>
+<li>CLI authentication mandates <code>key_id:secret</code>, redacts secrets in logs, and propagates <code>x-request-id</code> so operators can correlate requests with server-side traces.</li>
+<li>CI enforces MSRV and Docker security gates to ensure build artefacts respect the security baseline.</li>
+</ul>
+<h2 id="consequences-5"><a class="header" href="#consequences-5">Consequences</a></h2>
+<ul>
+<li>Compromised or runaway keys are contained, preventing control-plane denial-of-service and providing clear telemetry for incident response.</li>
+<li>Documentation now includes API key rotation steps, rate-limit expectations, and remediation guidance for guard-rail events.</li>
+<li>The API and CLI remain aligned by sharing auth context types and telemetry primitives.</li>
+</ul>
+<h2 id="verification-2"><a class="header" href="#verification-2">Verification</a></h2>
+<ul>
+<li>Unit tests cover rate-limit parsing and token-bucket behaviour; integration tests assert <code>429</code> responses and CLI exit codes.</li>
+<li><code>/health/full</code> exposes rate-limit metrics, and the Docker image runs as a non-root user with health checks hitting the authenticated endpoints.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 id="008--phase-one-remaining-delivery-task-record"><a class="header" href="#008--phase-one-remaining-delivery-task-record">008 – Phase One Remaining Delivery (Task Record)</a></h1>
+<ul>
+<li>Status: In Progress</li>
+<li>Date: 2025-10-17</li>
+</ul>
+<h2 id="motivation-1"><a class="header" href="#motivation-1">Motivation</a></h2>
+<ul>
+<li>Implement the outstanding Phase One scope: per-key rate limiting, CLI parity (telemetry, exit codes), packaging, documentation, and CI gates required by <code>docs/phase-one-remaining-spec.md</code> and <code>AGENT.md</code>.</li>
+</ul>
+<h2 id="design-notes-1"><a class="header" href="#design-notes-1">Design Notes</a></h2>
+<ul>
+<li>Introduced <code>ConfigService::authenticate_api_key</code> returning rate-limit metadata, validated JSON payloads, and persisted canonical token-bucket configuration.</li>
+<li>Added <code>ApiState::enforce_rate_limit</code> with per-key token buckets, guard-rail health publication, Prometheus counters, and Problem+JSON <code>429</code> responses.</li>
+<li>CLI now builds <code>reqwest</code> clients with default <code>x-request-id</code>, standardises exit codes (<code>0/2/3</code>), and emits optional telemetry events when <code>REVAER_TELEMETRY_ENDPOINT</code> is set.</li>
+<li>Created a multi-stage Dockerfile (non-root runtime, healthcheck, docs bundling) with <code>just</code> recipes for building and scanning.</li>
+<li>Expanded CI with release artefact, Docker, and MSRV jobs that call the new <code>just</code> targets.</li>
+</ul>
+<h2 id="test-coverage-summary-1"><a class="header" href="#test-coverage-summary-1">Test Coverage Summary</a></h2>
+<ul>
+<li>Added unit tests for rate-limit parsing and token-bucket behaviour (<code>revaer-config</code>, <code>revaer-api</code>).</li>
+<li>Existing integration suites exercise Problem+JSON responses, SSE replay, and CLI HTTP interactions.</li>
+<li>Runbook (<code>docs/runbook.md</code>) supports manual verification of FsOps, rate limits, and guard rails.</li>
+</ul>
+<h2 id="observability-updates-1"><a class="header" href="#observability-updates-1">Observability Updates</a></h2>
+<ul>
+<li>Prometheus now exposes <code>api_rate_limit_throttled_total</code>; <code>/health/full</code> includes the counter and degrades when guard rails fire.</li>
+<li>CLI telemetry emits JSON events (command, outcome, trace id, exit code) to configurable endpoints.</li>
+<li>Documentation adds telemetry reference, operations guide, and release checklist for operators.</li>
+</ul>
+<h2 id="risk--rollback"><a class="header" href="#risk--rollback">Risk &amp; Rollback</a></h2>
+<ul>
+<li>Rate-limit enforcement is isolated to <code>require_api_key</code>; rollback by removing <code>enforce_rate_limit</code> call if unexpected throttles occur.</li>
+<li>Docker image/builder changes are gated via <code>just docker-build</code> and <code>just docker-scan</code>; revert by restoring previous absence of Docker packaging.</li>
+<li>CI additions run after core jobs and can be disabled via workflow changes if they fail unexpectedly.</li>
+</ul>
+<h2 id="dependency-rationale-1"><a class="header" href="#dependency-rationale-1">Dependency Rationale</a></h2>
+<ul>
+<li>No new Rust crates were introduced. Docker scanning uses <code>trivy</code> via CI and manual recipe; it is optional for local development.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div><h1 ADR="" Title=""></h1>
+<ul>
+<li>Status: {Proposed|Accepted|Superseded}</li>
+<li>Date: {YYYY-MM-DD}</li>
+<li>Context:
+<ul>
+<li>What problem are we solving?</li>
+<li>What constraints or forces shape the decision?</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Summary of the choice made.</li>
+<li>Alternatives considered.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes.</li>
+<li>Risks or trade-offs.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks.</li>
+<li>Review checkpoints.</li>
+</ul>
+</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="scripts/mermaid.min.js"></script>
+        <script src="scripts/mermaid-init.js"></script>
+
+        <script>
+        window.addEventListener('load', function() {
+            window.setTimeout(window.print, 100);
+        });
+        </script>
+
+
+    </div>
+    </body>
+</html>

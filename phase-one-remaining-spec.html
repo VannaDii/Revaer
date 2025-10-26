@@ -1,0 +1,429 @@
+<!DOCTYPE HTML>
+<html lang="en" class="rust sidebar-visible" dir="ltr">
+    <head>
+        <!-- Book generated using mdBook -->
+        <meta charset="UTF-8">
+        <title>Phase One Remaining Spec - Revaer Documentation</title>
+
+
+        <!-- Custom HTML head -->
+
+        <meta name="description" content="">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta name="theme-color" content="#ffffff">
+
+        <link rel="icon" href="favicon.svg">
+        <link rel="shortcut icon" href="favicon.png">
+        <link rel="stylesheet" href="css/variables.css">
+        <link rel="stylesheet" href="css/general.css">
+        <link rel="stylesheet" href="css/chrome.css">
+        <link rel="stylesheet" href="css/print.css" media="print">
+
+        <!-- Fonts -->
+        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
+        <link rel="stylesheet" href="fonts/fonts.css">
+
+        <!-- Highlight.js Stylesheets -->
+        <link rel="stylesheet" id="highlight-css" href="highlight.css">
+        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
+        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+
+        <!-- Custom theme stylesheets -->
+
+
+        <!-- Provide site root and default themes to javascript -->
+        <script>
+            const path_to_root = "";
+            const default_light_theme = "rust";
+            const default_dark_theme = "coal";
+            window.path_to_searchindex_js = "searchindex.js";
+        </script>
+        <!-- Start loading toc.js asap -->
+        <script src="toc.js"></script>
+    </head>
+    <body>
+    <div id="mdbook-help-container">
+        <div id="mdbook-help-popup">
+            <h2 class="mdbook-help-title">Keyboard shortcuts</h2>
+            <div>
+                <p>Press <kbd>←</kbd> or <kbd>→</kbd> to navigate between chapters</p>
+                <p>Press <kbd>S</kbd> or <kbd>/</kbd> to search in the book</p>
+                <p>Press <kbd>?</kbd> to show this help</p>
+                <p>Press <kbd>Esc</kbd> to hide this help</p>
+            </div>
+        </div>
+    </div>
+    <div id="body-container">
+        <!-- Work around some values being stored in localStorage wrapped in quotes -->
+        <script>
+            try {
+                let theme = localStorage.getItem('mdbook-theme');
+                let sidebar = localStorage.getItem('mdbook-sidebar');
+
+                if (theme.startsWith('"') && theme.endsWith('"')) {
+                    localStorage.setItem('mdbook-theme', theme.slice(1, theme.length - 1));
+                }
+
+                if (sidebar.startsWith('"') && sidebar.endsWith('"')) {
+                    localStorage.setItem('mdbook-sidebar', sidebar.slice(1, sidebar.length - 1));
+                }
+            } catch (e) { }
+        </script>
+
+        <!-- Set the theme before any content is loaded, prevents flash -->
+        <script>
+            const default_theme = window.matchMedia("(prefers-color-scheme: dark)").matches ? default_dark_theme : default_light_theme;
+            let theme;
+            try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
+            if (theme === null || theme === undefined) { theme = default_theme; }
+            const html = document.documentElement;
+            html.classList.remove('rust')
+            html.classList.add(theme);
+            html.classList.add("js");
+        </script>
+
+        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+
+        <!-- Hide / unhide sidebar before it is displayed -->
+        <script>
+            let sidebar = null;
+            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            if (document.body.clientWidth >= 1080) {
+                try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
+                sidebar = sidebar || 'visible';
+            } else {
+                sidebar = 'hidden';
+                sidebar_toggle.checked = false;
+            }
+            if (sidebar === 'visible') {
+                sidebar_toggle.checked = true;
+            } else {
+                html.classList.remove('sidebar-visible');
+            }
+        </script>
+
+        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+            <!-- populated by js -->
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
+            <noscript>
+                <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
+            </noscript>
+            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+                <div class="sidebar-resize-indicator"></div>
+            </div>
+        </nav>
+
+        <div id="page-wrapper" class="page-wrapper">
+
+            <div class="page">
+                <div id="menu-bar-hover-placeholder"></div>
+                <div id="menu-bar" class="menu-bar sticky">
+                    <div class="left-buttons">
+                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
+                            <i class="fa fa-bars"></i>
+                        </label>
+                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
+                            <i class="fa fa-paint-brush"></i>
+                        </button>
+                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        </ul>
+                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
+                            <i class="fa fa-search"></i>
+                        </button>
+                    </div>
+
+                    <h1 class="menu-title">Revaer Documentation</h1>
+
+                    <div class="right-buttons">
+                        <a href="print.html" title="Print this book" aria-label="Print this book">
+                            <i id="print-button" class="fa fa-print"></i>
+                        </a>
+                        <a href="https://github.com/VannaDii/revaer" title="Git repository" aria-label="Git repository">
+                            <i id="git-repository-button" class="fa fa-github"></i>
+                        </a>
+
+                    </div>
+                </div>
+
+                <div id="search-wrapper" class="hidden">
+                    <form id="searchbar-outer" class="searchbar-outer">
+                        <div class="search-wrapper">
+                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <div class="spinner-wrapper">
+                                <i class="fa fa-spinner fa-spin"></i>
+                            </div>
+                        </div>
+                    </form>
+                    <div id="searchresults-outer" class="searchresults-outer hidden">
+                        <div id="searchresults-header" class="searchresults-header"></div>
+                        <ul id="searchresults">
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
+                <script>
+                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                        link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
+                    });
+                </script>
+
+                <div id="content" class="content">
+                    <main>
+                        <h1 id="phase-one-remaining-engineering-specification"><a class="header" href="#phase-one-remaining-engineering-specification">Phase One Remaining Engineering Specification</a></h1>
+<h2 id="objectives"><a class="header" href="#objectives">Objectives</a></h2>
+<ul>
+<li>Deliver a production-ready public interface (HTTP API, SSE, CLI) for torrent orchestration.</li>
+<li>Ship FsOps-backed artefacts through API, CLI, telemetry, and documentation with demonstrable reliability.</li>
+<li>Produce release artefacts (containers, binaries, documentation) that satisfy existing security, observability, and quality gates.</li>
+</ul>
+<h2 id="scope-overview"><a class="header" href="#scope-overview">Scope Overview</a></h2>
+<ol>
+<li>
+<p><strong>Public HTTP API &amp; SSE Enhancements</strong></p>
+<ul>
+<li><code>/v1/torrents</code> CRUD-style endpoints with cursor pagination, filtering, torrent actions, file selection updates, rate adjustments, and Problem+JSON responses.</li>
+<li>SSE stream upgrades: Last-Event-ID replay, subscription filters, duplicate suppression, jitter-tolerant reconnect logic.</li>
+<li><code>/health/full</code> exposing engine/FsOps/config readiness, dependency metrics, and revision metadata.</li>
+<li>Regenerated OpenAPI (JSON + examples) reflecting the full public surface.</li>
+</ul>
+</li>
+<li>
+<p><strong>CLI Parity</strong></p>
+<ul>
+<li>Commands covering list/status/select/action/tail flows with shared filtering + pagination options.</li>
+<li>SSE-backed <code>tail</code> command with Last-Event-ID resume, dedupe, and retry semantics aligned with the API.</li>
+<li>Problem+JSON error output, structured exit codes (<code>0</code> success, <code>2</code> validation, <code>&gt;2</code> runtime failures).</li>
+</ul>
+</li>
+<li>
+<p><strong>Packaging &amp; Documentation</strong></p>
+<ul>
+<li>Release-ready Docker image (non-root, readonly FS, volumes, healthcheck) bundling API server + docs.</li>
+<li>Provenance-signed binaries for supported architectures, plus GitHub Actions workflows for build, docker, msrv, and coverage gates.</li>
+<li>Updated ADRs, runbook, user guides, OpenAPI artefacts, and release checklist referencing the telemetry and security posture.</li>
+<li>Documentation of new metrics/traces/guardrails (config watcher latency, FsOps events, API counters).</li>
+</ul>
+</li>
+</ol>
+<h2 id="security--observability-requirements-cross-cutting"><a class="header" href="#security--observability-requirements-cross-cutting">Security &amp; Observability Requirements (Cross-Cutting)</a></h2>
+<ul>
+<li>All new API routes enforce API-key authentication with per-key rate limiting and guard-rail metrics.</li>
+<li>Problem+JSON responses are mandatory; eliminate <code>unwrap</code>/panic paths and include <code>invalid_params</code> pointers on validation failure.</li>
+<li>Trace propagation from API → engine → FsOps; CLI should emit/propagate TraceId when available.</li>
+<li>Metrics: extend existing Prometheus registry with route labels, FsOps step counters, config watcher latency/failure gauges, and rate-limiter guardrails.</li>
+<li>Health degradation events (<code>Event::HealthChanged</code>) must accompany any new guard-rail/latency breach or pipeline failure.</li>
+<li>CLI commands should mask secrets in logs and optionally emit telemetry when configured (<code>REVAER_TELEMETRY_ENDPOINT</code>).</li>
+</ul>
+<h2 id="detailed-work-breakdown"><a class="header" href="#detailed-work-breakdown">Detailed Work Breakdown</a></h2>
+<h3 id="1-public-api--sse"><a class="header" href="#1-public-api--sse">1. Public API &amp; SSE</a></h3>
+<p><strong>Design Considerations</strong></p>
+<ul>
+<li>Introduce DTO module (<code>api::models</code>) for request/response structs to share with the CLI.</li>
+<li>Cursor pagination: encode UUID/timestamp as opaque cursor in <code>next</code> token; align Last-Event-ID semantics with event stream IDs.</li>
+<li>Filtering: support state, tracker, extension, tags, and name substring; guard invalid combinations with Problem+JSON.</li>
+<li>SSE filtering: permit query parameters for torrent subset, replays based on event type/state.</li>
+</ul>
+<p><strong>Implementation Tasks</strong></p>
+<ul>
+<li>Routes:
+<ul>
+<li><code>POST /v1/torrents</code> – magnet or .torrent upload (streamed, payload size guard).</li>
+<li><code>GET /v1/torrents</code> – cursor pagination + filters.</li>
+<li><code>GET /v1/torrents/{id}</code> – detail view with FsOps metadata.</li>
+<li><code>POST /v1/torrents/{id}/select</code> – file selection update with validation.</li>
+<li><code>POST /v1/torrents/{id}/action</code> – pause/resume/remove (with data), reannounce, recheck, sequential toggle, rate limits.</li>
+</ul>
+</li>
+<li>SSE:
+<ul>
+<li>Accept <code>Last-Event-ID</code> header, deduplicate by event ID, filter streams by torrent ID/state.</li>
+<li>Simulate jitter/disconnects in tests (<code>tokio::time::pause</code>, <code>transport::Stream</code>).</li>
+</ul>
+</li>
+<li>Health endpoint:
+<ul>
+<li>Aggregate config watcher metrics (latency, failures), FsOps status, engine guardrails, revision hash.</li>
+</ul>
+</li>
+<li>Problem+JSON mapping for all new errors with <code>invalid_params</code> pointer data.</li>
+<li>OpenAPI:
+<ul>
+<li>Regenerate spec covering new endpoints, Problem responses, SSE details, and sample payloads.</li>
+</ul>
+</li>
+<li>Testing:
+<ul>
+<li>Unit tests for filter parsing, DTO validation, Problem+JSON outputs.</li>
+<li>Integration tests using <code>tower::Service</code> harness for each route.</li>
+<li>SSE reconnection tests with simulated delays and Last-Event-ID resume.</li>
+<li><code>/health/full</code> integration test verifying new fields and degraded scenarios.</li>
+</ul>
+</li>
+</ul>
+<h3 id="2-cli-parity"><a class="header" href="#2-cli-parity">2. CLI Parity</a></h3>
+<p><strong>Design Considerations</strong></p>
+<ul>
+<li>Reuse DTOs from API models; consider shared crate/module for request structs and Problem+JSON parsing.</li>
+<li>Introduce output formatting with optional JSON/pretty table modes.</li>
+<li>Provide configuration via env vars and CLI flags; align defaults with API (e.g., <code>REVAER_API_URL</code>, <code>REVAER_API_KEY</code>).</li>
+</ul>
+<p><strong>Implementation Tasks</strong></p>
+<ul>
+<li>Commands:
+<ul>
+<li><code>revaer ls</code> – list torrents, support pagination (<code>--cursor</code>, <code>--limit</code>), filters (state/tracker/extension/tags).</li>
+<li><code>revaer status &lt;id&gt;</code> – torrent detail view, optional follow mode.</li>
+<li><code>revaer select &lt;id&gt;</code> – send selection rules from file/JSON (validate before submit).</li>
+<li><code>revaer action &lt;id&gt;</code> – actions (<code>pause</code>, <code>resume</code>, <code>remove</code>, <code>remove-data</code>, <code>reannounce</code>, <code>recheck</code>, <code>sequential</code>, <code>rate</code>).</li>
+<li><code>revaer tail</code> – SSE tail with Last-Event-ID persist (local file) and dedupe.</li>
+</ul>
+</li>
+<li>Problem+JSON handling:
+<ul>
+<li>Standardised pretty printer summarising <code>title</code>, <code>detail</code>, <code>invalid_params</code>; respect exit codes.</li>
+</ul>
+</li>
+<li>Telemetry:
+<ul>
+<li>Optional metrics emission (success/failure counters) when telemetry endpoint configured.</li>
+</ul>
+</li>
+<li>Testing:
+<ul>
+<li>Integration tests using <code>httpmock</code> to assert HTTP interactions and exit codes.</li>
+<li>SSE tail tests with mocked stream delivering duplicates/disconnects.</li>
+<li>Snapshot tests for JSON outputs (ensuring deterministic fields).</li>
+</ul>
+</li>
+</ul>
+<h3 id="3-packaging--documentation"><a class="header" href="#3-packaging--documentation">3. Packaging &amp; Documentation</a></h3>
+<p><strong>Design Considerations</strong></p>
+<ul>
+<li>Multi-stage Docker build: compile with Rust image, run on minimal base (distroless/alpine/ubi) with non-root user.</li>
+<li>Healthcheck script hitting <code>/health/full</code> with timeout.</li>
+<li>Release workflows should run on GitHub Actions with provenance metadata (supply-chain compliance).</li>
+</ul>
+<p><strong>Implementation Tasks</strong></p>
+<ul>
+<li>Dockerfile + <code>Makefile</code>/<code>just</code> target:
+<ul>
+<li>Build release binary, copy <code>docs/api/openapi.json</code>, set <code>/app</code> as workdir.</li>
+<li>Define volumes for data/config, create user <code>revaer</code>, configure entrypoint.</li>
+</ul>
+</li>
+<li>GitHub Actions (update <code>.github/workflows</code>):
+<ul>
+<li><code>build-release</code>: run <code>just build-rel</code>, <code>just api-export</code>, attach binaries/docs.</li>
+<li><code>docker</code>: build image, run <code>docker scan</code> (<code>trivy</code>/<code>grype</code>), and push on release tags.</li>
+<li><code>msrv</code>: run <code>just fmt lint test</code> with pinned toolchain (documented in workflow).</li>
+<li><code>cov</code>: ensure <code>just cov</code> gate passes (≥80% lines/functions).</li>
+</ul>
+</li>
+<li>Documentation:
+<ul>
+<li>ADRs: update <code>003-libtorrent-session-runner</code>, add FsOps design ADR, API/CLI contract ADR, security posture update (API keys, rate limits).</li>
+<li>Runbook: scripted scenario covering bootstrap → torrent add → FsOps pipeline → restart resume → rate throttle adjustments → degraded health simulation → recovery.</li>
+<li>User guides: CLI usage, metrics/telemetry reference, operational setup (keys, rate limits, config watcher health).</li>
+<li>OpenAPI: regenerate JSON, include sample Problem+JSON payloads and SSE description.</li>
+<li>Release checklist: steps to run <code>just ci</code>, verify coverage, run docker scan, execute runbook, and tag release.</li>
+</ul>
+</li>
+<li>Testing:
+<ul>
+<li>Validate Docker container runtime (healthcheck, volume mounts, non-root permissions).</li>
+<li>Perform coverage review ensuring new tests bring line/function coverage ≥80%.</li>
+<li>Execute runbook; capture logs/metrics and link in docs.</li>
+</ul>
+</li>
+</ul>
+<h2 id="cross-cutting-deliverables"><a class="header" href="#cross-cutting-deliverables">Cross-Cutting Deliverables</a></h2>
+<ul>
+<li>API key lifecycle (issue/rotate/revoke) extended with per-key rate limiting, recorded in telemetry and docs.</li>
+<li>Config watcher telemetry integrated into <code>/health/full</code> and metrics registry.</li>
+<li>CLI and API emit guard-rail telemetry on violations (loopback enforcement, FsOps errors, rate-limit breaches).</li>
+<li>All new code paths covered by unit/integration tests; follow-up to update <code>just cov</code> gating.</li>
+<li>Documentation kept up-to-date with implementation details and tested flows.</li>
+</ul>
+<h2 id="sequencing-suggested"><a class="header" href="#sequencing-suggested">Sequencing (Suggested)</a></h2>
+<ol>
+<li>Build API models and endpoints (foundation for CLI).</li>
+<li>Implement SSE enhancements while adding API integration tests.</li>
+<li>Extend CLI commands leveraging shared DTOs.</li>
+<li>Embed telemetry (metrics/traces) throughout API/CLI/FsOps changes.</li>
+<li>Stand up Docker build + CI workflows.</li>
+<li>Update ADRs, runbook, user guides, OpenAPI, and release checklist.</li>
+<li>Execute full QA cycle (coverage, docker scan, runbook, manual verification) and prepare for release tagging.</li>
+</ol>
+<h2 id="acceptance-criteria"><a class="header" href="#acceptance-criteria">Acceptance Criteria</a></h2>
+<ul>
+<li><code>just lint</code>, <code>just test</code>, <code>just cov</code> and full <code>just ci</code> pass locally and in CI.</li>
+<li>Coverage (lines + functions) ≥ 80% across workspace.</li>
+<li>Docker image passes security scan with zero unwaived high severity findings.</li>
+<li>Runbook executed end-to-end; results referenced in documentation.</li>
+<li>OpenAPI specification and CLI docs match implemented behaviour.</li>
+<li>Release checklist completed with artefacts attached (binaries, Docker image, OpenAPI, docs).</li>
+</ul>
+
+                    </main>
+
+                    <nav class="nav-wrapper" aria-label="Page navigation">
+                        <!-- Mobile navigation buttons -->
+                            <a rel="prev" href="phase-one-roadmap.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                                <i class="fa fa-angle-left"></i>
+                            </a>
+
+                            <a rel="next prefetch" href="runbook.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                                <i class="fa fa-angle-right"></i>
+                            </a>
+
+                        <div style="clear: both"></div>
+                    </nav>
+                </div>
+            </div>
+
+            <nav class="nav-wide-wrapper" aria-label="Page navigation">
+                    <a rel="prev" href="phase-one-roadmap.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                        <i class="fa fa-angle-left"></i>
+                    </a>
+
+                    <a rel="next prefetch" href="runbook.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                        <i class="fa fa-angle-right"></i>
+                    </a>
+            </nav>
+
+        </div>
+
+
+
+
+        <script>
+            window.playground_copyable = true;
+        </script>
+
+
+        <script src="elasticlunr.min.js"></script>
+        <script src="mark.min.js"></script>
+        <script src="searcher.js"></script>
+
+        <script src="clipboard.min.js"></script>
+        <script src="highlight.js"></script>
+        <script src="book.js"></script>
+
+        <!-- Custom JS scripts -->
+        <script src="scripts/mermaid.min.js"></script>
+        <script src="scripts/mermaid-init.js"></script>
+
+
+
+    </div>
+    </body>
+</html>
