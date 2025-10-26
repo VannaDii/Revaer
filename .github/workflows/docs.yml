@@ -51,6 +51,7 @@ jobs:
           rsync -a book/ deploy/
           mkdir -p deploy/llm
           rsync -a docs/llm/ deploy/llm/
+          if [ -f docs/CNAME ]; then cp docs/CNAME deploy/CNAME; fi
           echo "Generated on: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" > deploy/.deployment-info
           echo "Source commit: ${GITHUB_SHA}" >> deploy/.deployment-info
           echo "Workflow run: ${GITHUB_RUN_ID}" >> deploy/.deployment-info
