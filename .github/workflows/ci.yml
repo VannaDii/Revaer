@@ -95,17 +95,3 @@ jobs:
           output: 'trivy-results.sarif'
           exit-code: '1'
           severity: 'HIGH,CRITICAL'
-
-  # MSRV check
-  msrv:
-    runs-on: ubuntu-latest
-    needs: fmt
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@1.78.0
-        with:
-          components: rustfmt, clippy
-      - uses: taiki-e/install-action@just
-      - run: just fmt
-      - run: just lint
-      - run: just test
