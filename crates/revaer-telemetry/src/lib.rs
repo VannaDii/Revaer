@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 //! Telemetry primitives shared across the Revaer workspace.
 //!
 //! This crate centralises logging, metrics, and cross-service tracing helpers so the
@@ -457,4 +459,79 @@ pub fn log_format_from_config(config: Option<&serde_json::Value>) -> Option<LogF
             "pretty" => LogFormat::Pretty,
             _ => LogFormat::infer(),
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::Result;
+    use serde_json::json;
+    use std::time::Duration;
+    use tempfile::tempdir;
+
+    #[test]
+    fn duration_to_ms_saturates_on_large_values() {
+        let duration = Duration::from_secs(u64::MAX / 2);
+        assert_eq!(Metrics::duration_to_ms(duration), i64::MAX);
+    }
+
+    #[test]
+    fn log_format_from_config_parses_variants() {
+        let json_config = json!({"log_format": "json"});
+        assert!(matches!(
+            log_format_from_config(Some(&json_config)),
+            Some(LogFormat::Json)
+        ));
+
+        let pretty_config = json!({"log_format": "pretty"});
+        assert!(matches!(
+            log_format_from_config(Some(&pretty_config)),
+            Some(LogFormat::Pretty)
+        ));
+
+        let inferred = log_format_from_config(Some(&json!({"log_format": "unknown"})))
+            .expect("expected format");
+        match (LogFormat::infer(), inferred) {
+            (LogFormat::Json, LogFormat::Json) | (LogFormat::Pretty, LogFormat::Pretty) => {}
+            other => panic!("unexpected format mapping: {other:?}"),
+        }
+
+        assert!(log_format_from_config(None).is_none());
+    }
+
+    #[test]
+    fn persist_openapi_writes_document() -> Result<()> {
+        let dir = tempdir()?;
+        let path = dir.path().join("openapi.json");
+        let document = json!({"openapi": "3.0.0"});
+
+        persist_openapi(&path, &document)?;
+        let contents = std::fs::read_to_string(&path)?;
+        assert!(contents.contains("\"openapi\": \"3.0.0\""));
+        Ok(())
+    }
+
+    #[test]
+    fn metrics_snapshot_reflects_updates() -> Result<()> {
+        let metrics = Metrics::new()?;
+        metrics.set_active_torrents(5);
+        metrics.set_queue_depth(2);
+        metrics.observe_config_watch_latency(Duration::from_millis(120));
+        metrics.observe_config_apply_latency(Duration::from_millis(45));
+        metrics.inc_config_update_failure();
+        metrics.inc_config_watch_slow();
+        metrics.inc_guardrail_violation();
+        metrics.inc_rate_limit_throttled();
+
+        let snapshot = metrics.snapshot();
+        assert_eq!(snapshot.active_torrents, 5);
+        assert_eq!(snapshot.queue_depth, 2);
+        assert_eq!(snapshot.config_watch_latency_ms, 120);
+        assert_eq!(snapshot.config_apply_latency_ms, 45);
+        assert_eq!(snapshot.config_update_failures_total, 1);
+        assert_eq!(snapshot.config_watch_slow_total, 1);
+        assert_eq!(snapshot.guardrail_violations_total, 1);
+        assert_eq!(snapshot.rate_limit_throttled_total, 1);
+        Ok(())
+    }
 }

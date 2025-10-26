@@ -15,3 +15,6 @@ serde.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 revaer-events = { path = "../revaer-events" }
+
+[dev-dependencies]
+tokio.workspace = true

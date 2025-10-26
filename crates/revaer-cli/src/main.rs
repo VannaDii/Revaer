@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 use std::convert::TryFrom;
 use std::env;
 use std::io::{self, IsTerminal};
@@ -329,7 +331,7 @@ struct AppContext {
     api_key: Option<ApiKeyCredential>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct ApiKeyCredential {
     key_id: String,
     secret: String,
@@ -1298,7 +1300,8 @@ mod tests {
     use super::*;
     use httpmock::prelude::*;
     use reqwest::Client;
-    use serde_json::json;
+    use serde_json::{Value, json};
+    use std::path::PathBuf;
 
     fn context_for(server: &MockServer) -> AppContext {
         AppContext {
@@ -1377,5 +1380,172 @@ mod tests {
             .await
             .expect("torrent remove should succeed");
         mock.assert();
+    }
+
+    #[test]
+    fn parse_api_key_requires_secret() {
+        let err = parse_api_key(Some("key_only:".to_string()))
+            .expect_err("expected missing secret to fail");
+        assert!(
+            matches!(err, CliError::Validation(message) if message.contains("cannot be empty"))
+        );
+    }
+
+    #[test]
+    fn parse_api_key_accepts_valid_pair() -> CliResult<()> {
+        let parsed = parse_api_key(Some("alpha:bravo".to_string()))?.expect("expected credentials");
+        assert_eq!(parsed.key_id, "alpha");
+        assert_eq!(parsed.secret, "bravo");
+        Ok(())
+    }
+
+    #[test]
+    fn build_fs_policy_patch_merges_allow_paths() {
+        let patch = build_fs_policy_patch("/library", "/downloads", "/downloads");
+        let allow_paths = patch
+            .get("allow_paths")
+            .and_then(Value::as_array)
+            .expect("allow_paths array");
+        let values: Vec<&str> = allow_paths
+            .iter()
+            .map(|value| value.as_str().expect("string"))
+            .collect();
+        assert_eq!(values, vec!["/downloads", "/library"]);
+    }
+
+    #[test]
+    fn resolve_passphrase_prefers_flag_value() -> CliResult<()> {
+        let args = SetupCompleteArgs {
+            token: Some("abc".to_string()),
+            instance: "demo".to_string(),
+            bind: "127.0.0.1".to_string(),
+            port: 7070,
+            resume_dir: PathBuf::from("/tmp/resume"),
+            download_root: PathBuf::from("/tmp/download"),
+            library_root: PathBuf::from("/tmp/library"),
+            api_key_label: "label".to_string(),
+            api_key_id: Some("id".to_string()),
+            passphrase: Some(" secret ".to_string()),
+        };
+        let resolved = resolve_passphrase(&args)?;
+        assert_eq!(resolved, "secret");
+        Ok(())
+    }
+
+    #[test]
+    fn random_string_produces_expected_length() {
+        let generated = random_string(16);
+        assert_eq!(generated.len(), 16);
+        assert!(generated.chars().all(|ch| ch.is_ascii_alphanumeric()));
+    }
+
+    #[test]
+    fn format_bytes_displays_expected_units() {
+        assert_eq!(format_bytes(512), "512 B");
+        assert_eq!(format_bytes(2048), "2.00 KiB");
+        assert_eq!(format_bytes(3 * 1024 * 1024), "3.00 MiB");
+        assert_eq!(format_bytes(5 * 1024 * 1024 * 1024), "5.00 GiB");
+    }
+
+    #[test]
+    fn state_to_str_maps_variants() {
+        assert_eq!(state_to_str(TorrentStateKind::Queued), "queued");
+        assert_eq!(state_to_str(TorrentStateKind::Completed), "completed");
+    }
+
+    #[test]
+    fn format_priority_labels_variants() {
+        assert_eq!(format_priority(FilePriority::Skip), "skip");
+        assert_eq!(format_priority(FilePriority::High), "high");
+    }
+
+    #[test]
+    fn build_action_payload_requires_enable_flag() {
+        let args = TorrentActionArgs {
+            id: Uuid::new_v4(),
+            action: ActionType::Sequential,
+            enable: None,
+            delete_data: false,
+            download: None,
+            upload: None,
+        };
+        let err = build_action_payload(&args).expect_err("missing enable should fail");
+        assert!(matches!(err, CliError::Validation(message) if message.contains("--enable")));
+    }
+
+    #[test]
+    fn build_action_payload_validates_rate_limits() {
+        let args = TorrentActionArgs {
+            id: Uuid::new_v4(),
+            action: ActionType::Rate,
+            enable: None,
+            delete_data: false,
+            download: None,
+            upload: None,
+        };
+        let err =
+            build_action_payload(&args).expect_err("missing rate values should fail validation");
+        assert!(matches!(err, CliError::Validation(message) if message.contains("download")));
+    }
+
+    #[test]
+    fn build_action_payload_rate_accepts_partial_limits() -> CliResult<()> {
+        let args = TorrentActionArgs {
+            id: Uuid::new_v4(),
+            action: ActionType::Rate,
+            enable: None,
+            delete_data: false,
+            download: Some(1024),
+            upload: None,
+        };
+        match build_action_payload(&args)? {
+            ApiTorrentAction::Rate {
+                download_bps,
+                upload_bps,
+            } => {
+                assert_eq!(download_bps, Some(1024));
+                assert_eq!(upload_bps, None);
+            }
+            other => panic!("unexpected payload {other:?}"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn parse_priority_override_rejects_invalid_payload() {
+        let err = parse_priority_override("abc=skip").expect_err("invalid index should fail");
+        assert!(err.contains("index"));
+        let err = parse_priority_override("10=unknown").expect_err("invalid priority");
+        assert!(err.contains("unknown priority"));
+    }
+
+    #[test]
+    fn parse_priority_override_accepts_values() {
+        let parsed = parse_priority_override("42=high").expect("valid override");
+        assert_eq!(parsed.index, 42);
+        assert_eq!(parsed.priority, FilePriority::High);
+    }
+
+    #[test]
+    fn command_label_matches_variants() {
+        assert_eq!(
+            command_label(&Command::Torrent(TorrentCommand::Add(TorrentAddArgs {
+                source: "magnet:?xt=urn:btih:demo".to_string(),
+                name: None,
+                id: None,
+            }))),
+            "torrent_add"
+        );
+        assert_eq!(
+            command_label(&Command::Action(TorrentActionArgs {
+                id: Uuid::nil(),
+                action: ActionType::Pause,
+                enable: None,
+                delete_data: false,
+                download: None,
+                upload: None,
+            })),
+            "action_pause"
+        );
     }
 }

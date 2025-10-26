@@ -498,6 +498,54 @@ mod tests {
         assert!(events.iter().any(|event| matches!(event, Event::HealthChanged { degraded } if degraded.contains(&HEALTH_COMPONENT.to_string()))));
     }
 
+    #[tokio::test]
+    async fn pipeline_marks_degraded_and_recovers() -> Result<()> {
+        let bus = EventBus::with_capacity(16);
+        let service = FsOpsService::new(bus.clone());
+        let mut stream = bus.subscribe(None);
+        let torrent_id = Uuid::new_v4();
+        let temp = TempDir::new()?;
+
+        let mut invalid = sample_policy(temp.path());
+        invalid.library_root = " ".to_string();
+
+        let err = service
+            .apply_policy(torrent_id, &invalid)
+            .expect_err("invalid policy should fail");
+        assert!(
+            format!("{err:#}").contains("cannot be empty"),
+            "unexpected error: {err:?}"
+        );
+
+        let failure_events = collect_events(&mut stream, 4).await;
+        assert!(failure_events.iter().any(|event| matches!(
+            event,
+            Event::FsopsStarted { torrent_id: id } if *id == torrent_id
+        )));
+        assert!(failure_events.iter().any(|event| matches!(
+            event,
+            Event::HealthChanged { degraded } if degraded.contains(&HEALTH_COMPONENT.to_string())
+        )));
+        assert!(failure_events.iter().any(|event| matches!(
+            event,
+            Event::FsopsFailed { torrent_id: id, .. } if *id == torrent_id
+        )));
+
+        let valid = sample_policy(temp.path());
+        service.apply_policy(torrent_id, &valid)?;
+        let recovery_events = collect_events(&mut stream, 8).await;
+        assert!(recovery_events.iter().any(|event| matches!(
+            event,
+            Event::FsopsCompleted { torrent_id: id } if *id == torrent_id
+        )));
+        assert!(recovery_events.iter().any(|event| matches!(
+            event,
+            Event::HealthChanged { degraded } if degraded.is_empty()
+        )));
+
+        Ok(())
+    }
+
     #[test]
     fn skip_fluff_preset_extends_patterns() -> Result<()> {
         let policy = FsPolicy {
@@ -554,6 +602,29 @@ mod tests {
             rules.evaluate(Path::new("show/season1/episode1.mp4")),
             RuleDecision::Skip
         );
+        Ok(())
+    }
+
+    #[test]
+    fn parse_path_list_rejects_invalid_entries() {
+        let values = json!(["", {"path": "/tmp"}]);
+        let err = parse_path_list(&values).expect_err("invalid inputs should fail");
+        assert!(format!("{err:#}").contains("allow path entries"));
+    }
+
+    #[test]
+    fn parse_glob_list_rejects_non_strings() {
+        let values = json!({"pattern": "**/*.mkv"});
+        let err = parse_glob_list(&values).expect_err("non-array should fail");
+        assert!(format!("{err:#}").contains("expected array"));
+    }
+
+    #[test]
+    fn enforce_allow_paths_accepts_parent_directory() -> Result<()> {
+        let temp = TempDir::new()?;
+        let root = temp.path().join("library");
+        let allow = json!([temp.path().display().to_string()]);
+        enforce_allow_paths(&root, &allow)?;
         Ok(())
     }
 }

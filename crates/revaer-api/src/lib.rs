@@ -1,5 +1,8 @@
+#![allow(unexpected_cfgs)]
+
 pub mod models;
 
+use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose};
 use std::collections::{HashMap, HashSet};
 use std::convert::{Infallible, TryFrom};
@@ -8,7 +11,7 @@ use std::net::SocketAddr;
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
-use std::task::{Context, Poll};
+use std::task::{Context as TaskContext, Poll};
 use std::time::{Duration, Instant};
 
 use anyhow::Result;
@@ -32,8 +35,8 @@ use models::{
     TorrentListResponse, TorrentSelectionRequest, TorrentStateKind, TorrentSummary,
 };
 use revaer_config::{
-    ApiKeyRateLimit, AppMode, ConfigError, ConfigService, ConfigSnapshot, SettingsChangeset,
-    SettingsFacade,
+    ApiKeyAuth, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigError, ConfigService,
+    ConfigSnapshot, SettingsChangeset, SetupToken,
 };
 use revaer_events::{Event as CoreEvent, EventBus, EventEnvelope, EventId, TorrentState};
 use revaer_telemetry::{
@@ -113,8 +116,62 @@ pub struct ApiServer {
     router: Router,
 }
 
+#[async_trait]
+pub trait ConfigFacade: Send + Sync {
+    async fn get_app_profile(&self) -> Result<AppProfile>;
+    async fn issue_setup_token(&self, ttl: Duration, issued_by: &str) -> Result<SetupToken>;
+    async fn validate_setup_token(&self, token: &str) -> Result<()>;
+    async fn consume_setup_token(&self, token: &str) -> Result<()>;
+    async fn apply_changeset(
+        &self,
+        actor: &str,
+        reason: &str,
+        changeset: SettingsChangeset,
+    ) -> Result<AppliedChanges>;
+    async fn snapshot(&self) -> Result<ConfigSnapshot>;
+    async fn authenticate_api_key(&self, key_id: &str, secret: &str) -> Result<Option<ApiKeyAuth>>;
+}
+
+type SharedConfig = Arc<dyn ConfigFacade>;
+
+#[async_trait]
+impl ConfigFacade for ConfigService {
+    async fn get_app_profile(&self) -> Result<AppProfile> {
+        Self::get_app_profile(self).await
+    }
+
+    async fn issue_setup_token(&self, ttl: Duration, issued_by: &str) -> Result<SetupToken> {
+        Self::issue_setup_token(self, ttl, issued_by).await
+    }
+
+    async fn validate_setup_token(&self, token: &str) -> Result<()> {
+        Self::validate_setup_token(self, token).await
+    }
+
+    async fn consume_setup_token(&self, token: &str) -> Result<()> {
+        Self::consume_setup_token(self, token).await
+    }
+
+    async fn apply_changeset(
+        &self,
+        actor: &str,
+        reason: &str,
+        changeset: SettingsChangeset,
+    ) -> Result<AppliedChanges> {
+        Self::apply_changeset(self, actor, reason, changeset).await
+    }
+
+    async fn snapshot(&self) -> Result<ConfigSnapshot> {
+        Self::snapshot(self).await
+    }
+
+    async fn authenticate_api_key(&self, key_id: &str, secret: &str) -> Result<Option<ApiKeyAuth>> {
+        Self::authenticate_api_key(self, key_id, secret).await
+    }
+}
+
 struct ApiState {
-    config: ConfigService,
+    config: SharedConfig,
     setup_token_ttl: Duration,
     telemetry: Metrics,
     openapi_document: Arc<Value>,
@@ -127,7 +184,7 @@ struct ApiState {
 
 impl ApiState {
     fn new(
-        config: ConfigService,
+        config: SharedConfig,
         telemetry: Metrics,
         openapi_document: Arc<Value>,
         events: EventBus,
@@ -330,7 +387,7 @@ struct StatusEntry {
     metadata: TorrentMetadata,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 struct CursorToken {
     last_updated: DateTime<Utc>,
     id: Uuid,
@@ -346,7 +403,7 @@ struct SseQuery {
     state: Option<String>,
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default)]
 struct SseFilter {
     torrent_ids: HashSet<Uuid>,
     event_kinds: HashSet<String>,
@@ -570,7 +627,7 @@ where
     type Error = S::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut TaskContext<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner.poll_ready(cx)
     }
 
@@ -776,6 +833,16 @@ impl ApiServer {
     #[allow(clippy::too_many_lines)]
     pub fn new(
         config: ConfigService,
+        events: EventBus,
+        torrent: Option<TorrentHandles>,
+        telemetry: Metrics,
+    ) -> Result<Self> {
+        Self::with_config(Arc::new(config), events, torrent, telemetry)
+    }
+
+    #[allow(clippy::too_many_lines)]
+    fn with_config(
+        config: SharedConfig,
         events: EventBus,
         torrent: Option<TorrentHandles>,
         telemetry: Metrics,
@@ -2597,20 +2664,673 @@ fn build_add_torrent(request: &TorrentCreateRequest) -> Result<AddTorrent, ApiEr
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::{ConfigFacade, SharedConfig};
     use async_trait::async_trait;
-    use axum::http::StatusCode;
-    use chrono::Utc;
+    use axum::{extract::Query, http::StatusCode};
+    use chrono::{Duration as ChronoDuration, Utc};
     use futures_util::{StreamExt, pin_mut};
-    use revaer_config::ConfigError;
+    use revaer_config::{ConfigError, EngineProfile, FsPolicy};
     use revaer_torrent_core::{
-        AddTorrent, RemoveTorrent, TorrentInspector, TorrentProgress, TorrentRates, TorrentSource,
-        TorrentStatus, TorrentWorkflow,
+        AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentInspector, TorrentProgress,
+        TorrentRateLimit, TorrentRates, TorrentSource, TorrentStatus, TorrentWorkflow,
     };
+    use std::collections::HashMap;
+    use std::net::IpAddr;
+    use std::str::FromStr;
     use std::sync::Arc;
     use std::time::{Duration, Instant};
     use tokio::sync::{Mutex, oneshot};
     use tokio::time::{sleep, timeout};
     use uuid::Uuid;
+
+    use serde_json::json;
+    use std::sync::atomic::{AtomicBool, Ordering};
+
+    #[derive(Clone)]
+    struct MockConfig {
+        inner: Arc<tokio::sync::Mutex<MockConfigState>>,
+        fail_snapshot: Arc<AtomicBool>,
+    }
+
+    struct MockConfigState {
+        snapshot: ConfigSnapshot,
+        tokens: HashMap<String, DateTime<Utc>>,
+        api_keys: HashMap<String, MockApiKey>,
+    }
+
+    struct MockApiKey {
+        secret: String,
+        auth: ApiKeyAuth,
+        enabled: bool,
+    }
+
+    impl MockConfig {
+        fn new() -> Self {
+            let snapshot = ConfigSnapshot {
+                revision: 1,
+                app_profile: AppProfile {
+                    id: Uuid::new_v4(),
+                    instance_name: "revaer".to_string(),
+                    mode: AppMode::Setup,
+                    version: 1,
+                    http_port: 7070,
+                    bind_addr: IpAddr::from_str("127.0.0.1").expect("ip"),
+                    telemetry: Value::Null,
+                    features: Value::Null,
+                    immutable_keys: Value::Null,
+                },
+                engine_profile: EngineProfile {
+                    id: Uuid::new_v4(),
+                    implementation: "stub".to_string(),
+                    listen_port: Some(6881),
+                    dht: true,
+                    encryption: "preferred".to_string(),
+                    max_active: Some(10),
+                    max_download_bps: None,
+                    max_upload_bps: None,
+                    sequential_default: false,
+                    resume_dir: "/tmp/resume".to_string(),
+                    download_root: "/tmp/downloads".to_string(),
+                    tracker: Value::Null,
+                },
+                fs_policy: FsPolicy {
+                    id: Uuid::new_v4(),
+                    library_root: "/tmp/library".to_string(),
+                    extract: false,
+                    par2: "disabled".to_string(),
+                    flatten: false,
+                    move_mode: "copy".to_string(),
+                    cleanup_keep: Value::Null,
+                    cleanup_drop: Value::Null,
+                    chmod_file: None,
+                    chmod_dir: None,
+                    owner: None,
+                    group: None,
+                    umask: None,
+                    allow_paths: Value::Array(vec![]),
+                },
+            };
+            Self {
+                inner: Arc::new(tokio::sync::Mutex::new(MockConfigState {
+                    snapshot,
+                    tokens: HashMap::new(),
+                    api_keys: HashMap::new(),
+                })),
+                fail_snapshot: Arc::new(AtomicBool::new(false)),
+            }
+        }
+
+        fn shared(&self) -> SharedConfig {
+            Arc::new(self.clone()) as SharedConfig
+        }
+
+        async fn set_app_mode(&self, mode: AppMode) {
+            let mut guard = self.inner.lock().await;
+            guard.snapshot.app_profile.mode = mode;
+        }
+
+        async fn insert_api_key(&self, key_id: &str, secret: &str) {
+            let mut guard = self.inner.lock().await;
+            guard.api_keys.insert(
+                key_id.to_string(),
+                MockApiKey {
+                    secret: secret.to_string(),
+                    auth: ApiKeyAuth {
+                        key_id: key_id.to_string(),
+                        label: Some("test".to_string()),
+                        rate_limit: None,
+                    },
+                    enabled: true,
+                },
+            );
+        }
+
+        fn set_fail_snapshot(&self, flag: bool) {
+            self.fail_snapshot.store(flag, Ordering::SeqCst);
+        }
+
+        async fn snapshot(&self) -> ConfigSnapshot {
+            self.inner.lock().await.snapshot.clone()
+        }
+    }
+
+    #[async_trait]
+    impl ConfigFacade for MockConfig {
+        async fn get_app_profile(&self) -> Result<AppProfile> {
+            Ok(self.inner.lock().await.snapshot.app_profile.clone())
+        }
+
+        async fn issue_setup_token(&self, ttl: Duration, _issued_by: &str) -> Result<SetupToken> {
+            let mut guard = self.inner.lock().await;
+            let token = format!("token-{}", guard.tokens.len() + 1);
+            let expires_at = Utc::now() + ChronoDuration::from_std(ttl).expect("ttl");
+            guard.tokens.insert(token.clone(), expires_at);
+            drop(guard);
+            Ok(SetupToken {
+                plaintext: token,
+                expires_at,
+            })
+        }
+
+        async fn validate_setup_token(&self, token: &str) -> Result<()> {
+            let expires = {
+                let guard = self.inner.lock().await;
+                guard
+                    .tokens
+                    .get(token)
+                    .copied()
+                    .ok_or_else(|| anyhow::anyhow!("unknown token"))?
+            };
+            if expires > Utc::now() {
+                Ok(())
+            } else {
+                anyhow::bail!("expired")
+            }
+        }
+
+        async fn consume_setup_token(&self, token: &str) -> Result<()> {
+            {
+                let mut guard = self.inner.lock().await;
+                guard
+                    .tokens
+                    .remove(token)
+                    .ok_or_else(|| anyhow::anyhow!("unknown token"))?;
+            }
+            Ok(())
+        }
+
+        async fn apply_changeset(
+            &self,
+            _actor: &str,
+            _reason: &str,
+            mut changeset: SettingsChangeset,
+        ) -> Result<AppliedChanges> {
+            let mut guard = self.inner.lock().await;
+            let mut app_changed = false;
+            let mut engine_changed = false;
+            let mut fs_changed = false;
+
+            if let Some(patch) = changeset.app_profile.take() {
+                apply_app_profile_patch(&mut guard.snapshot.app_profile, &patch)?;
+                app_changed = true;
+            }
+
+            if let Some(patch) = changeset.engine_profile.take() {
+                apply_engine_patch(&mut guard.snapshot.engine_profile, &patch);
+                engine_changed = true;
+            }
+
+            if let Some(patch) = changeset.fs_policy.take() {
+                apply_fs_patch(&mut guard.snapshot.fs_policy, &patch);
+                fs_changed = true;
+            }
+
+            for patch in changeset.api_keys {
+                match patch {
+                    revaer_config::ApiKeyPatch::Upsert {
+                        key_id,
+                        secret,
+                        enabled,
+                        label,
+                        ..
+                    } => {
+                        let secret = secret.unwrap_or_else(|| "secret".to_string());
+                        guard.api_keys.insert(
+                            key_id.clone(),
+                            MockApiKey {
+                                secret,
+                                auth: ApiKeyAuth {
+                                    key_id,
+                                    label,
+                                    rate_limit: None,
+                                },
+                                enabled: enabled.unwrap_or(true),
+                            },
+                        );
+                    }
+                    revaer_config::ApiKeyPatch::Delete { key_id } => {
+                        guard.api_keys.remove(&key_id);
+                    }
+                }
+            }
+
+            guard.snapshot.revision += 1;
+            Ok(AppliedChanges {
+                revision: guard.snapshot.revision,
+                app_profile: app_changed.then(|| guard.snapshot.app_profile.clone()),
+                engine_profile: engine_changed.then(|| guard.snapshot.engine_profile.clone()),
+                fs_policy: fs_changed.then(|| guard.snapshot.fs_policy.clone()),
+            })
+        }
+
+        async fn snapshot(&self) -> Result<ConfigSnapshot> {
+            if self.fail_snapshot.load(Ordering::SeqCst) {
+                anyhow::bail!("snapshot unavailable")
+            }
+            Ok(self.inner.lock().await.snapshot.clone())
+        }
+
+        async fn authenticate_api_key(
+            &self,
+            key_id: &str,
+            secret: &str,
+        ) -> Result<Option<ApiKeyAuth>> {
+            let auth = {
+                let guard = self.inner.lock().await;
+                guard.api_keys.get(key_id).and_then(|entry| {
+                    (entry.enabled && entry.secret == secret).then(|| entry.auth.clone())
+                })
+            };
+            Ok(auth)
+        }
+    }
+
+    fn apply_app_profile_patch(profile: &mut AppProfile, patch: &Value) -> Result<()> {
+        if let Some(name) = patch.get("instance_name").and_then(Value::as_str) {
+            profile.instance_name = name.to_string();
+        }
+        if let Some(bind) = patch.get("bind_addr").and_then(Value::as_str) {
+            profile.bind_addr = IpAddr::from_str(bind)?;
+        }
+        if let Some(port) = patch.get("http_port").and_then(Value::as_i64) {
+            profile.http_port = i32::try_from(port)
+                .map_err(|_| anyhow::anyhow!("http_port {port} exceeds i32 range"))?;
+        }
+        if let Some(mode) = patch.get("mode").and_then(Value::as_str) {
+            profile.mode = mode.parse()?;
+        }
+        Ok(())
+    }
+
+    fn apply_engine_patch(profile: &mut EngineProfile, patch: &Value) {
+        if let Some(impl_name) = patch.get("implementation").and_then(Value::as_str) {
+            profile.implementation = impl_name.to_string();
+        }
+        if let Some(resume) = patch.get("resume_dir").and_then(Value::as_str) {
+            profile.resume_dir = resume.to_string();
+        }
+        if let Some(download) = patch.get("download_root").and_then(Value::as_str) {
+            profile.download_root = download.to_string();
+        }
+    }
+
+    fn apply_fs_patch(policy: &mut FsPolicy, patch: &Value) {
+        if let Some(root) = patch.get("library_root").and_then(Value::as_str) {
+            policy.library_root = root.to_string();
+        }
+        if let Some(allow_paths) = patch.get("allow_paths") {
+            policy.allow_paths = allow_paths.clone();
+        }
+    }
+
+    #[derive(Default)]
+    struct StubTorrent {
+        statuses: Mutex<Vec<TorrentStatus>>,
+        added: Mutex<Vec<AddTorrent>>,
+        removed: Mutex<Vec<Uuid>>,
+        selections: Mutex<Vec<(Uuid, FileSelectionUpdate)>>,
+        actions: Mutex<Vec<(Uuid, String)>>,
+    }
+
+    impl StubTorrent {
+        async fn push_status(&self, status: TorrentStatus) {
+            self.statuses.lock().await.push(status);
+        }
+
+        async fn added(&self) -> Vec<AddTorrent> {
+            self.added.lock().await.clone()
+        }
+
+        async fn selections(&self) -> Vec<(Uuid, FileSelectionUpdate)> {
+            self.selections.lock().await.clone()
+        }
+
+        async fn actions(&self) -> Vec<(Uuid, String)> {
+            self.actions.lock().await.clone()
+        }
+    }
+
+    #[async_trait]
+    impl TorrentWorkflow for StubTorrent {
+        async fn add_torrent(&self, request: AddTorrent) -> anyhow::Result<()> {
+            self.added.lock().await.push(request.clone());
+            let status = TorrentStatus {
+                id: request.id,
+                name: request.options.name_hint.clone(),
+                progress: TorrentProgress {
+                    bytes_total: 100,
+                    bytes_downloaded: 0,
+                    ..TorrentProgress::default()
+                },
+                last_updated: Utc::now(),
+                ..TorrentStatus::default()
+            };
+            self.statuses.lock().await.push(status);
+            Ok(())
+        }
+
+        async fn remove_torrent(&self, id: Uuid, _options: RemoveTorrent) -> anyhow::Result<()> {
+            self.removed.lock().await.push(id);
+            self.statuses.lock().await.retain(|status| status.id != id);
+            self.actions.lock().await.push((id, "remove".to_string()));
+            Ok(())
+        }
+
+        async fn update_selection(
+            &self,
+            id: Uuid,
+            rules: FileSelectionUpdate,
+        ) -> anyhow::Result<()> {
+            self.selections.lock().await.push((id, rules));
+            Ok(())
+        }
+
+        async fn set_sequential(&self, id: Uuid, enable: bool) -> anyhow::Result<()> {
+            self.actions
+                .lock()
+                .await
+                .push((id, format!("sequential:{enable}")));
+            Ok(())
+        }
+
+        async fn update_limits(
+            &self,
+            id: Option<Uuid>,
+            limits: TorrentRateLimit,
+        ) -> anyhow::Result<()> {
+            if let Some(id) = id {
+                self.actions.lock().await.push((id, "rate".to_string()));
+            }
+            let _ = limits;
+            Ok(())
+        }
+
+        async fn reannounce(&self, id: Uuid) -> anyhow::Result<()> {
+            self.actions
+                .lock()
+                .await
+                .push((id, "reannounce".to_string()));
+            Ok(())
+        }
+
+        async fn recheck(&self, id: Uuid) -> anyhow::Result<()> {
+            self.actions.lock().await.push((id, "recheck".to_string()));
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl TorrentInspector for StubTorrent {
+        async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+            Ok(self.statuses.lock().await.clone())
+        }
+
+        async fn get(&self, id: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+            Ok(self
+                .statuses
+                .lock()
+                .await
+                .iter()
+                .find(|status| status.id == id)
+                .cloned())
+        }
+    }
+
+    #[tokio::test]
+    async fn setup_flow_promotes_active_mode() -> Result<()> {
+        let config = MockConfig::new();
+        let events = EventBus::with_capacity(32);
+        let mut event_stream = events.subscribe(None);
+        let metrics = Metrics::new()?;
+        let state = Arc::new(ApiState::new(
+            config.shared(),
+            metrics,
+            Arc::new(build_openapi_document()),
+            events.clone(),
+            None,
+        ));
+
+        let Json(start) = setup_start(State(state.clone()), None)
+            .await
+            .expect("setup start");
+        assert!(!start.token.is_empty());
+
+        let changeset = SettingsChangeset {
+            app_profile: Some(json!({
+                "instance_name": "demo",
+                "bind_addr": "127.0.0.1",
+                "http_port": 8080,
+                "mode": "active"
+            })),
+            engine_profile: Some(json!({
+                "implementation": "libtorrent",
+                "resume_dir": "/var/lib/revaer/resume",
+                "download_root": "/var/lib/revaer/downloads"
+            })),
+            fs_policy: Some(json!({
+                "library_root": "/data/library",
+                "allow_paths": ["/data"]
+            })),
+            api_keys: vec![revaer_config::ApiKeyPatch::Upsert {
+                key_id: "bootstrap".to_string(),
+                label: Some("bootstrap".to_string()),
+                enabled: Some(true),
+                secret: Some("secret".to_string()),
+                rate_limit: None,
+            }],
+            secrets: vec![],
+        };
+
+        let Json(snapshot) = setup_complete(
+            State(state.clone()),
+            Extension(AuthContext::SetupToken(start.token.clone())),
+            Json(changeset),
+        )
+        .await
+        .expect("setup complete");
+
+        assert_eq!(snapshot.app_profile.mode, AppMode::Active);
+        let event = timeout(Duration::from_secs(1), event_stream.next())
+            .await
+            .expect("settings event")
+            .expect("event value");
+        assert!(matches!(event.event, CoreEvent::SettingsChanged { .. }));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn settings_patch_updates_snapshot() -> Result<()> {
+        let config = MockConfig::new();
+        config.set_app_mode(AppMode::Active).await;
+        config.insert_api_key("admin", "secret").await;
+
+        let events = EventBus::with_capacity(8);
+        let metrics = Metrics::new()?;
+        let state = Arc::new(ApiState::new(
+            config.shared(),
+            metrics,
+            Arc::new(build_openapi_document()),
+            events,
+            None,
+        ));
+
+        let changeset = SettingsChangeset {
+            app_profile: Some(json!({"instance_name": "patched"})),
+            engine_profile: None,
+            fs_policy: None,
+            api_keys: Vec::new(),
+            secrets: Vec::new(),
+        };
+
+        let Json(response) = settings_patch(
+            State(state.clone()),
+            Extension(AuthContext::ApiKey {
+                key_id: "admin".to_string(),
+            }),
+            Json(changeset),
+        )
+        .await
+        .expect("settings patch");
+
+        assert_eq!(response.app_profile.instance_name, "patched");
+        let snapshot = config.snapshot().await;
+        assert_eq!(snapshot.app_profile.instance_name, "patched");
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[allow(clippy::too_many_lines)]
+    async fn torrent_endpoints_execute_workflow() -> Result<()> {
+        let config = MockConfig::new();
+        config.set_app_mode(AppMode::Active).await;
+        config.insert_api_key("operator", "secret").await;
+
+        let events = EventBus::with_capacity(32);
+        let metrics = Metrics::new()?;
+        let stub = Arc::new(StubTorrent::default());
+        let workflow: Arc<dyn TorrentWorkflow> = stub.clone();
+        let inspector: Arc<dyn TorrentInspector> = stub.clone();
+        let handles = TorrentHandles::new(workflow, inspector);
+        let state = Arc::new(ApiState::new(
+            config.shared(),
+            metrics,
+            Arc::new(build_openapi_document()),
+            events,
+            Some(handles),
+        ));
+
+        let existing_id = Uuid::new_v4();
+        let status = TorrentStatus {
+            id: existing_id,
+            name: Some("existing".to_string()),
+            progress: TorrentProgress {
+                bytes_total: 100,
+                bytes_downloaded: 100,
+                ..TorrentProgress::default()
+            },
+            state: TorrentState::Completed,
+            library_path: Some("/library/existing".to_string()),
+            ..TorrentStatus::default()
+        };
+        stub.push_status(status).await;
+
+        let request = TorrentCreateRequest {
+            id: Uuid::new_v4(),
+            magnet: Some("magnet:?xt=urn:btih:test".to_string()),
+            name: Some("example".to_string()),
+            ..TorrentCreateRequest::default()
+        };
+
+        create_torrent(
+            State(state.clone()),
+            Extension(AuthContext::ApiKey {
+                key_id: "operator".to_string(),
+            }),
+            Json(request.clone()),
+        )
+        .await
+        .expect("create torrent");
+
+        assert_eq!(stub.added().await.len(), 1);
+
+        let Json(list) = list_torrents(State(state.clone()), Query(TorrentListQuery::default()))
+            .await
+            .expect("list torrents");
+        assert!(list.torrents.iter().any(|item| item.id == existing_id));
+
+        let Json(detail) = get_torrent(State(state.clone()), AxumPath(existing_id))
+            .await
+            .expect("get torrent");
+        assert_eq!(detail.summary.id, existing_id);
+
+        let selection = TorrentSelectionRequest {
+            include: vec!["*.mkv".to_string()],
+            exclude: vec![],
+            skip_fluff: Some(true),
+            priorities: Vec::new(),
+        };
+        select_torrent(
+            State(state.clone()),
+            Extension(AuthContext::ApiKey {
+                key_id: "operator".to_string(),
+            }),
+            AxumPath(existing_id),
+            Json(selection.clone()),
+        )
+        .await
+        .expect("select torrent");
+        assert_eq!(stub.selections().await.len(), 1);
+
+        action_torrent(
+            State(state.clone()),
+            Extension(AuthContext::ApiKey {
+                key_id: "operator".to_string(),
+            }),
+            AxumPath(existing_id),
+            Json(TorrentAction::Sequential { enable: true }),
+        )
+        .await
+        .expect("sequential action");
+
+        action_torrent(
+            State(state.clone()),
+            Extension(AuthContext::ApiKey {
+                key_id: "operator".to_string(),
+            }),
+            AxumPath(existing_id),
+            Json(TorrentAction::Remove { delete_data: true }),
+        )
+        .await
+        .expect("remove action");
+        assert!(
+            stub.actions()
+                .await
+                .iter()
+                .any(|(_, action)| action == "remove")
+        );
+
+        delete_torrent(
+            State(state.clone()),
+            Extension(AuthContext::ApiKey {
+                key_id: "operator".to_string(),
+            }),
+            AxumPath(request.id),
+        )
+        .await
+        .expect("delete torrent");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn health_endpoints_reflect_state() -> Result<()> {
+        let config = MockConfig::new();
+        config.set_app_mode(AppMode::Active).await;
+        let events = EventBus::with_capacity(8);
+        let telemetry = Metrics::new()?;
+        let state = Arc::new(ApiState::new(
+            config.shared(),
+            telemetry,
+            Arc::new(build_openapi_document()),
+            events.clone(),
+            None,
+        ));
+
+        let Json(health_response) = health(State(state.clone())).await.expect("health");
+        assert_eq!(health_response.status, "ok");
+
+        let Json(full) = health_full(State(state.clone()))
+            .await
+            .expect("health full");
+        assert_eq!(full.status, "ok");
+
+        let response = super::metrics(State(state.clone())).await.expect("metrics");
+        assert_eq!(response.status(), StatusCode::OK);
+
+        config.set_fail_snapshot(true);
+        let degraded = health(State(state.clone())).await;
+        assert!(degraded.is_err());
+        Ok(())
+    }
 
     #[tokio::test]
     async fn sse_stream_resumes_from_last_event() {
@@ -3077,5 +3797,142 @@ mod tests {
             drop(recorded);
         }
         Ok(())
+    }
+
+    #[test]
+    fn decode_cursor_token_rejects_invalid_base64() {
+        let err = decode_cursor_token("%%%");
+        assert!(err.is_err(), "invalid cursor token should error");
+        let api_err = err.expect_err("expected error");
+        assert_eq!(api_err.status, StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn cursor_token_round_trip_preserves_identity() {
+        let status = TorrentStatus {
+            id: Uuid::new_v4(),
+            last_updated: Utc::now(),
+            ..TorrentStatus::default()
+        };
+        let entry = StatusEntry {
+            status: status.clone(),
+            metadata: TorrentMetadata::new(vec![], vec![]),
+        };
+
+        let encoded = encode_cursor_from_entry(&entry).expect("cursor encoding should succeed");
+        let decoded = decode_cursor_token(&encoded).expect("cursor decoding should succeed");
+        assert_eq!(decoded.id, status.id);
+        assert_eq!(decoded.last_updated, status.last_updated);
+    }
+
+    #[test]
+    fn parse_state_filter_rejects_unknown_value() {
+        let err =
+            parse_state_filter("mystery").expect_err("unexpected success for unknown state filter");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn comma_splitter_trims_and_lowercases() {
+        let values = split_comma_separated(" Alpha , ,BETA ,gamma ");
+        assert_eq!(values, vec!["alpha", "beta", "gamma"]);
+    }
+
+    #[test]
+    fn normalise_lower_trims_whitespace() {
+        assert_eq!(normalise_lower("  HeLLo "), "hello");
+    }
+
+    #[test]
+    fn build_sse_filter_rejects_unknown_event_kind() {
+        let query = SseQuery {
+            event: Some("not_a_real_event".to_string()),
+            ..SseQuery::default()
+        };
+        let err = build_sse_filter(&query).expect_err("unknown event kind should be rejected");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn build_sse_filter_parses_filters() {
+        let torrent_id = Uuid::new_v4();
+        let query = SseQuery {
+            torrent: Some(format!("{torrent_id}")),
+            event: Some("progress,completed".to_string()),
+            state: Some("Completed".to_string()),
+        };
+
+        let filter = build_sse_filter(&query).expect("filter construction should succeed");
+        assert!(filter.torrent_ids.contains(&torrent_id));
+        assert!(filter.event_kinds.contains("progress"));
+        assert!(filter.event_kinds.contains("completed"));
+        assert!(filter.states.contains(&TorrentStateKind::Completed));
+    }
+
+    #[test]
+    fn matches_sse_filter_respects_state_and_ids() {
+        let torrent_id = Uuid::new_v4();
+        let mut filter = SseFilter::default();
+        filter.torrent_ids.insert(torrent_id);
+        filter.states.insert(TorrentStateKind::Completed);
+
+        let completed = EventEnvelope {
+            id: 1,
+            timestamp: Utc::now(),
+            event: CoreEvent::Completed {
+                torrent_id,
+                library_path: "/library/demo".to_string(),
+            },
+        };
+        assert!(matches_sse_filter(&completed, &filter));
+
+        let wrong_id = EventEnvelope {
+            id: 2,
+            timestamp: Utc::now(),
+            event: CoreEvent::Completed {
+                torrent_id: Uuid::new_v4(),
+                library_path: "/library/other".to_string(),
+            },
+        };
+        assert!(!matches_sse_filter(&wrong_id, &filter));
+
+        let wrong_state = EventEnvelope {
+            id: 3,
+            timestamp: Utc::now(),
+            event: CoreEvent::StateChanged {
+                torrent_id,
+                state: TorrentState::Downloading,
+            },
+        };
+        assert!(!matches_sse_filter(&wrong_state, &filter));
+    }
+
+    #[test]
+    fn detail_from_components_embeds_metadata() {
+        let now = Utc::now();
+        let status = TorrentStatus {
+            id: Uuid::new_v4(),
+            name: Some("demo".to_string()),
+            state: TorrentState::Completed,
+            progress: TorrentProgress {
+                bytes_downloaded: 100,
+                bytes_total: 100,
+                eta_seconds: None,
+            },
+            rates: TorrentRates::default(),
+            files: None,
+            library_path: Some("/library/demo".to_string()),
+            download_dir: None,
+            sequential: false,
+            added_at: now,
+            completed_at: Some(now),
+            last_updated: now,
+        };
+        let metadata =
+            TorrentMetadata::new(vec!["tag".to_string()], vec!["http://tracker".to_string()]);
+
+        let detail = detail_from_components(status, metadata);
+        assert_eq!(detail.summary.tags, vec!["tag".to_string()]);
+        assert_eq!(detail.summary.trackers, vec!["http://tracker".to_string()]);
     }
 }

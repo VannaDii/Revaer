@@ -329,3 +329,151 @@ pub trait TorrentInspector: Send + Sync {
 
     async fn get(&self, id: Uuid) -> anyhow::Result<Option<TorrentStatus>>;
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use async_trait::async_trait;
+
+    #[test]
+    fn torrent_source_helpers_construct_variants() {
+        let magnet = TorrentSource::magnet("magnet:?xt=urn:btih:demo");
+        match magnet {
+            TorrentSource::Magnet { uri } => assert!(uri.contains("demo")),
+            TorrentSource::Metainfo { .. } => panic!("expected magnet variant"),
+        }
+
+        let data = vec![1_u8, 2, 3];
+        let meta = TorrentSource::metainfo(data.clone());
+        match meta {
+            TorrentSource::Metainfo { bytes } => assert_eq!(bytes, data),
+            TorrentSource::Magnet { .. } => panic!("expected metainfo variant"),
+        }
+    }
+
+    #[test]
+    fn progress_percent_handles_zero_total() {
+        let zero = TorrentProgress {
+            bytes_downloaded: 0,
+            bytes_total: 0,
+            eta_seconds: None,
+        };
+        assert!(zero.percent_complete().abs() < f64::EPSILON);
+
+        let half = TorrentProgress {
+            bytes_downloaded: 5,
+            bytes_total: 10,
+            eta_seconds: None,
+        };
+        assert!((half.percent_complete() - 50.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn torrent_status_default_sets_reasonable_fields() {
+        let status = TorrentStatus::default();
+        assert_eq!(status.state, revaer_events::TorrentState::Queued);
+        assert_eq!(status.progress.bytes_downloaded, 0);
+        assert!(!status.sequential);
+    }
+
+    struct StubEngine;
+
+    #[async_trait]
+    impl TorrentEngine for StubEngine {
+        async fn add_torrent(&self, _request: AddTorrent) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn remove_torrent(&self, _id: Uuid, _options: RemoveTorrent) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn engine_default_methods_error() {
+        let engine = StubEngine;
+        let id = Uuid::new_v4();
+
+        let pause = engine.pause_torrent(id).await;
+        assert!(pause.is_err(), "pause should not be supported");
+
+        let resume = engine.resume_torrent(id).await;
+        assert!(resume.is_err(), "resume should not be supported");
+
+        let sequential = engine.set_sequential(id, true).await;
+        assert!(
+            sequential.is_err(),
+            "sequential toggle should not be supported"
+        );
+    }
+
+    #[tokio::test]
+    async fn engine_update_and_reannounce_errors() {
+        let engine = StubEngine;
+        let id = Uuid::new_v4();
+        assert!(
+            engine
+                .update_limits(Some(id), TorrentRateLimit::default())
+                .await
+                .is_err()
+        );
+        assert!(
+            engine
+                .update_selection(id, FileSelectionUpdate::default())
+                .await
+                .is_err()
+        );
+        assert!(engine.reannounce(id).await.is_err());
+        assert!(engine.recheck(id).await.is_err());
+    }
+
+    struct StubWorkflow;
+
+    #[async_trait]
+    impl TorrentWorkflow for StubWorkflow {
+        async fn add_torrent(&self, _request: AddTorrent) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn remove_torrent(&self, _id: Uuid, _options: RemoveTorrent) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn workflow_default_methods_error() {
+        let workflow = StubWorkflow;
+        let id = Uuid::new_v4();
+
+        assert!(workflow.pause_torrent(id).await.is_err());
+        assert!(workflow.resume_torrent(id).await.is_err());
+        assert!(
+            workflow
+                .set_sequential(id, true)
+                .await
+                .expect_err("sequential should error")
+                .to_string()
+                .contains("not supported")
+        );
+    }
+
+    #[tokio::test]
+    async fn workflow_update_methods_error() {
+        let workflow = StubWorkflow;
+        let id = Uuid::new_v4();
+        assert!(
+            workflow
+                .update_limits(Some(id), TorrentRateLimit::default())
+                .await
+                .is_err()
+        );
+        assert!(
+            workflow
+                .update_selection(id, FileSelectionUpdate::default())
+                .await
+                .is_err()
+        );
+        assert!(workflow.reannounce(id).await.is_err());
+        assert!(workflow.recheck(id).await.is_err());
+    }
+}

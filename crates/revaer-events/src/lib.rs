@@ -257,6 +257,73 @@ mod tests {
 
     const PUBLISH_TIMEOUT: Duration = Duration::from_secs(1);
 
+    #[test]
+    fn event_kinds_cover_all_variants() {
+        let torrent_id = Uuid::new_v4();
+        let files = vec![DiscoveredFile {
+            path: "demo.mkv".to_string(),
+            size_bytes: 42,
+        }];
+        let events = [
+            Event::TorrentAdded {
+                torrent_id,
+                name: "demo".to_string(),
+            },
+            Event::FilesDiscovered { torrent_id, files },
+            Event::Progress {
+                torrent_id,
+                bytes_downloaded: 10,
+                bytes_total: 100,
+            },
+            Event::StateChanged {
+                torrent_id,
+                state: TorrentState::Downloading,
+            },
+            Event::Completed {
+                torrent_id,
+                library_path: "/library/demo".to_string(),
+            },
+            Event::FsopsStarted { torrent_id },
+            Event::FsopsProgress {
+                torrent_id,
+                step: "stage".to_string(),
+            },
+            Event::FsopsCompleted { torrent_id },
+            Event::FsopsFailed {
+                torrent_id,
+                message: "fail".to_string(),
+            },
+            Event::SettingsChanged {
+                description: "updated".to_string(),
+            },
+            Event::HealthChanged {
+                degraded: vec!["config".to_string()],
+            },
+            Event::SelectionReconciled {
+                torrent_id,
+                reason: "metadata".to_string(),
+            },
+        ];
+
+        for event in events {
+            let expected = match &event {
+                Event::TorrentAdded { .. } => "torrent_added",
+                Event::FilesDiscovered { .. } => "files_discovered",
+                Event::Progress { .. } => "progress",
+                Event::StateChanged { .. } => "state_changed",
+                Event::Completed { .. } => "completed",
+                Event::FsopsStarted { .. } => "fsops_started",
+                Event::FsopsProgress { .. } => "fsops_progress",
+                Event::FsopsCompleted { .. } => "fsops_completed",
+                Event::FsopsFailed { .. } => "fsops_failed",
+                Event::SettingsChanged { .. } => "settings_changed",
+                Event::HealthChanged { .. } => "health_changed",
+                Event::SelectionReconciled { .. } => "selection_reconciled",
+            };
+            assert_eq!(event.kind(), expected);
+        }
+    }
+
     fn sample_progress_event(id: usize) -> Event {
         Event::Progress {
             torrent_id: Uuid::from_u128(id as u128 + 1),
@@ -320,5 +387,47 @@ mod tests {
         publisher.await.expect("publisher task panicked");
         let ids = consumer.await.expect("consumer task panicked");
         assert_eq!(ids.len(), 500);
+    }
+
+    #[tokio::test]
+    async fn last_event_id_reflects_recent_publish() {
+        let bus = EventBus::with_capacity(2);
+        assert!(bus.last_event_id().is_none(), "no events published yet");
+        let published = bus.publish(sample_progress_event(0));
+        assert_eq!(bus.last_event_id(), Some(published));
+    }
+
+    #[tokio::test]
+    async fn subscribe_without_since_replays_all() {
+        let bus = EventBus::with_capacity(4);
+        for i in 0..3 {
+            let _ = bus.publish(sample_progress_event(i));
+        }
+        let mut stream = bus.subscribe(Some(0));
+        let mut collected = Vec::new();
+        for expected_id in 1..=3 {
+            collected.push(
+                timeout(PUBLISH_TIMEOUT, stream.next())
+                    .await
+                    .expect("stream stalled")
+                    .expect("stream closed"),
+            );
+            assert_eq!(collected.last().unwrap().id, expected_id);
+        }
+        assert_eq!(collected.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn stream_returns_none_after_sender_dropped() {
+        let mut stream = {
+            let bus = EventBus::with_capacity(1);
+            let stream = bus.subscribe(None);
+            drop(bus);
+            stream
+        };
+        assert!(
+            stream.next().await.is_none(),
+            "closing the sender should end the stream"
+        );
     }
 }

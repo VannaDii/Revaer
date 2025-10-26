@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 //! Database-backed configuration facade built on `PostgreSQL`.
 //!
 //! This module exposes a `SettingsFacade` trait and a concrete `ConfigService`

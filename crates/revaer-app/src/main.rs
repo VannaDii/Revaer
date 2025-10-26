@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 mod orchestrator;
 
 use std::net::{IpAddr, SocketAddr};
