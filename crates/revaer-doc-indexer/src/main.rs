@@ -237,14 +237,14 @@ fn fallback_summary(raw: &str) -> Result<String> {
             content = stripped;
         } else if let Some(stripped) = content.strip_prefix("* ") {
             content = stripped;
-        } else if let Some((digits, rest)) = content.split_once(". ") {
-            if digits.chars().all(|ch| ch.is_ascii_digit()) {
-                content = rest.trim_start();
-            }
-        } else if let Some((digits, rest)) = content.split_once(") ") {
-            if digits.chars().all(|ch| ch.is_ascii_digit()) {
-                content = rest.trim_start();
-            }
+        } else if let Some((digits, rest)) = content.split_once(". ")
+            && digits.chars().all(|ch| ch.is_ascii_digit())
+        {
+            content = rest.trim_start();
+        } else if let Some((digits, rest)) = content.split_once(") ")
+            && digits.chars().all(|ch| ch.is_ascii_digit())
+        {
+            content = rest.trim_start();
         }
 
         if content.is_empty() {

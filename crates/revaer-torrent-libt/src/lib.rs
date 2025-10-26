@@ -262,11 +262,11 @@ mod tests {
         let mut reconciled = false;
         for _ in 0..10 {
             let event = next_event(&mut stream).await;
-            if let Event::SelectionReconciled { torrent_id: id, .. } = event {
-                if id == torrent_id {
-                    reconciled = true;
-                    break;
-                }
+            if let Event::SelectionReconciled { torrent_id: id, .. } = event
+                && id == torrent_id
+            {
+                reconciled = true;
+                break;
             }
         }
         assert!(

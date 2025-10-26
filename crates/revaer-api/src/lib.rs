@@ -1386,15 +1386,14 @@ async fn list_torrents(
             }
         }
 
-        if let Some(ref tracker) = tracker_filter {
-            if !entry
+        if let Some(ref tracker) = tracker_filter
+            && !entry
                 .metadata
                 .trackers
                 .iter()
                 .any(|value| value.to_lowercase().contains(tracker))
-            {
-                return false;
-            }
+        {
+            return false;
         }
 
         if let Some(ref extension) = extension_filter {

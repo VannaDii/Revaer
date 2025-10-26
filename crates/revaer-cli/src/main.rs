@@ -1153,10 +1153,10 @@ async fn stream_events(
                 }
             } else if let Some(data) = line.strip_prefix("data:") {
                 current_data.push(data.trim_start().to_string());
-            } else if let Some(id) = line.strip_prefix("id:") {
-                if let Ok(value) = id.trim_start().parse::<u64>() {
-                    current_event_id = Some(value);
-                }
+            } else if let Some(id) = line.strip_prefix("id:")
+                && let Ok(value) = id.trim_start().parse::<u64>()
+            {
+                current_event_id = Some(value);
             }
         }
     }

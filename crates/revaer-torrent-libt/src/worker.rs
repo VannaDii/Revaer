@@ -208,12 +208,12 @@ impl Worker {
                     .push("restored sequential flag from resume metadata".to_string());
             }
 
-            if let Some(stored_dir) = stored.download_dir.clone() {
-                if effective_download_dir.as_deref() != Some(stored_dir.as_str()) {
-                    effective_download_dir = Some(stored_dir);
-                    reconciliation_reasons
-                        .push("restored download directory from resume metadata".to_string());
-                }
+            if let Some(stored_dir) = stored.download_dir.clone()
+                && effective_download_dir.as_deref() != Some(stored_dir.as_str())
+            {
+                effective_download_dir = Some(stored_dir);
+                reconciliation_reasons
+                    .push("restored download directory from resume metadata".to_string());
             }
         }
 
@@ -256,15 +256,18 @@ impl Worker {
         self.session.remove_torrent(id, &options).await?;
         let mut store_ok = true;
         if let Some(store) = &self.store {
-            if let Err(err) = store.remove(id) {
-                let detail = err.to_string();
-                self.mark_degraded("resume_store", Some(&detail));
-                warn!(
-                    error = %detail,
-                    torrent_id = %id,
-                    "failed to prune fastresume artifacts after torrent removal"
-                );
-                store_ok = false;
+            match store.remove(id) {
+                Ok(()) => {}
+                Err(err) => {
+                    let detail = err.to_string();
+                    self.mark_degraded("resume_store", Some(&detail));
+                    warn!(
+                        error = %detail,
+                        torrent_id = %id,
+                        "failed to prune fastresume artifacts after torrent removal"
+                    );
+                    store_ok = false;
+                }
             }
         }
         info!(
