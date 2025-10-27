@@ -191,14 +191,14 @@
 </ul>
 <h2 id="decision"><a class="header" href="#decision">Decision</a></h2>
 <ul>
-<li>FsOps responsibilities live inside <code>revaer-fsops</code>, invoked by the orchestrator (<code>TorrentOrchestrator::apply_fsops</code>) whenever a <code>Completed</code> event surfaces.</li>
-<li>Each pipeline step (<code>extract</code>, <code>par2</code>, <code>move</code>, <code>cleanup</code>) records start/completion/failure events and increments Prometheus counters via <code>Metrics::inc_fsops_step</code>.</li>
+<li>FsOps responsibilities live inside <code>revaer-fsops</code>, invoked by the orchestrator (<code>TorrentOrchestrator::apply_fsops</code>) with an explicit <code>FsOpsRequest</code> that carries the torrent id, resolved source path, and effective policy snapshot whenever a <code>Completed</code> event surfaces.</li>
+<li>Each pipeline step (<code>extract</code>, <code>flatten</code>, <code>transfer</code>, <code>set_permissions</code>, <code>cleanup</code>, <code>finalise</code>) records start/completion/failure events and increments Prometheus counters via <code>Metrics::inc_fsops_step</code>; the extraction stage currently focuses on zip archives and gracefully skips when inputs are already directories.</li>
 <li>Metadata is persisted alongside <code>.revaer.meta</code> to reconcile selection overrides and resume directories across restarts; mismatches trigger <code>SelectionReconciled</code> events plus guard-rail telemetry.</li>
 <li>Health degradation is published when FsOps detects latency guard rails, missing tools, or unrecoverable IO errors; recovery clears the <code>fsops</code> component from the degrade set.</li>
 </ul>
 <h2 id="consequences"><a class="header" href="#consequences">Consequences</a></h2>
 <ul>
-<li>FsOps execution becomes observable and retry-friendly, enabling operator runbooks to diagnose stuck jobs with concrete metrics and events.</li>
+<li>FsOps execution becomes observable and retry-friendly, enabling operator runbooks to diagnose stuck jobs with concrete metrics and events while capturing chmod/chown/umask outcomes in recorded metadata.</li>
 <li>Pipeline regressions now fail CI thanks to targeted unit/integration tests under <code>revaer-fsops</code> and orchestrator-level tests driving the shared event bus.</li>
 <li>The orchestration layer remains single-owner of FsOps invocation, simplifying future extensions (e.g., checksum verification, media tagging) without leaking concerns into the API.</li>
 </ul>

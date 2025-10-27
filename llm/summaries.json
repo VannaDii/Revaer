@@ -101,6 +101,20 @@
     "href": "/adr/008-phase-one-remaining-task/"
   },
   {
+    "id": "adr/009-fsops-permission-hardening",
+    "title": "009 – FsOps Permission Hardening",
+    "summary": "Status: Accepted Date: 2025-10-18",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/009-fsops-permission-hardening/"
+  },
+  {
     "id": "adr/index",
     "title": "Architecture Decision Records",
     "summary": "ADR documents capture the rationale behind significant technical decisions.",

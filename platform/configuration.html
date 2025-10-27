@@ -186,13 +186,24 @@
 <h2 id="snapshot-components"><a class="header" href="#snapshot-components">Snapshot Components</a></h2>
 <p>The <code>/ .well-known/revaer.json</code> endpoint and <code>revaer setup complete</code> CLI command both return the same structure:</p>
 <pre><code class="language-json">{
-  "revision": 42,
-  "app_profile": { /* see below */ },
-  "engine_profile": { /*…*/ },
-  "fs_policy": { /*…*/ },
-  "api_keys": [
-    { "key_id": "admin", "label": "bootstrap", "enabled": true, "rate_limit": null }
-  ]
+    "revision": 42,
+    "app_profile": {
+        /* see below */
+    },
+    "engine_profile": {
+        /*…*/
+    },
+    "fs_policy": {
+        /*…*/
+    },
+    "api_keys": [
+        {
+            "key_id": "admin",
+            "label": "bootstrap",
+            "enabled": true,
+            "rate_limit": null
+        }
+    ]
 }
 </code></pre>
 <h3 id="app-profile-settings_app_profile"><a class="header" href="#app-profile-settings_app_profile">App Profile (<code>settings_app_profile</code>)</a></h3>
@@ -230,28 +241,28 @@
 <tr><td><code>flatten</code></td><td>bool</td><td>Collapses single-file directories when moving into the library.</td></tr>
 <tr><td><code>move_mode</code></td><td>string</td><td><code>copy</code>, <code>move</code>, or <code>hardlink</code> semantics for the FsOps pipeline.</td></tr>
 <tr><td><code>cleanup_keep</code> / <code>cleanup_drop</code></td><td>array</td><td>Glob patterns retaining or removing files during cleanup.</td></tr>
-<tr><td><code>chmod_file</code> / <code>chmod_dir</code></td><td>string?</td><td>Optional octal permissions applied to outputs.</td></tr>
-<tr><td><code>owner</code> / <code>group</code></td><td>string?</td><td>Optional ownership override for the library root.</td></tr>
-<tr><td><code>umask</code></td><td>string?</td><td>Umask applied during FsOps.</td></tr>
+<tr><td><code>chmod_file</code> / <code>chmod_dir</code></td><td>string?</td><td>Optional octal permissions applied to outputs; when omitted the pipeline derives modes from <code>umask</code> (defaults to <code>0o666/0o777</code>).</td></tr>
+<tr><td><code>owner</code> / <code>group</code></td><td>string?</td><td>Optional ownership override resolved against system users/groups on Unix platforms; unsupported on non-Unix systems (FsOps emits a guarded failure).</td></tr>
+<tr><td><code>umask</code></td><td>string?</td><td>Umask applied during FsOps and used to derive default file/directory modes when explicit chmod directives are absent.</td></tr>
 <tr><td><code>allow_paths</code></td><td>array</td><td>Allowed staging/library paths the pipeline accepts.</td></tr>
 </tbody></table>
 </div>
 <h3 id="api-keys--secrets"><a class="header" href="#api-keys--secrets">API Keys &amp; Secrets</a></h3>
 <p>Patches can create, update, or revoke keys and named secrets. The request format mirrors <code>SettingsChangeset</code>:</p>
 <pre><code class="language-jsonc">{
-  "api_keys": [
-    {
-      "op": "upsert",
-      "key_id": "admin",
-      "label": "primary",
-      "enabled": true,
-      "secret": "optional-override",
-      "rate_limit": { "burst": 10, "per_seconds": 1 }
-    }
-  ],
-  "secrets": [
-    { "op": "set", "name": "libtorrent.passphrase", "value": "..." }
-  ]
+    "api_keys": [
+        {
+            "op": "upsert",
+            "key_id": "admin",
+            "label": "primary",
+            "enabled": true,
+            "secret": "optional-override",
+            "rate_limit": { "burst": 10, "per_seconds": 1 }
+        }
+    ],
+    "secrets": [
+        { "op": "set", "name": "libtorrent.passphrase", "value": "..." }
+    ]
 }
 </code></pre>
 <p>The API server enforces bucketed rate limits if <code>rate_limit</code> is supplied (<code>burst</code> per <code>per_seconds</code>). Invalid field names or mutations against <code>immutable_keys</code> yield RFC9457 <code>ProblemDetails</code> responses with an <code>invalid_params</code> array matching the JSON pointer returned by <code>ConfigError</code>.</p>

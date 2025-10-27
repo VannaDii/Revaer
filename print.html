@@ -205,8 +205,8 @@
 <div class="table-wrapper"><table><thead><tr><th>Workstream</th><th>Current State</th><th>Key Gaps</th><th>Immediate Actions</th></tr></thead><tbody>
 <tr><td>Control Plane &amp; Setup</td><td>Postgres schema, ConfigService watcher, setup CLI/API, immutable-key guard, history logging; loopback enforcement + RFC7807 pointers live</td><td>Engine hot-reload not yet exercising throttles; setup token lifecycle/error telemetry still thin</td><td>Add watcher-driven throttle tests, expand setup diagnostics and rate-limit guardrails</td></tr>
 <tr><td>Torrent Domain &amp; Adapter</td><td>Event bus, orchestrator scaffold, enriched torrent DTOs, stub session worker now persists resume metadata/fastresume, reconciles selection/sequential flags, enforces throttle guard rails, and surfaces degraded health</td><td>Real libtorrent FFI binding and alert pump still pending; need to exercise live fast-resume blobs and real libtorrent rate/health controls</td><td>Replace stub session with libtorrent bindings, translate real alerts, and validate against native libtorrent in the feature-gated suite</td></tr>
-<tr><td>File Selection &amp; FsOps</td><td>FsOpsService emits lifecycle events and validates library root</td><td>No extraction/flatten/move-perms/cleanup pipeline, no <code>.revaer.meta</code>, no allow-list enforcement</td><td>Model FsOps plan, implement idempotent steps with allow-list + metadata tracking, add fixtures/tests</td></tr>
-<tr><td>Public HTTP API &amp; SSE</td><td>Admin setup/settings/torrent CRUD, SSE stream, metrics stub, OpenAPI generator</td><td><code>/v1/torrents/*</code> family absent, no cursor pagination/filters, SSE replay lacks Last-Event-ID tests, health endpoints minimal</td><td>Define domain DTOs, implement public routes + filtering, extend SSE replay handling/tests, flesh out health</td></tr>
+<tr><td>File Selection &amp; FsOps</td><td>Idempotent FsOps pipeline extracts zip payloads, flattens single directories, enforces allow lists, records <code>.revaer.meta</code>, and applies move/copy/hardlink transfers with chmod/chown/umask handling</td><td>Extraction currently limited to zip archives, PAR2 stage still absent, cleanup rules lack checksum awareness, pipeline assumes Unix tooling for ownership changes</td><td>Expand extractor matrix (7z/tar), add PAR2 verification, surface non-Unix fallbacks, and extend cleanup/telemetry coverage</td></tr>
+<tr><td>Public HTTP API &amp; SSE</td><td>Admin setup/settings/torrent CRUD, SSE stream, metrics stub, OpenAPI generator, <code>/api/v2/*</code> qB façade (auth stub, version, torrents info/add/pause/resume/delete, transfer limits, incremental <code>rid</code> sync, basic removal tracking)</td><td><code>/v1/torrents/*</code> pagination/filter matrix still partial, qB façade lacks authenticated sessions, differential removal events, rename/category endpoints; SSE replay still missing Last-Event-ID coverage</td><td>Finish pagination/filter story, tighten façade auth/session handling, surface removals/categories in incremental sync, and expand SSE regression tests</td></tr>
 <tr><td>CLI Parity</td><td>Supports setup start/complete, settings patch, admin torrent add/remove (magnet-aware), status</td><td>Missing <code>select</code>, <code>action</code>, <code>ls</code>, <code>status</code> detail view, <code>tail</code> SSE client, richer validation</td><td>Extend CLI command surface to mirror API, add reconnecting SSE tailer, flesh out filtering and exit-code contract</td></tr>
 <tr><td>Security &amp; Observability</td><td>API key storage hashed, tracing initialised, metrics registry struct</td><td>No per-key rate limits, no X-RateLimit headers, magnet/body bounds missing, tracing not propagated to engine/fsops, metrics unused</td><td>Introduce token-bucket middleware, enforce payload bounds, propagate spans through orchestrator/fsops, export Prometheus counters</td></tr>
 <tr><td>CI &amp; Packaging</td><td>Workspace compiles, justfile for fmt/lint/test</td><td>No CI workflows, cargo-deny/audit missing, no env access guard, no Docker packaging or healthcheck</td><td>Author GitHub Actions (lint, security, tests, build), enforce env guard lint, build minimal non-root container with HEALTHCHECK</td></tr>
@@ -224,19 +224,19 @@
 </ul>
 <h3 id="2-file-selection--fsops-pipeline"><a class="header" href="#2-file-selection--fsops-pipeline">2. File Selection &amp; FsOps Pipeline</a></h3>
 <ul>
-<li>Implement include/exclude glob logic with <code>skip-fluff</code> presets backed by the allow-list; synchronize selection changes to libtorrent file priorities and issue corresponding EventBus notifications.</li>
-<li>Build the FsOps pipeline stages: extraction (7z), optional flattening, move/hardlink/copy into library roots, chmod/chown/umask adjustments, metadata capture, cleanup, and optional checksum calculation; each stage must record outcomes in <code>.revaer.meta</code> for idempotency.</li>
-<li>Enforce DB-driven allow-lists, refusing to access paths outside permitted roots and emitting structured errors when policies block execution.</li>
-<li>Degrade pipeline health when dependencies are missing (e.g., extractor binaries), ensuring both EventBus and <code>/health/full</code> reflect the condition; resume normal health once remediation succeeds.</li>
-<li>Back the pipeline with unit coverage for rule parsing and integration coverage for an end-to-end torrent completion to library handoff, including restart scenarios that reuse <code>.revaer.meta</code>.</li>
+<li>Keep include/exclude glob logic aligned with torrent selection so priority updates continue to reflect operator intent, including the <code>@skip_fluff</code> preset.</li>
+<li>Extend the FsOps pipeline to additional archive formats (7z/tar), introduce the PAR2 verification/repair stage, and surface checksum metadata alongside the recorded <code>.revaer.meta</code> entries.</li>
+<li>Add non-Unix fallbacks or clear operator guidance when ownership/umask directives cannot be honoured, and surface the condition via events and <code>/health/full</code>.</li>
+<li>Harden dependency detection so missing extractor binaries trigger guarded degradation with actionable telemetry, then clear automatically once remediation succeeds.</li>
+<li>Broaden integration coverage to include error paths (permission denied, unsupported archive) and restart scenarios that reuse persisted metadata, capturing metrics snapshots for each stage.</li>
 </ul>
 <h3 id="3-public-http-api--sse"><a class="header" href="#3-public-http-api--sse">3. Public HTTP API &amp; SSE</a></h3>
 <ul>
-<li>Ship <code>/v1/torrents</code> endpoints: <code>POST</code> (magnet or multipart <code>.torrent</code>), <code>GET</code> collection with cursor pagination and filters (name, state, tracker, extension), <code>GET</code> detail, <code>POST /select</code>, and <code>POST /action</code> (pause/resume/remove with optional data deletion, reannounce, recheck, sequential toggle); enforce validation aligned with domain rules.</li>
-<li>Adopt Problem+JSON responses that include JSON Pointer references for every validation failure; extend shared error helpers so CLI can mirror the structure.</li>
-<li>Enhance SSE with Last-Event-ID replay, duplicate suppression, resumable connections, and explicit event type exposure for new workflow outputs.</li>
-<li>Expand health reporting to <code>/health/full</code>, surfacing engine, FsOps, and database status with latency measurements, dependency readiness, and revision metadata.</li>
-<li>Update OpenAPI specs and golden request/response samples to cover the new surfaces; add integration tests that exercise pagination, filters, and SSE replay.</li>
+<li>Round out <code>/v1/torrents</code> with cursor pagination, rich filtering (state, tracker, extension), and stabilise reannounce/recheck/sequential toggles with regression tests.</li>
+<li>Keep Problem+JSON responses consistent (including JSON Pointer metadata) and mirror them in CLI/user-facing tooling.</li>
+<li>Enhance SSE with Last-Event-ID replay, duplicate suppression, and resiliency tests covering torrent + FsOps event fan-out.</li>
+<li>Evolve the qB façade: tighten the cookie/session model, surface removals/categories/tags in incremental sync, and expose rename/reannounce operations.</li>
+<li>Expand health reporting to <code>/health/full</code>, document façade coverage in OpenAPI/mdBook, and add integration tests that exercise pagination, SSE replay, and façade flows end-to-end.</li>
 </ul>
 <h3 id="4-cli-parity"><a class="header" href="#4-cli-parity">4. CLI Parity</a></h3>
 <ul>
@@ -605,13 +605,24 @@
 <h2 id="snapshot-components"><a class="header" href="#snapshot-components">Snapshot Components</a></h2>
 <p>The <code>/ .well-known/revaer.json</code> endpoint and <code>revaer setup complete</code> CLI command both return the same structure:</p>
 <pre><code class="language-json">{
-  "revision": 42,
-  "app_profile": { /* see below */ },
-  "engine_profile": { /*…*/ },
-  "fs_policy": { /*…*/ },
-  "api_keys": [
-    { "key_id": "admin", "label": "bootstrap", "enabled": true, "rate_limit": null }
-  ]
+    "revision": 42,
+    "app_profile": {
+        /* see below */
+    },
+    "engine_profile": {
+        /*…*/
+    },
+    "fs_policy": {
+        /*…*/
+    },
+    "api_keys": [
+        {
+            "key_id": "admin",
+            "label": "bootstrap",
+            "enabled": true,
+            "rate_limit": null
+        }
+    ]
 }
 </code></pre>
 <h3 id="app-profile-settings_app_profile"><a class="header" href="#app-profile-settings_app_profile">App Profile (<code>settings_app_profile</code>)</a></h3>
@@ -649,28 +660,28 @@
 <tr><td><code>flatten</code></td><td>bool</td><td>Collapses single-file directories when moving into the library.</td></tr>
 <tr><td><code>move_mode</code></td><td>string</td><td><code>copy</code>, <code>move</code>, or <code>hardlink</code> semantics for the FsOps pipeline.</td></tr>
 <tr><td><code>cleanup_keep</code> / <code>cleanup_drop</code></td><td>array</td><td>Glob patterns retaining or removing files during cleanup.</td></tr>
-<tr><td><code>chmod_file</code> / <code>chmod_dir</code></td><td>string?</td><td>Optional octal permissions applied to outputs.</td></tr>
-<tr><td><code>owner</code> / <code>group</code></td><td>string?</td><td>Optional ownership override for the library root.</td></tr>
-<tr><td><code>umask</code></td><td>string?</td><td>Umask applied during FsOps.</td></tr>
+<tr><td><code>chmod_file</code> / <code>chmod_dir</code></td><td>string?</td><td>Optional octal permissions applied to outputs; when omitted the pipeline derives modes from <code>umask</code> (defaults to <code>0o666/0o777</code>).</td></tr>
+<tr><td><code>owner</code> / <code>group</code></td><td>string?</td><td>Optional ownership override resolved against system users/groups on Unix platforms; unsupported on non-Unix systems (FsOps emits a guarded failure).</td></tr>
+<tr><td><code>umask</code></td><td>string?</td><td>Umask applied during FsOps and used to derive default file/directory modes when explicit chmod directives are absent.</td></tr>
 <tr><td><code>allow_paths</code></td><td>array</td><td>Allowed staging/library paths the pipeline accepts.</td></tr>
 </tbody></table>
 </div>
 <h3 id="api-keys--secrets"><a class="header" href="#api-keys--secrets">API Keys &amp; Secrets</a></h3>
 <p>Patches can create, update, or revoke keys and named secrets. The request format mirrors <code>SettingsChangeset</code>:</p>
 <pre><code class="language-jsonc">{
-  "api_keys": [
-    {
-      "op": "upsert",
-      "key_id": "admin",
-      "label": "primary",
-      "enabled": true,
-      "secret": "optional-override",
-      "rate_limit": { "burst": 10, "per_seconds": 1 }
-    }
-  ],
-  "secrets": [
-    { "op": "set", "name": "libtorrent.passphrase", "value": "..." }
-  ]
+    "api_keys": [
+        {
+            "op": "upsert",
+            "key_id": "admin",
+            "label": "primary",
+            "enabled": true,
+            "secret": "optional-override",
+            "rate_limit": { "burst": 10, "per_seconds": 1 }
+        }
+    ],
+    "secrets": [
+        { "op": "set", "name": "libtorrent.passphrase", "value": "..." }
+    ]
 }
 </code></pre>
 <p>The API server enforces bucketed rate limits if <code>rate_limit</code> is supplied (<code>burst</code> per <code>per_seconds</code>). Invalid field names or mutations against <code>immutable_keys</code> yield RFC9457 <code>ProblemDetails</code> responses with an <code>invalid_params</code> array matching the JSON pointer returned by <code>ConfigError</code>.</p>
@@ -1046,14 +1057,14 @@
 </ul>
 <h2 id="decision-3"><a class="header" href="#decision-3">Decision</a></h2>
 <ul>
-<li>FsOps responsibilities live inside <code>revaer-fsops</code>, invoked by the orchestrator (<code>TorrentOrchestrator::apply_fsops</code>) whenever a <code>Completed</code> event surfaces.</li>
-<li>Each pipeline step (<code>extract</code>, <code>par2</code>, <code>move</code>, <code>cleanup</code>) records start/completion/failure events and increments Prometheus counters via <code>Metrics::inc_fsops_step</code>.</li>
+<li>FsOps responsibilities live inside <code>revaer-fsops</code>, invoked by the orchestrator (<code>TorrentOrchestrator::apply_fsops</code>) with an explicit <code>FsOpsRequest</code> that carries the torrent id, resolved source path, and effective policy snapshot whenever a <code>Completed</code> event surfaces.</li>
+<li>Each pipeline step (<code>extract</code>, <code>flatten</code>, <code>transfer</code>, <code>set_permissions</code>, <code>cleanup</code>, <code>finalise</code>) records start/completion/failure events and increments Prometheus counters via <code>Metrics::inc_fsops_step</code>; the extraction stage currently focuses on zip archives and gracefully skips when inputs are already directories.</li>
 <li>Metadata is persisted alongside <code>.revaer.meta</code> to reconcile selection overrides and resume directories across restarts; mismatches trigger <code>SelectionReconciled</code> events plus guard-rail telemetry.</li>
 <li>Health degradation is published when FsOps detects latency guard rails, missing tools, or unrecoverable IO errors; recovery clears the <code>fsops</code> component from the degrade set.</li>
 </ul>
 <h2 id="consequences-3"><a class="header" href="#consequences-3">Consequences</a></h2>
 <ul>
-<li>FsOps execution becomes observable and retry-friendly, enabling operator runbooks to diagnose stuck jobs with concrete metrics and events.</li>
+<li>FsOps execution becomes observable and retry-friendly, enabling operator runbooks to diagnose stuck jobs with concrete metrics and events while capturing chmod/chown/umask outcomes in recorded metadata.</li>
 <li>Pipeline regressions now fail CI thanks to targeted unit/integration tests under <code>revaer-fsops</code> and orchestrator-level tests driving the shared event bus.</li>
 <li>The orchestration layer remains single-owner of FsOps invocation, simplifying future extensions (e.g., checksum verification, media tagging) without leaking concerns into the API.</li>
 </ul>
