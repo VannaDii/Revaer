@@ -1,13 +1,14 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use chrono::Utc;
 use revaer_config::{EngineProfile, FsPolicy};
 use revaer_events::{Event, EventBus, TorrentState};
-use revaer_fsops::FsOpsService;
+use revaer_fsops::{FsOpsRequest, FsOpsService};
 use revaer_telemetry::Metrics;
 use revaer_torrent_core::{
     AddTorrent, FilePriority, FileSelectionUpdate, RemoveTorrent, TorrentEngine, TorrentFile,
@@ -88,7 +89,21 @@ where
     /// Apply the filesystem policy to a completed torrent.
     pub async fn apply_fsops(&self, torrent_id: Uuid) -> Result<()> {
         let policy = self.fs_policy.read().await.clone();
-        self.fsops.apply_policy(torrent_id, &policy)
+        let snapshot = self
+            .catalog
+            .get(torrent_id)
+            .await
+            .ok_or_else(|| anyhow!("torrent status unavailable for fsops application"))?;
+        let source = snapshot
+            .library_path
+            .as_deref()
+            .ok_or_else(|| anyhow!("library path missing for torrent {torrent_id}"))?;
+        let source_path = PathBuf::from(source);
+        self.fsops.apply(FsOpsRequest {
+            torrent_id,
+            source_path: &source_path,
+            policy: &policy,
+        })
     }
 
     async fn handle_event(&self, event: &Event) -> Result<()> {
@@ -466,14 +481,14 @@ impl TorrentCatalog {
 #[cfg(all(test, feature = "libtorrent"))]
 mod tests {
     use super::*;
-    use revaer_events::{Event, EventBus};
+    use anyhow::bail;
+    use revaer_events::EventBus;
     use revaer_torrent_core::{AddTorrent, AddTorrentOptions, TorrentSource};
     use serde_json::json;
+    use std::fs;
     use tempfile::TempDir;
-    use tokio::{
-        task::yield_now,
-        time::{Duration, timeout},
-    };
+    use tokio::task::yield_now;
+    use tokio::time::{Duration, timeout};
 
     fn sample_fs_policy(library_root: &str) -> FsPolicy {
         FsPolicy {
@@ -522,10 +537,14 @@ mod tests {
                 .to_str()
                 .expect("library root path should be valid UTF-8"),
         );
-        let (engine, orchestrator, worker) =
-            spawn_libtorrent_orchestrator(&bus, metrics, policy, sample_engine_profile())
-                .await
-                .expect("failed to spawn orchestrator");
+        let (engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
+            &bus,
+            metrics.clone(),
+            policy.clone(),
+            sample_engine_profile(),
+        )
+        .await
+        .expect("failed to spawn orchestrator");
 
         let mut stream = bus.subscribe(None);
         orchestrator
@@ -540,43 +559,41 @@ mod tests {
             .await?;
 
         let torrent_id = Uuid::new_v4();
+        let source_path = library_root.join("incoming").join("title");
+        fs::create_dir_all(&source_path)?;
+        fs::write(source_path.join("movie.mkv"), b"video-bytes")?;
         yield_now().await;
-        engine.publish_completed(torrent_id, "/library/media/title");
+        engine.publish_completed(torrent_id, source_path.to_string_lossy().into_owned());
 
-        let mut fsops_completed = false;
-        let mut fsops_started = false;
-        for _ in 0..12 {
-            let envelope = timeout(Duration::from_millis(500), stream.next())
-                .await
-                .expect("event stream timed out")
-                .expect("event stream closed unexpectedly");
-            match envelope.event {
-                Event::FsopsCompleted { torrent_id: id } => {
-                    if id == torrent_id {
-                        fsops_completed = true;
-                        break;
+        timeout(Duration::from_secs(5), async {
+            loop {
+                let envelope = stream
+                    .next()
+                    .await
+                    .ok_or_else(|| anyhow!("event stream closed before fsops completion"))?;
+                match envelope.event {
+                    Event::FsopsCompleted { torrent_id: id } if id == torrent_id => {
+                        return Ok::<(), anyhow::Error>(());
                     }
-                }
-                Event::FsopsStarted { torrent_id: id } => {
-                    if id == torrent_id {
-                        fsops_started = true;
+                    Event::FsopsFailed {
+                        torrent_id: id,
+                        ref message,
+                    } if id == torrent_id => {
+                        bail!("fsops failed unexpectedly: {message}");
                     }
+                    _ => {}
                 }
-                _ => {}
             }
-        }
+        })
+        .await
+        .expect("fsops completion event")
+        .expect("fsops pipeline failed unexpectedly");
 
         worker.abort();
         let _ = worker.await;
 
-        assert!(
-            fsops_started,
-            "expected FsopsStarted event for completed torrent"
-        );
-        assert!(
-            fsops_completed,
-            "expected FsopsCompleted event for completed torrent"
-        );
+        let artifact_dir = PathBuf::from(&policy.library_root).join("title");
+        assert!(artifact_dir.join("movie.mkv").exists());
         Ok(())
     }
 
@@ -584,36 +601,45 @@ mod tests {
     async fn orchestrator_reports_fsops_failures() {
         let bus = EventBus::with_capacity(16);
         let metrics = Metrics::new().expect("metrics registry");
-        let (_engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
+        let (engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
             &bus,
-            metrics,
+            metrics.clone(),
             sample_fs_policy("   "),
             sample_engine_profile(),
         )
         .await
         .expect("failed to spawn orchestrator");
         let mut stream = bus.subscribe(None);
+        let temp = TempDir::new().expect("tempdir");
+        let source_path = temp.path().join("staging").join("title");
+        fs::create_dir_all(&source_path).expect("staging path");
+        fs::write(source_path.join("movie.mkv"), b"video").expect("write");
 
         let torrent_id = Uuid::new_v4();
+        yield_now().await;
+        engine.publish_completed(torrent_id, source_path.to_string_lossy().into_owned());
+        timeout(Duration::from_secs(5), async {
+            loop {
+                let envelope = stream
+                    .next()
+                    .await
+                    .ok_or_else(|| anyhow!("event stream closed before fsops failure"))?;
+                match envelope.event {
+                    Event::FsopsFailed { torrent_id: id, .. } if id == torrent_id => {
+                        return Ok::<(), anyhow::Error>(());
+                    }
+                    Event::FsopsCompleted { torrent_id: id } if id == torrent_id => {
+                        bail!("fsops completed unexpectedly");
+                    }
+                    _ => {}
+                }
+            }
+        })
+        .await
+        .expect("fsops failure event")
+        .expect("event stream closed before fsops failure");
         let result = orchestrator.apply_fsops(torrent_id).await;
         assert!(result.is_err(), "expected fsops to fail for blank policy");
-
-        let mut saw_failure = false;
-        for _ in 0..6 {
-            let envelope = timeout(Duration::from_millis(100), stream.next())
-                .await
-                .expect("event stream timed out")
-                .expect("event stream closed unexpectedly");
-            if matches!(
-                envelope.event,
-                Event::FsopsFailed { torrent_id: id, .. } if id == torrent_id
-            ) {
-                saw_failure = true;
-                break;
-            }
-        }
-
-        assert!(saw_failure, "expected FsopsFailed event for invalid policy");
         worker.abort();
         let _ = worker.await;
     }
@@ -622,9 +648,9 @@ mod tests {
     async fn orchestrator_updates_policy_dynamically() -> Result<()> {
         let bus = EventBus::with_capacity(16);
         let metrics = Metrics::new()?;
-        let (_engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
+        let (engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
             &bus,
-            metrics,
+            metrics.clone(),
             sample_fs_policy("   "),
             sample_engine_profile(),
         )
@@ -636,17 +662,48 @@ mod tests {
             .update_fs_policy(sample_fs_policy("/tmp/library"))
             .await;
 
-        let torrent_id = Uuid::new_v4();
-        orchestrator.apply_fsops(torrent_id).await?;
+        let temp = TempDir::new()?;
+        let staged = temp.path().join("stage");
+        fs::create_dir_all(&staged)?;
+        fs::write(staged.join("movie.mkv"), b"video")?;
 
-        let started = timeout(Duration::from_millis(200), stream.next())
-            .await?
-            .expect("event stream closed")
-            .event;
-        assert!(matches!(
-            started,
-            Event::FsopsStarted { torrent_id: id } if id == torrent_id
-        ));
+        let torrent_id = Uuid::new_v4();
+        yield_now().await;
+        engine.publish_completed(torrent_id, staged.to_string_lossy().into_owned());
+        timeout(Duration::from_secs(5), async {
+            loop {
+                if orchestrator.catalog.get(torrent_id).await.is_some() {
+                    return Ok::<(), anyhow::Error>(());
+                }
+                yield_now().await;
+            }
+        })
+        .await
+        .expect("catalog entry ready")?;
+        orchestrator.apply_fsops(torrent_id).await?;
+        timeout(Duration::from_secs(5), async {
+            loop {
+                let envelope = stream
+                    .next()
+                    .await
+                    .ok_or_else(|| anyhow!("event stream closed before fsops completion"))?;
+                match envelope.event {
+                    Event::FsopsCompleted { torrent_id: id } if id == torrent_id => {
+                        return Ok::<(), anyhow::Error>(());
+                    }
+                    Event::FsopsFailed {
+                        torrent_id: id,
+                        ref message,
+                    } if id == torrent_id => {
+                        bail!("fsops failed unexpectedly: {message}");
+                    }
+                    _ => {}
+                }
+            }
+        })
+        .await
+        .expect("fsops completion event after policy update")
+        .expect("fsops pipeline failed unexpectedly after policy update");
 
         worker.abort();
         let _ = worker.await;

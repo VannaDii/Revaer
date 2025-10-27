@@ -2,6 +2,9 @@
 
 pub mod models;
 
+#[cfg(feature = "compat-qb")]
+pub(crate) mod compat_qb;
+
 use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose};
 use std::collections::{HashMap, HashSet};
@@ -907,7 +910,7 @@ impl ApiServer {
             .layer(trace_layer)
             .layer(HttpMetricsLayer::new(telemetry));
 
-        let router = Router::new()
+        let mut router = Router::new()
             .route("/health", get(health))
             .route("/health/full", get(health_full))
             .route("/.well-known/revaer.json", get(well_known))
@@ -1001,9 +1004,14 @@ impl ApiServer {
                 >(state.clone(), require_api_key)),
             )
             .route("/metrics", get(metrics))
-            .route("/docs/openapi.json", get(openapi_document_handler))
-            .route_layer(layered)
-            .with_state(state);
+            .route("/docs/openapi.json", get(openapi_document_handler));
+
+        #[cfg(feature = "compat-qb")]
+        {
+            router = compat_qb::mount(router);
+        }
+
+        let router = router.route_layer(layered).with_state(state);
 
         Ok(Self { router })
     }
@@ -2590,7 +2598,7 @@ fn encode_pointer_segment(segment: &str) -> String {
     segment.replace('~', "~0").replace('/', "~1")
 }
 
-async fn dispatch_torrent_add(
+pub(crate) async fn dispatch_torrent_add(
     handles: Option<&TorrentHandles>,
     request: &TorrentCreateRequest,
 ) -> Result<(), ApiError> {
@@ -2609,7 +2617,7 @@ async fn dispatch_torrent_add(
         })
 }
 
-async fn dispatch_torrent_remove(
+pub(crate) async fn dispatch_torrent_remove(
     handles: Option<&TorrentHandles>,
     id: Uuid,
 ) -> Result<(), ApiError> {
@@ -2626,7 +2634,7 @@ async fn dispatch_torrent_remove(
         })
 }
 
-fn build_add_torrent(request: &TorrentCreateRequest) -> Result<AddTorrent, ApiError> {
+pub(crate) fn build_add_torrent(request: &TorrentCreateRequest) -> Result<AddTorrent, ApiError> {
     let magnet = request
         .magnet
         .as_deref()
@@ -2665,7 +2673,10 @@ mod tests {
     use super::*;
     use super::{ConfigFacade, SharedConfig};
     use async_trait::async_trait;
-    use axum::{extract::Query, http::StatusCode};
+    use axum::{
+        extract::{Form, Query, State},
+        http::StatusCode,
+    };
     use chrono::{Duration as ChronoDuration, Utc};
     use futures_util::{StreamExt, pin_mut};
     use revaer_config::{ConfigError, EngineProfile, FsPolicy};
@@ -2684,6 +2695,11 @@ mod tests {
 
     use serde_json::json;
     use std::sync::atomic::{AtomicBool, Ordering};
+
+    #[cfg(feature = "compat-qb")]
+    use crate::compat_qb::{
+        self, SyncParams, TorrentAddForm, TorrentHashesForm, TorrentsInfoParams, TransferLimitForm,
+    };
 
     #[derive(Clone)]
     struct MockConfig {
@@ -3012,6 +3028,16 @@ mod tests {
             self.removed.lock().await.push(id);
             self.statuses.lock().await.retain(|status| status.id != id);
             self.actions.lock().await.push((id, "remove".to_string()));
+            Ok(())
+        }
+
+        async fn pause_torrent(&self, id: Uuid) -> anyhow::Result<()> {
+            self.actions.lock().await.push((id, "pause".to_string()));
+            Ok(())
+        }
+
+        async fn resume_torrent(&self, id: Uuid) -> anyhow::Result<()> {
+            self.actions.lock().await.push((id, "resume".to_string()));
             Ok(())
         }
 
@@ -3835,6 +3861,215 @@ mod tests {
     fn comma_splitter_trims_and_lowercases() {
         let values = split_comma_separated(" Alpha , ,BETA ,gamma ");
         assert_eq!(values, vec!["alpha", "beta", "gamma"]);
+    }
+
+    #[cfg(feature = "compat-qb")]
+    const QB_TEST_MAGNET: &str = "magnet:?xt=urn:btih:revaerqb";
+
+    #[cfg(feature = "compat-qb")]
+    #[tokio::test]
+    async fn qb_sync_maindata_maps_status() -> anyhow::Result<()> {
+        let config = MockConfig::new();
+        config.set_app_mode(AppMode::Active).await;
+        let events = EventBus::with_capacity(8);
+        let metrics = Metrics::new()?;
+        let stub = Arc::new(StubTorrent::default());
+        let sample_status = TorrentStatus {
+            id: Uuid::new_v4(),
+            name: Some("sample".to_string()),
+            state: TorrentState::Downloading,
+            progress: TorrentProgress {
+                bytes_downloaded: 256,
+                bytes_total: 512,
+                eta_seconds: Some(30),
+            },
+            rates: TorrentRates {
+                download_bps: 1_024,
+                upload_bps: 256,
+                ratio: 0.5,
+            },
+            download_dir: Some("/downloads".to_string()),
+            sequential: false,
+            ..TorrentStatus::default()
+        };
+        stub.push_status(sample_status.clone()).await;
+        let handles = TorrentHandles::new(stub.clone(), stub.clone());
+        let state = Arc::new(ApiState::new(
+            config.shared(),
+            metrics,
+            Arc::new(build_openapi_document()),
+            events,
+            Some(handles),
+        ));
+
+        let Json(response) = compat_qb::sync_maindata(State(state), Query(SyncParams::default()))
+            .await
+            .expect("sync");
+
+        assert!(
+            response
+                .torrents
+                .contains_key(&sample_status.id.simple().to_string())
+        );
+        Ok(())
+    }
+
+    #[cfg(feature = "compat-qb")]
+    #[tokio::test]
+    async fn qb_torrents_add_records_submission() -> anyhow::Result<()> {
+        let config = MockConfig::new();
+        config.set_app_mode(AppMode::Active).await;
+        let events = EventBus::with_capacity(8);
+        let metrics = Metrics::new()?;
+        let stub = Arc::new(StubTorrent::default());
+        let handles = TorrentHandles::new(stub.clone(), stub.clone());
+        let state = Arc::new(ApiState::new(
+            config.shared(),
+            metrics,
+            Arc::new(build_openapi_document()),
+            events,
+            Some(handles),
+        ));
+
+        let form = TorrentAddForm {
+            urls: Some(QB_TEST_MAGNET.to_string()),
+            tags: Some("alpha,beta".to_string()),
+            ..TorrentAddForm::default()
+        };
+
+        compat_qb::torrents_add(State(state), Form(form))
+            .await
+            .expect("add torrent");
+
+        assert_eq!(stub.added().await.len(), 1);
+        Ok(())
+    }
+
+    #[cfg(feature = "compat-qb")]
+    #[test]
+    fn qb_parse_limit_handles_unlimited() {
+        assert_eq!(compat_qb::parse_limit("0").unwrap(), None);
+        assert_eq!(compat_qb::parse_limit("-1").unwrap(), None);
+        assert_eq!(compat_qb::parse_limit("1024").unwrap(), Some(1_024));
+    }
+
+    #[cfg(feature = "compat-qb")]
+    #[tokio::test]
+    async fn qb_torrents_info_filters_hashes() -> anyhow::Result<()> {
+        let config = MockConfig::new();
+        config.set_app_mode(AppMode::Active).await;
+        let events = EventBus::with_capacity(8);
+        let metrics = Metrics::new()?;
+        let stub = Arc::new(StubTorrent::default());
+        let sample_status = TorrentStatus {
+            id: Uuid::new_v4(),
+            name: Some("sample".to_string()),
+            state: TorrentState::Seeding,
+            progress: TorrentProgress {
+                bytes_downloaded: 1_024,
+                bytes_total: 1_024,
+                eta_seconds: Some(0),
+            },
+            rates: TorrentRates {
+                download_bps: 0,
+                upload_bps: 512,
+                ratio: 1.0,
+            },
+            download_dir: Some("/downloads/sample".to_string()),
+            sequential: false,
+            ..TorrentStatus::default()
+        };
+        stub.push_status(sample_status.clone()).await;
+        let handles = TorrentHandles::new(stub.clone(), stub.clone());
+        let state = Arc::new(ApiState::new(
+            config.shared(),
+            metrics,
+            Arc::new(build_openapi_document()),
+            events,
+            Some(handles),
+        ));
+
+        let params = TorrentsInfoParams {
+            hashes: Some(sample_status.id.simple().to_string()),
+        };
+
+        let Json(entries) = compat_qb::torrents_info(State(state), Query(params))
+            .await
+            .expect("torrents info");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].hash, sample_status.id.simple().to_string());
+        Ok(())
+    }
+
+    #[cfg(feature = "compat-qb")]
+    #[tokio::test]
+    async fn qb_torrent_pause_resume_apply_actions() -> anyhow::Result<()> {
+        let config = MockConfig::new();
+        config.set_app_mode(AppMode::Active).await;
+        let events = EventBus::with_capacity(8);
+        let metrics = Metrics::new()?;
+        let stub = Arc::new(StubTorrent::default());
+        let sample_status = TorrentStatus {
+            id: Uuid::new_v4(),
+            name: Some("pause-me".to_string()),
+            state: TorrentState::Downloading,
+            download_dir: Some("/downloads".to_string()),
+            sequential: false,
+            ..TorrentStatus::default()
+        };
+        stub.push_status(sample_status.clone()).await;
+        let handles = TorrentHandles::new(stub.clone(), stub.clone());
+        let state = Arc::new(ApiState::new(
+            config.shared(),
+            metrics,
+            Arc::new(build_openapi_document()),
+            events,
+            Some(handles),
+        ));
+
+        let hashes = sample_status.id.simple().to_string();
+        let form = TorrentHashesForm { hashes };
+
+        compat_qb::torrents_pause(State(state.clone()), Form(form.clone()))
+            .await
+            .expect("pause");
+        compat_qb::torrents_resume(State(state), Form(form))
+            .await
+            .expect("resume");
+
+        let actions = stub.actions().await;
+        assert!(actions.iter().any(|(_, action)| action == "pause"));
+        assert!(actions.iter().any(|(_, action)| action == "resume"));
+        Ok(())
+    }
+
+    #[cfg(feature = "compat-qb")]
+    #[tokio::test]
+    async fn qb_transfer_limits_accept_positive_values() -> anyhow::Result<()> {
+        let config = MockConfig::new();
+        config.set_app_mode(AppMode::Active).await;
+        let events = EventBus::with_capacity(8);
+        let metrics = Metrics::new()?;
+        let stub = Arc::new(StubTorrent::default());
+        let handles = TorrentHandles::new(stub.clone(), stub.clone());
+        let state = Arc::new(ApiState::new(
+            config.shared(),
+            metrics,
+            Arc::new(build_openapi_document()),
+            events,
+            Some(handles),
+        ));
+
+        let form = TransferLimitForm {
+            limit: "2048".to_string(),
+        };
+        compat_qb::transfer_upload_limit(State(state.clone()), Form(form.clone()))
+            .await
+            .expect("upload limit");
+        compat_qb::transfer_download_limit(State(state), Form(form))
+            .await
+            .expect("download limit");
+        Ok(())
     }
 
     #[test]
