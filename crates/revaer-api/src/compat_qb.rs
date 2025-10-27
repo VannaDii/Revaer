@@ -6,7 +6,8 @@
 //! conservative about authentication (no-op login) until the full auth model
 //! lands in a later phase.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
+use std::convert::TryFrom;
 use std::sync::Arc;
 
 use axum::{
@@ -23,7 +24,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{error, warn};
 use uuid::Uuid;
 
-use revaer_events::TorrentState;
+use revaer_events::{Event as CoreEvent, TorrentState};
 use revaer_torrent_core::{RemoveTorrent, TorrentRateLimit, TorrentStatus};
 
 use crate::{
@@ -91,7 +92,6 @@ async fn app_webapi_version() -> impl IntoResponse {
 
 #[derive(Deserialize, Default)]
 pub struct SyncParams {
-    #[allow(dead_code)]
     pub rid: Option<u64>,
 }
 
@@ -100,6 +100,8 @@ pub struct SyncMainData {
     pub full_update: bool,
     pub rid: u64,
     pub torrents: HashMap<String, QbTorrentEntry>,
+    #[serde(default)]
+    pub torrents_removed: Vec<String>,
     pub categories: HashMap<String, QbCategory>,
     pub server_state: QbServerState,
 }
@@ -154,33 +156,83 @@ pub async fn sync_maindata(
         .as_ref()
         .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
 
-    let statuses = handles.inspector().list().await.map_err(|err| {
-        error!(error = %err, "failed to list torrents for qB sync");
-        ApiError::internal("failed to list torrents")
-    })?;
+    let status_map: HashMap<Uuid, TorrentStatus> = handles
+        .inspector()
+        .list()
+        .await
+        .map_err(|err| {
+            error!(error = %err, "failed to list torrents for qB sync");
+            ApiError::internal("failed to list torrents")
+        })?
+        .into_iter()
+        .map(|status| (status.id, status))
+        .collect();
 
-    let mut torrents = HashMap::new();
-    for status in statuses {
-        let metadata = state.get_metadata(&status.id);
-        let entry = qb_entry(&status, &metadata);
-        torrents.insert(entry.hash.clone(), entry);
+    let requested_rid = params.rid.unwrap_or(0);
+    let last_event_id = state.events.last_event_id().unwrap_or(requested_rid);
+
+    let events_since = if requested_rid == 0 {
+        Vec::new()
+    } else {
+        state.events.backlog_since(requested_rid)
+    };
+
+    let mut changed = HashSet::new();
+    for envelope in &events_since {
+        match &envelope.event {
+            CoreEvent::TorrentAdded { torrent_id, .. }
+            | CoreEvent::FilesDiscovered { torrent_id, .. }
+            | CoreEvent::Progress { torrent_id, .. }
+            | CoreEvent::StateChanged { torrent_id, .. }
+            | CoreEvent::Completed { torrent_id, .. }
+            | CoreEvent::FsopsStarted { torrent_id }
+            | CoreEvent::FsopsProgress { torrent_id, .. }
+            | CoreEvent::FsopsCompleted { torrent_id }
+            | CoreEvent::FsopsFailed { torrent_id, .. } => {
+                changed.insert(*torrent_id);
+            }
+            _ => {}
+        }
     }
 
-    let baseline_rid = params.rid.unwrap_or(0);
-    let rid = state.events.last_event_id().unwrap_or(baseline_rid);
-    let server_state = build_server_state(torrents.values().map(|entry| {
+    let buffer_gap = requested_rid != 0 && last_event_id > requested_rid && events_since.is_empty();
+    let need_full_update = requested_rid == 0 || buffer_gap;
+
+    let mut torrents = HashMap::new();
+    let mut torrents_removed = Vec::new();
+
+    if need_full_update {
+        for status in status_map.values() {
+            let metadata = state.get_metadata(&status.id);
+            let entry = qb_entry(status, &metadata);
+            torrents.insert(entry.hash.clone(), entry);
+        }
+    } else {
+        for torrent_id in &changed {
+            if let Some(status) = status_map.get(torrent_id) {
+                let metadata = state.get_metadata(torrent_id);
+                let entry = qb_entry(status, &metadata);
+                torrents.insert(entry.hash.clone(), entry);
+            } else {
+                torrents_removed.push(torrent_id.simple().to_string());
+            }
+        }
+    }
+
+    let server_state = build_server_state(status_map.values().map(|status| {
         (
-            entry.dlspeed,
-            entry.upspeed,
-            entry.downloaded,
-            entry.uploaded,
+            i64::try_from(status.rates.download_bps).unwrap_or(i64::MAX),
+            i64::try_from(status.rates.upload_bps).unwrap_or(i64::MAX),
+            i64::try_from(status.progress.bytes_downloaded).unwrap_or(i64::MAX),
+            0,
         )
     }));
 
     Ok(Json(SyncMainData {
-        full_update: true,
-        rid,
+        full_update: need_full_update,
+        rid: last_event_id,
         torrents,
+        torrents_removed,
         categories: HashMap::new(),
         server_state,
     }))

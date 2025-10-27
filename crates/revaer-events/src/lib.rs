@@ -207,6 +207,24 @@ impl EventBus {
         EventStream { backlog, receiver }
     }
 
+    /// Return a snapshot of buffered events newer than the supplied identifier.
+    ///
+    /// This is useful for endpoints that need incremental views without
+    /// establishing a long-lived subscription.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the replay buffer mutex has been poisoned.
+    #[must_use]
+    pub fn backlog_since(&self, since_id: EventId) -> Vec<EventEnvelope> {
+        let buffer = self.buffer.lock().expect("event buffer mutex poisoned");
+        buffer
+            .iter()
+            .filter(|item| item.id > since_id)
+            .cloned()
+            .collect()
+    }
+
     /// Returns the last assigned identifier, if any events have been published.
     ///
     /// # Panics

@@ -3902,15 +3902,98 @@ mod tests {
             Some(handles),
         ));
 
-        let Json(response) = compat_qb::sync_maindata(State(state), Query(SyncParams::default()))
-            .await
-            .expect("sync");
+        let Json(response) =
+            compat_qb::sync_maindata(State(state.clone()), Query(SyncParams::default()))
+                .await
+                .expect("sync");
 
+        assert!(response.full_update);
         assert!(
             response
                 .torrents
                 .contains_key(&sample_status.id.simple().to_string())
         );
+        assert!(response.torrents_removed.is_empty());
+        Ok(())
+    }
+
+    #[cfg(feature = "compat-qb")]
+    #[tokio::test]
+    async fn qb_sync_maindata_returns_incremental_changes() -> anyhow::Result<()> {
+        let config = MockConfig::new();
+        config.set_app_mode(AppMode::Active).await;
+        let events = EventBus::with_capacity(8);
+        let metrics = Metrics::new()?;
+        let stub = Arc::new(StubTorrent::default());
+        let sample_id = Uuid::new_v4();
+        let sample_status = TorrentStatus {
+            id: sample_id,
+            name: Some("sample".to_string()),
+            state: TorrentState::Downloading,
+            progress: TorrentProgress {
+                bytes_downloaded: 256,
+                bytes_total: 512,
+                eta_seconds: Some(30),
+            },
+            rates: TorrentRates {
+                download_bps: 1_024,
+                upload_bps: 256,
+                ratio: 0.5,
+            },
+            download_dir: Some("/downloads".to_string()),
+            sequential: false,
+            ..TorrentStatus::default()
+        };
+        stub.push_status(sample_status.clone()).await;
+        let handles = TorrentHandles::new(stub.clone(), stub.clone());
+        let state = Arc::new(ApiState::new(
+            config.shared(),
+            metrics,
+            Arc::new(build_openapi_document()),
+            events.clone(),
+            Some(handles),
+        ));
+
+        let _ = events.publish(CoreEvent::TorrentAdded {
+            torrent_id: sample_id,
+            name: "sample".to_string(),
+        });
+
+        let Json(initial) =
+            compat_qb::sync_maindata(State(state.clone()), Query(SyncParams::default()))
+                .await
+                .expect("initial sync");
+        let previous_rid = initial.rid;
+        assert!(initial.full_update);
+
+        {
+            let mut statuses = stub.statuses.lock().await;
+            if let Some(status) = statuses.get_mut(0) {
+                status.progress.bytes_downloaded = 400;
+                status.progress.eta_seconds = Some(10);
+            }
+        }
+
+        let _ = events.publish(CoreEvent::Progress {
+            torrent_id: sample_id,
+            bytes_downloaded: 400,
+            bytes_total: 512,
+        });
+
+        let Json(delta) = compat_qb::sync_maindata(
+            State(state),
+            Query(SyncParams {
+                rid: Some(previous_rid),
+            }),
+        )
+        .await
+        .expect("incremental sync");
+
+        assert!(!delta.full_update);
+        assert_eq!(delta.torrents.len(), 1);
+        assert!(delta.torrents.contains_key(&sample_id.simple().to_string()));
+        assert!(delta.torrents_removed.is_empty());
+        assert!(delta.rid > previous_rid);
         Ok(())
     }
 
