@@ -33,7 +33,7 @@ revaer/
 ## Getting Started
 1. Install the Rust toolchain (`rustup show`) and ensure `cargo`, `rustfmt`, and `clippy` are available.
 2. Provide a PostgreSQL connection string via the `DATABASE_URL` environment variable.
-3. Run `cargo check` to verify the workspace.
+3. Run `just check` to verify the workspace (all workflows must go through `just`; avoid calling `cargo …` directly).
 
 ## Development Tasks
 - `just fmt` – format sources.

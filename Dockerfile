@@ -1,14 +1,14 @@
 # syntax=docker/dockerfile:1.7
 
 ## Build stage ---------------------------------------------------------------
-FROM rust:1.85-alpine3.20 AS builder
+FROM rust:1.91.0-alpine3.20 AS builder
 WORKDIR /workspace
 
 RUN apk add --no-cache \
         build-base \
         musl-dev \
-        pkgconfig \
-        openssl-dev
+        openssl-dev \
+        pkgconfig
 
 RUN rustup target add x86_64-unknown-linux-musl
 

@@ -19,7 +19,7 @@ license = "MIT OR Apache-2.0"
 version = "0.1.0"
 authors = ["Revaer Contributors"]
 repository = "https://github.com/VannaDii/revaer"
-rust-version = "1.90"
+rust-version = "1.91"
 
 [workspace.dependencies]
 anyhow = "1.0"
