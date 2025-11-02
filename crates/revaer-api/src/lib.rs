@@ -1959,8 +1959,9 @@ mod tests {
     use futures_util::{StreamExt, pin_mut};
     use revaer_config::{ConfigError, EngineProfile, FsPolicy};
     use revaer_torrent_core::{
-        AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentInspector, TorrentProgress,
-        TorrentRateLimit, TorrentRates, TorrentSource, TorrentStatus, TorrentWorkflow,
+        AddTorrent, AddTorrentOptions, FileSelectionUpdate, RemoveTorrent, TorrentInspector,
+        TorrentProgress, TorrentRateLimit, TorrentRates, TorrentSource, TorrentStatus,
+        TorrentWorkflow,
     };
     use std::collections::HashMap;
     use std::net::IpAddr;
@@ -1978,6 +1979,80 @@ mod tests {
     use crate::compat_qb::{
         self, SyncParams, TorrentAddForm, TorrentHashesForm, TorrentsInfoParams, TransferLimitForm,
     };
+
+    struct NoopWorkflow;
+
+    #[async_trait]
+    impl TorrentWorkflow for NoopWorkflow {
+        async fn add_torrent(&self, _request: AddTorrent) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn remove_torrent(&self, _id: Uuid, _options: RemoveTorrent) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct NoopInspector;
+
+    #[async_trait]
+    impl TorrentInspector for NoopInspector {
+        async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+            Ok(Vec::new())
+        }
+
+        async fn get(&self, _id: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+            Ok(None)
+        }
+    }
+
+    #[tokio::test]
+    async fn torrent_handles_exposes_inner_components() {
+        let workflow: Arc<dyn TorrentWorkflow> = Arc::new(NoopWorkflow);
+        let inspector: Arc<dyn TorrentInspector> = Arc::new(NoopInspector);
+
+        let handles = TorrentHandles::new(Arc::clone(&workflow), Arc::clone(&inspector));
+
+        handles
+            .workflow()
+            .add_torrent(AddTorrent {
+                id: Uuid::new_v4(),
+                source: TorrentSource::magnet("magnet:?xt=urn:btih:demo"),
+                options: AddTorrentOptions::default(),
+            })
+            .await
+            .expect("workflow should accept torrent");
+
+        let listed = handles
+            .inspector()
+            .list()
+            .await
+            .expect("inspector list should succeed");
+        assert!(listed.is_empty());
+    }
+
+    #[tokio::test]
+    async fn enforce_rate_limit_without_limit_marks_guardrail() {
+        let config = MockConfig::new();
+        let telemetry = Metrics::new().expect("metrics");
+        let state = ApiState::new(
+            config.shared(),
+            telemetry.clone(),
+            Arc::new(Value::Null),
+            EventBus::with_capacity(4),
+            None,
+        );
+
+        state
+            .enforce_rate_limit("key-1", None)
+            .expect("missing limit should not error");
+        assert!(
+            state
+                .current_health_degraded()
+                .contains(&"api_rate_limit_guard".to_string())
+        );
+        assert_eq!(telemetry.snapshot().guardrail_violations_total, 1);
+    }
 
     #[derive(Clone)]
     struct MockConfig {

@@ -1642,10 +1642,15 @@ mod tests {
     #![allow(clippy::redundant_clone)]
 
     use super::*;
+    use std::io::Write;
+
     use revaer_events::EventBus;
     use serde_json::json;
+    #[cfg(unix)]
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
     use tempfile::TempDir;
     use tokio::time::{Duration, timeout};
+    use zip::{ZipWriter, write::FileOptions};
 
     fn sample_policy(root: &Path) -> FsPolicy {
         let library_root = root.join("library");
@@ -1676,6 +1681,25 @@ mod tests {
             }
         }
         events
+    }
+
+    fn create_zip(target: &Path, entries: &[(&str, &[u8])]) -> Result<()> {
+        let file = fs::File::create(target)
+            .with_context(|| format!("failed to create archive at {}", target.display()))?;
+        let mut writer = ZipWriter::new(file);
+        let options = FileOptions::default();
+        for &(name, data) in entries {
+            writer
+                .start_file(name, options)
+                .with_context(|| format!("failed to start archive entry '{name}'"))?;
+            writer
+                .write_all(data)
+                .with_context(|| format!("failed to write archive entry '{name}'"))?;
+        }
+        writer
+            .finish()
+            .context("failed to finalise zip archive serialization")?;
+        Ok(())
     }
 
     #[tokio::test]
@@ -1731,6 +1755,153 @@ mod tests {
             rendered.contains(r#"fsops_steps_total{status="completed",step="finalise"} 1"#),
             "expected fsops finalise metric to increment"
         );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn pipeline_extracts_zip_archives() -> Result<()> {
+        let bus = EventBus::with_capacity(8);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
+        let temp = TempDir::new()?;
+
+        let staging_root = temp.path().join("staging");
+        fs::create_dir_all(&staging_root)?;
+        let archive_path = staging_root.join("payload.zip");
+        create_zip(&archive_path, &[("movie/video.mkv", b"video")])?;
+
+        let mut policy = sample_policy(temp.path());
+        policy.extract = true;
+
+        service.apply(FsOpsRequest {
+            torrent_id,
+            source_path: &archive_path,
+            policy: &policy,
+        })?;
+
+        let meta_path = Path::new(&policy.library_root)
+            .join(META_DIR_NAME)
+            .join(format!("{torrent_id}{META_SUFFIX}"));
+        let meta = load_meta(&meta_path)?;
+        let artifact = PathBuf::from(
+            meta.artifact_path
+                .as_ref()
+                .expect("artifact path recorded after extraction"),
+        );
+        assert!(
+            artifact.join("movie").join("video.mkv").exists(),
+            "extracted payload should exist in artifact directory"
+        );
+
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn pipeline_applies_umask_permissions() -> Result<()> {
+        let bus = EventBus::with_capacity(8);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
+        let temp = TempDir::new()?;
+
+        let staging_root = temp.path().join("staging");
+        fs::create_dir_all(&staging_root)?;
+        let source_dir = staging_root.join("payload");
+        fs::create_dir_all(&source_dir)?;
+        fs::write(source_dir.join("movie.mkv"), b"video")?;
+
+        let mut policy = sample_policy(temp.path());
+        policy.chmod_file = None;
+        policy.chmod_dir = None;
+        policy.umask = Some("0007".to_string());
+
+        service.apply(FsOpsRequest {
+            torrent_id,
+            source_path: &source_dir,
+            policy: &policy,
+        })?;
+
+        let meta_path = Path::new(&policy.library_root)
+            .join(META_DIR_NAME)
+            .join(format!("{torrent_id}{META_SUFFIX}"));
+        let meta = load_meta(&meta_path)?;
+        let artifact_path = PathBuf::from(
+            meta.artifact_path
+                .as_ref()
+                .expect("artifact path recorded after permissions step"),
+        );
+        let dir_mode = fs::metadata(&artifact_path)?.permissions().mode() & 0o777;
+        assert_eq!(
+            dir_mode, 0o770,
+            "directory mode should reflect derived umask"
+        );
+        let file_mode = fs::metadata(artifact_path.join("movie.mkv"))?
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(file_mode, 0o660, "file mode should reflect derived umask");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn pipeline_hardlinks_payload_when_configured() -> Result<()> {
+        let bus = EventBus::with_capacity(8);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
+        let temp = TempDir::new()?;
+
+        let staging_root = temp.path().join("staging");
+        fs::create_dir_all(&staging_root)?;
+        let source_dir = staging_root.join("payload");
+        fs::create_dir_all(&source_dir)?;
+        let source_file = source_dir.join("movie.mkv");
+        fs::write(&source_file, b"video")?;
+
+        let mut policy = sample_policy(temp.path());
+        policy.move_mode = "hardlink".to_string();
+
+        service.apply(FsOpsRequest {
+            torrent_id,
+            source_path: &source_dir,
+            policy: &policy,
+        })?;
+
+        let meta_path = Path::new(&policy.library_root)
+            .join(META_DIR_NAME)
+            .join(format!("{torrent_id}{META_SUFFIX}"));
+        let meta = load_meta(&meta_path)?;
+        assert_eq!(
+            meta.transfer_mode.as_deref(),
+            Some("hardlink"),
+            "transfer mode should record hardlink strategy"
+        );
+        let artifact_path = PathBuf::from(
+            meta.artifact_path
+                .clone()
+                .expect("artifact path recorded after transfer"),
+        );
+        let destination_file = artifact_path.join("movie.mkv");
+        assert!(destination_file.exists(), "destination file should exist");
+        assert!(
+            source_file.exists(),
+            "source file should remain after hardlink"
+        );
+
+        #[cfg(unix)]
+        {
+            let src_meta = fs::metadata(&source_file)?;
+            let dest_meta = fs::metadata(&destination_file)?;
+            assert_eq!(
+                src_meta.ino(),
+                dest_meta.ino(),
+                "hardlinked files should share the same inode"
+            );
+        }
 
         Ok(())
     }

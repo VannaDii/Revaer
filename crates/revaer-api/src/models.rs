@@ -389,6 +389,144 @@ impl From<TorrentSelectionRequest> for FileSelectionUpdate {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use base64::engine::general_purpose;
+    use chrono::{TimeZone, Utc};
+    use revaer_events::TorrentState;
+    use revaer_torrent_core::{
+        FilePriority, FilePriorityOverride, TorrentFile, TorrentProgress, TorrentRates,
+        TorrentStatus,
+    };
+
+    #[test]
+    fn torrent_create_request_to_options_maps_fields() {
+        let request = TorrentCreateRequest {
+            name: Some("Example".to_string()),
+            download_dir: Some("/downloads".to_string()),
+            sequential: Some(true),
+            include: vec!["**/*.mkv".to_string()],
+            exclude: vec!["**/*.tmp".to_string()],
+            skip_fluff: true,
+            max_download_bps: Some(4_096),
+            max_upload_bps: Some(2_048),
+            tags: vec!["tag-a".to_string(), "tag-b".to_string()],
+            ..TorrentCreateRequest::default()
+        };
+
+        let options = request.to_options();
+        assert_eq!(options.name_hint.as_deref(), Some("Example"));
+        assert_eq!(options.download_dir.as_deref(), Some("/downloads"));
+        assert_eq!(options.sequential, Some(true));
+        assert_eq!(options.file_rules.include, vec!["**/*.mkv".to_string()]);
+        assert_eq!(options.file_rules.exclude, vec!["**/*.tmp".to_string()]);
+        assert!(options.file_rules.skip_fluff);
+        assert_eq!(options.rate_limit.download_bps, Some(4_096));
+        assert_eq!(options.rate_limit.upload_bps, Some(2_048));
+        assert_eq!(options.tags, vec!["tag-a".to_string(), "tag-b".to_string()]);
+    }
+
+    #[test]
+    fn torrent_create_request_to_source_prefers_magnet() {
+        let request = TorrentCreateRequest {
+            magnet: Some("magnet:?xt=urn:btih:example".to_string()),
+            metainfo: Some(general_purpose::STANDARD.encode(b"payload")),
+            ..TorrentCreateRequest::default()
+        };
+
+        match request.to_source().expect("source present") {
+            TorrentSource::Magnet { uri } => {
+                assert!(uri.starts_with("magnet:?xt=urn:btih:example"));
+            }
+            TorrentSource::Metainfo { .. } => panic!("unexpected metainfo source"),
+        }
+    }
+
+    #[test]
+    fn torrent_create_request_to_source_decodes_metainfo() {
+        let encoded = general_purpose::STANDARD.encode(b"payload-bytes");
+        let request = TorrentCreateRequest {
+            metainfo: Some(encoded),
+            ..TorrentCreateRequest::default()
+        };
+
+        match request.to_source().expect("source present") {
+            TorrentSource::Metainfo { bytes } => assert_eq!(bytes, b"payload-bytes"),
+            TorrentSource::Magnet { .. } => panic!("unexpected magnet source"),
+        }
+    }
+
+    #[test]
+    fn torrent_summary_and_detail_from_status_preserves_metadata() {
+        let torrent_id = Uuid::new_v4();
+        let status = TorrentStatus {
+            id: torrent_id,
+            name: Some("Example Torrent".to_string()),
+            state: TorrentState::Completed,
+            progress: TorrentProgress {
+                bytes_downloaded: 75,
+                bytes_total: 100,
+                eta_seconds: Some(15),
+            },
+            rates: TorrentRates {
+                download_bps: 1_024,
+                upload_bps: 512,
+                ratio: 0.5,
+            },
+            files: Some(vec![TorrentFile {
+                index: 0,
+                path: "movie.mkv".to_string(),
+                size_bytes: 100,
+                bytes_completed: 75,
+                priority: FilePriority::High,
+                selected: true,
+            }]),
+            library_path: Some("/library/movie".to_string()),
+            download_dir: Some("/downloads/movie".to_string()),
+            sequential: true,
+            added_at: Utc.timestamp_millis_opt(0).unwrap(),
+            completed_at: Some(Utc.timestamp_millis_opt(1_000).unwrap()),
+            last_updated: Utc.timestamp_millis_opt(2_000).unwrap(),
+        };
+
+        let summary = TorrentSummary::from(status.clone())
+            .with_metadata(vec!["tag".to_string()], vec!["tracker".to_string()]);
+        assert_eq!(summary.id, torrent_id);
+        assert_eq!(summary.state.kind, TorrentStateKind::Completed);
+        assert_eq!(summary.tags, vec!["tag".to_string()]);
+        assert_eq!(summary.trackers, vec!["tracker".to_string()]);
+
+        let detail = TorrentDetail::from(status);
+        assert_eq!(detail.summary.id, torrent_id);
+        let files = detail.files.expect("files should be present");
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].path, "movie.mkv");
+        assert!(files[0].selected);
+    }
+
+    #[test]
+    fn torrent_selection_request_converts_to_update() {
+        let request = TorrentSelectionRequest {
+            include: vec!["**/*.mkv".to_string()],
+            exclude: vec!["**/*.tmp".to_string()],
+            skip_fluff: Some(true),
+            priorities: vec![FilePriorityOverride {
+                index: 1,
+                priority: FilePriority::Low,
+            }],
+        };
+
+        let update: FileSelectionUpdate = request.clone().into();
+        assert_eq!(update.include, request.include);
+        assert_eq!(update.exclude, request.exclude);
+        assert!(update.skip_fluff);
+        assert_eq!(update.priorities.len(), 1);
+        assert_eq!(update.priorities[0].index, 1);
+        assert_eq!(update.priorities[0].priority, FilePriority::Low);
+    }
+}
+
 /// Envelope describing the action a client wants to perform on a torrent.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]

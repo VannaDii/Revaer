@@ -546,8 +546,13 @@ mod tests {
     #[test]
     fn metrics_snapshot_reflects_updates() -> Result<()> {
         let metrics = Metrics::new()?;
+        metrics.inc_http_request("/health", 200);
+        metrics.inc_event("torrent_added");
+        metrics.inc_fsops_step("transfer", "completed");
         metrics.set_active_torrents(5);
         metrics.set_queue_depth(2);
+        metrics.set_engine_bytes_in(1_024);
+        metrics.set_engine_bytes_out(2_048);
         metrics.observe_config_watch_latency(Duration::from_millis(120));
         metrics.observe_config_apply_latency(Duration::from_millis(45));
         metrics.inc_config_update_failure();
@@ -564,6 +569,62 @@ mod tests {
         assert_eq!(snapshot.config_watch_slow_total, 1);
         assert_eq!(snapshot.guardrail_violations_total, 1);
         assert_eq!(snapshot.rate_limit_throttled_total, 1);
+
+        let rendered = metrics.render()?;
+        assert!(rendered.contains("http_requests_total"));
+        assert!(rendered.contains("fsops_steps_total"));
+        assert!(rendered.contains("config_guardrail_violations_total"));
         Ok(())
+    }
+
+    #[test]
+    fn build_sha_defaults_to_dev() {
+        assert_eq!(build_sha(), "dev");
+    }
+
+    #[test]
+    fn request_id_layers_can_be_constructed() {
+        let _set_layer = set_request_id_layer();
+        let _prop_layer = propagate_request_id_layer();
+    }
+
+    #[tokio::test]
+    async fn with_request_context_exposes_identifiers() {
+        let output = with_request_context("req-42", "/v1/items", async {
+            assert_eq!(current_request_id().as_deref(), Some("req-42"));
+            assert_eq!(current_route().as_deref(), Some("/v1/items"));
+            "done"
+        })
+        .await;
+        assert_eq!(output, "done");
+        assert!(current_request_id().is_none());
+        assert!(current_route().is_none());
+    }
+
+    #[test]
+    fn init_logging_installs_subscriber_once() {
+        let config = LoggingConfig {
+            level: "info",
+            format: LogFormat::Pretty,
+            build_sha: "dev",
+        };
+        let _ = init_logging(&config);
+    }
+
+    #[test]
+    fn global_context_guard_sets_app_mode_field() {
+        let guard = GlobalContextGuard::new("test");
+        record_app_mode("active");
+        drop(guard);
+    }
+
+    #[test]
+    fn set_request_context_records_span_fields() {
+        let span = tracing::info_span!(
+            "request",
+            request_id = tracing::field::Empty,
+            route = tracing::field::Empty
+        );
+        set_request_context(&span, "req-1", "/v1/demo");
     }
 }

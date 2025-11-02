@@ -1177,7 +1177,7 @@ where
                 )
                 ORDER BY created_at
             ),
-            '[]'::jsonb
+            '[]'::json
         )
         FROM auth_api_keys
         ",
@@ -1342,15 +1342,13 @@ async fn set_app_bind_addr(
         }
         .into());
     };
-    if addr.parse::<IpAddr>().is_err() {
-        return Err(ConfigError::InvalidField {
+    addr.parse::<IpAddr>()
+        .map_err(|_| ConfigError::InvalidField {
             section: "app_profile".to_string(),
             field: "bind_addr".to_string(),
             message: "must be a valid IP address".to_string(),
-        }
-        .into());
-    }
-    sqlx::query("UPDATE app_profile SET bind_addr = $1 WHERE id = $2")
+        })?;
+    sqlx::query("UPDATE app_profile SET bind_addr = $1::inet WHERE id = $2")
         .bind(addr)
         .bind(app_id)
         .execute(tx.as_mut())
