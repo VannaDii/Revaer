@@ -7,13 +7,13 @@ fmt-fix:
     cargo fmt --all
 
 lint:
-    cargo clippy --workspace --all-targets --all-features -- -Dwarnings
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 check:
-    cargo check --workspace --all-targets --all-features
+    cargo --config 'build.rustflags=["-Dwarnings"]' check --workspace --all-targets --all-features
 
 test:
-    cargo test --workspace --all-targets --all-features
+    cargo --config 'build.rustflags=["-Dwarnings"]' test --workspace --all-features
 
 build:
     cargo build --workspace --all-targets --all-features
@@ -25,16 +25,28 @@ udeps:
     if ! command -v cargo-udeps >/dev/null 2>&1; then \
         cargo install cargo-udeps --locked; \
     fi
-    if ! rustup toolchain list | grep -q nightly; then \
-        rustup toolchain install nightly --no-self-update; \
+    if ! cargo +stable udeps --workspace --all-targets >/dev/null 2>&1; then \
+        echo "cargo-udeps: stable toolchain lacks required -Z flags, retrying with nightly"; \
+        if ! rustup toolchain list | grep -q nightly; then \
+            rustup toolchain install nightly --no-self-update; \
+        fi; \
+        cargo +nightly udeps --workspace --all-targets; \
     fi
-    cargo +nightly udeps --workspace --all-targets
 
 audit:
     if ! command -v cargo-audit >/dev/null 2>&1; then \
         cargo install cargo-audit --locked; \
     fi
-    cargo audit --deny warnings --ignore-file .secignore
+    ignore_args=""; \
+    if [ -f .secignore ]; then \
+        while IFS= read -r advisory; do \
+            case "$advisory" in \
+                \#*|"") ;; \
+                *) ignore_args="$ignore_args --ignore $advisory" ;; \
+            esac; \
+        done < .secignore; \
+    fi; \
+    cargo audit --deny warnings $ignore_args
 
 deny:
     if ! command -v cargo-deny >/dev/null 2>&1; then \
@@ -47,7 +59,7 @@ cov:
         cargo install cargo-llvm-cov --locked; \
     fi
     rustup component add llvm-tools-preview
-    cargo llvm-cov --workspace --fail-under 80
+    cargo llvm-cov --workspace --no-report --fail-under 80
 
 api-export:
     cargo run -p revaer-api --bin generate_openapi

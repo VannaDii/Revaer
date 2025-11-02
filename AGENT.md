@@ -147,6 +147,7 @@ target/              # build artifacts
 -   **Fuzz** (where applicable): torrent/magnet/file-pattern parsers.
 -   **Determinism**: seeded RNGs; avoid flaky time-based assertions (use injected clocks).
 -   **Coverage**: `cargo-llvm-cov` via `just cov`; libraries must meet **≥ 80%** coverage; **no regression** allowed.
+-   **No coverage suppression**: never pass `--ignore-filename-regex`, `--ignore-run-fail`, `--no-report`, `--summary-only`, target filters, or any other `cargo llvm-cov` option that hides code from analysis. If the gate fails, add tests or remove code—do not suppress it.
 
 ---
 

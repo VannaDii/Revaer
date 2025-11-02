@@ -46,6 +46,9 @@ revaer/
 - `just cov` – run source-based coverage with LLVM (requires `llvm-tools-preview`).
 - `just ci` – execute all required quality gates locally.
 
+## CLI Tips
+- `revaer --output json ls` emits JSON suitable for scripting workflows (table output remains the default).
+
 ### Required Tooling
 Install the following Cargo subcommands before running the quality gates locally (the `just` recipes will also install them on first use):
 

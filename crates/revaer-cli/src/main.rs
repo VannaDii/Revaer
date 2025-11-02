@@ -125,8 +125,8 @@ async fn run(cli: Cli, trace_id: &str) -> CliResult<()> {
             TorrentCommand::Add(args) => handle_torrent_add(&ctx, args).await,
             TorrentCommand::Remove(args) => handle_torrent_remove(&ctx, args).await,
         },
-        Command::Ls(args) => handle_torrent_list(&ctx, args).await,
-        Command::Status(args) => handle_torrent_status(&ctx, args).await,
+        Command::Ls(args) => handle_torrent_list(&ctx, args, cli.output).await,
+        Command::Status(args) => handle_torrent_status(&ctx, args, cli.output).await,
         Command::Select(args) => handle_torrent_select(&ctx, args).await,
         Command::Action(args) => handle_torrent_action(&ctx, args).await,
         Command::Tail(args) => handle_tail(&ctx, args).await,
@@ -153,6 +153,15 @@ struct Cli {
         default_value_t = DEFAULT_TIMEOUT_SECS
     )]
     timeout: u64,
+    #[arg(
+        long = "output",
+        alias = "format",
+        global = true,
+        value_enum,
+        default_value_t = OutputFormat::Table,
+        help = "Select output format for commands that render structured data"
+    )]
+    output: OutputFormat,
     #[command(subcommand)]
     command: Command,
 }
@@ -259,16 +268,12 @@ struct TorrentListArgs {
     tags: Option<String>,
     #[arg(long)]
     name: Option<String>,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
-    format: OutputFormat,
 }
 
 #[derive(Args)]
 struct TorrentStatusArgs {
     #[arg(help = "Torrent identifier")]
     id: Uuid,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Table)]
-    format: OutputFormat,
 }
 
 #[derive(Clone, Debug)]
@@ -731,7 +736,11 @@ async fn handle_torrent_remove(ctx: &AppContext, args: TorrentRemoveArgs) -> Cli
     }
 }
 
-async fn handle_torrent_list(ctx: &AppContext, args: TorrentListArgs) -> CliResult<()> {
+async fn handle_torrent_list(
+    ctx: &AppContext,
+    args: TorrentListArgs,
+    output: OutputFormat,
+) -> CliResult<()> {
     let mut url = ctx
         .base_url
         .join("/v1/torrents")
@@ -774,14 +783,18 @@ async fn handle_torrent_list(ctx: &AppContext, args: TorrentListArgs) -> CliResu
             .json::<TorrentListResponse>()
             .await
             .map_err(|err| CliError::failure(anyhow!("failed to parse torrent list: {err}")))?;
-        render_torrent_list(&list, args.format)?;
+        render_torrent_list(&list, output)?;
         Ok(())
     } else {
         Err(classify_problem(response).await)
     }
 }
 
-async fn handle_torrent_status(ctx: &AppContext, args: TorrentStatusArgs) -> CliResult<()> {
+async fn handle_torrent_status(
+    ctx: &AppContext,
+    args: TorrentStatusArgs,
+    output: OutputFormat,
+) -> CliResult<()> {
     let url = ctx
         .base_url
         .join(&format!("/v1/torrents/{}", args.id))
@@ -795,7 +808,7 @@ async fn handle_torrent_status(ctx: &AppContext, args: TorrentStatusArgs) -> Cli
             .json::<TorrentDetail>()
             .await
             .map_err(|err| CliError::failure(anyhow!("failed to parse torrent detail: {err}")))?;
-        render_torrent_detail(&detail, args.format)?;
+        render_torrent_detail(&detail, output)?;
         Ok(())
     } else {
         Err(classify_problem(response).await)

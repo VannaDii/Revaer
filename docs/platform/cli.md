@@ -9,6 +9,7 @@
 | `--api-url <URL>` | `REVAER_API_URL` | `http://127.0.0.1:7070` | Base URL for API requests. |
 | `--api-key <key_id:secret>` | `REVAER_API_KEY` | _none_ | Required for all post-setup commands that mutate or read torrents. |
 | `--timeout <secs>` | `REVAER_HTTP_TIMEOUT_SECS` | `10` | Per-request HTTP timeout. |
+| `--output <table\|json>` | _none_ | `table` | Output format for structured responses (`json` is script-friendly). |
 
 Each invocation bubbles a unique `x-request-id` through the API; the CLI also emits optional telemetry events when `REVAER_TELEMETRY_ENDPOINT` is set.
 
@@ -48,16 +49,16 @@ Each invocation bubbles a unique `x-request-id` through the API; the CLI also em
 - Issues `POST /v1/torrents/{id}/action` with `{ "type": "remove" }`.
 - Use the more general `action` command for `delete_data` semantics.
 
-### `revaer ls [--limit <n>] [--cursor <token>] [--state <state>] [--tracker <url>] [--extension <ext>] [--tags <tag1,tag2>] [--name <fragment>] [--format table|json]`
+### `revaer ls [--limit <n>] [--cursor <token>] [--state <state>] [--tracker <url>] [--extension <ext>] [--tags <tag1,tag2>] [--name <fragment>]`
 
 - Lists torrents with the same filters supported by the REST API.
 - Default output is a table summarising id, name, state, and progress.
-- JSON output matches `TorrentListResponse`.
+- Add `--output json` to emit the raw `TorrentListResponse`.
 
-### `revaer status <uuid> [--format table|json]`
+### `revaer status <uuid>`
 
 - Returns a detailed view of a single torrent.
-- JSON output is the full `TorrentDetail` (including file metadata when available).
+- Add `--output json` to view the full `TorrentDetail` (including file metadata when available).
 
 ### `revaer select <uuid> [--include <glob,glob>] [--exclude <glob,glob>] [--skip-fluff] [--priority index=priority,…]`
 

@@ -115,6 +115,13 @@
     "href": "/adr/009-fsops-permission-hardening/"
   },
   {
+    "id": "adr/010-agent-compliance-sweep",
+    "title": "Agent Compliance Sweep",
+    "summary": "Status: Accepted Date: 2025-11-01 Context: AGENT.md requires just recipes to enforce warnings-as-errors and mandates a global CLI --output json|table selector; the repository had drifted (recipes invoked cargo without the configured rustflags and the CLI only exposed per-command --format switches). Motivation: restore explicit compliance so local and CI workflows produce identical results and the documented CLI surface remains accurate for operators and scripts. Decision: Design notes: updated just lint/check/test/udeps to follow the prescribed commands, wiring build.rustflags=[\"-Dwarnings\"] through just, probing cargo-udeps with the stable toolchain first, and automatically retrying with nightly when the tool still requires -Z binary-dep-depinfo (surfacing a single log",
+    "tags": [],
+    "href": "/adr/010-agent-compliance-sweep/"
+  },
+  {
     "id": "adr/index",
     "title": "Architecture Decision Records",
     "summary": "ADR documents capture the rationale behind significant technical decisions.",
