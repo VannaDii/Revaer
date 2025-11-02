@@ -1,5 +1,4 @@
 use std::future::Future;
-use std::path::Path;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
@@ -20,8 +19,6 @@ where
         let service = ConfigService::new(url).await?;
         return test(service).await;
     }
-
-    configure_docker_host();
 
     let base_image = GenericImage::new("postgres", "14-alpine")
         .with_exposed_port(ContainerPort::Tcp(5432))
@@ -75,30 +72,6 @@ where
     drop(container);
 
     result
-}
-
-fn configure_docker_host() {
-    if std::env::var_os("DOCKER_HOST").is_some() {
-        return;
-    }
-
-    if Path::new("/var/run/docker.sock").exists() {
-        unsafe {
-            std::env::set_var("DOCKER_HOST", "unix:///var/run/docker.sock");
-        }
-        return;
-    }
-
-    if let Some(home) = std::env::var_os("HOME") {
-        let mut path = std::path::PathBuf::from(home);
-        path.push(".docker/run/docker.sock");
-        if path.exists() {
-            let host = format!("unix://{}", path.display());
-            unsafe {
-                std::env::set_var("DOCKER_HOST", host);
-            }
-        }
-    }
 }
 
 #[tokio::test]

@@ -1,0 +1,22 @@
+# Agent Compliance Refresh
+
+- Status: Accepted
+- Date: 2025-11-02
+- Context:
+  - AGENT.md forbids `unsafe` code across the workspace, yet the configuration integration tests were still using an `unsafe` block when populating `DOCKER_HOST`.
+  - The task ensures ongoing conformance with the agent policy and documents the work so future checks remain traceable.
+- Decision:
+  - Deleted the redundant host-configuration helper so the tests defer to `testcontainers`' built-in socket discovery instead of mutating the process environment.
+  - Alternatives considered: leave the `unsafe` block in place (rejected because it violates the prime directive), gate the tests behind a feature flag (rejected—dead test code would violate the zero-dead-code rule).
+- Consequences:
+  - Positive outcomes: the test harness now complies with the global `#![forbid(unsafe_code)]` intent without changing behaviour; future audits have a recorded rationale.
+  - Risks or trade-offs: none—behaviour remains identical.
+- Follow-up:
+  - Implementation tasks: rerun the full `just ci` suite plus `just build-release` to validate the change (complete).
+  - Review checkpoints: monitor future dependency or toolchain updates for newly introduced `unsafe` or warnings so we can remediate promptly.
+  - Motivation: remove residual `unsafe` usage and confirm the repository matches AGENT.md.
+  - Design notes: integration harness now relies on `testcontainers` host detection, removing the `DOCKER_HOST` mutation entirely.
+  - Test coverage summary: `just fmt`, `just lint`, `just udeps`, `just audit`, `just deny`, `just test`, `just cov`, and `just build-release` executed successfully.
+  - Observability updates: none required.
+  - Dependency rationale: no new dependencies introduced.
+  - Risk & rollback plan: revert this change if a future toolchain regression requires the previous behaviour, though no regressions are expected.
