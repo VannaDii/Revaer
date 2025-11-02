@@ -1,5 +1,26 @@
+#![forbid(unsafe_code)]
+#![deny(
+    warnings,
+    dead_code,
+    unused,
+    unused_imports,
+    unused_must_use,
+    unreachable_pub,
+    clippy::all,
+    clippy::pedantic,
+    clippy::cargo,
+    clippy::nursery,
+    rustdoc::broken_intra_doc_links,
+    rustdoc::bare_urls,
+    missing_docs
+)]
+#![allow(clippy::module_name_repetitions)]
 #![allow(unexpected_cfgs)]
+#![allow(clippy::multiple_crate_versions)]
 
+//! HTTP API server and shared routing primitives for the Revaer platform.
+
+/// Shared request/response DTOs consumed by the API and CLI clients.
 pub mod models;
 
 #[cfg(feature = "compat-qb")]
@@ -13,7 +34,7 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::path::Path;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use std::task::{Context as TaskContext, Poll};
 use std::time::{Duration, Instant};
 
@@ -81,6 +102,7 @@ const EVENT_KIND_WHITELIST: &[&str] = &[
     "progress",
     "state_changed",
     "completed",
+    "torrent_removed",
     "fsops_started",
     "fsops_progress",
     "fsops_completed",
@@ -90,6 +112,8 @@ const EVENT_KIND_WHITELIST: &[&str] = &[
     "selection_reconciled",
 ];
 
+/// Handle pair that exposes torrent workflow and inspection capabilities to the
+/// HTTP layer.
 #[derive(Clone)]
 pub struct TorrentHandles {
     workflow: Arc<dyn TorrentWorkflow>,
@@ -97,6 +121,8 @@ pub struct TorrentHandles {
 }
 
 impl TorrentHandles {
+    /// Construct a new handle pair from shared workflow and inspector traits.
+    #[must_use]
     pub fn new(workflow: Arc<dyn TorrentWorkflow>, inspector: Arc<dyn TorrentInspector>) -> Self {
         Self {
             workflow,
@@ -105,33 +131,44 @@ impl TorrentHandles {
     }
 
     #[must_use]
+    /// Accessor for the torrent workflow implementation.
     pub fn workflow(&self) -> &Arc<dyn TorrentWorkflow> {
         &self.workflow
     }
 
     #[must_use]
+    /// Accessor for the torrent inspector implementation.
     pub fn inspector(&self) -> &Arc<dyn TorrentInspector> {
         &self.inspector
     }
 }
 
+/// Axum router wrapper that hosts the Revaer API services.
 pub struct ApiServer {
     router: Router,
 }
 
+/// Trait defining the configuration backend used by the API layer.
 #[async_trait]
 pub trait ConfigFacade: Send + Sync {
+    /// Retrieve the current application profile (mode, bind address, etc.).
     async fn get_app_profile(&self) -> Result<AppProfile>;
+    /// Issue a new setup token that expires after the provided duration.
     async fn issue_setup_token(&self, ttl: Duration, issued_by: &str) -> Result<SetupToken>;
+    /// Validate that a setup token remains active without consuming it.
     async fn validate_setup_token(&self, token: &str) -> Result<()>;
+    /// Consume a setup token, preventing subsequent reuse.
     async fn consume_setup_token(&self, token: &str) -> Result<()>;
+    /// Apply a configuration changeset attributed to the supplied actor.
     async fn apply_changeset(
         &self,
         actor: &str,
         reason: &str,
         changeset: SettingsChangeset,
     ) -> Result<AppliedChanges>;
+    /// Obtain a strongly typed snapshot of the current configuration.
     async fn snapshot(&self) -> Result<ConfigSnapshot>;
+    /// Validate API credentials and return the associated authorisation scope.
     async fn authenticate_api_key(&self, key_id: &str, secret: &str) -> Result<Option<ApiKeyAuth>>;
 }
 
@@ -207,10 +244,7 @@ impl ApiState {
     }
 
     fn add_degraded_component(&self, component: &str) -> bool {
-        let mut guard = self
-            .health_status
-            .lock()
-            .expect("health status mutex poisoned");
+        let mut guard = Self::lock_guard(&self.health_status, "health_status");
         if guard.iter().any(|entry| entry == component) {
             return false;
         }
@@ -226,10 +260,7 @@ impl ApiState {
     }
 
     fn remove_degraded_component(&self, component: &str) -> bool {
-        let mut guard = self
-            .health_status
-            .lock()
-            .expect("health status mutex poisoned");
+        let mut guard = Self::lock_guard(&self.health_status, "health_status");
         let previous = guard.len();
         guard.retain(|entry| entry != component);
         if guard.len() == previous {
@@ -272,10 +303,7 @@ impl ApiState {
     }
 
     fn current_health_degraded(&self) -> Vec<String> {
-        self.health_status
-            .lock()
-            .expect("health status mutex poisoned")
-            .clone()
+        Self::lock_guard(&self.health_status, "health_status").clone()
     }
 
     fn enforce_rate_limit(
@@ -293,10 +321,7 @@ impl ApiState {
             },
             |limit| {
                 self.remove_degraded_component("api_rate_limit_guard");
-                let mut guard = self
-                    .rate_limiters
-                    .lock()
-                    .expect("rate limiters mutex poisoned");
+                let mut guard = Self::lock_guard(&self.rate_limiters, "rate_limiters");
                 let limiter = guard
                     .entry(key_id.to_string())
                     .or_insert_with(|| RateLimiter::new(limit.clone()));
@@ -317,27 +342,32 @@ impl ApiState {
     }
 
     fn set_metadata(&self, id: Uuid, metadata: TorrentMetadata) {
-        let mut guard = self
-            .torrent_metadata
-            .lock()
-            .expect("torrent metadata mutex poisoned");
+        let mut guard = Self::lock_guard(&self.torrent_metadata, "torrent_metadata");
         guard.insert(id, metadata);
     }
 
     fn get_metadata(&self, id: &Uuid) -> TorrentMetadata {
-        self.torrent_metadata
-            .lock()
-            .expect("torrent metadata mutex poisoned")
+        Self::lock_guard(&self.torrent_metadata, "torrent_metadata")
             .get(id)
             .cloned()
             .unwrap_or_default()
     }
 
     fn remove_metadata(&self, id: &Uuid) {
-        self.torrent_metadata
-            .lock()
-            .expect("torrent metadata mutex poisoned")
-            .remove(id);
+        Self::lock_guard(&self.torrent_metadata, "torrent_metadata").remove(id);
+    }
+
+    fn lock_guard<'a, T>(mutex: &'a Mutex<T>, name: &str) -> MutexGuard<'a, T> {
+        match mutex.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                error!(
+                    mutex = name,
+                    "mutex poisoned; continuing with recovered guard"
+                );
+                poisoned.into_inner()
+            }
+        }
     }
 }
 
@@ -504,6 +534,7 @@ fn matches_sse_filter(envelope: &EventEnvelope, filter: &SseFilter) -> bool {
             | CoreEvent::Progress { torrent_id, .. }
             | CoreEvent::StateChanged { torrent_id, .. }
             | CoreEvent::Completed { torrent_id, .. }
+            | CoreEvent::TorrentRemoved { torrent_id }
             | CoreEvent::FsopsStarted { torrent_id, .. }
             | CoreEvent::FsopsProgress { torrent_id, .. }
             | CoreEvent::FsopsCompleted { torrent_id, .. }
@@ -833,7 +864,6 @@ impl ApiServer {
     ///
     /// Returns an error if telemetry cannot be initialised or if persisting the `OpenAPI` document
     /// fails.
-    #[allow(clippy::too_many_lines)]
     pub fn new(
         config: ConfigService,
         events: EventBus,
@@ -843,7 +873,6 @@ impl ApiServer {
         Self::with_config(Arc::new(config), events, torrent, telemetry)
     }
 
-    #[allow(clippy::too_many_lines)]
     fn with_config(
         config: SharedConfig,
         events: EventBus,
@@ -851,19 +880,11 @@ impl ApiServer {
         telemetry: Metrics,
     ) -> Result<Self> {
         let openapi_document = Arc::new(build_openapi_document());
-        revaer_telemetry::persist_openapi(Path::new("docs/api/openapi.json"), &openapi_document)?;
+        Self::persist_openapi(&openapi_document)?;
 
-        let telemetry_for_state = telemetry.clone();
-        let state = Arc::new(ApiState::new(
-            config,
-            telemetry_for_state,
-            openapi_document,
-            events,
-            torrent,
-        ));
-
+        let state = Self::build_state(config, telemetry.clone(), openapi_document, events, torrent);
         let trace_layer = TraceLayer::new_for_http()
-            .make_span_with(move |request: &Request<_>| {
+            .make_span_with(|request: &Request<_>| {
                 let method = request.method().clone();
                 let uri_path = request.uri().path();
                 let request_id = request
@@ -903,119 +924,115 @@ impl ApiServer {
                 let latency_ms = u64::try_from(latency.as_millis()).unwrap_or(u64::MAX);
                 span.record("latency_ms", latency_ms);
             });
-
         let layered = ServiceBuilder::new()
             .layer(revaer_telemetry::propagate_request_id_layer())
             .layer(revaer_telemetry::set_request_id_layer())
             .layer(trace_layer)
             .layer(HttpMetricsLayer::new(telemetry));
 
-        let mut router = Router::new()
+        let router = Self::build_router(&state);
+        let router = Self::mount_optional_compat(router);
+        let router = router.route_layer(layered).with_state(state);
+
+        Ok(Self { router })
+    }
+
+    fn persist_openapi(document: &Arc<Value>) -> Result<()> {
+        revaer_telemetry::persist_openapi(Path::new("docs/api/openapi.json"), document)?;
+        Ok(())
+    }
+
+    fn build_state(
+        config: SharedConfig,
+        telemetry: Metrics,
+        openapi_document: Arc<Value>,
+        events: EventBus,
+        torrent: Option<TorrentHandles>,
+    ) -> Arc<ApiState> {
+        Arc::new(ApiState::new(
+            config,
+            telemetry,
+            openapi_document,
+            events,
+            torrent,
+        ))
+    }
+
+    fn build_router(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_setup = middleware::from_fn_with_state(state.clone(), require_setup_token);
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
             .route("/health", get(health))
             .route("/health/full", get(health_full))
             .route("/.well-known/revaer.json", get(well_known))
             .route("/admin/setup/start", post(setup_start))
             .route(
                 "/admin/setup/complete",
-                post(setup_complete).route_layer(middleware::from_fn_with_state::<
-                    _,
-                    Arc<ApiState>,
-                    (State<Arc<ApiState>>, Request<Body>),
-                >(
-                    state.clone(), require_setup_token
-                )),
+                post(setup_complete).route_layer(require_setup),
             )
             .route(
                 "/admin/settings",
-                patch(settings_patch).route_layer(middleware::from_fn_with_state::<
-                    _,
-                    Arc<ApiState>,
-                    (State<Arc<ApiState>>, Request<Body>),
-                >(state.clone(), require_api_key)),
+                patch(settings_patch).route_layer(require_api.clone()),
             )
             .route(
                 "/admin/torrents",
-                get(list_torrents).post(create_torrent).route_layer(
-                    middleware::from_fn_with_state::<
-                        _,
-                        Arc<ApiState>,
-                        (State<Arc<ApiState>>, Request<Body>),
-                    >(state.clone(), require_api_key),
-                ),
+                get(list_torrents)
+                    .post(create_torrent)
+                    .route_layer(require_api.clone()),
             )
             .route(
                 "/admin/torrents/:id",
-                get(get_torrent).delete(delete_torrent).route_layer(
-                    middleware::from_fn_with_state::<
-                        _,
-                        Arc<ApiState>,
-                        (State<Arc<ApiState>>, Request<Body>),
-                    >(state.clone(), require_api_key),
-                ),
+                get(get_torrent)
+                    .delete(delete_torrent)
+                    .route_layer(require_api.clone()),
             )
             .route(
                 "/v1/torrents",
-                get(list_torrents).post(create_torrent).route_layer(
-                    middleware::from_fn_with_state::<
-                        _,
-                        Arc<ApiState>,
-                        (State<Arc<ApiState>>, Request<Body>),
-                    >(state.clone(), require_api_key),
-                ),
+                get(list_torrents)
+                    .post(create_torrent)
+                    .route_layer(require_api.clone()),
             )
             .route(
                 "/v1/torrents/:id",
-                get(get_torrent).route_layer(middleware::from_fn_with_state::<
-                    _,
-                    Arc<ApiState>,
-                    (State<Arc<ApiState>>, Request<Body>),
-                >(state.clone(), require_api_key)),
+                get(get_torrent).route_layer(require_api.clone()),
             )
             .route(
                 "/v1/torrents/:id/select",
-                post(select_torrent).route_layer(middleware::from_fn_with_state::<
-                    _,
-                    Arc<ApiState>,
-                    (State<Arc<ApiState>>, Request<Body>),
-                >(state.clone(), require_api_key)),
+                post(select_torrent).route_layer(require_api.clone()),
             )
             .route(
                 "/v1/torrents/:id/action",
-                post(action_torrent).route_layer(middleware::from_fn_with_state::<
-                    _,
-                    Arc<ApiState>,
-                    (State<Arc<ApiState>>, Request<Body>),
-                >(state.clone(), require_api_key)),
+                post(action_torrent).route_layer(require_api.clone()),
             )
             .route(
                 "/v1/events",
-                get(stream_events).route_layer(middleware::from_fn_with_state::<
-                    _,
-                    Arc<ApiState>,
-                    (State<Arc<ApiState>>, Request<Body>),
-                >(state.clone(), require_api_key)),
+                get(stream_events).route_layer(require_api.clone()),
             )
             .route(
                 "/v1/torrents/events",
-                get(stream_events).route_layer(middleware::from_fn_with_state::<
-                    _,
-                    Arc<ApiState>,
-                    (State<Arc<ApiState>>, Request<Body>),
-                >(state.clone(), require_api_key)),
+                get(stream_events).route_layer(require_api),
             )
             .route("/metrics", get(metrics))
-            .route("/docs/openapi.json", get(openapi_document_handler));
-
-        #[cfg(feature = "compat-qb")]
-        {
-            router = compat_qb::mount(router);
-        }
-
-        let router = router.route_layer(layered).with_state(state);
-
-        Ok(Self { router })
+            .route("/docs/openapi.json", get(openapi_document_handler))
     }
 
+    fn mount_optional_compat(router: Router<Arc<ApiState>>) -> Router<Arc<ApiState>> {
+        #[cfg(feature = "compat-qb")]
+        {
+            compat_qb::mount(router)
+        }
+        #[cfg(not(feature = "compat-qb"))]
+        {
+            router
+        }
+    }
+
+    /// Serve the API using the configured router on the supplied address.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the listener fails to bind or the server terminates unexpectedly.
     #[allow(clippy::missing_errors_doc)]
     pub async fn serve(self, addr: SocketAddr) -> Result<()> {
         info!("Starting API on {}", addr);
@@ -1219,6 +1236,9 @@ async fn delete_torrent(
     info!(torrent_id = %id, "torrent removal requested");
     state.remove_metadata(&id);
     state.update_torrent_metrics().await;
+    let _ = state
+        .events
+        .publish(CoreEvent::TorrentRemoved { torrent_id: id });
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1337,7 +1357,6 @@ async fn fetch_torrent_status(
         .ok_or_else(|| ApiError::not_found("torrent not found"))
 }
 
-#[allow(clippy::too_many_lines)]
 async fn list_torrents(
     State(state): State<Arc<ApiState>>,
     Query(query): Query<TorrentListQuery>,
@@ -1349,132 +1368,22 @@ async fn list_torrents(
     let statuses = fetch_all_torrents(handles).await?;
     state.record_torrent_metrics(&statuses);
 
-    let state_filter = if let Some(filter) = query.state.as_deref() {
-        Some(parse_state_filter(filter)?)
-    } else {
-        None
-    };
-    let tag_filters = query
-        .tags
-        .as_deref()
-        .map(split_comma_separated)
-        .unwrap_or_default();
-    let tracker_filter = query.tracker.as_ref().map(|value| normalise_lower(value));
-    let extension_filter = query
-        .extension
+    let filters = parse_list_filters(&query)?;
+    let mut entries = build_status_entries(statuses, &state);
+    filter_entries(&mut entries, &filters);
+    sort_entries(&mut entries);
+
+    let cursor = query
+        .cursor
         .as_ref()
-        .map(|value| normalise_lower(value.trim_start_matches('.')));
-    let name_filter = query.name.as_ref().map(|value| normalise_lower(value));
-
-    let mut entries: Vec<StatusEntry> = statuses
-        .into_iter()
-        .map(|status| StatusEntry {
-            metadata: state.get_metadata(&status.id),
-            status,
-        })
-        .collect();
-
-    entries.retain(|entry| {
-        if let Some(expected) = state_filter {
-            let current = TorrentStateKind::from(entry.status.state.clone());
-            if current != expected {
-                return false;
-            }
-        }
-
-        if !tag_filters.is_empty() {
-            let tags = entry
-                .metadata
-                .tags
-                .iter()
-                .map(|tag| tag.to_lowercase())
-                .collect::<HashSet<_>>();
-            if !tag_filters.iter().all(|filter| tags.contains(filter)) {
-                return false;
-            }
-        }
-
-        if let Some(ref tracker) = tracker_filter
-            && !entry
-                .metadata
-                .trackers
-                .iter()
-                .any(|value| value.to_lowercase().contains(tracker))
-        {
-            return false;
-        }
-
-        if let Some(ref extension) = extension_filter {
-            let matches_extension = entry.status.files.as_ref().is_some_and(|files| {
-                files.iter().any(|file| {
-                    file.path
-                        .rsplit_once('.')
-                        .is_some_and(|(_, ext)| normalise_lower(ext) == *extension)
-                })
-            });
-            if !matches_extension {
-                return false;
-            }
-        }
-
-        if let Some(ref needle) = name_filter {
-            let matched = entry
-                .status
-                .name
-                .as_ref()
-                .is_some_and(|name| name.to_lowercase().contains(needle));
-            if !matched {
-                return false;
-            }
-        }
-
-        true
-    });
-
-    entries.sort_by(|a, b| {
-        b.status
-            .last_updated
-            .cmp(&a.status.last_updated)
-            .then_with(|| a.status.id.cmp(&b.status.id))
-    });
-
-    let cursor = if let Some(token) = query.cursor.as_ref() {
-        Some(decode_cursor_token(token)?)
-    } else {
-        None
-    };
-
-    let mut start_index = 0;
-    if let Some(cursor) = &cursor {
-        while start_index < entries.len() {
-            let status = &entries[start_index].status;
-            if status.last_updated > cursor.last_updated
-                || (status.last_updated == cursor.last_updated && status.id >= cursor.id)
-            {
-                start_index += 1;
-            } else {
-                break;
-            }
-        }
-    }
-
+        .map(|token| decode_cursor_token(token))
+        .transpose()?;
     let limit = query
         .limit
         .map_or(DEFAULT_PAGE_SIZE, |value| value as usize)
         .clamp(1, MAX_PAGE_SIZE);
-    let end_index = (start_index + limit).min(entries.len());
-    let slice = &entries[start_index..end_index];
-
-    let torrents: Vec<TorrentSummary> = slice
-        .iter()
-        .map(|entry| summary_from_components(entry.status.clone(), entry.metadata.clone()))
-        .collect();
-
-    let next = if end_index < entries.len() && !torrents.is_empty() {
-        Some(encode_cursor_from_entry(&entries[end_index - 1])?)
-    } else {
-        None
-    };
+    let start_index = compute_start_index(&entries, cursor.as_ref());
+    let (torrents, next) = paginate_entries(&entries, start_index, limit)?;
 
     Ok(Json(TorrentListResponse { torrents, next }))
 }
@@ -1491,6 +1400,161 @@ async fn get_torrent(
     state.record_torrent_metrics(std::slice::from_ref(&status));
     let metadata = state.get_metadata(&status.id);
     Ok(Json(detail_from_components(status, metadata)))
+}
+
+struct ListFilters {
+    state: Option<TorrentStateKind>,
+    tags: HashSet<String>,
+    tracker: Option<String>,
+    extension: Option<String>,
+    name: Option<String>,
+}
+
+fn parse_list_filters(query: &TorrentListQuery) -> Result<ListFilters, ApiError> {
+    let state = match query.state.as_deref() {
+        Some(filter) => Some(parse_state_filter(filter)?),
+        None => None,
+    };
+    let tags = query
+        .tags
+        .as_deref()
+        .map(split_comma_separated)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|tag| tag.to_lowercase())
+        .filter(|tag| !tag.is_empty())
+        .collect::<HashSet<_>>();
+    let tracker = query.tracker.as_ref().map(|value| normalise_lower(value));
+    let extension = query
+        .extension
+        .as_ref()
+        .map(|value| normalise_lower(value.trim_start_matches('.')));
+    let name = query.name.as_ref().map(|value| normalise_lower(value));
+
+    Ok(ListFilters {
+        state,
+        tags,
+        tracker,
+        extension,
+        name,
+    })
+}
+
+fn build_status_entries(statuses: Vec<TorrentStatus>, state: &Arc<ApiState>) -> Vec<StatusEntry> {
+    statuses
+        .into_iter()
+        .map(|status| StatusEntry {
+            metadata: state.get_metadata(&status.id),
+            status,
+        })
+        .collect()
+}
+
+fn filter_entries(entries: &mut Vec<StatusEntry>, filters: &ListFilters) {
+    entries.retain(|entry| {
+        if let Some(expected_state) = filters.state {
+            let current = TorrentStateKind::from(entry.status.state.clone());
+            if current != expected_state {
+                return false;
+            }
+        }
+
+        if !filters.tags.is_empty() {
+            let tags = entry
+                .metadata
+                .tags
+                .iter()
+                .map(|tag| tag.to_lowercase())
+                .collect::<HashSet<_>>();
+            if !filters.tags.iter().all(|needle| tags.contains(needle)) {
+                return false;
+            }
+        }
+
+        if let Some(tracker) = &filters.tracker {
+            let matches_tracker = entry
+                .metadata
+                .trackers
+                .iter()
+                .any(|value| value.to_lowercase().contains(tracker));
+            if !matches_tracker {
+                return false;
+            }
+        }
+
+        if let Some(extension) = &filters.extension {
+            let matches_extension = entry.status.files.as_ref().is_some_and(|files| {
+                files.iter().any(|file| {
+                    file.path
+                        .rsplit_once('.')
+                        .is_some_and(|(_, ext)| normalise_lower(ext) == *extension)
+                })
+            });
+            if !matches_extension {
+                return false;
+            }
+        }
+
+        if let Some(name) = &filters.name {
+            let matched = entry
+                .status
+                .name
+                .as_ref()
+                .is_some_and(|value| value.to_lowercase().contains(name));
+            if !matched {
+                return false;
+            }
+        }
+
+        true
+    });
+}
+
+fn sort_entries(entries: &mut [StatusEntry]) {
+    entries.sort_by(|a, b| {
+        b.status
+            .last_updated
+            .cmp(&a.status.last_updated)
+            .then_with(|| a.status.id.cmp(&b.status.id))
+    });
+}
+
+fn compute_start_index(entries: &[StatusEntry], cursor: Option<&CursorToken>) -> usize {
+    let mut index = 0;
+    if let Some(cursor) = cursor {
+        while index < entries.len() {
+            let status = &entries[index].status;
+            if status.last_updated > cursor.last_updated
+                || (status.last_updated == cursor.last_updated && status.id >= cursor.id)
+            {
+                index += 1;
+            } else {
+                break;
+            }
+        }
+    }
+    index
+}
+
+fn paginate_entries(
+    entries: &[StatusEntry],
+    start_index: usize,
+    limit: usize,
+) -> Result<(Vec<TorrentSummary>, Option<String>), ApiError> {
+    let end_index = (start_index + limit).min(entries.len());
+    let slice = &entries[start_index..end_index];
+    let torrents = slice
+        .iter()
+        .map(|entry| summary_from_components(entry.status.clone(), entry.metadata.clone()))
+        .collect::<Vec<_>>();
+
+    let next = if end_index < entries.len() && !torrents.is_empty() {
+        Some(encode_cursor_from_entry(&entries[end_index - 1])?)
+    } else {
+        None
+    };
+
+    Ok((torrents, next))
 }
 
 async fn health(State(state): State<Arc<ApiState>>) -> Result<Json<HealthResponse>, ApiError> {
@@ -1660,801 +1724,15 @@ fn event_sse_stream(
         })
 }
 
-#[allow(clippy::too_many_lines)]
 fn build_openapi_document() -> Value {
-    json!({
-        "openapi": "3.1.0",
-        "info": {
-            "title": "Revaer Control Plane API",
-            "version": "0.1.0"
-        },
-        "servers": [
-            { "url": "http://localhost:7070" }
-        ],
-        "paths": {
-            "/health": {
-                "get": {
-                    "summary": "Read the lightweight health probe",
-                    "responses": {
-                        "200": {
-                            "description": "Health snapshot",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/HealthResponse" }
-                                }
-                            }
-                        },
-                        "503": {
-                            "description": "Service unavailable",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/health/full": {
-                "get": {
-                    "summary": "Read the extended health probe",
-                    "responses": {
-                        "200": {
-                            "description": "Detailed health snapshot",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/FullHealthResponse" }
-                                }
-                            }
-                        },
-                        "503": {
-                            "description": "Service unavailable",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/.well-known/revaer.json": {
-                "get": {
-                    "summary": "Retrieve the configuration snapshot exposed to clients",
-                    "responses": {
-                        "200": {
-                            "description": "Configuration document",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ConfigSnapshot" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/admin/setup/start": {
-                "post": {
-                    "summary": "Issue a one-time setup token",
-                    "requestBody": {
-                        "required": false,
-                        "content": {
-                            "application/json": {
-                                "schema": { "$ref": "#/components/schemas/SetupStartRequest" }
-                            }
-                        }
-                    },
-                    "responses": {
-                        "200": {
-                            "description": "Setup token issued",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/SetupStartResponse" }
-                                }
-                            }
-                        },
-                        "409": {
-                            "description": "System already configured",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/admin/setup/complete": {
-                "post": {
-                    "summary": "Complete initial setup and persist configuration",
-                    "security": [ { "SetupToken": [] } ],
-                    "requestBody": {
-                        "required": true,
-                        "content": {
-                            "application/json": {
-                                "schema": { "$ref": "#/components/schemas/SettingsChangeset" }
-                            }
-                        }
-                    },
-                    "responses": {
-                        "200": {
-                            "description": "Snapshot after setup",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ConfigSnapshot" }
-                                }
-                            }
-                        },
-                        "401": {
-                            "description": "Invalid setup token",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/admin/settings": {
-                "patch": {
-                    "summary": "Apply configuration mutations",
-                    "security": [ { "ApiKeyAuth": [] } ],
-                    "requestBody": {
-                        "required": true,
-                        "content": {
-                            "application/json": {
-                                "schema": { "$ref": "#/components/schemas/SettingsChangeset" }
-                            }
-                        }
-                    },
-                    "responses": {
-                        "200": {
-                            "description": "Updated configuration snapshot",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ConfigSnapshot" }
-                                }
-                            }
-                        },
-                        "401": {
-                            "description": "Authentication failed",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "429": {
-                            "description": "Rate limit exceeded",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "422": {
-                            "description": "Validation error",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-    "/v1/torrents": {
-                "get": {
-                    "summary": "List torrents with pagination and filters",
-                    "security": [ { "ApiKeyAuth": [] } ],
-                    "parameters": [
-                        { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 200 } },
-                        { "name": "cursor", "in": "query", "schema": { "type": "string" } },
-                        { "name": "state", "in": "query", "schema": { "type": "string", "enum": ["queued", "fetching_metadata", "downloading", "seeding", "completed", "failed", "stopped"] } },
-                        { "name": "tracker", "in": "query", "schema": { "type": "string" } },
-                        { "name": "extension", "in": "query", "schema": { "type": "string" } },
-                        { "name": "tags", "in": "query", "schema": { "type": "string" }, "description": "Comma separated list of tags" },
-                        { "name": "name", "in": "query", "schema": { "type": "string" } }
-                    ],
-                    "responses": {
-                        "200": {
-                            "description": "Torrent collection",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/TorrentListResponse" }
-                                }
-                            }
-                        },
-                        "400": {
-                            "description": "Invalid filters",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "401": {
-                            "description": "Authentication failed",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "429": {
-                            "description": "Rate limit exceeded",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "503": {
-                            "description": "Torrent workflow unavailable",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        }
-                    }
-                },
-                "post": {
-                    "summary": "Submit a torrent descriptor to the engine",
-                    "security": [ { "ApiKeyAuth": [] } ],
-                    "requestBody": {
-                        "required": true,
-                        "content": {
-                            "application/json": {
-                                "schema": { "$ref": "#/components/schemas/TorrentCreateRequest" }
-                            }
-                        }
-                    },
-                    "responses": {
-                        "202": {
-                            "description": "Torrent accepted"
-                        },
-                        "400": {
-                            "description": "Invalid submission",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "401": {
-                            "description": "Authentication failed",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "429": {
-                            "description": "Rate limit exceeded",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "503": {
-                            "description": "Torrent workflow unavailable",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/v1/torrents/{id}": {
-                "get": {
-                    "summary": "Fetch torrent detail by identifier",
-                    "security": [ { "ApiKeyAuth": [] } ],
-                    "parameters": [
-                        { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
-                    ],
-                    "responses": {
-                        "200": {
-                            "description": "Torrent detail",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/TorrentDetail" }
-                                }
-                            }
-                        },
-                        "401": {
-                            "description": "Authentication failed",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "429": {
-                            "description": "Rate limit exceeded",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "404": {
-                            "description": "Torrent not found",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "503": {
-                            "description": "Torrent workflow unavailable",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/v1/torrents/{id}/select": {
-                "post": {
-                    "summary": "Update a torrent's file selection",
-                    "security": [ { "ApiKeyAuth": [] } ],
-                    "parameters": [
-                        { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
-                    ],
-                    "requestBody": {
-                        "required": true,
-                        "content": {
-                            "application/json": {
-                                "schema": { "$ref": "#/components/schemas/TorrentSelectionRequest" }
-                            }
-                        }
-                    },
-                    "responses": {
-                        "202": { "description": "Selection update accepted" },
-                        "400": {
-                            "description": "Invalid selection payload",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "401": {
-                            "description": "Authentication failed",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "429": {
-                            "description": "Rate limit exceeded",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "503": {
-                            "description": "Torrent workflow unavailable",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/v1/torrents/{id}/action": {
-                "post": {
-                    "summary": "Trigger a torrent control action",
-                    "security": [ { "ApiKeyAuth": [] } ],
-                    "parameters": [
-                        { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
-                    ],
-                    "requestBody": {
-                        "required": true,
-                        "content": {
-                            "application/json": {
-                                "schema": { "$ref": "#/components/schemas/TorrentAction" }
-                            }
-                        }
-                    },
-                    "responses": {
-                        "202": { "description": "Action accepted" },
-                        "400": {
-                            "description": "Invalid action payload",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "401": {
-                            "description": "Authentication failed",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "429": {
-                            "description": "Rate limit exceeded",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "503": {
-                            "description": "Torrent workflow unavailable",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/v1/torrents/events": {
-                "get": {
-                    "summary": "Subscribe to torrent events via SSE",
-                    "security": [ { "ApiKeyAuth": [] } ],
-                    "parameters": [
-                        { "name": "torrent", "in": "query", "schema": { "type": "string" }, "description": "Comma separated torrent identifiers" },
-                        { "name": "event", "in": "query", "schema": { "type": "string" }, "description": "Comma separated event kinds" },
-                        { "name": "state", "in": "query", "schema": { "type": "string" }, "description": "Filter state change events by new state" }
-                    ],
-                    "responses": {
-                        "200": {
-                            "description": "SSE stream",
-                            "content": {
-                                "text/event-stream": {
-                                    "schema": { "type": "string" }
-                                }
-                            }
-                        },
-                        "401": {
-                            "description": "Authentication failed",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "429": {
-                            "description": "Rate limit exceeded",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        },
-                        "503": {
-                            "description": "Event stream unavailable",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "$ref": "#/components/schemas/ProblemDetails" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/metrics": {
-                "get": {
-                    "summary": "Expose Prometheus metrics",
-                    "responses": {
-                        "200": {
-                            "description": "Prometheus metrics",
-                            "content": {
-                                "text/plain": {
-                                    "schema": { "type": "string" }
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            "/docs/openapi.json": {
-                "get": {
-                    "summary": "Serve the generated OpenAPI specification",
-                    "responses": {
-                        "200": {
-                            "description": "OpenAPI document",
-                            "content": {
-                                "application/json": {
-                                    "schema": { "type": "object" }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        },
-        "components": {
-            "securitySchemes": {
-                "SetupToken": {
-                    "type": "apiKey",
-                    "name": HEADER_SETUP_TOKEN,
-                    "in": "header"
-                },
-                "ApiKeyAuth": {
-                    "type": "apiKey",
-                    "name": HEADER_API_KEY,
-                    "in": "header"
-                }
-            },
-            "schemas": {
-                "ProblemDetails": {
-                    "type": "object",
-                    "properties": {
-                        "type": { "type": "string" },
-                        "title": { "type": "string" },
-                        "status": { "type": "integer" },
-                        "detail": { "type": "string" }
-                    },
-                    "required": ["type", "title", "status"]
-                },
-                "SetupStartRequest": {
-                    "type": "object",
-                    "properties": {
-                        "issued_by": { "type": "string" },
-                        "ttl_seconds": { "type": "integer", "format": "int64" }
-                    }
-                },
-                "SetupStartResponse": {
-                    "type": "object",
-                    "properties": {
-                        "token": { "type": "string" },
-                        "expires_at": { "type": "string", "format": "date-time" }
-                    },
-                    "required": ["token", "expires_at"]
-                },
-                "HealthComponent": {
-                    "type": "object",
-                    "properties": {
-                        "status": { "type": "string" },
-                        "revision": { "type": "integer", "format": "int64" }
-                    },
-                    "required": ["status"]
-                },
-                "HealthResponse": {
-                    "type": "object",
-                    "properties": {
-                        "status": { "type": "string" },
-                        "mode": { "type": "string" },
-                        "database": { "$ref": "#/components/schemas/HealthComponent" }
-                    },
-                    "required": ["status", "mode", "database"]
-                },
-                "ConfigSnapshot": {
-                    "type": "object",
-                    "properties": {
-                        "revision": { "type": "integer", "format": "int64" },
-                        "app_profile": { "type": "object" },
-                        "engine_profile": { "type": "object" },
-                        "fs_policy": { "type": "object" }
-                    },
-                    "required": ["revision", "app_profile", "engine_profile", "fs_policy"]
-                },
-                "SettingsChangeset": {
-                    "type": "object",
-                    "properties": {
-                        "app_profile": { "type": ["object", "null"] },
-                        "engine_profile": { "type": ["object", "null"] },
-                        "fs_policy": { "type": ["object", "null"] },
-                        "api_keys": { "type": "array", "items": { "type": "object" } },
-                        "secrets": { "type": "array", "items": { "type": "object" } }
-                    }
-                },
-                "TorrentCreateRequest": {
-                    "type": "object",
-                    "properties": {
-                        "id": { "type": "string", "format": "uuid" },
-                        "magnet": { "type": ["string", "null"] },
-                        "metainfo": { "type": ["string", "null"], "format": "byte" },
-                        "name": { "type": ["string", "null"] },
-                        "download_dir": { "type": ["string", "null"] },
-                        "sequential": { "type": ["boolean", "null"] },
-                        "include": { "type": "array", "items": { "type": "string" } },
-                        "exclude": { "type": "array", "items": { "type": "string" } },
-                        "skip_fluff": { "type": "boolean" },
-                        "tags": { "type": "array", "items": { "type": "string" } },
-                        "trackers": { "type": "array", "items": { "type": "string" } },
-                        "max_download_bps": { "type": ["integer", "null"], "format": "int64" },
-                        "max_upload_bps": { "type": ["integer", "null"], "format": "int64" }
-                    },
-                    "required": ["id"]
-                },
-                "FilePriorityOverride": {
-                    "type": "object",
-                    "properties": {
-                        "index": { "type": "integer", "format": "int32" },
-                        "priority": { "type": "string", "enum": ["skip", "low", "normal", "high"] }
-                    },
-                    "required": ["index", "priority"]
-                },
-                "TorrentSelectionRequest": {
-                    "type": "object",
-                    "properties": {
-                        "include": { "type": "array", "items": { "type": "string" } },
-                        "exclude": { "type": "array", "items": { "type": "string" } },
-                        "skip_fluff": { "type": "boolean" },
-                        "priorities": {
-                            "type": "array",
-                            "items": { "$ref": "#/components/schemas/FilePriorityOverride" }
-                        }
-                    }
-                },
-                "TorrentStateView": {
-                    "type": "object",
-                    "properties": {
-                        "kind": {
-                            "type": "string",
-                            "enum": [
-                                "queued",
-                                "fetching_metadata",
-                                "downloading",
-                                "seeding",
-                                "completed",
-                                "failed",
-                                "stopped"
-                            ]
-                        },
-                        "failure_message": { "type": ["string", "null"] }
-                    },
-                    "required": ["kind"]
-                },
-                "TorrentProgressView": {
-                    "type": "object",
-                    "properties": {
-                        "bytes_downloaded": { "type": "integer", "format": "int64" },
-                        "bytes_total": { "type": "integer", "format": "int64" },
-                        "percent_complete": { "type": "number", "format": "float" },
-                        "eta_seconds": { "type": ["integer", "null"], "format": "int64" }
-                    },
-                    "required": ["bytes_downloaded", "bytes_total", "percent_complete"]
-                },
-                "TorrentRatesView": {
-                    "type": "object",
-                    "properties": {
-                        "download_bps": { "type": "integer", "format": "int64" },
-                        "upload_bps": { "type": "integer", "format": "int64" },
-                        "ratio": { "type": "number", "format": "float" }
-                    },
-                    "required": ["download_bps", "upload_bps", "ratio"]
-                },
-                "TorrentFileView": {
-                    "type": "object",
-                    "properties": {
-                        "index": { "type": "integer", "format": "int32" },
-                        "path": { "type": "string" },
-                        "size_bytes": { "type": "integer", "format": "int64" },
-                        "bytes_completed": { "type": "integer", "format": "int64" },
-                        "priority": { "type": "string", "enum": ["skip", "low", "normal", "high"] },
-                        "selected": { "type": "boolean" }
-                    },
-                    "required": ["index", "path", "size_bytes", "bytes_completed", "priority", "selected"]
-                },
-                "TorrentSummary": {
-                    "type": "object",
-                    "properties": {
-                        "id": { "type": "string", "format": "uuid" },
-                        "name": { "type": ["string", "null"] },
-                        "state": { "$ref": "#/components/schemas/TorrentStateView" },
-                        "progress": { "$ref": "#/components/schemas/TorrentProgressView" },
-                        "rates": { "$ref": "#/components/schemas/TorrentRatesView" },
-                        "library_path": { "type": ["string", "null"] },
-                        "download_dir": { "type": ["string", "null"] },
-                        "sequential": { "type": "boolean" },
-                        "tags": { "type": "array", "items": { "type": "string" } },
-                        "trackers": { "type": "array", "items": { "type": "string" } },
-                        "added_at": { "type": "string", "format": "date-time" },
-                        "completed_at": { "type": ["string", "null"], "format": "date-time" },
-                        "last_updated": { "type": "string", "format": "date-time" }
-                    },
-                    "required": ["id", "state", "progress", "rates", "sequential", "tags", "trackers", "added_at", "last_updated"]
-                },
-                "TorrentDetail": {
-                    "type": "object",
-                    "properties": {
-                        "summary": { "$ref": "#/components/schemas/TorrentSummary" },
-                        "files": {
-                            "type": ["array", "null"],
-                            "items": { "$ref": "#/components/schemas/TorrentFileView" }
-                        }
-                    },
-                    "required": ["summary"]
-                },
-                "TorrentListResponse": {
-                    "type": "object",
-                    "properties": {
-                        "torrents": {
-                            "type": "array",
-                            "items": { "$ref": "#/components/schemas/TorrentSummary" }
-                        },
-                        "next": { "type": ["string", "null"] }
-                    },
-                    "required": ["torrents"]
-                },
-                "TorrentAction": {
-                    "type": "object",
-                    "properties": {
-                        "type": {
-                            "type": "string",
-                            "enum": [
-                                "pause",
-                                "resume",
-                                "remove",
-                                "reannounce",
-                                "recheck",
-                                "sequential",
-                                "rate"
-                            ]
-                        },
-                        "delete_data": { "type": ["boolean", "null"] },
-                        "enable": { "type": ["boolean", "null"] },
-                        "download_bps": { "type": ["integer", "null"], "format": "int64" },
-                        "upload_bps": { "type": ["integer", "null"], "format": "int64" }
-                    },
-                    "required": ["type"]
-                },
-                "HealthMetricsResponse": {
-                    "type": "object",
-                    "properties": {
-                        "config_watch_latency_ms": { "type": "integer", "format": "int64" },
-                        "config_apply_latency_ms": { "type": "integer", "format": "int64" },
-                        "config_update_failures_total": { "type": "integer", "format": "int64" },
-                        "config_watch_slow_total": { "type": "integer", "format": "int64" },
-                        "guardrail_violations_total": { "type": "integer", "format": "int64" },
-                        "rate_limit_throttled_total": { "type": "integer", "format": "int64" }
-                    },
-                    "required": [
-                        "config_watch_latency_ms",
-                        "config_apply_latency_ms",
-                        "config_update_failures_total",
-                        "config_watch_slow_total",
-                        "guardrail_violations_total",
-                        "rate_limit_throttled_total"
-                    ]
-                },
-                "TorrentHealthSnapshot": {
-                    "type": "object",
-                    "properties": {
-                        "active": { "type": "integer", "format": "int64" },
-                        "queue_depth": { "type": "integer", "format": "int64" }
-                    },
-                    "required": ["active", "queue_depth"]
-                },
-                "FullHealthResponse": {
-                    "type": "object",
-                    "properties": {
-                        "status": { "type": "string" },
-                        "mode": { "type": "string" },
-                        "revision": { "type": "integer", "format": "int64" },
-                        "build": { "type": "string" },
-                        "degraded": { "type": "array", "items": { "type": "string" } },
-                        "metrics": { "$ref": "#/components/schemas/HealthMetricsResponse" },
-                        "torrent": { "$ref": "#/components/schemas/TorrentHealthSnapshot" }
-                    },
-                    "required": ["status", "mode", "revision", "build", "degraded", "metrics", "torrent"]
-                }
-            }
-        }
-    })
+    match serde_json::from_str(include_str!("../../../docs/api/openapi.json")) {
+        Ok(value) => value,
+        Err(err) => panic!("embedded OpenAPI document is invalid JSON: {err}"),
+    }
 }
 
 #[must_use]
+/// Return a fresh copy of the embedded `OpenAPI` specification.
 pub fn openapi_document() -> Value {
     build_openapi_document()
 }
@@ -3204,126 +2482,169 @@ mod tests {
     }
 
     #[tokio::test]
-    #[allow(clippy::too_many_lines)]
     async fn torrent_endpoints_execute_workflow() -> Result<()> {
-        let config = MockConfig::new();
-        config.set_app_mode(AppMode::Active).await;
-        config.insert_api_key("operator", "secret").await;
-
-        let events = EventBus::with_capacity(32);
-        let metrics = Metrics::new()?;
-        let stub = Arc::new(StubTorrent::default());
-        let workflow: Arc<dyn TorrentWorkflow> = stub.clone();
-        let inspector: Arc<dyn TorrentInspector> = stub.clone();
-        let handles = TorrentHandles::new(workflow, inspector);
-        let state = Arc::new(ApiState::new(
-            config.shared(),
-            metrics,
-            Arc::new(build_openapi_document()),
-            events,
-            Some(handles),
-        ));
-
-        let existing_id = Uuid::new_v4();
-        let status = TorrentStatus {
-            id: existing_id,
-            name: Some("existing".to_string()),
-            progress: TorrentProgress {
-                bytes_total: 100,
-                bytes_downloaded: 100,
-                ..TorrentProgress::default()
-            },
-            state: TorrentState::Completed,
-            library_path: Some("/library/existing".to_string()),
-            ..TorrentStatus::default()
-        };
-        stub.push_status(status).await;
-
-        let request = TorrentCreateRequest {
-            id: Uuid::new_v4(),
-            magnet: Some("magnet:?xt=urn:btih:test".to_string()),
-            name: Some("example".to_string()),
-            ..TorrentCreateRequest::default()
-        };
-
-        create_torrent(
-            State(state.clone()),
-            Extension(AuthContext::ApiKey {
-                key_id: "operator".to_string(),
-            }),
-            Json(request.clone()),
-        )
-        .await
-        .expect("create torrent");
-
-        assert_eq!(stub.added().await.len(), 1);
-
-        let Json(list) = list_torrents(State(state.clone()), Query(TorrentListQuery::default()))
-            .await
-            .expect("list torrents");
-        assert!(list.torrents.iter().any(|item| item.id == existing_id));
-
-        let Json(detail) = get_torrent(State(state.clone()), AxumPath(existing_id))
-            .await
-            .expect("get torrent");
-        assert_eq!(detail.summary.id, existing_id);
-
-        let selection = TorrentSelectionRequest {
-            include: vec!["*.mkv".to_string()],
-            exclude: vec![],
-            skip_fluff: Some(true),
-            priorities: Vec::new(),
-        };
-        select_torrent(
-            State(state.clone()),
-            Extension(AuthContext::ApiKey {
-                key_id: "operator".to_string(),
-            }),
-            AxumPath(existing_id),
-            Json(selection.clone()),
-        )
-        .await
-        .expect("select torrent");
-        assert_eq!(stub.selections().await.len(), 1);
-
-        action_torrent(
-            State(state.clone()),
-            Extension(AuthContext::ApiKey {
-                key_id: "operator".to_string(),
-            }),
-            AxumPath(existing_id),
-            Json(TorrentAction::Sequential { enable: true }),
-        )
-        .await
-        .expect("sequential action");
-
-        action_torrent(
-            State(state.clone()),
-            Extension(AuthContext::ApiKey {
-                key_id: "operator".to_string(),
-            }),
-            AxumPath(existing_id),
-            Json(TorrentAction::Remove { delete_data: true }),
-        )
-        .await
-        .expect("remove action");
-        assert!(
-            stub.actions()
-                .await
-                .iter()
-                .any(|(_, action)| action == "remove")
-        );
-
-        delete_torrent(
-            State(state.clone()),
-            Extension(AuthContext::ApiKey {
-                key_id: "operator".to_string(),
-            }),
-            AxumPath(request.id),
-        )
-        .await
-        .expect("delete torrent");
+        let harness = TorrentTestHarness::new().await?;
+        harness.assert_create().await?;
+        harness.assert_list_contains_existing().await?;
+        harness.assert_detail_fetch().await?;
+        harness.assert_selection_update().await?;
+        harness.assert_actions().await?;
+        harness.assert_delete().await?;
         Ok(())
+    }
+
+    fn map_api_error(err: &ApiError) -> anyhow::Error {
+        anyhow::Error::msg(format!("{err:?}"))
+    }
+
+    struct TorrentTestHarness {
+        state: Arc<ApiState>,
+        stub: Arc<StubTorrent>,
+        request: TorrentCreateRequest,
+        existing_id: Uuid,
+        api_key_id: String,
+    }
+
+    impl TorrentTestHarness {
+        async fn new() -> Result<Self> {
+            let config = MockConfig::new();
+            config.set_app_mode(AppMode::Active).await;
+            let api_key_id = "operator".to_string();
+            config.insert_api_key(&api_key_id, "secret").await;
+
+            let events = EventBus::with_capacity(32);
+            let metrics = Metrics::new()?;
+            let stub = Arc::new(StubTorrent::default());
+            let workflow: Arc<dyn TorrentWorkflow> = stub.clone();
+            let inspector: Arc<dyn TorrentInspector> = stub.clone();
+            let handles = TorrentHandles::new(workflow, inspector);
+            let state = Arc::new(ApiState::new(
+                config.shared(),
+                metrics,
+                Arc::new(build_openapi_document()),
+                events,
+                Some(handles),
+            ));
+
+            let existing_id = Uuid::new_v4();
+            let status = TorrentStatus {
+                id: existing_id,
+                name: Some("existing".to_string()),
+                progress: TorrentProgress {
+                    bytes_total: 100,
+                    bytes_downloaded: 100,
+                    ..TorrentProgress::default()
+                },
+                state: TorrentState::Completed,
+                library_path: Some("/library/existing".to_string()),
+                ..TorrentStatus::default()
+            };
+            stub.push_status(status).await;
+
+            let request = TorrentCreateRequest {
+                id: Uuid::new_v4(),
+                magnet: Some("magnet:?xt=urn:btih:test".to_string()),
+                name: Some("example".to_string()),
+                ..TorrentCreateRequest::default()
+            };
+
+            Ok(Self {
+                state,
+                stub,
+                request,
+                existing_id,
+                api_key_id,
+            })
+        }
+
+        async fn assert_create(&self) -> Result<()> {
+            create_torrent(self.state(), self.auth(), Json(self.request.clone()))
+                .await
+                .map_err(|err| map_api_error(&err))?;
+            assert_eq!(self.stub.added().await.len(), 1);
+            Ok(())
+        }
+
+        async fn assert_list_contains_existing(&self) -> Result<()> {
+            let Json(list) = list_torrents(self.state(), Query(TorrentListQuery::default()))
+                .await
+                .map_err(|err| map_api_error(&err))?;
+            assert!(list.torrents.iter().any(|item| item.id == self.existing_id));
+            Ok(())
+        }
+
+        async fn assert_detail_fetch(&self) -> Result<()> {
+            let Json(detail) = get_torrent(self.state(), AxumPath(self.existing_id))
+                .await
+                .map_err(|err| map_api_error(&err))?;
+            assert_eq!(detail.summary.id, self.existing_id);
+            Ok(())
+        }
+
+        async fn assert_selection_update(&self) -> Result<()> {
+            let selection = TorrentSelectionRequest {
+                include: vec!["*.mkv".to_string()],
+                exclude: vec![],
+                skip_fluff: Some(true),
+                priorities: Vec::new(),
+            };
+            select_torrent(
+                self.state(),
+                self.auth(),
+                AxumPath(self.existing_id),
+                Json(selection),
+            )
+            .await
+            .map_err(|err| map_api_error(&err))?;
+            assert_eq!(self.stub.selections().await.len(), 1);
+            Ok(())
+        }
+
+        async fn assert_actions(&self) -> Result<()> {
+            action_torrent(
+                self.state(),
+                self.auth(),
+                AxumPath(self.existing_id),
+                Json(TorrentAction::Sequential { enable: true }),
+            )
+            .await
+            .map_err(|err| map_api_error(&err))?;
+
+            action_torrent(
+                self.state(),
+                self.auth(),
+                AxumPath(self.existing_id),
+                Json(TorrentAction::Remove { delete_data: true }),
+            )
+            .await
+            .map_err(|err| map_api_error(&err))?;
+
+            assert!(
+                self.stub
+                    .actions()
+                    .await
+                    .iter()
+                    .any(|(_, action)| action == "remove")
+            );
+            Ok(())
+        }
+
+        async fn assert_delete(&self) -> Result<()> {
+            delete_torrent(self.state(), self.auth(), AxumPath(self.request.id))
+                .await
+                .map_err(|err| map_api_error(&err))?;
+            Ok(())
+        }
+
+        fn state(&self) -> State<Arc<ApiState>> {
+            State(self.state.clone())
+        }
+
+        fn auth(&self) -> Extension<AuthContext> {
+            Extension(AuthContext::ApiKey {
+                key_id: self.api_key_id.clone(),
+            })
+        }
     }
 
     #[tokio::test]
@@ -3981,7 +3302,7 @@ mod tests {
         });
 
         let Json(delta) = compat_qb::sync_maindata(
-            State(state),
+            State(state.clone()),
             Query(SyncParams {
                 rid: Some(previous_rid),
             }),
@@ -3994,6 +3315,29 @@ mod tests {
         assert!(delta.torrents.contains_key(&sample_id.simple().to_string()));
         assert!(delta.torrents_removed.is_empty());
         assert!(delta.rid > previous_rid);
+
+        stub.statuses.lock().await.clear();
+        let latest_rid = delta.rid;
+        let _ = events.publish(CoreEvent::TorrentRemoved {
+            torrent_id: sample_id,
+        });
+
+        let Json(removed_delta) = compat_qb::sync_maindata(
+            State(state),
+            Query(SyncParams {
+                rid: Some(latest_rid),
+            }),
+        )
+        .await
+        .expect("removal sync");
+
+        assert!(!removed_delta.full_update);
+        assert!(removed_delta.torrents.is_empty());
+        assert_eq!(
+            removed_delta.torrents_removed,
+            vec![sample_id.simple().to_string()]
+        );
+        assert!(removed_delta.rid > latest_rid);
         Ok(())
     }
 

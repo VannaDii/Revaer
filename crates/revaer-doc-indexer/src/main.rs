@@ -1,3 +1,26 @@
+#![forbid(unsafe_code)]
+#![deny(
+    warnings,
+    dead_code,
+    unused,
+    unused_imports,
+    unused_must_use,
+    unreachable_pub,
+    clippy::all,
+    clippy::pedantic,
+    clippy::cargo,
+    clippy::nursery,
+    rustdoc::broken_intra_doc_links,
+    rustdoc::bare_urls,
+    missing_docs
+)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(unexpected_cfgs)]
+#![allow(clippy::multiple_crate_versions)]
+
+//! Documentation indexer CLI that produces machine-readable manifests for the
+//! Revaer docs tree.
+
 use anyhow::{Context, Result, anyhow};
 use chrono::Utc;
 use regex::Regex;
@@ -23,6 +46,7 @@ struct Manifest {
     entries: Vec<Entry>,
 }
 
+/// Entry point for generating the documentation manifest and summaries files.
 fn main() -> Result<()> {
     let docs_root = std::env::args()
         .nth(1)
@@ -79,17 +103,15 @@ fn run(docs_root: &Path, schema_path: &Path) -> Result<()> {
     let manifest_path = docs_root.join("llm/manifest.json");
     let summaries_path = docs_root.join("llm/summaries.json");
 
-    fs::write(
-        &manifest_path,
-        serde_json::to_string_pretty(&manifest).expect("serialization failed"),
-    )
-    .with_context(|| format!("Failed to write {}", manifest_path.display()))?;
+    let manifest_json =
+        serde_json::to_string_pretty(&manifest).context("Failed to serialise manifest payload")?;
+    fs::write(&manifest_path, manifest_json)
+        .with_context(|| format!("Failed to write {}", manifest_path.display()))?;
 
-    fs::write(
-        &summaries_path,
-        serde_json::to_string_pretty(&entries).expect("serialization failed"),
-    )
-    .with_context(|| format!("Failed to write {}", summaries_path.display()))?;
+    let summaries_json =
+        serde_json::to_string_pretty(&entries).context("Failed to serialise summary payload")?;
+    fs::write(&summaries_path, summaries_json)
+        .with_context(|| format!("Failed to write {}", summaries_path.display()))?;
 
     println!(
         "Generated {} entries → {}",
@@ -122,8 +144,8 @@ fn parse_markdown(raw: &str, path: &Path, docs_root: &Path) -> Result<Option<Ent
     let mut summary_lines: Vec<String> = Vec::new();
     let mut headings: Vec<String> = Vec::new();
     let mut capture_summary = false;
-    let h1_regex = Regex::new(r"^# (.+)$").unwrap();
-    let h2_regex = Regex::new(r"^## (.+)$").unwrap();
+    let h1_regex = Regex::new(r"^# (.+)$").context("Failed to compile H1 regex")?;
+    let h2_regex = Regex::new(r"^## (.+)$").context("Failed to compile H2 regex")?;
 
     for line in raw.lines() {
         if title.is_none() {
@@ -315,15 +337,12 @@ fn validate_manifest(manifest: &Manifest, schema_path: &Path) -> Result<()> {
     let schema_value: serde_json::Value =
         serde_json::from_str(&schema_str).context("Invalid JSON schema format")?;
     let schema_ref: &'static serde_json::Value = Box::leak(Box::new(schema_value));
-    let compiled =
-        jsonschema::JSONSchema::compile(schema_ref).context("Schema compilation failed")?;
+    let compiled = jsonschema::Validator::new(schema_ref).context("Schema compilation failed")?;
     let manifest_value =
         serde_json::to_value(manifest).context("Failed to serialise manifest for validation")?;
 
-    if let Err(errors) = compiled.validate(&manifest_value) {
-        for error in errors {
-            eprintln!("Schema validation error: {error}");
-        }
+    if let Err(error) = compiled.validate(&manifest_value) {
+        eprintln!("Schema validation error: {error}");
         return Err(anyhow!("Manifest failed schema validation"));
     }
 

@@ -1,3 +1,23 @@
+#![forbid(unsafe_code)]
+#![deny(
+    warnings,
+    dead_code,
+    unused,
+    unused_imports,
+    unused_must_use,
+    unreachable_pub,
+    clippy::all,
+    clippy::pedantic,
+    clippy::cargo,
+    clippy::nursery,
+    rustdoc::broken_intra_doc_links,
+    rustdoc::bare_urls,
+    missing_docs
+)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(unexpected_cfgs)]
+#![allow(clippy::multiple_crate_versions)]
+
 //! Engine-agnostic torrent interfaces and DTOs shared across the workspace.
 
 use anyhow::bail;
@@ -10,17 +30,27 @@ use uuid::Uuid;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TorrentSource {
-    Magnet { uri: String },
-    Metainfo { bytes: Vec<u8> },
+    /// Represents a magnet URI that should be fetched.
+    Magnet {
+        /// Magnet URI to resolve and add.
+        uri: String,
+    },
+    /// Represents raw `.torrent` metainfo bytes.
+    Metainfo {
+        /// Bencoded metainfo payload.
+        bytes: Vec<u8>,
+    },
 }
 
 impl TorrentSource {
     #[must_use]
+    /// Convenience constructor for magnet-based sources.
     pub fn magnet(uri: impl Into<String>) -> Self {
         Self::Magnet { uri: uri.into() }
     }
 
     #[must_use]
+    /// Convenience constructor for metainfo-based sources.
     pub fn metainfo(bytes: impl Into<Vec<u8>>) -> Self {
         Self::Metainfo {
             bytes: bytes.into(),
@@ -31,9 +61,12 @@ impl TorrentSource {
 /// Request payload for admitting a torrent into the engine.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AddTorrent {
+    /// Unique identifier assigned by the caller.
     pub id: Uuid,
+    /// How the torrent should be retrieved (magnet or metainfo).
     pub source: TorrentSource,
     #[serde(default)]
+    /// Optional knobs applied alongside admission.
     pub options: AddTorrentOptions,
 }
 
@@ -60,7 +93,9 @@ pub struct AddTorrentOptions {
 /// Per-torrent rate limiting knobs.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TorrentRateLimit {
+    /// Maximum download rate in bytes per second.
     pub download_bps: Option<u64>,
+    /// Maximum upload rate in bytes per second.
     pub upload_bps: Option<u64>,
 }
 
@@ -68,10 +103,13 @@ pub struct TorrentRateLimit {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FileSelectionRules {
     #[serde(default)]
+    /// Glob-style patterns that force inclusion.
     pub include: Vec<String>,
     #[serde(default)]
+    /// Glob-style patterns that force exclusion.
     pub exclude: Vec<String>,
     #[serde(default)]
+    /// Drop known "fluff" files from selection.
     pub skip_fluff: bool,
 }
 
@@ -79,19 +117,25 @@ pub struct FileSelectionRules {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FileSelectionUpdate {
     #[serde(default)]
+    /// Glob-style patterns that force inclusion.
     pub include: Vec<String>,
     #[serde(default)]
+    /// Glob-style patterns that force exclusion.
     pub exclude: Vec<String>,
     #[serde(default)]
+    /// Drop known "fluff" files from selection.
     pub skip_fluff: bool,
     #[serde(default)]
+    /// File priority overrides to apply post-selection.
     pub priorities: Vec<FilePriorityOverride>,
 }
 
 /// Per-file priority override.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FilePriorityOverride {
+    /// File index within the torrent payload.
     pub index: u32,
+    /// Desired priority for the file.
     pub priority: FilePriority,
 }
 
@@ -99,10 +143,14 @@ pub struct FilePriorityOverride {
 #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum FilePriority {
+    /// Do not download the file.
     Skip,
+    /// Throttle the download priority.
     Low,
+    /// Default priority level assigned by the engine.
     #[default]
     Normal,
+    /// Highest available priority for urgent files.
     High,
 }
 
@@ -110,6 +158,7 @@ pub enum FilePriority {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, Default)]
 pub struct RemoveTorrent {
     #[serde(default)]
+    /// Whether to remove on-disk data alongside the torrent metadata.
     pub with_data: bool,
 }
 
@@ -117,25 +166,32 @@ pub struct RemoveTorrent {
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TorrentRates {
     #[serde(default)]
+    /// Current download rate in bytes per second.
     pub download_bps: u64,
     #[serde(default)]
+    /// Current upload rate in bytes per second.
     pub upload_bps: u64,
     #[serde(default)]
+    /// Share ratio (uploaded/downloaded) reported by the engine.
     pub ratio: f64,
 }
 
 /// Aggregated progress metrics for a torrent.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TorrentProgress {
+    /// Total bytes downloaded so far.
     pub bytes_downloaded: u64,
+    /// Total bytes expected for completion.
     pub bytes_total: u64,
     #[serde(default)]
+    /// Estimated time remaining for completion in seconds.
     pub eta_seconds: Option<u64>,
 }
 
 impl TorrentProgress {
     #[allow(clippy::cast_precision_loss)]
     #[must_use]
+    /// Calculate the completion percentage (0-100).
     pub fn percent_complete(&self) -> f64 {
         if self.bytes_total == 0 {
             0.0
@@ -148,28 +204,46 @@ impl TorrentProgress {
 /// Individual file exposed by a torrent.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TorrentFile {
+    /// Index of the file within the torrent metainfo.
     pub index: u32,
+    /// Relative path of the file within the torrent payload.
     pub path: String,
+    /// Total size of the file in bytes.
     pub size_bytes: u64,
+    /// Bytes downloaded so far for this file.
     pub bytes_completed: u64,
+    /// Current priority level.
     pub priority: FilePriority,
+    /// Whether the file is selected for download.
     pub selected: bool,
 }
 
 /// High-level torrent status surfaced by the inspector.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TorrentStatus {
+    /// Identifier for the torrent.
     pub id: Uuid,
+    /// Optional human-readable name for the torrent.
     pub name: Option<String>,
+    /// Current lifecycle state.
     pub state: revaer_events::TorrentState,
+    /// Progress snapshot associated with the torrent.
     pub progress: TorrentProgress,
+    /// Transfer rates associated with the torrent.
     pub rates: TorrentRates,
+    /// Optional collection of files (when metadata is available).
     pub files: Option<Vec<TorrentFile>>,
+    /// Library path populated when the torrent is completed.
     pub library_path: Option<String>,
+    /// Download directory assigned to the torrent.
     pub download_dir: Option<String>,
+    /// Whether sequential mode is active.
     pub sequential: bool,
+    /// Timestamp when the torrent was added.
     pub added_at: DateTime<Utc>,
+    /// Timestamp when the torrent completed, if available.
     pub completed_at: Option<DateTime<Utc>>,
+    /// Timestamp of the last status update.
     pub last_updated: DateTime<Utc>,
 }
 
@@ -196,34 +270,57 @@ impl Default for TorrentStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum EngineEvent {
+    /// File metadata became available.
     FilesDiscovered {
+        /// Torrent identifier.
         torrent_id: Uuid,
+        /// Discovered file listing.
         files: Vec<TorrentFile>,
     },
+    /// Progress metrics were updated.
     Progress {
+        /// Torrent identifier.
         torrent_id: Uuid,
+        /// Updated progress snapshot.
         progress: TorrentProgress,
+        /// Updated transfer rates.
         rates: TorrentRates,
     },
+    /// Torrent state transitioned.
     StateChanged {
+        /// Torrent identifier.
         torrent_id: Uuid,
+        /// Updated lifecycle state.
         state: revaer_events::TorrentState,
     },
+    /// Torrent completed and produced a library artifact.
     Completed {
+        /// Torrent identifier.
         torrent_id: Uuid,
+        /// Path to the completed artifact.
         library_path: String,
     },
+    /// Torrent metadata (name/path) changed.
     MetadataUpdated {
+        /// Torrent identifier.
         torrent_id: Uuid,
+        /// Optional updated display name.
         name: Option<String>,
+        /// Optional updated download directory.
         download_dir: Option<String>,
     },
+    /// Resume data became available.
     ResumeData {
+        /// Torrent identifier.
         torrent_id: Uuid,
+        /// Raw resume data payload.
         payload: Vec<u8>,
     },
+    /// Engine reported an error condition.
     Error {
+        /// Torrent identifier associated with the error.
         torrent_id: Uuid,
+        /// Human-readable failure description.
         message: String,
     },
 }
@@ -231,25 +328,31 @@ pub enum EngineEvent {
 /// Primary engine trait implemented by adapters (e.g. libtorrent).
 #[async_trait]
 pub trait TorrentEngine: Send + Sync {
+    /// Admit a new torrent into the underlying engine.
     async fn add_torrent(&self, request: AddTorrent) -> anyhow::Result<()>;
 
+    /// Remove a torrent from the engine, optionally deleting data.
     async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> anyhow::Result<()>;
 
+    /// Pause a torrent; default implementation reports lack of support.
     async fn pause_torrent(&self, id: Uuid) -> anyhow::Result<()> {
         let _ = id;
         bail!("pause operation not supported by this engine");
     }
 
+    /// Resume a torrent; default implementation reports lack of support.
     async fn resume_torrent(&self, id: Uuid) -> anyhow::Result<()> {
         let _ = id;
         bail!("resume operation not supported by this engine");
     }
 
+    /// Toggle sequential download mode; default implementation reports lack of support.
     async fn set_sequential(&self, id: Uuid, sequential: bool) -> anyhow::Result<()> {
         let _ = (id, sequential);
         bail!("sequential toggle not supported by this engine");
     }
 
+    /// Update per-torrent or global rate limits.
     async fn update_limits(
         &self,
         id: Option<Uuid>,
@@ -259,16 +362,20 @@ pub trait TorrentEngine: Send + Sync {
         bail!("rate limit updates not supported by this engine");
     }
 
+    /// Adjust the file selection for a torrent.
+    /// Adjust the file selection; default implementation reports lack of support.
     async fn update_selection(&self, id: Uuid, rules: FileSelectionUpdate) -> anyhow::Result<()> {
         let _ = (id, rules);
         bail!("file selection updates not supported by this engine");
     }
 
+    /// Re-announce to trackers; default implementation reports lack of support.
     async fn reannounce(&self, id: Uuid) -> anyhow::Result<()> {
         let _ = id;
         bail!("reannounce not supported by this engine");
     }
 
+    /// Force a recheck of on-disk data; default implementation reports lack of support.
     async fn recheck(&self, id: Uuid) -> anyhow::Result<()> {
         let _ = id;
         bail!("recheck not supported by this engine");
@@ -278,25 +385,31 @@ pub trait TorrentEngine: Send + Sync {
 /// Workflow façade exposed to the API layer for torrent lifecycle control.
 #[async_trait]
 pub trait TorrentWorkflow: Send + Sync {
+    /// Admit a new torrent via the workflow façade.
     async fn add_torrent(&self, request: AddTorrent) -> anyhow::Result<()>;
 
+    /// Remove a torrent via the workflow façade.
     async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> anyhow::Result<()>;
 
+    /// Pause a torrent; default implementation reports lack of support.
     async fn pause_torrent(&self, id: Uuid) -> anyhow::Result<()> {
         let _ = id;
         bail!("pause operation not supported");
     }
 
+    /// Resume a torrent; default implementation reports lack of support.
     async fn resume_torrent(&self, id: Uuid) -> anyhow::Result<()> {
         let _ = id;
         bail!("resume operation not supported");
     }
 
+    /// Toggle sequential download mode; default implementation reports lack of support.
     async fn set_sequential(&self, id: Uuid, sequential: bool) -> anyhow::Result<()> {
         let _ = (id, sequential);
         bail!("sequential toggle not supported");
     }
 
+    /// Update per-torrent or global rate limits via the workflow façade.
     async fn update_limits(
         &self,
         id: Option<Uuid>,
@@ -306,16 +419,20 @@ pub trait TorrentWorkflow: Send + Sync {
         bail!("rate limit updates not supported");
     }
 
+    /// Adjust the file selection via the workflow façade.
+    /// Default implementation reports lack of support.
     async fn update_selection(&self, id: Uuid, rules: FileSelectionUpdate) -> anyhow::Result<()> {
         let _ = (id, rules);
         bail!("file selection updates not supported");
     }
 
+    /// Re-announce to trackers; default implementation reports lack of support.
     async fn reannounce(&self, id: Uuid) -> anyhow::Result<()> {
         let _ = id;
         bail!("reannounce not supported");
     }
 
+    /// Force a recheck of on-disk data; default implementation reports lack of support.
     async fn recheck(&self, id: Uuid) -> anyhow::Result<()> {
         let _ = id;
         bail!("recheck not supported");
@@ -325,8 +442,10 @@ pub trait TorrentWorkflow: Send + Sync {
 /// Inspector trait used by API consumers to fetch torrent snapshots.
 #[async_trait]
 pub trait TorrentInspector: Send + Sync {
+    /// Retrieve the full torrent status list.
     async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>>;
 
+    /// Retrieve an individual torrent status snapshot.
     async fn get(&self, id: Uuid) -> anyhow::Result<Option<TorrentStatus>>;
 }
 

@@ -1,4 +1,3 @@
-//! Filesystem post-processing pipeline for completed torrents.
 #![forbid(unsafe_code)]
 #![deny(
     warnings,
@@ -16,12 +15,15 @@
     missing_docs
 )]
 #![allow(clippy::module_name_repetitions, clippy::multiple_crate_versions)]
+#![allow(unexpected_cfgs)]
+
+//! Filesystem post-processing pipeline for completed torrents.
 
 use std::{
     fs::{self, File},
     io,
     path::{Component, Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, MutexGuard},
 };
 
 use anyhow::{Context, Result, anyhow, bail, ensure};
@@ -32,7 +34,7 @@ use revaer_events::{Event, EventBus};
 use revaer_telemetry::Metrics;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 use uuid::Uuid;
 use walkdir::WalkDir;
 use zip::ZipArchive;
@@ -233,7 +235,6 @@ impl FsOpsService {
         result
     }
 
-    #[allow(clippy::too_many_lines)]
     fn execute_pipeline(&self, request: &FsOpsRequest<'_>) -> Result<()> {
         let torrent_id = request.torrent_id;
         let policy = request.policy;
@@ -252,76 +253,119 @@ impl FsOpsService {
             return Ok(());
         }
 
+        self.run_validate_policy(torrent_id, &mut meta, &meta_path, policy)?;
+        self.run_allowlist(torrent_id, &mut meta, &meta_path, policy, &root)?;
+        self.run_prepare_directories(torrent_id, &mut meta, &meta_path, &root, &meta_dir)?;
+        self.run_compile_rules(torrent_id, &mut meta, &meta_path, policy)?;
+        self.run_locate_source(torrent_id, &mut meta, &meta_path, source_path)?;
+        self.run_prepare_work_dir(torrent_id, &mut meta, &meta_path, &meta_dir)?;
+        self.run_extract(torrent_id, &mut meta, &meta_path, policy)?;
+        self.run_flatten(torrent_id, &mut meta, &meta_path, policy)?;
+        self.run_transfer(torrent_id, &mut meta, &meta_path, policy, &root)?;
+        self.run_set_permissions(torrent_id, &mut meta, &meta_path, policy)?;
+        self.run_cleanup(torrent_id, &mut meta, &meta_path, policy)?;
+        self.run_finalise(torrent_id, &mut meta, &meta_path)?;
+
+        Ok(())
+    }
+
+    fn run_validate_policy(
+        &self,
+        torrent_id: Uuid,
+        meta: &mut FsOpsMeta,
+        meta_path: &Path,
+        policy: &FsPolicy,
+    ) -> Result<()> {
+        let root_value = policy.library_root.clone();
         self.execute_step(
             torrent_id,
-            &mut meta,
-            &meta_path,
+            meta,
+            meta_path,
             StepKind::ValidatePolicy,
             StepPersistence::new(false, false, false),
-            {
-                let root_value = policy.library_root.clone();
-                move |_meta| {
-                    ensure!(
-                        !root_value.trim().is_empty(),
-                        "filesystem policy library root cannot be empty"
-                    );
-                    Ok(StepOutcome::Completed(Some(format!(
-                        "library_root={root_value}"
-                    ))))
-                }
+            move |_meta| {
+                ensure!(
+                    !root_value.trim().is_empty(),
+                    "filesystem policy library root cannot be empty"
+                );
+                Ok(StepOutcome::Completed(Some(format!(
+                    "library_root={root_value}"
+                ))))
             },
-        )?;
+        )
+    }
 
+    fn run_allowlist(
+        &self,
+        torrent_id: Uuid,
+        meta: &mut FsOpsMeta,
+        meta_path: &Path,
+        policy: &FsPolicy,
+        root: &Path,
+    ) -> Result<()> {
+        let allow_paths = policy.allow_paths.clone();
+        let root_clone = root.to_path_buf();
         self.execute_step(
             torrent_id,
-            &mut meta,
-            &meta_path,
+            meta,
+            meta_path,
             StepKind::Allowlist,
             StepPersistence::new(false, false, false),
-            {
-                let allow_paths = policy.allow_paths.clone();
-                let root_clone = root.clone();
-                move |_meta| {
-                    enforce_allow_paths(&root_clone, &allow_paths)?;
-                    Ok(StepOutcome::Completed(None))
-                }
+            move |_meta| {
+                enforce_allow_paths(&root_clone, &allow_paths)?;
+                Ok(StepOutcome::Completed(None))
             },
-        )?;
+        )
+    }
 
+    fn run_prepare_directories(
+        &self,
+        torrent_id: Uuid,
+        meta: &mut FsOpsMeta,
+        meta_path: &Path,
+        root: &Path,
+        meta_dir: &Path,
+    ) -> Result<()> {
+        let root_clone = root.to_path_buf();
+        let meta_dir_clone = meta_dir.to_path_buf();
         self.execute_step(
             torrent_id,
-            &mut meta,
-            &meta_path,
+            meta,
+            meta_path,
             StepKind::PrepareDirectories,
             StepPersistence::new(false, true, false),
-            {
-                let root_clone = root.clone();
-                let meta_dir_clone = meta_dir.clone();
-                move |_meta| {
-                    fs::create_dir_all(&root_clone).with_context(|| {
-                        format!(
-                            "failed to create library root directory at {}",
-                            root_clone.display()
-                        )
-                    })?;
-                    fs::create_dir_all(&meta_dir_clone).with_context(|| {
-                        format!(
-                            "failed to create fsops metadata directory at {}",
-                            meta_dir_clone.display()
-                        )
-                    })?;
-                    Ok(StepOutcome::Completed(Some(format!(
-                        "meta_dir={}",
+            move |_meta| {
+                fs::create_dir_all(&root_clone).with_context(|| {
+                    format!(
+                        "failed to create library root directory at {}",
+                        root_clone.display()
+                    )
+                })?;
+                fs::create_dir_all(&meta_dir_clone).with_context(|| {
+                    format!(
+                        "failed to create fsops metadata directory at {}",
                         meta_dir_clone.display()
-                    ))))
-                }
+                    )
+                })?;
+                Ok(StepOutcome::Completed(Some(format!(
+                    "meta_dir={}",
+                    meta_dir_clone.display()
+                ))))
             },
-        )?;
+        )
+    }
 
+    fn run_compile_rules(
+        &self,
+        torrent_id: Uuid,
+        meta: &mut FsOpsMeta,
+        meta_path: &Path,
+        policy: &FsPolicy,
+    ) -> Result<()> {
         self.execute_step(
             torrent_id,
-            &mut meta,
-            &meta_path,
+            meta,
+            meta_path,
             StepKind::CompileRules,
             StepPersistence::new(false, false, false),
             |meta| {
@@ -333,314 +377,356 @@ impl FsOpsService {
                     rules.exclude_count()
                 ))))
             },
-        )?;
+        )
+    }
 
+    fn run_locate_source(
+        &self,
+        torrent_id: Uuid,
+        meta: &mut FsOpsMeta,
+        meta_path: &Path,
+        source_path: &Path,
+    ) -> Result<()> {
+        let explicit_source = source_path.to_path_buf();
         self.execute_step(
             torrent_id,
-            &mut meta,
-            &meta_path,
+            meta,
+            meta_path,
             StepKind::LocateSource,
             StepPersistence::new(false, true, false),
-            {
-                let explicit_source = source_path.to_path_buf();
-                move |meta| {
-                    let candidate = meta
-                        .source_path
-                        .as_ref()
-                        .map_or_else(|| explicit_source.clone(), PathBuf::from);
-                    let canonical = candidate
-                        .canonicalize()
-                        .unwrap_or_else(|_| candidate.clone());
-                    ensure!(
-                        canonical.exists(),
-                        "fsops source path {} does not exist",
-                        canonical.display()
-                    );
-                    let encoded = canonical.to_string_lossy().into_owned();
-                    meta.source_path = Some(encoded);
+            move |meta| {
+                let candidate = meta
+                    .source_path
+                    .as_ref()
+                    .map_or_else(|| explicit_source.clone(), PathBuf::from);
+                let canonical = candidate
+                    .canonicalize()
+                    .unwrap_or_else(|_| candidate.clone());
+                ensure!(
+                    canonical.exists(),
+                    "fsops source path {} does not exist",
+                    canonical.display()
+                );
+                let encoded = canonical.to_string_lossy().into_owned();
+                meta.source_path = Some(encoded);
+                if meta.staging_path.is_none() {
+                    meta.staging_path = meta.source_path.clone();
+                }
+                Ok(StepOutcome::Completed(Some(format!(
+                    "source={}",
+                    canonical.display()
+                ))))
+            },
+        )
+    }
+
+    fn run_prepare_work_dir(
+        &self,
+        torrent_id: Uuid,
+        meta: &mut FsOpsMeta,
+        meta_path: &Path,
+        meta_dir: &Path,
+    ) -> Result<()> {
+        let seed = meta_dir.join("work");
+        let label = torrent_id.to_string();
+        self.execute_step(
+            torrent_id,
+            meta,
+            meta_path,
+            StepKind::PrepareWorkDir,
+            StepPersistence::new(false, true, false),
+            move |meta| {
+                let default_work_dir = seed.join(&label);
+                let work_dir_path = meta
+                    .work_dir
+                    .as_ref()
+                    .map_or_else(|| default_work_dir.clone(), PathBuf::from);
+                fs::create_dir_all(&work_dir_path).with_context(|| {
+                    format!(
+                        "failed to prepare fsops work directory at {}",
+                        work_dir_path.display()
+                    )
+                })?;
+                meta.work_dir = Some(work_dir_path.to_string_lossy().into_owned());
+                Ok(StepOutcome::Completed(Some(format!(
+                    "work_dir={}",
+                    work_dir_path.display()
+                ))))
+            },
+        )
+    }
+
+    fn run_extract(
+        &self,
+        torrent_id: Uuid,
+        meta: &mut FsOpsMeta,
+        meta_path: &Path,
+        policy: &FsPolicy,
+    ) -> Result<()> {
+        let extract_enabled = policy.extract;
+        self.execute_step(
+            torrent_id,
+            meta,
+            meta_path,
+            StepKind::Extract,
+            StepPersistence::new(false, true, false),
+            move |meta| {
+                if !extract_enabled {
                     if meta.staging_path.is_none() {
                         meta.staging_path = meta.source_path.clone();
                     }
-                    Ok(StepOutcome::Completed(Some(format!(
-                        "source={}",
-                        canonical.display()
-                    ))))
+                    return Ok(StepOutcome::Skipped(Some("extract disabled".into())));
                 }
-            },
-        )?;
-
-        self.execute_step(
-            torrent_id,
-            &mut meta,
-            &meta_path,
-            StepKind::PrepareWorkDir,
-            StepPersistence::new(false, true, false),
-            {
-                let default_work_dir = meta_dir.join("work").join(torrent_id.to_string());
-                move |meta| {
-                    let work_dir_path = meta
-                        .work_dir
-                        .as_ref()
-                        .map_or_else(|| default_work_dir.clone(), PathBuf::from);
-                    fs::create_dir_all(&work_dir_path).with_context(|| {
-                        format!(
-                            "failed to prepare fsops work directory at {}",
-                            work_dir_path.display()
-                        )
-                    })?;
-                    meta.work_dir = Some(work_dir_path.to_string_lossy().into_owned());
-                    Ok(StepOutcome::Completed(Some(format!(
-                        "work_dir={}",
-                        work_dir_path.display()
-                    ))))
+                let staging = if let Some(path) = meta.staging_path.as_ref() {
+                    PathBuf::from(path)
+                } else if let Some(source) = meta.source_path.as_ref() {
+                    PathBuf::from(source)
+                } else {
+                    bail!("fsops source path not initialised before extraction");
+                };
+                if staging.is_dir() {
+                    return Ok(StepOutcome::Skipped(Some(
+                        "source already directory; nothing to extract".into(),
+                    )));
                 }
-            },
-        )?;
-
-        self.execute_step(
-            torrent_id,
-            &mut meta,
-            &meta_path,
-            StepKind::Extract,
-            StepPersistence::new(false, true, false),
-            {
-                let extract_enabled = policy.extract;
-                move |meta| {
-                    if !extract_enabled {
-                        if meta.staging_path.is_none() {
-                            meta.staging_path = meta.source_path.clone();
-                        }
-                        return Ok(StepOutcome::Skipped(Some("extract disabled".into())));
-                    }
-                    let staging = meta.staging_path.as_ref().map_or_else(
-                        || {
-                            PathBuf::from(
-                                meta.source_path
-                                    .as_ref()
-                                    .expect("source path initialised before extraction"),
-                            )
-                        },
-                        PathBuf::from,
-                    );
-                    if staging.is_dir() {
-                        return Ok(StepOutcome::Skipped(Some(
-                            "source already directory; nothing to extract".into(),
-                        )));
-                    }
-                    let work_dir = meta
-                        .work_dir
-                        .as_ref()
-                        .map(PathBuf::from)
-                        .ok_or_else(|| anyhow!("fsops work directory not prepared"))?;
-                    let extraction_target = work_dir.join("extracted");
-                    if extraction_target.exists() {
-                        fs::remove_dir_all(&extraction_target).with_context(|| {
-                            format!(
-                                "failed to reset extraction directory {}",
-                                extraction_target.display()
-                            )
-                        })?;
-                    }
-                    fs::create_dir_all(&extraction_target).with_context(|| {
+                let work_dir = meta
+                    .work_dir
+                    .as_ref()
+                    .map(PathBuf::from)
+                    .ok_or_else(|| anyhow!("fsops work directory not prepared"))?;
+                let extraction_target = work_dir.join("extracted");
+                if extraction_target.exists() {
+                    fs::remove_dir_all(&extraction_target).with_context(|| {
                         format!(
-                            "failed to create extraction directory {}",
+                            "failed to reset extraction directory {}",
                             extraction_target.display()
                         )
                     })?;
-                    Self::extract_archive(&staging, &extraction_target)?;
-                    meta.staging_path = Some(extraction_target.to_string_lossy().into_owned());
-                    Ok(StepOutcome::Completed(Some(format!(
-                        "archive={}",
-                        staging.display()
-                    ))))
                 }
+                fs::create_dir_all(&extraction_target).with_context(|| {
+                    format!(
+                        "failed to create extraction directory {}",
+                        extraction_target.display()
+                    )
+                })?;
+                Self::extract_archive(&staging, &extraction_target)?;
+                meta.staging_path = Some(extraction_target.to_string_lossy().into_owned());
+                Ok(StepOutcome::Completed(Some(format!(
+                    "archive={}",
+                    staging.display()
+                ))))
             },
-        )?;
+        )
+    }
 
+    fn run_flatten(
+        &self,
+        torrent_id: Uuid,
+        meta: &mut FsOpsMeta,
+        meta_path: &Path,
+        policy: &FsPolicy,
+    ) -> Result<()> {
+        let flatten_enabled = policy.flatten;
         self.execute_step(
             torrent_id,
-            &mut meta,
-            &meta_path,
+            meta,
+            meta_path,
             StepKind::Flatten,
             StepPersistence::new(false, true, false),
-            {
-                let flatten_enabled = policy.flatten;
-                move |meta| {
-                    if !flatten_enabled {
-                        return Ok(StepOutcome::Skipped(Some("flatten disabled".into())));
-                    }
-                    let staging = meta
-                        .staging_path
-                        .as_ref()
-                        .map(PathBuf::from)
-                        .ok_or_else(|| anyhow!("staging path unavailable before flatten step"))?;
-                    if !staging.is_dir() {
-                        return Ok(StepOutcome::Skipped(Some(
-                            "staging path is not a directory".into(),
-                        )));
-                    }
-                    let mut entries = fs::read_dir(&staging)
-                        .with_context(|| {
-                            format!(
-                                "failed to enumerate staging directory {}",
-                                staging.display()
-                            )
-                        })?
-                        .filter_map(Result::ok)
-                        .collect::<Vec<_>>();
-                    if entries.len() != 1 || !entries[0].path().is_dir() {
-                        return Ok(StepOutcome::Skipped(Some(
-                            "staging directory not a single-nested tree".into(),
-                        )));
-                    }
-                    let inner = entries.remove(0).path();
-                    meta.staging_path = Some(inner.to_string_lossy().into_owned());
-                    Ok(StepOutcome::Completed(Some(format!(
-                        "flattened_to={}",
-                        inner.display()
-                    ))))
+            move |meta| {
+                if !flatten_enabled {
+                    return Ok(StepOutcome::Skipped(Some("flatten disabled".into())));
                 }
+                let staging = meta
+                    .staging_path
+                    .as_ref()
+                    .map(PathBuf::from)
+                    .ok_or_else(|| anyhow!("staging path unavailable before flatten step"))?;
+                if !staging.is_dir() {
+                    return Ok(StepOutcome::Skipped(Some(
+                        "staging path is not a directory".into(),
+                    )));
+                }
+                let mut entries = fs::read_dir(&staging)
+                    .with_context(|| {
+                        format!(
+                            "failed to enumerate staging directory {}",
+                            staging.display()
+                        )
+                    })?
+                    .filter_map(Result::ok)
+                    .collect::<Vec<_>>();
+                if entries.len() != 1 || !entries[0].path().is_dir() {
+                    return Ok(StepOutcome::Skipped(Some(
+                        "staging directory not a single-nested tree".into(),
+                    )));
+                }
+                let inner = entries.remove(0).path();
+                meta.staging_path = Some(inner.to_string_lossy().into_owned());
+                Ok(StepOutcome::Completed(Some(format!(
+                    "flattened_to={}",
+                    inner.display()
+                ))))
             },
-        )?;
+        )
+    }
 
+    fn run_transfer(
+        &self,
+        torrent_id: Uuid,
+        meta: &mut FsOpsMeta,
+        meta_path: &Path,
+        policy: &FsPolicy,
+        root: &Path,
+    ) -> Result<()> {
+        let move_mode = policy.move_mode.as_str();
+        let root_clone = root.to_path_buf();
+        let torrent_label = torrent_id.to_string();
         self.execute_step(
             torrent_id,
-            &mut meta,
-            &meta_path,
+            meta,
+            meta_path,
             StepKind::Transfer,
             StepPersistence::new(false, true, false),
-            {
-                let move_mode = policy.move_mode.as_str();
-                let root_ref = &root;
-                let torrent_label = torrent_id.to_string();
-                move |meta| {
-                    let staging = meta
-                        .staging_path
-                        .as_ref()
-                        .map(PathBuf::from)
-                        .ok_or_else(|| anyhow!("staging path unavailable before transfer"))?;
-                    let destination = meta.artifact_path.as_ref().map_or_else(
-                        || {
-                            let inferred = staging
-                                .file_name()
-                                .and_then(|name| name.to_str())
-                                .filter(|name| !name.is_empty())
-                                .map_or_else(
-                                    || torrent_label.clone(),
-                                    std::borrow::ToOwned::to_owned,
-                                );
-                            root_ref.join(inferred)
-                        },
-                        PathBuf::from,
-                    );
+            move |meta| {
+                let staging = meta
+                    .staging_path
+                    .as_ref()
+                    .map(PathBuf::from)
+                    .ok_or_else(|| anyhow!("staging path unavailable before transfer"))?;
+                let destination = meta.artifact_path.as_ref().map_or_else(
+                    || {
+                        let inferred = staging
+                            .file_name()
+                            .and_then(|name| name.to_str())
+                            .filter(|name| !name.is_empty())
+                            .map_or_else(|| torrent_label.clone(), std::borrow::ToOwned::to_owned);
+                        root_clone.join(inferred)
+                    },
+                    PathBuf::from,
+                );
 
-                    if let Some(parent) = destination.parent() {
-                        fs::create_dir_all(parent).with_context(|| {
-                            format!("failed to create destination parent {}", parent.display())
+                if let Some(parent) = destination.parent() {
+                    fs::create_dir_all(parent).with_context(|| {
+                        format!("failed to create destination parent {}", parent.display())
+                    })?;
+                }
+
+                if destination.exists() {
+                    if staging.canonicalize().ok() == destination.canonicalize().ok() {
+                        meta.transfer_mode = Some(move_mode.to_string());
+                        meta.staging_path = Some(destination.to_string_lossy().into_owned());
+                        meta.artifact_path = Some(destination.to_string_lossy().into_owned());
+                        return Ok(StepOutcome::Skipped(Some(
+                            "artifact already positioned".into(),
+                        )));
+                    }
+                    if destination.is_file() {
+                        fs::remove_file(&destination).with_context(|| {
+                            format!(
+                                "failed to replace existing file at {}",
+                                destination.display()
+                            )
+                        })?;
+                    } else {
+                        fs::remove_dir_all(&destination).with_context(|| {
+                            format!(
+                                "failed to replace existing directory at {}",
+                                destination.display()
+                            )
                         })?;
                     }
-
-                    if destination.exists() {
-                        if staging.canonicalize().ok() == destination.canonicalize().ok() {
-                            meta.transfer_mode = Some(move_mode.to_owned());
-                            meta.staging_path = Some(destination.to_string_lossy().into_owned());
-                            meta.artifact_path = Some(destination.to_string_lossy().into_owned());
-                            return Ok(StepOutcome::Skipped(Some(
-                                "artifact already positioned".into(),
-                            )));
-                        }
-                        if destination.is_file() {
-                            fs::remove_file(&destination).with_context(|| {
-                                format!(
-                                    "failed to replace existing file at {}",
-                                    destination.display()
-                                )
-                            })?;
-                        } else {
-                            fs::remove_dir_all(&destination).with_context(|| {
-                                format!(
-                                    "failed to replace existing directory at {}",
-                                    destination.display()
-                                )
-                            })?;
-                        }
-                    }
-
-                    match move_mode {
-                        "copy" => Self::copy_tree(&staging, &destination)?,
-                        "move" => Self::move_tree(&staging, &destination)?,
-                        "hardlink" => Self::hardlink_tree(&staging, &destination)?,
-                        other => bail!("unsupported FsOps move_mode '{other}'"),
-                    }
-
-                    meta.transfer_mode = Some(move_mode.to_owned());
-                    meta.artifact_path = Some(destination.to_string_lossy().into_owned());
-                    meta.staging_path = meta.artifact_path.clone();
-                    Ok(StepOutcome::Completed(Some(format!(
-                        "destination={}",
-                        destination.display()
-                    ))))
                 }
-            },
-        )?;
 
+                match move_mode {
+                    "copy" => Self::copy_tree(&staging, &destination)?,
+                    "move" => Self::move_tree(&staging, &destination)?,
+                    "hardlink" => Self::hardlink_tree(&staging, &destination)?,
+                    other => bail!("unsupported FsOps move_mode '{other}'"),
+                }
+
+                let mode_string = move_mode.to_string();
+                meta.transfer_mode = Some(mode_string);
+                meta.artifact_path = Some(destination.to_string_lossy().into_owned());
+                meta.staging_path = meta.artifact_path.clone();
+                Ok(StepOutcome::Completed(Some(format!(
+                    "destination={}",
+                    destination.display()
+                ))))
+            },
+        )
+    }
+
+    fn run_set_permissions(
+        &self,
+        torrent_id: Uuid,
+        meta: &mut FsOpsMeta,
+        meta_path: &Path,
+        policy: &FsPolicy,
+    ) -> Result<()> {
+        let chmod_file = policy.chmod_file.clone();
+        let chmod_dir = policy.chmod_dir.clone();
+        let owner = policy.owner.clone();
+        let group = policy.group.clone();
+        let umask = policy.umask.clone();
         self.execute_step(
             torrent_id,
-            &mut meta,
-            &meta_path,
+            meta,
+            meta_path,
             StepKind::SetPermissions,
             StepPersistence::new(false, true, false),
-            {
-                let chmod_file = policy.chmod_file.clone();
-                let chmod_dir = policy.chmod_dir.clone();
-                let owner = policy.owner.clone();
-                let group = policy.group.clone();
-                let umask = policy.umask.clone();
-                move |meta| {
-                    let artifact = match meta.artifact_path.as_ref() {
-                        Some(path) => PathBuf::from(path),
-                        None => {
-                            return Ok(StepOutcome::Skipped(Some(
-                                "artifact path unavailable; skipping permission step".into(),
-                            )));
-                        }
-                    };
-
-                    if !artifact.exists() {
+            move |meta| {
+                let artifact = match meta.artifact_path.as_ref() {
+                    Some(path) => PathBuf::from(path),
+                    None => {
                         return Ok(StepOutcome::Skipped(Some(
-                            "artifact path missing on disk".into(),
+                            "artifact path unavailable; skipping permission step".into(),
                         )));
                     }
+                };
 
-                    if chmod_file.is_none()
-                        && chmod_dir.is_none()
-                        && owner.is_none()
-                        && group.is_none()
-                        && umask.is_none()
-                    {
-                        return Ok(StepOutcome::Skipped(Some(
-                            "no permission directives configured".into(),
-                        )));
-                    }
-
-                    let detail = Self::apply_permissions(
-                        &artifact,
-                        chmod_file.as_deref(),
-                        chmod_dir.as_deref(),
-                        owner.as_deref(),
-                        group.as_deref(),
-                        umask.as_deref(),
-                    )?;
-
-                    Ok(StepOutcome::Completed(Some(detail)))
+                if !artifact.exists() {
+                    return Ok(StepOutcome::Skipped(Some(
+                        "artifact path missing on disk".into(),
+                    )));
                 }
-            },
-        )?;
 
+                if chmod_file.is_none()
+                    && chmod_dir.is_none()
+                    && owner.is_none()
+                    && group.is_none()
+                    && umask.is_none()
+                {
+                    return Ok(StepOutcome::Skipped(Some(
+                        "no permission directives configured".into(),
+                    )));
+                }
+
+                let detail = Self::apply_permissions(
+                    &artifact,
+                    chmod_file.as_deref(),
+                    chmod_dir.as_deref(),
+                    owner.as_deref(),
+                    group.as_deref(),
+                    umask.as_deref(),
+                )?;
+
+                Ok(StepOutcome::Completed(Some(detail)))
+            },
+        )
+    }
+
+    fn run_cleanup(
+        &self,
+        torrent_id: Uuid,
+        meta: &mut FsOpsMeta,
+        meta_path: &Path,
+        policy: &FsPolicy,
+    ) -> Result<()> {
         self.execute_step(
             torrent_id,
-            &mut meta,
-            &meta_path,
+            meta,
+            meta_path,
             StepKind::Cleanup,
             StepPersistence::new(false, true, false),
             |meta| {
@@ -671,12 +757,14 @@ impl FsOpsService {
                     "removed_entries={removed}"
                 ))))
             },
-        )?;
+        )
+    }
 
+    fn run_finalise(&self, torrent_id: Uuid, meta: &mut FsOpsMeta, meta_path: &Path) -> Result<()> {
         self.execute_step(
             torrent_id,
-            &mut meta,
-            &meta_path,
+            meta,
+            meta_path,
             StepKind::Finalise,
             StepPersistence::new(true, true, false),
             |meta| {
@@ -693,9 +781,7 @@ impl FsOpsService {
                 );
                 Ok(StepOutcome::Completed(Some(detail)))
             },
-        )?;
-
-        Ok(())
+        )
     }
 
     fn emit_progress(&self, torrent_id: Uuid, step: &str) {
@@ -1284,10 +1370,7 @@ impl FsOpsService {
     }
 
     fn mark_degraded(&self, detail: &str) {
-        let mut guard = self
-            .health_degraded
-            .lock()
-            .expect("fsops health mutex poisoned");
+        let mut guard = self.lock_health_flag();
         if *guard {
             drop(guard);
             warn!(
@@ -1308,16 +1391,23 @@ impl FsOpsService {
     }
 
     fn mark_recovered(&self) {
-        let mut guard = self
-            .health_degraded
-            .lock()
-            .expect("fsops health mutex poisoned");
+        let mut guard = self.lock_health_flag();
         if std::mem::take(&mut *guard) {
             drop(guard);
             let _ = self
                 .events
                 .publish(Event::HealthChanged { degraded: vec![] });
             info!(component = HEALTH_COMPONENT, "fsops pipeline recovered");
+        }
+    }
+
+    fn lock_health_flag(&self) -> MutexGuard<'_, bool> {
+        match self.health_degraded.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                error!("fsops health mutex poisoned; continuing with recovered guard");
+                poisoned.into_inner()
+            }
         }
     }
 }
@@ -1483,7 +1573,6 @@ impl RuleSet {
         })
     }
 
-    #[cfg_attr(not(test), allow(dead_code))]
     fn evaluate(&self, path: &Path) -> RuleDecision {
         if self
             .exclude
@@ -1509,7 +1598,6 @@ impl RuleSet {
     }
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Debug, PartialEq, Eq)]
 enum RuleDecision {
     Include,
@@ -1521,7 +1609,7 @@ fn parse_glob_list(value: &Value) -> Result<Vec<String>> {
         Value::Array(entries) => entries
             .iter()
             .map(|entry| match entry {
-                Value::String(pattern) if !pattern.trim().is_empty() => Ok(pattern.to_string()),
+                Value::String(pattern) if !pattern.trim().is_empty() => Ok(pattern.clone()),
                 Value::String(_) => Err(anyhow!("glob patterns cannot be empty strings")),
                 other => Err(anyhow!("glob patterns must be strings (found {other:?})")),
             })

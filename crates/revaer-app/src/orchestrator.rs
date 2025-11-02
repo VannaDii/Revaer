@@ -1,3 +1,5 @@
+#![allow(clippy::redundant_pub_crate)]
+
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -7,7 +9,7 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use chrono::Utc;
 use revaer_config::{EngineProfile, FsPolicy};
-use revaer_events::{Event, EventBus, TorrentState};
+use revaer_events::{DiscoveredFile, Event, EventBus, TorrentState};
 use revaer_fsops::{FsOpsRequest, FsOpsService};
 use revaer_telemetry::Metrics;
 use revaer_torrent_core::{
@@ -23,7 +25,7 @@ use uuid::Uuid;
 const RATE_LIMIT_GUARD_BPS: u64 = 5_000_000_000;
 
 #[async_trait]
-pub trait EngineConfigurator: Send + Sync {
+pub(crate) trait EngineConfigurator: Send + Sync {
     async fn apply_engine_profile(&self, profile: &EngineProfile) -> Result<()>;
 }
 
@@ -44,8 +46,8 @@ impl EngineConfigurator for LibtorrentEngine {
 }
 
 /// Coordinates torrent engine lifecycle with filesystem post-processing via the shared event bus.
-#[cfg_attr(not(test), allow(dead_code))]
-pub struct TorrentOrchestrator<E>
+#[cfg(any(feature = "libtorrent", test))]
+pub(crate) struct TorrentOrchestrator<E>
 where
     E: TorrentEngine + EngineConfigurator + 'static,
 {
@@ -57,14 +59,14 @@ where
     catalog: Arc<TorrentCatalog>,
 }
 
-#[cfg_attr(not(test), allow(dead_code))]
+#[cfg(any(feature = "libtorrent", test))]
 impl<E> TorrentOrchestrator<E>
 where
     E: TorrentEngine + EngineConfigurator + 'static,
 {
     /// Construct a new orchestrator with shared dependencies.
     #[must_use]
-    pub fn new(
+    pub(crate) fn new(
         engine: Arc<E>,
         fsops: FsOpsService,
         events: EventBus,
@@ -82,12 +84,12 @@ where
     }
 
     /// Delegate torrent admission to the engine.
-    pub async fn add_torrent(&self, request: AddTorrent) -> Result<()> {
+    pub(crate) async fn add_torrent(&self, request: AddTorrent) -> Result<()> {
         self.engine.add_torrent(request).await
     }
 
     /// Apply the filesystem policy to a completed torrent.
-    pub async fn apply_fsops(&self, torrent_id: Uuid) -> Result<()> {
+    pub(crate) async fn apply_fsops(&self, torrent_id: Uuid) -> Result<()> {
         let policy = self.fs_policy.read().await.clone();
         let snapshot = self
             .catalog
@@ -115,7 +117,7 @@ where
     }
 
     /// Spawn a background task that reacts to completion events and triggers filesystem processing.
-    pub fn spawn_post_processing(self: &Arc<Self>) -> JoinHandle<()> {
+    pub(crate) fn spawn_post_processing(self: &Arc<Self>) -> JoinHandle<()> {
         let orchestrator = Arc::clone(self);
         tokio::spawn(async move {
             let mut stream = orchestrator.events.subscribe(None);
@@ -131,13 +133,13 @@ where
     }
 
     /// Update the active filesystem policy used for post-processing.
-    pub async fn update_fs_policy(&self, policy: FsPolicy) {
+    pub(crate) async fn update_fs_policy(&self, policy: FsPolicy) {
         let mut guard = self.fs_policy.write().await;
         *guard = policy;
     }
 
     /// Update the engine profile and propagate changes to the underlying engine.
-    pub async fn update_engine_profile(&self, profile: EngineProfile) -> Result<()> {
+    pub(crate) async fn update_engine_profile(&self, profile: EngineProfile) -> Result<()> {
         {
             let mut guard = self.engine_profile.write().await;
             *guard = profile.clone();
@@ -175,7 +177,7 @@ where
     }
 
     /// Remove the torrent from the engine.
-    pub async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> Result<()> {
+    pub(crate) async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> Result<()> {
         self.engine.remove_torrent(id, options).await
     }
 }
@@ -218,7 +220,7 @@ fn log_rate_value(direction: &str, value: u64) {
 }
 
 #[cfg(feature = "libtorrent")]
-pub async fn spawn_libtorrent_orchestrator(
+pub(crate) async fn spawn_libtorrent_orchestrator(
     events: &EventBus,
     metrics: Metrics,
     fs_policy: FsPolicy,
@@ -242,6 +244,7 @@ pub async fn spawn_libtorrent_orchestrator(
     Ok((engine, orchestrator, worker))
 }
 
+#[cfg(any(feature = "libtorrent", test))]
 #[async_trait]
 impl<E> TorrentWorkflow for TorrentOrchestrator<E>
 where
@@ -288,6 +291,7 @@ where
     }
 }
 
+#[cfg(any(feature = "libtorrent", test))]
 #[async_trait]
 impl<E> TorrentInspector for TorrentOrchestrator<E>
 where
@@ -314,120 +318,13 @@ impl TorrentCatalog {
         }
     }
 
-    #[allow(clippy::too_many_lines)]
     async fn observe(&self, event: &Event) {
         if matches!(event, Event::FilesDiscovered { files, .. } if files.is_empty()) {
             return;
         }
 
-        {
-            let mut entries = self.entries.write().await;
-            match event {
-                Event::TorrentAdded { torrent_id, name } => {
-                    let entry = entries
-                        .entry(*torrent_id)
-                        .or_insert_with(|| Self::blank_status(*torrent_id));
-                    entry.name = Some(name.clone());
-                    entry.state = TorrentState::Queued;
-                    entry.progress = TorrentProgress::default();
-                    entry.library_path = None;
-                    entry.rates = TorrentRates::default();
-                    entry.added_at = Utc::now();
-                    entry.last_updated = Utc::now();
-                }
-                Event::FilesDiscovered { torrent_id, files } => {
-                    let entry = entries
-                        .entry(*torrent_id)
-                        .or_insert_with(|| Self::blank_status(*torrent_id));
-                    let mapped: Vec<TorrentFile> = files
-                        .iter()
-                        .enumerate()
-                        .map(|(index, file)| {
-                            let index_u32 = u32::try_from(index).unwrap_or(u32::MAX);
-                            TorrentFile {
-                                index: index_u32,
-                                path: file.path.clone(),
-                                size_bytes: file.size_bytes,
-                                bytes_completed: 0,
-                                priority: FilePriority::Normal,
-                                selected: true,
-                            }
-                        })
-                        .collect();
-                    entry.files = Some(mapped);
-                    entry.last_updated = Utc::now();
-                }
-                Event::Progress {
-                    torrent_id,
-                    bytes_downloaded,
-                    bytes_total,
-                } => {
-                    let entry = entries
-                        .entry(*torrent_id)
-                        .or_insert_with(|| Self::blank_status(*torrent_id));
-                    entry.progress.bytes_downloaded = *bytes_downloaded;
-                    entry.progress.bytes_total = *bytes_total;
-                    entry.progress.eta_seconds = None;
-                    entry.rates.download_bps = 0;
-                    entry.rates.upload_bps = 0;
-                    #[allow(clippy::cast_precision_loss)]
-                    let ratio = if *bytes_total == 0 {
-                        0.0
-                    } else {
-                        (*bytes_downloaded as f64) / (*bytes_total as f64)
-                    };
-                    entry.rates.ratio = ratio;
-                    entry.last_updated = Utc::now();
-                }
-                Event::StateChanged { torrent_id, state } => {
-                    let entry = entries
-                        .entry(*torrent_id)
-                        .or_insert_with(|| Self::blank_status(*torrent_id));
-                    entry.state = state.clone();
-                    entry.last_updated = Utc::now();
-                }
-                Event::Completed {
-                    torrent_id,
-                    library_path,
-                } => {
-                    let entry = entries
-                        .entry(*torrent_id)
-                        .or_insert_with(|| Self::blank_status(*torrent_id));
-                    entry.state = TorrentState::Completed;
-                    entry.library_path = Some(library_path.clone());
-                    entry.completed_at = Some(Utc::now());
-                    entry.last_updated = Utc::now();
-                }
-                Event::FsopsFailed {
-                    torrent_id,
-                    message,
-                } => {
-                    let entry = entries
-                        .entry(*torrent_id)
-                        .or_insert_with(|| Self::blank_status(*torrent_id));
-                    entry.state = TorrentState::Failed {
-                        message: message.clone(),
-                    };
-                    entry.last_updated = Utc::now();
-                }
-                Event::FsopsStarted { torrent_id } | Event::FsopsCompleted { torrent_id } => {
-                    let entry = entries
-                        .entry(*torrent_id)
-                        .or_insert_with(|| Self::blank_status(*torrent_id));
-                    entry.last_updated = Utc::now();
-                }
-                Event::FsopsProgress { torrent_id, .. } => {
-                    let entry = entries
-                        .entry(*torrent_id)
-                        .or_insert_with(|| Self::blank_status(*torrent_id));
-                    entry.last_updated = Utc::now();
-                }
-                Event::SettingsChanged { .. }
-                | Event::HealthChanged { .. }
-                | Event::SelectionReconciled { .. } => {}
-            }
-            drop(entries);
-        }
+        let mut entries = self.entries.write().await;
+        Self::apply_event(&mut entries, event);
     }
 
     async fn list(&self) -> Vec<TorrentStatus> {
@@ -475,6 +372,165 @@ impl TorrentCatalog {
             (None, Some(_)) => Ordering::Greater,
             (None, None) => a.id.cmp(&b.id),
         }
+    }
+
+    fn apply_event(entries: &mut HashMap<Uuid, TorrentStatus>, event: &Event) {
+        match event {
+            Event::TorrentAdded { torrent_id, name } => {
+                Self::record_torrent_added(entries, *torrent_id, name);
+            }
+            Event::FilesDiscovered { torrent_id, files } => {
+                Self::record_files_discovered(entries, *torrent_id, files);
+            }
+            Event::Progress {
+                torrent_id,
+                bytes_downloaded,
+                bytes_total,
+            } => {
+                Self::record_progress(entries, *torrent_id, *bytes_downloaded, *bytes_total);
+            }
+            Event::StateChanged { torrent_id, state } => {
+                Self::record_state_change(entries, *torrent_id, state);
+            }
+            Event::Completed {
+                torrent_id,
+                library_path,
+            } => {
+                Self::record_completion(entries, *torrent_id, library_path);
+            }
+            Event::TorrentRemoved { torrent_id } => {
+                entries.remove(torrent_id);
+            }
+            Event::FsopsFailed {
+                torrent_id,
+                message,
+            } => {
+                Self::record_fsops_failure(entries, *torrent_id, message);
+            }
+            Event::FsopsStarted { torrent_id }
+            | Event::FsopsCompleted { torrent_id }
+            | Event::FsopsProgress { torrent_id, .. } => {
+                Self::touch_entry(entries, *torrent_id);
+            }
+            Event::SettingsChanged { .. }
+            | Event::HealthChanged { .. }
+            | Event::SelectionReconciled { .. } => {}
+        }
+    }
+
+    fn record_torrent_added(
+        entries: &mut HashMap<Uuid, TorrentStatus>,
+        torrent_id: Uuid,
+        name: &str,
+    ) {
+        let now = Utc::now();
+        let entry = Self::ensure_entry(entries, torrent_id);
+        entry.name = Some(name.to_owned());
+        entry.state = TorrentState::Queued;
+        entry.progress = TorrentProgress::default();
+        entry.library_path = None;
+        entry.rates = TorrentRates::default();
+        entry.added_at = now;
+        entry.last_updated = now;
+    }
+
+    fn record_files_discovered(
+        entries: &mut HashMap<Uuid, TorrentStatus>,
+        torrent_id: Uuid,
+        files: &[DiscoveredFile],
+    ) {
+        let entry = Self::ensure_entry(entries, torrent_id);
+        entry.files = Some(Self::map_discovered_files(files));
+        entry.last_updated = Utc::now();
+    }
+
+    fn record_progress(
+        entries: &mut HashMap<Uuid, TorrentStatus>,
+        torrent_id: Uuid,
+        bytes_downloaded: u64,
+        bytes_total: u64,
+    ) {
+        let entry = Self::ensure_entry(entries, torrent_id);
+        entry.progress.bytes_downloaded = bytes_downloaded;
+        entry.progress.bytes_total = bytes_total;
+        entry.progress.eta_seconds = None;
+        entry.rates.download_bps = 0;
+        entry.rates.upload_bps = 0;
+        #[allow(clippy::cast_precision_loss)]
+        let ratio = if bytes_total == 0 {
+            0.0
+        } else {
+            (bytes_downloaded as f64) / (bytes_total as f64)
+        };
+        entry.rates.ratio = ratio;
+        entry.last_updated = Utc::now();
+    }
+
+    fn record_state_change(
+        entries: &mut HashMap<Uuid, TorrentStatus>,
+        torrent_id: Uuid,
+        state: &TorrentState,
+    ) {
+        let entry = Self::ensure_entry(entries, torrent_id);
+        entry.state = state.clone();
+        entry.last_updated = Utc::now();
+    }
+
+    fn record_completion(
+        entries: &mut HashMap<Uuid, TorrentStatus>,
+        torrent_id: Uuid,
+        library_path: &str,
+    ) {
+        let now = Utc::now();
+        let entry = Self::ensure_entry(entries, torrent_id);
+        entry.state = TorrentState::Completed;
+        entry.library_path = Some(library_path.to_owned());
+        entry.completed_at = Some(now);
+        entry.last_updated = now;
+    }
+
+    fn record_fsops_failure(
+        entries: &mut HashMap<Uuid, TorrentStatus>,
+        torrent_id: Uuid,
+        message: &str,
+    ) {
+        let entry = Self::ensure_entry(entries, torrent_id);
+        entry.state = TorrentState::Failed {
+            message: message.to_owned(),
+        };
+        entry.last_updated = Utc::now();
+    }
+
+    fn touch_entry(entries: &mut HashMap<Uuid, TorrentStatus>, torrent_id: Uuid) {
+        let entry = Self::ensure_entry(entries, torrent_id);
+        entry.last_updated = Utc::now();
+    }
+
+    fn ensure_entry(
+        entries: &mut HashMap<Uuid, TorrentStatus>,
+        torrent_id: Uuid,
+    ) -> &mut TorrentStatus {
+        entries
+            .entry(torrent_id)
+            .or_insert_with(|| Self::blank_status(torrent_id))
+    }
+
+    fn map_discovered_files(files: &[DiscoveredFile]) -> Vec<TorrentFile> {
+        files
+            .iter()
+            .enumerate()
+            .map(|(index, file)| {
+                let index_u32 = u32::try_from(index).unwrap_or(u32::MAX);
+                TorrentFile {
+                    index: index_u32,
+                    path: file.path.clone(),
+                    size_bytes: file.size_bytes,
+                    bytes_completed: 0,
+                    priority: FilePriority::Normal,
+                    selected: true,
+                }
+            })
+            .collect()
     }
 }
 

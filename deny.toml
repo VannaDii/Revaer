@@ -22,6 +22,155 @@ exceptions = []
 ignore = false
 registries = []
 
+[bans]
+multiple-versions = "deny"
+wildcards = "allow"
+
+[[bans.skip]]
+name = "base64"
+version = "0.21.7"
+reason = "Required by docker_credential via testcontainers; upstream crate still pins 0.21.x."
+
+[[bans.skip]]
+name = "base64"
+version = "0.22.1"
+reason = "Primary workspace crates depend on the 0.22 line."
+
+[[bans.skip]]
+name = "getrandom"
+version = "0.2.16"
+reason = "Legacy rand 0.8 stack from password hashing dependencies."
+
+[[bans.skip]]
+name = "getrandom"
+version = "0.3.3"
+reason = "Hashbrown/ahash stack pulled by jsonschema and rand 0.9 users."
+
+[[bans.skip]]
+name = "hashbrown"
+version = "0.15.5"
+reason = "sqlx 0.8 still depends on hashbrown 0.15.x for hashlink support."
+
+[[bans.skip]]
+name = "hashbrown"
+version = "0.16.0"
+reason = "Latest indexmap release chain (reqwest, axum) requires 0.16.x."
+
+[[bans.skip]]
+name = "rand"
+version = "0.8.5"
+reason = "sqlx 0.8 transitively depends on rand 0.8.x."
+
+[[bans.skip]]
+name = "rand"
+version = "0.9.2"
+reason = "Latest dependencies (reqwest/testcontainers) require rand 0.9.x."
+
+[[bans.skip]]
+name = "rand_chacha"
+version = "0.3.1"
+reason = "sqlx 0.8 transitively depends on rand 0.8.x stack."
+
+[[bans.skip]]
+name = "rand_chacha"
+version = "0.9.0"
+reason = "rand 0.9.x stack required by reqwest/testcontainers."
+
+[[bans.skip]]
+name = "rand_core"
+version = "0.6.4"
+reason = "argon2/password-hash use rand_core 0.6.x."
+
+[[bans.skip]]
+name = "rand_core"
+version = "0.9.3"
+reason = "rand 0.9.x stack required by reqwest/testcontainers."
+
+[[bans.skip]]
+name = "thiserror"
+version = "1.0.69"
+reason = "Prometheus/protobuf pin the 1.x line."
+
+[[bans.skip]]
+name = "thiserror"
+version = "2.0.17"
+reason = "Workspace crates use the current 2.x line."
+
+[[bans.skip]]
+name = "thiserror-impl"
+version = "1.0.69"
+reason = "Matches thiserror 1.x pinned by prometheus/protobuf."
+
+[[bans.skip]]
+name = "thiserror-impl"
+version = "2.0.17"
+reason = "Matches thiserror 2.x used by workspace crates."
+
+[[bans.skip]]
+name = "wasi"
+version = "0.11.1+wasi-snapshot-preview1"
+reason = "Legacy rand 0.8 stack depends on the snapshot preview runtime."
+
+[[bans.skip]]
+name = "wasi"
+version = "0.14.7+wasi-0.2.4"
+reason = "rand 0.9 stack requires the new WASI 0.2 bindings."
+
+[[bans.skip]]
+name = "webpki-roots"
+version = "*"
+reason = "Both sqlx/ureq (0.26.x) and hyper-rustls/reqwest (1.x) are required."
+
+[[bans.skip]]
+name = "windows-sys"
+version = "*"
+reason = "Tokio, sqlx, and rustls require multiple versions across their supported Windows targets."
+
+[[bans.skip]]
+name = "windows-targets"
+version = "*"
+reason = "Matches windows-sys releases for individual target triples."
+
+[[bans.skip]]
+name = "windows_aarch64_gnullvm"
+version = "*"
+reason = "Target-specific windows bindings; duplicates mirror windows-sys versions."
+
+[[bans.skip]]
+name = "windows_aarch64_msvc"
+version = "*"
+reason = "Target-specific windows bindings; duplicates mirror windows-sys versions."
+
+[[bans.skip]]
+name = "windows_i686_gnu"
+version = "*"
+reason = "Target-specific windows bindings; duplicates mirror windows-sys versions."
+
+[[bans.skip]]
+name = "windows_i686_gnullvm"
+version = "*"
+reason = "Target-specific windows bindings; duplicates mirror windows-sys versions."
+
+[[bans.skip]]
+name = "windows_i686_msvc"
+version = "*"
+reason = "Target-specific windows bindings; duplicates mirror windows-sys versions."
+
+[[bans.skip]]
+name = "windows_x86_64_gnu"
+version = "*"
+reason = "Target-specific windows bindings; duplicates mirror windows-sys versions."
+
+[[bans.skip]]
+name = "windows_x86_64_gnullvm"
+version = "*"
+reason = "Target-specific windows bindings; duplicates mirror windows-sys versions."
+
+[[bans.skip]]
+name = "windows_x86_64_msvc"
+version = "*"
+reason = "Target-specific windows bindings; duplicates mirror windows-sys versions."
+
 [sources]
 unknown-registry = "deny"
 unknown-git = "deny"

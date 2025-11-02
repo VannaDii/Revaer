@@ -248,7 +248,7 @@ Required jobs (fail-fast):
 4. **supply-chain** → `just audit` and `just deny`
 5. **test** → `just test`
 6. **coverage** → `just cov`
-7. **build-release** (tags/main) → `just build:rel` and publish artifacts (binaries, OpenAPI, SBOM/license report)
+7. **build-release** (tags/main) → `just build-release` and publish artifacts (binaries, OpenAPI, SBOM/license report)
 8. **feature-matrix** → run additional `just test:feat[...]` if features exist
 9. **msrv** (if distinct from stable) → call the same `just` targets using the MSRV toolchain
 

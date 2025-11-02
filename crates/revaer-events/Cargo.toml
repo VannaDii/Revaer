@@ -13,3 +13,4 @@ chrono.workspace = true
 serde.workspace = true
 tokio.workspace = true
 uuid.workspace = true
+tracing.workspace = true

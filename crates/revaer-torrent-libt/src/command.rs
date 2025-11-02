@@ -1,8 +1,10 @@
+#![allow(clippy::redundant_pub_crate)]
+
 use revaer_torrent_core::{AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit};
 use uuid::Uuid;
 
 #[derive(Debug)]
-pub enum EngineCommand {
+pub(crate) enum EngineCommand {
     Add(AddTorrent),
     Remove {
         id: Uuid,

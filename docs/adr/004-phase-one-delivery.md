@@ -18,7 +18,7 @@ Phase One bundles the remaining work required to transition Revaer from the curr
 - Expose a consistent Problem+JSON contract across HTTP and CLI surfaces, including pagination and SSE replay support.
 - Enforce observability invariants: structured tracing with context propagation, bounded rate limits, Prometheus metrics, and degraded health signalling when dependencies fail.
 - Ensure every workflow is reproducible via `just` targets and validated in CI, with container packaging aligned to the non-root, read-only expectations.
-- Follow the canonical `just` recipe surface (fmt, lint, test, ci, etc.). Coloned variants are mapped to hyphenated recipe names (`fmt-fix`, `build-rel`, `api-export`) because `just` 1.43.0 rejects colons in recipe identifiers without unstable modules; the semantics remain identical.
+- Follow the canonical `just` recipe surface (fmt, lint, test, ci, etc.). Coloned variants are mapped to hyphenated recipe names (`fmt-fix`, `build-release`, `api-export`) because `just` 1.43.0 rejects colons in recipe identifiers without unstable modules; the semantics remain identical.
 
 ## Test Coverage Summary
 

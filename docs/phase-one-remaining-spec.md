@@ -100,7 +100,7 @@
   - Build release binary, copy `docs/api/openapi.json`, set `/app` as workdir.
   - Define volumes for data/config, create user `revaer`, configure entrypoint.
 - GitHub Actions (update `.github/workflows`):
-  - `build-release`: run `just build-rel`, `just api-export`, attach binaries/docs.
+  - `build-release`: run `just build-release`, `just api-export`, attach binaries/docs.
   - `docker`: build image, run `docker scan` (`trivy`/`grype`), and push on release tags.
   - `msrv`: run `just fmt lint test` with pinned toolchain (documented in workflow).
   - `cov`: ensure `just cov` gate passes (≥80% lines/functions).

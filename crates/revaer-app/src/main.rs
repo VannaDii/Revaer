@@ -1,4 +1,25 @@
+#![forbid(unsafe_code)]
+#![deny(
+    warnings,
+    dead_code,
+    unused,
+    unused_imports,
+    unused_must_use,
+    unreachable_pub,
+    clippy::all,
+    clippy::pedantic,
+    clippy::cargo,
+    clippy::nursery,
+    rustdoc::broken_intra_doc_links,
+    rustdoc::bare_urls,
+    missing_docs
+)]
+#![allow(clippy::module_name_repetitions)]
 #![allow(unexpected_cfgs)]
+#![allow(clippy::multiple_crate_versions)]
+
+//! Binary entrypoint that wires the Revaer services together and launches the
+//! async orchestrators.
 
 mod orchestrator;
 
@@ -20,6 +41,7 @@ use revaer_torrent_core::{TorrentInspector, TorrentWorkflow};
 #[cfg(feature = "libtorrent")]
 use revaer_torrent_libt::LibtorrentEngine;
 
+/// Bootstraps the Revaer application and blocks until shutdown.
 #[tokio::main]
 async fn main() -> Result<()> {
     let logging = LoggingConfig::default();

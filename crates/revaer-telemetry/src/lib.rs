@@ -1,4 +1,22 @@
+#![forbid(unsafe_code)]
+#![deny(
+    warnings,
+    dead_code,
+    unused,
+    unused_imports,
+    unused_must_use,
+    unreachable_pub,
+    clippy::all,
+    clippy::pedantic,
+    clippy::cargo,
+    clippy::nursery,
+    rustdoc::broken_intra_doc_links,
+    rustdoc::bare_urls,
+    missing_docs
+)]
+#![allow(clippy::module_name_repetitions)]
 #![allow(unexpected_cfgs)]
+#![allow(clippy::multiple_crate_versions)]
 
 //! Telemetry primitives shared across the Revaer workspace.
 //!
@@ -60,8 +78,11 @@ pub fn init_logging(config: &LoggingConfig) -> Result<()> {
 /// Logging configuration.
 #[derive(Debug, Clone)]
 pub struct LoggingConfig<'a> {
+    /// Log level string (e.g., `info`, `debug`).
     pub level: &'a str,
+    /// Output format selection for the tracing subscriber.
     pub format: LogFormat,
+    /// Build identifier recorded in structured logs.
     pub build_sha: &'a str,
 }
 
@@ -78,7 +99,9 @@ impl Default for LoggingConfig<'_> {
 /// Available output formats for the logger.
 #[derive(Debug, Clone, Copy)]
 pub enum LogFormat {
+    /// Emit logs as structured JSON objects.
     Json,
+    /// Emit human-readable, pretty-printed logs.
     Pretty,
 }
 
@@ -101,6 +124,7 @@ pub struct GlobalContextGuard {
 
 impl GlobalContextGuard {
     #[must_use]
+    /// Enter the application-level tracing span for the lifetime of the guard.
     pub fn new(mode: impl Into<String>) -> Self {
         let mode = mode.into();
         let span: &'static Span = Box::leak(Box::new(
@@ -210,13 +234,21 @@ struct MetricsInner {
 /// Snapshot of selected gauges and counters for health reporting.
 #[derive(Debug, Clone, Serialize)]
 pub struct MetricsSnapshot {
+    /// Current number of active torrents.
     pub active_torrents: i64,
+    /// Current queue depth for pending torrents.
     pub queue_depth: i64,
+    /// Latest latency (ms) when watching for configuration changes.
     pub config_watch_latency_ms: i64,
+    /// Latest latency (ms) when applying configuration changes.
     pub config_apply_latency_ms: i64,
+    /// Total count of configuration update failures observed.
     pub config_update_failures_total: u64,
+    /// Total count of slow configuration watch intervals observed.
     pub config_watch_slow_total: u64,
+    /// Total guardrail violations recorded.
     pub guardrail_violations_total: u64,
+    /// Total requests throttled by API rate limiting.
     pub rate_limit_throttled_total: u64,
 }
 

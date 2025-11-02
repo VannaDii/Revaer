@@ -6,7 +6,7 @@
 
 2. **Build & Test**
    - `just ci`
-   - `just build-rel`
+   - `just build-release`
    - `just api-export`
 
 3. **Artefact Verification**

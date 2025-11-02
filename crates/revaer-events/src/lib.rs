@@ -1,5 +1,24 @@
-//! Core event bus for the Revaer platform.
+#![forbid(unsafe_code)]
+#![deny(
+    warnings,
+    dead_code,
+    unused,
+    unused_imports,
+    unused_must_use,
+    unreachable_pub,
+    clippy::all,
+    clippy::pedantic,
+    clippy::cargo,
+    clippy::nursery,
+    rustdoc::broken_intra_doc_links,
+    rustdoc::bare_urls,
+    missing_docs
+)]
+#![allow(clippy::module_name_repetitions)]
 #![allow(clippy::multiple_crate_versions)]
+#![allow(unexpected_cfgs)]
+
+//! Core event bus for the Revaer platform.
 //!
 //! The bus provides a typed event enum, sequential identifiers, and support for
 //! replaying recent events when subscribers reconnect (e.g. SSE clients that
@@ -8,11 +27,12 @@
 //! the desired backpressure behaviour.
 
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use chrono::{DateTime, Utc};
 use tokio::sync::broadcast;
 use tokio::sync::broadcast::{Receiver, Sender};
+use tracing::error;
 use uuid::Uuid;
 
 /// Identifier assigned to each event emitted by the platform.
@@ -25,49 +45,87 @@ const DEFAULT_REPLAY_CAPACITY: usize = 1_024;
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Event {
+    /// A torrent was registered with the engine.
     TorrentAdded {
+        /// Identifier for the torrent that was added.
         torrent_id: Uuid,
+        /// Display name associated with the torrent metadata.
         name: String,
     },
+    /// Torrent metadata finished scanning and produced a file listing.
     FilesDiscovered {
+        /// Identifier for the torrent that produced the listing.
         torrent_id: Uuid,
+        /// Collection of files discovered within the torrent payload.
         files: Vec<DiscoveredFile>,
     },
+    /// Periodic progress update emitted while a torrent is downloading.
     Progress {
+        /// Identifier for the torrent being tracked.
         torrent_id: Uuid,
+        /// Aggregate bytes downloaded so far.
         bytes_downloaded: u64,
+        /// Total bytes expected for the torrent payload.
         bytes_total: u64,
     },
+    /// Torrent transitioned into a new lifecycle state.
     StateChanged {
+        /// Identifier for the torrent whose state changed.
         torrent_id: Uuid,
+        /// Updated state snapshot.
         state: TorrentState,
     },
+    /// Torrent finished processing and the library artifact is ready.
     Completed {
+        /// Identifier for the completed torrent.
         torrent_id: Uuid,
+        /// Absolute path to the final library artifact.
         library_path: String,
     },
-    FsopsStarted {
+    /// Torrent was removed from the catalog.
+    TorrentRemoved {
+        /// Identifier for the torrent that was removed.
         torrent_id: Uuid,
     },
-    FsopsProgress {
+    /// Filesystem post-processing pipeline started for a torrent.
+    FsopsStarted {
+        /// Identifier for the torrent undergoing filesystem processing.
         torrent_id: Uuid,
+    },
+    /// Filesystem post-processing reported an intermediate step completion.
+    FsopsProgress {
+        /// Identifier for the torrent undergoing filesystem processing.
+        torrent_id: Uuid,
+        /// Name of the pipeline step that completed.
         step: String,
     },
+    /// Filesystem post-processing completed successfully.
     FsopsCompleted {
+        /// Identifier for the torrent whose filesystem processing completed.
         torrent_id: Uuid,
     },
+    /// Filesystem post-processing failed with an error message.
     FsopsFailed {
+        /// Identifier for the torrent whose filesystem processing failed.
         torrent_id: Uuid,
+        /// Human-readable error detail describing the failure.
         message: String,
     },
+    /// Configuration update was applied.
     SettingsChanged {
+        /// Description of the applied configuration change.
         description: String,
     },
+    /// System health status changed (degraded or restored components).
     HealthChanged {
+        /// Components currently considered degraded.
         degraded: Vec<String>,
     },
+    /// Torrent file selection was reconciled with the configured policy.
     SelectionReconciled {
+        /// Identifier for the torrent whose selection changed.
         torrent_id: Uuid,
+        /// Explanation for why the selection changed.
         reason: String,
     },
 }
@@ -82,6 +140,7 @@ impl Event {
             Self::Progress { .. } => "progress",
             Self::StateChanged { .. } => "state_changed",
             Self::Completed { .. } => "completed",
+            Self::TorrentRemoved { .. } => "torrent_removed",
             Self::FsopsStarted { .. } => "fsops_started",
             Self::FsopsProgress { .. } => "fsops_progress",
             Self::FsopsCompleted { .. } => "fsops_completed",
@@ -97,15 +156,20 @@ impl Event {
 /// emission timestamp.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct EventEnvelope {
+    /// Monotonic identifier assigned to the wrapped event.
     pub id: EventId,
+    /// Timestamp recording when the envelope was produced.
     pub timestamp: DateTime<Utc>,
+    /// Wrapped event payload.
     pub event: Event,
 }
 
 /// Individual file discovered within a torrent.
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct DiscoveredFile {
+    /// Relative path to the file inside the torrent contents.
     pub path: String,
+    /// Size of the file in bytes.
     pub size_bytes: u64,
 }
 
@@ -113,12 +177,22 @@ pub struct DiscoveredFile {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum TorrentState {
+    /// Torrent has been queued but not yet started.
     Queued,
+    /// Torrent is fetching metadata (e.g., magnet resolution).
     FetchingMetadata,
+    /// Torrent is actively downloading payload data.
     Downloading,
+    /// Torrent is seeding and uploading data to peers.
     Seeding,
+    /// Torrent completed downloading and awaits post-processing.
     Completed,
-    Failed { message: String },
+    /// Torrent encountered an unrecoverable error with a description.
+    Failed {
+        /// Error detail describing why the torrent failed.
+        message: String,
+    },
+    /// Torrent has been stopped manually and is inactive.
     Stopped,
 }
 
@@ -175,7 +249,7 @@ impl EventBus {
         };
 
         {
-            let mut buffer = self.buffer.lock().expect("event buffer mutex poisoned");
+            let mut buffer = self.lock_buffer();
             if buffer.len() == self.replay_capacity {
                 buffer.pop_front();
             }
@@ -195,7 +269,7 @@ impl EventBus {
     pub fn subscribe(&self, since_id: Option<EventId>) -> EventStream {
         let mut backlog = VecDeque::new();
         if let Some(since) = since_id {
-            let buffer = self.buffer.lock().expect("event buffer mutex poisoned");
+            let buffer = self.lock_buffer();
             for item in buffer.iter() {
                 if item.id > since {
                     backlog.push_back(item.clone());
@@ -217,7 +291,7 @@ impl EventBus {
     /// Panics if the replay buffer mutex has been poisoned.
     #[must_use]
     pub fn backlog_since(&self, since_id: EventId) -> Vec<EventEnvelope> {
-        let buffer = self.buffer.lock().expect("event buffer mutex poisoned");
+        let buffer = self.lock_buffer();
         buffer
             .iter()
             .filter(|item| item.id > since_id)
@@ -232,8 +306,18 @@ impl EventBus {
     /// Panics if the replay buffer mutex has been poisoned.
     #[must_use]
     pub fn last_event_id(&self) -> Option<EventId> {
-        let buffer = self.buffer.lock().expect("event buffer mutex poisoned");
+        let buffer = self.lock_buffer();
         buffer.back().map(|event| event.id)
+    }
+
+    fn lock_buffer(&self) -> MutexGuard<'_, VecDeque<EventEnvelope>> {
+        match self.buffer.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                error!("event buffer mutex poisoned; continuing with recovered guard");
+                poisoned.into_inner()
+            }
+        }
     }
 }
 
@@ -301,6 +385,7 @@ mod tests {
                 torrent_id,
                 library_path: "/library/demo".to_string(),
             },
+            Event::TorrentRemoved { torrent_id },
             Event::FsopsStarted { torrent_id },
             Event::FsopsProgress {
                 torrent_id,
@@ -330,6 +415,7 @@ mod tests {
                 Event::Progress { .. } => "progress",
                 Event::StateChanged { .. } => "state_changed",
                 Event::Completed { .. } => "completed",
+                Event::TorrentRemoved { .. } => "torrent_removed",
                 Event::FsopsStarted { .. } => "fsops_started",
                 Event::FsopsProgress { .. } => "fsops_progress",
                 Event::FsopsCompleted { .. } => "fsops_completed",

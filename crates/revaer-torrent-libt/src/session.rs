@@ -1,3 +1,5 @@
+#![allow(clippy::redundant_pub_crate)]
+
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow};
@@ -11,7 +13,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 #[async_trait]
-pub trait LibtSession: Send {
+pub(crate) trait LibtSession: Send {
     async fn add_torrent(&mut self, request: &AddTorrent) -> Result<()>;
     async fn remove_torrent(&mut self, id: Uuid, options: &RemoveTorrent) -> Result<()>;
     async fn pause_torrent(&mut self, id: Uuid) -> Result<()>;
@@ -26,7 +28,7 @@ pub trait LibtSession: Send {
 }
 
 #[derive(Default)]
-pub struct StubSession {
+pub(crate) struct StubSession {
     torrents: HashMap<Uuid, StubTorrent>,
     pending_events: Vec<EngineEvent>,
 }

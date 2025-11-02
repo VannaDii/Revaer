@@ -1,3 +1,5 @@
+#![allow(clippy::redundant_pub_crate)]
+
 //! qBittorrent compatibility façade (`/api/v2`).
 //!
 //! The façade maps Revaer's domain model onto the subset of qBittorrent
@@ -33,7 +35,7 @@ use crate::{
 };
 
 /// Attach qBittorrent-compatible endpoints to the primary router.
-pub fn mount(router: Router<Arc<ApiState>>) -> Router<Arc<ApiState>> {
+pub(crate) fn mount(router: Router<Arc<ApiState>>) -> Router<Arc<ApiState>> {
     router
         .route("/api/v2/auth/login", post(login))
         .route("/api/v2/app/version", get(app_version))
@@ -53,13 +55,11 @@ pub fn mount(router: Router<Arc<ApiState>>) -> Router<Arc<ApiState>> {
 
 #[derive(Deserialize, Default)]
 struct LoginForm {
-    #[allow(dead_code)]
     username: Option<String>,
-    #[allow(dead_code)]
     password: Option<String>,
 }
 
-async fn login(Form(_): Form<LoginForm>) -> Result<impl IntoResponse, ApiError> {
+async fn login(Form(form): Form<LoginForm>) -> Result<impl IntoResponse, ApiError> {
     let mut headers = HeaderMap::new();
     headers.insert(
         SET_COOKIE,
@@ -69,6 +69,9 @@ async fn login(Form(_): Form<LoginForm>) -> Result<impl IntoResponse, ApiError> 
         CONTENT_TYPE,
         HeaderValue::from_static("text/plain; charset=utf-8"),
     );
+    if form.username.is_some() || form.password.is_some() {
+        warn!("ignored qbittorrent login credentials (compatibility mode)");
+    }
     Ok((headers, "Ok."))
 }
 
@@ -91,12 +94,12 @@ async fn app_webapi_version() -> impl IntoResponse {
 }
 
 #[derive(Deserialize, Default)]
-pub struct SyncParams {
+pub(crate) struct SyncParams {
     pub rid: Option<u64>,
 }
 
 #[derive(Serialize)]
-pub struct SyncMainData {
+pub(crate) struct SyncMainData {
     pub full_update: bool,
     pub rid: u64,
     pub torrents: HashMap<String, QbTorrentEntry>,
@@ -107,13 +110,13 @@ pub struct SyncMainData {
 }
 
 #[derive(Serialize, Default)]
-pub struct QbCategory {
+pub(crate) struct QbCategory {
     pub name: String,
     pub save_path: String,
 }
 
 #[derive(Serialize)]
-pub struct QbServerState {
+pub(crate) struct QbServerState {
     pub dl_info_speed: i64,
     pub up_info_speed: i64,
     pub dl_rate_limit: i64,
@@ -124,7 +127,7 @@ pub struct QbServerState {
 }
 
 #[derive(Serialize)]
-pub struct QbTorrentEntry {
+pub(crate) struct QbTorrentEntry {
     pub added_on: i64,
     pub completion_on: i64,
     pub category: String,
@@ -147,7 +150,7 @@ pub struct QbTorrentEntry {
     pub tag_list: String,
 }
 
-pub async fn sync_maindata(
+pub(crate) async fn sync_maindata(
     State(state): State<Arc<ApiState>>,
     Query(params): Query<SyncParams>,
 ) -> Result<Json<SyncMainData>, ApiError> {
@@ -185,6 +188,7 @@ pub async fn sync_maindata(
             | CoreEvent::Progress { torrent_id, .. }
             | CoreEvent::StateChanged { torrent_id, .. }
             | CoreEvent::Completed { torrent_id, .. }
+            | CoreEvent::TorrentRemoved { torrent_id }
             | CoreEvent::FsopsStarted { torrent_id }
             | CoreEvent::FsopsProgress { torrent_id, .. }
             | CoreEvent::FsopsCompleted { torrent_id }
@@ -239,11 +243,11 @@ pub async fn sync_maindata(
 }
 
 #[derive(Deserialize, Default, Clone)]
-pub struct TorrentsInfoParams {
+pub(crate) struct TorrentsInfoParams {
     pub hashes: Option<String>,
 }
 
-pub async fn torrents_info(
+pub(crate) async fn torrents_info(
     State(state): State<Arc<ApiState>>,
     Query(params): Query<TorrentsInfoParams>,
 ) -> Result<Json<Vec<QbTorrentEntry>>, ApiError> {
@@ -280,7 +284,7 @@ pub async fn torrents_info(
 }
 
 #[derive(Deserialize, Default, Clone)]
-pub struct TorrentAddForm {
+pub(crate) struct TorrentAddForm {
     pub urls: Option<String>,
     pub tags: Option<String>,
     #[serde(rename = "savepath")]
@@ -289,7 +293,7 @@ pub struct TorrentAddForm {
     pub sequential: Option<bool>,
 }
 
-pub async fn torrents_add(
+pub(crate) async fn torrents_add(
     State(state): State<Arc<ApiState>>,
     Form(form): Form<TorrentAddForm>,
 ) -> Result<Response, ApiError> {
@@ -338,11 +342,11 @@ pub async fn torrents_add(
 }
 
 #[derive(Deserialize, Default, Clone)]
-pub struct TorrentHashesForm {
+pub(crate) struct TorrentHashesForm {
     pub hashes: String,
 }
 
-pub async fn torrents_pause(
+pub(crate) async fn torrents_pause(
     State(state): State<Arc<ApiState>>,
     Form(form): Form<TorrentHashesForm>,
 ) -> Result<Response, ApiError> {
@@ -353,7 +357,7 @@ pub async fn torrents_pause(
     Ok(ok_plain())
 }
 
-pub async fn torrents_resume(
+pub(crate) async fn torrents_resume(
     State(state): State<Arc<ApiState>>,
     Form(form): Form<TorrentHashesForm>,
 ) -> Result<Response, ApiError> {
@@ -365,13 +369,13 @@ pub async fn torrents_resume(
 }
 
 #[derive(Deserialize, Default, Clone)]
-pub struct TorrentDeleteForm {
+pub(crate) struct TorrentDeleteForm {
     pub hashes: String,
     #[serde(rename = "deleteFiles")]
     pub delete_files: Option<bool>,
 }
 
-pub async fn torrents_delete(
+pub(crate) async fn torrents_delete(
     State(state): State<Arc<ApiState>>,
     Form(form): Form<TorrentDeleteForm>,
 ) -> Result<Response, ApiError> {
@@ -392,11 +396,11 @@ pub async fn torrents_delete(
 }
 
 #[derive(Deserialize, Default, Clone)]
-pub struct TransferLimitForm {
+pub(crate) struct TransferLimitForm {
     pub limit: String,
 }
 
-pub async fn transfer_upload_limit(
+pub(crate) async fn transfer_upload_limit(
     State(state): State<Arc<ApiState>>,
     Form(form): Form<TransferLimitForm>,
 ) -> Result<Response, ApiError> {
@@ -404,7 +408,7 @@ pub async fn transfer_upload_limit(
     Ok(ok_plain())
 }
 
-pub async fn transfer_download_limit(
+pub(crate) async fn transfer_download_limit(
     State(state): State<Arc<ApiState>>,
     Form(form): Form<TransferLimitForm>,
 ) -> Result<Response, ApiError> {
@@ -596,7 +600,7 @@ fn split_hashes(input: &str) -> Vec<String> {
 }
 
 #[allow(clippy::cast_sign_loss)]
-pub fn parse_limit(raw: &str) -> Result<Option<u64>, ApiError> {
+pub(crate) fn parse_limit(raw: &str) -> Result<Option<u64>, ApiError> {
     let trimmed = raw.trim();
     if trimmed.eq_ignore_ascii_case("NaN") || trimmed.is_empty() {
         return Ok(None);

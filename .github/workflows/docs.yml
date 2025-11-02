@@ -41,9 +41,7 @@ jobs:
 
       - name: Link check (optional)
         if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
-        run: |
-          cargo install --locked lychee
-          lychee --verbose --no-progress docs || true
+        run: just docs-link-check
 
       - name: Prepare deployment directory
         run: |

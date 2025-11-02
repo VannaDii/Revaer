@@ -1,3 +1,5 @@
+#![allow(clippy::redundant_pub_crate)]
+
 use crate::{
     command::EngineCommand,
     session::LibtSession,
@@ -18,7 +20,7 @@ use uuid::Uuid;
 const ALERT_POLL_INTERVAL: Duration = Duration::from_millis(200);
 const PROGRESS_COALESCE_INTERVAL: Duration = Duration::from_millis(100);
 
-pub fn spawn(
+pub(crate) fn spawn(
     events: EventBus,
     mut commands: mpsc::Receiver<EngineCommand>,
     store: Option<FastResumeStore>,
@@ -566,27 +568,24 @@ impl Worker {
             });
 
         if let Some(limit) = limit {
-            if limit
-                .download_bps
-                .is_some_and(|max| rates.download_bps > max)
+            if let Some(max) = limit.download_bps
+                && rates.download_bps > max
             {
                 violated = true;
                 let detail = format!(
                     "torrent {} download rate {}bps exceeds cap {}bps",
-                    torrent_id,
-                    rates.download_bps,
-                    limit.download_bps.unwrap()
+                    torrent_id, rates.download_bps, max
                 );
                 self.mark_degraded("rate_limiter", Some(detail.as_str()));
             }
 
-            if limit.upload_bps.is_some_and(|max| rates.upload_bps > max) {
+            if let Some(max) = limit.upload_bps
+                && rates.upload_bps > max
+            {
                 violated = true;
                 let detail = format!(
                     "torrent {} upload rate {}bps exceeds cap {}bps",
-                    torrent_id,
-                    rates.upload_bps,
-                    limit.upload_bps.unwrap()
+                    torrent_id, rates.upload_bps, max
                 );
                 self.mark_degraded("rate_limiter", Some(detail.as_str()));
             }

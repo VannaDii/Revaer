@@ -67,7 +67,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-release-
             ${{ runner.os }}-cargo-
-      - run: just build-rel
+      - run: just build-release
       - run: just api-export
       - run: sha256sum target/release/revaer-app > target/release/revaer-app.sha256
       - uses: actions/upload-artifact@v4

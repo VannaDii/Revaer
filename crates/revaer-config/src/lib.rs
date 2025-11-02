@@ -1,4 +1,22 @@
+#![forbid(unsafe_code)]
+#![deny(
+    warnings,
+    dead_code,
+    unused,
+    unused_imports,
+    unused_must_use,
+    unreachable_pub,
+    clippy::all,
+    clippy::pedantic,
+    clippy::cargo,
+    clippy::nursery,
+    rustdoc::broken_intra_doc_links,
+    rustdoc::bare_urls,
+    missing_docs
+)]
+#![allow(clippy::module_name_repetitions)]
 #![allow(unexpected_cfgs)]
+#![allow(clippy::multiple_crate_versions)]
 
 //! Database-backed configuration facade built on `PostgreSQL`.
 //!
@@ -38,14 +56,23 @@ const SETTINGS_CHANNEL: &str = "revaer_settings_changed";
 /// High-level view of the application profile.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppProfile {
+    /// Primary key for the application profile row.
     pub id: Uuid,
+    /// Friendly identifier displayed in user interfaces.
     pub instance_name: String,
+    /// Operating mode (`setup` or `active`).
     pub mode: AppMode,
+    /// Monotonic version used to detect concurrent updates.
     pub version: i64,
+    /// HTTP port the API server should bind to.
     pub http_port: i32,
+    /// IP address (and interface) the API server should bind to.
     pub bind_addr: IpAddr,
+    /// Structured telemetry configuration (JSON object).
     pub telemetry: Value,
+    /// Feature flags exposed to the application (JSON object).
     pub features: Value,
+    /// Immutable keys that must not be edited by clients.
     pub immutable_keys: Value,
 }
 
@@ -53,7 +80,9 @@ pub struct AppProfile {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "lowercase")]
 pub enum AppMode {
+    /// Provisioning mode that restricts APIs to setup operations.
     Setup,
+    /// Normal operational mode.
     Active,
 }
 
@@ -71,6 +100,7 @@ impl FromStr for AppMode {
 
 impl AppMode {
     #[must_use]
+    /// Render the mode as its lowercase string representation.
     pub const fn as_str(&self) -> &'static str {
         match self {
             Self::Setup => "setup",
@@ -82,97 +112,160 @@ impl AppMode {
 /// Engine configuration surfaced to consumers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EngineProfile {
+    /// Primary key for the engine profile row.
     pub id: Uuid,
+    /// Engine implementation identifier (e.g., `stub`, `libtorrent`).
     pub implementation: String,
+    /// Optional TCP port the engine should listen on.
     pub listen_port: Option<i32>,
+    /// Whether the engine enables the DHT subsystem.
     pub dht: bool,
+    /// Encryption policy string forwarded to the engine.
     pub encryption: String,
+    /// Maximum number of concurrent active torrents.
     pub max_active: Option<i32>,
+    /// Global download cap in bytes per second.
     pub max_download_bps: Option<i64>,
+    /// Global upload cap in bytes per second.
     pub max_upload_bps: Option<i64>,
+    /// Whether torrents default to sequential download.
     pub sequential_default: bool,
+    /// Filesystem path for storing resume data.
     pub resume_dir: String,
+    /// Root directory for active downloads.
     pub download_root: String,
+    /// Arbitrary tracker configuration payload (JSON object).
     pub tracker: Value,
 }
 
 /// Filesystem policy configuration.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FsPolicy {
+    /// Primary key for the filesystem policy row.
     pub id: Uuid,
+    /// Destination directory for completed artifacts.
     pub library_root: String,
+    /// Whether archives should be extracted automatically.
     pub extract: bool,
+    /// PAR2 verification policy (`disabled`, `verify`, etc.).
     pub par2: String,
+    /// Whether nested directory structures should be flattened.
     pub flatten: bool,
+    /// Move mode (`copy`, `move`, `hardlink`).
     pub move_mode: String,
+    /// Cleanup rules describing paths to retain (JSON array).
     pub cleanup_keep: Value,
+    /// Cleanup rules describing paths to purge (JSON array).
     pub cleanup_drop: Value,
+    /// Optional chmod value applied to files.
     pub chmod_file: Option<String>,
+    /// Optional chmod value applied to directories.
     pub chmod_dir: Option<String>,
+    /// Optional owner applied to moved files.
     pub owner: Option<String>,
+    /// Optional group applied to moved files.
     pub group: Option<String>,
+    /// Optional umask enforced during filesystem operations.
     pub umask: Option<String>,
+    /// Allow-list of destination paths (JSON array).
     pub allow_paths: Value,
 }
 
 #[async_trait]
+/// Abstraction over configuration backends used by the application service.
 pub trait SettingsFacade: Send + Sync {
+    /// Retrieve the current application profile.
     async fn get_app_profile(&self) -> Result<AppProfile>;
+    /// Retrieve the current engine profile.
     async fn get_engine_profile(&self) -> Result<EngineProfile>;
+    /// Retrieve the current filesystem policy.
     async fn get_fs_policy(&self) -> Result<FsPolicy>;
+    /// Subscribe to configuration change notifications.
     async fn subscribe_changes(&self) -> Result<SettingsStream>;
+    /// Apply a structured changeset attributed to an actor and reason.
     async fn apply_changeset(
         &self,
         actor: &str,
         reason: &str,
         changeset: SettingsChangeset,
     ) -> Result<AppliedChanges>;
+    /// Issue a new setup token with a given TTL.
     async fn issue_setup_token(&self, ttl: Duration, issued_by: &str) -> Result<SetupToken>;
+    /// Permanently consume a setup token.
     async fn consume_setup_token(&self, token: &str) -> Result<()>;
 }
 
 /// Structured change payload emitted by LISTEN/NOTIFY.
 #[derive(Debug, Clone)]
 pub struct SettingsChange {
+    /// Database table that triggered the notification.
     pub table: String,
+    /// Revision recorded after applying the change.
     pub revision: i64,
+    /// Operation descriptor (`insert`, `update`, `delete`).
     pub operation: String,
+    /// Optional payload describing the updated document.
     pub payload: SettingsPayload,
 }
 
 /// Optional rich payload associated with a `SettingsChange`.
 #[derive(Debug, Clone)]
 pub enum SettingsPayload {
+    /// Application profile document that changed.
     AppProfile(AppProfile),
+    /// Engine profile document that changed.
     EngineProfile(EngineProfile),
+    /// Filesystem policy document that changed.
     FsPolicy(FsPolicy),
+    /// Notification that did not include a payload.
     None,
 }
 
 /// Structured errors emitted during configuration validation/mutation.
 #[derive(Debug, Error)]
 pub enum ConfigError {
+    /// Attempted to modify a field marked as immutable.
     #[error("immutable field '{field}' in '{section}' cannot be modified")]
-    ImmutableField { section: String, field: String },
+    ImmutableField {
+        /// Section containing the immutable field.
+        section: String,
+        /// Name of the immutable field.
+        field: String,
+    },
 
+    /// Field contained an invalid value.
     #[error("invalid value for '{field}' in '{section}': {message}")]
     InvalidField {
+        /// Section that failed validation.
         section: String,
+        /// Field that failed validation.
         field: String,
+        /// Human-readable error description.
         message: String,
     },
 
+    /// Field did not exist in the target section.
     #[error("unknown field '{field}' in '{section}' settings")]
-    UnknownField { section: String, field: String },
+    UnknownField {
+        /// Section where the unknown field was encountered.
+        section: String,
+        /// Name of the unexpected field.
+        field: String,
+    },
 }
 
 /// Structured request describing modifications to config documents.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct SettingsChangeset {
+    /// Optional application profile update payload.
     pub app_profile: Option<Value>,
+    /// Optional engine profile update payload.
     pub engine_profile: Option<Value>,
+    /// Optional filesystem policy update payload.
     pub fs_policy: Option<Value>,
+    /// API key upserts/deletions included in the changeset.
     pub api_keys: Vec<ApiKeyPatch>,
+    /// Secret store mutations included in the changeset.
     pub secrets: Vec<SecretPatch>,
 }
 
@@ -180,14 +273,22 @@ pub struct SettingsChangeset {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "lowercase")]
 pub enum ApiKeyPatch {
+    /// Insert or update an API key record.
     Upsert {
+        /// Identifier for the API key.
         key_id: String,
+        /// Optional human-readable label.
         label: Option<String>,
+        /// Optional enabled flag override.
         enabled: Option<bool>,
+        /// Optional new secret value.
         secret: Option<String>,
+        /// Optional rate limit configuration payload.
         rate_limit: Option<Value>,
     },
+    /// Remove an API key record.
     Delete {
+        /// Identifier for the API key to remove.
         key_id: String,
     },
 }
@@ -196,16 +297,30 @@ pub enum ApiKeyPatch {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "op", rename_all = "lowercase")]
 pub enum SecretPatch {
-    Set { name: String, value: String },
-    Delete { name: String },
+    /// Insert or update a secret value.
+    Set {
+        /// Secret key identifier.
+        name: String,
+        /// Secret value material.
+        value: String,
+    },
+    /// Remove a secret entry.
+    Delete {
+        /// Secret key identifier to remove.
+        name: String,
+    },
 }
 
 /// Context returned after applying a changeset.
 #[derive(Debug, Clone, Serialize)]
 pub struct AppliedChanges {
+    /// Revision recorded after the changeset was applied.
     pub revision: i64,
+    /// New application profile snapshot when relevant.
     pub app_profile: Option<AppProfile>,
+    /// Updated engine profile snapshot when relevant.
     pub engine_profile: Option<EngineProfile>,
+    /// Updated filesystem policy snapshot when relevant.
     pub fs_policy: Option<FsPolicy>,
 }
 
@@ -213,22 +328,29 @@ pub struct AppliedChanges {
 /// available at issuance time.
 #[derive(Debug, Clone)]
 pub struct SetupToken {
+    /// Clear-text token value (only returned at issuance time).
     pub plaintext: String,
+    /// Expiration timestamp for the token.
     pub expires_at: DateTime<Utc>,
 }
 
 /// Authentication context returned for a validated API key.
 #[derive(Debug, Clone)]
 pub struct ApiKeyAuth {
+    /// Unique identifier associated with the API key record.
     pub key_id: String,
+    /// Optional human-readable label for the key.
     pub label: Option<String>,
+    /// Optional token-bucket rate limit applied to requests.
     pub rate_limit: Option<ApiKeyRateLimit>,
 }
 
 /// Token-bucket rate limit configuration applied per API key.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ApiKeyRateLimit {
+    /// Maximum number of requests allowed within a replenishment window.
     pub burst: u32,
+    /// Duration between token replenishments.
     pub replenish_period: Duration,
 }
 
@@ -250,6 +372,8 @@ pub struct SettingsStream {
 }
 
 impl SettingsStream {
+    /// Receive the next configuration change notification, falling back to polling if the
+    /// LISTEN connection encounters an error.
     pub async fn next(&mut self) -> Option<Result<SettingsChange>> {
         match self.listener.recv().await {
             Ok(notification) => {
@@ -286,11 +410,13 @@ impl ConfigService {
         Ok(Self { pool, database_url })
     }
 
+    /// Access the underlying `SQLx` connection pool.
     #[must_use]
     pub const fn pool(&self) -> &sqlx::PgPool {
         &self.pool
     }
 
+    /// Produce a strongly typed snapshot of the current configuration revision.
     #[allow(clippy::missing_errors_doc)]
     pub async fn snapshot(&self) -> Result<ConfigSnapshot> {
         let app = fetch_app_profile(&self.pool).await?;
@@ -331,6 +457,7 @@ impl ConfigService {
         Ok((snapshot, watcher))
     }
 
+    /// Verify that a setup token exists and has not expired without consuming it.
     #[allow(clippy::missing_errors_doc)]
     pub async fn validate_setup_token(&self, token: &str) -> Result<()> {
         let mut tx = self.pool.begin().await?;
@@ -377,6 +504,7 @@ impl ConfigService {
         }
     }
 
+    /// Validate an API key/secret combination and return authorisation context.
     #[allow(clippy::missing_errors_doc)]
     pub async fn authenticate_api_key(
         &self,
@@ -423,9 +551,13 @@ impl ConfigService {
 /// Captures a consistent view of configuration at a given revision.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConfigSnapshot {
+    /// Revision of the configuration snapshot.
     pub revision: i64,
+    /// Application profile in effect for this revision.
     pub app_profile: AppProfile,
+    /// Engine profile describing torrent runtime behaviour.
     pub engine_profile: EngineProfile,
+    /// Filesystem policy applied to completed torrents.
     pub fs_policy: FsPolicy,
 }
 
@@ -1082,7 +1214,6 @@ async fn insert_history(
     Ok(())
 }
 
-#[allow(clippy::too_many_lines, clippy::similar_names)]
 async fn apply_app_profile_patch(
     tx: &mut Transaction<'_, Postgres>,
     patch: &Value,
@@ -1105,166 +1236,227 @@ async fn apply_app_profile_patch(
 
     for (key, value) in map {
         ensure_mutable(immutable_keys, "app_profile", key)?;
-        match key.as_str() {
-            "instance_name" => {
-                let Some(new_value) = value.as_str() else {
-                    return Err(ConfigError::InvalidField {
-                        section: "app_profile".to_string(),
-                        field: "instance_name".to_string(),
-                        message: "must be a string".to_string(),
-                    }
-                    .into());
-                };
-                sqlx::query("UPDATE app_profile SET instance_name = $1 WHERE id = $2")
-                    .bind(new_value)
-                    .bind(app_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "mode" => {
-                let Some(mode_str) = value.as_str() else {
-                    return Err(ConfigError::InvalidField {
-                        section: "app_profile".to_string(),
-                        field: "mode".to_string(),
-                        message: "must be a string".to_string(),
-                    }
-                    .into());
-                };
-                let mode = AppMode::from_str(mode_str).map_err(|_| ConfigError::InvalidField {
-                    section: "app_profile".to_string(),
-                    field: "mode".to_string(),
-                    message: format!("unsupported value '{mode_str}'"),
-                })?;
-                sqlx::query("UPDATE app_profile SET mode = $1 WHERE id = $2")
-                    .bind(mode.as_str())
-                    .bind(app_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "http_port" => {
-                let Some(port) = value.as_i64() else {
-                    return Err(ConfigError::InvalidField {
-                        section: "app_profile".to_string(),
-                        field: "http_port".to_string(),
-                        message: "must be an integer".to_string(),
-                    }
-                    .into());
-                };
-                ensure!(
-                    (1..=i64::from(u16::MAX)).contains(&port),
-                    ConfigError::InvalidField {
-                        section: "app_profile".to_string(),
-                        field: "http_port".to_string(),
-                        message: "must be between 1 and 65535".to_string(),
-                    }
-                );
-                let port_i32 = i32::try_from(port).map_err(|_| ConfigError::InvalidField {
-                    section: "app_profile".to_string(),
-                    field: "http_port".to_string(),
-                    message: "must fit within 32-bit signed integer range".to_string(),
-                })?;
-                sqlx::query("UPDATE app_profile SET http_port = $1 WHERE id = $2")
-                    .bind(port_i32)
-                    .bind(app_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "bind_addr" => {
-                let Some(addr) = value.as_str() else {
-                    return Err(ConfigError::InvalidField {
-                        section: "app_profile".to_string(),
-                        field: "bind_addr".to_string(),
-                        message: "must be a string".to_string(),
-                    }
-                    .into());
-                };
-                if addr.parse::<IpAddr>().is_err() {
-                    return Err(ConfigError::InvalidField {
-                        section: "app_profile".to_string(),
-                        field: "bind_addr".to_string(),
-                        message: "must be a valid IP address".to_string(),
-                    }
-                    .into());
-                }
-                sqlx::query("UPDATE app_profile SET bind_addr = $1 WHERE id = $2")
-                    .bind(addr)
-                    .bind(app_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "telemetry" => {
-                ensure!(
-                    value.is_object(),
-                    ConfigError::InvalidField {
-                        section: "app_profile".to_string(),
-                        field: "telemetry".to_string(),
-                        message: "must be an object".to_string(),
-                    }
-                );
-                sqlx::query("UPDATE app_profile SET telemetry = $1 WHERE id = $2")
-                    .bind(value.clone())
-                    .bind(app_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "features" => {
-                ensure!(
-                    value.is_object(),
-                    ConfigError::InvalidField {
-                        section: "app_profile".to_string(),
-                        field: "features".to_string(),
-                        message: "must be an object".to_string(),
-                    }
-                );
-                sqlx::query("UPDATE app_profile SET features = $1 WHERE id = $2")
-                    .bind(value.clone())
-                    .bind(app_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "immutable_keys" => {
-                ensure!(
-                    value.is_array(),
-                    ConfigError::InvalidField {
-                        section: "app_profile".to_string(),
-                        field: "immutable_keys".to_string(),
-                        message: "must be an array".to_string(),
-                    }
-                );
-                sqlx::query("UPDATE app_profile SET immutable_keys = $1 WHERE id = $2")
-                    .bind(value.clone())
-                    .bind(app_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            other => {
-                return Err(ConfigError::UnknownField {
-                    section: "app_profile".to_string(),
-                    field: other.to_string(),
-                }
-                .into());
-            }
-        }
+        mutated |= apply_app_profile_field(tx, app_id, key, value).await?;
     }
 
     if mutated {
-        sqlx::query("UPDATE app_profile SET version = version + 1 WHERE id = $1")
-            .bind(app_id)
-            .execute(tx.as_mut())
-            .await?;
+        bump_app_profile_version(tx, app_id).await?;
     }
 
     Ok(mutated)
 }
 
-#[allow(clippy::too_many_lines, clippy::similar_names)]
+async fn apply_app_profile_field(
+    tx: &mut Transaction<'_, Postgres>,
+    app_id: Uuid,
+    key: &str,
+    value: &Value,
+) -> Result<bool> {
+    match key {
+        "instance_name" => set_app_instance_name(tx, app_id, value).await,
+        "mode" => set_app_mode(tx, app_id, value).await,
+        "http_port" => set_app_http_port(tx, app_id, value).await,
+        "bind_addr" => set_app_bind_addr(tx, app_id, value).await,
+        "telemetry" => set_app_telemetry(tx, app_id, value).await,
+        "features" => set_app_features(tx, app_id, value).await,
+        "immutable_keys" => set_app_immutable_keys(tx, app_id, value).await,
+        other => Err(ConfigError::UnknownField {
+            section: "app_profile".to_string(),
+            field: other.to_string(),
+        }
+        .into()),
+    }
+}
+
+async fn set_app_instance_name(
+    tx: &mut Transaction<'_, Postgres>,
+    app_id: Uuid,
+    value: &Value,
+) -> Result<bool> {
+    let Some(new_value) = value.as_str() else {
+        return Err(ConfigError::InvalidField {
+            section: "app_profile".to_string(),
+            field: "instance_name".to_string(),
+            message: "must be a string".to_string(),
+        }
+        .into());
+    };
+    sqlx::query("UPDATE app_profile SET instance_name = $1 WHERE id = $2")
+        .bind(new_value)
+        .bind(app_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn set_app_mode(
+    tx: &mut Transaction<'_, Postgres>,
+    app_id: Uuid,
+    value: &Value,
+) -> Result<bool> {
+    let Some(mode_str) = value.as_str() else {
+        return Err(ConfigError::InvalidField {
+            section: "app_profile".to_string(),
+            field: "mode".to_string(),
+            message: "must be a string".to_string(),
+        }
+        .into());
+    };
+    let mode = AppMode::from_str(mode_str).map_err(|_| ConfigError::InvalidField {
+        section: "app_profile".to_string(),
+        field: "mode".to_string(),
+        message: format!("unsupported value '{mode_str}'"),
+    })?;
+    sqlx::query("UPDATE app_profile SET mode = $1 WHERE id = $2")
+        .bind(mode.as_str())
+        .bind(app_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn set_app_http_port(
+    tx: &mut Transaction<'_, Postgres>,
+    app_id: Uuid,
+    value: &Value,
+) -> Result<bool> {
+    let port = parse_port(value, "app_profile", "http_port")?;
+    sqlx::query("UPDATE app_profile SET http_port = $1 WHERE id = $2")
+        .bind(port)
+        .bind(app_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn set_app_bind_addr(
+    tx: &mut Transaction<'_, Postgres>,
+    app_id: Uuid,
+    value: &Value,
+) -> Result<bool> {
+    let Some(addr) = value.as_str() else {
+        return Err(ConfigError::InvalidField {
+            section: "app_profile".to_string(),
+            field: "bind_addr".to_string(),
+            message: "must be a string".to_string(),
+        }
+        .into());
+    };
+    if addr.parse::<IpAddr>().is_err() {
+        return Err(ConfigError::InvalidField {
+            section: "app_profile".to_string(),
+            field: "bind_addr".to_string(),
+            message: "must be a valid IP address".to_string(),
+        }
+        .into());
+    }
+    sqlx::query("UPDATE app_profile SET bind_addr = $1 WHERE id = $2")
+        .bind(addr)
+        .bind(app_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn set_app_telemetry(
+    tx: &mut Transaction<'_, Postgres>,
+    app_id: Uuid,
+    value: &Value,
+) -> Result<bool> {
+    ensure_object(value, "app_profile", "telemetry")?;
+    sqlx::query("UPDATE app_profile SET telemetry = $1 WHERE id = $2")
+        .bind(value.clone())
+        .bind(app_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn set_app_features(
+    tx: &mut Transaction<'_, Postgres>,
+    app_id: Uuid,
+    value: &Value,
+) -> Result<bool> {
+    ensure_object(value, "app_profile", "features")?;
+    sqlx::query("UPDATE app_profile SET features = $1 WHERE id = $2")
+        .bind(value.clone())
+        .bind(app_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn set_app_immutable_keys(
+    tx: &mut Transaction<'_, Postgres>,
+    app_id: Uuid,
+    value: &Value,
+) -> Result<bool> {
+    ensure_array(value, "app_profile", "immutable_keys")?;
+    sqlx::query("UPDATE app_profile SET immutable_keys = $1 WHERE id = $2")
+        .bind(value.clone())
+        .bind(app_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn bump_app_profile_version(tx: &mut Transaction<'_, Postgres>, app_id: Uuid) -> Result<()> {
+    sqlx::query("UPDATE app_profile SET version = version + 1 WHERE id = $1")
+        .bind(app_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(())
+}
+
+fn parse_port(value: &Value, section: &str, field: &str) -> Result<i32> {
+    let Some(port) = value.as_i64() else {
+        return Err(ConfigError::InvalidField {
+            section: section.to_string(),
+            field: field.to_string(),
+            message: "must be an integer".to_string(),
+        }
+        .into());
+    };
+    ensure!(
+        (1..=i64::from(u16::MAX)).contains(&port),
+        ConfigError::InvalidField {
+            section: section.to_string(),
+            field: field.to_string(),
+            message: "must be between 1 and 65535".to_string(),
+        }
+    );
+    let port_i32 = i32::try_from(port).map_err(|_| ConfigError::InvalidField {
+        section: section.to_string(),
+        field: field.to_string(),
+        message: "must fit within 32-bit signed integer range".to_string(),
+    })?;
+    Ok(port_i32)
+}
+
+fn ensure_object(value: &Value, section: &str, field: &str) -> Result<()> {
+    ensure!(
+        value.is_object(),
+        ConfigError::InvalidField {
+            section: section.to_string(),
+            field: field.to_string(),
+            message: "must be an object".to_string(),
+        }
+    );
+    Ok(())
+}
+
+fn ensure_array(value: &Value, section: &str, field: &str) -> Result<()> {
+    ensure!(
+        value.is_array(),
+        ConfigError::InvalidField {
+            section: section.to_string(),
+            field: field.to_string(),
+            message: "must be an array".to_string(),
+        }
+    );
+    Ok(())
+}
+
 async fn apply_engine_profile_patch(
     tx: &mut Transaction<'_, Postgres>,
     patch: &Value,
@@ -1287,269 +1479,243 @@ async fn apply_engine_profile_patch(
 
     for (key, value) in map {
         ensure_mutable(immutable_keys, "engine_profile", key)?;
-        match key.as_str() {
-            "implementation" => {
-                let Some(impl_name) = value.as_str() else {
-                    return Err(ConfigError::InvalidField {
-                        section: "engine_profile".to_string(),
-                        field: "implementation".to_string(),
-                        message: "must be a string".to_string(),
-                    }
-                    .into());
-                };
-                sqlx::query("UPDATE engine_profile SET implementation = $1 WHERE id = $2")
-                    .bind(impl_name)
-                    .bind(engine_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "listen_port" => {
-                if value.is_null() {
-                    sqlx::query("UPDATE engine_profile SET listen_port = NULL WHERE id = $1")
-                        .bind(engine_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                } else {
-                    let Some(port) = value.as_i64() else {
-                        return Err(ConfigError::InvalidField {
-                            section: "engine_profile".to_string(),
-                            field: "listen_port".to_string(),
-                            message: "must be an integer".to_string(),
-                        }
-                        .into());
-                    };
-                    ensure!(
-                        (1..=i64::from(u16::MAX)).contains(&port),
-                        ConfigError::InvalidField {
-                            section: "engine_profile".to_string(),
-                            field: "listen_port".to_string(),
-                            message: "must be between 1 and 65535".to_string(),
-                        }
-                    );
-                    let port_i32 = i32::try_from(port).map_err(|_| ConfigError::InvalidField {
-                        section: "engine_profile".to_string(),
-                        field: "listen_port".to_string(),
-                        message: "must fit within 32-bit signed integer range".to_string(),
-                    })?;
-                    sqlx::query("UPDATE engine_profile SET listen_port = $1 WHERE id = $2")
-                        .bind(port_i32)
-                        .bind(engine_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                }
-                mutated = true;
-            }
-            "dht" => {
-                let Some(flag) = value.as_bool() else {
-                    return Err(ConfigError::InvalidField {
-                        section: "engine_profile".to_string(),
-                        field: "dht".to_string(),
-                        message: "must be a boolean".to_string(),
-                    }
-                    .into());
-                };
-                sqlx::query("UPDATE engine_profile SET dht = $1 WHERE id = $2")
-                    .bind(flag)
-                    .bind(engine_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "encryption" => {
-                let Some(mode) = value.as_str() else {
-                    return Err(ConfigError::InvalidField {
-                        section: "engine_profile".to_string(),
-                        field: "encryption".to_string(),
-                        message: "must be a string".to_string(),
-                    }
-                    .into());
-                };
-                sqlx::query("UPDATE engine_profile SET encryption = $1 WHERE id = $2")
-                    .bind(mode)
-                    .bind(engine_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "max_active" => {
-                if value.is_null() {
-                    sqlx::query("UPDATE engine_profile SET max_active = NULL WHERE id = $1")
-                        .bind(engine_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                } else {
-                    let Some(max_active) = value.as_i64() else {
-                        return Err(ConfigError::InvalidField {
-                            section: "engine_profile".to_string(),
-                            field: "max_active".to_string(),
-                            message: "must be an integer".to_string(),
-                        }
-                        .into());
-                    };
-                    ensure!(
-                        max_active >= 0 && max_active <= i64::from(i32::MAX),
-                        ConfigError::InvalidField {
-                            section: "engine_profile".to_string(),
-                            field: "max_active".to_string(),
-                            message: "must be within 0..=i32::MAX".to_string(),
-                        }
-                    );
-                    let max_active_i32 =
-                        i32::try_from(max_active).map_err(|_| ConfigError::InvalidField {
-                            section: "engine_profile".to_string(),
-                            field: "max_active".to_string(),
-                            message: "must fit within 32-bit signed integer range".to_string(),
-                        })?;
-                    sqlx::query("UPDATE engine_profile SET max_active = $1 WHERE id = $2")
-                        .bind(max_active_i32)
-                        .bind(engine_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                }
-                mutated = true;
-            }
-            "max_download_bps" => {
-                if value.is_null() {
-                    sqlx::query("UPDATE engine_profile SET max_download_bps = NULL WHERE id = $1")
-                        .bind(engine_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                } else {
-                    let Some(limit) = value.as_i64() else {
-                        return Err(ConfigError::InvalidField {
-                            section: "engine_profile".to_string(),
-                            field: "max_download_bps".to_string(),
-                            message: "must be an integer".to_string(),
-                        }
-                        .into());
-                    };
-                    ensure!(
-                        limit >= 0,
-                        ConfigError::InvalidField {
-                            section: "engine_profile".to_string(),
-                            field: "max_download_bps".to_string(),
-                            message: "must be non-negative".to_string(),
-                        }
-                    );
-                    sqlx::query("UPDATE engine_profile SET max_download_bps = $1 WHERE id = $2")
-                        .bind(limit)
-                        .bind(engine_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                }
-                mutated = true;
-            }
-            "max_upload_bps" => {
-                if value.is_null() {
-                    sqlx::query("UPDATE engine_profile SET max_upload_bps = NULL WHERE id = $1")
-                        .bind(engine_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                } else {
-                    let Some(limit) = value.as_i64() else {
-                        return Err(ConfigError::InvalidField {
-                            section: "engine_profile".to_string(),
-                            field: "max_upload_bps".to_string(),
-                            message: "must be an integer".to_string(),
-                        }
-                        .into());
-                    };
-                    ensure!(
-                        limit >= 0,
-                        ConfigError::InvalidField {
-                            section: "engine_profile".to_string(),
-                            field: "max_upload_bps".to_string(),
-                            message: "must be non-negative".to_string(),
-                        }
-                    );
-                    sqlx::query("UPDATE engine_profile SET max_upload_bps = $1 WHERE id = $2")
-                        .bind(limit)
-                        .bind(engine_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                }
-                mutated = true;
-            }
-            "sequential_default" => {
-                let Some(flag) = value.as_bool() else {
-                    return Err(ConfigError::InvalidField {
-                        section: "engine_profile".to_string(),
-                        field: "sequential_default".to_string(),
-                        message: "must be a boolean".to_string(),
-                    }
-                    .into());
-                };
-                sqlx::query("UPDATE engine_profile SET sequential_default = $1 WHERE id = $2")
-                    .bind(flag)
-                    .bind(engine_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "resume_dir" => {
-                let Some(resume_path) = value.as_str() else {
-                    return Err(ConfigError::InvalidField {
-                        section: "engine_profile".to_string(),
-                        field: "resume_dir".to_string(),
-                        message: "must be a string".to_string(),
-                    }
-                    .into());
-                };
-                sqlx::query("UPDATE engine_profile SET resume_dir = $1 WHERE id = $2")
-                    .bind(resume_path)
-                    .bind(engine_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "download_root" => {
-                let Some(download_root) = value.as_str() else {
-                    return Err(ConfigError::InvalidField {
-                        section: "engine_profile".to_string(),
-                        field: "download_root".to_string(),
-                        message: "must be a string".to_string(),
-                    }
-                    .into());
-                };
-                sqlx::query("UPDATE engine_profile SET download_root = $1 WHERE id = $2")
-                    .bind(download_root)
-                    .bind(engine_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "tracker" => {
-                ensure!(
-                    value.is_object(),
-                    ConfigError::InvalidField {
-                        section: "engine_profile".to_string(),
-                        field: "tracker".to_string(),
-                        message: "must be an object".to_string(),
-                    }
-                );
-                sqlx::query("UPDATE engine_profile SET tracker = $1 WHERE id = $2")
-                    .bind(value.clone())
-                    .bind(engine_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            other => {
-                return Err(ConfigError::UnknownField {
-                    section: "engine_profile".to_string(),
-                    field: other.to_string(),
-                }
-                .into());
-            }
-        }
+        mutated |= apply_engine_profile_field(tx, engine_id, key, value).await?;
     }
 
     Ok(mutated)
 }
 
-#[allow(clippy::too_many_lines)]
-#[allow(clippy::too_many_lines, clippy::similar_names)]
+async fn apply_engine_profile_field(
+    tx: &mut Transaction<'_, Postgres>,
+    engine_id: Uuid,
+    key: &str,
+    value: &Value,
+) -> Result<bool> {
+    match key {
+        "implementation" => set_engine_implementation(tx, engine_id, value).await,
+        "listen_port" => set_engine_listen_port(tx, engine_id, value).await,
+        "dht" => set_engine_boolean_flag(tx, engine_id, value, "dht").await,
+        "encryption" => set_engine_encryption(tx, engine_id, value).await,
+        "max_active" => set_engine_max_active(tx, engine_id, value).await,
+        "max_download_bps" => set_engine_rate_limit(tx, engine_id, value, "max_download_bps").await,
+        "max_upload_bps" => set_engine_rate_limit(tx, engine_id, value, "max_upload_bps").await,
+        "sequential_default" => {
+            set_engine_boolean_flag(tx, engine_id, value, "sequential_default").await
+        }
+        "resume_dir" => set_engine_text_field(tx, engine_id, value, "resume_dir").await,
+        "download_root" => set_engine_text_field(tx, engine_id, value, "download_root").await,
+        "tracker" => set_engine_tracker(tx, engine_id, value).await,
+        other => Err(ConfigError::UnknownField {
+            section: "engine_profile".to_string(),
+            field: other.to_string(),
+        }
+        .into()),
+    }
+}
+
+async fn set_engine_implementation(
+    tx: &mut Transaction<'_, Postgres>,
+    engine_id: Uuid,
+    value: &Value,
+) -> Result<bool> {
+    let Some(name) = value.as_str() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "implementation".to_string(),
+            message: "must be a string".to_string(),
+        }
+        .into());
+    };
+    sqlx::query("UPDATE engine_profile SET implementation = $1 WHERE id = $2")
+        .bind(name)
+        .bind(engine_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn set_engine_listen_port(
+    tx: &mut Transaction<'_, Postgres>,
+    engine_id: Uuid,
+    value: &Value,
+) -> Result<bool> {
+    if value.is_null() {
+        sqlx::query("UPDATE engine_profile SET listen_port = NULL WHERE id = $1")
+            .bind(engine_id)
+            .execute(tx.as_mut())
+            .await?;
+        return Ok(true);
+    }
+    let port = parse_port(value, "engine_profile", "listen_port")?;
+    sqlx::query("UPDATE engine_profile SET listen_port = $1 WHERE id = $2")
+        .bind(port)
+        .bind(engine_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn set_engine_boolean_flag(
+    tx: &mut Transaction<'_, Postgres>,
+    engine_id: Uuid,
+    value: &Value,
+    field: &str,
+) -> Result<bool> {
+    let Some(flag) = value.as_bool() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be a boolean".to_string(),
+        }
+        .into());
+    };
+    let query = format!("UPDATE engine_profile SET {field} = $1 WHERE id = $2");
+    sqlx::query(&query)
+        .bind(flag)
+        .bind(engine_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn set_engine_encryption(
+    tx: &mut Transaction<'_, Postgres>,
+    engine_id: Uuid,
+    value: &Value,
+) -> Result<bool> {
+    let Some(mode) = value.as_str() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "encryption".to_string(),
+            message: "must be a string".to_string(),
+        }
+        .into());
+    };
+    sqlx::query("UPDATE engine_profile SET encryption = $1 WHERE id = $2")
+        .bind(mode)
+        .bind(engine_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn set_engine_max_active(
+    tx: &mut Transaction<'_, Postgres>,
+    engine_id: Uuid,
+    value: &Value,
+) -> Result<bool> {
+    if value.is_null() {
+        sqlx::query("UPDATE engine_profile SET max_active = NULL WHERE id = $1")
+            .bind(engine_id)
+            .execute(tx.as_mut())
+            .await?;
+        return Ok(true);
+    }
+    let Some(raw_value) = value.as_i64() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "max_active".to_string(),
+            message: "must be an integer".to_string(),
+        }
+        .into());
+    };
+    ensure!(
+        raw_value >= 0 && raw_value <= i64::from(i32::MAX),
+        ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "max_active".to_string(),
+            message: "must be within 0..=i32::MAX".to_string(),
+        }
+    );
+    let max_active = i32::try_from(raw_value).map_err(|_| ConfigError::InvalidField {
+        section: "engine_profile".to_string(),
+        field: "max_active".to_string(),
+        message: "must fit within 32-bit signed integer range".to_string(),
+    })?;
+    sqlx::query("UPDATE engine_profile SET max_active = $1 WHERE id = $2")
+        .bind(max_active)
+        .bind(engine_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn set_engine_rate_limit(
+    tx: &mut Transaction<'_, Postgres>,
+    engine_id: Uuid,
+    value: &Value,
+    field: &str,
+) -> Result<bool> {
+    if value.is_null() {
+        let query = format!("UPDATE engine_profile SET {field} = NULL WHERE id = $1");
+        sqlx::query(&query)
+            .bind(engine_id)
+            .execute(tx.as_mut())
+            .await?;
+        return Ok(true);
+    }
+    let Some(limit) = value.as_i64() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be an integer".to_string(),
+        }
+        .into());
+    };
+    ensure!(
+        limit >= 0,
+        ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be non-negative".to_string(),
+        }
+    );
+    let query = format!("UPDATE engine_profile SET {field} = $1 WHERE id = $2");
+    sqlx::query(&query)
+        .bind(limit)
+        .bind(engine_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn set_engine_text_field(
+    tx: &mut Transaction<'_, Postgres>,
+    engine_id: Uuid,
+    value: &Value,
+    field: &str,
+) -> Result<bool> {
+    let Some(text) = value.as_str() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be a string".to_string(),
+        }
+        .into());
+    };
+    let query = format!("UPDATE engine_profile SET {field} = $1 WHERE id = $2");
+    sqlx::query(&query)
+        .bind(text)
+        .bind(engine_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn set_engine_tracker(
+    tx: &mut Transaction<'_, Postgres>,
+    engine_id: Uuid,
+    value: &Value,
+) -> Result<bool> {
+    ensure_object(value, "engine_profile", "tracker")?;
+    sqlx::query("UPDATE engine_profile SET tracker = $1 WHERE id = $2")
+        .bind(value.clone())
+        .bind(engine_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
 async fn apply_fs_policy_patch(
     tx: &mut Transaction<'_, Postgres>,
     patch: &Value,
@@ -1572,264 +1738,132 @@ async fn apply_fs_policy_patch(
 
     for (key, value) in map {
         ensure_mutable(immutable_keys, "fs_policy", key)?;
-        match key.as_str() {
-            "library_root" => {
-                let Some(path) = value.as_str() else {
-                    return Err(ConfigError::InvalidField {
-                        section: "fs_policy".to_string(),
-                        field: "library_root".to_string(),
-                        message: "must be a string".to_string(),
-                    }
-                    .into());
-                };
-                sqlx::query("UPDATE fs_policy SET library_root = $1 WHERE id = $2")
-                    .bind(path)
-                    .bind(policy_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "extract" => {
-                let Some(flag) = value.as_bool() else {
-                    return Err(ConfigError::InvalidField {
-                        section: "fs_policy".to_string(),
-                        field: "extract".to_string(),
-                        message: "must be a boolean".to_string(),
-                    }
-                    .into());
-                };
-                sqlx::query("UPDATE fs_policy SET extract = $1 WHERE id = $2")
-                    .bind(flag)
-                    .bind(policy_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "par2" => {
-                let Some(mode) = value.as_str() else {
-                    return Err(ConfigError::InvalidField {
-                        section: "fs_policy".to_string(),
-                        field: "par2".to_string(),
-                        message: "must be a string".to_string(),
-                    }
-                    .into());
-                };
-                sqlx::query("UPDATE fs_policy SET par2 = $1 WHERE id = $2")
-                    .bind(mode)
-                    .bind(policy_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "flatten" => {
-                let Some(flag) = value.as_bool() else {
-                    return Err(ConfigError::InvalidField {
-                        section: "fs_policy".to_string(),
-                        field: "flatten".to_string(),
-                        message: "must be a boolean".to_string(),
-                    }
-                    .into());
-                };
-                sqlx::query("UPDATE fs_policy SET flatten = $1 WHERE id = $2")
-                    .bind(flag)
-                    .bind(policy_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "move_mode" => {
-                let Some(mode) = value.as_str() else {
-                    return Err(ConfigError::InvalidField {
-                        section: "fs_policy".to_string(),
-                        field: "move_mode".to_string(),
-                        message: "must be a string".to_string(),
-                    }
-                    .into());
-                };
-                sqlx::query("UPDATE fs_policy SET move_mode = $1 WHERE id = $2")
-                    .bind(mode)
-                    .bind(policy_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "cleanup_keep" => {
-                ensure!(
-                    value.is_array(),
-                    ConfigError::InvalidField {
-                        section: "fs_policy".to_string(),
-                        field: "cleanup_keep".to_string(),
-                        message: "must be an array".to_string(),
-                    }
-                );
-                sqlx::query("UPDATE fs_policy SET cleanup_keep = $1 WHERE id = $2")
-                    .bind(value.clone())
-                    .bind(policy_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "cleanup_drop" => {
-                ensure!(
-                    value.is_array(),
-                    ConfigError::InvalidField {
-                        section: "fs_policy".to_string(),
-                        field: "cleanup_drop".to_string(),
-                        message: "must be an array".to_string(),
-                    }
-                );
-                sqlx::query("UPDATE fs_policy SET cleanup_drop = $1 WHERE id = $2")
-                    .bind(value.clone())
-                    .bind(policy_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            "chmod_file" => {
-                if value.is_null() {
-                    sqlx::query("UPDATE fs_policy SET chmod_file = NULL WHERE id = $1")
-                        .bind(policy_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                } else {
-                    let Some(mode) = value.as_str() else {
-                        return Err(ConfigError::InvalidField {
-                            section: "fs_policy".to_string(),
-                            field: "chmod_file".to_string(),
-                            message: "must be a string".to_string(),
-                        }
-                        .into());
-                    };
-                    sqlx::query("UPDATE fs_policy SET chmod_file = $1 WHERE id = $2")
-                        .bind(mode)
-                        .bind(policy_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                }
-                mutated = true;
-            }
-            "chmod_dir" => {
-                if value.is_null() {
-                    sqlx::query("UPDATE fs_policy SET chmod_dir = NULL WHERE id = $1")
-                        .bind(policy_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                } else {
-                    let Some(mode) = value.as_str() else {
-                        return Err(ConfigError::InvalidField {
-                            section: "fs_policy".to_string(),
-                            field: "chmod_dir".to_string(),
-                            message: "must be a string".to_string(),
-                        }
-                        .into());
-                    };
-                    sqlx::query("UPDATE fs_policy SET chmod_dir = $1 WHERE id = $2")
-                        .bind(mode)
-                        .bind(policy_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                }
-                mutated = true;
-            }
-            "owner" => {
-                if value.is_null() {
-                    sqlx::query("UPDATE fs_policy SET owner = NULL WHERE id = $1")
-                        .bind(policy_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                } else {
-                    let Some(owner) = value.as_str() else {
-                        return Err(ConfigError::InvalidField {
-                            section: "fs_policy".to_string(),
-                            field: "owner".to_string(),
-                            message: "must be a string".to_string(),
-                        }
-                        .into());
-                    };
-                    sqlx::query("UPDATE fs_policy SET owner = $1 WHERE id = $2")
-                        .bind(owner)
-                        .bind(policy_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                }
-                mutated = true;
-            }
-            "group" => {
-                if value.is_null() {
-                    sqlx::query(r#"UPDATE fs_policy SET "group" = NULL WHERE id = $1"#)
-                        .bind(policy_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                } else {
-                    let Some(group) = value.as_str() else {
-                        return Err(ConfigError::InvalidField {
-                            section: "fs_policy".to_string(),
-                            field: "group".to_string(),
-                            message: "must be a string".to_string(),
-                        }
-                        .into());
-                    };
-                    sqlx::query(r#"UPDATE fs_policy SET "group" = $1 WHERE id = $2"#)
-                        .bind(group)
-                        .bind(policy_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                }
-                mutated = true;
-            }
-            "umask" => {
-                if value.is_null() {
-                    sqlx::query("UPDATE fs_policy SET umask = NULL WHERE id = $1")
-                        .bind(policy_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                } else {
-                    let Some(umask) = value.as_str() else {
-                        return Err(ConfigError::InvalidField {
-                            section: "fs_policy".to_string(),
-                            field: "umask".to_string(),
-                            message: "must be a string".to_string(),
-                        }
-                        .into());
-                    };
-                    sqlx::query("UPDATE fs_policy SET umask = $1 WHERE id = $2")
-                        .bind(umask)
-                        .bind(policy_id)
-                        .execute(tx.as_mut())
-                        .await?;
-                }
-                mutated = true;
-            }
-            "allow_paths" => {
-                ensure!(
-                    value.is_array(),
-                    ConfigError::InvalidField {
-                        section: "fs_policy".to_string(),
-                        field: "allow_paths".to_string(),
-                        message: "must be an array".to_string(),
-                    }
-                );
-                sqlx::query("UPDATE fs_policy SET allow_paths = $1 WHERE id = $2")
-                    .bind(value.clone())
-                    .bind(policy_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                mutated = true;
-            }
-            other => {
-                return Err(ConfigError::UnknownField {
-                    section: "fs_policy".to_string(),
-                    field: other.to_string(),
-                }
-                .into());
-            }
-        }
+        mutated |= apply_fs_policy_field(tx, policy_id, key, value).await?;
     }
 
     Ok(mutated)
 }
-#[allow(clippy::too_many_lines)]
-#[allow(clippy::too_many_lines, clippy::similar_names)]
+
+async fn apply_fs_policy_field(
+    tx: &mut Transaction<'_, Postgres>,
+    policy_id: Uuid,
+    key: &str,
+    value: &Value,
+) -> Result<bool> {
+    match key {
+        "library_root" => set_fs_string_field(tx, policy_id, value, "library_root").await,
+        "extract" => set_fs_boolean_field(tx, policy_id, value, "extract").await,
+        "par2" => set_fs_string_field(tx, policy_id, value, "par2").await,
+        "flatten" => set_fs_boolean_field(tx, policy_id, value, "flatten").await,
+        "move_mode" => set_fs_string_field(tx, policy_id, value, "move_mode").await,
+        "cleanup_keep" => set_fs_array_field(tx, policy_id, value, "cleanup_keep").await,
+        "cleanup_drop" => set_fs_array_field(tx, policy_id, value, "cleanup_drop").await,
+        "chmod_file" => set_fs_optional_string_field(tx, policy_id, value, "chmod_file").await,
+        "chmod_dir" => set_fs_optional_string_field(tx, policy_id, value, "chmod_dir").await,
+        "owner" => set_fs_optional_string_field(tx, policy_id, value, "owner").await,
+        "group" => set_fs_optional_string_field(tx, policy_id, value, "group").await,
+        "umask" => set_fs_optional_string_field(tx, policy_id, value, "umask").await,
+        "allow_paths" => set_fs_array_field(tx, policy_id, value, "allow_paths").await,
+        other => Err(ConfigError::UnknownField {
+            section: "fs_policy".to_string(),
+            field: other.to_string(),
+        }
+        .into()),
+    }
+}
+
+async fn set_fs_string_field(
+    tx: &mut Transaction<'_, Postgres>,
+    policy_id: Uuid,
+    value: &Value,
+    field: &str,
+) -> Result<bool> {
+    let Some(text) = value.as_str() else {
+        return Err(ConfigError::InvalidField {
+            section: "fs_policy".to_string(),
+            field: field.to_string(),
+            message: "must be a string".to_string(),
+        }
+        .into());
+    };
+    let query = format!(r#"UPDATE fs_policy SET "{field}" = $1 WHERE id = $2"#);
+    sqlx::query(&query)
+        .bind(text)
+        .bind(policy_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn set_fs_boolean_field(
+    tx: &mut Transaction<'_, Postgres>,
+    policy_id: Uuid,
+    value: &Value,
+    field: &str,
+) -> Result<bool> {
+    let Some(flag) = value.as_bool() else {
+        return Err(ConfigError::InvalidField {
+            section: "fs_policy".to_string(),
+            field: field.to_string(),
+            message: "must be a boolean".to_string(),
+        }
+        .into());
+    };
+    let query = format!(r#"UPDATE fs_policy SET "{field}" = $1 WHERE id = $2"#);
+    sqlx::query(&query)
+        .bind(flag)
+        .bind(policy_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn set_fs_array_field(
+    tx: &mut Transaction<'_, Postgres>,
+    policy_id: Uuid,
+    value: &Value,
+    field: &str,
+) -> Result<bool> {
+    ensure_array(value, "fs_policy", field)?;
+    let query = format!(r#"UPDATE fs_policy SET "{field}" = $1 WHERE id = $2"#);
+    sqlx::query(&query)
+        .bind(value.clone())
+        .bind(policy_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
+
+async fn set_fs_optional_string_field(
+    tx: &mut Transaction<'_, Postgres>,
+    policy_id: Uuid,
+    value: &Value,
+    field: &str,
+) -> Result<bool> {
+    if value.is_null() {
+        let query = format!(r#"UPDATE fs_policy SET "{field}" = NULL WHERE id = $1"#);
+        sqlx::query(&query)
+            .bind(policy_id)
+            .execute(tx.as_mut())
+            .await?;
+        return Ok(true);
+    }
+    let Some(text) = value.as_str() else {
+        return Err(ConfigError::InvalidField {
+            section: "fs_policy".to_string(),
+            field: field.to_string(),
+            message: "must be a string".to_string(),
+        }
+        .into());
+    };
+    let query = format!(r#"UPDATE fs_policy SET "{field}" = $2 WHERE id = $1"#);
+    sqlx::query(&query)
+        .bind(policy_id)
+        .bind(text)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(true)
+}
 async fn apply_api_key_patches(
     tx: &mut Transaction<'_, Postgres>,
     patches: &[ApiKeyPatch],
@@ -1841,17 +1875,10 @@ async fn apply_api_key_patches(
 
     let mut changed = false;
 
-    for patch in patches.iter().cloned() {
+    for patch in patches {
         match patch {
             ApiKeyPatch::Delete { key_id } => {
-                ensure_mutable(immutable_keys, "auth_api_keys", "key_id")?;
-                let result = sqlx::query("DELETE FROM auth_api_keys WHERE key_id = $1")
-                    .bind(&key_id)
-                    .execute(tx.as_mut())
-                    .await?;
-                if result.rows_affected() > 0 {
-                    changed = true;
-                }
+                changed |= delete_api_key(tx, immutable_keys, key_id).await?;
             }
             ApiKeyPatch::Upsert {
                 key_id,
@@ -1860,130 +1887,194 @@ async fn apply_api_key_patches(
                 secret,
                 rate_limit,
             } => {
-                ensure_mutable(immutable_keys, "auth_api_keys", "key_id")?;
-
-                let existing_hash: Option<String> =
-                    sqlx::query_scalar("SELECT hash FROM auth_api_keys WHERE key_id = $1")
-                        .bind(&key_id)
-                        .fetch_optional(tx.as_mut())
-                        .await?;
-
-                if let Some(_hash) = existing_hash {
-                    let secret_updated = match secret.as_ref() {
-                        Some(secret_value) => {
-                            ensure_mutable(immutable_keys, "auth_api_keys", "secret")?;
-                            let hash = hash_secret(secret_value)?;
-                            sqlx::query(
-                                "UPDATE auth_api_keys SET hash = $1, updated_at = now() WHERE key_id = $2",
-                            )
-                            .bind(hash)
-                            .bind(&key_id)
-                            .execute(tx.as_mut())
-                            .await?;
-                            true
-                        }
-                        None => false,
-                    };
-
-                    let label_updated = match label.clone() {
-                        Some(label_value) => {
-                            ensure_mutable(immutable_keys, "auth_api_keys", "label")?;
-                            sqlx::query(
-                                "UPDATE auth_api_keys SET label = $1, updated_at = now() WHERE key_id = $2",
-                            )
-                            .bind(label_value)
-                            .bind(&key_id)
-                            .execute(tx.as_mut())
-                            .await?;
-                            true
-                        }
-                        None => false,
-                    };
-
-                    let enabled_updated = match enabled {
-                        Some(enabled_value) => {
-                            ensure_mutable(immutable_keys, "auth_api_keys", "enabled")?;
-                            sqlx::query(
-                                "UPDATE auth_api_keys SET enabled = $1, updated_at = now() WHERE key_id = $2",
-                            )
-                            .bind(enabled_value)
-                            .bind(&key_id)
-                            .execute(tx.as_mut())
-                            .await?;
-                            true
-                        }
-                        None => false,
-                    };
-
-                    let rate_limit_updated = match rate_limit.clone() {
-                        Some(rate_limit_value) => {
-                            ensure_mutable(immutable_keys, "auth_api_keys", "rate_limit")?;
-                            let parsed = parse_api_key_rate_limit_for_config(&rate_limit_value)?;
-                            let stored = serialise_rate_limit(parsed.as_ref());
-                            sqlx::query(
-                                "UPDATE auth_api_keys SET rate_limit = $1, updated_at = now() WHERE key_id = $2",
-                            )
-                            .bind(stored)
-                            .bind(&key_id)
-                            .execute(tx.as_mut())
-                            .await?;
-                            true
-                        }
-                        None => false,
-                    };
-
-                    if secret_updated || label_updated || enabled_updated || rate_limit_updated {
-                        changed = true;
-                    }
-                } else {
-                    let Some(secret) = secret else {
-                        return Err(ConfigError::InvalidField {
-                            section: "auth_api_keys".to_string(),
-                            field: "secret".to_string(),
-                            message: "required when creating a new API key".to_string(),
-                        }
-                        .into());
-                    };
-
-                    ensure_mutable(immutable_keys, "auth_api_keys", "secret")?;
-                    if label.is_some() {
-                        ensure_mutable(immutable_keys, "auth_api_keys", "label")?;
-                    }
-                    if enabled.is_some() {
-                        ensure_mutable(immutable_keys, "auth_api_keys", "enabled")?;
-                    }
-                    if rate_limit.is_some() {
-                        ensure_mutable(immutable_keys, "auth_api_keys", "rate_limit")?;
-                    }
-
-                    let hash = hash_secret(&secret)?;
-                    let enabled = enabled.unwrap_or(true);
-                    let rate_limit_config = rate_limit
-                        .map(|value| parse_api_key_rate_limit_for_config(&value))
-                        .transpose()?;
-                    let rate_limit_option = rate_limit_config.flatten();
-                    let rate_limit_value = serialise_rate_limit(rate_limit_option.as_ref());
-
-                    sqlx::query(
-                        r"
-                        INSERT INTO auth_api_keys (key_id, hash, label, enabled, rate_limit)
-                        VALUES ($1, $2, $3, $4, $5)
-                        ",
-                    )
-                    .bind(&key_id)
-                    .bind(hash)
-                    .bind(label)
-                    .bind(enabled)
-                    .bind(rate_limit_value)
-                    .execute(tx.as_mut())
-                    .await?;
-                    changed = true;
-                }
+                changed |= upsert_api_key(
+                    tx,
+                    immutable_keys,
+                    key_id,
+                    label.as_deref(),
+                    *enabled,
+                    secret.as_deref(),
+                    rate_limit.as_ref(),
+                )
+                .await?;
             }
         }
     }
 
     Ok(changed)
+}
+
+async fn delete_api_key(
+    tx: &mut Transaction<'_, Postgres>,
+    immutable_keys: &HashSet<String>,
+    key_id: &str,
+) -> Result<bool> {
+    ensure_mutable(immutable_keys, "auth_api_keys", "key_id")?;
+    let result = sqlx::query("DELETE FROM auth_api_keys WHERE key_id = $1")
+        .bind(key_id)
+        .execute(tx.as_mut())
+        .await?;
+    Ok(result.rows_affected() > 0)
+}
+
+async fn upsert_api_key(
+    tx: &mut Transaction<'_, Postgres>,
+    immutable_keys: &HashSet<String>,
+    key_id: &str,
+    label: Option<&str>,
+    enabled: Option<bool>,
+    secret: Option<&str>,
+    rate_limit: Option<&Value>,
+) -> Result<bool> {
+    ensure_mutable(immutable_keys, "auth_api_keys", "key_id")?;
+    let existing: Option<String> =
+        sqlx::query_scalar("SELECT hash FROM auth_api_keys WHERE key_id = $1")
+            .bind(key_id)
+            .fetch_optional(tx.as_mut())
+            .await?;
+
+    if existing.is_some() {
+        update_api_key(
+            tx,
+            immutable_keys,
+            key_id,
+            label,
+            enabled,
+            secret,
+            rate_limit,
+        )
+        .await
+    } else {
+        insert_api_key(
+            tx,
+            immutable_keys,
+            key_id,
+            label,
+            enabled,
+            secret,
+            rate_limit,
+        )
+        .await
+    }
+}
+
+async fn update_api_key(
+    tx: &mut Transaction<'_, Postgres>,
+    immutable_keys: &HashSet<String>,
+    key_id: &str,
+    label: Option<&str>,
+    enabled: Option<bool>,
+    secret: Option<&str>,
+    rate_limit: Option<&Value>,
+) -> Result<bool> {
+    let changed_secret = if let Some(value) = secret {
+        ensure_mutable(immutable_keys, "auth_api_keys", "secret")?;
+        let hash = hash_secret(value)?;
+        sqlx::query("UPDATE auth_api_keys SET hash = $1, updated_at = now() WHERE key_id = $2")
+            .bind(hash)
+            .bind(key_id)
+            .execute(tx.as_mut())
+            .await?;
+        true
+    } else {
+        false
+    };
+
+    let changed_label = if let Some(text) = label {
+        ensure_mutable(immutable_keys, "auth_api_keys", "label")?;
+        sqlx::query("UPDATE auth_api_keys SET label = $1, updated_at = now() WHERE key_id = $2")
+            .bind(text)
+            .bind(key_id)
+            .execute(tx.as_mut())
+            .await?;
+        true
+    } else {
+        false
+    };
+
+    let changed_enabled = if let Some(flag) = enabled {
+        ensure_mutable(immutable_keys, "auth_api_keys", "enabled")?;
+        sqlx::query("UPDATE auth_api_keys SET enabled = $1, updated_at = now() WHERE key_id = $2")
+            .bind(flag)
+            .bind(key_id)
+            .execute(tx.as_mut())
+            .await?;
+        true
+    } else {
+        false
+    };
+
+    let changed_rate_limit = if let Some(limit_value) = rate_limit {
+        ensure_mutable(immutable_keys, "auth_api_keys", "rate_limit")?;
+        let parsed = parse_api_key_rate_limit_for_config(limit_value)?;
+        let stored = serialise_rate_limit(parsed.as_ref());
+        sqlx::query(
+            "UPDATE auth_api_keys SET rate_limit = $1, updated_at = now() WHERE key_id = $2",
+        )
+        .bind(stored)
+        .bind(key_id)
+        .execute(tx.as_mut())
+        .await?;
+        true
+    } else {
+        false
+    };
+
+    Ok(changed_secret || changed_label || changed_enabled || changed_rate_limit)
+}
+
+async fn insert_api_key(
+    tx: &mut Transaction<'_, Postgres>,
+    immutable_keys: &HashSet<String>,
+    key_id: &str,
+    label: Option<&str>,
+    enabled: Option<bool>,
+    secret: Option<&str>,
+    rate_limit: Option<&Value>,
+) -> Result<bool> {
+    let Some(secret_value) = secret else {
+        return Err(ConfigError::InvalidField {
+            section: "auth_api_keys".to_string(),
+            field: "secret".to_string(),
+            message: "required when creating a new API key".to_string(),
+        }
+        .into());
+    };
+
+    ensure_mutable(immutable_keys, "auth_api_keys", "secret")?;
+    if label.is_some() {
+        ensure_mutable(immutable_keys, "auth_api_keys", "label")?;
+    }
+    if enabled.is_some() {
+        ensure_mutable(immutable_keys, "auth_api_keys", "enabled")?;
+    }
+    if rate_limit.is_some() {
+        ensure_mutable(immutable_keys, "auth_api_keys", "rate_limit")?;
+    }
+
+    let hash = hash_secret(secret_value)?;
+    let enabled_flag = enabled.unwrap_or(true);
+    let parsed_limit = rate_limit
+        .map(parse_api_key_rate_limit_for_config)
+        .transpose()?
+        .flatten();
+    let stored_limit = serialise_rate_limit(parsed_limit.as_ref());
+
+    sqlx::query(
+        r"
+        INSERT INTO auth_api_keys (key_id, hash, label, enabled, rate_limit)
+        VALUES ($1, $2, $3, $4, $5)
+        ",
+    )
+    .bind(key_id)
+    .bind(hash)
+    .bind(label.map(str::to_owned))
+    .bind(enabled_flag)
+    .bind(stored_limit)
+    .execute(tx.as_mut())
+    .await?;
+
+    Ok(true)
 }
 
 async fn apply_secret_patches(

@@ -1,13 +1,33 @@
+#![forbid(unsafe_code)]
+#![deny(
+    warnings,
+    dead_code,
+    unused,
+    unused_imports,
+    unused_must_use,
+    unreachable_pub,
+    clippy::all,
+    clippy::pedantic,
+    clippy::cargo,
+    clippy::nursery,
+    rustdoc::broken_intra_doc_links,
+    rustdoc::bare_urls,
+    missing_docs
+)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(unexpected_cfgs)]
+#![allow(clippy::multiple_crate_versions)]
+
 //! Libtorrent adapter scaffold.
 //!
 //! Once the real libtorrent bindings are wired in, the engine will translate
 //! session events into the shared workspace event bus so downstream consumers
 //! (API/SSE, telemetry) observe real-time changes.
 
-mod command;
-mod session;
+pub(crate) mod command;
+pub(crate) mod session;
 mod store;
-mod worker;
+pub(crate) mod worker;
 
 pub use store::{FastResumeStore, StoredTorrentMetadata, StoredTorrentState};
 
@@ -19,6 +39,7 @@ use revaer_torrent_core::{
 };
 use session::{LibtSession, StubSession};
 use tokio::sync::mpsc;
+use tracing::warn;
 use uuid::Uuid;
 
 const COMMAND_BUFFER: usize = 128;
@@ -28,7 +49,6 @@ const COMMAND_BUFFER: usize = 128;
 pub struct LibtorrentEngine {
     events: EventBus,
     commands: mpsc::Sender<EngineCommand>,
-    #[allow(dead_code)]
     resume_store: Option<FastResumeStore>,
 }
 
@@ -45,16 +65,6 @@ impl LibtorrentEngine {
         Self::build(events, Some(store), Box::new(StubSession::default()))
     }
 
-    #[cfg(test)]
-    #[allow(dead_code)]
-    pub(crate) fn with_custom_session(
-        events: EventBus,
-        store: Option<FastResumeStore>,
-        session: Box<dyn LibtSession>,
-    ) -> Self {
-        Self::build(events, store, session)
-    }
-
     fn build(
         events: EventBus,
         store: Option<FastResumeStore>,
@@ -65,11 +75,22 @@ impl LibtorrentEngine {
         // TODO: swap the stub implementation with the real libtorrent session wiring.
         worker::spawn(events.clone(), rx, worker_store, session);
 
-        Self {
+        let engine = Self {
             events,
             commands,
             resume_store: store,
+        };
+
+        if let Some(store_ref) = engine.resume_store.as_ref()
+            && let Err(err) = store_ref.ensure_initialized()
+        {
+            warn!(
+                error = %err,
+                "failed to initialise fast resume store"
+            );
         }
+
+        engine
     }
 
     async fn send_command(&self, command: EngineCommand) -> Result<()> {

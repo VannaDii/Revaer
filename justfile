@@ -7,25 +7,28 @@ fmt-fix:
     cargo fmt --all
 
 lint:
-    cargo clippy --workspace --all-targets --all-features -- -D warnings
+    cargo clippy --workspace --all-targets --all-features -- -Dwarnings
 
 check:
-    cargo --config 'build.rustflags=["-Dwarnings"]' check --workspace --all-targets --all-features
+    cargo check --workspace --all-targets --all-features
 
 test:
-    cargo --config 'build.rustflags=["-Dwarnings"]' test --workspace --all-features
+    cargo test --workspace --all-targets --all-features
 
 build:
-    cargo build --workspace --all-features
+    cargo build --workspace --all-targets --all-features
 
 build-release:
-    cargo build --workspace --release --all-features
+    cargo build --workspace --release --all-targets --all-features
 
 udeps:
     if ! command -v cargo-udeps >/dev/null 2>&1; then \
         cargo install cargo-udeps --locked; \
     fi
-    cargo +stable udeps --workspace --all-targets
+    if ! rustup toolchain list | grep -q nightly; then \
+        rustup toolchain install nightly --no-self-update; \
+    fi
+    cargo +nightly udeps --workspace --all-targets
 
 audit:
     if ! command -v cargo-audit >/dev/null 2>&1; then \
@@ -81,6 +84,12 @@ docs-serve:
 
 docs-index:
     cargo run -p revaer-doc-indexer --release
+
+docs-link-check:
+    if ! command -v lychee >/dev/null 2>&1; then \
+        cargo install --locked lychee; \
+    fi
+    lychee --verbose --no-progress docs || true
 
 docs:
     just docs-build

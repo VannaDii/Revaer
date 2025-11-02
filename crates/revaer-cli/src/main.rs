@@ -1,4 +1,24 @@
+#![forbid(unsafe_code)]
+#![deny(
+    warnings,
+    dead_code,
+    unused,
+    unused_imports,
+    unused_must_use,
+    unreachable_pub,
+    clippy::all,
+    clippy::pedantic,
+    clippy::cargo,
+    clippy::nursery,
+    rustdoc::broken_intra_doc_links,
+    rustdoc::bare_urls,
+    missing_docs
+)]
+#![allow(clippy::module_name_repetitions)]
 #![allow(unexpected_cfgs)]
+#![allow(clippy::multiple_crate_versions)]
+
+//! Command-line client for interacting with a Revaer server instance.
 
 use std::convert::TryFrom;
 use std::env;
@@ -35,6 +55,8 @@ const HEADER_LAST_EVENT_ID: &str = "Last-Event-ID";
 const DEFAULT_TIMEOUT_SECS: u64 = 10;
 const DEFAULT_API_URL: &str = "http://127.0.0.1:7070";
 
+/// Parses CLI arguments, executes the requested command, and handles
+/// user-facing telemetry emission.
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
