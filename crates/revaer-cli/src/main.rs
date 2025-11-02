@@ -1333,20 +1333,261 @@ struct SetupStartResponse {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
     use httpmock::prelude::*;
     use reqwest::Client;
+    use revaer_api::models::{
+        TorrentDetail, TorrentFileView, TorrentListResponse, TorrentProgressView, TorrentRatesView,
+        TorrentStateKind, TorrentStateView, TorrentSummary,
+    };
+    use revaer_config::{AppMode, AppProfile, ConfigSnapshot, EngineProfile, FsPolicy};
+    use revaer_events::{Event, EventEnvelope};
     use serde_json::{Value, json};
-    use std::path::PathBuf;
+    use std::{
+        ffi::OsString,
+        fs,
+        io::Write,
+        path::{Path, PathBuf},
+    };
+    use tokio::time::{Duration, timeout};
+    use uuid::Uuid;
 
-    fn context_for(server: &MockServer) -> AppContext {
+    fn context_with(server: &MockServer, api_key: Option<ApiKeyCredential>) -> AppContext {
         AppContext {
             client: Client::new(),
             base_url: server.base_url().parse().expect("valid URL"),
-            api_key: Some(ApiKeyCredential {
+            api_key,
+        }
+    }
+
+    fn context_with_key(server: &MockServer) -> AppContext {
+        context_with(
+            server,
+            Some(ApiKeyCredential {
                 key_id: "key".to_string(),
                 secret: "secret".to_string(),
             }),
+        )
+    }
+
+    fn write_file(path: &Path, contents: &str) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("create parent");
         }
+        let mut file = fs::File::create(path).expect("create file");
+        file.write_all(contents.as_bytes()).expect("write file");
+    }
+
+    fn temp_path(name: &str) -> PathBuf {
+        let mut path = env::temp_dir();
+        path.push(format!(
+            "revaer-cli-test-{}-{}-{name}",
+            std::process::id(),
+            Uuid::new_v4()
+        ));
+        path
+    }
+
+    fn sample_snapshot() -> ConfigSnapshot {
+        ConfigSnapshot {
+            revision: 42,
+            app_profile: AppProfile {
+                id: Uuid::new_v4(),
+                instance_name: "demo".into(),
+                mode: AppMode::Active,
+                version: 1,
+                http_port: 7070,
+                bind_addr: "127.0.0.1".parse().unwrap(),
+                telemetry: json!({"level": "info"}),
+                features: json!({}),
+                immutable_keys: json!([]),
+            },
+            engine_profile: EngineProfile {
+                id: Uuid::new_v4(),
+                implementation: "libtorrent".into(),
+                listen_port: Some(6881),
+                dht: true,
+                encryption: "enabled".into(),
+                max_active: Some(5),
+                max_download_bps: Some(1_000_000),
+                max_upload_bps: Some(500_000),
+                sequential_default: false,
+                resume_dir: "/var/resume".into(),
+                download_root: "/var/downloads".into(),
+                tracker: json!({}),
+            },
+            fs_policy: FsPolicy {
+                id: Uuid::new_v4(),
+                library_root: "/library".into(),
+                extract: true,
+                par2: "disabled".into(),
+                flatten: false,
+                move_mode: "copy".into(),
+                cleanup_keep: json!([]),
+                cleanup_drop: json!([]),
+                chmod_file: None,
+                chmod_dir: None,
+                owner: None,
+                group: None,
+                umask: None,
+                allow_paths: json!([]),
+            },
+        }
+    }
+
+    fn sample_summary(id: Uuid, now: chrono::DateTime<Utc>) -> TorrentSummary {
+        TorrentSummary {
+            id,
+            name: Some("Example".into()),
+            state: TorrentStateView {
+                kind: TorrentStateKind::Downloading,
+                failure_message: None,
+            },
+            progress: TorrentProgressView {
+                bytes_downloaded: 1_024,
+                bytes_total: 2_048,
+                percent_complete: 50.0,
+                eta_seconds: None,
+            },
+            rates: TorrentRatesView {
+                download_bps: 1_024,
+                upload_bps: 256,
+                ratio: 0.5,
+            },
+            library_path: Some("/library/example".into()),
+            download_dir: Some("/downloads/example".into()),
+            sequential: false,
+            tags: vec!["tag1".into()],
+            trackers: vec!["https://tracker.example/announce".into()],
+            added_at: now,
+            completed_at: None,
+            last_updated: now,
+        }
+    }
+
+    #[test]
+    fn parse_url_rejects_invalid_input() {
+        let err = parse_url("not-a-url").expect_err("invalid URL should fail");
+        assert!(err.contains("invalid URL"));
+    }
+
+    #[tokio::test]
+    async fn setup_start_posts_payload() {
+        let server = MockServer::start_async().await;
+        let mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/admin/setup/start")
+                .json_body(json!({"issued_by": "cli", "ttl_seconds": 600}));
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(json!({
+                    "token": "abc123",
+                    "expires_at": Utc::now().to_rfc3339()
+                }));
+        });
+
+        let ctx = context_with(&server, None);
+        handle_setup_start(
+            &ctx,
+            SetupStartArgs {
+                issued_by: Some("cli".into()),
+                ttl_seconds: Some(600),
+            },
+        )
+        .await
+        .expect("setup start should succeed");
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn setup_start_surfaces_problem_details() {
+        let server = MockServer::start_async().await;
+        server.mock(|when, then| {
+            when.method(POST).path("/admin/setup/start");
+            then.status(400)
+                .header("content-type", "application/json")
+                .json_body(json!({"title": "bad request", "detail": "missing precondition", "status": 400}));
+        });
+
+        let ctx = context_with(&server, None);
+        let err = handle_setup_start(
+            &ctx,
+            SetupStartArgs {
+                issued_by: None,
+                ttl_seconds: None,
+            },
+        )
+        .await
+        .expect_err("validation error expected");
+        assert!(
+            matches!(err, CliError::Validation(message) if message.contains("missing precondition"))
+        );
+    }
+
+    #[tokio::test]
+    async fn setup_complete_submits_changeset() {
+        let server = MockServer::start_async().await;
+        let snapshot = sample_snapshot();
+        let mock = server.mock(move |when, then| {
+            when.method(POST)
+                .path("/admin/setup/complete")
+                .header(HEADER_SETUP_TOKEN, "token-1");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(json!(snapshot));
+        });
+
+        let ctx = context_with(&server, None);
+        let args = SetupCompleteArgs {
+            token: Some("token-1".to_string()),
+            instance: "demo".to_string(),
+            bind: "127.0.0.1".to_string(),
+            port: 7070,
+            resume_dir: PathBuf::from("/tmp/resume"),
+            download_root: PathBuf::from("/tmp/download"),
+            library_root: PathBuf::from("/tmp/library"),
+            api_key_label: "label".to_string(),
+            api_key_id: Some("admin".to_string()),
+            passphrase: Some("secret".to_string()),
+        };
+
+        handle_setup_complete(&ctx, args)
+            .await
+            .expect("setup complete should succeed");
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn settings_patch_sends_payload() {
+        let server = MockServer::start_async().await;
+        let mock = server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/admin/settings")
+                .header(HEADER_API_KEY, "key:secret");
+            then.status(200);
+        });
+
+        let ctx = context_with_key(&server);
+        let file_path = temp_path("settings.json");
+        write_file(
+            &file_path,
+            r#"{
+                "app_profile": { "instance_name": "custom" },
+                "api_keys": [],
+                "secrets": []
+            }"#,
+        );
+
+        handle_settings_patch(
+            &ctx,
+            SettingsPatchArgs {
+                file: file_path.clone(),
+            },
+        )
+        .await
+        .expect("settings patch should succeed");
+        mock.assert();
+        let _ = fs::remove_file(file_path);
     }
 
     #[tokio::test]
@@ -1378,7 +1619,7 @@ mod tests {
             then.status(202);
         });
 
-        let ctx = context_for(&server);
+        let ctx = context_with_key(&server);
         let args = TorrentAddArgs {
             source: magnet.to_string(),
             name: Some(name.to_string()),
@@ -1408,12 +1649,296 @@ mod tests {
             then.status(202);
         });
 
-        let ctx = context_for(&server);
+        let ctx = context_with_key(&server);
         let args = TorrentRemoveArgs { id };
 
         handle_torrent_remove(&ctx, args)
             .await
             .expect("torrent remove should succeed");
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn torrent_list_renders_table() {
+        let server = MockServer::start_async().await;
+        let torrent_id = Uuid::new_v4();
+        let now = Utc::now();
+        let list = TorrentListResponse {
+            torrents: vec![sample_summary(torrent_id, now)],
+            next: Some("cursor-1".into()),
+        };
+        server.mock(move |when, then| {
+            when.method(GET).path("/v1/torrents");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(json!(list));
+        });
+
+        let ctx = context_with(&server, None);
+        handle_torrent_list(&ctx, TorrentListArgs::default(), OutputFormat::Table)
+            .await
+            .expect("list should succeed");
+    }
+
+    #[tokio::test]
+    async fn torrent_status_renders_detail() {
+        let server = MockServer::start_async().await;
+        let torrent_id = Uuid::new_v4();
+        let now = Utc::now();
+        let detail = TorrentDetail {
+            summary: sample_summary(torrent_id, now),
+            files: Some(vec![TorrentFileView {
+                index: 0,
+                path: "example.mkv".into(),
+                size_bytes: 2_048,
+                bytes_completed: 1_024,
+                priority: FilePriority::High,
+                selected: true,
+            }]),
+        };
+        server.mock(move |when, then| {
+            when.method(GET)
+                .path(format!("/v1/torrents/{torrent_id}").as_str());
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(json!(detail));
+        });
+
+        let ctx = context_with(&server, None);
+        handle_torrent_status(
+            &ctx,
+            TorrentStatusArgs { id: torrent_id },
+            OutputFormat::Table,
+        )
+        .await
+        .expect("status should succeed");
+    }
+
+    #[tokio::test]
+    async fn torrent_select_sends_priorities() {
+        let server = MockServer::start_async().await;
+        let torrent_id = Uuid::new_v4();
+        let path = format!("/v1/torrents/{torrent_id}/select");
+        let mock = server.mock(move |when, then| {
+            when.method(POST)
+                .path(path.as_str())
+                .header(HEADER_API_KEY, "key:secret");
+            then.status(200);
+        });
+
+        let ctx = context_with_key(&server);
+        let args = TorrentSelectArgs {
+            id: torrent_id,
+            include: vec!["**/*.mkv".into()],
+            exclude: Vec::new(),
+            skip_fluff: true,
+            priorities: vec![FilePriorityOverrideArg {
+                index: 7,
+                priority: FilePriority::High,
+            }],
+        };
+        handle_torrent_select(&ctx, args)
+            .await
+            .expect("select should succeed");
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn torrent_action_sequential_with_enable() {
+        let server = MockServer::start_async().await;
+        let torrent_id = Uuid::new_v4();
+        let path = format!("/v1/torrents/{torrent_id}/action");
+        let mock = server.mock(move |when, then| {
+            when.method(POST)
+                .path(path.as_str())
+                .header(HEADER_API_KEY, "key:secret")
+                .json_body(json!({
+                    "type": "sequential",
+                    "enable": true
+                }));
+            then.status(202);
+        });
+
+        let ctx = context_with_key(&server);
+        let args = TorrentActionArgs {
+            id: torrent_id,
+            action: ActionType::Sequential,
+            enable: Some(true),
+            delete_data: false,
+            download: None,
+            upload: None,
+        };
+
+        handle_torrent_action(&ctx, args)
+            .await
+            .expect("action should succeed");
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn torrent_action_rate_includes_caps() {
+        let server = MockServer::start_async().await;
+        let torrent_id = Uuid::new_v4();
+        let path = format!("/v1/torrents/{torrent_id}/action");
+        let mock = server.mock(move |when, then| {
+            when.method(POST)
+                .path(path.as_str())
+                .header(HEADER_API_KEY, "key:secret")
+                .json_body(json!({
+                    "type": "rate",
+                    "download_bps": 2048,
+                    "upload_bps": 1024
+                }));
+            then.status(202);
+        });
+
+        let ctx = context_with_key(&server);
+        let args = TorrentActionArgs {
+            id: torrent_id,
+            action: ActionType::Rate,
+            enable: None,
+            delete_data: false,
+            download: Some(2048),
+            upload: Some(1024),
+        };
+
+        handle_torrent_action(&ctx, args)
+            .await
+            .expect("rate action should succeed");
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn stream_events_updates_resume_marker() {
+        let server = MockServer::start_async().await;
+        let torrent_id = Uuid::new_v4();
+        let event = EventEnvelope {
+            id: 1,
+            timestamp: Utc::now(),
+            event: Event::TorrentAdded {
+                torrent_id,
+                name: "demo".into(),
+            },
+        };
+        let payload = serde_json::to_string(&event).expect("event JSON");
+        server.mock(move |when, then| {
+            when.method(GET).path("/v1/torrents/events");
+            then.status(200)
+                .header("content-type", "text/event-stream")
+                .body(format!("id:1\ndata:{payload}\n\n"));
+        });
+
+        let ctx = context_with_key(&server);
+        let resume_file = temp_path("resume.txt");
+        let mut resume_slot = 0_u64;
+        let args = TailArgs {
+            torrent: Vec::new(),
+            event: Vec::new(),
+            state: Vec::new(),
+            resume_file: Some(resume_file.clone()),
+            retry_secs: 0,
+        };
+
+        let response = ctx
+            .client
+            .get(ctx.base_url.join("/v1/torrents/events").unwrap())
+            .send()
+            .await
+            .expect("send request");
+        let last = stream_events(response, &args, Some(&mut resume_slot))
+            .await
+            .expect("stream should succeed");
+        assert_eq!(last, Some(1));
+        assert_eq!(resume_slot, 1);
+        let saved = fs::read_to_string(resume_file).expect("resume file");
+        assert_eq!(saved.trim(), "1");
+    }
+
+    #[tokio::test]
+    async fn stream_events_discards_malformed_payloads() {
+        let server = MockServer::start_async().await;
+        server.mock(|when, then| {
+            when.method(GET).path("/v1/torrents/events");
+            then.status(200)
+                .header("content-type", "text/event-stream")
+                .body("id:2\ndata:{\"bad\":true}\n\n");
+        });
+
+        let ctx = context_with_key(&server);
+        let args = TailArgs {
+            torrent: Vec::new(),
+            event: Vec::new(),
+            state: Vec::new(),
+            resume_file: None,
+            retry_secs: 0,
+        };
+        let response = ctx
+            .client
+            .get(ctx.base_url.join("/v1/torrents/events").unwrap())
+            .send()
+            .await
+            .expect("send request");
+        let id = stream_events(response, &args, None)
+            .await
+            .expect("stream should succeed");
+        assert_eq!(id, Some(2));
+    }
+
+    #[tokio::test]
+    async fn handle_tail_writes_resume_file() {
+        let server = MockServer::start_async().await;
+        let torrent_id = Uuid::new_v4();
+        let event = EventEnvelope {
+            id: 3,
+            timestamp: Utc::now(),
+            event: Event::TorrentRemoved { torrent_id },
+        };
+        let payload = serde_json::to_string(&event).expect("event JSON");
+        server.mock(move |when, then| {
+            when.method(GET).path("/v1/torrents/events");
+            then.status(200)
+                .header("content-type", "text/event-stream")
+                .body(format!("id:3\ndata:{payload}\n\n"));
+        });
+
+        let ctx = context_with_key(&server);
+        let resume_path = temp_path("tail.txt");
+        let args = TailArgs {
+            torrent: Vec::new(),
+            event: Vec::new(),
+            state: Vec::new(),
+            resume_file: Some(resume_path.clone()),
+            retry_secs: 0,
+        };
+
+        let result = timeout(Duration::from_millis(200), handle_tail(&ctx, args)).await;
+        assert!(
+            result.is_err(),
+            "tail should keep running and be cancelled by timeout"
+        );
+        let saved = fs::read_to_string(resume_path).expect("resume file");
+        assert_eq!(saved.trim(), "3");
+    }
+
+    #[tokio::test]
+    async fn telemetry_emitter_emits_event() {
+        let server = MockServer::start_async().await;
+        let mock = server.mock(|when, then| {
+            when.method(POST).path("/telemetry");
+            then.status(200);
+        });
+
+        let emitter = TelemetryEmitter {
+            client: Client::new(),
+            endpoint: format!("{}/telemetry", server.base_url())
+                .parse()
+                .expect("valid URL"),
+        };
+
+        emitter
+            .emit("trace", "command", "success", 0, Some("message"))
+            .await;
+
         mock.assert();
     }
 
@@ -1582,5 +2107,19 @@ mod tests {
             })),
             "action_pause"
         );
+    }
+
+    #[test]
+    fn timestamp_now_ms_returns_positive_value() {
+        assert!(timestamp_now_ms() > 0);
+    }
+
+    #[cfg(target_family = "unix")]
+    #[test]
+    fn path_to_string_rejects_non_utf8() {
+        use std::os::unix::ffi::OsStringExt;
+        let path = PathBuf::from(OsString::from_vec(vec![0xFF]));
+        let err = path_to_string(&path).expect_err("invalid UTF-8 should fail");
+        assert!(matches!(err, CliError::Validation(_)));
     }
 }

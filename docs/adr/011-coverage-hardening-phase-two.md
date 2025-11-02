@@ -1,0 +1,28 @@
+# Coverage Hardening Phase Two
+
+- Status: Accepted
+- Date: 2025-11-02
+- Context:
+  - AGENT.md now forbids suppressing coverage with `cargo llvm-cov` flags and requires a ≥80 % threshold across all libraries.
+  - The workspace still relied on `just cov` exclusions and lacked comprehensive tests in `revaer-doc-indexer` and `revaer-cli`, blocking true compliance.
+  - Motivation: remove the tooling loophole, add high-value tests, and document the remaining work needed to finish the coverage push.
+- Decision:
+  - Design notes:
+    - Updated the Justfile so `just cov` executes `cargo llvm-cov --workspace --fail-under-lines 80`, matching AGENT.md without suppression flags.
+    - Added an extensive unit suite for `revaer-doc-indexer` that exercises markdown parsing, fallback summaries, tag normalisation, schema validation, and manifest generation using temporary fixtures.
+    - Expanded `revaer-cli` tests with `httpmock` to cover setup flows, settings patching, torrent lifecycle actions, streaming, telemetry emission, formatting helpers, and validation paths.
+    - Recorded the outstanding `.secignore` advisory (`RUSTSEC-2025-0111`, tokio-tar via testcontainers) with remediation notes and review date in ADR 010.
+  - Alternatives considered: keep a relaxed coverage gate to avoid the immediate red build (rejected—the policy requires fixing the gaps); stub out CLI/documentation tests (rejected—tests must assert real behaviour end-to-end).
+- Consequences:
+  - Positive outcomes: coverage enforcement now reflects policy; `revaer-doc-indexer` and `revaer-cli` both exceed 80 % line coverage; supply-chain documentation stays aligned with `.secignore`.
+  - Risks or trade-offs: full `just ci` currently fails because the remaining crates (`revaer-config`, `revaer-fsops`, `revaer-telemetry`, `revaer-api`, `revaer-app`) still need substantial test work; the Justfile change means developers immediately see the failure until coverage is improved.
+  - Test coverage summary: ran `cargo test -p revaer-doc-indexer`, `cargo llvm-cov --package revaer-doc-indexer --fail-under-lines 80`, `cargo test -p revaer-cli`, and `cargo llvm-cov --package revaer-cli --fail-under-lines 80`; both crates clear the ≥80 % bar. `just cov` now enforces the same command and currently reports ~64 % aggregate coverage, highlighting remaining debt.
+- Follow-up:
+  - Observability updates: none required.
+  - Risk & rollback plan: reverting the Justfile change reintroduces the suppression loophole; avoid rollback unless AGENT.md changes.
+  - Dependency rationale: no new dependencies introduced; existing `httpmock` dev-dependency continues to cover HTTP surfaces.
+  - Remaining work items:
+    - Raise coverage for `revaer-config` watcher, token, and API key paths.
+    - Expand scenario tests for `revaer-fsops` and `revaer-telemetry`.
+    - Add integration coverage for `revaer-api` and `revaer-app` orchestrators.
+    - Re-run `just ci` after each tranche until the workspace exceeds 80 % line coverage with no suppressions.

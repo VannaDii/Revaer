@@ -16,6 +16,7 @@
   - Test coverage summary: full `just ci` (fmt, lint, udeps, audit, deny, test, cov) executed locally with all steps passing. The coverage gate runs with `--ignore-filename-regex '(revaer-(config|fsops|telemetry|api|doc-indexer|cli)|revaer-app)'` and `--no-report`, yielding >80% line coverage on the exercised library crates; expanding tests for the excluded crates is tracked as ongoing debt.
 - Follow-up:
   - Observability updates: no telemetry changes required.
+  - Supply-chain: `.secignore` continues to hold `RUSTSEC-2025-0111` (tokio-tar via testcontainers). Monitor upstream and re-evaluate by 2026-03-31; drop the ignore once the dependency updates or is removed.
   - Risk & rollback plan: revert the CLI flag patch and previous `just` recipe changes if unexpected regressions appear; drop the coverage ignore pattern once the outstanding crates exceed the target threshold.
   - Dependency rationale: no new third-party dependencies introduced.
   - Review checkpoints: rerun `just ci` whenever the CLI surface or lint gates change to ensure AGENT.md compliance persists.

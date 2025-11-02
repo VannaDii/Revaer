@@ -348,3 +348,265 @@ fn validate_manifest(manifest: &Manifest, schema_path: &Path) -> Result<()> {
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::Value;
+    use std::env;
+    use std::io::Write;
+    use std::time::{SystemTime, UNIX_EPOCH};
+
+    struct TempDir {
+        path: PathBuf,
+    }
+
+    impl TempDir {
+        fn new() -> Self {
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .expect("clock went backwards")
+                .as_nanos();
+            let mut root = env::temp_dir();
+            root.push(format!("revaer-doc-indexer-{nanos}-{}", std::process::id()));
+            fs::create_dir_all(&root).expect("create temp dir");
+            Self { path: root }
+        }
+
+        fn path(&self) -> &Path {
+            &self.path
+        }
+    }
+
+    impl Drop for TempDir {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.path);
+        }
+    }
+
+    fn write_file(path: &Path, contents: &str) {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent).expect("create parent");
+        }
+        let mut file = fs::File::create(path).expect("create file");
+        file.write_all(contents.as_bytes()).expect("write file");
+    }
+
+    #[test]
+    fn run_generates_manifest_and_summaries() -> Result<()> {
+        let temp = TempDir::new();
+        let docs_root = temp.path().join("docs");
+        let schema_path = docs_root.join("llm/schema.json");
+
+        let schema = r#"
+        {
+            "type": "object",
+            "required": ["version", "generated", "entries"],
+            "properties": {
+                "version": { "type": "string" },
+                "generated": { "type": "string" },
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "required": ["id", "title", "summary", "tags", "href"],
+                        "properties": {
+                            "id": { "type": "string" },
+                            "title": { "type": "string" },
+                            "summary": { "type": "string", "minLength": 10 },
+                            "tags": {
+                                "type": "array",
+                                "items": { "type": "string" }
+                            },
+                            "href": { "type": "string" }
+                        }
+                    }
+                }
+            }
+        }"#;
+
+        write_file(&schema_path, schema);
+
+        let markdown = "# Getting Started
+> Welcome to Revaer
+> Build resilient systems.
+
+## Features
+## Usage
+
+- Bullet one
+- Bullet two
+";
+        write_file(&docs_root.join("guide.md"), markdown);
+
+        // Confirm skip logic ignores underscores and SUMMARY.md.
+        write_file(&docs_root.join("_drafts/draft.md"), "# Draft\n");
+        write_file(&docs_root.join("SUMMARY.md"), "# Summary\n");
+
+        run(&docs_root, &schema_path)?;
+
+        let manifest_path = docs_root.join("llm/manifest.json");
+        let summaries_path = docs_root.join("llm/summaries.json");
+
+        assert!(manifest_path.exists(), "manifest.json missing");
+        assert!(summaries_path.exists(), "summaries.json missing");
+
+        let manifest_json = fs::read_to_string(&manifest_path)?;
+        let manifest: Value = serde_json::from_str(&manifest_json)?;
+        let entries = manifest["entries"]
+            .as_array()
+            .expect("entries array missing");
+        assert_eq!(entries.len(), 1);
+        let entry = &entries[0];
+        assert_eq!(entry["id"], "guide");
+        assert_eq!(entry["title"], "Getting Started");
+        assert_eq!(
+            entry["summary"],
+            "Welcome to Revaer Build resilient systems."
+        );
+        assert_eq!(entry["href"], "/guide/");
+        let tags = entry["tags"]
+            .as_array()
+            .expect("tags should be an array")
+            .iter()
+            .map(|value| value.as_str().unwrap().to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(tags, vec!["features", "usage"]);
+
+        let summaries_json = fs::read_to_string(&summaries_path)?;
+        let summaries: Value = serde_json::from_str(&summaries_json)?;
+        assert_eq!(summaries.as_array().unwrap().len(), 1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn run_fails_for_missing_docs_root() {
+        let missing = PathBuf::from("target/non-existent-docs");
+        let error = run(&missing, &missing.join("llm/schema.json"))
+            .expect_err("missing docs root should error");
+        assert!(
+            error.to_string().contains("does not exist"),
+            "unexpected error message: {error}"
+        );
+    }
+
+    #[test]
+    fn parse_markdown_extracts_title_summary_and_tags() -> Result<()> {
+        let docs_root = PathBuf::from("docs");
+        let path = docs_root.join("subdir/page.md");
+        let markdown = "# Example Page
+> Concise summary line.
+
+## First Heading
+## Second Heading
+
+Additional text.
+";
+
+        let entry = parse_markdown(markdown, &path, &docs_root)?.expect("entry should be produced");
+        assert_eq!(entry.id, "subdir/page");
+        assert_eq!(entry.title, "Example Page");
+        assert_eq!(entry.summary, "Concise summary line.");
+        assert_eq!(entry.href, "/subdir/page/");
+        assert_eq!(
+            entry.tags,
+            vec!["first-heading".to_string(), "second-heading".to_string()]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn parse_markdown_respects_fallback_summary() -> Result<()> {
+        let docs_root = PathBuf::from("docs");
+        let path = docs_root.join("fallback.md");
+        let markdown = "# Title
+
+Paragraph one introduces the concept.
+- Bullet A elaborates.
+
+## Details
+More text.
+";
+        let entry =
+            parse_markdown(markdown, &path, &docs_root)?.expect("fallback entry should exist");
+        assert!(
+            entry
+                .summary
+                .contains("Paragraph one introduces the concept."),
+            "fallback summary missing expected text: {}",
+            entry.summary
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn fallback_summary_rejects_empty_content() {
+        let err = fallback_summary("# Title\n\n## Heading\n").expect_err("should fail");
+        assert!(
+            err.to_string()
+                .contains("Unable to derive fallback summary")
+        );
+    }
+
+    #[test]
+    fn should_skip_filters_summary_and_hidden_dirs() {
+        let root = PathBuf::from("docs");
+        assert!(should_skip(&root.join("SUMMARY.md"), &root));
+        assert!(should_skip(&root.join("_hidden/page.md"), &root));
+        assert!(!should_skip(&root.join("visible/page.md"), &root));
+    }
+
+    #[test]
+    fn slugify_normalises_and_deduplicates_dashes() {
+        assert_eq!(slugify("API Overview / HTTP"), "api-overview-http");
+        assert_eq!(slugify("Trailing Dash-"), "trailing-dash");
+        assert_eq!(slugify("Symbols! & Numbers 123"), "symbols-numbers-123");
+    }
+
+    #[test]
+    fn normalise_tags_deduplicates_headings() {
+        let headings = vec![
+            "First Topic".to_string(),
+            "Second Topic".to_string(),
+            "First Topic".to_string(),
+        ];
+        let tags = normalise_tags(&headings);
+        assert_eq!(
+            tags,
+            vec!["first-topic".to_string(), "second-topic".to_string()]
+        );
+    }
+
+    #[test]
+    fn validate_manifest_detects_schema_mismatch() {
+        let temp = TempDir::new();
+        let schema_path = temp.path().join("schema.json");
+        write_file(
+            &schema_path,
+            r#"{
+                "type": "object",
+                "required": ["version", "entries", "generated"],
+                "properties": {
+                    "version": { "type": "string", "pattern": "^v" },
+                    "generated": { "type": "string" },
+                    "entries": { "type": "array" }
+                }
+            }"#,
+        );
+
+        let manifest = Manifest {
+            version: "0.1.0".into(),
+            generated: "2024-01-01T00:00:00Z".into(),
+            entries: Vec::new(),
+        };
+
+        let err = validate_manifest(&manifest, &schema_path)
+            .expect_err("pattern mismatch should fail validation");
+        assert!(
+            err.to_string()
+                .contains("Manifest failed schema validation"),
+            "unexpected error: {err}"
+        );
+    }
+}

@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2025-11-02T03:55:58.582025+00:00",
+  "generated": "2025-11-02T16:38:32.697912+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -123,6 +123,13 @@
       "summary": "Status: Accepted Date: 2025-11-01 Context: AGENT.md requires just recipes to enforce warnings-as-errors and mandates a global CLI --output json|table selector; the repository had drifted (recipes invoked cargo without the configured rustflags and the CLI only exposed per-command --format switches). Motivation: restore explicit compliance so local and CI workflows produce identical results and the documented CLI surface remains accurate for operators and scripts. Decision: Design notes: updated just lint/check/test/udeps to follow the prescribed commands, wiring build.rustflags=[\"-Dwarnings\"] through just, probing cargo-udeps with the stable toolchain first, and automatically retrying with nightly when the tool still requires -Z binary-dep-depinfo (surfacing a single log",
       "tags": [],
       "href": "/adr/010-agent-compliance-sweep/"
+    },
+    {
+      "id": "adr/011-coverage-hardening-phase-two",
+      "title": "Coverage Hardening Phase Two",
+      "summary": "Status: Accepted Date: 2025-11-02 Context: AGENT.md now forbids suppressing coverage with cargo llvm-cov flags and requires a ≥80 % threshold across all libraries. The workspace still relied on just cov exclusions and lacked comprehensive tests in revaer-doc-indexer and revaer-cli, blocking true compliance. Motivation: remove the tooling loophole, add high-value tests, and document the remaining work needed to finish the coverage push. Decision: Design notes: Updated the Justfile so just cov executes cargo llvm-cov --workspace --fail-under-lines 80, matching AGENT.md without suppression flags. Added an extensive unit suite for revaer-doc-indexer that exercises markdown parsing, fallback summaries, tag normalisation, schema validation, and manifest",
+      "tags": [],
+      "href": "/adr/011-coverage-hardening-phase-two/"
     },
     {
       "id": "adr/index",

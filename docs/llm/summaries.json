@@ -122,6 +122,13 @@
     "href": "/adr/010-agent-compliance-sweep/"
   },
   {
+    "id": "adr/011-coverage-hardening-phase-two",
+    "title": "Coverage Hardening Phase Two",
+    "summary": "Status: Accepted Date: 2025-11-02 Context: AGENT.md now forbids suppressing coverage with cargo llvm-cov flags and requires a ≥80 % threshold across all libraries. The workspace still relied on just cov exclusions and lacked comprehensive tests in revaer-doc-indexer and revaer-cli, blocking true compliance. Motivation: remove the tooling loophole, add high-value tests, and document the remaining work needed to finish the coverage push. Decision: Design notes: Updated the Justfile so just cov executes cargo llvm-cov --workspace --fail-under-lines 80, matching AGENT.md without suppression flags. Added an extensive unit suite for revaer-doc-indexer that exercises markdown parsing, fallback summaries, tag normalisation, schema validation, and manifest",
+    "tags": [],
+    "href": "/adr/011-coverage-hardening-phase-two/"
+  },
+  {
     "id": "adr/index",
     "title": "Architecture Decision Records",
     "summary": "ADR documents capture the rationale behind significant technical decisions.",

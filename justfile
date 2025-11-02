@@ -59,7 +59,7 @@ cov:
         cargo install cargo-llvm-cov --locked; \
     fi
     rustup component add llvm-tools-preview
-    cargo llvm-cov --workspace --no-report --fail-under 80
+    cargo llvm-cov --workspace --fail-under-lines 80
 
 api-export:
     cargo run -p revaer-api --bin generate_openapi

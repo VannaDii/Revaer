@@ -2,10 +2,10 @@
 
 > **Prime Directives**
 >
-> 1) **Rust 2024** only (never lower).  
-> 2) **No dead code** (no unused items, no “future stubs”).  
-> 3) **Minimal dependencies** (prefer `std`; add crates only with written rationale).  
-> 4) **All operations via `just`**. CI **and** local dev MUST use the Justfile—never raw cargo in pipelines.
+> 1. **Rust 2024** only (never lower).
+> 2. **No dead code** (no unused items, no “future stubs”).
+> 3. **Minimal dependencies** (prefer `std`; add crates only with written rationale).
+> 4. **All operations via `just`**. CI **and** local dev MUST use the Justfile—never raw cargo in pipelines.
 >
 > **Completion Rule:** Because Codex runs locally, **a task is not complete** until **all requirements in this AGENT.MD are satisfied** and **all quality gates pass cleanly (no warnings, no errors)** via `just ci`.
 
@@ -200,6 +200,7 @@ Since Codex runs locally, **a task is not complete** until **all requirements in
     -   [ ] All `just` gates (`just ci`) pass **without warnings or errors**
 
 **Completion Rule:** Do **not** declare a task complete or exit until all above checks pass. Persist the task record alongside code changes (e.g., `docs/adr/NNN-task.md`).
+
 -   Use `docs/adr/template.md` as the starting point for new ADRs—copy it with standard shell tooling (`cp`, `mv`) and number the file sequentially.
 
 ---
@@ -219,14 +220,23 @@ fmt-fix:      cargo fmt --all
 lint:         cargo clippy --workspace --all-targets --all-features -- -D warnings
 check:        cargo --config 'build.rustflags=["-Dwarnings"]' check --workspace --all-targets --all-features
 udeps:        cargo +stable udeps --workspace --all-targets
-audit:        cargo audit --deny warnings --ignore-file .secignore
+audit:        ignore_args=""; \
+              if [ -f .secignore ]; then \
+                  while IFS= read -r advisory; do \
+                      case "$advisory" in \
+                          \#*|"") ;; \
+                          *) ignore_args="$ignore_args --ignore $advisory" ;; \
+                      esac; \
+                  done < .secignore; \
+              fi; \
+              cargo audit --deny warnings $ignore_args
 deny:         cargo deny check
 
 # Build & test
 build:        cargo build --workspace --all-features
 build-release:cargo build --workspace --release --all-features
 test:         cargo --config 'build.rustflags=["-Dwarnings"]' test --workspace --all-features
-cov:          cargo llvm-cov --workspace --fail-under 80
+cov:          cargo llvm-cov --workspace --fail-under-lines 80
 
 # API & docs
 api-export:   cargo run -p revaer-api --bin generate_openapi
