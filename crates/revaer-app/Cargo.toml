@@ -30,4 +30,4 @@ tempfile = "3.10"
 
 [features]
 default = ["libtorrent"]
-libtorrent = ["revaer-torrent-libt"]
+libtorrent = ["revaer-torrent-libt/libtorrent"]

@@ -5,10 +5,12 @@ FROM rust:1.91.0-alpine3.20 AS builder
 WORKDIR /workspace
 
 RUN apk add --no-cache \
+        boost-dev \
         build-base \
+        libtorrent-rasterbar-dev \
         musl-dev \
         openssl-dev \
-        pkgconfig
+        pkgconf
 
 RUN rustup target add x86_64-unknown-linux-musl
 
@@ -24,7 +26,7 @@ RUN cargo run --package revaer-api --bin generate_openapi
 FROM alpine:3.20 AS runtime
 
 RUN addgroup -S revaer && adduser -S revaer -G revaer \
-    && apk add --no-cache ca-certificates curl \
+    && apk add --no-cache  boost-system ca-certificates curl libtorrent-rasterbar \
     && mkdir -p /app /data /config \
     && chown -R revaer:revaer /app /data /config
 

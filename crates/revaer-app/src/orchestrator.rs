@@ -30,7 +30,7 @@ pub(crate) trait EngineConfigurator: Send + Sync {
 }
 
 #[cfg(feature = "libtorrent")]
-use revaer_torrent_libt::LibtorrentEngine;
+use revaer_torrent_libt::{EncryptionPolicy, EngineRuntimeConfig, LibtorrentEngine};
 
 #[cfg(feature = "libtorrent")]
 #[async_trait]
@@ -41,7 +41,32 @@ impl EngineConfigurator for LibtorrentEngine {
             listen_port = ?profile.listen_port,
             "applying engine profile update"
         );
-        Ok(())
+        let config = runtime_config_from_profile(profile);
+        self.apply_runtime_config(config).await
+    }
+}
+
+#[cfg(feature = "libtorrent")]
+fn runtime_config_from_profile(profile: &EngineProfile) -> EngineRuntimeConfig {
+    EngineRuntimeConfig {
+        download_root: profile.download_root.clone(),
+        resume_dir: profile.resume_dir.clone(),
+        enable_dht: profile.dht,
+        sequential_default: profile.sequential_default,
+        listen_port: profile.listen_port,
+        max_active: profile.max_active,
+        download_rate_limit: profile.max_download_bps,
+        upload_rate_limit: profile.max_upload_bps,
+        encryption: map_encryption_policy(&profile.encryption),
+    }
+}
+
+#[cfg(feature = "libtorrent")]
+fn map_encryption_policy(value: &str) -> EncryptionPolicy {
+    match value.to_ascii_lowercase().as_str() {
+        "require" | "required" => EncryptionPolicy::Require,
+        "disable" | "disabled" => EncryptionPolicy::Disable,
+        _ => EncryptionPolicy::Prefer,
     }
 }
 
@@ -230,7 +255,7 @@ pub(crate) async fn spawn_libtorrent_orchestrator(
     Arc<TorrentOrchestrator<LibtorrentEngine>>,
     JoinHandle<()>,
 )> {
-    let engine = Arc::new(LibtorrentEngine::new(events.clone()));
+    let engine = Arc::new(LibtorrentEngine::new(events.clone())?);
     engine.apply_engine_profile(&engine_profile).await?;
     let fsops = FsOpsService::new(events.clone(), metrics.clone());
     let orchestrator = Arc::new(TorrentOrchestrator::new(

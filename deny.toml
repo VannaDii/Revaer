@@ -96,6 +96,14 @@ crate = "webpki-roots@*"
 reason = "Both sqlx/ureq (0.26.x) and hyper-rustls/reqwest (1.x) are required."
 
 [[bans.skip]]
+crate = "foldhash@0.1.5"
+reason = "hashbrown still pins the 0.1.x series alongside libtorrent's cxx dependency."
+
+[[bans.skip]]
+crate = "foldhash@0.2.0"
+reason = "cxx 1.0 pulls the 0.2.x series; allow the dual version while libtorrent is linked."
+
+[[bans.skip]]
 crate = "windows-sys@*"
 reason = "Tokio, sqlx, and rustls require multiple versions across their supported Windows targets."
 

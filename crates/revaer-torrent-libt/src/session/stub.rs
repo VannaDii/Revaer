@@ -1,31 +1,17 @@
-#![allow(clippy::redundant_pub_crate)]
-
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use revaer_events::TorrentState;
 use revaer_torrent_core::{
-    AddTorrent, EngineEvent, FilePriorityOverride, FileSelectionRules, FileSelectionUpdate,
-    RemoveTorrent, TorrentRateLimit,
+    AddTorrent, EngineEvent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit,
 };
 use serde_json::json;
 use uuid::Uuid;
 
-#[async_trait]
-pub(crate) trait LibtSession: Send {
-    async fn add_torrent(&mut self, request: &AddTorrent) -> Result<()>;
-    async fn remove_torrent(&mut self, id: Uuid, options: &RemoveTorrent) -> Result<()>;
-    async fn pause_torrent(&mut self, id: Uuid) -> Result<()>;
-    async fn resume_torrent(&mut self, id: Uuid) -> Result<()>;
-    async fn set_sequential(&mut self, id: Uuid, sequential: bool) -> Result<()>;
-    async fn load_fastresume(&mut self, id: Uuid, payload: &[u8]) -> Result<()>;
-    async fn update_limits(&mut self, id: Option<Uuid>, limits: &TorrentRateLimit) -> Result<()>;
-    async fn update_selection(&mut self, id: Uuid, rules: &FileSelectionUpdate) -> Result<()>;
-    async fn reannounce(&mut self, id: Uuid) -> Result<()>;
-    async fn recheck(&mut self, id: Uuid) -> Result<()>;
-    async fn poll_events(&mut self) -> Result<Vec<EngineEvent>>;
-}
+use super::LibtSession;
+use crate::command::EngineRuntimeConfig;
+use revaer_torrent_core::{FilePriorityOverride, FileSelectionRules};
 
 #[derive(Default)]
 pub(crate) struct StubSession {
@@ -214,41 +200,8 @@ impl LibtSession for StubSession {
     async fn poll_events(&mut self) -> Result<Vec<EngineEvent>> {
         Ok(std::mem::take(&mut self.pending_events))
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use revaer_torrent_core::{AddTorrentOptions, TorrentSource};
-
-    #[tokio::test]
-    async fn add_torrent_records_state_change() -> Result<()> {
-        let mut session = StubSession::default();
-        let descriptor = AddTorrent {
-            id: Uuid::new_v4(),
-            source: TorrentSource::magnet("magnet:?xt=urn:btih:demo"),
-            options: AddTorrentOptions::default(),
-        };
-
-        session.add_torrent(&descriptor).await?;
-        let events = session.poll_events().await?;
-        assert!(!events.is_empty(), "expected events for add_torrent");
-        match &events[0] {
-            EngineEvent::StateChanged { torrent_id, state } => {
-                assert_eq!(torrent_id, &descriptor.id);
-                assert!(matches!(state, TorrentState::Queued));
-            }
-            other => panic!("unexpected event {other:?}"),
-        }
+    async fn apply_config(&mut self, _config: &EngineRuntimeConfig) -> Result<()> {
         Ok(())
-    }
-
-    #[tokio::test]
-    async fn remove_unknown_torrent_errors() {
-        let mut session = StubSession::default();
-        let result = session
-            .remove_torrent(Uuid::new_v4(), &RemoveTorrent::default())
-            .await;
-        assert!(result.is_err());
     }
 }
