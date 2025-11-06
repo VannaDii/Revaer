@@ -37,7 +37,6 @@ This summarizes what is already present in the repository.
 -   **Tooling present**: `justfile`; quality gates (`deny.toml`); Rust toolchain pin; Dockerfile; mdBook docs skeleton (`book.toml`).
 -   **Guiding principles codified**: single source of truth via `DATABASE_URL`, hot reload, safe defaults & setup token gating.
 -   **Docs pipeline** ready via mdBook; ADRs location reserved (`docs/adr/`).
--   **Next steps** in `README` already call out: config migrations/schema, wiring setup flow + hot reload, ADR authoring.
 
 > **Cross‑links (repo-relative)**
 >
