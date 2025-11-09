@@ -118,6 +118,7 @@ target/              # build artifacts
 ## 5) Database Access (stored procedures only)
 
 -   **Runtime code never embeds SQL**—all `sqlx::query` calls must wrap stored procedure invocations (e.g., `SELECT revaer_config.apply_patch($1, $2)`).
+-   **Parameter binding & Transactions**: Use Named Bind Parameters and Transactions for Consistency and Safety in accordance with https://sqlx.dev/article/Best_Practices_for_Writing_SQLX_Code.html
 -   **Inline SQL is migration-only**: schema definitions, stored procedure bodies, and seed data live under `crates/*/migrations/`. No other crate may ship raw DML/DDL text.
 -   **Versioned procedures**: every behavioural change ships as a migration that updates the procedure(s) and bumps the revision.
 -   **Shared access**: when multiple crates touch the same DB state, they all call the same stored procedure(s); don’t duplicate logic per crate.
