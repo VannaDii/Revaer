@@ -6,8 +6,10 @@
 > 2. **No dead code** (no unused items, no “future stubs”).
 > 3. **Minimal dependencies** (prefer `std`; add crates only with written rationale).
 > 4. **All operations via `just`**. CI **and** local dev MUST use the Justfile—never raw cargo in pipelines.
+> 5. **Stored procedures or bust**: every runtime database interaction is executed via stored procedures; inline SQL is only allowed inside migrations.
+> 6. **`just ci` before every hand-off**: run the full pipeline locally and fix failures before you declare a task done.
 >
-> **Completion Rule:** Because Codex runs locally, **a task is not complete** until **all requirements in this AGENT.MD are satisfied** and **all quality gates pass cleanly (no warnings, no errors)** via `just ci`.
+> **Completion Rule:** Because Codex runs locally, **a task is not complete** until **all requirements in this AGENT.MD are satisfied** and **`just ci` passes cleanly (no warnings, no errors)**.
 
 ---
 
@@ -113,7 +115,17 @@ target/              # build artifacts
 
 ---
 
-## 5) HTTP API & CLI
+## 5) Database Access (stored procedures only)
+
+-   **Runtime code never embeds SQL**—all `sqlx::query` calls must wrap stored procedure invocations (e.g., `SELECT revaer_config.apply_patch($1, $2)`).
+-   **Inline SQL is migration-only**: schema definitions, stored procedure bodies, and seed data live under `crates/*/migrations/`. No other crate may ship raw DML/DDL text.
+-   **Versioned procedures**: every behavioural change ships as a migration that updates the procedure(s) and bumps the revision.
+-   **Shared access**: when multiple crates touch the same DB state, they all call the same stored procedure(s); don’t duplicate logic per crate.
+-   **Tests follow suit**: unit/integration tests exercise behaviour through the stored procedure APIs so coverage stays representative.
+
+---
+
+## 6) HTTP API & CLI
 
 -   **API** (`revaer-api`): Axum, versioned under `/v1`. Apply Tower middleware for tracing, timeouts, compression, request size limits, and optional rate limiting.
 -   **SSE** endpoints: must be cancellable, heartbeat at an interval, and obey client fan-out caps.
@@ -122,7 +134,7 @@ target/              # build artifacts
 
 ---
 
-## 6) Torrent Engine & FS Ops
+## 7) Torrent Engine & FS Ops
 
 -   **`revaer-torrent-core`**: domain logic, policies, selection rules, state machines; deterministic seeds where RNG is used.
 -   **`revaer-torrent-libt`**: bindings/integration (feature-gated; isolate FFI; never leak unsafe into the rest of the codebase).
@@ -130,7 +142,7 @@ target/              # build artifacts
 
 ---
 
-## 7) Revaer Domain Rules
+## 8) Revaer Domain Rules
 
 -   **File selection**: user-customizable glob filters; defaults are sensible (include common archives like `zip`, `rar`, `7z`, `tar.gz`, etc.; exclude junk). Users can reset to defaults.
 -   **Seeding**: ratio/time goals; seed monitoring can re-start idle torrents when swarm health is low; scheduled bandwidth and torrent-count limits.
@@ -139,7 +151,7 @@ target/              # build artifacts
 
 ---
 
-## 8) Testing & Coverage
+## 9) Testing & Coverage
 
 -   **Unit tests** per module (happy + edge cases). Use `#[cfg(test)]` for helpers instead of exporting them.
 -   **Integration tests** in `/tests` (API, CLI, engine flows with mocks/fixtures); no real network by default.
@@ -151,7 +163,7 @@ target/              # build artifacts
 
 ---
 
-## 9) Observability
+## 10) Observability
 
 -   **Spans** on all external boundaries: `http.request`, `engine.add_torrent`, `engine.tick`, `indexer.search`, `media.decide`.
 -   **Span fields**: `request_id`, `torrent_id`, `indexer`, `decision_reason` (no PII; redact secrets).
@@ -163,7 +175,7 @@ target/              # build artifacts
 
 ---
 
-## 10) Security
+## 11) Security
 
 -   **Input validation** at all boundaries; body/response size limits; timeouts everywhere.
 -   **Auth** extractors isolated; constant-time compares for tokens.
@@ -173,7 +185,7 @@ target/              # build artifacts
 
 ---
 
-## 11) Task & Review Rules (Local Codex, No PRs)
+## 12) Task & Review Rules (Local Codex, No PRs)
 
 Since Codex runs locally, **a task is not complete** until **all requirements in this AGENT.MD are satisfied** and **all quality gates pass cleanly (no warnings, no errors)** via `just ci`.
 
@@ -205,7 +217,7 @@ Since Codex runs locally, **a task is not complete** until **all requirements in
 
 ---
 
-## 12) The Justfile Is Law
+## 13) The Justfile Is Law
 
 All ops—local and CI—MUST run through these recipes (names are normative).
 
@@ -249,7 +261,7 @@ ci:           just fmt lint udeps audit deny test cov
 
 ---
 
-## 13) CI (GitHub Actions) — must call `just`
+## 14) CI (GitHub Actions) — must call `just`
 
 Required jobs (fail-fast):
 
@@ -267,7 +279,7 @@ Required jobs (fail-fast):
 
 ---
 
-## 14) How Codex Must Implement Work
+## 15) How Codex Must Implement Work
 
 1. Pick target crate/module (adhere to structure above).
 2. Add a `/// # Design` rustdoc section on new modules, covering invariants and failure modes.
@@ -279,7 +291,7 @@ Required jobs (fail-fast):
 
 ---
 
-## 15) Style & Practical Tips
+## 16) Style & Practical Tips
 
 -   Prefer **newtype IDs** (`struct TorrentId(Uuid);`) and explicit constructors marked `#[must_use]`.
 -   Keep modules cohesive (< ~300 LOC). Extract helpers.
@@ -290,4 +302,4 @@ Required jobs (fail-fast):
 
 ---
 
-_This document is normative. If code and AGENT.MD disagree, update the code to comply or add an ADR and amend AGENT.MD with rationale._
+_This document is normative. If code and AGENT.MD disagree, update the code to comply._
