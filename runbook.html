@@ -182,7 +182,7 @@
 <p>This runbook exercises the end-to-end control plane, validating FsOps, telemetry, and guard rails.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
-<li>Docker image <code>revaer:ci</code> (built via <code>just docker-build</code>) or a local <code>revaer-app</code> binary (<code>just build-rel</code>).</li>
+<li>Docker image <code>revaer:ci</code> (built via <code>just docker-build</code>) or a local <code>revaer-app</code> binary (<code>just build-release</code>).</li>
 <li>PostgreSQL instance accessible to the application.</li>
 <li>API key with a conservative rate limit (e.g., burst <code>5</code>, period <code>60s</code>).</li>
 <li>CLI configured with <code>REVAER_API_URL</code>, <code>REVAER_API_KEY</code>, and optional <code>REVAER_TELEMETRY_ENDPOINT</code>.</li>

@@ -425,7 +425,7 @@
 </li>
 <li>GitHub Actions (update <code>.github/workflows</code>):
 <ul>
-<li><code>build-release</code>: run <code>just build-rel</code>, <code>just api-export</code>, attach binaries/docs.</li>
+<li><code>build-release</code>: run <code>just build-release</code>, <code>just api-export</code>, attach binaries/docs.</li>
 <li><code>docker</code>: build image, run <code>docker scan</code> (<code>trivy</code>/<code>grype</code>), and push on release tags.</li>
 <li><code>msrv</code>: run <code>just fmt lint test</code> with pinned toolchain (documented in workflow).</li>
 <li><code>cov</code>: ensure <code>just cov</code> gate passes (≥80% lines/functions).</li>
@@ -479,7 +479,7 @@
 <p>This runbook exercises the end-to-end control plane, validating FsOps, telemetry, and guard rails.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
-<li>Docker image <code>revaer:ci</code> (built via <code>just docker-build</code>) or a local <code>revaer-app</code> binary (<code>just build-rel</code>).</li>
+<li>Docker image <code>revaer:ci</code> (built via <code>just docker-build</code>) or a local <code>revaer-app</code> binary (<code>just build-release</code>).</li>
 <li>PostgreSQL instance accessible to the application.</li>
 <li>API key with a conservative rate limit (e.g., burst <code>5</code>, period <code>60s</code>).</li>
 <li>CLI configured with <code>REVAER_API_URL</code>, <code>REVAER_API_KEY</code>, and optional <code>REVAER_TELEMETRY_ENDPOINT</code>.</li>
@@ -553,7 +553,7 @@
 <p><strong>Build &amp; Test</strong></p>
 <ul>
 <li><code>just ci</code></li>
-<li><code>just build-rel</code></li>
+<li><code>just build-release</code></li>
 <li><code>just api-export</code></li>
 </ul>
 </li>
@@ -780,6 +780,7 @@
 <tr><td><code>--api-url &lt;URL&gt;</code></td><td><code>REVAER_API_URL</code></td><td><code>http://127.0.0.1:7070</code></td><td>Base URL for API requests.</td></tr>
 <tr><td><code>--api-key &lt;key_id:secret&gt;</code></td><td><code>REVAER_API_KEY</code></td><td><em>none</em></td><td>Required for all post-setup commands that mutate or read torrents.</td></tr>
 <tr><td><code>--timeout &lt;secs&gt;</code></td><td><code>REVAER_HTTP_TIMEOUT_SECS</code></td><td><code>10</code></td><td>Per-request HTTP timeout.</td></tr>
+<tr><td><code>--output &lt;table|json&gt;</code></td><td><em>none</em></td><td><code>table</code></td><td>Output format for structured responses (<code>json</code> is script-friendly).</td></tr>
 </tbody></table>
 </div>
 <p>Each invocation bubbles a unique <code>x-request-id</code> through the API; the CLI also emits optional telemetry events when <code>REVAER_TELEMETRY_ENDPOINT</code> is set.</p>
@@ -816,16 +817,16 @@
 <li>Issues <code>POST /v1/torrents/{id}/action</code> with <code>{ "type": "remove" }</code>.</li>
 <li>Use the more general <code>action</code> command for <code>delete_data</code> semantics.</li>
 </ul>
-<h3 id="revaer-ls---limit-n---cursor-token---state-state---tracker-url---extension-ext---tags-tag1tag2---name-fragment---format-tablejson"><a class="header" href="#revaer-ls---limit-n---cursor-token---state-state---tracker-url---extension-ext---tags-tag1tag2---name-fragment---format-tablejson"><code>revaer ls [--limit &lt;n&gt;] [--cursor &lt;token&gt;] [--state &lt;state&gt;] [--tracker &lt;url&gt;] [--extension &lt;ext&gt;] [--tags &lt;tag1,tag2&gt;] [--name &lt;fragment&gt;] [--format table|json]</code></a></h3>
+<h3 id="revaer-ls---limit-n---cursor-token---state-state---tracker-url---extension-ext---tags-tag1tag2---name-fragment"><a class="header" href="#revaer-ls---limit-n---cursor-token---state-state---tracker-url---extension-ext---tags-tag1tag2---name-fragment"><code>revaer ls [--limit &lt;n&gt;] [--cursor &lt;token&gt;] [--state &lt;state&gt;] [--tracker &lt;url&gt;] [--extension &lt;ext&gt;] [--tags &lt;tag1,tag2&gt;] [--name &lt;fragment&gt;]</code></a></h3>
 <ul>
 <li>Lists torrents with the same filters supported by the REST API.</li>
 <li>Default output is a table summarising id, name, state, and progress.</li>
-<li>JSON output matches <code>TorrentListResponse</code>.</li>
+<li>Add <code>--output json</code> to emit the raw <code>TorrentListResponse</code>.</li>
 </ul>
-<h3 id="revaer-status-uuid---format-tablejson"><a class="header" href="#revaer-status-uuid---format-tablejson"><code>revaer status &lt;uuid&gt; [--format table|json]</code></a></h3>
+<h3 id="revaer-status-uuid"><a class="header" href="#revaer-status-uuid"><code>revaer status &lt;uuid&gt;</code></a></h3>
 <ul>
 <li>Returns a detailed view of a single torrent.</li>
-<li>JSON output is the full <code>TorrentDetail</code> (including file metadata when available).</li>
+<li>Add <code>--output json</code> to view the full <code>TorrentDetail</code> (including file metadata when available).</li>
 </ul>
 <h3 id="revaer-select-uuid---include-globglob---exclude-globglob---skip-fluff---priority-indexpriority"><a class="header" href="#revaer-select-uuid---include-globglob---exclude-globglob---skip-fluff---priority-indexpriority"><code>revaer select &lt;uuid&gt; [--include &lt;glob,glob&gt;] [--exclude &lt;glob,glob&gt;] [--skip-fluff] [--priority index=priority,…]</code></a></h3>
 <ul>
@@ -1008,7 +1009,7 @@
 <li>Expose a consistent Problem+JSON contract across HTTP and CLI surfaces, including pagination and SSE replay support.</li>
 <li>Enforce observability invariants: structured tracing with context propagation, bounded rate limits, Prometheus metrics, and degraded health signalling when dependencies fail.</li>
 <li>Ensure every workflow is reproducible via <code>just</code> targets and validated in CI, with container packaging aligned to the non-root, read-only expectations.</li>
-<li>Follow the canonical <code>just</code> recipe surface (fmt, lint, test, ci, etc.). Coloned variants are mapped to hyphenated recipe names (<code>fmt-fix</code>, <code>build-rel</code>, <code>api-export</code>) because <code>just</code> 1.43.0 rejects colons in recipe identifiers without unstable modules; the semantics remain identical.</li>
+<li>Follow the canonical <code>just</code> recipe surface (fmt, lint, test, ci, etc.). Coloned variants are mapped to hyphenated recipe names (<code>fmt-fix</code>, <code>build-release</code>, <code>api-export</code>) because <code>just</code> 1.43.0 rejects colons in recipe identifiers without unstable modules; the semantics remain identical.</li>
 </ul>
 <h2 id="test-coverage-summary"><a class="header" href="#test-coverage-summary">Test Coverage Summary</a></h2>
 <ul>

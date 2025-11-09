@@ -322,7 +322,7 @@
 </li>
 <li>GitHub Actions (update <code>.github/workflows</code>):
 <ul>
-<li><code>build-release</code>: run <code>just build-rel</code>, <code>just api-export</code>, attach binaries/docs.</li>
+<li><code>build-release</code>: run <code>just build-release</code>, <code>just api-export</code>, attach binaries/docs.</li>
 <li><code>docker</code>: build image, run <code>docker scan</code> (<code>trivy</code>/<code>grype</code>), and push on release tags.</li>
 <li><code>msrv</code>: run <code>just fmt lint test</code> with pinned toolchain (documented in workflow).</li>
 <li><code>cov</code>: ensure <code>just cov</code> gate passes (≥80% lines/functions).</li>
