@@ -11,6 +11,7 @@ use chrono::Utc;
 use revaer_config::{EngineProfile, FsPolicy};
 use revaer_events::{DiscoveredFile, Event, EventBus, TorrentState};
 use revaer_fsops::{FsOpsRequest, FsOpsService};
+use revaer_runtime::RuntimeStore;
 use revaer_telemetry::Metrics;
 use revaer_torrent_core::{
     AddTorrent, FilePriority, FileSelectionUpdate, RemoveTorrent, TorrentEngine, TorrentFile,
@@ -82,6 +83,7 @@ where
     fs_policy: Arc<RwLock<FsPolicy>>,
     engine_profile: Arc<RwLock<EngineProfile>>,
     catalog: Arc<TorrentCatalog>,
+    runtime: Option<RuntimeStore>,
 }
 
 #[cfg(any(feature = "libtorrent", test))]
@@ -97,6 +99,7 @@ where
         events: EventBus,
         fs_policy: FsPolicy,
         engine_profile: EngineProfile,
+        runtime: Option<RuntimeStore>,
     ) -> Self {
         Self {
             engine,
@@ -105,6 +108,7 @@ where
             fs_policy: Arc::new(RwLock::new(fs_policy)),
             engine_profile: Arc::new(RwLock::new(engine_profile)),
             catalog: Arc::new(TorrentCatalog::new()),
+            runtime,
         }
     }
 
@@ -135,10 +139,43 @@ where
 
     async fn handle_event(&self, event: &Event) -> Result<()> {
         self.catalog.observe(event).await;
+        self.persist_runtime(event).await;
         if let Event::Completed { torrent_id, .. } = event {
             self.apply_fsops(*torrent_id).await?;
         }
         Ok(())
+    }
+
+    async fn persist_runtime(&self, event: &Event) {
+        let Some(runtime) = self.runtime.clone() else {
+            return;
+        };
+        let Some(torrent_id) = event_torrent_id(event) else {
+            return;
+        };
+
+        match event {
+            Event::TorrentRemoved { .. } => {
+                if let Err(err) = runtime.remove_torrent(torrent_id).await {
+                    warn!(
+                        error = %err,
+                        torrent_id = %torrent_id,
+                        "failed to remove torrent from runtime store"
+                    );
+                }
+            }
+            _ => {
+                if let Some(status) = self.catalog.get(torrent_id).await
+                    && let Err(err) = runtime.upsert_status(&status).await
+                {
+                    warn!(
+                        error = %err,
+                        torrent_id = %torrent_id,
+                        "failed to persist torrent status"
+                    );
+                }
+            }
+        }
     }
 
     /// Spawn a background task that reacts to completion events and triggers filesystem processing.
@@ -244,12 +281,30 @@ fn log_rate_value(direction: &str, value: u64) {
     );
 }
 
+const fn event_torrent_id(event: &Event) -> Option<Uuid> {
+    match event {
+        Event::TorrentAdded { torrent_id, .. }
+        | Event::FilesDiscovered { torrent_id, .. }
+        | Event::Progress { torrent_id, .. }
+        | Event::StateChanged { torrent_id, .. }
+        | Event::Completed { torrent_id, .. }
+        | Event::TorrentRemoved { torrent_id }
+        | Event::FsopsStarted { torrent_id }
+        | Event::FsopsProgress { torrent_id, .. }
+        | Event::FsopsCompleted { torrent_id }
+        | Event::FsopsFailed { torrent_id, .. }
+        | Event::SelectionReconciled { torrent_id, .. } => Some(*torrent_id),
+        Event::SettingsChanged { .. } | Event::HealthChanged { .. } => None,
+    }
+}
+
 #[cfg(feature = "libtorrent")]
 pub(crate) async fn spawn_libtorrent_orchestrator(
     events: &EventBus,
     metrics: Metrics,
     fs_policy: FsPolicy,
     engine_profile: EngineProfile,
+    runtime: Option<RuntimeStore>,
 ) -> Result<(
     Arc<LibtorrentEngine>,
     Arc<TorrentOrchestrator<LibtorrentEngine>>,
@@ -257,14 +312,27 @@ pub(crate) async fn spawn_libtorrent_orchestrator(
 )> {
     let engine = Arc::new(LibtorrentEngine::new(events.clone())?);
     engine.apply_engine_profile(&engine_profile).await?;
-    let fsops = FsOpsService::new(events.clone(), metrics.clone());
+    let fsops = runtime.clone().map_or_else(
+        || FsOpsService::new(events.clone(), metrics.clone()),
+        |store| FsOpsService::new(events.clone(), metrics.clone()).with_runtime(store),
+    );
     let orchestrator = Arc::new(TorrentOrchestrator::new(
         Arc::clone(&engine),
         fsops,
         events.clone(),
         fs_policy,
         engine_profile,
+        runtime.clone(),
     ));
+    if let Some(store) = runtime {
+        match store.load_statuses().await {
+            Ok(statuses) => orchestrator.catalog.seed(statuses).await,
+            Err(err) => warn!(
+                error = %err,
+                "failed to hydrate torrent catalog from runtime store"
+            ),
+        }
+    }
     let worker = orchestrator.spawn_post_processing();
     Ok((engine, orchestrator, worker))
 }
@@ -340,6 +408,14 @@ impl TorrentCatalog {
     fn new() -> Self {
         Self {
             entries: RwLock::new(HashMap::new()),
+        }
+    }
+
+    async fn seed(&self, statuses: Vec<TorrentStatus>) {
+        let mut entries = self.entries.write().await;
+        entries.clear();
+        for status in statuses {
+            entries.insert(status.id, status);
         }
     }
 
@@ -562,14 +638,18 @@ impl TorrentCatalog {
 #[cfg(all(test, feature = "libtorrent"))]
 mod tests {
     use super::*;
-    use anyhow::bail;
+    use anyhow::{Context, bail};
+    use revaer_config::ConfigService;
     use revaer_events::EventBus;
     use revaer_torrent_core::{AddTorrent, AddTorrentOptions, TorrentSource};
     use serde_json::json;
     use std::fs;
     use tempfile::TempDir;
+    use testcontainers::core::{ContainerPort, WaitFor};
+    use testcontainers::runners::AsyncRunner;
+    use testcontainers::{GenericImage, ImageExt};
     use tokio::task::yield_now;
-    use tokio::time::{Duration, timeout};
+    use tokio::time::{Duration, sleep, timeout};
 
     fn sample_fs_policy(library_root: &str) -> FsPolicy {
         FsPolicy {
@@ -608,6 +688,87 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn orchestrator_persists_runtime_state() -> Result<()> {
+        let base_image = GenericImage::new("postgres", "14-alpine")
+            .with_exposed_port(ContainerPort::Tcp(5432))
+            .with_wait_for(WaitFor::message_on_stdout(
+                "database system is ready to accept connections",
+            ));
+
+        let request = base_image
+            .with_env_var("POSTGRES_PASSWORD", "password")
+            .with_env_var("POSTGRES_USER", "postgres")
+            .with_env_var("POSTGRES_DB", "postgres");
+
+        let container = request
+            .start()
+            .await
+            .context("failed to start postgres container")?;
+        let port = container
+            .get_host_port_ipv4(ContainerPort::Tcp(5432))
+            .await
+            .context("failed to resolve postgres port")?;
+        let url = format!("postgres://postgres:password@127.0.0.1:{port}/postgres");
+
+        let config = {
+            let mut attempts = 0;
+            loop {
+                match ConfigService::new(url.clone()).await {
+                    Ok(service) => break service,
+                    Err(error) => {
+                        attempts += 1;
+                        if attempts >= 10 {
+                            return Err(error).context("failed to initialise config service");
+                        }
+                        sleep(Duration::from_millis(200)).await;
+                    }
+                }
+            }
+        };
+        let runtime = RuntimeStore::new(config.pool().clone())
+            .await
+            .context("failed to initialise runtime store")?;
+
+        let bus = EventBus::with_capacity(16);
+        let metrics = Metrics::new()?;
+        let (_engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
+            &bus,
+            metrics.clone(),
+            sample_fs_policy("/tmp/library"),
+            sample_engine_profile(),
+            Some(runtime.clone()),
+        )
+        .await
+        .expect("failed to spawn orchestrator with runtime store");
+
+        let torrent_id = Uuid::new_v4();
+        orchestrator
+            .handle_event(&Event::TorrentAdded {
+                torrent_id,
+                name: "demo".to_string(),
+            })
+            .await?;
+
+        let statuses = runtime.load_statuses().await?;
+        assert_eq!(statuses.len(), 1);
+        assert_eq!(statuses[0].id, torrent_id);
+
+        orchestrator
+            .handle_event(&Event::TorrentRemoved { torrent_id })
+            .await?;
+
+        assert!(runtime.load_statuses().await?.is_empty());
+
+        config.pool().close().await;
+        if !worker.is_finished() {
+            worker.abort();
+        }
+        let _ = worker.await;
+        drop(container);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn orchestrator_applies_fsops_on_completion() -> Result<()> {
         let bus = EventBus::with_capacity(64);
         let metrics = Metrics::new()?;
@@ -623,6 +784,7 @@ mod tests {
             metrics.clone(),
             policy.clone(),
             sample_engine_profile(),
+            None,
         )
         .await
         .expect("failed to spawn orchestrator");
@@ -687,6 +849,7 @@ mod tests {
             metrics.clone(),
             sample_fs_policy("   "),
             sample_engine_profile(),
+            None,
         )
         .await
         .expect("failed to spawn orchestrator");
@@ -734,6 +897,7 @@ mod tests {
             metrics.clone(),
             sample_fs_policy("   "),
             sample_engine_profile(),
+            None,
         )
         .await
         .expect("failed to spawn orchestrator");
@@ -927,6 +1091,7 @@ mod engine_refresh_tests {
             bus.clone(),
             sample_fs_policy(),
             engine_profile("initial"),
+            None,
         ));
 
         let mut updated = engine_profile("updated");
@@ -971,6 +1136,7 @@ mod engine_refresh_tests {
             bus,
             sample_fs_policy(),
             engine_profile("ops"),
+            None,
         ));
 
         let torrent_id = Uuid::new_v4();

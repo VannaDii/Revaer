@@ -31,6 +31,7 @@ use chrono::{DateTime, Utc};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use revaer_config::FsPolicy;
 use revaer_events::{Event, EventBus};
+use revaer_runtime::RuntimeStore;
 use revaer_telemetry::Metrics;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -191,6 +192,7 @@ pub struct FsOpsService {
     events: EventBus,
     metrics: Metrics,
     health_degraded: Arc<Mutex<bool>>,
+    runtime: Option<RuntimeStore>,
 }
 
 impl FsOpsService {
@@ -201,7 +203,15 @@ impl FsOpsService {
             events,
             metrics,
             health_degraded: Arc::new(Mutex::new(false)),
+            runtime: None,
         }
+    }
+
+    /// Attach a runtime store used for persistence.
+    #[must_use]
+    pub fn with_runtime(mut self, runtime: RuntimeStore) -> Self {
+        self.runtime = Some(runtime);
+        self
     }
 
     /// Apply the configured filesystem policy for the given torrent and emit progress events.
@@ -214,28 +224,31 @@ impl FsOpsService {
             torrent_id: request.torrent_id,
         });
 
-        let result = self.execute_pipeline(&request);
+        self.record_job_started(request.torrent_id, request.source_path);
 
-        match &result {
-            Ok(()) => {
+        match self.execute_pipeline(&request) {
+            Ok(meta) => {
                 self.mark_recovered();
+                self.record_job_completed(request.torrent_id, &meta);
                 let _ = self.events.publish(Event::FsopsCompleted {
                     torrent_id: request.torrent_id,
                 });
+                Ok(())
             }
             Err(error) => {
-                self.mark_degraded(&format!("{error:#}"));
+                let detail = format!("{error:#}");
+                self.mark_degraded(&detail);
+                self.record_job_failed(request.torrent_id, detail.clone());
                 let _ = self.events.publish(Event::FsopsFailed {
                     torrent_id: request.torrent_id,
-                    message: format!("{error:#}"),
+                    message: detail,
                 });
+                Err(error)
             }
         }
-
-        result
     }
 
-    fn execute_pipeline(&self, request: &FsOpsRequest<'_>) -> Result<()> {
+    fn execute_pipeline(&self, request: &FsOpsRequest<'_>) -> Result<FsOpsMeta> {
         let torrent_id = request.torrent_id;
         let policy = request.policy;
         let source_path = request.source_path;
@@ -250,7 +263,7 @@ impl FsOpsService {
         if meta.completed {
             self.emit_progress(torrent_id, "resume");
             info!(torrent_id = %torrent_id, "fsops already completed; skipping");
-            return Ok(());
+            return Ok(meta);
         }
 
         self.run_validate_policy(torrent_id, &mut meta, &meta_path, policy)?;
@@ -266,7 +279,7 @@ impl FsOpsService {
         self.run_cleanup(torrent_id, &mut meta, &meta_path, policy)?;
         self.run_finalise(torrent_id, &mut meta, &meta_path)?;
 
-        Ok(())
+        Ok(meta)
     }
 
     fn run_validate_policy(
@@ -1401,6 +1414,104 @@ impl FsOpsService {
         }
     }
 
+    fn record_job_started(&self, torrent_id: Uuid, source: &Path) {
+        if let Some(store) = self.runtime.clone() {
+            let source_path = PathBuf::from(source);
+            tokio::spawn(async move {
+                if let Err(err) = store
+                    .mark_fs_job_started(torrent_id, source_path.as_path())
+                    .await
+                {
+                    warn!(
+                        error = %err,
+                        torrent_id = %torrent_id,
+                        "failed to record fs job start"
+                    );
+                }
+            });
+        }
+    }
+
+    fn record_job_completed(&self, torrent_id: Uuid, meta: &FsOpsMeta) {
+        if let Some(store) = self.runtime.clone() {
+            let transfer_mode = meta.transfer_mode.clone();
+            let destination = meta
+                .artifact_path
+                .as_ref()
+                .or(meta.staging_path.as_ref())
+                .or(meta.source_path.as_ref())
+                .map(PathBuf::from);
+            let source = meta.source_path.as_ref().map(PathBuf::from);
+
+            match (destination, source) {
+                (Some(destination), Some(source)) => {
+                    tokio::spawn(async move {
+                        if let Err(err) = store
+                            .mark_fs_job_completed(
+                                torrent_id,
+                                source.as_path(),
+                                destination.as_path(),
+                                transfer_mode.as_deref(),
+                            )
+                            .await
+                        {
+                            warn!(
+                                error = %err,
+                                torrent_id = %torrent_id,
+                                "failed to record fs job completion"
+                            );
+                        }
+                    });
+                }
+                (Some(_), None) => {
+                    tokio::spawn(async move {
+                        if let Err(err) = store
+                            .mark_fs_job_failed(
+                                torrent_id,
+                                "fsops completed without recorded source path",
+                            )
+                            .await
+                        {
+                            warn!(
+                                error = %err,
+                                torrent_id = %torrent_id,
+                                "failed to record fs job completion fallback without source"
+                            );
+                        }
+                    });
+                }
+                (None, _) => {
+                    tokio::spawn(async move {
+                        if let Err(err) = store
+                            .mark_fs_job_failed(torrent_id, "fsops completed without artifact")
+                            .await
+                        {
+                            warn!(
+                                error = %err,
+                                torrent_id = %torrent_id,
+                                "failed to record fs job completion fallback"
+                            );
+                        }
+                    });
+                }
+            }
+        }
+    }
+
+    fn record_job_failed(&self, torrent_id: Uuid, message: String) {
+        if let Some(store) = self.runtime.clone() {
+            tokio::spawn(async move {
+                if let Err(err) = store.mark_fs_job_failed(torrent_id, &message).await {
+                    warn!(
+                        error = %err,
+                        torrent_id = %torrent_id,
+                        "failed to record fs job failure"
+                    );
+                }
+            });
+        }
+    }
+
     fn lock_health_flag(&self) -> MutexGuard<'_, bool> {
         match self.health_degraded.lock() {
             Ok(guard) => guard,
@@ -1644,12 +1755,20 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    use revaer_events::EventBus;
+    use chrono::Utc;
+    use revaer_config::ConfigService;
+    use revaer_events::{EventBus, TorrentState};
+    use revaer_runtime::RuntimeStore;
+    use revaer_torrent_core::{TorrentProgress, TorrentRates, TorrentStatus};
     use serde_json::json;
+    use sqlx::{Error, Row, postgres::PgRow};
     #[cfg(unix)]
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
     use tempfile::TempDir;
-    use tokio::time::{Duration, timeout};
+    use testcontainers::core::{ContainerPort, WaitFor};
+    use testcontainers::runners::AsyncRunner;
+    use testcontainers::{ContainerAsync, GenericImage, ImageExt};
+    use tokio::time::{Duration, sleep, timeout};
     use zip::{ZipWriter, write::FileOptions};
 
     fn sample_policy(root: &Path) -> FsPolicy {
@@ -1700,6 +1819,86 @@ mod tests {
             .finish()
             .context("failed to finalise zip archive serialization")?;
         Ok(())
+    }
+
+    async fn bootstrap_runtime()
+    -> Result<(RuntimeStore, ConfigService, ContainerAsync<GenericImage>)> {
+        let base_image = GenericImage::new("postgres", "14-alpine")
+            .with_exposed_port(ContainerPort::Tcp(5432))
+            .with_wait_for(WaitFor::message_on_stdout(
+                "database system is ready to accept connections",
+            ));
+        let request = base_image
+            .with_env_var("POSTGRES_PASSWORD", "password")
+            .with_env_var("POSTGRES_USER", "postgres")
+            .with_env_var("POSTGRES_DB", "postgres");
+        let container = request
+            .start()
+            .await
+            .context("failed to start postgres container")?;
+        let port = container
+            .get_host_port_ipv4(ContainerPort::Tcp(5432))
+            .await
+            .context("failed to resolve postgres port")?;
+        let url = format!("postgres://postgres:password@127.0.0.1:{port}/postgres");
+        let config = initialise_config(&url).await?;
+        let runtime = RuntimeStore::new(config.pool().clone())
+            .await
+            .context("failed to initialise runtime store")?;
+        Ok((runtime, config, container))
+    }
+
+    async fn initialise_config(url: &str) -> Result<ConfigService> {
+        let mut attempts = 0;
+        loop {
+            match ConfigService::new(url.to_owned()).await {
+                Ok(service) => return Ok(service),
+                Err(error) => {
+                    attempts += 1;
+                    if attempts >= 10 {
+                        return Err(error).context("failed to initialise config service");
+                    }
+                    sleep(Duration::from_millis(200)).await;
+                }
+            }
+        }
+    }
+
+    async fn wait_for_fs_job(runtime: &RuntimeStore, torrent_id: Uuid) -> Result<PgRow> {
+        let mut attempts = 0;
+        let mut last_error: Option<Error> = None;
+        let mut last_status: Option<String> = None;
+        loop {
+            match sqlx::query(
+                "SELECT status::TEXT AS status, dst_path FROM revaer_runtime.fs_jobs WHERE torrent_id = $1",
+            )
+            .bind(torrent_id)
+            .fetch_optional(runtime.pool())
+            .await
+            {
+                Ok(Some(row)) => {
+                    let status: String = row.get("status");
+                    if status == "moved" {
+                        return Ok(row);
+                    }
+                    last_status = Some(status);
+                }
+                Ok(None) => {}
+                Err(error) => last_error = Some(error),
+            }
+
+            attempts += 1;
+            if attempts >= 25 {
+                if let Some(error) = last_error {
+                    bail!("failed to fetch fs job state after retries: {error}");
+                }
+                if let Some(status) = last_status {
+                    bail!("fs job state remained '{status}' after retries");
+                }
+                bail!("fs job state not recorded within retry window");
+            }
+            sleep(Duration::from_millis(100)).await;
+        }
     }
 
     #[tokio::test]
@@ -1756,6 +1955,69 @@ mod tests {
             "expected fsops finalise metric to increment"
         );
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn pipeline_records_runtime_store_entries() -> Result<()> {
+        let (runtime, config, container) = bootstrap_runtime().await?;
+
+        let bus = EventBus::with_capacity(8);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics).with_runtime(runtime.clone());
+
+        let torrent_id = Uuid::new_v4();
+        let temp = TempDir::new()?;
+        let staging_root = temp.path().join("staging");
+        fs::create_dir_all(&staging_root)?;
+        let source_dir = staging_root.join("payload");
+        fs::create_dir_all(&source_dir)?;
+        fs::write(source_dir.join("movie.mkv"), b"video")?;
+
+        let policy = sample_policy(temp.path());
+        runtime
+            .upsert_status(&TorrentStatus {
+                id: torrent_id,
+                name: Some("demo".to_string()),
+                state: TorrentState::Queued,
+                progress: TorrentProgress {
+                    bytes_downloaded: 0,
+                    bytes_total: 0,
+                    eta_seconds: None,
+                },
+                rates: TorrentRates {
+                    download_bps: 0,
+                    upload_bps: 0,
+                    ratio: 0.0,
+                },
+                files: None,
+                library_path: None,
+                download_dir: Some(policy.library_root.clone()),
+                sequential: false,
+                added_at: Utc::now(),
+                completed_at: None,
+                last_updated: Utc::now(),
+            })
+            .await
+            .context("failed to seed torrent status")?;
+        service.apply(FsOpsRequest {
+            torrent_id,
+            source_path: &source_dir,
+            policy: &policy,
+        })?;
+
+        let row = wait_for_fs_job(&runtime, torrent_id).await?;
+        assert_eq!(row.get::<String, _>("status"), "moved");
+        let destination: Option<String> = row.get("dst_path");
+        assert!(
+            destination
+                .as_ref()
+                .is_some_and(|path| Path::new(path).exists()),
+            "expected fs job to record destination path"
+        );
+
+        config.pool().close().await;
+        drop(container);
         Ok(())
     }
 

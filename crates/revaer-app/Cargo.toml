@@ -20,6 +20,7 @@ revaer-telemetry = { path = "../revaer-telemetry" }
 revaer-torrent-core = { path = "../revaer-torrent-core" }
 revaer-torrent-libt = { path = "../revaer-torrent-libt", optional = true }
 revaer-events = { path = "../revaer-events" }
+revaer-runtime = { path = "../revaer-runtime" }
 uuid.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
@@ -27,6 +28,7 @@ chrono.workspace = true
 [dev-dependencies]
 serde_json.workspace = true
 tempfile = "3.10"
+testcontainers = "0.25"
 
 [features]
 default = ["libtorrent"]

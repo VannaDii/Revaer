@@ -624,3 +624,84 @@ fn ok_plain() -> Response {
     );
     (headers, "Ok.").into_response()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::Result;
+    use axum::{
+        extract::Form,
+        http::{
+            StatusCode,
+            header::{CONTENT_TYPE, SET_COOKIE},
+        },
+        response::IntoResponse,
+    };
+
+    #[tokio::test]
+    async fn login_emits_cookie_and_accepts_credentials() -> Result<()> {
+        let response = login(Form(LoginForm::default()))
+            .await
+            .expect("login should succeed")
+            .into_response();
+        let status = response.status();
+        let headers = response.headers().clone();
+        let _body = response.into_body();
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            headers
+                .get(SET_COOKIE)
+                .expect("session cookie present")
+                .to_str()?,
+            "SID=revaer-session; HttpOnly; Path=/"
+        );
+        assert_eq!(
+            headers
+                .get(CONTENT_TYPE)
+                .expect("content type present")
+                .to_str()?,
+            "text/plain; charset=utf-8"
+        );
+
+        login(Form(LoginForm {
+            username: Some("demo".into()),
+            password: Some("secret".into()),
+        }))
+        .await
+        .expect("login with credentials should still succeed");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn version_endpoints_emit_plain_text() -> Result<()> {
+        let response = app_version().await.into_response();
+        let status = response.status();
+        let headers = response.headers().clone();
+        let _body = response.into_body();
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            headers
+                .get(CONTENT_TYPE)
+                .expect("content type present")
+                .to_str()?,
+            "text/plain; charset=utf-8"
+        );
+
+        let response = app_webapi_version().await.into_response();
+        let status = response.status();
+        let headers = response.headers().clone();
+        let _body = response.into_body();
+
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(
+            headers
+                .get(CONTENT_TYPE)
+                .expect("content type present")
+                .to_str()?,
+            "text/plain; charset=utf-8"
+        );
+        Ok(())
+    }
+}

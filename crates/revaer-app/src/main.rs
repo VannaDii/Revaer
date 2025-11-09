@@ -37,6 +37,8 @@ use tracing::{error, info, warn};
 #[cfg(feature = "libtorrent")]
 use orchestrator::spawn_libtorrent_orchestrator;
 #[cfg(feature = "libtorrent")]
+use revaer_runtime::RuntimeStore;
+#[cfg(feature = "libtorrent")]
 use revaer_torrent_core::{TorrentInspector, TorrentWorkflow};
 #[cfg(feature = "libtorrent")]
 use revaer_torrent_libt::LibtorrentEngine;
@@ -67,11 +69,15 @@ async fn main() -> Result<()> {
 
     #[cfg(feature = "libtorrent")]
     let (fsops_worker, config_task, torrent_handles) = {
+        let runtime_store = RuntimeStore::new(config.pool().clone())
+            .await
+            .context("failed to initialise runtime store")?;
         let (_engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
             &events,
             telemetry.clone(),
             snapshot.fs_policy.clone(),
             snapshot.engine_profile.clone(),
+            Some(runtime_store.clone()),
         )
         .await
         .context("failed to initialise torrent orchestrator")?;

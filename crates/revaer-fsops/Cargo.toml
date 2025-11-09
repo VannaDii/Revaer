@@ -19,6 +19,7 @@ uuid.workspace = true
 revaer-config = { path = "../revaer-config" }
 revaer-events = { path = "../revaer-events" }
 revaer-telemetry = { path = "../revaer-telemetry" }
+revaer-runtime = { path = "../revaer-runtime" }
 tokio.workspace = true
 globset = "0.4"
 walkdir.workspace = true
@@ -27,3 +28,8 @@ zip = { version = "0.6", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 tempfile = "3.10"
+sqlx.workspace = true
+revaer-config = { path = "../revaer-config" }
+revaer-runtime = { path = "../revaer-runtime" }
+testcontainers = "0.25"
+revaer-torrent-core = { path = "../revaer-torrent-core" }
