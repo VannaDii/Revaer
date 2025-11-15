@@ -4,34 +4,36 @@
 
 ## Authentication
 
-- **Setup flow** – Requests to `/admin/setup/start` are open. `/admin/setup/complete` requires the `x-revaer-setup-token` header with the one-time token returned by `setup_start`. The server refuses setup calls once the app profile switches to `active`.
-- **Operator actions** – All `/admin/*` (after setup) and `/v1/*` endpoints require `x-revaer-api-key: {key_id}:{secret}`. The middleware validates the key via `ConfigService`, enforces per-key rate limiting, and rejects calls while the instance remains in setup mode.
-- **Request correlation** – An optional `x-request-id` header is echoed into tracing spans and surfaced on SSE traffic. The CLI auto-populates this header per invocation.
+-   **Setup flow** – Requests to `/admin/setup/start` are open. `/admin/setup/complete` requires the `x-revaer-setup-token` header with the one-time token returned by `setup_start`. The server refuses setup calls once the app profile switches to `active`.
+-   **Operator actions** – All `/admin/*` (after setup) and `/v1/*` endpoints require `x-revaer-api-key: {key_id}:{secret}`. The middleware validates the key via `ConfigService`, enforces per-key rate limiting, and rejects calls while the instance remains in setup mode.
+-   **Request correlation** – An optional `x-request-id` header is echoed into tracing spans and surfaced on SSE traffic. The CLI auto-populates this header per invocation.
 
 Error responses follow RFC9457 (`ProblemDetails`), populated with `invalid_params` entries whenever validation pinpoints a JSON pointer within the payload.
 
 ## Endpoint Inventory
 
-| Method | Path | Auth | Description |
-| --- | --- | --- | --- |
-| `GET` | `/health` | none | Lightweight readiness probe returning mode + database status. |
-| `GET` | `/health/full` | none | Extended health snapshot with build SHA, metrics counters, and torrent queue depth. |
-| `GET` | `/.well-known/revaer.json` | none | Full configuration snapshot (`ConfigSnapshot`) including current revision. |
-| `POST` | `/admin/setup/start` | none | Issues a setup token; optionally accepts `issued_by` + `ttl_seconds`. |
-| `POST` | `/admin/setup/complete` | setup token | Applies a `SettingsChangeset`, promotes the instance to `active`, consumes the token, and returns the hydrated snapshot. |
-| `PATCH` | `/admin/settings` | API key | Applies partial configuration updates (`SettingsChangeset`) and broadcasts `SettingsChanged`. |
-| `GET` | `/admin/torrents` | API key | Same as `GET /v1/torrents`; retained for admin tooling. |
-| `POST` | `/admin/torrents` | API key | Alias for `POST /v1/torrents`. |
-| `GET` | `/admin/torrents/:id` | API key | Alias for `GET /v1/torrents/:id`. |
-| `DELETE` | `/admin/torrents/:id` | API key | Alias for invoking the `remove` action. |
-| `GET` | `/v1/torrents` | API key | Cursor-paginated torrent summaries with filtering (state, tracker, extension, tags, name). |
-| `POST` | `/v1/torrents` | API key | Submits a magnet URI or base64-encoded `.torrent`, optional tags/trackers, file rules, and per-torrent rate limits. |
-| `GET` | `/v1/torrents/:id` | API key | Detailed torrent view including file metadata when available. |
-| `POST` | `/v1/torrents/:id/select` | API key | Adjusts inclusion/exclusion globs, fluff skipping, and per-file priorities. |
-| `POST` | `/v1/torrents/:id/action` | API key | Lifecycle management (`pause`, `resume`, `remove`, `reannounce`, `recheck`, `sequential`, `rate`). |
-| `GET` | `/v1/events` | API key | Server-sent events stream (alias: `/v1/torrents/events`). Supports filtering by torrent ID, state, and event kind. |
-| `GET` | `/metrics` | none | Prometheus-formatted metrics from `revaer-telemetry`. |
-| `GET` | `/docs/openapi.json` | none | Static OpenAPI document used by the docs site and clients. |
+| Method   | Path                       | Auth        | Description                                                                                                              |
+| -------- | -------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `GET`    | `/health`                  | none        | Lightweight readiness probe returning mode + database status.                                                            |
+| `GET`    | `/health/full`             | none        | Extended health snapshot with build SHA, metrics counters, and torrent queue depth.                                      |
+| `GET`    | `/.well-known/revaer.json` | none        | Full configuration snapshot (`ConfigSnapshot`) including current revision.                                               |
+| `GET`    | `/v1/config`               | API key     | Authenticated configuration snapshot (same payload as `/.well-known/revaer.json`).                                       |
+| `PATCH`  | `/v1/config`               | API key     | Applies partial configuration updates (`SettingsChangeset`) and broadcasts `SettingsChanged`.                            |
+| `POST`   | `/admin/setup/start`       | none        | Issues a setup token; optionally accepts `issued_by` + `ttl_seconds`.                                                    |
+| `POST`   | `/admin/setup/complete`    | setup token | Applies a `SettingsChangeset`, promotes the instance to `active`, consumes the token, and returns the hydrated snapshot. |
+| `PATCH`  | `/admin/settings`          | API key     | Alias for `PATCH /v1/config`; retained for admin tooling.                                                                |
+| `GET`    | `/admin/torrents`          | API key     | Same as `GET /v1/torrents`; retained for admin tooling.                                                                  |
+| `POST`   | `/admin/torrents`          | API key     | Alias for `POST /v1/torrents`.                                                                                           |
+| `GET`    | `/admin/torrents/:id`      | API key     | Alias for `GET /v1/torrents/:id`.                                                                                        |
+| `DELETE` | `/admin/torrents/:id`      | API key     | Alias for invoking the `remove` action.                                                                                  |
+| `GET`    | `/v1/torrents`             | API key     | Cursor-paginated torrent summaries with filtering (state, tracker, extension, tags, name).                               |
+| `POST`   | `/v1/torrents`             | API key     | Submits a magnet URI or base64-encoded `.torrent`, optional tags/trackers, file rules, and per-torrent rate limits.      |
+| `GET`    | `/v1/torrents/:id`         | API key     | Detailed torrent view including file metadata when available.                                                            |
+| `POST`   | `/v1/torrents/:id/select`  | API key     | Adjusts inclusion/exclusion globs, fluff skipping, and per-file priorities.                                              |
+| `POST`   | `/v1/torrents/:id/action`  | API key     | Lifecycle management (`pause`, `resume`, `remove`, `reannounce`, `recheck`, `sequential`, `rate`).                       |
+| `GET`    | `/v1/events`               | API key     | Server-sent events stream (alias: `/v1/torrents/events`). Supports filtering by torrent ID, state, and event kind.       |
+| `GET`    | `/metrics`                 | none        | Prometheus-formatted metrics from `revaer-telemetry`.                                                                    |
+| `GET`    | `/docs/openapi.json`       | none        | Static OpenAPI document used by the docs site and clients.                                                               |
 
 All torrent-managing endpoints ensure the torrent workflow is wired. If the engine is unavailable, the API returns `503 Service Unavailable`.
 
@@ -39,11 +41,11 @@ All torrent-managing endpoints ensure the torrent workflow is wired. If the engi
 
 Required headers: `x-revaer-api-key`. Provide either `magnet` or `metainfo`; the server rejects payloads missing both. Optional fields:
 
-- `download_dir` – Overrides the engine profile’s staging directory.
-- `sequential` – Enables sequential downloading for this torrent only.
-- `tags` / `trackers` – Stored alongside the torrent for filtering and bookkeeping.
-- `include` / `exclude` / `skip_fluff` – File selection bootstrap applied before metadata fetch completes.
-- `max_download_bps` / `max_upload_bps` – Per-torrent rate limits (bps) passed to the workflow.
+-   `download_dir` – Overrides the engine profile’s staging directory.
+-   `sequential` – Enables sequential downloading for this torrent only.
+-   `tags` / `trackers` – Stored alongside the torrent for filtering and bookkeeping.
+-   `include` / `exclude` / `skip_fluff` – File selection bootstrap applied before metadata fetch completes.
+-   `max_download_bps` / `max_upload_bps` – Per-torrent rate limits (bps) passed to the workflow.
 
 On success the server returns `202 Accepted` after dispatching `TorrentWorkflow::add_torrent`. The torrent ID in the payload becomes the canonical identifier.
 
@@ -51,9 +53,9 @@ On success the server returns `202 Accepted` after dispatching `TorrentWorkflow:
 
 Query parameters:
 
-- `limit` (default 50, max 200)
-- `cursor` – Base64 token returned in `next`.
-- `state`, `tracker`, `extension`, `tags`, `name` – Comma-separated filters (case-insensitive).
+-   `limit` (default 50, max 200)
+-   `cursor` – Base64 token returned in `next`.
+-   `state`, `tracker`, `extension`, `tags`, `name` – Comma-separated filters (case-insensitive).
 
 The response body is `TorrentListResponse` with an optional `next` cursor when additional pages exist.
 
@@ -73,21 +75,21 @@ Failures propagate engine errors as `500 Internal Server Error` with a descripti
 
 Headers:
 
-- `x-revaer-api-key`
-- Optional `Last-Event-ID` – resuming from a previously stored ID (the CLI stores this via `--resume-file`).
+-   `x-revaer-api-key`
+-   Optional `Last-Event-ID` – resuming from a previously stored ID (the CLI stores this via `--resume-file`).
 
 Query parameters:
 
-- `torrent` – Comma-separated UUIDs.
-- `event` – Comma-separated event kinds. Valid values: `torrent_added`, `files_discovered`, `progress`, `state_changed`, `completed`, `fsops_started`, `fsops_progress`, `fsops_completed`, `fsops_failed`, `settings_changed`, `health_changed`, `selection_reconciled`.
-- `state` – Comma-separated torrent states (`downloading`, `completed`, etc.).
+-   `torrent` – Comma-separated UUIDs.
+-   `event` – Comma-separated event kinds. Valid values: `torrent_added`, `files_discovered`, `progress`, `state_changed`, `completed`, `fsops_started`, `fsops_progress`, `fsops_completed`, `fsops_failed`, `settings_changed`, `health_changed`, `selection_reconciled`.
+-   `state` – Comma-separated torrent states (`downloading`, `completed`, etc.).
 
 The server maintains a 20-second keep-alive ping and enforces filtering before events hit the wire.
 
 ### Health & Metrics
 
-- `GET /health` – Primary readiness probe used by orchestration systems. Adds `database` to the degraded list if PostgreSQL is unreachable.
-- `GET /health/full` – Returns the deployment revision, build SHA (`build_sha()`), metrics snapshot (`config_watch_latency_ms`, `guardrail_violations_total`, `rate_limit_throttled_total`, etc.), and torrent queue depth.
-- `GET /metrics` – Exposes the same counters for Prometheus scraping.
+-   `GET /health` – Primary readiness probe used by orchestration systems. Adds `database` to the degraded list if PostgreSQL is unreachable.
+-   `GET /health/full` – Returns the deployment revision, build SHA (`build_sha()`), metrics snapshot (`config_watch_latency_ms`, `guardrail_violations_total`, `rate_limit_throttled_total`, etc.), and torrent queue depth.
+-   `GET /metrics` – Exposes the same counters for Prometheus scraping.
 
 For the complete schema definitions, consult the generated OpenAPI (`just api-export`).

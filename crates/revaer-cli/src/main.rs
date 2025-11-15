@@ -118,8 +118,12 @@ async fn run(cli: Cli, trace_id: &str) -> CliResult<()> {
             SetupCommand::Start(args) => handle_setup_start(&ctx, args).await,
             SetupCommand::Complete(args) => handle_setup_complete(&ctx, args).await,
         },
+        Command::Config(config) => match config {
+            ConfigCommand::Get(_) => handle_config_get(&ctx, cli.output).await,
+            ConfigCommand::Set(args) => handle_config_set(&ctx, args).await,
+        },
         Command::Settings(settings) => match settings {
-            SettingsCommand::Patch(args) => handle_settings_patch(&ctx, args).await,
+            SettingsCommand::Patch(args) => handle_config_set(&ctx, args).await,
         },
         Command::Torrent(torrents) => match torrents {
             TorrentCommand::Add(args) => handle_torrent_add(&ctx, args).await,
@@ -171,6 +175,8 @@ enum Command {
     #[command(subcommand)]
     Setup(SetupCommand),
     #[command(subcommand)]
+    Config(ConfigCommand),
+    #[command(subcommand)]
     Settings(SettingsCommand),
     #[command(subcommand)]
     Torrent(TorrentCommand),
@@ -185,6 +191,12 @@ enum Command {
 enum SetupCommand {
     Start(SetupStartArgs),
     Complete(SetupCompleteArgs),
+}
+
+#[derive(Subcommand)]
+enum ConfigCommand {
+    Get(ConfigGetArgs),
+    Set(ConfigSetArgs),
 }
 
 #[derive(Args)]
@@ -219,9 +231,12 @@ struct SetupCompleteArgs {
     passphrase: Option<String>,
 }
 
+#[derive(Default, Args)]
+struct ConfigGetArgs {}
+
 #[derive(Subcommand)]
 enum SettingsCommand {
-    Patch(SettingsPatchArgs),
+    Patch(ConfigSetArgs),
 }
 
 #[derive(Subcommand)]
@@ -247,7 +262,7 @@ struct TorrentRemoveArgs {
 }
 
 #[derive(Args)]
-struct SettingsPatchArgs {
+struct ConfigSetArgs {
     #[arg(short = 'f', long = "file")]
     file: PathBuf,
 }
@@ -466,6 +481,8 @@ const fn command_label(command: &Command) -> &'static str {
     match command {
         Command::Setup(SetupCommand::Start(_)) => "setup_start",
         Command::Setup(SetupCommand::Complete(_)) => "setup_complete",
+        Command::Config(ConfigCommand::Get(_)) => "config_get",
+        Command::Config(ConfigCommand::Set(_)) => "config_set",
         Command::Settings(SettingsCommand::Patch(_)) => "settings_patch",
         Command::Torrent(TorrentCommand::Add(_)) => "torrent_add",
         Command::Torrent(TorrentCommand::Remove(_)) => "torrent_remove",
@@ -1049,6 +1066,33 @@ fn render_torrent_detail(detail: &TorrentDetail, format: OutputFormat) -> CliRes
     Ok(())
 }
 
+fn render_config_snapshot(snapshot: &ConfigSnapshot, format: OutputFormat) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => {
+            let text = serde_json::to_string_pretty(snapshot)
+                .map_err(|err| CliError::failure(anyhow!("failed to format JSON: {err}")))?;
+            println!("{text}");
+        }
+        OutputFormat::Table => {
+            println!("revision: {}", snapshot.revision);
+            println!("mode: {}", snapshot.app_profile.mode.as_str());
+            println!("instance: {}", snapshot.app_profile.instance_name);
+            println!(
+                "http bind: {}:{}",
+                snapshot.app_profile.bind_addr, snapshot.app_profile.http_port
+            );
+            println!(
+                "engine: {} (listen port: {:?})",
+                snapshot.engine_profile.implementation, snapshot.engine_profile.listen_port
+            );
+            println!("download root: {}", snapshot.engine_profile.download_root);
+            println!("resume dir: {}", snapshot.engine_profile.resume_dir);
+            println!("library root: {}", snapshot.fs_policy.library_root);
+        }
+    }
+    Ok(())
+}
+
 const fn format_priority(priority: FilePriority) -> &'static str {
     match priority {
         FilePriority::Skip => "skip",
@@ -1199,7 +1243,37 @@ async fn stream_events(
     Ok(last_seen)
 }
 
-async fn handle_settings_patch(ctx: &AppContext, args: SettingsPatchArgs) -> CliResult<()> {
+async fn handle_config_get(ctx: &AppContext, format: OutputFormat) -> CliResult<()> {
+    let creds = ctx.api_key.as_ref().ok_or_else(|| {
+        CliError::validation("API key is required (pass --api-key or set REVAER_API_KEY)")
+    })?;
+
+    let url = ctx
+        .base_url
+        .join("/v1/config")
+        .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
+
+    let response = ctx
+        .client
+        .get(url)
+        .header(HEADER_API_KEY, creds.header_value())
+        .send()
+        .await
+        .map_err(|err| CliError::failure(anyhow!("request to /v1/config failed: {err}")))?;
+
+    if response.status().is_success() {
+        let snapshot = response
+            .json::<ConfigSnapshot>()
+            .await
+            .map_err(|err| CliError::failure(anyhow!("failed to parse config snapshot: {err}")))?;
+        render_config_snapshot(&snapshot, format)?;
+        Ok(())
+    } else {
+        Err(classify_problem(response).await)
+    }
+}
+
+async fn handle_config_set(ctx: &AppContext, args: ConfigSetArgs) -> CliResult<()> {
     let creds = ctx.api_key.as_ref().ok_or_else(|| {
         CliError::validation("API key is required (pass --api-key or set REVAER_API_KEY)")
     })?;
@@ -1558,7 +1632,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn settings_patch_sends_payload() {
+    async fn config_set_sends_payload() {
         let server = MockServer::start_async().await;
         let mock = server.mock(|when, then| {
             when.method(PATCH)
@@ -1578,9 +1652,9 @@ mod tests {
             }"#,
         );
 
-        handle_settings_patch(
+        handle_config_set(
             &ctx,
-            SettingsPatchArgs {
+            ConfigSetArgs {
                 file: file_path.clone(),
             },
         )
@@ -1588,6 +1662,26 @@ mod tests {
         .expect("settings patch should succeed");
         mock.assert();
         let _ = fs::remove_file(file_path);
+    }
+
+    #[tokio::test]
+    async fn config_get_fetches_snapshot() {
+        let server = MockServer::start_async().await;
+        let snapshot = sample_snapshot();
+        let mock = server.mock(move |when, then| {
+            when.method(GET)
+                .path("/v1/config")
+                .header(HEADER_API_KEY, "key:secret");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(json!(snapshot));
+        });
+
+        let ctx = context_with_key(&server);
+        handle_config_get(&ctx, OutputFormat::Table)
+            .await
+            .expect("config get should succeed");
+        mock.assert();
     }
 
     #[tokio::test]

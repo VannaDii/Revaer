@@ -40,10 +40,14 @@ where
         .start()
         .await
         .context("failed to start postgres container for tests")?;
-    let port = container
-        .get_host_port_ipv4(ContainerPort::Tcp(5432))
+    let ports = container
+        .ports()
         .await
-        .context("failed to resolve postgres host port")?;
+        .context("failed to inspect postgres container ports")?;
+    let port = ports
+        .map_to_host_port_ipv4(ContainerPort::Tcp(5432))
+        .or_else(|| ports.map_to_host_port_ipv6(ContainerPort::Tcp(5432)))
+        .ok_or_else(|| anyhow::anyhow!("failed to resolve postgres host port"))?;
     let url = format!("postgres://postgres:password@127.0.0.1:{port}/postgres");
 
     let mut last_err = None;

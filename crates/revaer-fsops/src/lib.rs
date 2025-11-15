@@ -1830,15 +1830,20 @@ mod tests {
         let request = base_image
             .with_env_var("POSTGRES_PASSWORD", "password")
             .with_env_var("POSTGRES_USER", "postgres")
-            .with_env_var("POSTGRES_DB", "postgres");
+            .with_env_var("POSTGRES_DB", "postgres")
+            .with_mapped_port(0, ContainerPort::Tcp(5432));
         let container = request
             .start()
             .await
             .context("failed to start postgres container")?;
-        let port = container
-            .get_host_port_ipv4(ContainerPort::Tcp(5432))
+        let ports = container
+            .ports()
             .await
-            .context("failed to resolve postgres port")?;
+            .context("failed to inspect postgres container ports")?;
+        let port = ports
+            .map_to_host_port_ipv4(ContainerPort::Tcp(5432))
+            .or_else(|| ports.map_to_host_port_ipv6(ContainerPort::Tcp(5432)))
+            .ok_or_else(|| anyhow!("failed to resolve postgres port mapping"))?;
         let url = format!("postgres://postgres:password@127.0.0.1:{port}/postgres");
         let config = initialise_config(&url).await?;
         let runtime = RuntimeStore::new(config.pool().clone())

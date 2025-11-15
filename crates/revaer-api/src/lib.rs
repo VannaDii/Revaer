@@ -976,6 +976,12 @@ impl ApiServer {
                 patch(settings_patch).route_layer(require_api.clone()),
             )
             .route(
+                "/v1/config",
+                get(get_config_snapshot)
+                    .patch(settings_patch)
+                    .route_layer(require_api.clone()),
+            )
+            .route(
                 "/admin/torrents",
                 get(list_torrents)
                     .post(create_torrent)
@@ -1629,6 +1635,16 @@ async fn health_full(
 }
 
 async fn well_known(State(state): State<Arc<ApiState>>) -> Result<Json<ConfigSnapshot>, ApiError> {
+    let snapshot = state.config.snapshot().await.map_err(|err| {
+        error!(error = %err, "failed to load configuration snapshot");
+        ApiError::internal("failed to load configuration snapshot")
+    })?;
+    Ok(Json(snapshot))
+}
+
+async fn get_config_snapshot(
+    State(state): State<Arc<ApiState>>,
+) -> Result<Json<ConfigSnapshot>, ApiError> {
     let snapshot = state.config.snapshot().await.map_err(|err| {
         error!(error = %err, "failed to load configuration snapshot");
         ApiError::internal("failed to load configuration snapshot")
@@ -2553,6 +2569,27 @@ mod tests {
         assert_eq!(response.app_profile.instance_name, "patched");
         let snapshot = config.snapshot().await;
         assert_eq!(snapshot.app_profile.instance_name, "patched");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn config_snapshot_endpoint_returns_snapshot() -> Result<()> {
+        let config = MockConfig::new();
+        config.set_app_mode(AppMode::Active).await;
+        let events = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let state = Arc::new(ApiState::new(
+            config.shared(),
+            metrics,
+            Arc::new(build_openapi_document()),
+            events,
+            None,
+        ));
+
+        let Json(snapshot) = get_config_snapshot(State(state.clone()))
+            .await
+            .expect("config snapshot");
+        assert_eq!(snapshot.revision, config.snapshot().await.revision);
         Ok(())
     }
 

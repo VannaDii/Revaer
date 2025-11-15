@@ -47,7 +47,7 @@ use revaer_torrent_libt::LibtorrentEngine;
 #[tokio::main]
 async fn main() -> Result<()> {
     let logging = LoggingConfig::default();
-    revaer_telemetry::init_logging(&logging)?;
+    let _otel_guard = revaer_telemetry::init_logging_with_otel(&logging, None)?;
     let _context = GlobalContextGuard::new("bootstrap");
 
     info!("Revaer application bootstrap starting");
