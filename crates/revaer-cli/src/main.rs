@@ -1287,7 +1287,7 @@ async fn handle_config_set(ctx: &AppContext, args: ConfigSetArgs) -> CliResult<(
 
     let url = ctx
         .base_url
-        .join("/admin/settings")
+        .join("/v1/config")
         .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
 
     let response = ctx
@@ -1297,7 +1297,7 @@ async fn handle_config_set(ctx: &AppContext, args: ConfigSetArgs) -> CliResult<(
         .json(&changeset)
         .send()
         .await
-        .map_err(|err| CliError::failure(anyhow!("request to /admin/settings failed: {err}")))?;
+        .map_err(|err| CliError::failure(anyhow!("request to /v1/config failed: {err}")))?;
 
     if response.status().is_success() {
         println!("Settings patch applied.");
@@ -1636,7 +1636,7 @@ mod tests {
         let server = MockServer::start_async().await;
         let mock = server.mock(|when, then| {
             when.method(PATCH)
-                .path("/admin/settings")
+                .path("/v1/config")
                 .header(HEADER_API_KEY, "key:secret");
             then.status(200);
         });

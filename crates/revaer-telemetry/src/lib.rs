@@ -23,6 +23,7 @@
 //! This crate centralises logging, metrics, and cross-service tracing helpers so the
 //! application and delivery surfaces can adopt a consistent observability story.
 
+use std::borrow::Cow;
 use std::convert::TryFrom;
 use std::future::Future;
 use std::path::Path;
@@ -34,8 +35,6 @@ use once_cell::sync::OnceCell;
 use prometheus::{Encoder, IntCounter, IntCounterVec, IntGauge, Opts, Registry, TextEncoder};
 use serde::Serialize;
 use serde_json::Value;
-#[cfg(feature = "otel")]
-use std::borrow::Cow;
 use tower_http::request_id::{MakeRequestUuid, PropagateRequestIdLayer, SetRequestIdLayer};
 use tracing::{Span, span::Entered};
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
@@ -146,9 +145,9 @@ pub struct OpenTelemetryConfig<'a> {
     /// Toggle flag; instrumentation is skipped when `false`.
     pub enabled: bool,
     /// Logical service name recorded in span resources.
-    pub service_name: &'a str,
+    pub service_name: Cow<'a, str>,
     /// Optional endpoint placeholder for future exporters.
-    pub endpoint: Option<&'a str>,
+    pub endpoint: Option<Cow<'a, str>>,
 }
 
 #[cfg(feature = "otel")]
@@ -576,7 +575,7 @@ fn build_env_filter(level: &str) -> EnvFilter {
 #[cfg(feature = "otel")]
 fn build_otel_layer(config: &OpenTelemetryConfig) -> TelemetryLayer {
     let provider = sdktrace::TracerProvider::builder().build();
-    let tracer = provider.tracer(Cow::Owned(config.service_name.to_string()));
+    let tracer = provider.tracer(Cow::Owned(config.service_name.clone().into_owned()));
     global::set_tracer_provider(provider.clone());
     let layer = tracing_opentelemetry::layer().with_tracer(tracer);
     TelemetryLayer {

@@ -6,7 +6,7 @@ Revaer persists all operator-facing configuration inside the `settings_*` tables
 
 ## Snapshot Components
 
-The `/ .well-known/revaer.json` endpoint and `revaer setup complete` CLI command both return the same structure:
+The `/.well-known/revaer.json` endpoint, the authenticated `GET /v1/config` route, and the `revaer config get` CLI command all return the same structure:
 
 ```json
 {
@@ -99,10 +99,14 @@ Patches can create, update, or revoke keys and named secrets. The request format
 
 The API server enforces bucketed rate limits if `rate_limit` is supplied (`burst` per `per_seconds`). Invalid field names or mutations against `immutable_keys` yield RFC9457 `ProblemDetails` responses with an `invalid_params` array matching the JSON pointer returned by `ConfigError`.
 
+## Telemetry Toggle
+
+Revaer boots with structured logging and Prometheus metrics by default. OpenTelemetry export remains opt-in for Phase One: set `REVAER_ENABLE_OTEL=true` alongside your `revaer-app` process (optionally overriding `REVAER_OTEL_SERVICE_NAME` and `REVAER_OTEL_EXPORTER`) to attach the stubbed tracing layer. When the flag is absent, no OpenTelemetry dependencies are activated.
+
 ## Change Workflows
 
 -   **Setup** – `POST /admin/setup/start` issues a one-time token. `POST /admin/setup/complete` consumes that token, applies the provided `SettingsChangeset`, forces `app_profile.mode` to `active`, and returns the hydrated snapshot along with the generated API key (also echoed in the CLI output).
--   **Ongoing updates** – `PATCH /admin/settings` (CLI: `revaer settings patch --file changes.json`) requires an API key and supports partial documents. Any field omitted from the payload remains untouched.
--   **Snapshot access** – `GET /.well-known/revaer.json` (no auth) and `GET /health/full` both return the revision and enable automation to verify configuration drift. Automation and dashboards can poll these endpoints without authenticating.
+-   **Ongoing updates** – `PATCH /v1/config` (CLI: `revaer config set --file changes.json`) requires an API key and supports partial documents. Any field omitted from the payload remains untouched. The legacy `/admin/settings` alias remains for compatibility.
+-   **Snapshot access** – `GET /.well-known/revaer.json` (no auth), `GET /v1/config` (API key), `GET /health/full`, and `revaer config get` return the current revision so automation and dashboards can verify configuration drift without shell access.
 
 Revaer publishes `SettingsChanged` events on every successful mutation, ensuring subscribers refresh in-memory caches without polling.

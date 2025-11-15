@@ -23,6 +23,7 @@
 
 mod orchestrator;
 
+use std::borrow::Cow;
 use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -31,7 +32,7 @@ use anyhow::{Context, Result, bail, ensure};
 use revaer_api::TorrentHandles;
 use revaer_config::{AppMode, ConfigService};
 use revaer_events::EventBus;
-use revaer_telemetry::{GlobalContextGuard, LoggingConfig, Metrics};
+use revaer_telemetry::{GlobalContextGuard, LoggingConfig, Metrics, OpenTelemetryConfig};
 use tracing::{error, info, warn};
 
 #[cfg(feature = "libtorrent")]
@@ -47,7 +48,9 @@ use revaer_torrent_libt::LibtorrentEngine;
 #[tokio::main]
 async fn main() -> Result<()> {
     let logging = LoggingConfig::default();
-    let _otel_guard = revaer_telemetry::init_logging_with_otel(&logging, None)?;
+    let otel_config = load_otel_config_from_env();
+    let otel_ref = otel_config.as_ref().map(|cfg| cfg as &OpenTelemetryConfig);
+    let _otel_guard = revaer_telemetry::init_logging_with_otel(&logging, otel_ref)?;
     let _context = GlobalContextGuard::new("bootstrap");
 
     info!("Revaer application bootstrap starting");
@@ -142,6 +145,31 @@ async fn main() -> Result<()> {
     serve_result?;
     info!("API server shutdown complete");
     Ok(())
+}
+
+fn load_otel_config_from_env() -> Option<OpenTelemetryConfig<'static>> {
+    if !env_flag("REVAER_ENABLE_OTEL") {
+        return None;
+    }
+    let service_name =
+        std::env::var("REVAER_OTEL_SERVICE_NAME").unwrap_or_else(|_| "revaer-app".to_string());
+    let endpoint = std::env::var("REVAER_OTEL_EXPORTER").ok();
+    Some(OpenTelemetryConfig {
+        enabled: true,
+        service_name: Cow::Owned(service_name),
+        endpoint: endpoint.map(Cow::Owned),
+    })
+}
+
+fn env_flag(name: &str) -> bool {
+    std::env::var(name)
+        .map(|value| {
+            matches!(
+                value.trim().to_ascii_lowercase().as_str(),
+                "1" | "true" | "yes" | "on"
+            )
+        })
+        .unwrap_or(false)
 }
 
 #[cfg(feature = "libtorrent")]
