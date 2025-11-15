@@ -34,10 +34,15 @@ use async_trait::async_trait;
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use rand::Rng;
 use rand::distr::Alphanumeric;
+use revaer_data::config::{
+    self as data_config, AppProfileRow, EngineBooleanField, EngineProfileRow, EngineRateField,
+    EngineTextField, FsArrayField, FsBooleanField, FsOptionalStringField, FsPolicyRow,
+    FsStringField, HistoryInsert, NewSetupToken, SETTINGS_CHANNEL,
+};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
-use sqlx::postgres::{PgListener, PgNotification, PgPoolOptions, PgRow};
-use sqlx::{Executor, FromRow, Postgres, Row, Transaction};
+use sqlx::postgres::{PgListener, PgNotification, PgPoolOptions};
+use sqlx::{Executor, Postgres, Transaction};
 use std::collections::HashSet;
 use std::convert::TryFrom;
 use std::net::IpAddr;
@@ -51,8 +56,6 @@ use uuid::Uuid;
 const APP_PROFILE_ID: &str = "00000000-0000-0000-0000-000000000001";
 const ENGINE_PROFILE_ID: &str = "00000000-0000-0000-0000-000000000002";
 const FS_POLICY_ID: &str = "00000000-0000-0000-0000-000000000003";
-const SETTINGS_CHANNEL: &str = "revaer_settings_changed";
-
 /// High-level view of the application profile.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppProfile {
@@ -324,6 +327,37 @@ pub struct AppliedChanges {
     pub fs_policy: Option<FsPolicy>,
 }
 
+#[derive(Debug)]
+struct PendingHistoryEntry {
+    kind: &'static str,
+    old: Option<Value>,
+    new: Option<Value>,
+}
+
+async fn persist_history_entries(
+    tx: &mut Transaction<'_, Postgres>,
+    entries: Vec<PendingHistoryEntry>,
+    actor: &str,
+    reason: &str,
+    revision: i64,
+) -> Result<()> {
+    for entry in entries {
+        data_config::insert_history(
+            tx.as_mut(),
+            HistoryInsert {
+                kind: entry.kind,
+                old: entry.old,
+                new: entry.new,
+                actor,
+                reason,
+                revision,
+            },
+        )
+        .await?;
+    }
+    Ok(())
+}
+
 /// Token representation surfaced to the caller. The plaintext value is only
 /// available at issuance time.
 #[derive(Debug, Clone)]
@@ -461,21 +495,11 @@ impl ConfigService {
     #[allow(clippy::missing_errors_doc)]
     pub async fn validate_setup_token(&self, token: &str) -> Result<()> {
         let mut tx = self.pool.begin().await?;
-        cleanup_expired_setup_tokens(&mut tx).await?;
+        data_config::cleanup_expired_setup_tokens(tx.as_mut()).await?;
 
-        let active = sqlx::query_as::<_, ActiveTokenRow>(
-            r"
-            SELECT id, token_hash, expires_at
-            FROM setup_tokens
-            WHERE consumed_at IS NULL
-            ORDER BY issued_at DESC
-            LIMIT 1
-            FOR UPDATE
-            ",
-        )
-        .fetch_optional(tx.as_mut())
-        .await
-        .context("failed to query setup tokens")?;
+        let active = data_config::fetch_active_setup_token(tx.as_mut())
+            .await
+            .context("failed to query setup tokens")?;
 
         let Some(active) = active else {
             tx.rollback().await?;
@@ -511,18 +535,9 @@ impl ConfigService {
         key_id: &str,
         secret: &str,
     ) -> Result<Option<ApiKeyAuth>> {
-        let record = sqlx::query_as::<_, ApiKeyAuthRow>(
-            r"
-            SELECT hash, enabled, label, rate_limit
-            FROM auth_api_keys
-            WHERE key_id = $1
-            LIMIT 1
-            ",
-        )
-        .bind(key_id)
-        .fetch_optional(&self.pool)
-        .await
-        .context("failed to verify API key")?;
+        let record = data_config::fetch_api_key_auth(&self.pool, key_id)
+            .await
+            .context("failed to verify API key")?;
 
         let Some(record) = record else {
             return Ok(None);
@@ -682,7 +697,7 @@ impl SettingsFacade for ConfigService {
         let mut applied_app: Option<AppProfile> = None;
         let mut applied_engine: Option<EngineProfile> = None;
         let mut applied_fs: Option<FsPolicy> = None;
-        let mut history_entries: Vec<(&'static str, Option<Value>, Option<Value>)> = Vec::new();
+        let mut history_entries: Vec<PendingHistoryEntry> = Vec::new();
         let mut any_change = false;
         let app_document = fetch_app_profile_json(tx.as_mut()).await?;
         let immutable_keys = extract_immutable_keys(&app_document)?;
@@ -692,7 +707,11 @@ impl SettingsFacade for ConfigService {
             if apply_app_profile_patch(&mut tx, &app_patch, &immutable_keys).await? {
                 let after = fetch_app_profile_json(tx.as_mut()).await?;
                 applied_app = Some(fetch_app_profile(tx.as_mut()).await?);
-                history_entries.push(("app_profile", Some(before), Some(after)));
+                history_entries.push(PendingHistoryEntry {
+                    kind: "app_profile",
+                    old: Some(before),
+                    new: Some(after),
+                });
                 any_change = true;
             }
         }
@@ -702,7 +721,11 @@ impl SettingsFacade for ConfigService {
             if apply_engine_profile_patch(&mut tx, &engine_patch, &immutable_keys).await? {
                 let after = fetch_engine_profile_json(tx.as_mut()).await?;
                 applied_engine = Some(fetch_engine_profile(tx.as_mut()).await?);
-                history_entries.push(("engine_profile", Some(before), Some(after)));
+                history_entries.push(PendingHistoryEntry {
+                    kind: "engine_profile",
+                    old: Some(before),
+                    new: Some(after),
+                });
                 any_change = true;
             }
         }
@@ -712,7 +735,11 @@ impl SettingsFacade for ConfigService {
             if apply_fs_policy_patch(&mut tx, &fs_patch, &immutable_keys).await? {
                 let after = fetch_fs_policy_json(tx.as_mut()).await?;
                 applied_fs = Some(fetch_fs_policy(tx.as_mut()).await?);
-                history_entries.push(("fs_policy", Some(before), Some(after)));
+                history_entries.push(PendingHistoryEntry {
+                    kind: "fs_policy",
+                    old: Some(before),
+                    new: Some(after),
+                });
                 any_change = true;
             }
         }
@@ -722,7 +749,11 @@ impl SettingsFacade for ConfigService {
             let before = fetch_api_keys_json(tx.as_mut()).await?;
             if apply_api_key_patches(&mut tx, &changeset.api_keys, &immutable_keys).await? {
                 let after = fetch_api_keys_json(tx.as_mut()).await?;
-                history_entries.push(("auth_api_keys", Some(before), Some(after)));
+                history_entries.push(PendingHistoryEntry {
+                    kind: "auth_api_keys",
+                    old: Some(before),
+                    new: Some(after),
+                });
                 any_change = true;
                 api_keys_changed = true;
             }
@@ -733,11 +764,11 @@ impl SettingsFacade for ConfigService {
             secret_events =
                 apply_secret_patches(&mut tx, &changeset.secrets, actor, &immutable_keys).await?;
             if !secret_events.is_empty() {
-                history_entries.push((
-                    "settings_secret",
-                    None,
-                    Some(Value::Array(secret_events.clone())),
-                ));
+                history_entries.push(PendingHistoryEntry {
+                    kind: "settings_secret",
+                    old: None,
+                    new: Some(Value::Array(secret_events.clone())),
+                });
                 any_change = true;
             }
         }
@@ -747,15 +778,13 @@ impl SettingsFacade for ConfigService {
             || applied_fs.is_some()
             || api_keys_changed;
         if !secret_events.is_empty() && !mutated_via_triggers {
-            bump_revision(&mut tx, "settings_secret").await?;
+            data_config::bump_revision(tx.as_mut(), "settings_secret").await?;
         }
 
         let revision = fetch_revision(tx.as_mut()).await?;
 
         if any_change {
-            for (kind, old, new) in history_entries {
-                insert_history(&mut tx, kind, old, new, actor, reason, revision).await?;
-            }
+            persist_history_entries(&mut tx, history_entries, actor, reason, revision).await?;
             tx.commit().await?;
         } else {
             tx.rollback().await?;
@@ -778,39 +807,37 @@ impl SettingsFacade for ConfigService {
             ChronoDuration::from_std(ttl).context("setup token TTL exceeds supported range")?;
 
         let mut tx = self.pool.begin().await?;
-        cleanup_expired_setup_tokens(&mut tx).await?;
-        invalidate_active_setup_tokens(&mut tx).await?;
+        data_config::cleanup_expired_setup_tokens(tx.as_mut()).await?;
+        data_config::invalidate_active_setup_tokens(tx.as_mut()).await?;
 
         let plaintext = generate_token(32);
         let token_hash = hash_secret(&plaintext)?;
         let expires_at = Utc::now() + chrono_ttl;
 
-        sqlx::query(
-            r"
-            INSERT INTO setup_tokens (token_hash, expires_at, issued_by)
-            VALUES ($1, $2, $3)
-            ",
-        )
-        .bind(&token_hash)
-        .bind(expires_at)
-        .bind(issued_by)
-        .execute(tx.as_mut())
-        .await
-        .context("failed to persist setup token")?;
+        let insert = NewSetupToken {
+            token_hash: &token_hash,
+            expires_at,
+            issued_by,
+        };
+        data_config::insert_setup_token(tx.as_mut(), &insert)
+            .await
+            .context("failed to persist setup token")?;
 
         let revision = fetch_revision(tx.as_mut()).await?;
-        insert_history(
-            &mut tx,
-            "setup_token",
-            None,
-            Some(json!({
-                "event": "issued",
-                "issued_by": issued_by,
-                "expires_at": expires_at
-            })),
-            issued_by,
-            "issue_setup_token",
-            revision,
+        data_config::insert_history(
+            tx.as_mut(),
+            HistoryInsert {
+                kind: "setup_token",
+                old: None,
+                new: Some(json!({
+                    "event": "issued",
+                    "issued_by": issued_by,
+                    "expires_at": expires_at
+                })),
+                actor: issued_by,
+                reason: "issue_setup_token",
+                revision,
+            },
         )
         .await?;
 
@@ -831,21 +858,11 @@ impl SettingsFacade for ConfigService {
 
     async fn consume_setup_token(&self, token: &str) -> Result<()> {
         let mut tx = self.pool.begin().await?;
-        cleanup_expired_setup_tokens(&mut tx).await?;
+        data_config::cleanup_expired_setup_tokens(tx.as_mut()).await?;
 
-        let active = sqlx::query_as::<_, ActiveTokenRow>(
-            r"
-            SELECT id, token_hash, expires_at
-            FROM setup_tokens
-            WHERE consumed_at IS NULL
-            ORDER BY issued_at DESC
-            LIMIT 1
-            FOR UPDATE
-            ",
-        )
-        .fetch_optional(tx.as_mut())
-        .await
-        .context("failed to query setup tokens")?;
+        let active = data_config::fetch_active_setup_token(tx.as_mut())
+            .await
+            .context("failed to query setup tokens")?;
 
         let Some(active) = active else {
             tx.rollback().await?;
@@ -854,9 +871,7 @@ impl SettingsFacade for ConfigService {
         };
 
         if active.expires_at <= Utc::now() {
-            sqlx::query("UPDATE setup_tokens SET consumed_at = now() WHERE id = $1")
-                .bind(active.id)
-                .execute(tx.as_mut())
+            data_config::mark_setup_token_consumed(tx.as_mut(), active.id)
                 .await
                 .context("failed to expire stale token")?;
             tx.commit().await?;
@@ -871,21 +886,21 @@ impl SettingsFacade for ConfigService {
             return Err(anyhow!("invalid setup token"));
         }
 
-        sqlx::query("UPDATE setup_tokens SET consumed_at = now() WHERE id = $1")
-            .bind(active.id)
-            .execute(tx.as_mut())
+        data_config::mark_setup_token_consumed(tx.as_mut(), active.id)
             .await
             .context("failed to consume setup token")?;
 
         let revision = fetch_revision(tx.as_mut()).await?;
-        insert_history(
-            &mut tx,
-            "setup_token",
-            None,
-            Some(json!({"event": "consumed"})),
-            "system",
-            "consume_setup_token",
-            revision,
+        data_config::insert_history(
+            tx.as_mut(),
+            HistoryInsert {
+                kind: "setup_token",
+                old: None,
+                new: Some(json!({"event": "consumed"})),
+                actor: "system",
+                reason: "consume_setup_token",
+                revision,
+            },
         )
         .await?;
 
@@ -896,187 +911,52 @@ impl SettingsFacade for ConfigService {
 }
 
 async fn apply_migrations(pool: &sqlx::PgPool) -> Result<()> {
-    // SAFETY: the path is relative to this crate; sqlx embeds migrations at compile time.
-    sqlx::migrate!("./migrations")
-        .run(pool)
+    data_config::run_migrations(pool)
         .await
         .context("failed to apply configuration migrations")?;
     Ok(())
-}
-
-#[derive(FromRow)]
-struct AppProfileRow {
-    id: Uuid,
-    instance_name: String,
-    mode: String,
-    version: i64,
-    http_port: i32,
-    bind_addr: String,
-    telemetry: Value,
-    features: Value,
-    immutable_keys: Value,
-}
-
-#[derive(FromRow)]
-struct EngineProfileRow {
-    id: Uuid,
-    implementation: String,
-    listen_port: Option<i32>,
-    dht: bool,
-    encryption: String,
-    max_active: Option<i32>,
-    max_download_bps: Option<i64>,
-    max_upload_bps: Option<i64>,
-    sequential_default: bool,
-    resume_dir: String,
-    download_root: String,
-    tracker: Value,
-}
-
-#[derive(FromRow)]
-struct FsPolicyRow {
-    id: Uuid,
-    library_root: String,
-    extract: bool,
-    par2: String,
-    flatten: bool,
-    move_mode: String,
-    cleanup_keep: Value,
-    cleanup_drop: Value,
-    chmod_file: Option<String>,
-    chmod_dir: Option<String>,
-    owner: Option<String>,
-    group: Option<String>,
-    umask: Option<String>,
-    allow_paths: Value,
-}
-
-#[derive(FromRow)]
-struct ActiveTokenRow {
-    id: Uuid,
-    token_hash: String,
-    expires_at: DateTime<Utc>,
-}
-
-#[derive(FromRow)]
-struct ApiKeyAuthRow {
-    hash: String,
-    enabled: bool,
-    label: Option<String>,
-    rate_limit: Value,
 }
 
 async fn fetch_app_profile<'e, E>(executor: E) -> Result<AppProfile>
 where
     E: Executor<'e, Database = Postgres>,
 {
-    let row = sqlx::query_as::<_, AppProfileRow>(
-        r"
-        SELECT id, instance_name, mode, version, http_port, bind_addr::text AS bind_addr, telemetry, features, immutable_keys
-        FROM app_profile
-        WHERE id = $1
-        ",
-    )
-    .bind(parse_uuid(APP_PROFILE_ID)?)
-    .fetch_one(executor)
-    .await
-    .context("failed to load app_profile")?;
-
-    let mode = AppMode::from_str(&row.mode)?;
-
-    Ok(AppProfile {
-        id: row.id,
-        instance_name: row.instance_name,
-        mode,
-        version: row.version,
-        http_port: row.http_port,
-        bind_addr: parse_bind_addr(&row.bind_addr)?,
-        telemetry: row.telemetry,
-        features: row.features,
-        immutable_keys: row.immutable_keys,
-    })
+    let id = parse_uuid(APP_PROFILE_ID)?;
+    let row = data_config::fetch_app_profile_row(executor, id)
+        .await
+        .context("failed to load app_profile")?;
+    map_app_profile_row(row)
 }
 
 async fn fetch_engine_profile<'e, E>(executor: E) -> Result<EngineProfile>
 where
     E: Executor<'e, Database = Postgres>,
 {
-    let row = sqlx::query_as::<_, EngineProfileRow>(
-        r"
-        SELECT id, implementation, listen_port, dht, encryption, max_active,
-               max_download_bps, max_upload_bps, sequential_default,
-               resume_dir, download_root, tracker
-        FROM engine_profile
-        WHERE id = $1
-        ",
-    )
-    .bind(parse_uuid(ENGINE_PROFILE_ID)?)
-    .fetch_one(executor)
-    .await
-    .context("failed to load engine_profile")?;
-
-    Ok(EngineProfile {
-        id: row.id,
-        implementation: row.implementation,
-        listen_port: row.listen_port,
-        dht: row.dht,
-        encryption: row.encryption,
-        max_active: row.max_active,
-        max_download_bps: row.max_download_bps,
-        max_upload_bps: row.max_upload_bps,
-        sequential_default: row.sequential_default,
-        resume_dir: row.resume_dir,
-        download_root: row.download_root,
-        tracker: row.tracker,
-    })
+    let id = parse_uuid(ENGINE_PROFILE_ID)?;
+    let row = data_config::fetch_engine_profile_row(executor, id)
+        .await
+        .context("failed to load engine_profile")?;
+    Ok(map_engine_profile_row(row))
 }
 
 async fn fetch_fs_policy<'e, E>(executor: E) -> Result<FsPolicy>
 where
     E: Executor<'e, Database = Postgres>,
 {
-    let row = sqlx::query_as::<_, FsPolicyRow>(
-        r#"
-        SELECT id, library_root, extract, par2, flatten, move_mode,
-               cleanup_keep, cleanup_drop, chmod_file, chmod_dir,
-               owner, "group", umask, allow_paths
-        FROM fs_policy
-        WHERE id = $1
-        "#,
-    )
-    .bind(parse_uuid(FS_POLICY_ID)?)
-    .fetch_one(executor)
-    .await
-    .context("failed to load fs_policy")?;
-
-    Ok(FsPolicy {
-        id: row.id,
-        library_root: row.library_root,
-        extract: row.extract,
-        par2: row.par2,
-        flatten: row.flatten,
-        move_mode: row.move_mode,
-        cleanup_keep: row.cleanup_keep,
-        cleanup_drop: row.cleanup_drop,
-        chmod_file: row.chmod_file,
-        chmod_dir: row.chmod_dir,
-        owner: row.owner,
-        group: row.group,
-        umask: row.umask,
-        allow_paths: row.allow_paths,
-    })
+    let id = parse_uuid(FS_POLICY_ID)?;
+    let row = data_config::fetch_fs_policy_row(executor, id)
+        .await
+        .context("failed to load fs_policy")?;
+    Ok(map_fs_policy_row(row))
 }
 
 async fn fetch_revision<'e, E>(executor: E) -> Result<i64>
 where
     E: Executor<'e, Database = Postgres>,
 {
-    let revision: i64 = sqlx::query("SELECT revision FROM settings_revision WHERE id = 1")
-        .map(|row: PgRow| row.get::<i64, _>("revision"))
-        .fetch_one(executor)
+    data_config::fetch_revision(executor)
         .await
-        .context("failed to load settings revision")?;
-    Ok(revision)
+        .context("failed to load settings revision")
 }
 
 async fn handle_notification(
@@ -1114,104 +994,90 @@ async fn fetch_app_profile_json<'e, E>(executor: E) -> Result<Value>
 where
     E: Executor<'e, Database = Postgres>,
 {
-    sqlx::query_scalar(
-        r"
-        SELECT to_jsonb(app_profile.*)
-        FROM app_profile
-        WHERE id = $1
-        ",
-    )
-    .bind(parse_uuid(APP_PROFILE_ID)?)
-    .fetch_one(executor)
-    .await
-    .context("failed to load app_profile document")
+    let id = parse_uuid(APP_PROFILE_ID)?;
+    data_config::fetch_app_profile_json(executor, id)
+        .await
+        .context("failed to load app_profile document")
 }
 
 async fn fetch_engine_profile_json<'e, E>(executor: E) -> Result<Value>
 where
     E: Executor<'e, Database = Postgres>,
 {
-    sqlx::query_scalar(
-        r"
-        SELECT to_jsonb(engine_profile.*)
-        FROM engine_profile
-        WHERE id = $1
-        ",
-    )
-    .bind(parse_uuid(ENGINE_PROFILE_ID)?)
-    .fetch_one(executor)
-    .await
-    .context("failed to load engine_profile document")
+    let id = parse_uuid(ENGINE_PROFILE_ID)?;
+    data_config::fetch_engine_profile_json(executor, id)
+        .await
+        .context("failed to load engine_profile document")
 }
 
 async fn fetch_fs_policy_json<'e, E>(executor: E) -> Result<Value>
 where
     E: Executor<'e, Database = Postgres>,
 {
-    sqlx::query_scalar(
-        r"
-        SELECT to_jsonb(fs_policy.*)
-        FROM fs_policy
-        WHERE id = $1
-        ",
-    )
-    .bind(parse_uuid(FS_POLICY_ID)?)
-    .fetch_one(executor)
-    .await
-    .context("failed to load fs_policy document")
+    let id = parse_uuid(FS_POLICY_ID)?;
+    data_config::fetch_fs_policy_json(executor, id)
+        .await
+        .context("failed to load fs_policy document")
 }
 
 async fn fetch_api_keys_json<'e, E>(executor: E) -> Result<Value>
 where
     E: Executor<'e, Database = Postgres>,
 {
-    sqlx::query_scalar(
-        r"
-        SELECT COALESCE(
-            json_agg(
-                json_build_object(
-                    'key_id', key_id,
-                    'label', label,
-                    'enabled', enabled,
-                    'rate_limit', rate_limit
-                )
-                ORDER BY created_at
-            ),
-            '[]'::json
-        )
-        FROM auth_api_keys
-        ",
-    )
-    .fetch_one(executor)
-    .await
-    .context("failed to load auth_api_keys document")
+    data_config::fetch_api_keys_json(executor)
+        .await
+        .context("failed to load auth_api_keys document")
 }
 
-async fn insert_history(
-    tx: &mut Transaction<'_, Postgres>,
-    kind: &str,
-    old: Option<Value>,
-    new: Option<Value>,
-    actor: &str,
-    reason: &str,
-    revision: i64,
-) -> Result<()> {
-    sqlx::query(
-        r"
-        INSERT INTO settings_history (kind, old, new, actor, reason, revision)
-        VALUES ($1, $2, $3, $4, $5, $6)
-        ",
-    )
-    .bind(kind)
-    .bind(old)
-    .bind(new)
-    .bind(actor)
-    .bind(reason)
-    .bind(revision)
-    .execute(tx.as_mut())
-    .await
-    .context("failed to record settings history")?;
-    Ok(())
+fn map_app_profile_row(row: AppProfileRow) -> Result<AppProfile> {
+    let mode = AppMode::from_str(&row.mode)?;
+    Ok(AppProfile {
+        id: row.id,
+        instance_name: row.instance_name,
+        mode,
+        version: row.version,
+        http_port: row.http_port,
+        bind_addr: parse_bind_addr(&row.bind_addr)?,
+        telemetry: row.telemetry,
+        features: row.features,
+        immutable_keys: row.immutable_keys,
+    })
+}
+
+fn map_engine_profile_row(row: EngineProfileRow) -> EngineProfile {
+    EngineProfile {
+        id: row.id,
+        implementation: row.implementation,
+        listen_port: row.listen_port,
+        dht: row.dht,
+        encryption: row.encryption,
+        max_active: row.max_active,
+        max_download_bps: row.max_download_bps,
+        max_upload_bps: row.max_upload_bps,
+        sequential_default: row.sequential_default,
+        resume_dir: row.resume_dir,
+        download_root: row.download_root,
+        tracker: row.tracker,
+    }
+}
+
+fn map_fs_policy_row(row: FsPolicyRow) -> FsPolicy {
+    FsPolicy {
+        id: row.id,
+        library_root: row.library_root,
+        extract: row.extract,
+        par2: row.par2,
+        flatten: row.flatten,
+        move_mode: row.move_mode,
+        cleanup_keep: row.cleanup_keep,
+        cleanup_drop: row.cleanup_drop,
+        chmod_file: row.chmod_file,
+        chmod_dir: row.chmod_dir,
+        owner: row.owner,
+        group: row.group,
+        umask: row.umask,
+        allow_paths: row.allow_paths,
+    }
 }
 
 async fn apply_app_profile_patch(
@@ -1281,11 +1147,7 @@ async fn set_app_instance_name(
         }
         .into());
     };
-    sqlx::query("UPDATE app_profile SET instance_name = $1 WHERE id = $2")
-        .bind(new_value)
-        .bind(app_id)
-        .execute(tx.as_mut())
-        .await?;
+    data_config::update_app_instance_name(tx.as_mut(), app_id, new_value).await?;
     Ok(true)
 }
 
@@ -1307,11 +1169,7 @@ async fn set_app_mode(
         field: "mode".to_string(),
         message: format!("unsupported value '{mode_str}'"),
     })?;
-    sqlx::query("UPDATE app_profile SET mode = $1 WHERE id = $2")
-        .bind(mode.as_str())
-        .bind(app_id)
-        .execute(tx.as_mut())
-        .await?;
+    data_config::update_app_mode(tx.as_mut(), app_id, mode.as_str()).await?;
     Ok(true)
 }
 
@@ -1321,11 +1179,7 @@ async fn set_app_http_port(
     value: &Value,
 ) -> Result<bool> {
     let port = parse_port(value, "app_profile", "http_port")?;
-    sqlx::query("UPDATE app_profile SET http_port = $1 WHERE id = $2")
-        .bind(port)
-        .bind(app_id)
-        .execute(tx.as_mut())
-        .await?;
+    data_config::update_app_http_port(tx.as_mut(), app_id, port).await?;
     Ok(true)
 }
 
@@ -1348,11 +1202,7 @@ async fn set_app_bind_addr(
             field: "bind_addr".to_string(),
             message: "must be a valid IP address".to_string(),
         })?;
-    sqlx::query("UPDATE app_profile SET bind_addr = $1::inet WHERE id = $2")
-        .bind(addr)
-        .bind(app_id)
-        .execute(tx.as_mut())
-        .await?;
+    data_config::update_app_bind_addr(tx.as_mut(), app_id, addr).await?;
     Ok(true)
 }
 
@@ -1362,11 +1212,7 @@ async fn set_app_telemetry(
     value: &Value,
 ) -> Result<bool> {
     ensure_object(value, "app_profile", "telemetry")?;
-    sqlx::query("UPDATE app_profile SET telemetry = $1 WHERE id = $2")
-        .bind(value.clone())
-        .bind(app_id)
-        .execute(tx.as_mut())
-        .await?;
+    data_config::update_app_telemetry(tx.as_mut(), app_id, value).await?;
     Ok(true)
 }
 
@@ -1376,11 +1222,7 @@ async fn set_app_features(
     value: &Value,
 ) -> Result<bool> {
     ensure_object(value, "app_profile", "features")?;
-    sqlx::query("UPDATE app_profile SET features = $1 WHERE id = $2")
-        .bind(value.clone())
-        .bind(app_id)
-        .execute(tx.as_mut())
-        .await?;
+    data_config::update_app_features(tx.as_mut(), app_id, value).await?;
     Ok(true)
 }
 
@@ -1390,19 +1232,12 @@ async fn set_app_immutable_keys(
     value: &Value,
 ) -> Result<bool> {
     ensure_array(value, "app_profile", "immutable_keys")?;
-    sqlx::query("UPDATE app_profile SET immutable_keys = $1 WHERE id = $2")
-        .bind(value.clone())
-        .bind(app_id)
-        .execute(tx.as_mut())
-        .await?;
+    data_config::update_app_immutable_keys(tx.as_mut(), app_id, value).await?;
     Ok(true)
 }
 
 async fn bump_app_profile_version(tx: &mut Transaction<'_, Postgres>, app_id: Uuid) -> Result<()> {
-    sqlx::query("UPDATE app_profile SET version = version + 1 WHERE id = $1")
-        .bind(app_id)
-        .execute(tx.as_mut())
-        .await?;
+    data_config::bump_app_profile_version(tx.as_mut(), app_id).await?;
     Ok(())
 }
 
@@ -1524,11 +1359,7 @@ async fn set_engine_implementation(
         }
         .into());
     };
-    sqlx::query("UPDATE engine_profile SET implementation = $1 WHERE id = $2")
-        .bind(name)
-        .bind(engine_id)
-        .execute(tx.as_mut())
-        .await?;
+    data_config::update_engine_implementation(tx.as_mut(), engine_id, name).await?;
     Ok(true)
 }
 
@@ -1538,18 +1369,11 @@ async fn set_engine_listen_port(
     value: &Value,
 ) -> Result<bool> {
     if value.is_null() {
-        sqlx::query("UPDATE engine_profile SET listen_port = NULL WHERE id = $1")
-            .bind(engine_id)
-            .execute(tx.as_mut())
-            .await?;
+        data_config::update_engine_listen_port(tx.as_mut(), engine_id, None).await?;
         return Ok(true);
     }
     let port = parse_port(value, "engine_profile", "listen_port")?;
-    sqlx::query("UPDATE engine_profile SET listen_port = $1 WHERE id = $2")
-        .bind(port)
-        .bind(engine_id)
-        .execute(tx.as_mut())
-        .await?;
+    data_config::update_engine_listen_port(tx.as_mut(), engine_id, Some(port)).await?;
     Ok(true)
 }
 
@@ -1567,12 +1391,18 @@ async fn set_engine_boolean_flag(
         }
         .into());
     };
-    let query = format!("UPDATE engine_profile SET {field} = $1 WHERE id = $2");
-    sqlx::query(&query)
-        .bind(flag)
-        .bind(engine_id)
-        .execute(tx.as_mut())
-        .await?;
+    let column = match field {
+        "dht" => EngineBooleanField::Dht,
+        "sequential_default" => EngineBooleanField::SequentialDefault,
+        _ => {
+            return Err(ConfigError::UnknownField {
+                section: "engine_profile".to_string(),
+                field: field.to_string(),
+            }
+            .into());
+        }
+    };
+    data_config::update_engine_boolean_field(tx.as_mut(), engine_id, column, flag).await?;
     Ok(true)
 }
 
@@ -1589,11 +1419,7 @@ async fn set_engine_encryption(
         }
         .into());
     };
-    sqlx::query("UPDATE engine_profile SET encryption = $1 WHERE id = $2")
-        .bind(mode)
-        .bind(engine_id)
-        .execute(tx.as_mut())
-        .await?;
+    data_config::update_engine_encryption(tx.as_mut(), engine_id, mode).await?;
     Ok(true)
 }
 
@@ -1603,10 +1429,7 @@ async fn set_engine_max_active(
     value: &Value,
 ) -> Result<bool> {
     if value.is_null() {
-        sqlx::query("UPDATE engine_profile SET max_active = NULL WHERE id = $1")
-            .bind(engine_id)
-            .execute(tx.as_mut())
-            .await?;
+        data_config::update_engine_max_active(tx.as_mut(), engine_id, None).await?;
         return Ok(true);
     }
     let Some(raw_value) = value.as_i64() else {
@@ -1630,11 +1453,7 @@ async fn set_engine_max_active(
         field: "max_active".to_string(),
         message: "must fit within 32-bit signed integer range".to_string(),
     })?;
-    sqlx::query("UPDATE engine_profile SET max_active = $1 WHERE id = $2")
-        .bind(max_active)
-        .bind(engine_id)
-        .execute(tx.as_mut())
-        .await?;
+    data_config::update_engine_max_active(tx.as_mut(), engine_id, Some(max_active)).await?;
     Ok(true)
 }
 
@@ -1644,12 +1463,19 @@ async fn set_engine_rate_limit(
     value: &Value,
     field: &str,
 ) -> Result<bool> {
+    let column = match field {
+        "max_download_bps" => EngineRateField::MaxDownloadBps,
+        "max_upload_bps" => EngineRateField::MaxUploadBps,
+        _ => {
+            return Err(ConfigError::UnknownField {
+                section: "engine_profile".to_string(),
+                field: field.to_string(),
+            }
+            .into());
+        }
+    };
     if value.is_null() {
-        let query = format!("UPDATE engine_profile SET {field} = NULL WHERE id = $1");
-        sqlx::query(&query)
-            .bind(engine_id)
-            .execute(tx.as_mut())
-            .await?;
+        data_config::update_engine_rate_field(tx.as_mut(), engine_id, column, None).await?;
         return Ok(true);
     }
     let Some(limit) = value.as_i64() else {
@@ -1668,12 +1494,7 @@ async fn set_engine_rate_limit(
             message: "must be non-negative".to_string(),
         }
     );
-    let query = format!("UPDATE engine_profile SET {field} = $1 WHERE id = $2");
-    sqlx::query(&query)
-        .bind(limit)
-        .bind(engine_id)
-        .execute(tx.as_mut())
-        .await?;
+    data_config::update_engine_rate_field(tx.as_mut(), engine_id, column, Some(limit)).await?;
     Ok(true)
 }
 
@@ -1691,12 +1512,18 @@ async fn set_engine_text_field(
         }
         .into());
     };
-    let query = format!("UPDATE engine_profile SET {field} = $1 WHERE id = $2");
-    sqlx::query(&query)
-        .bind(text)
-        .bind(engine_id)
-        .execute(tx.as_mut())
-        .await?;
+    let column = match field {
+        "resume_dir" => EngineTextField::ResumeDir,
+        "download_root" => EngineTextField::DownloadRoot,
+        _ => {
+            return Err(ConfigError::UnknownField {
+                section: "engine_profile".to_string(),
+                field: field.to_string(),
+            }
+            .into());
+        }
+    };
+    data_config::update_engine_text_field(tx.as_mut(), engine_id, column, text).await?;
     Ok(true)
 }
 
@@ -1706,11 +1533,7 @@ async fn set_engine_tracker(
     value: &Value,
 ) -> Result<bool> {
     ensure_object(value, "engine_profile", "tracker")?;
-    sqlx::query("UPDATE engine_profile SET tracker = $1 WHERE id = $2")
-        .bind(value.clone())
-        .bind(engine_id)
-        .execute(tx.as_mut())
-        .await?;
+    data_config::update_engine_tracker(tx.as_mut(), engine_id, value).await?;
     Ok(true)
 }
 
@@ -1784,12 +1607,19 @@ async fn set_fs_string_field(
         }
         .into());
     };
-    let query = format!(r#"UPDATE fs_policy SET "{field}" = $1 WHERE id = $2"#);
-    sqlx::query(&query)
-        .bind(text)
-        .bind(policy_id)
-        .execute(tx.as_mut())
-        .await?;
+    let column = match field {
+        "library_root" => FsStringField::LibraryRoot,
+        "par2" => FsStringField::Par2,
+        "move_mode" => FsStringField::MoveMode,
+        _ => {
+            return Err(ConfigError::UnknownField {
+                section: "fs_policy".to_string(),
+                field: field.to_string(),
+            }
+            .into());
+        }
+    };
+    data_config::update_fs_string_field(tx.as_mut(), policy_id, column, text).await?;
     Ok(true)
 }
 
@@ -1807,12 +1637,18 @@ async fn set_fs_boolean_field(
         }
         .into());
     };
-    let query = format!(r#"UPDATE fs_policy SET "{field}" = $1 WHERE id = $2"#);
-    sqlx::query(&query)
-        .bind(flag)
-        .bind(policy_id)
-        .execute(tx.as_mut())
-        .await?;
+    let column = match field {
+        "extract" => FsBooleanField::Extract,
+        "flatten" => FsBooleanField::Flatten,
+        _ => {
+            return Err(ConfigError::UnknownField {
+                section: "fs_policy".to_string(),
+                field: field.to_string(),
+            }
+            .into());
+        }
+    };
+    data_config::update_fs_boolean_field(tx.as_mut(), policy_id, column, flag).await?;
     Ok(true)
 }
 
@@ -1823,12 +1659,19 @@ async fn set_fs_array_field(
     field: &str,
 ) -> Result<bool> {
     ensure_array(value, "fs_policy", field)?;
-    let query = format!(r#"UPDATE fs_policy SET "{field}" = $1 WHERE id = $2"#);
-    sqlx::query(&query)
-        .bind(value.clone())
-        .bind(policy_id)
-        .execute(tx.as_mut())
-        .await?;
+    let column = match field {
+        "cleanup_keep" => FsArrayField::CleanupKeep,
+        "cleanup_drop" => FsArrayField::CleanupDrop,
+        "allow_paths" => FsArrayField::AllowPaths,
+        _ => {
+            return Err(ConfigError::UnknownField {
+                section: "fs_policy".to_string(),
+                field: field.to_string(),
+            }
+            .into());
+        }
+    };
+    data_config::update_fs_array_field(tx.as_mut(), policy_id, column, value).await?;
     Ok(true)
 }
 
@@ -1838,12 +1681,22 @@ async fn set_fs_optional_string_field(
     value: &Value,
     field: &str,
 ) -> Result<bool> {
+    let column = match field {
+        "chmod_file" => FsOptionalStringField::ChmodFile,
+        "chmod_dir" => FsOptionalStringField::ChmodDir,
+        "owner" => FsOptionalStringField::Owner,
+        "group" => FsOptionalStringField::Group,
+        "umask" => FsOptionalStringField::Umask,
+        _ => {
+            return Err(ConfigError::UnknownField {
+                section: "fs_policy".to_string(),
+                field: field.to_string(),
+            }
+            .into());
+        }
+    };
     if value.is_null() {
-        let query = format!(r#"UPDATE fs_policy SET "{field}" = NULL WHERE id = $1"#);
-        sqlx::query(&query)
-            .bind(policy_id)
-            .execute(tx.as_mut())
-            .await?;
+        data_config::update_fs_optional_string_field(tx.as_mut(), policy_id, column, None).await?;
         return Ok(true);
     }
     let Some(text) = value.as_str() else {
@@ -1854,11 +1707,7 @@ async fn set_fs_optional_string_field(
         }
         .into());
     };
-    let query = format!(r#"UPDATE fs_policy SET "{field}" = $2 WHERE id = $1"#);
-    sqlx::query(&query)
-        .bind(policy_id)
-        .bind(text)
-        .execute(tx.as_mut())
+    data_config::update_fs_optional_string_field(tx.as_mut(), policy_id, column, Some(text))
         .await?;
     Ok(true)
 }
@@ -1908,11 +1757,8 @@ async fn delete_api_key(
     key_id: &str,
 ) -> Result<bool> {
     ensure_mutable(immutable_keys, "auth_api_keys", "key_id")?;
-    let result = sqlx::query("DELETE FROM auth_api_keys WHERE key_id = $1")
-        .bind(key_id)
-        .execute(tx.as_mut())
-        .await?;
-    Ok(result.rows_affected() > 0)
+    let affected = data_config::delete_api_key(tx.as_mut(), key_id).await?;
+    Ok(affected > 0)
 }
 
 async fn upsert_api_key(
@@ -1925,11 +1771,7 @@ async fn upsert_api_key(
     rate_limit: Option<&Value>,
 ) -> Result<bool> {
     ensure_mutable(immutable_keys, "auth_api_keys", "key_id")?;
-    let existing: Option<String> =
-        sqlx::query_scalar("SELECT hash FROM auth_api_keys WHERE key_id = $1")
-            .bind(key_id)
-            .fetch_optional(tx.as_mut())
-            .await?;
+    let existing = data_config::fetch_api_key_hash(tx.as_mut(), key_id).await?;
 
     if existing.is_some() {
         update_api_key(
@@ -1968,11 +1810,7 @@ async fn update_api_key(
     let changed_secret = if let Some(value) = secret {
         ensure_mutable(immutable_keys, "auth_api_keys", "secret")?;
         let hash = hash_secret(value)?;
-        sqlx::query("UPDATE auth_api_keys SET hash = $1, updated_at = now() WHERE key_id = $2")
-            .bind(hash)
-            .bind(key_id)
-            .execute(tx.as_mut())
-            .await?;
+        data_config::update_api_key_hash(tx.as_mut(), key_id, &hash).await?;
         true
     } else {
         false
@@ -1980,11 +1818,7 @@ async fn update_api_key(
 
     let changed_label = if let Some(text) = label {
         ensure_mutable(immutable_keys, "auth_api_keys", "label")?;
-        sqlx::query("UPDATE auth_api_keys SET label = $1, updated_at = now() WHERE key_id = $2")
-            .bind(text)
-            .bind(key_id)
-            .execute(tx.as_mut())
-            .await?;
+        data_config::update_api_key_label(tx.as_mut(), key_id, Some(text)).await?;
         true
     } else {
         false
@@ -1992,11 +1826,7 @@ async fn update_api_key(
 
     let changed_enabled = if let Some(flag) = enabled {
         ensure_mutable(immutable_keys, "auth_api_keys", "enabled")?;
-        sqlx::query("UPDATE auth_api_keys SET enabled = $1, updated_at = now() WHERE key_id = $2")
-            .bind(flag)
-            .bind(key_id)
-            .execute(tx.as_mut())
-            .await?;
+        data_config::update_api_key_enabled(tx.as_mut(), key_id, flag).await?;
         true
     } else {
         false
@@ -2006,13 +1836,7 @@ async fn update_api_key(
         ensure_mutable(immutable_keys, "auth_api_keys", "rate_limit")?;
         let parsed = parse_api_key_rate_limit_for_config(limit_value)?;
         let stored = serialise_rate_limit(parsed.as_ref());
-        sqlx::query(
-            "UPDATE auth_api_keys SET rate_limit = $1, updated_at = now() WHERE key_id = $2",
-        )
-        .bind(stored)
-        .bind(key_id)
-        .execute(tx.as_mut())
-        .await?;
+        data_config::update_api_key_rate_limit(tx.as_mut(), key_id, &stored).await?;
         true
     } else {
         false
@@ -2058,18 +1882,14 @@ async fn insert_api_key(
         .flatten();
     let stored_limit = serialise_rate_limit(parsed_limit.as_ref());
 
-    sqlx::query(
-        r"
-        INSERT INTO auth_api_keys (key_id, hash, label, enabled, rate_limit)
-        VALUES ($1, $2, $3, $4, $5)
-        ",
+    data_config::insert_api_key(
+        tx.as_mut(),
+        key_id,
+        &hash,
+        label,
+        enabled_flag,
+        &stored_limit,
     )
-    .bind(key_id)
-    .bind(hash)
-    .bind(label.map(str::to_owned))
-    .bind(enabled_flag)
-    .bind(stored_limit)
-    .execute(tx.as_mut())
     .await?;
 
     Ok(true)
@@ -2087,30 +1907,13 @@ async fn apply_secret_patches(
             SecretPatch::Set { name, value } => {
                 ensure_mutable(immutable_keys, "settings_secret", name)?;
                 let ciphertext = hash_secret(value)?;
-                sqlx::query(
-                    r"
-                    INSERT INTO settings_secret (name, ciphertext, created_by, created_at)
-                    VALUES ($1, $2, $3, now())
-                    ON CONFLICT (name)
-                    DO UPDATE SET ciphertext = EXCLUDED.ciphertext,
-                                   created_by = EXCLUDED.created_by,
-                                   created_at = now()
-                    ",
-                )
-                .bind(name)
-                .bind(ciphertext.into_bytes())
-                .bind(actor)
-                .execute(tx.as_mut())
-                .await?;
+                data_config::upsert_secret(tx.as_mut(), name, ciphertext.as_bytes(), actor).await?;
                 events.push(json!({ "op": "set", "name": name }));
             }
             SecretPatch::Delete { name } => {
                 ensure_mutable(immutable_keys, "settings_secret", name)?;
-                let result = sqlx::query("DELETE FROM settings_secret WHERE name = $1")
-                    .bind(name)
-                    .execute(tx.as_mut())
-                    .await?;
-                if result.rows_affected() > 0 {
+                let affected = data_config::delete_secret(tx.as_mut(), name).await?;
+                if affected > 0 {
                     events.push(json!({ "op": "delete", "name": name }));
                 }
             }
@@ -2199,44 +2002,6 @@ fn parse_api_key_rate_limit_for_config(
 
 fn serialise_rate_limit(limit: Option<&ApiKeyRateLimit>) -> Value {
     limit.map_or_else(|| Value::Object(Map::new()), ApiKeyRateLimit::to_json)
-}
-
-async fn bump_revision(tx: &mut Transaction<'_, Postgres>, source_table: &str) -> Result<i64> {
-    let revision: i64 = sqlx::query(
-        r"
-        UPDATE settings_revision
-        SET revision = revision + 1,
-            updated_at = now()
-        WHERE id = 1
-        RETURNING revision
-        ",
-    )
-    .map(|row: PgRow| row.get::<i64, _>("revision"))
-    .fetch_one(tx.as_mut())
-    .await?;
-
-    let payload = format!("{source_table}:{revision}:UPDATE");
-    sqlx::query("SELECT pg_notify($1, $2)")
-        .bind(SETTINGS_CHANNEL)
-        .bind(&payload)
-        .execute(tx.as_mut())
-        .await?;
-
-    Ok(revision)
-}
-
-async fn cleanup_expired_setup_tokens(tx: &mut Transaction<'_, Postgres>) -> Result<()> {
-    sqlx::query("DELETE FROM setup_tokens WHERE consumed_at IS NULL AND expires_at <= now()")
-        .execute(tx.as_mut())
-        .await?;
-    Ok(())
-}
-
-async fn invalidate_active_setup_tokens(tx: &mut Transaction<'_, Postgres>) -> Result<()> {
-    sqlx::query("UPDATE setup_tokens SET consumed_at = now() WHERE consumed_at IS NULL")
-        .execute(tx.as_mut())
-        .await?;
-    Ok(())
 }
 
 fn generate_token(length: usize) -> String {

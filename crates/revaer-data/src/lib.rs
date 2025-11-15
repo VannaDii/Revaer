@@ -18,6 +18,9 @@
 #![allow(unexpected_cfgs)]
 #![allow(clippy::multiple_crate_versions)]
 
-//! Legacy shim crate that re-exports the canonical runtime store implementation from `revaer-data`.
+//! Shared data access layer for Revaer: migrations, stored procedures, and repositories.
 
-pub use revaer_data::runtime::*;
+pub mod config;
+pub mod runtime;
+
+pub use runtime::RuntimeStore;

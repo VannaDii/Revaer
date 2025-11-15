@@ -7,9 +7,9 @@ use revaer_config::{
     ApiKeyPatch, AppMode, ConfigService, SecretPatch, SettingsChangeset, SettingsFacade,
     SettingsPayload,
 };
+use revaer_data::config as data_config;
 use serde_json::{Value, json};
 use serial_test::serial;
-use sqlx::Row;
 use testcontainers::core::{ContainerPort, WaitFor};
 use testcontainers::runners::AsyncRunner;
 use testcontainers::{GenericImage, ImageExt};
@@ -482,12 +482,10 @@ async fn secret_patch_flow_hashes_and_deletes_entries() -> Result<()> {
             )
             .await?;
 
-        let stored = sqlx::query("SELECT ciphertext FROM settings_secret WHERE name = $1")
-            .bind("webhook")
-            .fetch_optional(&pool)
+        let stored = data_config::fetch_secret_by_name(&pool, "webhook")
             .await?
             .expect("secret should be stored");
-        let ciphertext: Vec<u8> = stored.get("ciphertext");
+        let ciphertext = stored.ciphertext;
         assert!(
             ciphertext != b"super-secret-token",
             "ciphertext should differ from plaintext"
@@ -510,12 +508,8 @@ async fn secret_patch_flow_hashes_and_deletes_entries() -> Result<()> {
             )
             .await?;
 
-        let remaining: i64 =
-            sqlx::query_scalar("SELECT COUNT(*) FROM settings_secret WHERE name = $1")
-                .bind("webhook")
-                .fetch_one(&pool)
-                .await?;
-        assert_eq!(remaining, 0, "secret should be deleted");
+        let remaining = data_config::fetch_secret_by_name(&pool, "webhook").await?;
+        assert!(remaining.is_none(), "secret should be deleted");
 
         Ok(())
     })

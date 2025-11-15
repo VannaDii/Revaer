@@ -13,17 +13,4 @@ keywords = ["revaer", "runtime", "persistence"]
 categories = ["database"]
 
 [dependencies]
-anyhow.workspace = true
-chrono.workspace = true
-revaer-events = { path = "../revaer-events" }
-revaer-torrent-core = { path = "../revaer-torrent-core" }
-serde.workspace = true
-serde_json.workspace = true
-sqlx.workspace = true
-tracing.workspace = true
-uuid.workspace = true
-
-[dev-dependencies]
-serde_json.workspace = true
-testcontainers = "0.25"
-tokio.workspace = true
+revaer-data = { path = "../revaer-data" }

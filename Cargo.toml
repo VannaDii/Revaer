@@ -11,6 +11,7 @@ members = [
     "crates/revaer-torrent-core",
     "crates/revaer-torrent-libt",
     "crates/revaer-runtime",
+    "crates/revaer-data",
 ]
 resolver = "2"
 

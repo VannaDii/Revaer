@@ -1,0 +1,25 @@
+[package]
+name = "revaer-data"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+version.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+description = "Shared data access layer for Revaer migrations and stored procedures."
+
+[dependencies]
+anyhow.workspace = true
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+uuid.workspace = true
+revaer-torrent-core = { path = "../revaer-torrent-core" }
+revaer-events = { path = "../revaer-events" }
+tracing.workspace = true
+
+[dev-dependencies]
+tokio.workspace = true
+testcontainers = "0.25"

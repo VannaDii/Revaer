@@ -1758,10 +1758,9 @@ mod tests {
     use chrono::Utc;
     use revaer_config::ConfigService;
     use revaer_events::{EventBus, TorrentState};
-    use revaer_runtime::RuntimeStore;
+    use revaer_runtime::{FsJobState, RuntimeStore};
     use revaer_torrent_core::{TorrentProgress, TorrentRates, TorrentStatus};
     use serde_json::json;
-    use sqlx::{Error, Row, postgres::PgRow};
     #[cfg(unix)]
     use std::os::unix::fs::{MetadataExt, PermissionsExt};
     use tempfile::TempDir;
@@ -1864,27 +1863,20 @@ mod tests {
         }
     }
 
-    async fn wait_for_fs_job(runtime: &RuntimeStore, torrent_id: Uuid) -> Result<PgRow> {
+    async fn wait_for_fs_job(runtime: &RuntimeStore, torrent_id: Uuid) -> Result<FsJobState> {
         let mut attempts = 0;
-        let mut last_error: Option<Error> = None;
+        let mut last_error: Option<String> = None;
         let mut last_status: Option<String> = None;
         loop {
-            match sqlx::query(
-                "SELECT status::TEXT AS status, dst_path FROM revaer_runtime.fs_jobs WHERE torrent_id = $1",
-            )
-            .bind(torrent_id)
-            .fetch_optional(runtime.pool())
-            .await
-            {
-                Ok(Some(row)) => {
-                    let status: String = row.get("status");
-                    if status == "moved" {
-                        return Ok(row);
+            match runtime.fetch_fs_job_state(torrent_id).await {
+                Ok(Some(state)) => {
+                    if state.status == "moved" {
+                        return Ok(state);
                     }
-                    last_status = Some(status);
+                    last_status = Some(state.status);
                 }
                 Ok(None) => {}
-                Err(error) => last_error = Some(error),
+                Err(error) => last_error = Some(error.to_string()),
             }
 
             attempts += 1;
@@ -2006,11 +1998,11 @@ mod tests {
             policy: &policy,
         })?;
 
-        let row = wait_for_fs_job(&runtime, torrent_id).await?;
-        assert_eq!(row.get::<String, _>("status"), "moved");
-        let destination: Option<String> = row.get("dst_path");
+        let state = wait_for_fs_job(&runtime, torrent_id).await?;
+        assert_eq!(state.status, "moved");
         assert!(
-            destination
+            state
+                .dst_path
                 .as_ref()
                 .is_some_and(|path| Path::new(path).exists()),
             "expected fs job to record destination path"

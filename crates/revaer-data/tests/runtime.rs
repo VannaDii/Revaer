@@ -4,8 +4,8 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use chrono::Utc;
+use revaer_data::runtime::RuntimeStore;
 use revaer_events::TorrentState;
-use revaer_runtime::RuntimeStore;
 use revaer_torrent_core::{TorrentFile, TorrentProgress, TorrentRates, TorrentStatus};
 use sqlx::Row;
 use sqlx::postgres::PgPoolOptions;
@@ -104,6 +104,19 @@ fn sample_status() -> TorrentStatus {
     }
 }
 
+async fn fetch_fs_job_state_row(
+    pool: &sqlx::PgPool,
+    torrent_id: Uuid,
+) -> Result<sqlx::postgres::PgRow, sqlx::Error> {
+    sqlx::query(
+        "SELECT status, attempt, src_path, dst_path, transfer_mode, last_error \
+         FROM revaer_runtime.fs_job_state($1)",
+    )
+    .bind(torrent_id)
+    .fetch_one(pool)
+    .await
+}
+
 #[tokio::test]
 async fn upsert_and_remove_torrent() -> Result<()> {
     with_runtime_store(|store| async move {
@@ -152,13 +165,7 @@ async fn fs_job_state_transitions() -> Result<()> {
             .mark_fs_job_started(torrent_id, Path::new("/tmp/source"))
             .await?;
 
-        let row = sqlx::query(
-            "SELECT status::TEXT AS status, attempt, src_path, dst_path, transfer_mode, last_error \
-             FROM revaer_runtime.fs_jobs WHERE torrent_id = $1",
-        )
-        .bind(torrent_id)
-        .fetch_one(store.pool())
-        .await?;
+        let row = fetch_fs_job_state_row(store.pool(), torrent_id).await?;
 
         assert_eq!(row.get::<String, _>("status"), "moving");
         assert_eq!(row.get::<i16, _>("attempt"), 1);
@@ -174,13 +181,7 @@ async fn fs_job_state_transitions() -> Result<()> {
             )
             .await?;
 
-        let row = sqlx::query(
-            "SELECT status::TEXT AS status, attempt, dst_path, transfer_mode, last_error \
-             FROM revaer_runtime.fs_jobs WHERE torrent_id = $1",
-        )
-        .bind(torrent_id)
-        .fetch_one(store.pool())
-        .await?;
+        let row = fetch_fs_job_state_row(store.pool(), torrent_id).await?;
 
         assert_eq!(row.get::<String, _>("status"), "moved");
         assert_eq!(
@@ -197,13 +198,7 @@ async fn fs_job_state_transitions() -> Result<()> {
             .mark_fs_job_failed(torrent_id, "permission denied")
             .await?;
 
-        let row = sqlx::query(
-            "SELECT status::TEXT AS status, attempt, last_error \
-             FROM revaer_runtime.fs_jobs WHERE torrent_id = $1",
-        )
-        .bind(torrent_id)
-        .fetch_one(store.pool())
-        .await?;
+        let row = fetch_fs_job_state_row(store.pool(), torrent_id).await?;
 
         assert_eq!(row.get::<String, _>("status"), "failed");
         assert_eq!(row.get::<i16, _>("attempt"), 2);
@@ -233,13 +228,7 @@ async fn fs_job_completion_without_start_persists_row() -> Result<()> {
             )
             .await?;
 
-        let row = sqlx::query(
-            "SELECT status::TEXT AS status, attempt, src_path, dst_path \
-             FROM revaer_runtime.fs_jobs WHERE torrent_id = $1",
-        )
-        .bind(torrent_id)
-        .fetch_one(store.pool())
-        .await?;
+        let row = fetch_fs_job_state_row(store.pool(), torrent_id).await?;
 
         assert_eq!(row.get::<String, _>("status"), "moved");
         assert_eq!(row.get::<i16, _>("attempt"), 1);
@@ -274,13 +263,7 @@ async fn fs_job_restart_after_completion_preserves_state() -> Result<()> {
             .mark_fs_job_started(torrent_id, Path::new("/tmp/restart"))
             .await?;
 
-        let row = sqlx::query(
-            "SELECT status::TEXT AS status, attempt, src_path \
-             FROM revaer_runtime.fs_jobs WHERE torrent_id = $1",
-        )
-        .bind(torrent_id)
-        .fetch_one(store.pool())
-        .await?;
+        let row = fetch_fs_job_state_row(store.pool(), torrent_id).await?;
 
         assert_eq!(row.get::<String, _>("status"), "moved");
         assert_eq!(row.get::<i16, _>("attempt"), 1);

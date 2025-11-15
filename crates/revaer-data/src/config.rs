@@ -1,0 +1,1189 @@
+//! Configuration schema migrations and helpers shared across crates.
+
+use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
+use serde_json::Value;
+use sqlx::{Executor, FromRow, PgPool, Postgres};
+use uuid::Uuid;
+
+/// LISTEN/NOTIFY channel for configuration revision broadcasts.
+pub const SETTINGS_CHANNEL: &str = "revaer_settings_changed";
+
+/// Apply all configuration-related migrations (shared with runtime).
+///
+/// # Errors
+///
+/// Returns an error when migration execution fails.
+pub async fn run_migrations(pool: &PgPool) -> Result<()> {
+    let migrator = sqlx::migrate!("./migrations");
+    migrator
+        .run(pool)
+        .await
+        .context("failed to execute configuration migrations")?;
+    Ok(())
+}
+
+/// Raw projection of the `app_profile` table.
+#[derive(Debug, Clone, FromRow)]
+#[allow(missing_docs)]
+pub struct AppProfileRow {
+    pub id: Uuid,
+    pub instance_name: String,
+    pub mode: String,
+    pub version: i64,
+    pub http_port: i32,
+    pub bind_addr: String,
+    pub telemetry: Value,
+    pub features: Value,
+    pub immutable_keys: Value,
+}
+
+/// Raw projection of the `engine_profile` table.
+#[derive(Debug, Clone, FromRow)]
+#[allow(missing_docs)]
+pub struct EngineProfileRow {
+    pub id: Uuid,
+    pub implementation: String,
+    pub listen_port: Option<i32>,
+    pub dht: bool,
+    pub encryption: String,
+    pub max_active: Option<i32>,
+    pub max_download_bps: Option<i64>,
+    pub max_upload_bps: Option<i64>,
+    pub sequential_default: bool,
+    pub resume_dir: String,
+    pub download_root: String,
+    pub tracker: Value,
+}
+
+/// Raw projection of the `fs_policy` table.
+#[derive(Debug, Clone, FromRow)]
+#[allow(missing_docs)]
+pub struct FsPolicyRow {
+    pub id: Uuid,
+    pub library_root: String,
+    pub extract: bool,
+    pub par2: String,
+    pub flatten: bool,
+    pub move_mode: String,
+    pub cleanup_keep: Value,
+    pub cleanup_drop: Value,
+    pub chmod_file: Option<String>,
+    pub chmod_dir: Option<String>,
+    pub owner: Option<String>,
+    pub group: Option<String>,
+    pub umask: Option<String>,
+    pub allow_paths: Value,
+}
+
+/// Raw projection of an active setup token.
+#[derive(Debug, Clone, FromRow)]
+#[allow(missing_docs)]
+pub struct ActiveTokenRow {
+    pub id: Uuid,
+    pub token_hash: String,
+    pub expires_at: DateTime<Utc>,
+}
+
+/// Raw projection used for API key auth.
+#[derive(Debug, Clone, FromRow)]
+#[allow(missing_docs)]
+pub struct ApiKeyAuthRow {
+    pub hash: String,
+    pub enabled: bool,
+    pub label: Option<String>,
+    pub rate_limit: Value,
+}
+
+/// Raw projection of a stored secret.
+#[derive(Debug, Clone, FromRow)]
+#[allow(missing_docs)]
+pub struct SecretRow {
+    pub name: String,
+    pub ciphertext: Vec<u8>,
+}
+
+/// Input payload for inserting a history entry.
+#[derive(Debug, Clone)]
+pub struct HistoryInsert<'a> {
+    /// Table or entity name recorded in history.
+    pub kind: &'a str,
+    /// Previous value recorded before the change.
+    pub old: Option<Value>,
+    /// New value stored after the change.
+    pub new: Option<Value>,
+    /// Actor responsible for the change.
+    pub actor: &'a str,
+    /// Human-readable reason for the change.
+    pub reason: &'a str,
+    /// Monotonic configuration revision associated with the change.
+    pub revision: i64,
+}
+
+/// Input payload for inserting a setup token.
+#[derive(Debug, Clone)]
+pub struct NewSetupToken<'a> {
+    /// Pre-hashed secret token.
+    pub token_hash: &'a str,
+    /// Expiration timestamp.
+    pub expires_at: DateTime<Utc>,
+    /// Issuer identity.
+    pub issued_by: &'a str,
+}
+
+/// Persist a change event into `settings_history`.
+///
+/// # Errors
+///
+/// Returns an error when the insert fails.
+pub async fn insert_history<'e, E>(executor: E, entry: HistoryInsert<'_>) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    let HistoryInsert {
+        kind,
+        old,
+        new,
+        actor,
+        reason,
+        revision,
+    } = entry;
+
+    sqlx::query(
+        "SELECT revaer_config.insert_history(_kind => $1, _old => $2, _new => $3, _actor => $4, _reason => $5, _revision => $6)",
+    )
+        .bind(kind)
+        .bind(old)
+        .bind(new)
+        .bind(actor)
+        .bind(reason)
+    .bind(revision)
+    .execute(executor)
+    .await
+    .context("failed to insert settings history entry")?;
+
+    Ok(())
+}
+
+/// Manually bump the configuration revision for a table that lacks triggers.
+///
+/// # Errors
+///
+/// Returns an error when the revision update or notification fails.
+pub async fn bump_revision<'e, E>(executor: E, source_table: &str) -> Result<i64>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query_scalar("SELECT revaer_config.bump_revision(_source_table => $1)")
+        .bind(source_table)
+        .fetch_one(executor)
+        .await
+        .context("failed to bump settings revision")
+}
+
+/// Remove expired setup tokens that have not been consumed.
+///
+/// # Errors
+///
+/// Returns an error if the delete statement fails.
+pub async fn cleanup_expired_setup_tokens<'e, E>(executor: E) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.cleanup_expired_setup_tokens()")
+        .execute(executor)
+        .await
+        .context("failed to remove expired setup tokens")?;
+    Ok(())
+}
+
+/// Mark all active setup tokens as consumed.
+///
+/// # Errors
+///
+/// Returns an error if the update statement fails.
+pub async fn invalidate_active_setup_tokens<'e, E>(executor: E) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.invalidate_active_setup_tokens()")
+        .execute(executor)
+        .await
+        .context("failed to invalidate active setup tokens")?;
+    Ok(())
+}
+
+/// Insert a freshly issued setup token.
+///
+/// # Errors
+///
+/// Returns an error if the insert fails.
+pub async fn insert_setup_token<'e, E>(executor: E, token: &NewSetupToken<'_>) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        "SELECT revaer_config.insert_setup_token(_token_hash => $1, _expires_at => $2, _issued_by => $3)",
+    )
+        .bind(token.token_hash)
+        .bind(token.expires_at)
+        .bind(token.issued_by)
+    .execute(executor)
+    .await
+    .context("failed to persist setup token")?;
+    Ok(())
+}
+
+/// Mark a setup token as consumed (either expired or actively used).
+///
+/// # Errors
+///
+/// Returns an error if the update fails.
+pub async fn mark_setup_token_consumed<'e, E>(executor: E, token_id: Uuid) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.consume_setup_token(_token_id => $1)")
+        .bind(token_id)
+        .execute(executor)
+        .await
+        .context("failed to consume setup token")?;
+    Ok(())
+}
+
+/// Load a secret row by name.
+///
+/// # Errors
+///
+/// Returns an error if the query fails.
+pub async fn fetch_secret_by_name<'e, E>(executor: E, name: &str) -> Result<Option<SecretRow>>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query_as::<_, SecretRow>("SELECT * FROM revaer_config.fetch_secret_by_name($1)")
+        .bind(name)
+        .fetch_optional(executor)
+        .await
+        .context("failed to load secret row by name")
+}
+
+/// Boolean fields within `engine_profile` that can be toggled.
+#[derive(Debug, Clone, Copy)]
+pub enum EngineBooleanField {
+    /// Distributed hash table flag.
+    Dht,
+    /// Whether sequential download is default.
+    SequentialDefault,
+}
+
+impl EngineBooleanField {
+    const fn column(self) -> &'static str {
+        match self {
+            Self::Dht => "dht",
+            Self::SequentialDefault => "sequential_default",
+        }
+    }
+}
+
+/// Text fields within `engine_profile` that store file-system paths.
+#[derive(Debug, Clone, Copy)]
+pub enum EngineTextField {
+    /// Directory storing resume data.
+    ResumeDir,
+    /// Root path for downloads.
+    DownloadRoot,
+}
+
+impl EngineTextField {
+    const fn column(self) -> &'static str {
+        match self {
+            Self::ResumeDir => "resume_dir",
+            Self::DownloadRoot => "download_root",
+        }
+    }
+}
+
+/// Rate-limit fields within `engine_profile`.
+#[derive(Debug, Clone, Copy)]
+pub enum EngineRateField {
+    /// Maximum download throughput column.
+    MaxDownloadBps,
+    /// Maximum upload throughput column.
+    MaxUploadBps,
+}
+
+/// String columns on `fs_policy` that store textual values.
+#[derive(Debug, Clone, Copy)]
+pub enum FsStringField {
+    /// Destination root.
+    LibraryRoot,
+    /// PAR2 policy.
+    Par2,
+    /// Move mode.
+    MoveMode,
+}
+
+impl FsStringField {
+    const fn column(self) -> &'static str {
+        match self {
+            Self::LibraryRoot => "library_root",
+            Self::Par2 => "par2",
+            Self::MoveMode => "move_mode",
+        }
+    }
+}
+
+/// Boolean columns on `fs_policy`.
+#[derive(Debug, Clone, Copy)]
+pub enum FsBooleanField {
+    /// Extract flag.
+    Extract,
+    /// Flatten flag.
+    Flatten,
+}
+
+impl FsBooleanField {
+    const fn column(self) -> &'static str {
+        match self {
+            Self::Extract => "extract",
+            Self::Flatten => "flatten",
+        }
+    }
+}
+
+/// Array/JSON columns on `fs_policy`.
+#[derive(Debug, Clone, Copy)]
+pub enum FsArrayField {
+    /// Cleanup keep patterns.
+    CleanupKeep,
+    /// Cleanup drop patterns.
+    CleanupDrop,
+    /// Allowed paths array.
+    AllowPaths,
+}
+
+impl FsArrayField {
+    const fn column(self) -> &'static str {
+        match self {
+            Self::CleanupKeep => "cleanup_keep",
+            Self::CleanupDrop => "cleanup_drop",
+            Self::AllowPaths => "allow_paths",
+        }
+    }
+}
+
+/// Optional text columns on `fs_policy`.
+#[derive(Debug, Clone, Copy)]
+pub enum FsOptionalStringField {
+    /// File chmod field.
+    ChmodFile,
+    /// Directory chmod field.
+    ChmodDir,
+    /// Owner column.
+    Owner,
+    /// Group column.
+    Group,
+    /// Umask column.
+    Umask,
+}
+
+impl FsOptionalStringField {
+    const fn column(self) -> &'static str {
+        match self {
+            Self::ChmodFile => "chmod_file",
+            Self::ChmodDir => "chmod_dir",
+            Self::Owner => "owner",
+            Self::Group => "group",
+            Self::Umask => "umask",
+        }
+    }
+}
+
+impl EngineRateField {
+    const fn column(self) -> &'static str {
+        match self {
+            Self::MaxDownloadBps => "max_download_bps",
+            Self::MaxUploadBps => "max_upload_bps",
+        }
+    }
+}
+
+/// Load the application profile row for the provided identifier.
+///
+/// # Errors
+///
+/// Returns an error when the query fails.
+pub async fn fetch_app_profile_row<'e, E>(executor: E, id: Uuid) -> Result<AppProfileRow>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query_as::<_, AppProfileRow>("SELECT * FROM revaer_config.fetch_app_profile_row($1)")
+        .bind(id)
+        .fetch_one(executor)
+        .await
+        .context("failed to load app_profile row")
+}
+
+/// Load the engine profile row for the provided identifier.
+///
+/// # Errors
+///
+/// Returns an error when the query fails.
+pub async fn fetch_engine_profile_row<'e, E>(executor: E, id: Uuid) -> Result<EngineProfileRow>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query_as::<_, EngineProfileRow>(
+        "SELECT * FROM revaer_config.fetch_engine_profile_row($1)",
+    )
+    .bind(id)
+    .fetch_one(executor)
+    .await
+    .context("failed to load engine_profile row")
+}
+
+/// Load the filesystem policy row for the provided identifier.
+///
+/// # Errors
+///
+/// Returns an error when the query fails.
+pub async fn fetch_fs_policy_row<'e, E>(executor: E, id: Uuid) -> Result<FsPolicyRow>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query_as::<_, FsPolicyRow>("SELECT * FROM revaer_config.fetch_fs_policy_row($1)")
+        .bind(id)
+        .fetch_one(executor)
+        .await
+        .context("failed to load fs_policy row")
+}
+
+/// Fetch the monotonic configuration revision.
+///
+/// # Errors
+///
+/// Returns an error when the query fails.
+pub async fn fetch_revision<'e, E>(executor: E) -> Result<i64>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query_scalar("SELECT revaer_config.fetch_revision()")
+        .fetch_one(executor)
+        .await
+        .context("failed to load settings revision")
+}
+
+/// Fetch the application profile document as JSON.
+///
+/// # Errors
+///
+/// Returns an error when the query fails.
+pub async fn fetch_app_profile_json<'e, E>(executor: E, id: Uuid) -> Result<Value>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query_scalar("SELECT revaer_config.fetch_app_profile_json($1)")
+        .bind(id)
+        .fetch_one(executor)
+        .await
+        .context("failed to fetch app_profile JSON")
+}
+
+/// Fetch the engine profile document as JSON.
+///
+/// # Errors
+///
+/// Returns an error when the query fails.
+pub async fn fetch_engine_profile_json<'e, E>(executor: E, id: Uuid) -> Result<Value>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query_scalar("SELECT revaer_config.fetch_engine_profile_json($1)")
+        .bind(id)
+        .fetch_one(executor)
+        .await
+        .context("failed to fetch engine_profile JSON")
+}
+
+/// Fetch the filesystem policy document as JSON.
+///
+/// # Errors
+///
+/// Returns an error when the query fails.
+pub async fn fetch_fs_policy_json<'e, E>(executor: E, id: Uuid) -> Result<Value>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query_scalar("SELECT revaer_config.fetch_fs_policy_json($1)")
+        .bind(id)
+        .fetch_one(executor)
+        .await
+        .context("failed to fetch fs_policy JSON")
+}
+
+/// Fetch the API key projection used by watchers (`[{key_id,...}]`).
+///
+/// # Errors
+///
+/// Returns an error when the query fails.
+pub async fn fetch_api_keys_json<'e, E>(executor: E) -> Result<Value>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query_scalar("SELECT revaer_config.fetch_api_keys_json()")
+        .fetch_one(executor)
+        .await
+        .context("failed to fetch auth_api_keys JSON")
+}
+
+/// Fetch a single active setup token row (if any) for the caller.
+///
+/// # Errors
+///
+/// Returns an error when the query fails.
+pub async fn fetch_active_setup_token<'e, E>(executor: E) -> Result<Option<ActiveTokenRow>>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query_as::<_, ActiveTokenRow>("SELECT * FROM revaer_config.fetch_active_setup_token()")
+        .fetch_optional(executor)
+        .await
+        .context("failed to fetch active setup token")
+}
+
+/// Fetch the API key authentication material for a given key identifier.
+///
+/// # Errors
+///
+/// Returns an error when the query fails.
+pub async fn fetch_api_key_auth<'e, E>(executor: E, key_id: &str) -> Result<Option<ApiKeyAuthRow>>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query_as::<_, ApiKeyAuthRow>("SELECT * FROM revaer_config.fetch_api_key_auth($1)")
+        .bind(key_id)
+        .fetch_optional(executor)
+        .await
+        .context("failed to fetch API key auth material")
+}
+
+/// Fetch the hashed secret for a given API key.
+///
+/// # Errors
+///
+/// Returns an error when the query fails.
+pub async fn fetch_api_key_hash<'e, E>(executor: E, key_id: &str) -> Result<Option<String>>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query_scalar::<_, Option<String>>("SELECT revaer_config.fetch_api_key_hash($1)")
+        .bind(key_id)
+        .fetch_one(executor)
+        .await
+        .context("failed to fetch auth_api_keys.hash")
+}
+
+/// Delete an API key.
+///
+/// # Errors
+///
+/// Returns an error when the deletion fails.
+pub async fn delete_api_key<'e, E>(executor: E, key_id: &str) -> Result<u64>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    let removed = sqlx::query_scalar::<_, i64>("SELECT revaer_config.delete_api_key($1)")
+        .bind(key_id)
+        .fetch_one(executor)
+        .await
+        .context("failed to delete auth_api_keys row")?;
+    Ok(u64::try_from(removed).unwrap_or_default())
+}
+
+/// Update the hashed secret for an API key.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_api_key_hash<'e, E>(executor: E, key_id: &str, hash: &str) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_api_key_hash(_key_id => $1, _hash => $2)")
+        .bind(key_id)
+        .bind(hash)
+        .execute(executor)
+        .await
+        .context("failed to update auth_api_keys.hash")?;
+    Ok(())
+}
+
+/// Update the label for an API key.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_api_key_label<'e, E>(
+    executor: E,
+    key_id: &str,
+    label: Option<&str>,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_api_key_label(_key_id => $1, _label => $2)")
+        .bind(key_id)
+        .bind(label)
+        .execute(executor)
+        .await
+        .context("failed to update auth_api_keys.label")?;
+    Ok(())
+}
+
+/// Update the enabled flag for an API key.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_api_key_enabled<'e, E>(executor: E, key_id: &str, enabled: bool) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_api_key_enabled(_key_id => $1, _enabled => $2)")
+        .bind(key_id)
+        .bind(enabled)
+        .execute(executor)
+        .await
+        .context("failed to update auth_api_keys.enabled")?;
+    Ok(())
+}
+
+/// Update the `rate_limit` column for an API key.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_api_key_rate_limit<'e, E>(
+    executor: E,
+    key_id: &str,
+    payload: &Value,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_api_key_rate_limit(_key_id => $1, _rate_limit => $2)")
+        .bind(key_id)
+        .bind(payload)
+        .execute(executor)
+        .await
+        .context("failed to update auth_api_keys.rate_limit")?;
+    Ok(())
+}
+
+/// Insert a new API key.
+///
+/// # Errors
+///
+/// Returns an error when the insert fails.
+pub async fn insert_api_key<'e, E>(
+    executor: E,
+    key_id: &str,
+    hash: &str,
+    label: Option<&str>,
+    enabled: bool,
+    rate_limit: &Value,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        "SELECT revaer_config.insert_api_key(_key_id => $1, _hash => $2, _label => $3, _enabled => $4, _rate_limit => $5)",
+    )
+    .bind(key_id)
+    .bind(hash)
+    .bind(label)
+    .bind(enabled)
+    .bind(rate_limit)
+    .execute(executor)
+    .await
+    .context("failed to insert auth_api_keys row")?;
+    Ok(())
+}
+
+/// Upsert a value in `settings_secret`.
+///
+/// # Errors
+///
+/// Returns an error when the statement fails.
+pub async fn upsert_secret<'e, E>(
+    executor: E,
+    name: &str,
+    ciphertext: &[u8],
+    actor: &str,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.upsert_secret(_name => $1, _ciphertext => $2, _actor => $3)")
+        .bind(name)
+        .bind(ciphertext)
+        .bind(actor)
+        .execute(executor)
+        .await
+        .context("failed to upsert settings_secret row")?;
+    Ok(())
+}
+
+/// Delete a secret entry.
+///
+/// # Errors
+///
+/// Returns an error when the delete fails.
+pub async fn delete_secret<'e, E>(executor: E, name: &str) -> Result<u64>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    let removed = sqlx::query_scalar::<_, i64>("SELECT revaer_config.delete_secret($1)")
+        .bind(name)
+        .fetch_one(executor)
+        .await
+        .context("failed to delete settings_secret row")?;
+    Ok(u64::try_from(removed).unwrap_or_default())
+}
+
+/// Update the application `instance_name` field.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_app_instance_name<'e, E>(
+    executor: E,
+    id: Uuid,
+    instance_name: &str,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_app_instance_name(_id => $1, _instance_name => $2)")
+        .bind(id)
+        .bind(instance_name)
+        .execute(executor)
+        .await
+        .context("failed to update app_profile.instance_name")?;
+    Ok(())
+}
+
+/// Update the application mode field.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_app_mode<'e, E>(executor: E, id: Uuid, mode: &str) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_app_mode(_id => $1, _mode => $2)")
+        .bind(id)
+        .bind(mode)
+        .execute(executor)
+        .await
+        .context("failed to update app_profile.mode")?;
+    Ok(())
+}
+
+/// Update the application HTTP port field.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_app_http_port<'e, E>(executor: E, id: Uuid, http_port: i32) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_app_http_port(_id => $1, _port => $2)")
+        .bind(id)
+        .bind(http_port)
+        .execute(executor)
+        .await
+        .context("failed to update app_profile.http_port")?;
+    Ok(())
+}
+
+/// Update the application bind address field.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_app_bind_addr<'e, E>(executor: E, id: Uuid, bind_addr: &str) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_app_bind_addr(_id => $1, _bind_addr => $2)")
+        .bind(id)
+        .bind(bind_addr)
+        .execute(executor)
+        .await
+        .context("failed to update app_profile.bind_addr")?;
+    Ok(())
+}
+
+/// Update the application telemetry JSON field.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_app_telemetry<'e, E>(executor: E, id: Uuid, telemetry: &Value) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_app_telemetry(_id => $1, _telemetry => $2)")
+        .bind(id)
+        .bind(telemetry)
+        .execute(executor)
+        .await
+        .context("failed to update app_profile.telemetry")?;
+    Ok(())
+}
+
+/// Update the application features JSON field.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_app_features<'e, E>(executor: E, id: Uuid, features: &Value) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_app_features(_id => $1, _features => $2)")
+        .bind(id)
+        .bind(features)
+        .execute(executor)
+        .await
+        .context("failed to update app_profile.features")?;
+    Ok(())
+}
+
+/// Update the application `immutable_keys` JSON field.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_app_immutable_keys<'e, E>(
+    executor: E,
+    id: Uuid,
+    immutable_keys: &Value,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_app_immutable_keys(_id => $1, _immutable => $2)")
+        .bind(id)
+        .bind(immutable_keys)
+        .execute(executor)
+        .await
+        .context("failed to update app_profile.immutable_keys")?;
+    Ok(())
+}
+
+/// Increment the application profile version for optimistic locking.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn bump_app_profile_version<'e, E>(executor: E, id: Uuid) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.bump_app_profile_version(_id => $1)")
+        .bind(id)
+        .execute(executor)
+        .await
+        .context("failed to bump app_profile.version")?;
+    Ok(())
+}
+
+/// Update the engine implementation column.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_engine_implementation<'e, E>(
+    executor: E,
+    id: Uuid,
+    implementation: &str,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        "SELECT revaer_config.update_engine_implementation(_id => $1, _implementation => $2)",
+    )
+    .bind(id)
+    .bind(implementation)
+    .execute(executor)
+    .await
+    .context("failed to update engine_profile.implementation")?;
+    Ok(())
+}
+
+/// Update the engine listen port column.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_engine_listen_port<'e, E>(
+    executor: E,
+    id: Uuid,
+    listen_port: Option<i32>,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_engine_listen_port(_id => $1, _port => $2)")
+        .bind(id)
+        .bind(listen_port)
+        .execute(executor)
+        .await
+        .context("failed to update engine_profile.listen_port")?;
+    Ok(())
+}
+
+/// Update a boolean engine field.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_engine_boolean_field<'e, E>(
+    executor: E,
+    id: Uuid,
+    field: EngineBooleanField,
+    value: bool,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        "SELECT revaer_config.update_engine_boolean_field(_id => $1, _column => $2, _value => $3)",
+    )
+    .bind(id)
+    .bind(field.column())
+    .bind(value)
+    .execute(executor)
+    .await
+    .context("failed to update engine boolean field")?;
+    Ok(())
+}
+
+/// Update the engine encryption column.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_engine_encryption<'e, E>(executor: E, id: Uuid, encryption: &str) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_engine_encryption(_id => $1, _mode => $2)")
+        .bind(id)
+        .bind(encryption)
+        .execute(executor)
+        .await
+        .context("failed to update engine_profile.encryption")?;
+    Ok(())
+}
+
+/// Update the engine `max_active` column.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_engine_max_active<'e, E>(
+    executor: E,
+    id: Uuid,
+    max_active: Option<i32>,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_engine_max_active(_id => $1, _max_active => $2)")
+        .bind(id)
+        .bind(max_active)
+        .execute(executor)
+        .await
+        .context("failed to update engine_profile.max_active")?;
+    Ok(())
+}
+
+/// Update an engine throughput field (`max_download_bps` or `max_upload_bps`).
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_engine_rate_field<'e, E>(
+    executor: E,
+    id: Uuid,
+    field: EngineRateField,
+    value: Option<i64>,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        "SELECT revaer_config.update_engine_rate_field(_id => $1, _column => $2, _value => $3)",
+    )
+    .bind(id)
+    .bind(field.column())
+    .bind(value)
+    .execute(executor)
+    .await
+    .context("failed to update engine rate field")?;
+    Ok(())
+}
+
+/// Update a text-based engine field (`resume_dir`, `download_root`).
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_engine_text_field<'e, E>(
+    executor: E,
+    id: Uuid,
+    field: EngineTextField,
+    value: &str,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        "SELECT revaer_config.update_engine_text_field(_id => $1, _column => $2, _value => $3)",
+    )
+    .bind(id)
+    .bind(field.column())
+    .bind(value)
+    .execute(executor)
+    .await
+    .context("failed to update engine text field")?;
+    Ok(())
+}
+
+/// Update the engine tracker payload.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_engine_tracker<'e, E>(executor: E, id: Uuid, tracker: &Value) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_engine_tracker(_id => $1, _tracker => $2)")
+        .bind(id)
+        .bind(tracker)
+        .execute(executor)
+        .await
+        .context("failed to update engine_profile.tracker")?;
+    Ok(())
+}
+
+/// Update a string column on `fs_policy`.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_fs_string_field<'e, E>(
+    executor: E,
+    id: Uuid,
+    field: FsStringField,
+    value: &str,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        "SELECT revaer_config.update_fs_string_field(_id => $1, _column => $2, _value => $3)",
+    )
+    .bind(id)
+    .bind(field.column())
+    .bind(value)
+    .execute(executor)
+    .await
+    .context("failed to update fs_policy string field")?;
+    Ok(())
+}
+
+/// Update a boolean column on `fs_policy`.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_fs_boolean_field<'e, E>(
+    executor: E,
+    id: Uuid,
+    field: FsBooleanField,
+    value: bool,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        "SELECT revaer_config.update_fs_boolean_field(_id => $1, _column => $2, _value => $3)",
+    )
+    .bind(id)
+    .bind(field.column())
+    .bind(value)
+    .execute(executor)
+    .await
+    .context("failed to update fs_policy boolean field")?;
+    Ok(())
+}
+
+/// Update an array/JSON column on `fs_policy`.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_fs_array_field<'e, E>(
+    executor: E,
+    id: Uuid,
+    field: FsArrayField,
+    value: &Value,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        "SELECT revaer_config.update_fs_array_field(_id => $1, _column => $2, _value => $3)",
+    )
+    .bind(id)
+    .bind(field.column())
+    .bind(value)
+    .execute(executor)
+    .await
+    .context("failed to update fs_policy array field")?;
+    Ok(())
+}
+
+/// Update an optional string column on `fs_policy`.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_fs_optional_string_field<'e, E>(
+    executor: E,
+    id: Uuid,
+    field: FsOptionalStringField,
+    value: Option<&str>,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query(
+        "SELECT revaer_config.update_fs_optional_string_field(_id => $1, _column => $2, _value => $3)",
+    )
+    .bind(id)
+    .bind(field.column())
+    .bind(value)
+    .execute(executor)
+    .await
+    .context("failed to update fs_policy optional string field")?;
+    Ok(())
+}
