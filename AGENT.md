@@ -76,7 +76,8 @@ target/              # build artifacts
     )]
     #![allow(clippy::module_name_repetitions)]
     ```
--   **Ban:** `#[allow(dead_code)]` anywhere. If you have unused items, delete them or feature-gate them behind code that is exercised in CI; do not leave “parking lot” code lying around.
+-   **Ban:** `#[allow(dead_code)]`, `#[allow(missing_docs)]`, `#[allow(clippy::cast_precision_loss)]`,`#[allow(clippy::cast_sign_loss)]`, `#[allow(clippy::missing_const_for_fn)]`, `#[allow(clippy::cast_possible_truncation)]`, `#[allow(clippy::missing_errors_doc)]`, `#[allow(clippy::non_send_fields_in_send_ty)]` anywhere. If you have unused items, delete them or feature-gate them behind code that is exercised in CI; do not leave “parking lot” code lying around.
+    -   Exceptions: The minimal and necessary `#[allow(...)]` code can only be used in FFI interactions that cannot be accomplished in Rust or thru an existing crate.
 -   **Ban:** `#[allow(clippy::too_many_lines)]` anywhere—split the code instead. Resolve the lint by extracting helpers that group related steps, moving reusable logic into private modules, or introducing small structs/impl blocks to own stateful behavior. Keep the original function as a thin orchestrator and add tests around the new pieces.
 -   Mark important return values `#[must_use]` (IDs, handles, results with side effects).
 -   Deny `unreachable_pub` to prevent unused public API leakage across crates.
