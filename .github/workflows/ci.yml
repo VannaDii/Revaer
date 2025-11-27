@@ -32,6 +32,10 @@ jobs:
           components: rustfmt, clippy, llvm-tools-preview
       - uses: dtolnay/rust-toolchain@nightly
       - uses: taiki-e/install-action@just
+      - name: Install native libtorrent dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtorrent-rasterbar-dev pkg-config
       - uses: actions/cache@v4
         with:
           path: |
@@ -55,6 +59,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@just
+      - name: Install native libtorrent dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtorrent-rasterbar-dev pkg-config
       - uses: actions/cache@v4
         with:
           path: |
@@ -90,8 +98,8 @@ jobs:
       - run: just docker-build
       - uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'revaer:ci'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          exit-code: '1'
-          severity: 'HIGH,CRITICAL'
+          image-ref: "revaer:ci"
+          format: "sarif"
+          output: "trivy-results.sarif"
+          exit-code: "1"
+          severity: "HIGH,CRITICAL"
