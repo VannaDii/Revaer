@@ -1,5 +1,6 @@
 use crate::UiMode;
 use crate::app::Route;
+use crate::breakpoints::Breakpoint;
 use crate::components::status::{SseBadge, SseState};
 use crate::theme::ThemeMode;
 use yew::prelude::*;
@@ -25,6 +26,7 @@ pub struct ShellProps {
     pub active: Route,
     pub locale_selector: Html,
     pub nav: NavLabels,
+    pub breakpoint: Breakpoint,
     pub sse_state: SseState,
     pub on_sse_retry: Callback<()>,
     pub network_mode: &'static str,
@@ -92,6 +94,7 @@ pub fn app_shell(props: &ShellProps) -> Html {
                     <div class="top-actions">
                         <SseBadge state={props.sse_state} />
                         <button class="ghost" onclick={props.on_sse_retry.clone()}>{"Simulate SSE drop"}</button>
+                        <span class="pill subtle">{format!("BP: {}", props.breakpoint.name)}</span>
                         <span class="pill subtle">{format!("VPN: {}", props.network_mode)}</span>
                         <button class="ghost" onclick={props.on_toggle_theme.clone()} aria-label="Toggle theme">{"🌓"}</button>
                     </div>

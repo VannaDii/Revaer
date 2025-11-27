@@ -1,7 +1,10 @@
 # cargo-deny configuration aligned with the Phase One licensing policy.
 
 [advisories]
-ignore = ["RUSTSEC-2025-0111"] # tokio-tar via testcontainers; monitor upstream (review by 2026-03-31)
+ignore = [
+    "RUSTSEC-2025-0111", # tokio-tar via testcontainers; monitor upstream (review by 2026-03-31)
+    "RUSTSEC-2024-0370", # proc-macro-error unmaintained; yew transitive, no alternative in current release line
+]
 
 [licenses]
 allow = [
@@ -74,6 +77,130 @@ reason = "argon2/password-hash use rand_core 0.6.x."
 [[bans.skip]]
 crate = "rand_core@0.9.3"
 reason = "rand 0.9.x stack required by reqwest/testcontainers."
+
+[[bans.skip]]
+crate = "gloo@0.8.1"
+reason = "yew transitively pulls historic gloo versions; allow multi until upstream unifies."
+
+[[bans.skip]]
+crate = "gloo@0.10.0"
+reason = "yew transitively pulls historic gloo versions; allow multi until upstream unifies."
+
+[[bans.skip]]
+crate = "gloo@0.11.0"
+reason = "Workspace UI targets latest gloo; yew pulls older lines."
+
+[[bans.skip]]
+crate = "gloo-console@0.2.3"
+reason = "yew macro stack pins 0.2.x; UI uses newer line."
+
+[[bans.skip]]
+crate = "gloo-console@0.3.0"
+reason = "UI depends on newer gloo stack; coexist with legacy."
+
+[[bans.skip]]
+crate = "gloo-dialogs@0.1.1"
+reason = "yew pulls 0.1.x; new gloo stack uses 0.2.x."
+
+[[bans.skip]]
+crate = "gloo-dialogs@0.2.0"
+reason = "UI uses 0.2.x while yew still references 0.1.x."
+
+[[bans.skip]]
+crate = "gloo-events@0.1.2"
+reason = "yew pulls 0.1.x."
+
+[[bans.skip]]
+crate = "gloo-events@0.2.0"
+reason = "UI stack uses 0.2.x."
+
+[[bans.skip]]
+crate = "gloo-file@0.2.3"
+reason = "yew pulls 0.2.x."
+
+[[bans.skip]]
+crate = "gloo-file@0.3.0"
+reason = "UI stack uses 0.3.x."
+
+[[bans.skip]]
+crate = "gloo-history@0.1.5"
+reason = "yew pulls 0.1.x."
+
+[[bans.skip]]
+crate = "gloo-history@0.2.2"
+reason = "UI stack uses 0.2.x."
+
+[[bans.skip]]
+crate = "gloo-net@0.3.1"
+reason = "yew pulls 0.3.x."
+
+[[bans.skip]]
+crate = "gloo-net@0.4.0"
+reason = "Intermediate gloo line from router dependency."
+
+[[bans.skip]]
+crate = "gloo-net@0.5.0"
+reason = "Intermediate gloo line from router dependency."
+
+[[bans.skip]]
+crate = "gloo-net@0.6.0"
+reason = "UI uses latest gloo-net."
+
+[[bans.skip]]
+crate = "gloo-render@0.1.1"
+reason = "yew pulls 0.1.x."
+
+[[bans.skip]]
+crate = "gloo-render@0.2.0"
+reason = "UI stack uses 0.2.x."
+
+[[bans.skip]]
+crate = "gloo-storage@0.2.2"
+reason = "yew pulls 0.2.x."
+
+[[bans.skip]]
+crate = "gloo-storage@0.3.0"
+reason = "UI stack uses 0.3.x."
+
+[[bans.skip]]
+crate = "gloo-timers@0.2.6"
+reason = "yew pulls 0.2.x."
+
+[[bans.skip]]
+crate = "gloo-timers@0.3.0"
+reason = "UI stack uses 0.3.x."
+
+[[bans.skip]]
+crate = "gloo-utils@0.1.7"
+reason = "yew pulls 0.1.x."
+
+[[bans.skip]]
+crate = "gloo-utils@0.2.0"
+reason = "UI stack uses 0.2.x."
+
+[[bans.skip]]
+crate = "gloo-worker@0.2.1"
+reason = "yew pulls 0.2.x."
+
+[[bans.skip]]
+crate = "gloo-worker@0.4.0"
+reason = "Router dependencies pull 0.4.x."
+
+[[bans.skip]]
+crate = "gloo-worker@0.5.0"
+reason = "UI stack uses 0.5.x."
+
+[[bans.skip]]
+crate = "http@0.2.12"
+reason = "Legacy gloo-net depends on http 0.2; allow alongside http 1.x."
+
+[[bans.skip]]
+crate = "serde-wasm-bindgen@0.5.0"
+reason = "gloo-history 0.1.x pins serde-wasm-bindgen 0.5.x."
+
+[[bans.skip]]
+crate = "syn@1.0.109"
+reason = "proc-macro-error pulls syn 1.x; unavoidable via yew 0.21."
 
 [[bans.skip]]
 crate = "thiserror@1.0.69"

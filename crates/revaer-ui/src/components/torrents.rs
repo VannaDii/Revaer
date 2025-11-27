@@ -1,19 +1,24 @@
 use crate::components::detail::{DetailData, DetailView, demo_detail};
+use crate::components::virtual_list::VirtualList;
+use crate::models::TorrentSummary;
 use crate::{Density, UiMode};
+use wasm_bindgen::JsCast;
+use wasm_bindgen::closure::Closure;
+use web_sys::{DragEvent, File, HtmlElement, KeyboardEvent};
 use yew::prelude::*;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TorrentRow {
-    pub id: &'static str,
-    pub name: &'static str,
-    pub status: &'static str,
+    pub id: String,
+    pub name: String,
+    pub status: String,
     pub progress: f32,
-    pub eta: Option<&'static str>,
+    pub eta: Option<String>,
     pub ratio: f32,
-    pub tags: Vec<&'static str>,
-    pub tracker: &'static str,
-    pub path: &'static str,
-    pub category: &'static str,
+    pub tags: Vec<String>,
+    pub tracker: String,
+    pub path: String,
+    pub category: String,
     pub size_gb: f32,
     pub upload_bps: u64,
     pub download_bps: u64,
@@ -30,10 +35,19 @@ pub struct TorrentProps {
 #[function_component(TorrentView)]
 pub fn torrent_view(props: &TorrentProps) -> Html {
     let selected = use_state(|| demo_detail("1"));
+    let selected_idx = use_state(|| 0usize);
+    let action_banner = use_state(|| None as Option<String>);
+    let confirm = use_state(|| None as Option<ConfirmKind>);
+    let search_ref = use_node_ref();
     let density_class = match props.density {
         Density::Compact => "density-compact",
         Density::Normal => "density-normal",
         Density::Comfy => "density-comfy",
+    };
+    let row_height = match props.density {
+        Density::Compact => 120,
+        Density::Normal => 148,
+        Density::Comfy => 164,
     };
     let mode_class = match props.mode {
         UiMode::Simple => "mode-simple",
@@ -42,16 +56,107 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
 
     let on_select = {
         let selected = selected.clone();
+        let selected_idx = selected_idx.clone();
         Callback::from(move |id: String| {
+            if let Some(idx) = props.torrents.iter().position(|row| row.id == id) {
+                selected_idx.set(idx);
+            }
             selected.set(demo_detail(&id));
         })
     };
+
+    // Keyboard shortcuts: j/k navigation, space pause/resume, delete/shift+delete confirmations, p recheck, / focus search.
+    {
+        let torrents = props.torrents.clone();
+        let selected_idx = selected_idx.clone();
+        let selected = selected.clone();
+        let search_ref = search_ref.clone();
+        let action_banner = action_banner.clone();
+        let confirm = confirm.clone();
+        use_effect_with_deps(
+            move |_| {
+                let handler = Closure::<dyn FnMut(_)>::wrap(Box::new(move |event: KeyboardEvent| {
+                    if let Some(target) = event.target()
+                        && let Ok(element) = target.dyn_into::<HtmlElement>()
+                        && matches!(element.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT")
+                    {
+                        return;
+                    }
+
+                    match event.key().as_str() {
+                        "/" => {
+                            event.prevent_default();
+                            if let Some(input) = search_ref.cast::<web_sys::HtmlInputElement>() {
+                                let _ = input.focus();
+                            }
+                        }
+                        "j" | "J" => {
+                            event.prevent_default();
+                            let next = (*selected_idx + 1).min(torrents.len().saturating_sub(1));
+                            if next != *selected_idx {
+                                selected_idx.set(next);
+                                if let Some(row) = torrents.get(next) {
+                                    selected.set(demo_detail(row.id));
+                                }
+                            }
+                        }
+                        "k" | "K" => {
+                            event.prevent_default();
+                            let next = selected_idx.saturating_sub(1);
+                            if next != *selected_idx {
+                                selected_idx.set(next);
+                                if let Some(row) = torrents.get(next) {
+                                    selected.set(demo_detail(row.id));
+                                }
+                            }
+                        }
+                        " " => {
+                            event.prevent_default();
+                            if let Some(row) = torrents.get(*selected_idx) {
+                                action_banner
+                                    .set(Some(format!("Toggled pause/resume for {}", row.name)));
+                            }
+                        }
+                        key if key == "Delete" && event.shift_key() => {
+                            event.prevent_default();
+                            confirm.set(Some(ConfirmKind::DeleteData));
+                        }
+                        "Delete" => {
+                            event.prevent_default();
+                            confirm.set(Some(ConfirmKind::Delete));
+                        }
+                        "p" | "P" => {
+                            event.prevent_default();
+                            confirm.set(Some(ConfirmKind::Recheck));
+                        }
+                        _ => {}
+                    }
+                })
+                    as Box<dyn FnMut(_)>);
+
+                let window = web_sys::window().expect("window");
+                window
+                    .add_event_listener_with_callback("keydown", handler.as_ref().unchecked_ref())
+                    .expect("register keydown");
+
+                move || {
+                    let _ = web_sys::window()
+                        .unwrap()
+                        .remove_event_listener_with_callback(
+                            "keydown",
+                            handler.as_ref().unchecked_ref(),
+                        );
+                }
+            },
+            (),
+        );
+    }
 
     html! {
         <section class={classes!("torrents-view", density_class, mode_class)}>
             <header class="toolbar">
                 <div class="search">
-                    <input aria-label="Search torrents" placeholder="Search name, path, tracker" />
+                    <input aria-label="Search torrents" placeholder="Search name, path, tracker" ref={search_ref.clone()} />
                     <button class="ghost">{"Regex"}</button>
                 </div>
                 <div class="actions">
@@ -82,24 +187,64 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
 
             <AddTorrentPanel />
 
-            <div class="torrent-table virtualized" role="grid" aria-label="Torrents">
-                {for props.torrents.iter().map(|row| render_row(row, on_select.clone()))}
-            </div>
+            <VirtualList
+                class={classes!("torrent-table", "virtualized")}
+                len={props.torrents.len()}
+                row_height={row_height}
+                overscan={6}
+                render={{
+                    let on_select = on_select.clone();
+                    let torrents = props.torrents.clone();
+                    let selected_idx = *selected_idx;
+                    Callback::from(move |idx: usize| {
+                        if let Some(row) = torrents.get(idx) {
+                            render_row(row, idx == selected_idx, on_select.clone())
+                        } else {
+                            html! {}
+                        }
+                    })
+                }}
+            />
 
             <DetailView data={(*selected).clone()} />
             <MobileActionRow />
+            <ActionBanner message={(*action_banner).clone()} />
+            <ConfirmDialog
+                kind={(*confirm).clone()}
+                on_close={{
+                    let confirm = confirm.clone();
+                    Callback::from(move |_| confirm.set(None))
+                }}
+                on_confirm={{
+                    let confirm = confirm.clone();
+                    let torrents = props.torrents.clone();
+                    let selected_idx = *selected_idx;
+                    let action_banner = action_banner.clone();
+                    Callback::from(move |kind: ConfirmKind| {
+                        confirm.set(None);
+                        if let Some(row) = torrents.get(selected_idx) {
+                            let msg = match kind {
+                                ConfirmKind::Delete => format!("Removed torrent {}", row.name),
+                                ConfirmKind::DeleteData => format!("Removed torrent + data {}", row.name),
+                                ConfirmKind::Recheck => format!("Rechecking {}", row.name),
+                            };
+                            action_banner.set(Some(msg));
+                        }
+                    })
+                }}
+            />
         </section>
     }
 }
 
-fn render_row(row: &TorrentRow, on_select: Callback<String>) -> Html {
+fn render_row(row: &TorrentRow, selected: bool, on_select: Callback<String>) -> Html {
     let select = {
         let on_select = on_select.clone();
         let id = row.id.to_string();
         Callback::from(move |_| on_select.emit(id.clone()))
     };
     html! {
-        <article class="torrent-row">
+        <article class={classes!("torrent-row", if selected { Some("selected") } else { None })} aria-selected={selected.to_string()}>
             <div class="row-primary">
                 <div class="title">
                     <strong>{row.name}</strong>
@@ -177,15 +322,91 @@ fn format_rate(value: u64) -> String {
 
 #[function_component(AddTorrentPanel)]
 fn add_torrent_panel() -> Html {
+    let input_value = use_state(String::new);
+    let error = use_state(|| None as Option<String>);
+    let drag_over = use_state(|| false);
+
+    let validate = {
+        let input_value = input_value.clone();
+        let error = error.clone();
+        Callback::from(move |_| {
+            let value = input_value.trim().to_string();
+            let is_magnet = value.starts_with("magnet:?xt=urn:btih:");
+            let is_url = value.starts_with("http://") || value.starts_with("https://");
+            if value.is_empty() {
+                error.set(Some("Enter a magnet link or URL".to_string()));
+            } else if !(is_magnet || is_url) {
+                error.set(Some("Invalid magnet or URL".to_string()));
+            } else {
+                error.set(None);
+            }
+        })
+    };
+
+    let on_input = {
+        let input_value = input_value.clone();
+        Callback::from(move |e: InputEvent| {
+            if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+                input_value.set(input.value());
+            }
+        })
+    };
+
+    let on_drop = {
+        let drag_over = drag_over.clone();
+        let error = error.clone();
+        Callback::from(move |event: DragEvent| {
+            event.prevent_default();
+            drag_over.set(false);
+            if let Some(files) = event.data_transfer().and_then(|dt| dt.files()) {
+                if files.length() == 0 {
+                    return;
+                }
+                let file: File = files.get(0).unwrap();
+                let name = file.name();
+                if !name.ends_with(".torrent") {
+                    error.set(Some("Unsupported file type".to_string()));
+                } else {
+                    error.set(Some(format!("Ready to upload {}", name)));
+                }
+            }
+        })
+    };
+
+    let on_drag_over = {
+        let drag_over = drag_over.clone();
+        Callback::from(move |event: DragEvent| {
+            event.prevent_default();
+            drag_over.set(true);
+        })
+    };
+
+    let on_drag_leave = {
+        let drag_over = drag_over.clone();
+        Callback::from(move |_event: DragEvent| {
+            drag_over.set(false);
+        })
+    };
+
     html! {
         <div class="add-panel">
-            <div class="drop-zone" role="button" aria-label="Upload torrent">
+            <div
+                class={classes!("drop-zone", if *drag_over { "drag-over" } else { "" })}
+                role="button"
+                aria-label="Upload torrent"
+                ondrop={on_drop}
+                ondragover={on_drag_over}
+                ondragleave={on_drag_leave}
+            >
                 <p><strong>{"Drop .torrent or paste magnet"}</strong></p>
                 <p class="muted">{"Validates magnet/URL, supports drag/drop and file selection."}</p>
                 <div class="inputs">
-                    <input placeholder="Magnet or URL" />
-                    <button class="solid">{"Add"}</button>
+                    <input placeholder="Magnet or URL" value={(*input_value).clone()} oninput={on_input} />
+                    <button class="solid" onclick={validate}>{"Add"}</button>
                 </div>
+                {if let Some(err) = &*error {
+                    html! { <p class="error-text">{err}</p> }
+                } else { html! {} }}
             </div>
             <div class="pre-flight">
                 <label>
@@ -217,84 +438,202 @@ fn mobile_action_row() -> Html {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum ConfirmKind {
+    Delete,
+    DeleteData,
+    Recheck,
+}
+
+#[derive(Properties, PartialEq)]
+pub struct ConfirmProps {
+    pub kind: Option<ConfirmKind>,
+    pub on_close: Callback<()>,
+    pub on_confirm: Callback<ConfirmKind>,
+}
+
+#[function_component(ConfirmDialog)]
+fn confirm_dialog(props: &ConfirmProps) -> Html {
+    let Some(kind) = &props.kind else {
+        return html! {};
+    };
+
+    let (title, body, action) = match kind {
+        ConfirmKind::Delete => (
+            "Remove torrent?",
+            "Files remain on disk. This cannot be undone without data deletion.",
+            "Remove",
+        ),
+        ConfirmKind::DeleteData => (
+            "Remove torrent and delete data?",
+            "This permanently deletes files from disk.",
+            "Delete data",
+        ),
+        ConfirmKind::Recheck => (
+            "Recheck data?",
+            "Hash check will verify existing data.",
+            "Recheck",
+        ),
+    };
+
+    let confirm = {
+        let kind = kind.clone();
+        let cb = props.on_confirm.clone();
+        Callback::from(move |_| cb.emit(kind.clone()))
+    };
+
+    html! {
+        <div class="confirm-overlay" role="dialog" aria-modal="true">
+            <div class="card">
+                <header>
+                    <h4>{title}</h4>
+                </header>
+                <p class="muted">{body}</p>
+                <div class="actions">
+                    <button class="ghost" onclick={props.on_close.clone()}>{"Cancel"}</button>
+                    <button class="solid danger" onclick={confirm}>{action}</button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+#[derive(Properties, PartialEq)]
+pub struct BannerProps {
+    pub message: Option<String>,
+}
+
+#[function_component(ActionBanner)]
+fn action_banner(props: &BannerProps) -> Html {
+    let Some(msg) = props.message.clone() else {
+        return html! {};
+    };
+    html! {
+        <div class="action-banner" role="status" aria-live="polite">
+            <span class="pill subtle">{"Shortcut"}</span>
+            <span>{msg}</span>
+        </div>
+    }
+}
+
 /// Demo torrent set referenced by the default view.
 #[must_use]
 pub fn demo_rows() -> Vec<TorrentRow> {
     vec![
         TorrentRow {
-            id: "1",
-            name: "Foundation.S02E08.2160p.WEB-DL.DDP5.1.Atmos.HDR10",
-            status: "downloading",
+            id: "1".into(),
+            name: "Foundation.S02E08.2160p.WEB-DL.DDP5.1.Atmos.HDR10".into(),
+            status: "downloading".into(),
             progress: 0.41,
-            eta: Some("12m"),
+            eta: Some("12m".into()),
             ratio: 0.12,
-            tags: vec!["4K", "HDR10", "hevc"],
-            tracker: "tracker.hypothetical.org",
-            path: "/data/incomplete/foundation-s02e08",
-            category: "tv",
+            tags: vec!["4K", "HDR10", "hevc"]
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+            tracker: "tracker.hypothetical.org".into(),
+            path: "/data/incomplete/foundation-s02e08".into(),
+            category: "tv".into(),
             size_gb: 18.4,
             upload_bps: 1_200_000,
             download_bps: 82_000_000,
         },
         TorrentRow {
-            id: "2",
-            name: "The.Expanse.S01E05.1080p.BluRay.DTS.x264",
-            status: "seeding",
+            id: "2".into(),
+            name: "The.Expanse.S01E05.1080p.BluRay.DTS.x264".into(),
+            status: "seeding".into(),
             progress: 1.0,
             eta: None,
             ratio: 3.82,
-            tags: vec!["blu-ray", "lossless"],
-            tracker: "tracker.space.example",
-            path: "/data/media/TV/The Expanse/Season 1",
-            category: "tv",
+            tags: vec!["blu-ray", "lossless"]
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+            tracker: "tracker.space.example".into(),
+            path: "/data/media/TV/The Expanse/Season 1".into(),
+            category: "tv".into(),
             size_gb: 7.8,
             upload_bps: 5_400_000,
             download_bps: 0,
         },
         TorrentRow {
-            id: "3",
-            name: "Dune.Part.One.2021.2160p.REMUX.DV.DTS-HD.MA.7.1",
-            status: "paused",
+            id: "3".into(),
+            name: "Dune.Part.One.2021.2160p.REMUX.DV.DTS-HD.MA.7.1".into(),
+            status: "paused".into(),
             progress: 0.77,
-            eta: Some("–"),
+            eta: Some("–".into()),
             ratio: 0.44,
-            tags: vec!["remux", "dolby vision"],
-            tracker: "movies.example.net",
-            path: "/data/incomplete/dune-part-one",
-            category: "movies",
+            tags: vec!["remux", "dolby vision"]
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+            tracker: "movies.example.net".into(),
+            path: "/data/incomplete/dune-part-one".into(),
+            category: "movies".into(),
             size_gb: 64.3,
             upload_bps: 0,
             download_bps: 0,
         },
         TorrentRow {
-            id: "4",
-            name: "Ubuntu-24.04.1-live-server-amd64.iso",
-            status: "checking",
+            id: "4".into(),
+            name: "Ubuntu-24.04.1-live-server-amd64.iso".into(),
+            status: "checking".into(),
             progress: 0.13,
-            eta: Some("3m"),
+            eta: Some("3m".into()),
             ratio: 0.02,
-            tags: vec!["iso"],
-            tracker: "releases.ubuntu.com",
-            path: "/data/incomplete/ubuntu",
-            category: "os",
+            tags: vec!["iso"].into_iter().map(str::to_string).collect(),
+            tracker: "releases.ubuntu.com".into(),
+            path: "/data/incomplete/ubuntu".into(),
+            category: "os".into(),
             size_gb: 1.2,
             upload_bps: 240_000,
             download_bps: 12_000_000,
         },
         TorrentRow {
-            id: "5",
-            name: "Arcane.S02E02.1080p.NF.WEB-DL.DDP5.1.Atmos.x264",
-            status: "downloading",
+            id: "5".into(),
+            name: "Arcane.S02E02.1080p.NF.WEB-DL.DDP5.1.Atmos.x264".into(),
+            status: "downloading".into(),
             progress: 0.63,
-            eta: Some("8m"),
+            eta: Some("8m".into()),
             ratio: 0.56,
-            tags: vec!["nf", "dolby atmos"],
-            tracker: "tracker.hypothetical.org",
-            path: "/data/incomplete/arcane-s02e02",
-            category: "tv",
+            tags: vec!["nf", "dolby atmos"]
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+            tracker: "tracker.hypothetical.org".into(),
+            path: "/data/incomplete/arcane-s02e02".into(),
+            category: "tv".into(),
             size_gb: 5.4,
             upload_bps: 950_000,
             download_bps: 34_000_000,
         },
     ]
+}
+
+impl From<TorrentSummary> for TorrentRow {
+    fn from(value: TorrentSummary) -> Self {
+        Self {
+            id: value.id.to_string(),
+            name: value.name,
+            status: value.status,
+            progress: value.progress,
+            eta: value.eta_seconds.map(|eta| {
+                if eta == 0 {
+                    "–".to_string()
+                } else {
+                    format!("{eta}s")
+                }
+            }),
+            ratio: value.ratio,
+            tags: value.tags,
+            tracker: value.tracker.unwrap_or_default(),
+            path: value.save_path.unwrap_or_default(),
+            category: value
+                .category
+                .unwrap_or_else(|| "uncategorized".to_string()),
+            size_gb: value.size_bytes as f32 / (1024.0 * 1024.0 * 1024.0),
+            upload_bps: value.upload_bps,
+            download_bps: value.download_bps,
+        }
+    }
 }

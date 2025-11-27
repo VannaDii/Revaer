@@ -3,7 +3,11 @@
 
 pub mod breakpoints;
 pub mod i18n;
+pub mod models;
 pub mod theme;
+
+#[cfg(target_arch = "wasm32")]
+pub mod services;
 
 /// UI surface mode toggle. Defaults to [`UiMode::Simple`] for first-run users.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -43,3 +47,30 @@ mod components;
 
 #[cfg(target_arch = "wasm32")]
 pub use app::run_app;
+
+#[cfg(test)]
+mod tests {
+    use crate::breakpoints::{self, for_width};
+    use crate::i18n::{LocaleCode, TranslationBundle};
+
+    #[test]
+    fn breakpoint_selection_matches_ranges() {
+        assert_eq!(for_width(0).name, breakpoints::XS.name);
+        assert_eq!(for_width(480).name, breakpoints::SM.name);
+        assert_eq!(for_width(1024).name, breakpoints::LG.name);
+        assert_eq!(for_width(2000).name, breakpoints::XXL.name);
+    }
+
+    #[test]
+    fn translation_fallbacks_work() {
+        let bundle = TranslationBundle::new(LocaleCode::Fr);
+        assert_eq!(bundle.text("nav.dashboard", "Dash"), "Dashboard");
+        assert_eq!(bundle.text("nav.missing_key", "Default"), "Default");
+    }
+
+    #[test]
+    fn rtl_flag_honours_locale_metadata() {
+        assert!(TranslationBundle::new(LocaleCode::Ar).rtl());
+        assert!(!TranslationBundle::new(LocaleCode::En).rtl());
+    }
+}

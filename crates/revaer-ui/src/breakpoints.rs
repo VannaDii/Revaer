@@ -48,6 +48,6 @@ pub fn for_width(width: u16) -> Breakpoint {
     BREAKPOINTS
         .iter()
         .copied()
-        .find(|bp| width >= bp.min_width && bp.max_width.map_or(true, |max| width <= max))
+        .find(|bp| width >= bp.min_width && bp.max_width.is_none_or(|max| width <= max))
         .unwrap_or(XXL)
 }

@@ -262,6 +262,12 @@ a {
   gap: 12px;
 }
 
+.virtual-list {
+  position: relative;
+  overflow-y: auto;
+  border-radius: 12px;
+}
+
 .torrent-row {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -270,6 +276,11 @@ a {
   display: grid;
   gap: 8px;
   box-shadow: var(--shadow);
+}
+
+.torrent-row.selected {
+  border-color: var(--accent-500);
+  box-shadow: 0 0 0 2px rgba(37, 139, 211, 0.2);
 }
 
 .row-primary {
@@ -352,6 +363,11 @@ a {
   border: 1px dashed var(--border);
   border-radius: 10px;
   padding: 12px;
+}
+
+.drop-zone.drag-over {
+  border-color: var(--accent-500);
+  background: rgba(37, 139, 211, 0.05);
 }
 
 .drop-zone .inputs {
@@ -696,6 +712,67 @@ button:focus-visible {
   gap: 8px;
   justify-content: flex-end;
   flex-wrap: wrap;
+}
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: grid;
+  place-items: center;
+  z-index: 60;
+}
+
+.confirm-overlay .card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  width: min(420px, 90vw);
+  box-shadow: var(--shadow);
+}
+
+.action-banner {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  z-index: 40;
+}
+
+.auth-overlay {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.55);
+  z-index: 70;
+}
+
+.auth-overlay .card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  width: min(420px, 90vw);
+  box-shadow: var(--shadow);
+}
+
+.error-text {
+  color: var(--error-500);
+  margin: 4px 0;
+}
+
+.stack {
+  display: grid;
+  gap: 6px;
 }
 
 @media (min-width: 480px) {

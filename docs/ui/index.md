@@ -21,6 +21,12 @@ Table responsiveness: required columns (Name, Status, Progress, Speed up/down) s
 
 Detail view: mobile renders tabs (`Files`, `Peers`, `Trackers`, `Log`, `Info`) with accordion file tree; desktop/laptop promotes a split grid showing file tree + metadata alongside peers/trackers/log simultaneously.
 
+Virtualization: torrent list uses a windowed renderer (row-height aware with overscan) to keep 50k+ rows responsive; horizontal scroll remains keyboard-safe and selection stays highlighted for shortcut actions.
+
+Auth: remote mode always requires an API key; prompt stores key in local storage, LAN anonymous mode is allowed only if backend advertises `allow_anonymous`.
+
+Add flow: drop `.torrent` or paste magnet/URL with inline validation and error copy; invalid file types are rejected.
+
 ## Theming & Tokens
 
 - Palette: Primary (`#265D81` base), Secondary (`#775A96`), Accent (`#258BD3`), Neutral 50–900, Success/Warning/Error scales; dark mode uses `background-dark #121417`, `surface-dark #1A1C20`, and text tokens.
@@ -38,7 +44,7 @@ Detail view: mobile renders tabs (`Files`, `Peers`, `Trackers`, `Log`, `Info`) w
 ## Accessibility & Interaction
 
 - WCAG 2.1 AA: semantic markup, focus-visible rings, high-contrast dark mode, 40px touch targets on mobile, focus traps for drawers/modals.
-- Keyboard shortcuts: `/` search, `j/k` row move, `space` pause/resume, `delete` delete, `shift+delete` delete+data, `p` recheck.
+- Keyboard shortcuts (wired in demo UI): `/` search focus, `j/k` row move, `space` pause/resume, `delete` delete, `shift+delete` delete+data, `p` recheck. Selected row highlights; actions surface in a status banner.
 - Screen-reader flow follows DOM order (mobile collapse must not break navigation).
 - Confirmations: delete (“Remove torrent ‘<name>’? Files remain on disk”), delete+data (“Remove torrent and delete data? This cannot be undone.”), recheck prompt.
 - Mobile action bar: sticky bottom row for Pause/Resume/Delete/More on xs/sm; desktop retains row actions in-table.

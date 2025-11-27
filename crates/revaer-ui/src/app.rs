@@ -1,10 +1,14 @@
+use crate::breakpoints::Breakpoint;
+use crate::components::auth::AuthPrompt;
 use crate::components::dashboard::{DashboardPanel, demo_snapshot};
 use crate::components::shell::{AppShell, NavLabels};
 use crate::components::status::{SseOverlay, SseState};
 use crate::components::torrents::{TorrentView, demo_rows};
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode, TranslationBundle};
+use crate::services::ApiClient;
 use crate::theme::ThemeMode;
 use crate::{Density, UiMode};
+use gloo::events::EventListener;
 use gloo::storage::{LocalStorage, Storage};
 use gloo::utils::window;
 use wasm_bindgen::JsCast;
@@ -16,6 +20,8 @@ const THEME_KEY: &str = "revaer.theme";
 const MODE_KEY: &str = "revaer.mode";
 const LOCALE_KEY: &str = "revaer.locale";
 const DENSITY_KEY: &str = "revaer.density";
+const API_KEY_KEY: &str = "revaer.api_key";
+const ALLOW_ANON: bool = false;
 
 #[derive(Clone, Routable, PartialEq, Eq, Debug)]
 pub enum Route {
@@ -42,6 +48,9 @@ pub fn revaer_app() -> Html {
     let mode = use_state(load_mode);
     let density = use_state(load_density);
     let locale = use_state(load_locale);
+    let breakpoint = use_state(current_breakpoint);
+    let api_key = use_state(load_api_key);
+    let torrents = use_state(demo_rows);
     let sse_state = use_state(|| SseState::Reconnecting {
         retry_in_secs: 5,
         last_event: "12s ago",
@@ -75,6 +84,36 @@ pub fn revaer_app() -> Html {
             },
             theme,
         );
+    }
+    {
+        let api_key = (*api_key).clone();
+        let torrents = torrents.clone();
+        use_effect(move || {
+            let client = ApiClient::new("", api_key.clone());
+            yew::platform::spawn_local(async move {
+                match client.fetch_torrents().await {
+                    Ok(list) if !list.is_empty() => torrents.set(list),
+                    _ => torrents.set(demo_rows()),
+                }
+            });
+            || ()
+        });
+    }
+    {
+        let breakpoint = breakpoint.clone();
+        use_effect(move || {
+            apply_breakpoint(*breakpoint);
+            let handler = gloo::events::EventListener::new(&gloo::utils::window(), "resize", {
+                let breakpoint = breakpoint.clone();
+                move |_event| {
+                    let bp = current_breakpoint();
+                    if bp != *breakpoint {
+                        breakpoint.set(bp);
+                    }
+                }
+            });
+            move || drop(handler)
+        });
     }
     {
         let mode = mode.clone();
@@ -188,6 +227,7 @@ pub fn revaer_app() -> Html {
                 active={current_route}
                 locale_selector={locale_selector}
                 nav={nav_labels}
+                breakpoint={*breakpoint}
                 sse_state={*sse_state}
                 on_sse_retry={simulate_sse_drop}
                 network_mode={"connected"}
@@ -195,7 +235,7 @@ pub fn revaer_app() -> Html {
                 <Switch<Route> render={move |route| {
                     match route {
                         Route::Dashboard => html! { <DashboardPanel snapshot={demo_snapshot()} mode={*mode} density={*density} /> },
-                        Route::Torrents | Route::Search => html! { <TorrentView torrents={demo_rows()} density={*density} mode={*mode} on_density_change={set_density.clone()} /> },
+                        Route::Torrents | Route::Search => html! { <TorrentView torrents={(*torrents).clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} /> },
                         Route::Jobs => html! { <Placeholder title="Jobs / Post-processing" body="Job states, watch folder errors, SSE updates" /> },
                         Route::Settings => html! { <Placeholder title="Settings" body="Engine profile, paths, roles, remote mode" /> },
                         Route::Logs => html! { <Placeholder title="Logs" body="Streaming event log with filters" /> },
@@ -204,6 +244,25 @@ pub fn revaer_app() -> Html {
                 }} />
             </AppShell>
             <SseOverlay state={*sse_state} on_retry={clear_sse_overlay} network_mode={"remote (API key)"} />
+            {if api_key.is_none() {
+                html! {
+                    <AuthPrompt
+                        require_key={true}
+                        allow_anonymous={ALLOW_ANON}
+                        on_submit={{
+                            let api_key = api_key.clone();
+                            Callback::from(move |value: Option<String>| {
+                                if let Some(key) = value.clone() {
+                                    let _ = LocalStorage::set(API_KEY_KEY, &key);
+                                }
+                                api_key.set(value);
+                            })
+                        }}
+                    />
+                }
+            } else {
+                html!{}
+            }}
         </BrowserRouter>
     }
 }
@@ -225,6 +284,14 @@ struct PlaceholderProps {
     pub body: String,
 }
 
+fn apply_breakpoint(bp: Breakpoint) {
+    if let Some(document) = window().document() {
+        if let Some(body) = document.body() {
+            let _ = body.set_attribute("data-bp", bp.name);
+        }
+    }
+}
+
 fn apply_theme(theme: ThemeMode) {
     if let Some(document) = window().document() {
         if let Some(body) = document.body() {
@@ -239,6 +306,15 @@ fn apply_direction(is_rtl: bool) {
             let _ = body.set_attribute("dir", if is_rtl { "rtl" } else { "ltr" });
         }
     }
+}
+
+fn current_breakpoint() -> Breakpoint {
+    let width = window()
+        .inner_width()
+        .ok()
+        .and_then(|w| w.as_f64())
+        .unwrap_or(1280.0) as u16;
+    crate::breakpoints::for_width(width)
 }
 
 fn load_theme() -> ThemeMode {
@@ -287,6 +363,10 @@ fn load_locale() -> LocaleCode {
         }
     }
     DEFAULT_LOCALE
+}
+
+fn load_api_key() -> Option<String> {
+    LocalStorage::get::<String>(API_KEY_KEY).ok()
 }
 
 fn prefers_dark() -> Option<bool> {

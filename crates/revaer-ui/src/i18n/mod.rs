@@ -137,7 +137,7 @@ impl TranslationBundle {
     #[must_use]
     pub fn new(locale: LocaleCode) -> Self {
         let raw = raw_locale(locale).unwrap_or_else(|| raw_locale(DEFAULT_LOCALE).unwrap());
-        let tree: Value = serde_json::from_str(raw).unwrap_or_else(|_| Value::Null);
+        let tree: Value = serde_json::from_str(raw).unwrap_or(Value::Null);
         let rtl = tree
             .get("meta")
             .and_then(|meta| meta.get("rtl"))
