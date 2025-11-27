@@ -21,7 +21,7 @@
 //! Binary entrypoint that wires the Revaer services together and launches the
 //! async orchestrators.
 
-mod orchestrator;
+pub mod orchestrator;
 
 use std::borrow::Cow;
 use std::net::{IpAddr, SocketAddr};

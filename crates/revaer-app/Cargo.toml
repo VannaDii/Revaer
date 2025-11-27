@@ -29,6 +29,7 @@ chrono.workspace = true
 serde_json.workspace = true
 tempfile = "3.10"
 testcontainers = "0.25"
+revaer-test-support = { path = "../revaer-test-support" }
 
 [features]
 default = ["libtorrent"]

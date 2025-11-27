@@ -1,4 +1,5 @@
-#![allow(clippy::redundant_pub_crate)]
+//! Torrent orchestrator that wires libtorrent engine events into filesystem
+//! post-processing and runtime persistence.
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -650,11 +651,10 @@ mod tests {
     use anyhow::{Context, bail};
     use revaer_config::ConfigService;
     use revaer_events::EventBus;
+    use revaer_test_support::docker;
     use revaer_torrent_core::{AddTorrent, AddTorrentOptions, TorrentSource};
     use serde_json::json;
-    use std::env;
     use std::fs;
-    use std::process::Command;
     use tempfile::TempDir;
     use testcontainers::core::{ContainerPort, WaitFor};
     use testcontainers::runners::AsyncRunner;
@@ -698,25 +698,9 @@ mod tests {
         }
     }
 
-    fn docker_available() -> bool {
-        if let Ok(host) = env::var("DOCKER_HOST") {
-            if let Some(path) = host.strip_prefix("unix://") {
-                return std::path::Path::new(path).exists();
-            }
-            return true;
-        }
-
-        std::path::Path::new("/var/run/docker.sock").exists()
-            || Command::new("docker")
-                .args(["info"])
-                .output()
-                .map(|output| output.status.success())
-                .unwrap_or(false)
-    }
-
     #[tokio::test]
     async fn orchestrator_persists_runtime_state() -> Result<()> {
-        if !docker_available() {
+        if !docker::available() {
             eprintln!("skipping orchestrator_persists_runtime_state: docker socket missing");
             return Ok(());
         }
