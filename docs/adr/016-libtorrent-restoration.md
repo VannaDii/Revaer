@@ -1,0 +1,20 @@
+# 016: Libtorrent Restoration
+
+- Status: Accepted
+- Date: 2025-11-26
+- Context:
+  - AGENT rules now permit tightly scoped `#[allow(...)]` inside unavoidable FFI. Removing the C++ bridge dropped real torrent handling, violating product requirements.
+  - We need a known-compatible libtorrent integration with deterministic build wiring and coverage across the feature-gated path.
+- Decision:
+  - Restored the native libtorrent C++ bridge (`cxx`), FFI bindings, and `NativeSession` so the `libtorrent` feature drives the actual engine path while stubs remain for tests/offline builds.
+  - Kept lint posture strict (`#![deny(unsafe_code)`), confining `#[allow(unsafe_code)]` to the FFI module only.
+  - Build script now enforces a minimum libtorrent version (`>= 2.0.10`) via pkg-config, supports an explicit `LIBTORRENT_BUNDLE_DIR` (include/lib) for vendored deployments, and retains Homebrew/`LIBTORRENT_*` overrides.
+  - Coverage/test loops run with Docker (via colima) so Postgres + libtorrent-backed flows execute instead of being skipped.
+- Consequences:
+  - Real torrent handling is back; regressions from the prior stub-only state are eliminated.
+  - Consumers must provide libtorrent 2.0.10+ (or a bundled dir) at build time; build fails fast otherwise, reducing “works on my machine” drift.
+  - The FFI surface still carries unsafe impls (Send for the C++ session) but they are isolated; any crash in native code can still affect the process.
+- Follow-up:
+  - Publish guidance for producing a portable `LIBTORRENT_BUNDLE_DIR` artifact per target (CI-cached tarball).
+  - Add feature-flagged integration tests that hit the native path end-to-end under `--features libtorrent`.
+  - Monitor upstream libtorrent releases; bump the pinned minimum after validation and update the bundle recipe accordingly.

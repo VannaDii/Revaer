@@ -25,81 +25,119 @@ pub async fn run_migrations(pool: &PgPool) -> Result<()> {
 
 /// Raw projection of the `app_profile` table.
 #[derive(Debug, Clone, FromRow)]
-#[allow(missing_docs)]
 pub struct AppProfileRow {
+    /// Primary key for the application profile row.
     pub id: Uuid,
+    /// Friendly instance identifier.
     pub instance_name: String,
+    /// Operational mode string (`setup` or `active`).
     pub mode: String,
+    /// Monotonic revision number.
     pub version: i64,
+    /// API HTTP port.
     pub http_port: i32,
+    /// Bind address stored in the database.
     pub bind_addr: String,
+    /// Telemetry configuration payload.
     pub telemetry: Value,
+    /// Feature flags payload.
     pub features: Value,
+    /// Immutable configuration keys payload.
     pub immutable_keys: Value,
 }
 
 /// Raw projection of the `engine_profile` table.
 #[derive(Debug, Clone, FromRow)]
-#[allow(missing_docs)]
 pub struct EngineProfileRow {
+    /// Primary key for the engine profile.
     pub id: Uuid,
+    /// Engine implementation identifier.
     pub implementation: String,
+    /// Optional listening port.
     pub listen_port: Option<i32>,
+    /// DHT enablement flag.
     pub dht: bool,
+    /// Encryption policy string.
     pub encryption: String,
+    /// Optional active torrent limit.
     pub max_active: Option<i32>,
+    /// Optional global download cap.
     pub max_download_bps: Option<i64>,
+    /// Optional global upload cap.
     pub max_upload_bps: Option<i64>,
+    /// Default sequential flag.
     pub sequential_default: bool,
+    /// Resume data directory.
     pub resume_dir: String,
+    /// Download root directory.
     pub download_root: String,
+    /// Tracker configuration payload.
     pub tracker: Value,
 }
 
 /// Raw projection of the `fs_policy` table.
 #[derive(Debug, Clone, FromRow)]
-#[allow(missing_docs)]
 pub struct FsPolicyRow {
+    /// Primary key for the filesystem policy.
     pub id: Uuid,
+    /// Root path for completed artifacts.
     pub library_root: String,
+    /// Whether archives should be extracted.
     pub extract: bool,
+    /// PAR2 verification policy.
     pub par2: String,
+    /// Whether nested directory structures should be flattened.
     pub flatten: bool,
+    /// Move mode string (`copy`, `move`, `hardlink`).
     pub move_mode: String,
+    /// Paths to keep during cleanup (JSON payload).
     pub cleanup_keep: Value,
+    /// Paths to drop during cleanup (JSON payload).
     pub cleanup_drop: Value,
+    /// Optional chmod value for files.
     pub chmod_file: Option<String>,
+    /// Optional chmod value for directories.
     pub chmod_dir: Option<String>,
+    /// Optional owner override.
     pub owner: Option<String>,
+    /// Optional group override.
     pub group: Option<String>,
+    /// Optional umask override.
     pub umask: Option<String>,
+    /// Allowed path prefixes payload.
     pub allow_paths: Value,
 }
 
 /// Raw projection of an active setup token.
 #[derive(Debug, Clone, FromRow)]
-#[allow(missing_docs)]
 pub struct ActiveTokenRow {
+    /// Unique identifier for the token.
     pub id: Uuid,
+    /// Hashed token string.
     pub token_hash: String,
+    /// Expiration timestamp.
     pub expires_at: DateTime<Utc>,
 }
 
 /// Raw projection used for API key auth.
 #[derive(Debug, Clone, FromRow)]
-#[allow(missing_docs)]
 pub struct ApiKeyAuthRow {
+    /// Stored hash of the API key.
     pub hash: String,
+    /// Whether the key is currently enabled.
     pub enabled: bool,
+    /// Optional human-readable label.
     pub label: Option<String>,
+    /// Rate limit configuration payload.
     pub rate_limit: Value,
 }
 
 /// Raw projection of a stored secret.
 #[derive(Debug, Clone, FromRow)]
-#[allow(missing_docs)]
 pub struct SecretRow {
+    /// Secret name.
     pub name: String,
+    /// Encrypted secret bytes.
     pub ciphertext: Vec<u8>,
 }
 

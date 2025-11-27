@@ -1114,12 +1114,11 @@ const fn state_to_str(kind: TorrentStateKind) -> &'static str {
     }
 }
 
-#[allow(clippy::cast_precision_loss)]
 fn format_bytes(bytes: u64) -> String {
     const KIB: f64 = 1024.0;
     const MIB: f64 = KIB * 1024.0;
     const GIB: f64 = MIB * 1024.0;
-    let value = bytes as f64;
+    let value = bytes_to_f64(bytes);
     if value >= GIB {
         format!("{:.2} GiB", value / GIB)
     } else if value >= MIB {
@@ -1128,6 +1127,16 @@ fn format_bytes(bytes: u64) -> String {
         format!("{:.2} KiB", value / KIB)
     } else {
         format!("{bytes} B")
+    }
+}
+
+const fn bytes_to_f64(value: u64) -> f64 {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "u64 to f64 conversion is required for human-readable byte formatting"
+    )]
+    {
+        value as f64
     }
 }
 

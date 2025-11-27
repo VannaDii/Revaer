@@ -1754,6 +1754,7 @@ mod tests {
 
     use super::*;
     use std::io::Write;
+    use std::process::Command;
 
     use chrono::Utc;
     use revaer_config::ConfigService;
@@ -1769,6 +1770,16 @@ mod tests {
     use testcontainers::{ContainerAsync, GenericImage, ImageExt};
     use tokio::time::{Duration, sleep, timeout};
     use zip::{ZipWriter, write::FileOptions};
+
+    fn docker_available() -> bool {
+        Path::new("/var/run/docker.sock").exists()
+            || std::env::var_os("DOCKER_HOST").is_some()
+            || Command::new("docker")
+                .args(["info"])
+                .output()
+                .map(|output| output.status.success())
+                .unwrap_or(false)
+    }
 
     fn sample_policy(root: &Path) -> FsPolicy {
         let library_root = root.join("library");
@@ -1957,6 +1968,11 @@ mod tests {
 
     #[tokio::test]
     async fn pipeline_records_runtime_store_entries() -> Result<()> {
+        if !docker_available() {
+            eprintln!("skipping pipeline_records_runtime_store_entries: docker socket missing");
+            return Ok(());
+        }
+
         let (runtime, config, container) = bootstrap_runtime().await?;
 
         let bus = EventBus::with_capacity(8);

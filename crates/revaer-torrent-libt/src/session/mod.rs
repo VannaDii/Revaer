@@ -32,12 +32,14 @@ pub(crate) trait LibtSession: Send {
     async fn apply_config(&mut self, config: &EngineRuntimeConfig) -> Result<()>;
 }
 
-#[cfg(feature = "libtorrent")]
 pub(crate) fn create_session() -> Result<Box<dyn LibtSession>> {
-    native::create_session()
-}
+    #[cfg(feature = "libtorrent")]
+    {
+        native::create_session()
+    }
 
-#[cfg(not(feature = "libtorrent"))]
-pub(crate) fn create_session() -> Result<Box<dyn LibtSession>> {
-    Ok(Box::new(stub::StubSession::default()))
+    #[cfg(not(feature = "libtorrent"))]
+    {
+        Ok(Box::new(stub::StubSession::default()))
+    }
 }

@@ -44,7 +44,10 @@ use axum::{
     Json, Router,
     body::Body,
     extract::{Extension, MatchedPath, Path as AxumPath, Query, State},
-    http::{HeaderMap, Request, StatusCode, header::CONTENT_TYPE},
+    http::{
+        HeaderMap, HeaderValue, Request, StatusCode,
+        header::{CONTENT_TYPE, RETRY_AFTER},
+    },
     middleware::{self, Next},
     response::{
         IntoResponse, Response,
@@ -82,10 +85,14 @@ const HEADER_SETUP_TOKEN: &str = "x-revaer-setup-token";
 const HEADER_API_KEY: &str = "x-revaer-api-key";
 const HEADER_REQUEST_ID: &str = "x-request-id";
 const HEADER_LAST_EVENT_ID: &str = "last-event-id";
+const HEADER_RATE_LIMIT_LIMIT: &str = "x-ratelimit-limit";
+const HEADER_RATE_LIMIT_REMAINING: &str = "x-ratelimit-remaining";
+const HEADER_RATE_LIMIT_RESET: &str = "x-ratelimit-reset";
 const SSE_KEEP_ALIVE_SECS: u64 = 20;
 
 const PROBLEM_INTERNAL: &str = "https://revaer.dev/problems/internal";
 const PROBLEM_UNAUTHORIZED: &str = "https://revaer.dev/problems/unauthorized";
+const PROBLEM_FORBIDDEN: &str = "https://revaer.dev/problems/forbidden";
 const PROBLEM_BAD_REQUEST: &str = "https://revaer.dev/problems/bad-request";
 const PROBLEM_CONFLICT: &str = "https://revaer.dev/problems/conflict";
 const PROBLEM_CONFIG_INVALID: &str = "https://revaer.dev/problems/config-invalid";
@@ -220,6 +227,7 @@ struct ApiState {
     rate_limiters: Mutex<HashMap<String, RateLimiter>>,
     torrent_metadata: Mutex<HashMap<Uuid, TorrentMetadata>>,
     torrent: Option<TorrentHandles>,
+    compat_sessions: Mutex<HashMap<String, CompatSession>>,
 }
 
 impl ApiState {
@@ -240,6 +248,7 @@ impl ApiState {
             rate_limiters: Mutex::new(HashMap::new()),
             torrent_metadata: Mutex::new(HashMap::new()),
             torrent,
+            compat_sessions: Mutex::new(HashMap::new()),
         }
     }
 
@@ -310,14 +319,14 @@ impl ApiState {
         &self,
         key_id: &str,
         limit: Option<&ApiKeyRateLimit>,
-    ) -> Result<(), ApiError> {
+    ) -> Result<Option<RateLimitSnapshot>, RateLimitError> {
         limit.map_or_else(
             || {
                 if self.add_degraded_component("api_rate_limit_guard") {
                     self.telemetry.inc_guardrail_violation();
                     warn!("api key guard rail triggered: missing or unlimited rate limit");
                 }
-                Ok(())
+                Ok(None)
             },
             |limit| {
                 self.remove_degraded_component("api_rate_limit_guard");
@@ -326,16 +335,20 @@ impl ApiState {
                     .entry(key_id.to_string())
                     .or_insert_with(|| RateLimiter::new(limit.clone()));
                 let now = Instant::now();
-                let allowed = limiter.allow(limit, now);
+                let status = limiter.evaluate(limit, now);
                 drop(guard);
-                if allowed {
-                    Ok(())
+                if status.allowed {
+                    Ok(Some(RateLimitSnapshot {
+                        limit: limit.burst,
+                        remaining: status.remaining,
+                    }))
                 } else {
                     self.telemetry.inc_rate_limit_throttled();
                     warn!(api_key = %key_id, "API key rate limit exceeded");
-                    Err(ApiError::too_many_requests(
-                        "API key rate limit exceeded; try again later",
-                    ))
+                    Err(RateLimitError {
+                        limit: limit.burst,
+                        retry_after: status.retry_after,
+                    })
                 }
             },
         )
@@ -355,6 +368,39 @@ impl ApiState {
 
     fn remove_metadata(&self, id: &Uuid) {
         Self::lock_guard(&self.torrent_metadata, "torrent_metadata").remove(id);
+    }
+
+    fn issue_qb_session(&self) -> String {
+        let token = Uuid::new_v4().to_string();
+        let mut guard = Self::lock_guard(&self.compat_sessions, "compat_sessions");
+        guard.insert(
+            token.clone(),
+            CompatSession {
+                expires_at: Instant::now() + COMPAT_SESSION_TTL,
+            },
+        );
+        token
+    }
+
+    fn validate_qb_session(&self, token: &str) -> bool {
+        let now = Instant::now();
+        let mut guard = Self::lock_guard(&self.compat_sessions, "compat_sessions");
+        guard.retain(|_, session| session.expires_at > now);
+        let valid = if let Some(session) = guard.get_mut(token)
+            && session.expires_at > now
+        {
+            session.expires_at = now + COMPAT_SESSION_TTL;
+            true
+        } else {
+            false
+        };
+        drop(guard);
+        valid
+    }
+
+    fn revoke_qb_session(&self, token: &str) {
+        let mut guard = Self::lock_guard(&self.compat_sessions, "compat_sessions");
+        guard.remove(token);
     }
 
     fn lock_guard<'a, T>(mutex: &'a Mutex<T>, name: &str) -> MutexGuard<'a, T> {
@@ -378,8 +424,8 @@ struct TorrentMetadata {
 }
 
 impl TorrentMetadata {
-    #[allow(clippy::missing_const_for_fn)]
-    fn new(tags: Vec<String>, trackers: Vec<String>) -> Self {
+    #[must_use]
+    const fn new(tags: Vec<String>, trackers: Vec<String>) -> Self {
         Self { tags, trackers }
     }
 }
@@ -578,46 +624,152 @@ enum AuthContext {
 
 struct RateLimiter {
     config: ApiKeyRateLimit,
-    tokens: f64,
+    tokens: u128,
     last_refill: Instant,
 }
 
+struct RateLimitStatus {
+    allowed: bool,
+    remaining: u32,
+    retry_after: Duration,
+}
+
+#[derive(Clone, Copy)]
+struct RateLimitSnapshot {
+    limit: u32,
+    remaining: u32,
+}
+
+#[derive(Debug)]
+struct RateLimitError {
+    limit: u32,
+    retry_after: Duration,
+}
+
+struct CompatSession {
+    expires_at: Instant,
+}
+
+const COMPAT_SESSION_TTL: Duration = Duration::from_secs(30 * 60);
+
 impl RateLimiter {
+    const TOKEN_SCALE: u128 = 1_000_000;
+
     fn new(config: ApiKeyRateLimit) -> Self {
-        let capacity = f64::from(config.burst);
-        Self {
+        let mut limiter = Self {
             config,
-            tokens: capacity,
+            tokens: 0,
             last_refill: Instant::now(),
+        };
+        limiter.tokens = limiter.capacity();
+        limiter
+    }
+
+    fn capacity_for(config: &ApiKeyRateLimit) -> u128 {
+        u128::from(config.burst) * Self::TOKEN_SCALE
+    }
+
+    fn capacity(&self) -> u128 {
+        Self::capacity_for(&self.config)
+    }
+
+    fn refill(&mut self, now: Instant) {
+        let elapsed = now.saturating_duration_since(self.last_refill);
+        if elapsed == Duration::ZERO {
+            return;
+        }
+
+        let period_micros = self.config.replenish_period.as_micros();
+        let capacity = self.capacity();
+        if period_micros == 0 || capacity == 0 {
+            self.tokens = capacity;
+            self.last_refill = now;
+            return;
+        }
+
+        let replenished = (capacity.saturating_mul(elapsed.as_micros())).checked_div(period_micros);
+
+        if let Some(amount) = replenished
+            && amount > 0
+        {
+            self.tokens = (self.tokens + amount).min(capacity);
+            self.last_refill = now;
         }
     }
 
-    fn allow(&mut self, config: &ApiKeyRateLimit, now: Instant) -> bool {
+    fn evaluate(&mut self, config: &ApiKeyRateLimit, now: Instant) -> RateLimitStatus {
         if self.config != *config {
             self.config = config.clone();
-            self.tokens = f64::from(config.burst);
+            self.tokens = self.capacity();
             self.last_refill = now;
         }
 
-        let elapsed = now.saturating_duration_since(self.last_refill);
-        if elapsed >= self.config.replenish_period {
-            self.tokens = f64::from(self.config.burst);
-            self.last_refill = now;
-        } else if elapsed > Duration::ZERO {
-            let refill_rate =
-                f64::from(self.config.burst) / self.config.replenish_period.as_secs_f64();
-            let replenished = refill_rate * elapsed.as_secs_f64();
-            if replenished > 0.0 {
-                self.tokens = (self.tokens + replenished).clamp(0.0, f64::from(self.config.burst));
-                self.last_refill = now;
+        self.refill(now);
+
+        if self.tokens >= Self::TOKEN_SCALE {
+            self.tokens -= Self::TOKEN_SCALE;
+            RateLimitStatus {
+                allowed: true,
+                remaining: self.remaining_tokens(),
+                retry_after: Duration::ZERO,
+            }
+        } else {
+            RateLimitStatus {
+                allowed: false,
+                remaining: 0,
+                retry_after: self.retry_delay(),
             }
         }
+    }
 
-        if self.tokens >= 1.0 {
-            self.tokens -= 1.0;
-            true
+    fn remaining_tokens(&self) -> u32 {
+        let tokens = self.tokens / Self::TOKEN_SCALE;
+        u32::try_from(tokens).unwrap_or(u32::MAX)
+    }
+
+    fn retry_delay(&self) -> Duration {
+        let capacity = self.capacity();
+        if capacity == 0 {
+            return Duration::MAX;
+        }
+
+        let period_micros = self.config.replenish_period.as_micros();
+        if period_micros == 0 {
+            return Duration::ZERO;
+        }
+
+        let deficit = Self::TOKEN_SCALE.saturating_sub(self.tokens);
+        let needed = deficit.saturating_mul(period_micros);
+        let retry_micros = needed.div_ceil(capacity);
+        let clamped = retry_micros.min(u128::from(u64::MAX));
+        let micros = u64::try_from(clamped).unwrap_or(u64::MAX);
+        Duration::from_micros(micros)
+    }
+}
+
+fn insert_rate_limit_headers(
+    headers: &mut HeaderMap,
+    limit: u32,
+    remaining: u32,
+    retry_after: Option<Duration>,
+) {
+    if let Ok(value) = HeaderValue::from_str(&limit.to_string()) {
+        headers.insert(HEADER_RATE_LIMIT_LIMIT, value);
+    }
+    if let Ok(value) = HeaderValue::from_str(&remaining.to_string()) {
+        headers.insert(HEADER_RATE_LIMIT_REMAINING, value);
+    }
+    if let Some(wait) = retry_after {
+        let secs = wait.as_secs();
+        let seconds = if secs == 0 && wait.subsec_nanos() > 0 {
+            1
         } else {
-            false
+            secs.max(1)
+        };
+        let text = seconds.to_string();
+        if let Ok(value) = HeaderValue::from_str(&text) {
+            headers.insert(RETRY_AFTER, value.clone());
+            headers.insert(HEADER_RATE_LIMIT_RESET, value);
         }
     }
 }
@@ -697,6 +849,14 @@ struct ApiError {
     title: &'static str,
     detail: Option<String>,
     invalid_params: Option<Vec<ProblemInvalidParam>>,
+    rate_limit: Option<ErrorRateLimitContext>,
+}
+
+#[derive(Debug)]
+struct ErrorRateLimitContext {
+    limit: u32,
+    remaining: u32,
+    retry_after: Option<Duration>,
 }
 
 impl ApiError {
@@ -707,6 +867,7 @@ impl ApiError {
             title,
             detail: None,
             invalid_params: None,
+            rate_limit: None,
         }
     }
 
@@ -717,6 +878,20 @@ impl ApiError {
 
     fn with_invalid_params(mut self, params: Vec<ProblemInvalidParam>) -> Self {
         self.invalid_params = Some(params);
+        self
+    }
+
+    const fn with_rate_limit_headers(
+        mut self,
+        limit: u32,
+        remaining: u32,
+        retry_after: Option<Duration>,
+    ) -> Self {
+        self.rate_limit = Some(ErrorRateLimitContext {
+            limit,
+            remaining,
+            retry_after,
+        });
         self
     }
 
@@ -736,6 +911,10 @@ impl ApiError {
             "authentication required",
         )
         .with_detail(detail)
+    }
+
+    fn forbidden(detail: impl Into<String>) -> Self {
+        Self::new(StatusCode::FORBIDDEN, PROBLEM_FORBIDDEN, "forbidden").with_detail(detail)
     }
 
     fn bad_request(detail: impl Into<String>) -> Self {
@@ -801,7 +980,16 @@ impl IntoResponse for ApiError {
             detail: self.detail,
             invalid_params: self.invalid_params,
         };
-        (self.status, Json(body)).into_response()
+        let mut response = (self.status, Json(body)).into_response();
+        if let Some(rate) = self.rate_limit {
+            insert_rate_limit_headers(
+                response.headers_mut(),
+                rate.limit,
+                rate.remaining,
+                rate.retry_after,
+            );
+        }
+        response
     }
 }
 
@@ -1039,7 +1227,6 @@ impl ApiServer {
     /// # Errors
     ///
     /// Returns an error if the listener fails to bind or the server terminates unexpectedly.
-    #[allow(clippy::missing_errors_doc)]
     pub async fn serve(self, addr: SocketAddr) -> Result<()> {
         info!("Starting API on {}", addr);
         let listener = TcpListener::bind(addr).await?;
@@ -1827,13 +2014,30 @@ async fn require_api_key(
         return Err(ApiError::unauthorized("invalid API key"));
     };
 
-    state.enforce_rate_limit(&auth.key_id, auth.rate_limit.as_ref())?;
+    let rate_snapshot = match state.enforce_rate_limit(&auth.key_id, auth.rate_limit.as_ref()) {
+        Ok(snapshot) => snapshot,
+        Err(err) => {
+            return Err(ApiError::too_many_requests(
+                "API key rate limit exceeded; try again later",
+            )
+            .with_rate_limit_headers(err.limit, 0, Some(err.retry_after)));
+        }
+    };
 
     req.extensions_mut().insert(AuthContext::ApiKey {
         key_id: auth.key_id,
     });
 
-    Ok(next.run(req).await)
+    let mut response = next.run(req).await;
+    if let Some(snapshot) = rate_snapshot {
+        insert_rate_limit_headers(
+            response.headers_mut(),
+            snapshot.limit,
+            snapshot.remaining,
+            None,
+        );
+    }
+    Ok(response)
 }
 
 fn map_config_error(err: anyhow::Error, context: &'static str) -> ApiError {
@@ -1967,6 +2171,8 @@ mod tests {
     use super::*;
     use super::{ConfigFacade, SharedConfig};
     use async_trait::async_trait;
+    #[cfg(feature = "compat-qb")]
+    use axum::http::{HeaderMap, HeaderValue, header::COOKIE};
     use axum::{
         extract::{Form, Query, State},
         http::StatusCode,
@@ -2824,9 +3030,13 @@ mod tests {
         };
         let mut limiter = RateLimiter::new(limit.clone());
         let start = Instant::now();
-        assert!(limiter.allow(&limit, start));
-        assert!(limiter.allow(&limit, start));
-        assert!(!limiter.allow(&limit, start + Duration::from_secs(1)));
+        assert!(limiter.evaluate(&limit, start).allowed);
+        assert!(limiter.evaluate(&limit, start).allowed);
+        assert!(
+            !limiter
+                .evaluate(&limit, start + Duration::from_secs(1))
+                .allowed
+        );
     }
 
     #[test]
@@ -2837,10 +3047,14 @@ mod tests {
         };
         let mut limiter = RateLimiter::new(limit.clone());
         let start = Instant::now();
-        assert!(limiter.allow(&limit, start));
-        assert!(!limiter.allow(&limit, start + Duration::from_millis(100)));
+        assert!(limiter.evaluate(&limit, start).allowed);
+        assert!(
+            !limiter
+                .evaluate(&limit, start + Duration::from_millis(100))
+                .allowed
+        );
         let later = start + Duration::from_secs(2);
-        assert!(limiter.allow(&limit, later));
+        assert!(limiter.evaluate(&limit, later).allowed);
     }
 
     #[tokio::test]
@@ -3335,8 +3549,9 @@ mod tests {
             Some(handles),
         ));
 
+        let headers = qb_session_headers(&state);
         let Json(response) =
-            compat_qb::sync_maindata(State(state.clone()), Query(SyncParams::default()))
+            compat_qb::sync_maindata(State(state.clone()), headers, Query(SyncParams::default()))
                 .await
                 .expect("sync");
 
@@ -3392,8 +3607,9 @@ mod tests {
             name: "sample".to_string(),
         });
 
+        let headers = qb_session_headers(&state);
         let Json(initial) =
-            compat_qb::sync_maindata(State(state.clone()), Query(SyncParams::default()))
+            compat_qb::sync_maindata(State(state.clone()), headers, Query(SyncParams::default()))
                 .await
                 .expect("initial sync");
         let previous_rid = initial.rid;
@@ -3413,8 +3629,10 @@ mod tests {
             bytes_total: 512,
         });
 
+        let headers = qb_session_headers(&state);
         let Json(delta) = compat_qb::sync_maindata(
             State(state.clone()),
+            headers,
             Query(SyncParams {
                 rid: Some(previous_rid),
             }),
@@ -3434,8 +3652,10 @@ mod tests {
             torrent_id: sample_id,
         });
 
+        let headers = qb_session_headers(&state);
         let Json(removed_delta) = compat_qb::sync_maindata(
             State(state),
+            headers,
             Query(SyncParams {
                 rid: Some(latest_rid),
             }),
@@ -3476,7 +3696,8 @@ mod tests {
             ..TorrentAddForm::default()
         };
 
-        compat_qb::torrents_add(State(state), Form(form))
+        let headers = qb_session_headers(&state);
+        compat_qb::torrents_add(State(state), headers, Form(form))
             .await
             .expect("add torrent");
 
@@ -3532,7 +3753,8 @@ mod tests {
             hashes: Some(sample_status.id.simple().to_string()),
         };
 
-        let Json(entries) = compat_qb::torrents_info(State(state), Query(params))
+        let headers = qb_session_headers(&state);
+        let Json(entries) = compat_qb::torrents_info(State(state), headers, Query(params))
             .await
             .expect("torrents info");
         assert_eq!(entries.len(), 1);
@@ -3569,10 +3791,11 @@ mod tests {
         let hashes = sample_status.id.simple().to_string();
         let form = TorrentHashesForm { hashes };
 
-        compat_qb::torrents_pause(State(state.clone()), Form(form.clone()))
+        let headers = qb_session_headers(&state);
+        compat_qb::torrents_pause(State(state.clone()), headers.clone(), Form(form.clone()))
             .await
             .expect("pause");
-        compat_qb::torrents_resume(State(state), Form(form))
+        compat_qb::torrents_resume(State(state), headers, Form(form))
             .await
             .expect("resume");
 
@@ -3602,13 +3825,25 @@ mod tests {
         let form = TransferLimitForm {
             limit: "2048".to_string(),
         };
-        compat_qb::transfer_upload_limit(State(state.clone()), Form(form.clone()))
+        let headers = qb_session_headers(&state);
+        compat_qb::transfer_upload_limit(State(state.clone()), headers.clone(), Form(form.clone()))
             .await
             .expect("upload limit");
-        compat_qb::transfer_download_limit(State(state), Form(form))
+        compat_qb::transfer_download_limit(State(state), headers, Form(form))
             .await
             .expect("download limit");
         Ok(())
+    }
+
+    #[cfg(feature = "compat-qb")]
+    fn qb_session_headers(state: &Arc<ApiState>) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        let sid = state.issue_qb_session();
+        headers.insert(
+            COOKIE,
+            HeaderValue::from_str(&format!("SID={sid}")).expect("valid cookie header"),
+        );
+        headers
     }
 
     #[test]

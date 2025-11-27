@@ -1,5 +1,6 @@
 use std::future::Future;
 use std::path::Path;
+use std::process::Command;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -23,6 +24,11 @@ where
     F: FnOnce(RuntimeStore) -> Fut,
     Fut: Future<Output = Result<()>>,
 {
+    if !docker_available() {
+        eprintln!("skipping runtime store tests: docker socket missing");
+        return Ok(());
+    }
+
     let base_image = GenericImage::new(POSTGRES_IMAGE, POSTGRES_TAG)
         .with_exposed_port(ContainerPort::Tcp(5432))
         .with_wait_for(WaitFor::message_on_stdout(
@@ -70,6 +76,16 @@ where
     drop(container);
 
     result
+}
+
+fn docker_available() -> bool {
+    Path::new("/var/run/docker.sock").exists()
+        || std::env::var_os("DOCKER_HOST").is_some()
+        || Command::new("docker")
+            .args(["info"])
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
 }
 
 fn sample_status() -> TorrentStatus {

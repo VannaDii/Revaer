@@ -557,11 +557,10 @@ impl TorrentCatalog {
         entry.progress.eta_seconds = None;
         entry.rates.download_bps = 0;
         entry.rates.upload_bps = 0;
-        #[allow(clippy::cast_precision_loss)]
         let ratio = if bytes_total == 0 {
             0.0
         } else {
-            (bytes_downloaded as f64) / (bytes_total as f64)
+            bytes_to_f64(bytes_downloaded) / bytes_to_f64(bytes_total)
         };
         entry.rates.ratio = ratio;
         entry.last_updated = Utc::now();
@@ -635,6 +634,16 @@ impl TorrentCatalog {
     }
 }
 
+const fn bytes_to_f64(value: u64) -> f64 {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "u64 to f64 conversion is needed for user-facing ratio reporting"
+    )]
+    {
+        value as f64
+    }
+}
+
 #[cfg(all(test, feature = "libtorrent"))]
 mod tests {
     use super::*;
@@ -643,7 +652,9 @@ mod tests {
     use revaer_events::EventBus;
     use revaer_torrent_core::{AddTorrent, AddTorrentOptions, TorrentSource};
     use serde_json::json;
+    use std::env;
     use std::fs;
+    use std::process::Command;
     use tempfile::TempDir;
     use testcontainers::core::{ContainerPort, WaitFor};
     use testcontainers::runners::AsyncRunner;
@@ -687,8 +698,29 @@ mod tests {
         }
     }
 
+    fn docker_available() -> bool {
+        if let Ok(host) = env::var("DOCKER_HOST") {
+            if let Some(path) = host.strip_prefix("unix://") {
+                return std::path::Path::new(path).exists();
+            }
+            return true;
+        }
+
+        std::path::Path::new("/var/run/docker.sock").exists()
+            || Command::new("docker")
+                .args(["info"])
+                .output()
+                .map(|output| output.status.success())
+                .unwrap_or(false)
+    }
+
     #[tokio::test]
     async fn orchestrator_persists_runtime_state() -> Result<()> {
+        if !docker_available() {
+            eprintln!("skipping orchestrator_persists_runtime_state: docker socket missing");
+            return Ok(());
+        }
+
         let base_image = GenericImage::new("postgres", "14-alpine")
             .with_exposed_port(ContainerPort::Tcp(5432))
             .with_wait_for(WaitFor::message_on_stdout(

@@ -1,3 +1,5 @@
+#![allow(clippy::redundant_pub_crate)]
+
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow};

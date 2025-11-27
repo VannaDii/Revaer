@@ -17,7 +17,7 @@ use axum::{
     extract::{Form, Query, State},
     http::{
         HeaderMap, HeaderValue,
-        header::{CONTENT_TYPE, SET_COOKIE},
+        header::{CONTENT_TYPE, COOKIE, SET_COOKIE},
     },
     response::{IntoResponse, Response},
     routing::{get, post},
@@ -30,7 +30,7 @@ use revaer_events::{Event as CoreEvent, TorrentState};
 use revaer_torrent_core::{RemoveTorrent, TorrentRateLimit, TorrentStatus};
 
 use crate::{
-    ApiError, ApiState, TorrentHandles, TorrentMetadata, dispatch_torrent_add,
+    ApiError, ApiState, COMPAT_SESSION_TTL, TorrentHandles, TorrentMetadata, dispatch_torrent_add,
     models::TorrentCreateRequest,
 };
 
@@ -38,6 +38,7 @@ use crate::{
 pub(crate) fn mount(router: Router<Arc<ApiState>>) -> Router<Arc<ApiState>> {
     router
         .route("/api/v2/auth/login", post(login))
+        .route("/api/v2/auth/logout", post(logout))
         .route("/api/v2/app/version", get(app_version))
         .route("/api/v2/app/webapiVersion", get(app_webapi_version))
         .route("/api/v2/sync/maindata", get(sync_maindata))
@@ -59,38 +60,61 @@ struct LoginForm {
     password: Option<String>,
 }
 
-async fn login(Form(form): Form<LoginForm>) -> Result<impl IntoResponse, ApiError> {
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        SET_COOKIE,
-        HeaderValue::from_static("SID=revaer-session; HttpOnly; Path=/"),
-    );
-    headers.insert(
-        CONTENT_TYPE,
-        HeaderValue::from_static("text/plain; charset=utf-8"),
-    );
+async fn login(
+    State(state): State<Arc<ApiState>>,
+    Form(form): Form<LoginForm>,
+) -> Result<Response, ApiError> {
+    let sid = state.issue_qb_session();
     if form.username.is_some() || form.password.is_some() {
         warn!("ignored qbittorrent login credentials (compatibility mode)");
     }
-    Ok((headers, "Ok."))
+    let mut response = ok_plain();
+    response
+        .headers_mut()
+        .insert(SET_COOKIE, session_cookie_header(&sid)?);
+    Ok(response)
 }
 
-async fn app_version() -> impl IntoResponse {
-    let mut headers = HeaderMap::new();
-    headers.insert(
+async fn logout(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    let sid = ensure_session(&state, &headers)?;
+    state.revoke_qb_session(&sid);
+    let mut response = ok_plain();
+    response
+        .headers_mut()
+        .insert(SET_COOKIE, clear_session_cookie());
+    Ok(response)
+}
+
+async fn app_version(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, ApiError> {
+    ensure_session(&state, &headers)?;
+    let mut response_headers = HeaderMap::new();
+    response_headers.insert(
         CONTENT_TYPE,
         HeaderValue::from_static("text/plain; charset=utf-8"),
     );
-    (headers, format!("Revaer {}", env!("CARGO_PKG_VERSION")))
+    Ok((
+        response_headers,
+        format!("Revaer {}", env!("CARGO_PKG_VERSION")),
+    ))
 }
 
-async fn app_webapi_version() -> impl IntoResponse {
-    let mut headers = HeaderMap::new();
-    headers.insert(
+async fn app_webapi_version(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, ApiError> {
+    ensure_session(&state, &headers)?;
+    let mut response_headers = HeaderMap::new();
+    response_headers.insert(
         CONTENT_TYPE,
         HeaderValue::from_static("text/plain; charset=utf-8"),
     );
-    (headers, "2.8.18")
+    Ok((response_headers, "2.8.18"))
 }
 
 #[derive(Deserialize, Default)]
@@ -152,8 +176,10 @@ pub(crate) struct QbTorrentEntry {
 
 pub(crate) async fn sync_maindata(
     State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
     Query(params): Query<SyncParams>,
 ) -> Result<Json<SyncMainData>, ApiError> {
+    ensure_session(&state, &headers)?;
     let handles = state
         .torrent
         .as_ref()
@@ -249,8 +275,10 @@ pub(crate) struct TorrentsInfoParams {
 
 pub(crate) async fn torrents_info(
     State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
     Query(params): Query<TorrentsInfoParams>,
 ) -> Result<Json<Vec<QbTorrentEntry>>, ApiError> {
+    ensure_session(&state, &headers)?;
     let handles = state
         .torrent
         .as_ref()
@@ -295,8 +323,10 @@ pub(crate) struct TorrentAddForm {
 
 pub(crate) async fn torrents_add(
     State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
     Form(form): Form<TorrentAddForm>,
 ) -> Result<Response, ApiError> {
+    ensure_session(&state, &headers)?;
     let Some(urls) = form
         .urls
         .as_deref()
@@ -348,8 +378,10 @@ pub(crate) struct TorrentHashesForm {
 
 pub(crate) async fn torrents_pause(
     State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
     Form(form): Form<TorrentHashesForm>,
 ) -> Result<Response, ApiError> {
+    ensure_session(&state, &headers)?;
     apply_to_hashes(&state, &form.hashes, |workflow, id| async move {
         workflow.pause_torrent(id).await
     })
@@ -359,8 +391,10 @@ pub(crate) async fn torrents_pause(
 
 pub(crate) async fn torrents_resume(
     State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
     Form(form): Form<TorrentHashesForm>,
 ) -> Result<Response, ApiError> {
+    ensure_session(&state, &headers)?;
     apply_to_hashes(&state, &form.hashes, |workflow, id| async move {
         workflow.resume_torrent(id).await
     })
@@ -377,8 +411,10 @@ pub(crate) struct TorrentDeleteForm {
 
 pub(crate) async fn torrents_delete(
     State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
     Form(form): Form<TorrentDeleteForm>,
 ) -> Result<Response, ApiError> {
+    ensure_session(&state, &headers)?;
     let delete_data = form.delete_files.unwrap_or(false);
     apply_to_hashes(&state, &form.hashes, |workflow, id| async move {
         workflow
@@ -402,16 +438,20 @@ pub(crate) struct TransferLimitForm {
 
 pub(crate) async fn transfer_upload_limit(
     State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
     Form(form): Form<TransferLimitForm>,
 ) -> Result<Response, ApiError> {
+    ensure_session(&state, &headers)?;
     apply_rate_limit(&state, None, parse_limit(&form.limit)?).await?;
     Ok(ok_plain())
 }
 
 pub(crate) async fn transfer_download_limit(
     State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
     Form(form): Form<TransferLimitForm>,
 ) -> Result<Response, ApiError> {
+    ensure_session(&state, &headers)?;
     apply_rate_limit(&state, parse_limit(&form.limit)?, None).await?;
     Ok(ok_plain())
 }
@@ -544,12 +584,11 @@ const fn qb_state(state: &TorrentState) -> &'static str {
     }
 }
 
-#[allow(clippy::cast_precision_loss)]
 fn progress_fraction(status: &TorrentStatus) -> f64 {
     if status.progress.bytes_total == 0 {
         0.0
     } else {
-        (status.progress.bytes_downloaded as f64) / (status.progress.bytes_total as f64)
+        bytes_to_f64(status.progress.bytes_downloaded) / bytes_to_f64(status.progress.bytes_total)
     }
 }
 
@@ -580,6 +619,68 @@ where
     }
 }
 
+fn ensure_session(state: &Arc<ApiState>, headers: &HeaderMap) -> Result<String, ApiError> {
+    let sid = sid_from_headers(headers).ok_or_else(|| {
+        ApiError::forbidden("session cookie missing; authenticate via /api/v2/auth/login")
+    })?;
+    if state.validate_qb_session(&sid) {
+        Ok(sid)
+    } else {
+        Err(ApiError::forbidden(
+            "session expired; authenticate via /api/v2/auth/login",
+        ))
+    }
+}
+
+const fn bytes_to_f64(value: u64) -> f64 {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "u64 to f64 conversion is required for qBittorrent compatibility fields"
+    )]
+    {
+        value as f64
+    }
+}
+
+fn sid_from_headers(headers: &HeaderMap) -> Option<String> {
+    headers
+        .get_all(COOKIE)
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .find_map(|raw| cookie_value(raw, "sid"))
+}
+
+fn session_cookie_header(token: &str) -> Result<HeaderValue, ApiError> {
+    let cookie = format!(
+        "SID={token}; HttpOnly; Path=/; Max-Age={}; SameSite=Lax",
+        COMPAT_SESSION_TTL.as_secs()
+    );
+    HeaderValue::from_str(&cookie)
+        .map_err(|_| ApiError::internal("failed to encode session cookie header"))
+}
+
+const fn clear_session_cookie() -> HeaderValue {
+    HeaderValue::from_static("SID=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax")
+}
+
+fn cookie_value(raw: &str, needle: &str) -> Option<String> {
+    for entry in raw.split(';') {
+        let mut parts = entry.splitn(2, '=');
+        let name = parts.next().map(str::trim).unwrap_or_default();
+        if !name.eq_ignore_ascii_case(needle) {
+            continue;
+        }
+        if let Some(value) = parts.next().map(str::trim) {
+            if value.is_empty() {
+                return None;
+            }
+            return Some(value.trim_matches('"').to_string());
+        }
+        return None;
+    }
+    None
+}
+
 fn parse_tags(value: Option<&str>) -> Vec<String> {
     value
         .map(|raw| {
@@ -599,7 +700,6 @@ fn split_hashes(input: &str) -> Vec<String> {
         .collect()
 }
 
-#[allow(clippy::cast_sign_loss)]
 pub(crate) fn parse_limit(raw: &str) -> Result<Option<u64>, ApiError> {
     let trimmed = raw.trim();
     if trimmed.eq_ignore_ascii_case("NaN") || trimmed.is_empty() {
@@ -612,7 +712,7 @@ pub(crate) fn parse_limit(raw: &str) -> Result<Option<u64>, ApiError> {
     if value <= 0 {
         Ok(None)
     } else {
-        Ok(Some(value as u64))
+        Ok(u64::try_from(value).ok())
     }
 }
 
@@ -628,34 +728,36 @@ fn ok_plain() -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anyhow::Result;
+    use anyhow::{Result, anyhow};
+    use async_trait::async_trait;
     use axum::{
-        extract::Form,
+        extract::{Form, State},
         http::{
-            StatusCode,
-            header::{CONTENT_TYPE, SET_COOKIE},
+            HeaderMap, HeaderValue, StatusCode,
+            header::{CONTENT_TYPE, COOKIE, SET_COOKIE},
         },
         response::IntoResponse,
     };
+    use revaer_config::{
+        ApiKeyAuth, AppProfile, AppliedChanges, ConfigSnapshot, SettingsChangeset, SetupToken,
+    };
+    use revaer_events::EventBus;
+    use revaer_telemetry::Metrics;
+    use serde_json::Value;
+    use std::{sync::Arc, time::Duration};
 
     #[tokio::test]
     async fn login_emits_cookie_and_accepts_credentials() -> Result<()> {
-        let response = login(Form(LoginForm::default()))
+        let state = test_state();
+        let response = login(State(Arc::clone(&state)), Form(LoginForm::default()))
             .await
-            .expect("login should succeed")
-            .into_response();
-        let status = response.status();
+            .expect("login should succeed");
         let headers = response.headers().clone();
-        let _body = response.into_body();
-
-        assert_eq!(status, StatusCode::OK);
-        assert_eq!(
-            headers
-                .get(SET_COOKIE)
-                .expect("session cookie present")
-                .to_str()?,
-            "SID=revaer-session; HttpOnly; Path=/"
-        );
+        let cookie = headers
+            .get(SET_COOKIE)
+            .expect("session cookie present")
+            .to_str()?;
+        let session = cookie_value(cookie, "sid").expect("sid present in cookie");
         assert_eq!(
             headers
                 .get(CONTENT_TYPE)
@@ -663,45 +765,165 @@ mod tests {
                 .to_str()?,
             "text/plain; charset=utf-8"
         );
+        assert!(state.validate_qb_session(&session));
 
-        login(Form(LoginForm {
-            username: Some("demo".into()),
-            password: Some("secret".into()),
-        }))
+        login(
+            State(state),
+            Form(LoginForm {
+                username: Some("demo".into()),
+                password: Some("secret".into()),
+            }),
+        )
         .await
         .expect("login with credentials should still succeed");
         Ok(())
     }
 
     #[tokio::test]
-    async fn version_endpoints_emit_plain_text() -> Result<()> {
-        let response = app_version().await.into_response();
-        let status = response.status();
-        let headers = response.headers().clone();
-        let _body = response.into_body();
+    async fn logout_revokes_session_and_clears_cookie() -> Result<()> {
+        let state = test_state();
+        let response = login(State(Arc::clone(&state)), Form(LoginForm::default()))
+            .await
+            .expect("login succeeds");
+        let cookie = response
+            .headers()
+            .get(SET_COOKIE)
+            .expect("cookie present")
+            .to_str()?;
+        let sid = cookie_value(cookie, "sid").expect("sid present");
+        assert!(state.validate_qb_session(&sid));
 
-        assert_eq!(status, StatusCode::OK);
+        let headers = header_with_sid(&sid);
+        let response = logout(State(Arc::clone(&state)), headers)
+            .await
+            .expect("logout succeeds");
         assert_eq!(
-            headers
+            response
+                .headers()
+                .get(SET_COOKIE)
+                .expect("logout cookie present")
+                .to_str()?,
+            "SID=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax"
+        );
+        assert!(!state.validate_qb_session(&sid));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn version_endpoints_require_session() {
+        let state = test_state();
+        let headers = HeaderMap::new();
+        let result = app_version(State(Arc::clone(&state)), headers).await;
+        let error = match result {
+            Ok(response) => {
+                let response = response.into_response();
+                panic!(
+                    "expected auth failure but received status {}",
+                    response.status()
+                );
+            }
+            Err(err) => err,
+        };
+        let response = error.into_response();
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+    }
+
+    #[tokio::test]
+    async fn version_endpoints_emit_plain_text_when_authenticated() -> Result<()> {
+        let state = test_state();
+        let sid = state.issue_qb_session();
+        let headers = header_with_sid(&sid);
+        let response = app_version(State(Arc::clone(&state)), headers)
+            .await
+            .expect("version request succeeds")
+            .into_response();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
                 .get(CONTENT_TYPE)
                 .expect("content type present")
                 .to_str()?,
             "text/plain; charset=utf-8"
         );
 
-        let response = app_webapi_version().await.into_response();
-        let status = response.status();
-        let headers = response.headers().clone();
-        let _body = response.into_body();
-
-        assert_eq!(status, StatusCode::OK);
+        let headers = header_with_sid(&state.issue_qb_session());
+        let response = app_webapi_version(State(state), headers)
+            .await
+            .expect("webapi version succeeds")
+            .into_response();
+        assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
-            headers
+            response
+                .headers()
                 .get(CONTENT_TYPE)
                 .expect("content type present")
                 .to_str()?,
             "text/plain; charset=utf-8"
         );
         Ok(())
+    }
+
+    fn header_with_sid(sid: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            COOKIE,
+            HeaderValue::from_str(&format!("SID={sid}")).expect("valid cookie header"),
+        );
+        headers
+    }
+
+    fn test_state() -> Arc<ApiState> {
+        let config: Arc<dyn crate::ConfigFacade> = Arc::new(TestConfig);
+        Arc::new(ApiState::new(
+            config,
+            Metrics::new().expect("metrics init"),
+            Arc::new(Value::Null),
+            EventBus::with_capacity(4),
+            None,
+        ))
+    }
+
+    #[derive(Clone)]
+    struct TestConfig;
+
+    #[async_trait]
+    impl crate::ConfigFacade for TestConfig {
+        async fn get_app_profile(&self) -> Result<AppProfile> {
+            Err(anyhow!("not implemented in tests"))
+        }
+
+        async fn issue_setup_token(&self, _ttl: Duration, _issued_by: &str) -> Result<SetupToken> {
+            Err(anyhow!("not implemented in tests"))
+        }
+
+        async fn validate_setup_token(&self, _token: &str) -> Result<()> {
+            Err(anyhow!("not implemented in tests"))
+        }
+
+        async fn consume_setup_token(&self, _token: &str) -> Result<()> {
+            Err(anyhow!("not implemented in tests"))
+        }
+
+        async fn apply_changeset(
+            &self,
+            _actor: &str,
+            _reason: &str,
+            _changeset: SettingsChangeset,
+        ) -> Result<AppliedChanges> {
+            Err(anyhow!("not implemented in tests"))
+        }
+
+        async fn snapshot(&self) -> Result<ConfigSnapshot> {
+            Err(anyhow!("not implemented in tests"))
+        }
+
+        async fn authenticate_api_key(
+            &self,
+            _key_id: &str,
+            _secret: &str,
+        ) -> Result<Option<ApiKeyAuth>> {
+            Ok(None)
+        }
     }
 }

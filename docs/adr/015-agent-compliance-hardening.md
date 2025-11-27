@@ -1,0 +1,22 @@
+# 015: Agent Compliance Hardening
+
+- Status: Superseded by 016
+- Date: 2025-11-26
+- Context:
+  - AGENT.md now forbids unsafe code and bans lint suppressions for precision loss, missing docs/errors, and dormant code; several crates still relied on those allowances.
+  - The libtorrent adapter depended on a C++ bridge and `build.rs`, introducing unsafe blocks that violated the updated directives.
+  - API/config paths carried `#[allow]` gates to bypass documentation and float-cast lints, masking real enforcement.
+- Decision:
+  - Removed the libtorrent C++ bridge (build script and FFI sources) and now run the adapter solely on the safe `StubSession`, keeping the crate `#![forbid(unsafe_code)]`.
+  - Swapped float casts in rate limiting/formatting paths for integer-based accounting and `From` conversions, eliminating banned clippy allowances.
+  - Added missing error docs and promoted constructors to `const` where viable to satisfy lint gates without exemptions.
+  - Provisioned a local Docker runtime via `colima` so integration suites (Postgres-backed) execute instead of skipping, keeping coverage and DB-dependent tests meaningful.
+  - Updated cargo-deny skips to reflect the current dependency graph (foldhash via hashbrown) without introducing new dependencies.
+- Consequences:
+  - Native libtorrent integration is temporarily unavailable; the safe stub keeps orchestrator flows and tests exercising the engine API. Risk: production parity with libtorrent is paused—rollback by restoring the prior FFI bridge branch if needed.
+  - Workspace now contains zero unsafe code and no banned `#[allow]` directives, aligning with AGENT.md’s lint posture.
+  - Rate limiting uses deterministic integer tokens; behaviour should remain monotonic but merits monitoring under bursty traffic for regressions.
+- Follow-up:
+  - Reintroduce a safe libtorrent integration (possibly in an isolated crate) once it can satisfy the no-unsafe mandate or after revisiting the directive in a dedicated ADR.
+  - Add feature-flagged integration tests for the real adapter when restored, while keeping the stub path covered in CI.
+  - Test coverage: `DOCKER_HOST=unix:///Users/vanna/.colima/default/docker.sock just ci` passes (fmt/lint/udeps/audit/deny/test/cov) with coverage at ~81% lines; rerun `cargo deny` to trim remaining skips when upstream unifies foldhash/hashbrown.

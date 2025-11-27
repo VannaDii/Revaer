@@ -428,8 +428,12 @@ pub struct ConfigService {
 
 impl ConfigService {
     /// Establish a connection pool and ensure migrations are applied.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the `PostgreSQL` connection cannot be established or
+    /// migrations fail to run.
     #[instrument(name = "config_service.new", skip(database_url))]
-    #[allow(clippy::missing_errors_doc)]
     pub async fn new(database_url: impl Into<String>) -> Result<Self> {
         let database_url = database_url.into();
         let pool = PgPoolOptions::new()
@@ -451,7 +455,10 @@ impl ConfigService {
     }
 
     /// Produce a strongly typed snapshot of the current configuration revision.
-    #[allow(clippy::missing_errors_doc)]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any underlying configuration query fails.
     pub async fn snapshot(&self) -> Result<ConfigSnapshot> {
         let app = fetch_app_profile(&self.pool).await?;
         let engine = fetch_engine_profile(&self.pool).await?;
@@ -467,7 +474,10 @@ impl ConfigService {
     }
 
     /// Subscribe to configuration changes, falling back to polling if LISTEN fails.
-    #[allow(clippy::missing_errors_doc)]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the initial snapshot or listener attachment fails.
     pub async fn watch_settings(
         &self,
         poll_interval: Duration,
@@ -492,7 +502,11 @@ impl ConfigService {
     }
 
     /// Verify that a setup token exists and has not expired without consuming it.
-    #[allow(clippy::missing_errors_doc)]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if database access fails, token verification fails, or
+    /// the token is expired or missing.
     pub async fn validate_setup_token(&self, token: &str) -> Result<()> {
         let mut tx = self.pool.begin().await?;
         data_config::cleanup_expired_setup_tokens(tx.as_mut()).await?;
@@ -529,7 +543,11 @@ impl ConfigService {
     }
 
     /// Validate an API key/secret combination and return authorisation context.
-    #[allow(clippy::missing_errors_doc)]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the API key lookup, hashing, or rate limit parsing
+    /// fails.
     pub async fn authenticate_api_key(
         &self,
         key_id: &str,
@@ -587,7 +605,11 @@ pub struct ConfigWatcher {
 
 impl ConfigWatcher {
     /// Await the next configuration snapshot reflecting any applied changes.
-    #[allow(clippy::missing_errors_doc)]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if polling or LISTEN handling fails while fetching the
+    /// next configuration snapshot.
     pub async fn next(&mut self) -> Result<ConfigSnapshot> {
         loop {
             if let Some(snapshot) = self.listen_once().await? {

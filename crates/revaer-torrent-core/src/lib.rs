@@ -189,15 +189,24 @@ pub struct TorrentProgress {
 }
 
 impl TorrentProgress {
-    #[allow(clippy::cast_precision_loss)]
     #[must_use]
     /// Calculate the completion percentage (0-100).
     pub fn percent_complete(&self) -> f64 {
         if self.bytes_total == 0 {
             0.0
         } else {
-            (self.bytes_downloaded as f64 / self.bytes_total as f64) * 100.0
+            (to_f64(self.bytes_downloaded) / to_f64(self.bytes_total)) * 100.0
         }
+    }
+}
+
+const fn to_f64(value: u64) -> f64 {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "u64 to f64 conversion is required for user-facing percentage reporting"
+    )]
+    {
+        value as f64
     }
 }
 

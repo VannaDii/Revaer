@@ -1,4 +1,6 @@
 use std::future::Future;
+use std::path::Path;
+use std::process::Command;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
@@ -23,6 +25,11 @@ where
     if let Ok(url) = std::env::var("REVAER_TEST_DATABASE_URL") {
         let service = ConfigService::new(url).await?;
         return test(service).await;
+    }
+
+    if !docker_available() {
+        eprintln!("skipping config integration tests: docker socket missing");
+        return Ok(());
     }
 
     let base_image = GenericImage::new("postgres", "14-alpine")
@@ -81,6 +88,16 @@ where
     drop(container);
 
     result
+}
+
+fn docker_available() -> bool {
+    Path::new("/var/run/docker.sock").exists()
+        || std::env::var_os("DOCKER_HOST").is_some()
+        || Command::new("docker")
+            .args(["info"])
+            .output()
+            .map(|output| output.status.success())
+            .unwrap_or(false)
 }
 
 #[tokio::test]
