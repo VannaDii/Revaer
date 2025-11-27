@@ -23,7 +23,7 @@ Detail view: mobile renders tabs (`Files`, `Peers`, `Trackers`, `Log`, `Info`) w
 
 Virtualization: torrent list uses a windowed renderer (row-height aware with overscan) to keep 50k+ rows responsive; horizontal scroll remains keyboard-safe and selection stays highlighted for shortcut actions.
 
-Auth: remote mode always requires an API key; prompt stores key in local storage, LAN anonymous mode is allowed only if backend advertises `allow_anonymous`.
+Auth: remote mode always requires an API key; prompt stores key in local storage, LAN anonymous mode is allowed only if backend advertises `allow_anonymous`. SSE currently appends the key via querystring (EventSource lacks header support); use TLS and avoid logging URLs in deployment. Live updates: SSE feeds torrent progress/rates plus dashboard rates/queue/VPN status; reconnect badge/overlay surfaces failures and retries.
 
 Add flow: drop `.torrent` or paste magnet/URL with inline validation and error copy; invalid file types are rejected.
 

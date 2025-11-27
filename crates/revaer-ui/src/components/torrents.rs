@@ -30,6 +30,7 @@ pub struct TorrentProps {
     pub density: Density,
     pub mode: UiMode,
     pub on_density_change: Callback<Density>,
+    pub on_action: Callback<(TorrentAction, String)>,
 }
 
 #[function_component(TorrentView)]
@@ -52,6 +53,34 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
     let mode_class = match props.mode {
         UiMode::Simple => "mode-simple",
         UiMode::Advanced => "mode-advanced",
+    };
+    let selected_id = props.torrents.get(*selected_idx).map(|row| row.id.clone());
+    let pause_selected = {
+        let on_action = props.on_action.clone();
+        let selected_id = selected_id.clone();
+        Callback::from(move |_| {
+            if let Some(id) = &selected_id {
+                on_action.emit((TorrentAction::Pause, id.clone()));
+            }
+        })
+    };
+    let resume_selected = {
+        let on_action = props.on_action.clone();
+        let selected_id = selected_id.clone();
+        Callback::from(move |_| {
+            if let Some(id) = &selected_id {
+                on_action.emit((TorrentAction::Resume, id.clone()));
+            }
+        })
+    };
+    let delete_selected = {
+        let on_action = props.on_action.clone();
+        let selected_id = selected_id.clone();
+        Callback::from(move |_| {
+            if let Some(id) = &selected_id {
+                on_action.emit((TorrentAction::Delete { with_data: false }, id.clone()));
+            }
+        })
     };
 
     let on_select = {
@@ -178,9 +207,9 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                             }
                         }).collect::<Html>()}
                     </div>
-                    <button class="ghost">{"Pause"}</button>
-                    <button class="ghost">{"Resume"}</button>
-                    <button class="ghost danger">{"Delete"}</button>
+                    <button class="ghost" onclick={pause_selected}>{"Pause"}</button>
+                    <button class="ghost" onclick={resume_selected}>{"Resume"}</button>
+                    <button class="ghost danger" onclick={delete_selected}>{"Delete"}</button>
                     <button class="solid">{"Add"}</button>
                 </div>
             </header>
@@ -196,9 +225,10 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                     let on_select = on_select.clone();
                     let torrents = props.torrents.clone();
                     let selected_idx = *selected_idx;
+                    let on_action = props.on_action.clone();
                     Callback::from(move |idx: usize| {
                         if let Some(row) = torrents.get(idx) {
-                            render_row(row, idx == selected_idx, on_select.clone())
+                            render_row(row, idx == selected_idx, on_select.clone(), on_action.clone())
                         } else {
                             html! {}
                         }
@@ -207,7 +237,7 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
             />
 
             <DetailView data={(*selected).clone()} />
-            <MobileActionRow />
+            <MobileActionRow on_action={props.on_action.clone()} selected={props.torrents.get(*selected_idx).map(|t| t.id.clone())} />
             <ActionBanner message={(*action_banner).clone()} />
             <ConfirmDialog
                 kind={(*confirm).clone()}
@@ -220,13 +250,22 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                     let torrents = props.torrents.clone();
                     let selected_idx = *selected_idx;
                     let action_banner = action_banner.clone();
+                    let on_action = props.on_action.clone();
                     Callback::from(move |kind: ConfirmKind| {
                         confirm.set(None);
                         if let Some(row) = torrents.get(selected_idx) {
-                            let msg = match kind {
-                                ConfirmKind::Delete => format!("Removed torrent {}", row.name),
-                                ConfirmKind::DeleteData => format!("Removed torrent + data {}", row.name),
-                                ConfirmKind::Recheck => format!("Rechecking {}", row.name),
+                            let action = match kind {
+                                ConfirmKind::Delete => TorrentAction::Delete { with_data: false },
+                                ConfirmKind::DeleteData => TorrentAction::Delete { with_data: true },
+                                ConfirmKind::Recheck => TorrentAction::Recheck,
+                            };
+                            on_action.emit((action.clone(), row.id.clone()));
+                            let msg = match action {
+                                TorrentAction::Delete { with_data: true } => format!("Removed torrent + data {}", row.name),
+                                TorrentAction::Delete { with_data: false } => format!("Removed torrent {}", row.name),
+                                TorrentAction::Recheck => format!("Rechecking {}", row.name),
+                                TorrentAction::Pause => format!("Paused {}", row.name),
+                                TorrentAction::Resume => format!("Resumed {}", row.name),
                             };
                             action_banner.set(Some(msg));
                         }
@@ -237,11 +276,38 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
     }
 }
 
-fn render_row(row: &TorrentRow, selected: bool, on_select: Callback<String>) -> Html {
+fn render_row(
+    row: &TorrentRow,
+    selected: bool,
+    on_select: Callback<String>,
+    on_action: Callback<(TorrentAction, String)>,
+) -> Html {
     let select = {
         let on_select = on_select.clone();
         let id = row.id.to_string();
         Callback::from(move |_| on_select.emit(id.clone()))
+    };
+    let pause = {
+        let on_action = on_action.clone();
+        let id = row.id.clone();
+        Callback::from(move |_| on_action.emit((TorrentAction::Pause, id.clone())))
+    };
+    let resume = {
+        let on_action = on_action.clone();
+        let id = row.id.clone();
+        Callback::from(move |_| on_action.emit((TorrentAction::Resume, id.clone())))
+    };
+    let recheck = {
+        let on_action = on_action.clone();
+        let id = row.id.clone();
+        Callback::from(move |_| on_action.emit((TorrentAction::Recheck, id.clone())))
+    };
+    let delete_data = {
+        let on_action = on_action.clone();
+        let id = row.id.clone();
+        Callback::from(move |_| {
+            on_action.emit((TorrentAction::Delete { with_data: true }, id.clone()))
+        })
     };
     html! {
         <article class={classes!("torrent-row", if selected { Some("selected") } else { None })} aria-selected={selected.to_string()}>
@@ -286,9 +352,10 @@ fn render_row(row: &TorrentRow, selected: bool, on_select: Callback<String>) -> 
             </div>
             <div class="row-actions">
                 <button class="ghost" onclick={select.clone()}>{"Open detail"}</button>
-                <button class="ghost">{"Pause"}</button>
-                <button class="ghost">{"Recheck"}</button>
-                <button class="ghost danger">{"Delete + data"}</button>
+                <button class="ghost" onclick={pause}>{"Pause"}</button>
+                <button class="ghost" onclick={resume}>{"Resume"}</button>
+                <button class="ghost" onclick={recheck}>{"Recheck"}</button>
+                <button class="ghost danger" onclick={delete_data}>{"Delete + data"}</button>
             </div>
         </article>
     }
@@ -427,12 +494,39 @@ fn add_torrent_panel() -> Html {
 }
 
 #[function_component(MobileActionRow)]
-fn mobile_action_row() -> Html {
+fn mobile_action_row(props: &MobileActionProps) -> Html {
+    let pause = {
+        let on_action = props.on_action.clone();
+        let id = props.selected.clone();
+        Callback::from(move |_| {
+            if let Some(id) = &id {
+                on_action.emit((TorrentAction::Pause, id.clone()));
+            }
+        })
+    };
+    let resume = {
+        let on_action = props.on_action.clone();
+        let id = props.selected.clone();
+        Callback::from(move |_| {
+            if let Some(id) = &id {
+                on_action.emit((TorrentAction::Resume, id.clone()));
+            }
+        })
+    };
+    let delete = {
+        let on_action = props.on_action.clone();
+        let id = props.selected.clone();
+        Callback::from(move |_| {
+            if let Some(id) = &id {
+                on_action.emit((TorrentAction::Delete { with_data: false }, id.clone()));
+            }
+        })
+    };
     html! {
         <div class="mobile-action-row">
-            <button class="ghost">{"Pause"}</button>
-            <button class="ghost">{"Resume"}</button>
-            <button class="ghost danger">{"Delete"}</button>
+            <button class="ghost" onclick={pause}>{"Pause"}</button>
+            <button class="ghost" onclick={resume}>{"Resume"}</button>
+            <button class="ghost danger" onclick={delete}>{"Delete"}</button>
             <button class="solid">{"More…"}</button>
         </div>
     }
@@ -443,6 +537,14 @@ pub enum ConfirmKind {
     Delete,
     DeleteData,
     Recheck,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum TorrentAction {
+    Pause,
+    Resume,
+    Recheck,
+    Delete { with_data: bool },
 }
 
 #[derive(Properties, PartialEq)]
@@ -501,6 +603,12 @@ fn confirm_dialog(props: &ConfirmProps) -> Html {
 #[derive(Properties, PartialEq)]
 pub struct BannerProps {
     pub message: Option<String>,
+}
+
+#[derive(Properties, PartialEq)]
+pub struct MobileActionProps {
+    pub on_action: Callback<(TorrentAction, String)>,
+    pub selected: Option<String>,
 }
 
 #[function_component(ActionBanner)]

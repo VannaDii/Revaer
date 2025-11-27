@@ -1,14 +1,12 @@
 //! HTTP and SSE client helpers (REST + fallback stubs).
 
-use crate::components::dashboard::{
-    DashboardSnapshot, PathUsage, QueueStatus, TrackerHealth, VpnState,
-};
-use crate::components::torrents::TorrentRow;
+use crate::components::dashboard::{DashboardSnapshot, QueueStatus, TrackerHealth, VpnState};
+use crate::components::torrents::{TorrentAction, TorrentRow};
 use crate::models::{SseEvent, TorrentSummary};
 use gloo_net::http::Request;
-use wasm_bindgen_futures::spawn_local;
-use yew::Callback;
-use yew::platform::spawn_local as yew_spawn;
+use wasm_bindgen::JsCast;
+use wasm_bindgen::closure::Closure;
+use web_sys::{EventSource, EventSourceInit, MessageEvent};
 
 #[derive(Clone, Debug)]
 pub struct ApiClient {
@@ -30,6 +28,36 @@ impl ApiClient {
             req = req.header("x-api-key", key);
         }
         Ok(req.send().await?.json::<T>().await?)
+    }
+
+    async fn post_empty(&self, path: &str) -> anyhow::Result<()> {
+        let mut req = Request::post(&format!("{}{}", self.base_url, path));
+        if let Some(key) = &self.api_key {
+            req = req.header("x-api-key", key);
+        }
+        req.send().await?;
+        Ok(())
+    }
+
+    pub async fn perform_action(&self, id: &str, action: TorrentAction) -> anyhow::Result<()> {
+        match action {
+            TorrentAction::Pause => self.post_empty(&format!("/v1/torrents/{id}/pause")).await,
+            TorrentAction::Resume => self.post_empty(&format!("/v1/torrents/{id}/resume")).await,
+            TorrentAction::Recheck => self.post_empty(&format!("/v1/torrents/{id}/recheck")).await,
+            TorrentAction::Delete { with_data } => {
+                let path = if with_data {
+                    format!("/v1/torrents/{id}?with_data=true")
+                } else {
+                    format!("/v1/torrents/{id}")
+                };
+                let mut req = Request::delete(&format!("{}{}", self.base_url, path));
+                if let Some(key) = &self.api_key {
+                    req = req.header("x-api-key", key);
+                }
+                req.send().await?;
+                Ok(())
+            }
+        }
     }
 
     pub async fn fetch_torrents(&self) -> anyhow::Result<Vec<TorrentRow>> {
@@ -79,17 +107,34 @@ impl ApiClient {
     }
 }
 
-/// Handle SSE events pushed from the backend. In Phase 1 this is a placeholder that can be wired to `EventSource`.
-pub fn connect_sse<F>(on_event: F)
-where
-    F: 'static + Fn(SseEvent) + Send + Clone,
-{
-    // Placeholder: simulate periodic updates until real EventSource wiring is added.
-    yew_spawn(async move {
-        let cb = on_event.clone();
-        cb(SseEvent::SystemRates {
-            download_bps: 120_000_000,
-            upload_bps: 12_000_000,
-        });
-    });
+/// Handle SSE events pushed from the backend using `EventSource`.
+pub fn connect_sse(
+    base_url: &str,
+    api_key: Option<String>,
+    on_event: impl Fn(SseEvent) + 'static,
+) -> Option<EventSource> {
+    let url = if let Some(key) = api_key {
+        format!(
+            "{}/v1/events/stream?api_key={}",
+            base_url.trim_end_matches('/'),
+            key
+        )
+    } else {
+        format!("{}/v1/events/stream", base_url.trim_end_matches('/'))
+    };
+    let mut init = EventSourceInit::new();
+    init.with_credentials(true);
+    let source = EventSource::new_with_event_source_init_dict(&url, &init).ok()?;
+    let handler = Closure::<dyn FnMut(_)>::wrap(Box::new(move |event: web_sys::Event| {
+        if let Ok(msg) = event.dyn_into::<MessageEvent>() {
+            if let Ok(text) = msg.data().dyn_into::<js_sys::JsString>() {
+                if let Ok(parsed) = serde_json::from_str::<SseEvent>(&String::from(text)) {
+                    on_event(parsed);
+                }
+            }
+        }
+    }) as Box<dyn FnMut(_)>);
+    let _ = source.add_event_listener_with_callback("message", handler.as_ref().unchecked_ref());
+    handler.forget();
+    Some(source)
 }
