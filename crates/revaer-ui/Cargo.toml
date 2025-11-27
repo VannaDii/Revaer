@@ -6,16 +6,12 @@ license = "MIT OR Apache-2.0"
 authors = ["Revaer Contributors"]
 publish = false
 
-[package.metadata.cargo-llvm-cov]
-ignore = true
-
 [lib]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
-once_cell = "1.21"
 uuid = { workspace = true }
 
 [target."cfg(target_arch = \"wasm32\")".dependencies]

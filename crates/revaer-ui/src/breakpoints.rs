@@ -3,36 +3,45 @@
 /// Individual breakpoint with an inclusive minimum width and optional maximum.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Breakpoint {
+    /// Human-readable name used in CSS/data attributes.
     pub name: &'static str,
+    /// Inclusive lower bound of the breakpoint width in pixels.
     pub min_width: u16,
+    /// Optional inclusive upper bound of the breakpoint width in pixels.
     pub max_width: Option<u16>,
 }
 
+/// Extra-small breakpoint (mobile portrait).
 pub const XS: Breakpoint = Breakpoint {
     name: "xs",
     min_width: 0,
     max_width: Some(479),
 };
+/// Small breakpoint (mobile landscape).
 pub const SM: Breakpoint = Breakpoint {
     name: "sm",
     min_width: 480,
     max_width: Some(767),
 };
+/// Medium breakpoint (small tablets).
 pub const MD: Breakpoint = Breakpoint {
     name: "md",
     min_width: 768,
     max_width: Some(1023),
 };
+/// Large breakpoint (tablets/low-res desktop).
 pub const LG: Breakpoint = Breakpoint {
     name: "lg",
     min_width: 1024,
     max_width: Some(1439),
 };
+/// Extra-large breakpoint (desktops).
 pub const XL: Breakpoint = Breakpoint {
     name: "xl",
     min_width: 1440,
     max_width: Some(1919),
 };
+/// 2XL breakpoint (wide desktops).
 pub const XXL: Breakpoint = Breakpoint {
     name: "2xl",
     min_width: 1920,

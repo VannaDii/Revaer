@@ -4,9 +4,12 @@ use crate::components::dashboard::{DashboardPanel, demo_snapshot};
 use crate::components::shell::{AppShell, NavLabels};
 use crate::components::status::{SseOverlay, SseState};
 use crate::components::toast::{Toast, ToastHost, ToastKind};
-use crate::components::torrents::{AddTorrentInput, TorrentAction, TorrentView, demo_rows};
+use crate::components::torrents::{AddTorrentInput, TorrentView, demo_rows};
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode, TranslationBundle};
 use crate::services::ApiClient;
+use crate::state::{
+    TorrentAction, apply_progress, apply_rates, apply_remove, apply_status, success_message,
+};
 use crate::theme::ThemeMode;
 use crate::{Density, UiMode};
 use gloo::events::EventListener;
@@ -579,25 +582,6 @@ fn push_toast(
     toasts.set(list);
 }
 
-fn success_message(
-    bundle: &crate::i18n::TranslationBundle,
-    action: &TorrentAction,
-    name: &str,
-) -> String {
-    match action {
-        TorrentAction::Pause => format!("{} {name}", bundle.text("toast.pause", "")),
-        TorrentAction::Resume => format!("{} {name}", bundle.text("toast.resume", "")),
-        TorrentAction::Recheck => format!("{} {name}", bundle.text("toast.recheck", "")),
-        TorrentAction::Delete { with_data } => {
-            if *with_data {
-                format!("{} {name}", bundle.text("toast.delete_data", ""))
-            } else {
-                format!("{} {name}", bundle.text("toast.delete", ""))
-            }
-        }
-    }
-}
-
 fn apply_breakpoint(bp: Breakpoint) {
     if let Some(document) = window().document() {
         if let Some(body) = document.body() {
@@ -691,16 +675,16 @@ fn api_base_url() -> String {
 }
 
 fn update_progress(
-    state: &UseStateHandle<Vec<crate::components::torrents::TorrentRow>>,
+    state: &UseStateHandle<Vec<crate::state::TorrentRow>>,
     id: String,
     progress: f32,
     eta_seconds: Option<u64>,
     download_bps: u64,
     upload_bps: u64,
-) -> Vec<crate::components::torrents::TorrentRow> {
+) -> Vec<crate::state::TorrentRow> {
     apply_progress(
         &(*state),
-        id,
+        &id,
         progress,
         eta_seconds,
         download_bps,
@@ -709,182 +693,27 @@ fn update_progress(
 }
 
 fn update_rates(
-    state: &UseStateHandle<Vec<crate::components::torrents::TorrentRow>>,
+    state: &UseStateHandle<Vec<crate::state::TorrentRow>>,
     id: String,
     download_bps: u64,
     upload_bps: u64,
-) -> Vec<crate::components::torrents::TorrentRow> {
-    apply_rates(&(*state), id, download_bps, upload_bps)
+) -> Vec<crate::state::TorrentRow> {
+    apply_rates(&(*state), &id, download_bps, upload_bps)
 }
 
 fn update_status(
-    state: &UseStateHandle<Vec<crate::components::torrents::TorrentRow>>,
+    state: &UseStateHandle<Vec<crate::state::TorrentRow>>,
     id: String,
     status: String,
-) -> Vec<crate::components::torrents::TorrentRow> {
-    apply_status(&(*state), id, status)
+) -> Vec<crate::state::TorrentRow> {
+    apply_status(&(*state), &id, &status)
 }
 
 fn remove_torrent(
-    state: &UseStateHandle<Vec<crate::components::torrents::TorrentRow>>,
+    state: &UseStateHandle<Vec<crate::state::TorrentRow>>,
     id: String,
-) -> Vec<crate::components::torrents::TorrentRow> {
-    apply_remove(&(*state), id)
-}
-
-fn apply_progress(
-    rows: &[crate::components::torrents::TorrentRow],
-    id: String,
-    progress: f32,
-    eta_seconds: Option<u64>,
-    download_bps: u64,
-    upload_bps: u64,
-) -> Vec<crate::components::torrents::TorrentRow> {
-    rows.iter()
-        .cloned()
-        .map(|mut row| {
-            if row.id == id {
-                row.progress = progress;
-                row.eta = eta_seconds.map(|eta| {
-                    if eta == 0 {
-                        "–".to_string()
-                    } else {
-                        format!("{eta}s")
-                    }
-                });
-                row.download_bps = download_bps;
-                row.upload_bps = upload_bps;
-            }
-            row
-        })
-        .collect()
-}
-
-fn apply_rates(
-    rows: &[crate::components::torrents::TorrentRow],
-    id: String,
-    download_bps: u64,
-    upload_bps: u64,
-) -> Vec<crate::components::torrents::TorrentRow> {
-    rows.iter()
-        .cloned()
-        .map(|mut row| {
-            if row.id == id {
-                row.download_bps = download_bps;
-                row.upload_bps = upload_bps;
-            }
-            row
-        })
-        .collect()
-}
-
-fn apply_status(
-    rows: &[crate::components::torrents::TorrentRow],
-    id: String,
-    status: String,
-) -> Vec<crate::components::torrents::TorrentRow> {
-    rows.iter()
-        .cloned()
-        .map(|mut row| {
-            if row.id == id {
-                row.status = status.clone();
-            }
-            row
-        })
-        .collect()
-}
-
-fn apply_remove(
-    rows: &[crate::components::torrents::TorrentRow],
-    id: String,
-) -> Vec<crate::components::torrents::TorrentRow> {
-    rows.iter().cloned().filter(|row| row.id != id).collect()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::components::torrents::{TorrentAction, TorrentRow};
-
-    fn sample_rows() -> Vec<TorrentRow> {
-        vec![
-            TorrentRow {
-                id: "1".into(),
-                name: "alpha".into(),
-                status: "downloading".into(),
-                progress: 0.1,
-                eta: Some("10s".into()),
-                ratio: 0.0,
-                tags: vec![],
-                tracker: "t1".into(),
-                path: "/data/a".into(),
-                category: "tv".into(),
-                size_gb: 1.0,
-                upload_bps: 0,
-                download_bps: 0,
-            },
-            TorrentRow {
-                id: "2".into(),
-                name: "beta".into(),
-                status: "paused".into(),
-                progress: 0.5,
-                eta: None,
-                ratio: 0.0,
-                tags: vec![],
-                tracker: "t2".into(),
-                path: "/data/b".into(),
-                category: "movies".into(),
-                size_gb: 2.0,
-                upload_bps: 0,
-                download_bps: 0,
-            },
-        ]
-    }
-
-    #[test]
-    fn progress_updates_fields() {
-        let updated = apply_progress(&sample_rows(), "1".into(), 0.25, Some(5), 10, 20);
-        let first = updated.iter().find(|r| r.id == "1").unwrap();
-        assert_eq!(first.progress, 0.25);
-        assert_eq!(first.eta.as_deref(), Some("5s"));
-        assert_eq!(first.download_bps, 10);
-        assert_eq!(first.upload_bps, 20);
-    }
-
-    #[test]
-    fn rates_update_only_target() {
-        let updated = apply_rates(&sample_rows(), "2".into(), 5, 9);
-        let second = updated.iter().find(|r| r.id == "2").unwrap();
-        assert_eq!(second.download_bps, 5);
-        assert_eq!(second.upload_bps, 9);
-        let first = updated.iter().find(|r| r.id == "1").unwrap();
-        assert_eq!(first.download_bps, 0);
-    }
-
-    #[test]
-    fn status_and_remove_work() {
-        let status = apply_status(&sample_rows(), "2".into(), "checking".into());
-        assert_eq!(
-            status.iter().find(|r| r.id == "2").unwrap().status,
-            "checking"
-        );
-        let removed = apply_remove(&status, "1".into());
-        assert_eq!(removed.len(), 1);
-        assert!(removed.iter().all(|r| r.id == "2"));
-    }
-
-    #[test]
-    fn success_messages_are_localised() {
-        let bundle = crate::i18n::TranslationBundle::new(DEFAULT_LOCALE);
-        assert!(
-            success_message(&bundle, &TorrentAction::Pause, "alpha")
-                .starts_with(&bundle.text("toast.pause", ""))
-        );
-        assert!(
-            success_message(&bundle, &TorrentAction::Delete { with_data: true }, "alpha")
-                .contains(&bundle.text("toast.delete_data", ""))
-        );
-    }
+) -> Vec<crate::state::TorrentRow> {
+    apply_remove(&(*state), &id)
 }
 
 fn update_system_rates(

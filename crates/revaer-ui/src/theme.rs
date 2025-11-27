@@ -3,17 +3,22 @@
 /// A single color token with a stable name and hex value.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ColorToken {
+    /// Semantic identifier for the shade (e.g., "500").
     pub name: &'static str,
+    /// Hex RGB value for the shade.
     pub hex: &'static str,
 }
 
 /// Collection of related tokens (e.g., primary shades).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Palette {
+    /// Palette identifier.
     pub id: &'static str,
+    /// Ordered list of shades from lightest to darkest.
     pub shades: &'static [ColorToken],
 }
 
+/// Primary brand palette.
 pub const PRIMARY: Palette = Palette {
     id: "primary",
     shades: &[
@@ -60,6 +65,7 @@ pub const PRIMARY: Palette = Palette {
     ],
 };
 
+/// Secondary palette used for accents and elevated surfaces.
 pub const SECONDARY: Palette = Palette {
     id: "secondary",
     shades: &[
@@ -106,6 +112,7 @@ pub const SECONDARY: Palette = Palette {
     ],
 };
 
+/// Accent palette for interactive elements and callouts.
 pub const ACCENT: Palette = Palette {
     id: "accent",
     shades: &[
@@ -152,6 +159,7 @@ pub const ACCENT: Palette = Palette {
     ],
 };
 
+/// Neutral palette for light theme surfaces and borders.
 pub const NEUTRALS_LIGHT: Palette = Palette {
     id: "neutral",
     shades: &[
@@ -206,6 +214,7 @@ pub const NEUTRALS_LIGHT: Palette = Palette {
     ],
 };
 
+/// Neutral palette for dark theme surfaces and borders.
 pub const NEUTRALS_DARK: Palette = Palette {
     id: "dark",
     shades: &[
@@ -264,6 +273,7 @@ pub const NEUTRALS_DARK: Palette = Palette {
     ],
 };
 
+/// Success feedback palette.
 pub const SUCCESS: Palette = Palette {
     id: "success",
     shades: &[
@@ -282,6 +292,7 @@ pub const SUCCESS: Palette = Palette {
     ],
 };
 
+/// Warning feedback palette.
 pub const WARNING: Palette = Palette {
     id: "warning",
     shades: &[
@@ -300,6 +311,7 @@ pub const WARNING: Palette = Palette {
     ],
 };
 
+/// Error feedback palette.
 pub const ERROR: Palette = Palette {
     id: "error",
     shades: &[
@@ -331,16 +343,38 @@ pub const TYPE_SCALE: [&str; 6] = ["xs", "sm", "md", "lg", "xl", "2xl"];
 /// Light or dark theme preference.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ThemeMode {
+    /// Light theme mode.
     Light,
+    /// Dark theme mode.
     Dark,
 }
 
 impl ThemeMode {
+    /// String identifier used in CSS datasets.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Light => "light",
             Self::Dark => "dark",
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn palettes_have_expected_lengths() {
+        assert_eq!(PRIMARY.shades.len(), 10);
+        assert_eq!(ACCENT.shades.len(), 10);
+        assert!(NEUTRALS_LIGHT.shades.len() >= 10);
+        assert!(NEUTRALS_DARK.shades.len() >= 10);
+    }
+
+    #[test]
+    fn theme_mode_to_str() {
+        assert_eq!(ThemeMode::Light.as_str(), "light");
+        assert_eq!(ThemeMode::Dark.as_str(), "dark");
     }
 }

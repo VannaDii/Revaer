@@ -2,28 +2,12 @@ use crate::components::detail::{DetailData, DetailView, demo_detail};
 use crate::components::virtual_list::VirtualList;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::TorrentSummary;
+use crate::state::{TorrentAction, TorrentRow};
 use crate::{Density, UiMode};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::closure::Closure;
 use web_sys::{DragEvent, File, HtmlElement, KeyboardEvent};
 use yew::prelude::*;
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct TorrentRow {
-    pub id: String,
-    pub name: String,
-    pub status: String,
-    pub progress: f32,
-    pub eta: Option<String>,
-    pub ratio: f32,
-    pub tags: Vec<String>,
-    pub tracker: String,
-    pub path: String,
-    pub category: String,
-    pub size_gb: f32,
-    pub upload_bps: u64,
-    pub download_bps: u64,
-}
 
 #[derive(Properties, PartialEq)]
 pub struct TorrentProps {
@@ -401,7 +385,7 @@ fn render_row(
                 </div>
                 <div class="stat">
                     <small>{t("torrents.size")}</small>
-                    <strong>{format!("{:.2} GB", row.size_gb)}</strong>
+                    <strong>{row.size_label()}</strong>
                 </div>
             </div>
             <div class="row-meta">
@@ -727,14 +711,6 @@ pub enum ConfirmKind {
     Recheck,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum TorrentAction {
-    Pause,
-    Resume,
-    Recheck,
-    Delete { with_data: bool },
-}
-
 #[derive(Properties, PartialEq)]
 pub struct ConfirmProps {
     pub kind: Option<ConfirmKind>,
@@ -821,6 +797,7 @@ fn action_banner(props: &BannerProps) -> Html {
 /// Demo torrent set referenced by the default view.
 #[must_use]
 pub fn demo_rows() -> Vec<TorrentRow> {
+    const GIB: u64 = 1_073_741_824;
     vec![
         TorrentRow {
             id: "1".into(),
@@ -836,7 +813,7 @@ pub fn demo_rows() -> Vec<TorrentRow> {
             tracker: "tracker.hypothetical.org".into(),
             path: "/data/incomplete/foundation-s02e08".into(),
             category: "tv".into(),
-            size_gb: 18.4,
+            size_bytes: 18 * GIB,
             upload_bps: 1_200_000,
             download_bps: 82_000_000,
         },
@@ -854,7 +831,7 @@ pub fn demo_rows() -> Vec<TorrentRow> {
             tracker: "tracker.space.example".into(),
             path: "/data/media/TV/The Expanse/Season 1".into(),
             category: "tv".into(),
-            size_gb: 7.8,
+            size_bytes: 8 * GIB,
             upload_bps: 5_400_000,
             download_bps: 0,
         },
@@ -872,7 +849,7 @@ pub fn demo_rows() -> Vec<TorrentRow> {
             tracker: "movies.example.net".into(),
             path: "/data/incomplete/dune-part-one".into(),
             category: "movies".into(),
-            size_gb: 64.3,
+            size_bytes: 64 * GIB,
             upload_bps: 0,
             download_bps: 0,
         },
@@ -887,7 +864,7 @@ pub fn demo_rows() -> Vec<TorrentRow> {
             tracker: "releases.ubuntu.com".into(),
             path: "/data/incomplete/ubuntu".into(),
             category: "os".into(),
-            size_gb: 1.2,
+            size_bytes: 2 * GIB,
             upload_bps: 240_000,
             download_bps: 12_000_000,
         },
@@ -905,7 +882,7 @@ pub fn demo_rows() -> Vec<TorrentRow> {
             tracker: "tracker.hypothetical.org".into(),
             path: "/data/incomplete/arcane-s02e02".into(),
             category: "tv".into(),
-            size_gb: 5.4,
+            size_bytes: 6 * GIB,
             upload_bps: 950_000,
             download_bps: 34_000_000,
         },
@@ -914,28 +891,6 @@ pub fn demo_rows() -> Vec<TorrentRow> {
 
 impl From<TorrentSummary> for TorrentRow {
     fn from(value: TorrentSummary) -> Self {
-        Self {
-            id: value.id.to_string(),
-            name: value.name,
-            status: value.status,
-            progress: value.progress,
-            eta: value.eta_seconds.map(|eta| {
-                if eta == 0 {
-                    "–".to_string()
-                } else {
-                    format!("{eta}s")
-                }
-            }),
-            ratio: value.ratio,
-            tags: value.tags,
-            tracker: value.tracker.unwrap_or_default(),
-            path: value.save_path.unwrap_or_default(),
-            category: value
-                .category
-                .unwrap_or_else(|| "uncategorized".to_string()),
-            size_gb: value.size_bytes as f32 / (1024.0 * 1024.0 * 1024.0),
-            upload_bps: value.upload_bps,
-            download_bps: value.download_bps,
-        }
+        crate::state::TorrentRow::from(value)
     }
 }

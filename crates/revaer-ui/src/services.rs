@@ -1,8 +1,9 @@
 //! HTTP and SSE client helpers (REST + fallback stubs).
 
 use crate::components::dashboard::{DashboardSnapshot, QueueStatus, TrackerHealth, VpnState};
-use crate::components::torrents::{AddTorrentInput, TorrentAction, TorrentRow};
+use crate::components::torrents::AddTorrentInput;
 use crate::models::{SseEvent, TorrentSummary};
+use crate::state::{TorrentAction, TorrentRow};
 use gloo_net::http::Request;
 use serde::Serialize;
 use wasm_bindgen::JsCast;

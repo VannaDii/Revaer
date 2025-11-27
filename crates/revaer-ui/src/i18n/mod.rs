@@ -1,36 +1,58 @@
 //! Lightweight JSON-backed translations with per-locale bundles.
 
-use once_cell::sync::Lazy;
 use serde::Deserialize;
 use serde_json::Value;
+use std::sync::LazyLock;
 
 /// Supported locale codes for Phase 1.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum LocaleCode {
+    /// Arabic.
     Ar,
+    /// German.
     De,
+    /// Spanish.
     Es,
+    /// Hindi.
     Hi,
+    /// Italian.
     It,
+    /// Javanese.
     Jv,
+    /// Marathi.
     Mr,
+    /// Portuguese.
     Pt,
+    /// Tamil.
     Ta,
+    /// Turkish.
     Tr,
+    /// Bengali.
     Bn,
+    /// English.
     En,
+    /// French.
     Fr,
+    /// Indonesian.
     Id,
+    /// Japanese.
     Ja,
+    /// Korean.
     Ko,
+    /// Punjabi.
     Pa,
+    /// Russian.
     Ru,
+    /// Telugu.
     Te,
+    /// Chinese (Simplified).
     Zh,
 }
 
 impl LocaleCode {
+    #[must_use]
+    /// All supported locales in display order.
     pub const fn all() -> [Self; 20] {
         [
             Self::Ar,
@@ -128,6 +150,7 @@ pub const DEFAULT_LOCALE: LocaleCode = LocaleCode::En;
 /// Translation bundle containing a parsed JSON tree for the locale.
 #[derive(Clone, Debug)]
 pub struct TranslationBundle {
+    /// Locale backing this bundle.
     pub locale: LocaleCode,
     tree: Value,
     rtl: bool,
@@ -140,9 +163,12 @@ impl PartialEq for TranslationBundle {
 }
 
 impl TranslationBundle {
+    /// Build a translation bundle for the given locale, falling back to English.
+    ///
+    /// The bundle will gracefully degrade to English strings when a key is missing.
     #[must_use]
     pub fn new(locale: LocaleCode) -> Self {
-        let raw = raw_locale(locale).unwrap_or_else(|| raw_locale(DEFAULT_LOCALE).unwrap());
+        let raw = raw_locale(locale);
         let tree: Value = serde_json::from_str(raw).unwrap_or(Value::Null);
         let rtl = tree
             .get("meta")
@@ -167,7 +193,8 @@ impl TranslationBundle {
     }
 }
 
-static EN_FALLBACK: Lazy<TranslationBundle> = Lazy::new(|| TranslationBundle::new(LocaleCode::En));
+static EN_FALLBACK: LazyLock<TranslationBundle> =
+    LazyLock::new(|| TranslationBundle::new(LocaleCode::En));
 
 fn resolve(tree: &Value, path: &str) -> Option<String> {
     let mut node = tree;
@@ -177,8 +204,8 @@ fn resolve(tree: &Value, path: &str) -> Option<String> {
     node.as_str().map(ToString::to_string)
 }
 
-fn raw_locale(locale: LocaleCode) -> Option<&'static str> {
-    let content = match locale {
+const fn raw_locale(locale: LocaleCode) -> &'static str {
+    match locale {
         LocaleCode::Ar => include_str!("../../i18n/ar.json"),
         LocaleCode::De => include_str!("../../i18n/de.json"),
         LocaleCode::Es => include_str!("../../i18n/es.json"),
@@ -199,6 +226,5 @@ fn raw_locale(locale: LocaleCode) -> Option<&'static str> {
         LocaleCode::Ru => include_str!("../../i18n/ru.json"),
         LocaleCode::Te => include_str!("../../i18n/te.json"),
         LocaleCode::Zh => include_str!("../../i18n/zh.json"),
-    };
-    Some(content)
+    }
 }

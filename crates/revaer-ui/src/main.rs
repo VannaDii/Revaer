@@ -1,4 +1,22 @@
-#![cfg_attr(not(target_arch = "wasm32"), allow(unused))]
+#![forbid(unsafe_code)]
+#![deny(
+    warnings,
+    dead_code,
+    unused,
+    unused_imports,
+    unused_must_use,
+    unreachable_pub,
+    clippy::all,
+    clippy::pedantic,
+    clippy::cargo,
+    clippy::nursery,
+    rustdoc::broken_intra_doc_links,
+    rustdoc::bare_urls,
+    missing_docs
+)]
+#![allow(clippy::module_name_repetitions)]
+#![allow(clippy::multiple_crate_versions)]
+//! Revaer UI wasm entry point and native stub fallback.
 
 fn main() {
     #[cfg(target_arch = "wasm32")]
@@ -6,8 +24,13 @@ fn main() {
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        eprintln!(
-            "The revaer-ui binary is intended for wasm32; build with `trunk build` or `cargo build --target wasm32-unknown-unknown`."
-        );
+        use std::io::{self, Write};
+
+        let mut stderr = io::stderr().lock();
+        if let Err(err) = stderr.write_all(
+            b"The revaer-ui binary is intended for wasm32; build with `trunk build` or `cargo build --target wasm32-unknown-unknown`.\n",
+        ) {
+            panic!("failed to write warning: {err}");
+        }
     }
 }
