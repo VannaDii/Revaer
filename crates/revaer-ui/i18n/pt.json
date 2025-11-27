@@ -1,0 +1,48 @@
+{
+  "meta": {
+    "language": "pt",
+    "rtl": false
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "torrents": "Torrents",
+    "search": "Search",
+    "jobs": "Jobs / Post-processing",
+    "settings": "Settings",
+    "logs": "Logs"
+  },
+  "mode": {
+    "simple": "Simple",
+    "advanced": "Advanced"
+  },
+  "density": {
+    "compact": "Compact",
+    "normal": "Normal",
+    "comfy": "Comfy"
+  },
+  "toolbar": {
+    "regex": "Regex",
+    "add": "Add",
+    "pause": "Pause",
+    "resume": "Resume",
+    "delete": "Delete",
+    "delete_data": "Delete data",
+    "recheck": "Recheck"
+  },
+  "torrents": {
+    "search_placeholder": "Search name, path, tracker",
+    "add_placeholder": "Magnet or URL",
+    "drop_help": "Drop .torrent or paste magnet",
+    "category": "Category",
+    "tags": "Tags",
+    "save_path": "Save path"
+  },
+  "dashboard": {
+    "speeds": "Global Speeds",
+    "torrents": "Torrents",
+    "disk": "Disk Usage",
+    "queue": "Queue",
+    "vpn": "VPN Status",
+    "events": "Recent Events"
+  }
+}

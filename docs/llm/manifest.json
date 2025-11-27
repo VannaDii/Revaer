@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2025-11-02T16:38:32.697912+00:00",
+  "generated": "2025-11-27T02:37:59.445880+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -130,6 +130,53 @@
       "summary": "Status: Accepted Date: 2025-11-02 Context: AGENT.md now forbids suppressing coverage with cargo llvm-cov flags and requires a ≥80 % threshold across all libraries. The workspace still relied on just cov exclusions and lacked comprehensive tests in revaer-doc-indexer and revaer-cli, blocking true compliance. Motivation: remove the tooling loophole, add high-value tests, and document the remaining work needed to finish the coverage push. Decision: Design notes: Updated the Justfile so just cov executes cargo llvm-cov --workspace --fail-under-lines 80, matching AGENT.md without suppression flags. Added an extensive unit suite for revaer-doc-indexer that exercises markdown parsing, fallback summaries, tag normalisation, schema validation, and manifest",
       "tags": [],
       "href": "/adr/011-coverage-hardening-phase-two/"
+    },
+    {
+      "id": "adr/012-agent-compliance-refresh",
+      "title": "Agent Compliance Refresh",
+      "summary": "Status: Accepted Date: 2025-11-02 Context: AGENT.md forbids unsafe code across the workspace, yet the configuration integration tests were still using an unsafe block when populating DOCKER_HOST. The task ensures ongoing conformance with the agent policy and documents the work so future checks remain traceable. Decision: Deleted the redundant host-configuration helper so the tests defer to testcontainers' built-in socket discovery instead of mutating the process environment. Alternatives considered: leave the unsafe block in place (rejected because it violates the prime directive), gate the tests behind a feature flag (rejected—dead test code would violate the zero-dead-code rule). Consequences: Positive outcomes: the test",
+      "tags": [],
+      "href": "/adr/012-agent-compliance-refresh/"
+    },
+    {
+      "id": "adr/013-runtime-persistence",
+      "title": "013 – Runtime Persistence for Torrents and FsOps Jobs",
+      "summary": "Status: Accepted Date: 2025-10-27",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/013-runtime-persistence/"
+    },
+    {
+      "id": "adr/014-data-access-layer",
+      "title": "014 – Centralized Data Access Layer",
+      "summary": "Status: Accepted Date: 2025-02-14",
+      "tags": [
+        "consequences",
+        "context",
+        "decision",
+        "follow-up"
+      ],
+      "href": "/adr/014-data-access-layer/"
+    },
+    {
+      "id": "adr/015-agent-compliance-hardening",
+      "title": "015: Agent Compliance Hardening",
+      "summary": "Status: Superseded by 016 Date: 2025-11-26 Context: AGENT.md now forbids unsafe code and bans lint suppressions for precision loss, missing docs/errors, and dormant code; several crates still relied on those allowances. The libtorrent adapter depended on a C++ bridge and build.rs, introducing unsafe blocks that violated the updated directives. API/config paths carried #[allow] gates to bypass documentation and float-cast lints, masking real enforcement. Decision: Removed the libtorrent C++ bridge (build script and FFI sources) and now run the adapter solely on the safe StubSession, keeping the crate #![forbid(unsafe_code)]. Swapped float casts in rate limiting/formatting paths for integer-based accounting and From",
+      "tags": [],
+      "href": "/adr/015-agent-compliance-hardening/"
+    },
+    {
+      "id": "adr/016-libtorrent-restoration",
+      "title": "016: Libtorrent Restoration",
+      "summary": "Status: Accepted Date: 2025-11-26 Context: AGENT rules now permit tightly scoped #[allow(...)] inside unavoidable FFI. Removing the C++ bridge dropped real torrent handling, violating product requirements. We need a known-compatible libtorrent integration with deterministic build wiring and coverage across the feature-gated path. Decision: Restored the native libtorrent C++ bridge (cxx), FFI bindings, and NativeSession so the libtorrent feature drives the actual engine path while stubs remain for tests/offline builds. Kept lint posture strict (#![deny(unsafe_code)), confining #[allow(unsafe_code)] to the FFI module only. Build script now enforces a minimum libtorrent version (>= 2.0.10) via pkg-config, supports an explicit LIBTORRENT_BUNDLE_DIR (include/lib) for vendored",
+      "tags": [],
+      "href": "/adr/016-libtorrent-restoration/"
     },
     {
       "id": "adr/index",
@@ -276,9 +323,17 @@
       "summary": "Canonical reference for the PostgreSQL-backed settings documents that drive Revaer’s runtime behaviour.",
       "tags": [
         "change-workflows",
-        "snapshot-components"
+        "snapshot-components",
+        "telemetry-toggle"
       ],
       "href": "/platform/configuration/"
+    },
+    {
+      "id": "platform/native-tests",
+      "title": "Native Libtorrent Integration Tests",
+      "summary": "These tests are opt-in (gated by REVAER_NATIVE_IT) to keep the default matrix deterministic; include them explicitly in feature-matrix runs. To run the feature-gated native libtorrent integration suite locally: export DOCKER_HOST=${DOCKER_HOST:-unix:///Users/vanna/.colima/default/docker.sock} export REVAER_NATIVE_IT=1 just ci cargo test -p revaer-torrent-libt --all-features CI note: add a matrix job that sets REVAER_NATIVE_IT=1 and points DOCKER_HOST at the runner’s daemon to ensure the native path stays covered.",
+      "tags": [],
+      "href": "/platform/native-tests/"
     },
     {
       "id": "release-checklist",
@@ -297,6 +352,33 @@
         "verification-artifacts"
       ],
       "href": "/runbook/"
+    },
+    {
+      "id": "ui/flows",
+      "title": "Web UI Flows & Diagrams",
+      "summary": "Visual references for the Phase 1 UX: navigation, component wiring, SSE handling, and torrent lifecycle. Use these diagrams when extending the UI or adding tests.",
+      "tags": [
+        "component-graph",
+        "interaction-notes",
+        "navigation-flow",
+        "sse-event-flow",
+        "torrent-lifecycle-ui-perspective"
+      ],
+      "href": "/ui/flows/"
+    },
+    {
+      "id": "ui/index",
+      "title": "Web UI - Phase 1",
+      "summary": "Rust/Yew implementation plan for the Phase 1 torrent-only UI described in REVAER_PHASE1_WEBUX_SPEC.md. The goal is a responsive, touch-friendly surface that stays usable on 360px phones through 4K desktops while handling 50k+ torrents. **Pages:** Dashboard, Torrents (list + detail), Search (shared list), Jobs/Post-processing, Settings, Logs. Indexers/Library stay hidden until Phase 2. **Modes:** Simple (default, trimmed controls) and Advanced (all filters, columns, bulk actions). Persisted in local storage without reload. **Transport:** REST for initial payloads; SSE for torrents, transfers, queue, jobs, and VPN state with backoff and jitter handling.",
+      "tags": [
+        "accessibility-interaction",
+        "layout-breakpoints",
+        "localization",
+        "performance-resilience",
+        "running-the-ui",
+        "theming-tokens"
+      ],
+      "href": "/ui/index/"
     }
   ]
 }

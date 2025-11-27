@@ -6,6 +6,11 @@
 - [Runbook](runbook.md)
 - [Release Checklist](release-checklist.md)
 
+## Web UI
+
+- [Web UI - Phase 1](ui/index.md)
+- [Web UI Flows](ui/flows.md)
+
 ## Platform Surface
 
 - [Configuration Surface](platform/configuration.md)
