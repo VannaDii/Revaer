@@ -3,7 +3,6 @@ title = "Revaer Documentation"
 authors = ["Revaer Contributors"]
 language = "en"
 src = "docs"
-multilingual = false
 
 [output.html]
 default-theme = "rust"
