@@ -11,6 +11,7 @@
 - [Configuration Surface](platform/configuration.md)
 - [HTTP API](platform/api.md)
 - [CLI Reference](platform/cli.md)
+- [Native Libtorrent Tests](platform/native-tests.md)
 
 ## API
 

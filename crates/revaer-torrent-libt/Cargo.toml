@@ -29,6 +29,7 @@ cxx = "1.0"
 [dev-dependencies]
 tokio.workspace = true
 tempfile = "3.10"
+revaer-test-support.workspace = true
 
 [build-dependencies]
 cxx-build = "1.0"

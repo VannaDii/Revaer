@@ -50,6 +50,15 @@ revaer/
 -   `just cov` – run source-based coverage with LLVM (requires `llvm-tools-preview`).
 -   `just ci` – execute all required quality gates locally.
 
+## Native Libtorrent Integration Test
+
+The native libtorrent integration test suite is opt-in to keep default runs deterministic.
+
+-   Enable it with `REVAER_NATIVE_IT=1`; it skips otherwise.
+-   Ensure Docker is reachable (set `DOCKER_HOST` if not on `/var/run/docker.sock`).
+-   Run `just ci` or `cargo test -p revaer-torrent-libt --all-features` when the native path should be covered (e.g., feature matrices).
+-   See `docs/platform/native-tests.md` for the full setup and CI matrix note.
+
 ## CLI Tips
 
 -   `revaer --output json ls` emits JSON suitable for scripting workflows (table output remains the default).

@@ -3,11 +3,12 @@ set -euo pipefail
 
 # Build a reproducible libtorrent bundle (headers + shared libs) for packaging/CI caches.
 # Uses pkg-config to locate libtorrent and its dependencies, then assembles a bundle
-# under ./artifacts/libtorrent-bundle-${ARCH} by default.
+# under ./artifacts/libtorrent-bundle-${ARCH} by default. This script is also used
+# by the Dockerfile build stage to keep bundle contents consistent.
 
 ARCH="$(uname -m)"
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-BUNDLE_DIR="${1:-"$ROOT_DIR/artifacts/libtorrent-bundle-${ARCH}"}"
+BUNDLE_DIR="${1:-${LIBTORRENT_BUNDLE_DIR:-"$ROOT_DIR/artifacts/libtorrent-bundle-${ARCH}"}}"
 LIBTORRENT_PKG="${LIBTORRENT_PKG:-libtorrent-rasterbar}"
 
 mkdir -p "$BUNDLE_DIR"/{include,lib}

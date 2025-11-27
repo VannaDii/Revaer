@@ -1754,12 +1754,12 @@ mod tests {
 
     use super::*;
     use std::io::Write;
-    use std::process::Command;
 
     use chrono::Utc;
     use revaer_config::ConfigService;
     use revaer_events::{EventBus, TorrentState};
     use revaer_runtime::{FsJobState, RuntimeStore};
+    use revaer_test_support::docker;
     use revaer_torrent_core::{TorrentProgress, TorrentRates, TorrentStatus};
     use serde_json::json;
     #[cfg(unix)]
@@ -1770,16 +1770,6 @@ mod tests {
     use testcontainers::{ContainerAsync, GenericImage, ImageExt};
     use tokio::time::{Duration, sleep, timeout};
     use zip::{ZipWriter, write::FileOptions};
-
-    fn docker_available() -> bool {
-        Path::new("/var/run/docker.sock").exists()
-            || std::env::var_os("DOCKER_HOST").is_some()
-            || Command::new("docker")
-                .args(["info"])
-                .output()
-                .map(|output| output.status.success())
-                .unwrap_or(false)
-    }
 
     fn sample_policy(root: &Path) -> FsPolicy {
         let library_root = root.join("library");
@@ -1968,7 +1958,7 @@ mod tests {
 
     #[tokio::test]
     async fn pipeline_records_runtime_store_entries() -> Result<()> {
-        if !docker_available() {
+        if !docker::available() {
             eprintln!("skipping pipeline_records_runtime_store_entries: docker socket missing");
             return Ok(());
         }

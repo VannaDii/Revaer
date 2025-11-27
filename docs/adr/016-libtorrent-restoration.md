@@ -18,3 +18,4 @@
   - Publish guidance for producing a portable `LIBTORRENT_BUNDLE_DIR` artifact per target (CI-cached tarball).
   - Add feature-flagged integration tests that hit the native path end-to-end under `--features libtorrent`.
   - Monitor upstream libtorrent releases; bump the pinned minimum after validation and update the bundle recipe accordingly.
+  - Add a CI job that sets `REVAER_NATIVE_IT=1` with `DOCKER_HOST` configured, per `docs/platform/native-tests.md`, so native coverage stays green.

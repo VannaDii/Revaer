@@ -67,6 +67,13 @@ api-export:
 ci:
     just fmt lint udeps audit deny test cov
 
+libtorrent-bundle bundle_dir="":
+    if [ -n "{{bundle_dir}}" ]; then \
+        ./scripts/build-libtorrent-bundle.sh "{{bundle_dir}}"; \
+    else \
+        ./scripts/build-libtorrent-bundle.sh; \
+    fi
+
 docker-build:
     docker build --tag revaer:ci .
 

@@ -5,6 +5,7 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use revaer_events::{Event, TorrentState};
+use revaer_test_support::docker;
 use revaer_torrent_core::{
     AddTorrent, AddTorrentOptions, TorrentEngine, TorrentRateLimit, TorrentSource,
 };
@@ -19,6 +20,10 @@ const MAGNET_URI: &str = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01
 async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
     if env::var("REVAER_NATIVE_IT").is_err() {
         eprintln!("skipping native libtorrent integration (set REVAER_NATIVE_IT=1 to run)");
+        return Ok(());
+    }
+    if !docker::available() {
+        eprintln!("skipping native libtorrent integration: docker not available");
         return Ok(());
     }
 

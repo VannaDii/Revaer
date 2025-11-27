@@ -33,3 +33,4 @@ revaer-config = { path = "../revaer-config" }
 revaer-runtime = { path = "../revaer-runtime" }
 testcontainers = "0.25"
 revaer-torrent-core = { path = "../revaer-torrent-core" }
+revaer-test-support.workspace = true

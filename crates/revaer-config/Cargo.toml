@@ -31,3 +31,4 @@ serde_json.workspace = true
 testcontainers = "0.25"
 tokio.workspace = true
 serial_test = { version = "3.2", features = ["async"] }
+revaer-test-support.workspace = true

@@ -1,6 +1,4 @@
 use std::future::Future;
-use std::path::Path;
-use std::process::Command;
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result};
@@ -10,6 +8,7 @@ use revaer_config::{
     SettingsPayload,
 };
 use revaer_data::config as data_config;
+use revaer_test_support::docker;
 use serde_json::{Value, json};
 use serial_test::serial;
 use testcontainers::core::{ContainerPort, WaitFor};
@@ -27,7 +26,7 @@ where
         return test(service).await;
     }
 
-    if !docker_available() {
+    if !docker::available() {
         eprintln!("skipping config integration tests: docker socket missing");
         return Ok(());
     }
@@ -88,16 +87,6 @@ where
     drop(container);
 
     result
-}
-
-fn docker_available() -> bool {
-    Path::new("/var/run/docker.sock").exists()
-        || std::env::var_os("DOCKER_HOST").is_some()
-        || Command::new("docker")
-            .args(["info"])
-            .output()
-            .map(|output| output.status.success())
-            .unwrap_or(false)
 }
 
 #[tokio::test]

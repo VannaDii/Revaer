@@ -12,6 +12,7 @@ members = [
     "crates/revaer-torrent-libt",
     "crates/revaer-runtime",
     "crates/revaer-data",
+    "crates/revaer-test-support",
 ]
 resolver = "2"
 
@@ -47,3 +48,4 @@ base64 = "0.22"
 regex = "1.12"
 walkdir = "2.5"
 jsonschema = { version = "0.33", default-features = false }
+revaer-test-support = { path = "crates/revaer-test-support" }
