@@ -15,6 +15,7 @@ use crate::{Density, UiMode};
 use gloo::events::EventListener;
 use gloo::storage::{LocalStorage, Storage};
 use gloo::utils::window;
+use gloo_timers::callback::Timeout;
 use wasm_bindgen::JsCast;
 use web_sys::{EventSource, MediaQueryList};
 use yew::prelude::*;
@@ -67,6 +68,7 @@ pub fn revaer_app() -> Html {
         last_event: "12s ago",
         reason: "network: timeout",
     });
+    let sse_retry = use_state(|| 0u32);
     let bundle = {
         let locale = *locale;
         use_memo(move |_| TranslationBundle::new(locale), locale)
@@ -131,128 +133,146 @@ pub fn revaer_app() -> Html {
     {
         let api_key = (*api_key).clone();
         let torrents = torrents.clone();
-        let search = (*search).clone();
-        let regex = *regex;
+        let search_value = (*search).clone();
+        let regex_flag = *regex;
         let sse_handle = sse_handle.clone();
         let sse_state = sse_state.clone();
         let dashboard_state = dashboard.clone();
-        use_effect(move || {
-            if let Some(src) = sse_handle.borrow_mut().take() {
-                src.close();
-            }
-            let state_updater = torrents.clone();
-            let sse_state = sse_state.clone();
-            if let Some(source) =
-                crate::services::connect_sse(&api_base_url(), api_key.clone(), move |event| {
-                    match event {
-                        crate::models::SseEvent::TorrentProgress {
-                            torrent_id,
-                            progress,
-                            eta_seconds,
-                            download_bps,
-                            upload_bps,
-                        } => {
-                            state_updater.set(update_progress(
-                                &state_updater,
-                                torrent_id.to_string(),
-                                progress,
-                                eta_seconds,
-                                download_bps,
-                                upload_bps,
-                            ));
-                        }
-                        crate::models::SseEvent::TorrentRates {
-                            torrent_id,
-                            download_bps,
-                            upload_bps,
-                        } => {
-                            state_updater.set(update_rates(
-                                &state_updater,
-                                torrent_id.to_string(),
-                                download_bps,
-                                upload_bps,
-                            ));
-                        }
-                        crate::models::SseEvent::TorrentState {
-                            torrent_id, status, ..
-                        } => {
-                            state_updater.set(update_status(
-                                &state_updater,
-                                torrent_id.to_string(),
-                                status,
-                            ));
-                        }
-                        crate::models::SseEvent::TorrentRemoved { torrent_id } => {
-                            state_updater
-                                .set(remove_torrent(&state_updater, torrent_id.to_string()));
-                        }
-                        crate::models::SseEvent::TorrentAdded { .. } => {
-                            let torrents = state_updater.clone();
-                            let api_key = api_key.clone();
-                            let search = search.clone();
-                            let regex = regex;
-                            yew::platform::spawn_local(async move {
-                                let client = ApiClient::new(api_base_url(), api_key.clone());
-                                if let Ok(list) = client.fetch_torrents(Some(search), regex).await {
-                                    torrents.set(list);
-                                }
-                            });
-                        }
-                        crate::models::SseEvent::SystemRates {
-                            download_bps,
-                            upload_bps,
-                        } => {
-                            dashboard_state.set(update_system_rates(
-                                &dashboard_state,
-                                download_bps,
-                                upload_bps,
-                            ));
-                        }
-                        crate::models::SseEvent::QueueStatus {
-                            active,
-                            paused,
-                            queued,
-                            depth,
-                        } => {
-                            dashboard_state.set(update_queue(
-                                &dashboard_state,
-                                active,
-                                paused,
-                                queued,
-                                depth,
-                            ));
-                        }
-                        crate::models::SseEvent::VpnState {
-                            state,
-                            message,
-                            last_change,
-                        } => {
-                            dashboard_state.set(update_vpn(
-                                &dashboard_state,
-                                state,
-                                message,
-                                last_change,
-                            ));
-                        }
-                        _ => {}
-                    }
-                    sse_state.set(SseState::Connected);
-                })
-            {
-                *sse_handle.borrow_mut() = Some(source);
-            } else {
-                sse_state.set(SseState::Reconnecting {
-                    retry_in_secs: 5,
-                    last_event: "connect failed",
-                    reason: "eventsource unsupported",
-                });
-            }
+        let sse_retry = sse_retry.clone();
+        use_effect(
             move || {
                 if let Some(src) = sse_handle.borrow_mut().take() {
                     src.close();
                 }
-            }
-        });
+                let state_updater = torrents.clone();
+                let sse_state = sse_state.clone();
+                let mut cancel_timer: Option<Timeout> = None;
+                let search = search_value.clone();
+                let regex = regex_flag;
+                if let Some(source) =
+                    crate::services::connect_sse(&api_base_url(), api_key.clone(), move |event| {
+                        match event {
+                            crate::models::SseEvent::TorrentProgress {
+                                torrent_id,
+                                progress,
+                                eta_seconds,
+                                download_bps,
+                                upload_bps,
+                            } => {
+                                state_updater.set(update_progress(
+                                    &state_updater,
+                                    torrent_id.to_string(),
+                                    progress,
+                                    eta_seconds,
+                                    download_bps,
+                                    upload_bps,
+                                ));
+                            }
+                            crate::models::SseEvent::TorrentRates {
+                                torrent_id,
+                                download_bps,
+                                upload_bps,
+                            } => {
+                                state_updater.set(update_rates(
+                                    &state_updater,
+                                    torrent_id.to_string(),
+                                    download_bps,
+                                    upload_bps,
+                                ));
+                            }
+                            crate::models::SseEvent::TorrentState {
+                                torrent_id, status, ..
+                            } => {
+                                state_updater.set(update_status(
+                                    &state_updater,
+                                    torrent_id.to_string(),
+                                    status,
+                                ));
+                            }
+                            crate::models::SseEvent::TorrentRemoved { torrent_id } => {
+                                state_updater
+                                    .set(remove_torrent(&state_updater, torrent_id.to_string()));
+                            }
+                            crate::models::SseEvent::TorrentAdded { .. } => {
+                                let torrents = state_updater.clone();
+                                let api_key = api_key.clone();
+                                let search = search.clone();
+                                yew::platform::spawn_local(async move {
+                                    let client = ApiClient::new(api_base_url(), api_key.clone());
+                                    if let Ok(list) =
+                                        client.fetch_torrents(Some(search), regex).await
+                                    {
+                                        torrents.set(list);
+                                    }
+                                });
+                            }
+                            crate::models::SseEvent::SystemRates {
+                                download_bps,
+                                upload_bps,
+                            } => {
+                                dashboard_state.set(update_system_rates(
+                                    &dashboard_state,
+                                    download_bps,
+                                    upload_bps,
+                                ));
+                            }
+                            crate::models::SseEvent::QueueStatus {
+                                active,
+                                paused,
+                                queued,
+                                depth,
+                            } => {
+                                dashboard_state.set(update_queue(
+                                    &dashboard_state,
+                                    active,
+                                    paused,
+                                    queued,
+                                    depth,
+                                ));
+                            }
+                            crate::models::SseEvent::VpnState {
+                                state,
+                                message,
+                                last_change,
+                            } => {
+                                dashboard_state.set(update_vpn(
+                                    &dashboard_state,
+                                    state,
+                                    message,
+                                    last_change,
+                                ));
+                            }
+                            _ => {}
+                        }
+                        sse_state.set(SseState::Connected);
+                        sse_retry.set(0);
+                    })
+                {
+                    *sse_handle.borrow_mut() = Some(source);
+                } else {
+                    let attempt = *sse_retry;
+                    let retry_ms = backoff_delay_ms(attempt);
+                    sse_state.set(SseState::Reconnecting {
+                        retry_in_secs: (retry_ms / 1000).min(30) as u8,
+                        last_event: "connect failed",
+                        reason: "eventsource unsupported",
+                    });
+                    let retry = sse_retry.clone();
+                    cancel_timer = Some(Timeout::new(retry_ms, move || {
+                        retry.set(attempt.saturating_add(1));
+                    }));
+                }
+                move || {
+                    if let Some(src) = sse_handle.borrow_mut().take() {
+                        src.close();
+                    }
+                    if let Some(timer) = cancel_timer {
+                        timer.cancel();
+                    }
+                }
+            },
+            (*api_key).clone(),
+        );
     }
     {
         let breakpoint = breakpoint.clone();
@@ -512,7 +532,7 @@ pub fn revaer_app() -> Html {
                         let bundle = (*bundle).clone();
                         match route {
                             Route::Dashboard => html! { <DashboardPanel snapshot={(*dashboard).clone()} mode={*mode} density={*density} /> },
-                            Route::Torrents | Route::Search => html! { <TorrentView torrents={(*torrents).clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={*add_busy} search={(*search).clone()} regex={*regex} on_search={set_search.clone()} on_toggle_regex={toggle_regex.clone()} /> },
+                            Route::Torrents | Route::Search => html! { <TorrentView breakpoint={*breakpoint} torrents={(*torrents).clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={*add_busy} search={(*search).clone()} regex={*regex} on_search={set_search.clone()} on_toggle_regex={toggle_regex.clone()} /> },
                             Route::Jobs => html! { <Placeholder title={bundle.text("placeholder.jobs_title", "")} body={bundle.text("placeholder.jobs_body", "")} /> },
                             Route::Settings => html! { <Placeholder title={bundle.text("placeholder.settings_title", "")} body={bundle.text("placeholder.settings_body", "")} /> },
                             Route::Logs => html! { <Placeholder title={bundle.text("placeholder.logs_title", "")} body={bundle.text("placeholder.logs_body", "")} /> },
@@ -580,6 +600,14 @@ fn push_toast(
         list.drain(0..drain);
     }
     toasts.set(list);
+}
+
+/// Exponential backoff (1s → 30s) for SSE reconnect attempts.
+#[must_use]
+fn backoff_delay_ms(attempt: u32) -> u32 {
+    let capped = attempt.min(5);
+    let delay = 1_000u32.saturating_mul(2u32.saturating_pow(capped));
+    delay.clamp(1_000, 30_000)
 }
 
 fn apply_breakpoint(bp: Breakpoint) {

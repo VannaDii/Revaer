@@ -1,3 +1,4 @@
+use crate::breakpoints::Breakpoint;
 use crate::components::detail::{DetailData, DetailView, demo_detail};
 use crate::components::virtual_list::VirtualList;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
@@ -11,6 +12,8 @@ use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
 pub struct TorrentProps {
+    /// Current responsive breakpoint for layout decisions.
+    pub breakpoint: Breakpoint,
     pub torrents: Vec<TorrentRow>,
     pub density: Density,
     pub mode: UiMode,
@@ -53,15 +56,23 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
     let action_banner = use_state(|| None as Option<String>);
     let confirm = use_state(|| None as Option<ConfirmKind>);
     let search_ref = use_node_ref();
+    let is_mobile = props
+        .breakpoint
+        .max_width
+        .is_some_and(|max| max < crate::breakpoints::MD.min_width);
     let density_class = match props.density {
         Density::Compact => "density-compact",
         Density::Normal => "density-normal",
         Density::Comfy => "density-comfy",
     };
-    let row_height = match props.density {
-        Density::Compact => 120,
-        Density::Normal => 148,
-        Density::Comfy => 164,
+    let row_height = if is_mobile {
+        210
+    } else {
+        match props.density {
+            Density::Compact => 120,
+            Density::Normal => 148,
+            Density::Comfy => 164,
+        }
     };
     let mode_class = match props.mode {
         UiMode::Simple => "mode-simple",
@@ -262,21 +273,33 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                 len={props.torrents.len()}
                 row_height={row_height}
                 overscan={6}
+                height={if is_mobile { Some("70vh".into()) } else { None }}
                 render={{
                     let on_select = on_select.clone();
                     let torrents = props.torrents.clone();
                     let bundle = bundle.clone();
                     let selected_idx = *selected_idx;
                     let on_action = props.on_action.clone();
+                    let is_mobile = is_mobile;
                     Callback::from(move |idx: usize| {
                         if let Some(row) = torrents.get(idx) {
-                            render_row(
-                                row,
-                                idx == selected_idx,
-                                on_select.clone(),
-                                on_action.clone(),
-                                bundle.clone(),
-                            )
+                            if is_mobile {
+                                render_mobile_row(
+                                    row,
+                                    idx == selected_idx,
+                                    on_select.clone(),
+                                    on_action.clone(),
+                                    bundle.clone(),
+                                )
+                            } else {
+                                render_row(
+                                    row,
+                                    idx == selected_idx,
+                                    on_select.clone(),
+                                    on_action.clone(),
+                                    bundle.clone(),
+                                )
+                            }
                         } else {
                             html! {}
                         }
@@ -400,6 +423,75 @@ fn render_row(
                 <button class="ghost" onclick={pause}>{t("toolbar.pause")}</button>
                 <button class="ghost" onclick={resume}>{t("toolbar.resume")}</button>
                 <button class="ghost" onclick={recheck}>{t("toolbar.recheck")}</button>
+                <button class="ghost danger" onclick={delete_data}>{t("toolbar.delete_data")}</button>
+            </div>
+        </article>
+    }
+}
+
+fn render_mobile_row(
+    row: &TorrentRow,
+    selected: bool,
+    on_select: Callback<String>,
+    on_action: Callback<(TorrentAction, String)>,
+    bundle: TranslationBundle,
+) -> Html {
+    let t = |key: &str| bundle.text(key, "");
+    let select = {
+        let on_select = on_select.clone();
+        let id = row.id.to_string();
+        Callback::from(move |_| on_select.emit(id.clone()))
+    };
+    let pause = {
+        let on_action = on_action.clone();
+        let id = row.id.clone();
+        Callback::from(move |_| on_action.emit((TorrentAction::Pause, id.clone())))
+    };
+    let resume = {
+        let on_action = on_action.clone();
+        let id = row.id.clone();
+        Callback::from(move |_| on_action.emit((TorrentAction::Resume, id.clone())))
+    };
+    let delete_data = {
+        let on_action = on_action.clone();
+        let id = row.id.clone();
+        Callback::from(move |_| {
+            on_action.emit((TorrentAction::Delete { with_data: true }, id.clone()))
+        })
+    };
+    html! {
+        <article class={classes!("torrent-row", "mobile", if selected { Some("selected") } else { None })} aria-selected={selected.to_string()}>
+            <header class="title">
+                <div>
+                    <strong>{row.name.clone()}</strong>
+                    <p class="muted ellipsis">{row.tracker.clone()}</p>
+                </div>
+                <span class={classes!("pill", status_class(row.status))}>{row.status.clone()}</span>
+            </header>
+            <div class="progress">
+                <div class="bar" style={format!("width: {:.1}%", row.progress * 100.0)}></div>
+                <div class="meta">
+                    <span class="muted">{format!("{:.1}%", row.progress * 100.0)}</span>
+                    <span class="muted">{row.eta.clone().unwrap_or_else(|| t("torrents.eta_infinite"))}</span>
+                </div>
+            </div>
+            <div class="mobile-stats">
+                <div><small>{t("torrents.down")}</small><strong>{format_rate(row.download_bps)}</strong></div>
+                <div><small>{t("torrents.up")}</small><strong>{format_rate(row.upload_bps)}</strong></div>
+                <div><small>{t("torrents.ratio")}</small><strong>{format!("{:.2}", row.ratio)}</strong></div>
+                <div><small>{t("torrents.size")}</small><strong>{row.size_label()}</strong></div>
+            </div>
+            <div class="row-meta">
+                <span class="muted ellipsis">{row.path.clone()}</span>
+                <div class="tags">
+                    <span class="pill subtle">{row.category.clone()}</span>
+                    {for row.tags.iter().map(|tag| html! { <span class="pill subtle">{tag.to_owned()}</span> })}
+                </div>
+            </div>
+            <div class="row-actions mobile-grid">
+                <button class="ghost" onclick={select.clone()}>{t("torrents.open_detail")}</button>
+                <button class="ghost" onclick={pause}>{t("toolbar.pause")}</button>
+                <button class="ghost" onclick={resume}>{t("toolbar.resume")}</button>
                 <button class="ghost danger" onclick={delete_data}>{t("toolbar.delete_data")}</button>
             </div>
         </article>
