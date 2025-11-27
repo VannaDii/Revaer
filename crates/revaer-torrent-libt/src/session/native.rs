@@ -372,4 +372,123 @@ mod tests {
         let _ = session.poll_events().await?;
         Ok(())
     }
+
+    #[tokio::test]
+    async fn native_session_applies_rate_limits() -> Result<()> {
+        let download = TempDir::new()?;
+        let resume_dir = TempDir::new()?;
+
+        let mut session = create_native_session_for_tests()?;
+        let config = EngineRuntimeConfig {
+            download_root: download.path().to_string_lossy().into_owned(),
+            resume_dir: resume_dir.path().to_string_lossy().into_owned(),
+            enable_dht: false,
+            sequential_default: false,
+            listen_port: Some(68_81),
+            max_active: Some(2),
+            download_rate_limit: Some(256_000),
+            upload_rate_limit: Some(128_000),
+            encryption: EncryptionPolicy::Prefer,
+        };
+
+        session.apply_config(&config).await?;
+
+        let descriptor = AddTorrent {
+            id: Uuid::new_v4(),
+            source: TorrentSource::magnet(
+                "magnet:?xt=urn:btih:fedcba98765432100123456789abcdef01234567",
+            ),
+            options: AddTorrentOptions::default(),
+        };
+
+        session.add_torrent(&descriptor).await?;
+
+        session
+            .update_limits(
+                None,
+                &TorrentRateLimit {
+                    download_bps: Some(128_000),
+                    upload_bps: Some(64_000),
+                },
+            )
+            .await?;
+
+        session
+            .update_limits(
+                Some(descriptor.id),
+                &TorrentRateLimit {
+                    download_bps: Some(64_000),
+                    upload_bps: Some(32_000),
+                },
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn native_event_translates_progress_and_resume_data() {
+        let torrent_id = Uuid::new_v4();
+        let events = map_native_event(
+            torrent_id,
+            NativeEvent {
+                id: torrent_id.to_string(),
+                kind: NativeEventKind::Progress,
+                state: NativeTorrentState::Downloading,
+                name: "demo".to_string(),
+                download_dir: "/tmp/downloads".to_string(),
+                library_path: String::new(),
+                bytes_downloaded: 512,
+                bytes_total: 1024,
+                download_bps: 4096,
+                upload_bps: 2048,
+                ratio: 0.5,
+                files: Vec::new(),
+                resume_data: Vec::new(),
+                message: String::new(),
+            },
+        );
+
+        assert!(matches!(
+            events.first(),
+            Some(EngineEvent::Progress {
+                progress,
+                rates,
+                torrent_id: id,
+            }) if *id == torrent_id
+                && progress.bytes_downloaded == 512
+                && progress.bytes_total == 1024
+                && rates.download_bps == 4096
+                && rates.upload_bps == 2048
+                && (rates.ratio - 0.5).abs() < f64::EPSILON
+        ));
+
+        let resume = map_native_event(
+            torrent_id,
+            NativeEvent {
+                id: torrent_id.to_string(),
+                kind: NativeEventKind::ResumeData,
+                state: NativeTorrentState::Downloading,
+                name: String::new(),
+                download_dir: String::new(),
+                library_path: String::new(),
+                bytes_downloaded: 0,
+                bytes_total: 0,
+                download_bps: 0,
+                upload_bps: 0,
+                ratio: 0.0,
+                files: Vec::new(),
+                resume_data: vec![1, 2, 3, 4],
+                message: String::new(),
+            },
+        );
+
+        assert!(matches!(
+            resume.first(),
+            Some(EngineEvent::ResumeData {
+                torrent_id: id,
+                payload,
+            }) if *id == torrent_id && payload == &vec![1, 2, 3, 4]
+        ));
+    }
 }
