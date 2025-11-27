@@ -3,6 +3,7 @@
 use crate::components::dashboard::{DashboardSnapshot, QueueStatus, TrackerHealth, VpnState};
 use crate::components::detail::DetailData;
 use crate::components::torrents::AddTorrentInput;
+use crate::logic::{build_sse_url, build_torrents_path};
 use crate::models::{SseEvent, TorrentDetail, TorrentSummary};
 use crate::state::{TorrentAction, TorrentRow};
 use gloo_net::http::Request;
@@ -68,17 +69,7 @@ impl ApiClient {
         search: Option<String>,
         regex: bool,
     ) -> anyhow::Result<Vec<TorrentRow>> {
-        let mut path = "/v1/torrents".to_string();
-        if search.as_ref().map(|s| !s.is_empty()).unwrap_or(false) {
-            let query = urlencoding::encode(search.as_ref().unwrap());
-            path = format!(
-                "/v1/torrents?search={query}{}",
-                if regex { "&regex=true" } else { "" }
-            );
-        } else if regex {
-            path = "/v1/torrents?regex=true".to_string();
-        }
-        let data: Vec<TorrentSummary> = self.get_json(&path).await?;
+        let data: Vec<TorrentSummary> = self.get_json(&build_torrents_path(&search, regex)).await?;
         Ok(data.into_iter().map(TorrentRow::from).collect())
     }
 
@@ -207,15 +198,7 @@ pub fn connect_sse(
     api_key: Option<String>,
     on_event: impl Fn(SseEvent) + 'static,
 ) -> Option<EventSource> {
-    let url = if let Some(key) = api_key {
-        format!(
-            "{}/v1/events/stream?api_key={}",
-            base_url.trim_end_matches('/'),
-            key
-        )
-    } else {
-        format!("{}/v1/events/stream", base_url.trim_end_matches('/'))
-    };
+    let url = build_sse_url(base_url, &api_key);
     let mut init = EventSourceInit::new();
     init.with_credentials(true);
     let source = EventSource::new_with_event_source_init_dict(&url, &init).ok()?;

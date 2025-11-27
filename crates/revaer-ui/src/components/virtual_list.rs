@@ -3,6 +3,8 @@ use wasm_bindgen::closure::Closure;
 use web_sys::{Event, HtmlDivElement};
 use yew::prelude::*;
 
+use crate::logic::compute_window;
+
 /// Minimal vertical virtualization helper to keep 50k+ rows responsive.
 #[derive(Properties, PartialEq)]
 pub struct VirtualListProps {
@@ -77,11 +79,13 @@ pub fn virtual_list(props: &VirtualListProps) -> Html {
     }
 
     let row_height = props.row_height.max(1);
-    let visible = ((*viewport_height as f32 / row_height as f32).ceil() as u32).max(1);
-    let start = ((*scroll_top) / row_height) as usize;
-    let end = (start + visible as usize + props.overscan as usize).min(props.len);
-    let offset = (start as u32 * row_height) as f32;
-    let total_height = (props.len as u32 * row_height) as f32;
+    let (start, end, offset, total_height) = compute_window(
+        *viewport_height,
+        *scroll_top,
+        row_height,
+        props.len,
+        props.overscan,
+    );
 
     html! {
         <div

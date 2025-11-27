@@ -2,6 +2,10 @@ use crate::breakpoints::Breakpoint;
 use crate::components::detail::{DetailData, DetailView, demo_detail};
 use crate::components::virtual_list::VirtualList;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
+use crate::logic::{
+    plan_columns, ShortcutOutcome, format_rate, interpret_shortcut, select_all_or_clear,
+    toggle_selection, validate_add_input,
+};
 use crate::models::TorrentSummary;
 use crate::services::ApiClient;
 use crate::state::{TorrentAction, TorrentRow};
@@ -86,6 +90,8 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
         UiMode::Simple => "mode-simple",
         UiMode::Advanced => "mode-advanced",
     };
+    let is_mobile =
+        crate::logic::layout_for_breakpoint(props.breakpoint) == crate::logic::LayoutMode::Card;
     let selected_id = props.torrents.get(*selected_idx).map(|row| row.id.clone());
     let selected_count = selected_ids.len();
     let pause_selected = {
@@ -121,7 +127,9 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
         let selected_idx = selected_idx.clone();
         let base_url = props.base_url.clone();
         let api_key = props.api_key.clone();
+        let selected_ids = selected_ids.clone();
         Callback::from(move |id: String| {
+            selected_ids.set(toggle_selection(&selected_ids, &id));
             if let Some(idx) = props.torrents.iter().position(|row| row.id == id) {
                 selected_idx.set(idx);
             }
@@ -144,6 +152,9 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
         let search_ref = search_ref.clone();
         let action_banner = action_banner.clone();
         let confirm = confirm.clone();
+        let on_action = props.on_action.clone();
+        let on_search = props.on_search.clone();
+        let bundle = bundle.clone();
         use_effect_with_deps(
             move |_| {
                 let handler = Closure::<dyn FnMut(_)>::wrap(Box::new(move |event: KeyboardEvent| {
@@ -154,60 +165,63 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                         return;
                     }
 
-                    match event.key().as_str() {
-                        "/" => {
-                            event.prevent_default();
-                            if let Some(input) = search_ref.cast::<web_sys::HtmlInputElement>() {
-                                let _ = input.focus();
-                            }
-                        }
-                        "j" | "J" => {
-                            event.prevent_default();
-                            let next = (*selected_idx + 1).min(torrents.len().saturating_sub(1));
-                            if next != *selected_idx {
-                                selected_idx.set(next);
-                                if let Some(row) = torrents.get(next) {
-                                    on_select.emit(row.id.clone());
+                    if let Some(action) = interpret_shortcut(&event.key(), event.shift_key()) {
+                        event.prevent_default();
+                        match action {
+                            ShortcutOutcome::FocusSearch => {
+                                if let Some(input) = search_ref.cast::<web_sys::HtmlInputElement>()
+                                {
+                                    let _ = input.focus();
                                 }
                             }
-                        }
-                        "k" | "K" => {
-                            event.prevent_default();
-                            let next = selected_idx.saturating_sub(1);
-                            if next != *selected_idx {
-                                selected_idx.set(next);
-                                if let Some(row) = torrents.get(next) {
-                                    on_select.emit(row.id.clone());
+                            ShortcutOutcome::SelectNext => {
+                                if let Some(next) = crate::logic::advance_selection(
+                                    ShortcutOutcome::SelectNext,
+                                    *selected_idx,
+                                    torrents.len(),
+                                ) {
+                                    selected_idx.set(next);
+                                    if let Some(row) = torrents.get(next) {
+                                        on_select.emit(row.id.clone());
+                                    }
                                 }
                             }
-                        }
-                        " " => {
-                            event.prevent_default();
-                            if let Some(row) = torrents.get(*selected_idx) {
-                                action_banner
-                                    .set(Some(format!("Toggled pause/resume for {}", row.name)));
+                            ShortcutOutcome::SelectPrev => {
+                                if let Some(next) = crate::logic::advance_selection(
+                                    ShortcutOutcome::SelectPrev,
+                                    *selected_idx,
+                                    torrents.len(),
+                                ) {
+                                    selected_idx.set(next);
+                                    if let Some(row) = torrents.get(next) {
+                                        on_select.emit(row.id.clone());
+                                    }
+                                }
+                            }
+                            ShortcutOutcome::TogglePauseResume => {
+                                if let Some(row) = torrents.get(*selected_idx) {
+                                    action_banner.set(Some(bundle.text("toast.pause", "")));
+                                    on_action.emit((TorrentAction::Pause, row.id.clone()));
+                                }
+                            }
+                            ShortcutOutcome::ClearSearch => {
+                                if let Some(input) = search_ref.cast::<web_sys::HtmlInputElement>()
+                                {
+                                    input.set_value("");
+                                    let _ = input.blur();
+                                    on_search.emit(String::new());
+                                }
+                            }
+                            ShortcutOutcome::ConfirmDelete => {
+                                confirm.set(Some(ConfirmKind::Delete))
+                            }
+                            ShortcutOutcome::ConfirmDeleteData => {
+                                confirm.set(Some(ConfirmKind::DeleteData))
+                            }
+                            ShortcutOutcome::ConfirmRecheck => {
+                                confirm.set(Some(ConfirmKind::Recheck))
                             }
                         }
-                        "Escape" => {
-                            if let Some(input) = search_ref.cast::<web_sys::HtmlInputElement>() {
-                                input.set_value("");
-                                let _ = input.blur();
-                                props.on_search.emit(String::new());
-                            }
-                        }
-                        key if key == "Delete" && event.shift_key() => {
-                            event.prevent_default();
-                            confirm.set(Some(ConfirmKind::DeleteData));
-                        }
-                        "Delete" => {
-                            event.prevent_default();
-                            confirm.set(Some(ConfirmKind::Delete));
-                        }
-                        "p" | "P" => {
-                            event.prevent_default();
-                            confirm.set(Some(ConfirmKind::Recheck));
-                        }
-                        _ => {}
                     }
                 })
                     as Box<dyn FnMut(_)>);
@@ -263,13 +277,7 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                         let selected_ids = selected_ids.clone();
                         let torrents = props.torrents.clone();
                         Callback::from(move |_| {
-                            let mut next = selected_ids.clone();
-                            if next.len() == torrents.len() {
-                                next.clear();
-                            } else {
-                                next = torrents.iter().map(|t| t.id.clone()).collect();
-                            }
-                            selected_ids.set(next);
+                            selected_ids.set(select_all_or_clear(&selected_ids, &torrents));
                         })
                     }}>
                         {t("torrents.select_all")}
@@ -348,13 +356,8 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                     let selected_idx = *selected_idx;
                     let on_action = props.on_action.clone();
                     let is_mobile = is_mobile;
-                    let selected_ids_handle = selected_ids.clone();
                     let toggle_select = Callback::from(move |id: String| {
-                        let mut next = (*selected_ids_handle).clone();
-                        if !next.remove(&id) {
-                            next.insert(id);
-                        }
-                        selected_ids_handle.set(next);
+                        selected_ids.set(toggle_selection(&selected_ids, &id));
                     });
                     Callback::from(move |idx: usize| {
                         if let Some(row) = torrents.get(idx) {
@@ -616,21 +619,6 @@ fn status_class(status: &str) -> &'static str {
     }
 }
 
-fn format_rate(value: u64) -> String {
-    const KIB: f64 = 1024.0;
-    const MIB: f64 = 1024.0 * 1024.0;
-    const GIB: f64 = 1024.0 * 1024.0 * 1024.0;
-    if value as f64 >= GIB {
-        format!("{:.1} GiB/s", value as f64 / GIB)
-    } else if value as f64 >= MIB {
-        format!("{:.1} MiB/s", value as f64 / MIB)
-    } else if value as f64 >= KIB {
-        format!("{:.1} KiB/s", value as f64 / KIB)
-    } else {
-        format!("{value} B/s")
-    }
-}
-
 fn action_banner_message(bundle: &TranslationBundle, action: &TorrentAction, name: &str) -> String {
     match action {
         TorrentAction::Delete { with_data: true } => {
@@ -660,10 +648,10 @@ mod tests {
 
     #[test]
     fn format_rate_scales_units() {
-        assert_eq!(format_rate(512), "512 B/s");
-        assert_eq!(format_rate(2048), "2.0 KiB/s");
-        assert!(format_rate(5_242_880).contains("MiB"));
-        assert!(format_rate(2_147_483_648).contains("GiB"));
+        assert_eq!(crate::logic::format_rate(512), "512 B/s");
+        assert_eq!(crate::logic::format_rate(2048), "2.0 KiB/s");
+        assert!(crate::logic::format_rate(5_242_880).contains("MiB"));
+        assert!(crate::logic::format_rate(2_147_483_648).contains("GiB"));
     }
 
     #[test]
@@ -704,47 +692,28 @@ fn add_torrent_panel(props: &AddTorrentProps) -> Html {
         Callback::from(move |_| {
             let value = input_value.trim().to_string();
             let has_file = (*file).is_some();
-            let is_magnet = value.starts_with("magnet:?xt=urn:btih:");
-            let is_url = value.starts_with("http://") || value.starts_with("https://");
-            if value.is_empty() && !has_file {
-                error.set(Some(t("torrents.error.empty")));
-                return;
-            }
-            if !has_file && !(is_magnet || is_url) {
-                error.set(Some(t("torrents.error.invalid")));
-                return;
-            }
-            error.set(None);
-            let tags_value = (*tags).clone();
-            let tags_vec = if tags_value.is_empty() {
-                None
-            } else {
-                let parsed: Vec<String> = tags_value
-                    .split(',')
-                    .map(|t| t.trim())
-                    .filter(|t| !t.is_empty())
-                    .map(str::to_string)
-                    .collect();
-                if parsed.is_empty() {
-                    None
-                } else {
-                    Some(parsed)
+            let payload = match crate::logic::build_add_payload(
+                &value, &category, &tags, &save_path, has_file,
+            ) {
+                Ok(payload) => {
+                    error.set(None);
+                    payload
+                }
+                Err(crate::logic::AddInputError::Empty) => {
+                    error.set(Some(t("torrents.error.empty")));
+                    return;
+                }
+                Err(crate::logic::AddInputError::Invalid) => {
+                    error.set(Some(t("torrents.error.invalid")));
+                    return;
                 }
             };
             on_submit.emit(AddTorrentInput {
-                value: if has_file { None } else { Some(value) },
+                value: payload.value,
                 file: (*file).clone(),
-                category: if category.is_empty() {
-                    None
-                } else {
-                    Some((*category).clone())
-                },
-                tags: tags_vec,
-                save_path: if save_path.is_empty() {
-                    None
-                } else {
-                    Some((*save_path).clone())
-                },
+                category: payload.category,
+                tags: payload.tags,
+                save_path: payload.save_path,
             });
         })
     };

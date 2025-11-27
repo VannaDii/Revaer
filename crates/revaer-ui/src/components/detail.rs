@@ -133,8 +133,8 @@ pub fn detail_view(props: &DetailProps) -> Html {
                                 </div>
                                 <div class="pill subtle">{peer.flags}</div>
                                 <div class="pill subtle">{peer.country}</div>
-                                <div class="stat"><small>{t("detail.peers.down")}</small><strong>{format_rate(peer.download_bps)}</strong></div>
-                                <div class="stat"><small>{t("detail.peers.up")}</small><strong>{format_rate(peer.upload_bps)}</strong></div>
+                                <div class="stat"><small>{t("detail.peers.down")}</small><strong>{crate::logic::format_rate(peer.download_bps)}</strong></div>
+                                <div class="stat"><small>{t("detail.peers.up")}</small><strong>{crate::logic::format_rate(peer.upload_bps)}</strong></div>
                                 <div class="stat"><small>{t("detail.peers.progress")}</small><strong>{format!("{:.0}%", peer.progress * 100.0)}</strong></div>
                             </div>
                         })}
@@ -314,18 +314,6 @@ fn render_file(node: &FileNode, depth: usize, wanted_label: &str) -> Html {
     }
 }
 
-fn format_rate(value: u64) -> String {
-    const KIB: f64 = 1024.0;
-    const MIB: f64 = 1024.0 * 1024.0;
-    if value as f64 >= MIB {
-        format!("{:.1} MiB/s", value as f64 / MIB)
-    } else if value as f64 >= KIB {
-        format!("{:.1} KiB/s", value as f64 / KIB)
-    } else {
-        format!("{value} B/s")
-    }
-}
-
 /// Demo detail record used by the torrent view.
 #[must_use]
 pub fn demo_detail(id: &str) -> Option<DetailData> {
@@ -447,4 +435,58 @@ pub fn demo_detail(id: &str) -> Option<DetailData> {
             piece_size_mb: 4,
         },
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{Peer, TorrentDetail, TorrentFile, Tracker};
+    use uuid::Uuid;
+
+    #[test]
+    fn detail_conversion_maps_sizes_and_events() {
+        let detail = TorrentDetail {
+            id: Uuid::nil(),
+            name: "demo".into(),
+            files: vec![TorrentFile {
+                path: "a.mkv".into(),
+                size_bytes: 1_073_741_824,
+                completed_bytes: 536_870_912,
+                priority: "high".into(),
+                wanted: true,
+            }],
+            peers: vec![Peer {
+                ip: "1.1.1.1".into(),
+                client: "qB".into(),
+                flags: "D".into(),
+                country: Some("US".into()),
+                download_bps: 42,
+                upload_bps: 7,
+                progress: 0.5,
+            }],
+            trackers: vec![Tracker {
+                url: "udp://tracker".into(),
+                status: "ok".into(),
+                next_announce_at: Some("soon".into()),
+                last_error: None,
+                last_error_at: None,
+            }],
+            events: vec![DetailEvent {
+                timestamp: "now".into(),
+                level: "info".into(),
+                message: "started".into(),
+            }],
+            hash: "h".into(),
+            magnet: "m".into(),
+            size_bytes: 1_073_741_824,
+            piece_count: 2,
+            piece_size_bytes: 512 * 1024,
+        };
+        let mapped: DetailData = detail.into();
+        assert_eq!(mapped.files.first().unwrap().completed_gb, 0.5);
+        assert_eq!(mapped.peers.first().unwrap().country, "US");
+        assert_eq!(mapped.trackers.first().unwrap().next_announce, "soon");
+        assert_eq!(mapped.events.len(), 1);
+        assert_eq!(mapped.metadata.piece_size_mb, 0);
+    }
 }

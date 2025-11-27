@@ -6,6 +6,7 @@ use crate::components::status::{SseOverlay, SseState};
 use crate::components::toast::{Toast, ToastHost, ToastKind};
 use crate::components::torrents::{AddTorrentInput, TorrentView, demo_rows};
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode, TranslationBundle};
+use crate::logic::backoff_delay_ms;
 use crate::services::ApiClient;
 use crate::state::{
     TorrentAction, apply_progress, apply_rates, apply_remove, apply_status, success_message,
@@ -651,14 +652,6 @@ fn push_toast(
         list.drain(0..drain);
     }
     toasts.set(list);
-}
-
-/// Exponential backoff (1s → 30s) for SSE reconnect attempts.
-#[must_use]
-fn backoff_delay_ms(attempt: u32) -> u32 {
-    let capped = attempt.min(5);
-    let delay = 1_000u32.saturating_mul(2u32.saturating_pow(capped));
-    delay.clamp(1_000, 30_000)
 }
 
 fn apply_breakpoint(bp: Breakpoint) {
