@@ -685,6 +685,48 @@ button:focus-visible {
   box-shadow: var(--shadow);
 }
 
+.toast-host {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  display: grid;
+  gap: 8px;
+  width: min(360px, 92vw);
+  z-index: 80;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.toast.info {
+  border-color: var(--primary-200);
+}
+
+.toast.success {
+  border-color: var(--success-500);
+}
+
+.toast.error {
+  border-color: var(--error-500);
+}
+
+.toast button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 16px;
+}
+
 .sse-overlay {
   position: fixed;
   inset: 0;
@@ -856,6 +898,12 @@ button:focus-visible {
     position: fixed;
     left: 12px;
     right: 12px;
+  }
+  .toast-host {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
   }
 }
 

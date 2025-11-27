@@ -3,6 +3,7 @@ use crate::components::auth::AuthPrompt;
 use crate::components::dashboard::{DashboardPanel, demo_snapshot};
 use crate::components::shell::{AppShell, NavLabels};
 use crate::components::status::{SseOverlay, SseState};
+use crate::components::toast::{Toast, ToastHost, ToastKind};
 use crate::components::torrents::{TorrentAction, TorrentView, demo_rows};
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode, TranslationBundle};
 use crate::services::ApiClient;
@@ -52,7 +53,9 @@ pub fn revaer_app() -> Html {
     let api_key = use_state(load_api_key);
     let torrents = use_state(demo_rows);
     let dashboard = use_state(demo_snapshot);
-    let sse_handle = use_mut_ref(|| None as Option<web_sys::EventSource>);
+    let toasts = use_state(Vec::<Toast>::new);
+    let toast_id = use_state(|| 0u64);
+    let sse_handle = use_mut_ref(|| None as Option<EventSource>);
     let sse_state = use_state(|| SseState::Reconnecting {
         retry_in_secs: 5,
         last_event: "12s ago",
@@ -304,22 +307,58 @@ pub fn revaer_app() -> Html {
         let sse_state = sse_state.clone();
         Callback::from(move |_| sse_state.set(SseState::Connected))
     };
+    let dismiss_toast = {
+        let toasts = toasts.clone();
+        Callback::from(move |id: u64| {
+            toasts.set(
+                (*toasts)
+                    .iter()
+                    .cloned()
+                    .filter(|toast| toast.id != id)
+                    .collect(),
+            );
+        })
+    };
     let on_action = {
         let api_key = api_key.clone();
         let torrents = torrents.clone();
+        let toasts = toasts.clone();
+        let toast_id = toast_id.clone();
         Callback::from(move |(action, id): (TorrentAction, String)| {
             let client = ApiClient::new(api_base_url(), (*api_key).clone());
             let torrents = torrents.clone();
+            let toasts = toasts.clone();
+            let toast_id = toast_id.clone();
             yew::platform::spawn_local(async move {
-                let _ = client.perform_action(&id, action.clone()).await;
-                if matches!(action, TorrentAction::Delete { .. }) {
-                    torrents.set(
-                        torrents
-                            .iter()
-                            .cloned()
-                            .filter(|row| row.id != id)
-                            .collect(),
-                    );
+                let display_name = (*torrents)
+                    .iter()
+                    .find(|row| row.id == id)
+                    .map(|row| row.name.clone())
+                    .unwrap_or_else(|| format!("Torrent {id}"));
+                match client.perform_action(&id, action.clone()).await {
+                    Ok(_) => {
+                        if matches!(action, TorrentAction::Delete { .. }) {
+                            torrents.set(
+                                torrents
+                                    .iter()
+                                    .cloned()
+                                    .filter(|row| row.id != id)
+                                    .collect(),
+                            );
+                        }
+                        push_toast(
+                            &toasts,
+                            &toast_id,
+                            ToastKind::Success,
+                            success_message(&action, &display_name),
+                        );
+                    }
+                    Err(err) => push_toast(
+                        &toasts,
+                        &toast_id,
+                        ToastKind::Error,
+                        format!("Action failed for {display_name}: {err}"),
+                    ),
                 }
             });
         })
@@ -371,6 +410,7 @@ pub fn revaer_app() -> Html {
                     }
                 }} />
             </AppShell>
+            <ToastHost toasts={(*toasts).clone()} on_dismiss={dismiss_toast.clone()} />
             <SseOverlay state={*sse_state} on_retry={clear_sse_overlay} network_mode={"remote (API key)"} />
             {if api_key.is_none() {
                 html! {
@@ -410,6 +450,38 @@ fn placeholder(props: &PlaceholderProps) -> Html {
 struct PlaceholderProps {
     pub title: String,
     pub body: String,
+}
+
+fn push_toast(
+    toasts: &UseStateHandle<Vec<Toast>>,
+    next_id: &UseStateHandle<u64>,
+    kind: ToastKind,
+    message: String,
+) {
+    let id = *next_id + 1;
+    next_id.set(id);
+    let mut list = (*toasts).clone();
+    list.push(Toast { id, message, kind });
+    if list.len() > 4 {
+        let drain = list.len() - 4;
+        list.drain(0..drain);
+    }
+    toasts.set(list);
+}
+
+fn success_message(action: &TorrentAction, name: &str) -> String {
+    match action {
+        TorrentAction::Pause => format!("Paused {name}"),
+        TorrentAction::Resume => format!("Resumed {name}"),
+        TorrentAction::Recheck => format!("Rechecking {name}"),
+        TorrentAction::Delete { with_data } => {
+            if *with_data {
+                format!("Removed {name} and deleted data")
+            } else {
+                format!("Removed {name}")
+            }
+        }
+    }
 }
 
 fn apply_breakpoint(bp: Breakpoint) {
