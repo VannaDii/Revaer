@@ -4,7 +4,7 @@ use crate::components::dashboard::{DashboardPanel, demo_snapshot};
 use crate::components::shell::{AppShell, NavLabels};
 use crate::components::status::{SseOverlay, SseState};
 use crate::components::toast::{Toast, ToastHost, ToastKind};
-use crate::components::torrents::{TorrentAction, TorrentView, demo_rows};
+use crate::components::torrents::{AddTorrentInput, TorrentAction, TorrentView, demo_rows};
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode, TranslationBundle};
 use crate::services::ApiClient;
 use crate::theme::ThemeMode;
@@ -55,6 +55,7 @@ pub fn revaer_app() -> Html {
     let dashboard = use_state(demo_snapshot);
     let toasts = use_state(Vec::<Toast>::new);
     let toast_id = use_state(|| 0u64);
+    let add_busy = use_state(|| false);
     let sse_handle = use_mut_ref(|| None as Option<EventSource>);
     let sse_state = use_state(|| SseState::Reconnecting {
         retry_in_secs: 5,
@@ -153,6 +154,29 @@ pub fn revaer_app() -> Html {
                                 download_bps,
                                 upload_bps,
                             ));
+                        }
+                        crate::models::SseEvent::TorrentState {
+                            torrent_id, status, ..
+                        } => {
+                            state_updater.set(update_status(
+                                &state_updater,
+                                torrent_id.to_string(),
+                                status,
+                            ));
+                        }
+                        crate::models::SseEvent::TorrentRemoved { torrent_id } => {
+                            state_updater
+                                .set(remove_torrent(&state_updater, torrent_id.to_string()));
+                        }
+                        crate::models::SseEvent::TorrentAdded { .. } => {
+                            let torrents = state_updater.clone();
+                            let api_key = api_key.clone();
+                            yew::platform::spawn_local(async move {
+                                let client = ApiClient::new(api_base_url(), api_key.clone());
+                                if let Ok(list) = client.fetch_torrents().await {
+                                    torrents.set(list);
+                                }
+                            });
                         }
                         crate::models::SseEvent::SystemRates {
                             download_bps,
@@ -319,6 +343,49 @@ pub fn revaer_app() -> Html {
             );
         })
     };
+    let on_add_torrent = {
+        let api_key = api_key.clone();
+        let torrents = torrents.clone();
+        let toasts = toasts.clone();
+        let toast_id = toast_id.clone();
+        let add_busy = add_busy.clone();
+        Callback::from(move |input: AddTorrentInput| {
+            let client = ApiClient::new(api_base_url(), (*api_key).clone());
+            let torrents = torrents.clone();
+            let toasts = toasts.clone();
+            let toast_id = toast_id.clone();
+            let add_busy = add_busy.clone();
+            add_busy.set(true);
+            yew::platform::spawn_local(async move {
+                match client.add_torrent(input).await {
+                    Ok(row) => {
+                        push_toast(
+                            &toasts,
+                            &toast_id,
+                            ToastKind::Success,
+                            format!("Added {}", row.name),
+                        );
+                        match client.fetch_torrents().await {
+                            Ok(list) => torrents.set(list),
+                            Err(err) => push_toast(
+                                &toasts,
+                                &toast_id,
+                                ToastKind::Info,
+                                format!("Added, but refresh failed: {err}"),
+                            ),
+                        }
+                    }
+                    Err(err) => push_toast(
+                        &toasts,
+                        &toast_id,
+                        ToastKind::Error,
+                        format!("Add failed: {err}"),
+                    ),
+                }
+                add_busy.set(false);
+            });
+        })
+    };
     let on_action = {
         let api_key = api_key.clone();
         let torrents = torrents.clone();
@@ -402,7 +469,7 @@ pub fn revaer_app() -> Html {
                 <Switch<Route> render={move |route| {
                     match route {
                         Route::Dashboard => html! { <DashboardPanel snapshot={(*dashboard).clone()} mode={*mode} density={*density} /> },
-                        Route::Torrents | Route::Search => html! { <TorrentView torrents={(*torrents).clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_action={on_action.clone()} /> },
+                        Route::Torrents | Route::Search => html! { <TorrentView torrents={(*torrents).clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={*add_busy} /> },
                         Route::Jobs => html! { <Placeholder title="Jobs / Post-processing" body="Job states, watch folder errors, SSE updates" /> },
                         Route::Settings => html! { <Placeholder title="Settings" body="Engine profile, paths, roles, remote mode" /> },
                         Route::Logs => html! { <Placeholder title="Logs" body="Streaming event log with filters" /> },
@@ -622,6 +689,30 @@ fn update_rates(
             row
         })
         .collect()
+}
+
+fn update_status(
+    state: &UseStateHandle<Vec<crate::components::torrents::TorrentRow>>,
+    id: String,
+    status: String,
+) -> Vec<crate::components::torrents::TorrentRow> {
+    state
+        .iter()
+        .cloned()
+        .map(|mut row| {
+            if row.id == id {
+                row.status = status.clone();
+            }
+            row
+        })
+        .collect()
+}
+
+fn remove_torrent(
+    state: &UseStateHandle<Vec<crate::components::torrents::TorrentRow>>,
+    id: String,
+) -> Vec<crate::components::torrents::TorrentRow> {
+    state.iter().cloned().filter(|row| row.id != id).collect()
 }
 
 fn update_system_rates(

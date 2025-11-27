@@ -31,6 +31,27 @@ pub struct TorrentProps {
     pub mode: UiMode,
     pub on_density_change: Callback<Density>,
     pub on_action: Callback<(TorrentAction, String)>,
+    pub on_add: Callback<AddTorrentInput>,
+    pub add_busy: bool,
+}
+
+#[derive(Clone, Debug)]
+pub struct AddTorrentInput {
+    pub value: Option<String>,
+    pub file: Option<File>,
+    pub category: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub save_path: Option<String>,
+}
+
+impl PartialEq for AddTorrentInput {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+            && self.category == other.category
+            && self.tags == other.tags
+            && self.save_path == other.save_path
+            && self.file.as_ref().map(|f| f.name()) == other.file.as_ref().map(|f| f.name())
+    }
 }
 
 #[function_component(TorrentView)]
@@ -214,7 +235,7 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                 </div>
             </header>
 
-            <AddTorrentPanel />
+            <AddTorrentPanel on_submit={props.on_add.clone()} pending={props.add_busy} />
 
             <VirtualList
                 class={classes!("torrent-table", "virtualized")}
@@ -387,26 +408,77 @@ fn format_rate(value: u64) -> String {
     }
 }
 
+#[derive(Properties, PartialEq)]
+pub struct AddTorrentProps {
+    pub on_submit: Callback<AddTorrentInput>,
+    pub pending: bool,
+}
+
 #[function_component(AddTorrentPanel)]
-fn add_torrent_panel() -> Html {
+fn add_torrent_panel(props: &AddTorrentProps) -> Html {
     let input_value = use_state(String::new);
+    let category = use_state(String::new);
+    let tags = use_state(String::new);
+    let save_path = use_state(String::new);
+    let file = use_state(|| None as Option<File>);
     let error = use_state(|| None as Option<String>);
     let drag_over = use_state(|| false);
 
-    let validate = {
+    let submit = {
         let input_value = input_value.clone();
+        let category = category.clone();
+        let tags = tags.clone();
+        let save_path = save_path.clone();
+        let file = file.clone();
         let error = error.clone();
+        let on_submit = props.on_submit.clone();
         Callback::from(move |_| {
             let value = input_value.trim().to_string();
+            let has_file = (*file).is_some();
             let is_magnet = value.starts_with("magnet:?xt=urn:btih:");
             let is_url = value.starts_with("http://") || value.starts_with("https://");
-            if value.is_empty() {
-                error.set(Some("Enter a magnet link or URL".to_string()));
-            } else if !(is_magnet || is_url) {
-                error.set(Some("Invalid magnet or URL".to_string()));
-            } else {
-                error.set(None);
+            if value.is_empty() && !has_file {
+                error.set(Some(
+                    "Enter a magnet link, URL, or drop a .torrent".to_string(),
+                ));
+                return;
             }
+            if !has_file && !(is_magnet || is_url) {
+                error.set(Some("Invalid magnet or URL".to_string()));
+                return;
+            }
+            error.set(None);
+            let tags_value = (*tags).clone();
+            let tags_vec = if tags_value.is_empty() {
+                None
+            } else {
+                let parsed: Vec<String> = tags_value
+                    .split(',')
+                    .map(|t| t.trim())
+                    .filter(|t| !t.is_empty())
+                    .map(str::to_string)
+                    .collect();
+                if parsed.is_empty() {
+                    None
+                } else {
+                    Some(parsed)
+                }
+            };
+            on_submit.emit(AddTorrentInput {
+                value: if has_file { None } else { Some(value) },
+                file: (*file).clone(),
+                category: if category.is_empty() {
+                    None
+                } else {
+                    Some((*category).clone())
+                },
+                tags: tags_vec,
+                save_path: if save_path.is_empty() {
+                    None
+                } else {
+                    Some((*save_path).clone())
+                },
+            });
         })
     };
 
@@ -422,6 +494,8 @@ fn add_torrent_panel() -> Html {
     let on_drop = {
         let drag_over = drag_over.clone();
         let error = error.clone();
+        let input_value = input_value.clone();
+        let file_state = file.clone();
         Callback::from(move |event: DragEvent| {
             event.prevent_default();
             drag_over.set(false);
@@ -434,7 +508,9 @@ fn add_torrent_panel() -> Html {
                 if !name.ends_with(".torrent") {
                     error.set(Some("Unsupported file type".to_string()));
                 } else {
-                    error.set(Some(format!("Ready to upload {}", name)));
+                    error.set(None);
+                    file_state.set(Some(file));
+                    input_value.set(name);
                 }
             }
         })
@@ -468,25 +544,50 @@ fn add_torrent_panel() -> Html {
                 <p><strong>{"Drop .torrent or paste magnet"}</strong></p>
                 <p class="muted">{"Validates magnet/URL, supports drag/drop and file selection."}</p>
                 <div class="inputs">
-                    <input placeholder="Magnet or URL" value={(*input_value).clone()} oninput={on_input} />
-                    <button class="solid" onclick={validate}>{"Add"}</button>
+                    <input aria-label="Magnet or URL" placeholder="Magnet or URL" value={(*input_value).clone()} oninput={on_input} />
+                    <button class="solid" onclick={submit.clone()} disabled={props.pending}>
+                        {if props.pending { "Adding…" } else { "Add" }}
+                    </button>
                 </div>
                 {if let Some(err) = &*error {
                     html! { <p class="error-text">{err}</p> }
+                } else if let Some(f) = &*file {
+                    html! { <p class="muted">{format!("Ready to upload {}", f.name())}</p> }
                 } else { html! {} }}
             </div>
             <div class="pre-flight">
                 <label>
                     <span>{"Category"}</span>
-                    <input placeholder="tv, movies, music" />
+                    <input placeholder="tv, movies, music" value={(*category).clone()} oninput={{
+                        let category = category.clone();
+                        Callback::from(move |e: InputEvent| {
+                            if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+                                category.set(input.value());
+                            }
+                        })
+                    }} />
                 </label>
                 <label>
                     <span>{"Tags"}</span>
-                    <input placeholder="4K, hevc, scene" />
+                    <input placeholder="4K, hevc, scene" value={(*tags).clone()} oninput={{
+                        let tags = tags.clone();
+                        Callback::from(move |e: InputEvent| {
+                            if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+                                tags.set(input.value());
+                            }
+                        })
+                    }} />
                 </label>
                 <label>
                     <span>{"Save path"}</span>
-                    <input placeholder="/data/incomplete" />
+                    <input placeholder="/data/incomplete" value={(*save_path).clone()} oninput={{
+                        let save_path = save_path.clone();
+                        Callback::from(move |e: InputEvent| {
+                            if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+                                save_path.set(input.value());
+                            }
+                        })
+                    }} />
                 </label>
             </div>
         </div>

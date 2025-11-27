@@ -1,12 +1,13 @@
 //! HTTP and SSE client helpers (REST + fallback stubs).
 
 use crate::components::dashboard::{DashboardSnapshot, QueueStatus, TrackerHealth, VpnState};
-use crate::components::torrents::{TorrentAction, TorrentRow};
+use crate::components::torrents::{AddTorrentInput, TorrentAction, TorrentRow};
 use crate::models::{SseEvent, TorrentSummary};
 use gloo_net::http::Request;
+use serde::Serialize;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::closure::Closure;
-use web_sys::{EventSource, EventSourceInit, MessageEvent};
+use web_sys::{EventSource, EventSourceInit, FormData, MessageEvent};
 
 #[derive(Clone, Debug)]
 pub struct ApiClient {
@@ -104,6 +105,78 @@ impl ApiClient {
                 last_change: "-",
             },
         })
+    }
+
+    pub async fn add_torrent(&self, input: AddTorrentInput) -> anyhow::Result<TorrentRow> {
+        if let Some(file) = input.file {
+            self.add_torrent_file(file, input.category, input.tags, input.save_path)
+                .await
+        } else if let Some(source) = input.value {
+            self.add_torrent_text(source, input.category, input.tags, input.save_path)
+                .await
+        } else {
+            Err(anyhow::anyhow!("No torrent payload provided"))
+        }
+    }
+
+    async fn add_torrent_text(
+        &self,
+        source: String,
+        category: Option<String>,
+        tags: Option<Vec<String>>,
+        save_path: Option<String>,
+    ) -> anyhow::Result<TorrentRow> {
+        #[derive(Serialize)]
+        struct Body {
+            source: String,
+            category: Option<String>,
+            tags: Option<Vec<String>>,
+            save_path: Option<String>,
+        }
+        let mut req = Request::post(&format!(
+            "{}/v1/torrents",
+            self.base_url.trim_end_matches('/')
+        ));
+        if let Some(key) = &self.api_key {
+            req = req.header("x-api-key", key);
+        }
+        let resp = req.json(&Body {
+            source,
+            category,
+            tags,
+            save_path,
+        })?;
+        Ok(resp.send().await?.json::<TorrentSummary>().await?.into())
+    }
+
+    async fn add_torrent_file(
+        &self,
+        file: web_sys::File,
+        category: Option<String>,
+        tags: Option<Vec<String>>,
+        save_path: Option<String>,
+    ) -> anyhow::Result<TorrentRow> {
+        let form = FormData::new().map_err(|_| anyhow::anyhow!("form-data failed"))?;
+        form.append_with_blob_and_filename("file", &file, &file.name())
+            .map_err(|err| anyhow::anyhow!("attach file: {:?}", err))?;
+        if let Some(cat) = category {
+            let _ = form.append_with_str("category", &cat);
+        }
+        if let Some(tags) = tags {
+            let _ = form.append_with_str("tags", &tags.join(","));
+        }
+        if let Some(path) = save_path {
+            let _ = form.append_with_str("save_path", &path);
+        }
+        let mut req = Request::post(&format!(
+            "{}/v1/torrents",
+            self.base_url.trim_end_matches('/')
+        ))
+        .body(form);
+        if let Some(key) = &self.api_key {
+            req = req.header("x-api-key", key);
+        }
+        Ok(req.send().await?.json::<TorrentSummary>().await?.into())
     }
 }
 
