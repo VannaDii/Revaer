@@ -24,35 +24,36 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-    App[App (RevaerApp)]
-    Shell[AppShell (nav, mode/theme toggle, locale picker)]
-    Dash[DashboardPanel]
-    Table[TorrentView (virtualized list + filters)]
-    Add[AddTorrentPanel]
-    Detail[Detail Drawer/Tabs]
+    app["App (RevaerApp)"]
+    shell["AppShell: nav / theme / locale"]
+    dash[DashboardPanel]
+    table["TorrentView: virtualized list + filters"]
+    add_panel[AddTorrentPanel]
+    detail["Detail drawer / tabs"]
+    api[API]
 
-    App --> Shell
-    Shell --> Dash
-    Shell --> Table
-    Table --> Add
-    Table --> Detail
-    Add -->|POST /v1/torrents| API
-    Detail -->|PATCH /v1/torrents/{id}| API
+    app --> shell
+    shell --> dash
+    shell --> table
+    table --> add_panel
+    table --> detail
+    add_panel -- "POST /v1/torrents" --> api
+    detail -- "PATCH /v1/torrents/{id}" --> api
 ```
 
 ## SSE Event Flow
 
 ```mermaid
 sequenceDiagram
-    participant API as API / SSE
+    participant API as API/SSE
     participant Stream as EventStream
-    participant State as UI State (torrents, queue, jobs, vpn)
+    participant State as UIState
     participant UI as Components
 
-    API-->>Stream: SSE events (torrent_progress, torrent_state, queue_status, jobs_update, vpn_state)
+    API->>Stream: SSE events (progress, state, queue, jobs, vpn)
     Stream->>State: Batch apply with backoff + dedupe
-    State-->>UI: Render updates (virtualized table, dashboard tiles, badges)
-    UI-->>API: Last-Event-ID on reconnect; filters included in SSE query
+    State->>UI: Render updates (virtualized table, dashboard tiles, badges)
+    UI->>API: Last-Event-ID on reconnect with filters in SSE query
 ```
 
 ## Torrent Lifecycle (UI Perspective)
