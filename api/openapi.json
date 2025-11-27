@@ -1,1415 +1,1408 @@
 {
-  "components": {
-    "schemas": {
-      "ConfigSnapshot": {
-        "properties": {
-          "app_profile": {
-            "type": "object"
-          },
-          "engine_profile": {
-            "type": "object"
-          },
-          "fs_policy": {
-            "type": "object"
-          },
-          "revision": {
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "revision",
-          "app_profile",
-          "engine_profile",
-          "fs_policy"
-        ],
-        "type": "object"
-      },
-      "FilePriorityOverride": {
-        "properties": {
-          "index": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "priority": {
-            "enum": [
-              "skip",
-              "low",
-              "normal",
-              "high"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "index",
-          "priority"
-        ],
-        "type": "object"
-      },
-      "FullHealthResponse": {
-        "properties": {
-          "build": {
-            "type": "string"
-          },
-          "degraded": {
-            "items": {
-              "type": "string"
+    "components": {
+        "schemas": {
+            "ConfigSnapshot": {
+                "properties": {
+                    "app_profile": {
+                        "type": "object"
+                    },
+                    "engine_profile": {
+                        "type": "object"
+                    },
+                    "fs_policy": {
+                        "type": "object"
+                    },
+                    "revision": {
+                        "format": "int64",
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "revision",
+                    "app_profile",
+                    "engine_profile",
+                    "fs_policy"
+                ],
+                "type": "object"
             },
-            "type": "array"
-          },
-          "metrics": {
-            "$ref": "#/components/schemas/HealthMetricsResponse"
-          },
-          "mode": {
-            "type": "string"
-          },
-          "revision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "status": {
-            "type": "string"
-          },
-          "torrent": {
-            "$ref": "#/components/schemas/TorrentHealthSnapshot"
-          }
-        },
-        "required": [
-          "status",
-          "mode",
-          "revision",
-          "build",
-          "degraded",
-          "metrics",
-          "torrent"
-        ],
-        "type": "object"
-      },
-      "HealthComponent": {
-        "properties": {
-          "revision": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "status": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "status"
-        ],
-        "type": "object"
-      },
-      "HealthMetricsResponse": {
-        "properties": {
-          "config_apply_latency_ms": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "config_update_failures_total": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "config_watch_latency_ms": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "config_watch_slow_total": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "guardrail_violations_total": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "rate_limit_throttled_total": {
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "config_watch_latency_ms",
-          "config_apply_latency_ms",
-          "config_update_failures_total",
-          "config_watch_slow_total",
-          "guardrail_violations_total",
-          "rate_limit_throttled_total"
-        ],
-        "type": "object"
-      },
-      "HealthResponse": {
-        "properties": {
-          "database": {
-            "$ref": "#/components/schemas/HealthComponent"
-          },
-          "mode": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "status",
-          "mode",
-          "database"
-        ],
-        "type": "object"
-      },
-      "ProblemDetails": {
-        "properties": {
-          "detail": {
-            "type": "string"
-          },
-          "status": {
-            "type": "integer"
-          },
-          "title": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "type",
-          "title",
-          "status"
-        ],
-        "type": "object"
-      },
-      "SettingsChangeset": {
-        "properties": {
-          "api_keys": {
-            "items": {
-              "type": "object"
+            "FilePriorityOverride": {
+                "properties": {
+                    "index": {
+                        "format": "int32",
+                        "type": "integer"
+                    },
+                    "priority": {
+                        "enum": ["skip", "low", "normal", "high"],
+                        "type": "string"
+                    }
+                },
+                "required": ["index", "priority"],
+                "type": "object"
             },
-            "type": "array"
-          },
-          "app_profile": {
-            "type": [
-              "object",
-              "null"
-            ]
-          },
-          "engine_profile": {
-            "type": [
-              "object",
-              "null"
-            ]
-          },
-          "fs_policy": {
-            "type": [
-              "object",
-              "null"
-            ]
-          },
-          "secrets": {
-            "items": {
-              "type": "object"
+            "FullHealthResponse": {
+                "properties": {
+                    "build": {
+                        "type": "string"
+                    },
+                    "degraded": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "metrics": {
+                        "$ref": "#/components/schemas/HealthMetricsResponse"
+                    },
+                    "mode": {
+                        "type": "string"
+                    },
+                    "revision": {
+                        "format": "int64",
+                        "type": "integer"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "torrent": {
+                        "$ref": "#/components/schemas/TorrentHealthSnapshot"
+                    }
+                },
+                "required": [
+                    "status",
+                    "mode",
+                    "revision",
+                    "build",
+                    "degraded",
+                    "metrics",
+                    "torrent"
+                ],
+                "type": "object"
             },
-            "type": "array"
-          }
-        },
-        "type": "object"
-      },
-      "SetupStartRequest": {
-        "properties": {
-          "issued_by": {
-            "type": "string"
-          },
-          "ttl_seconds": {
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "type": "object"
-      },
-      "SetupStartResponse": {
-        "properties": {
-          "expires_at": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "token": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "token",
-          "expires_at"
-        ],
-        "type": "object"
-      },
-      "TorrentAction": {
-        "properties": {
-          "delete_data": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "download_bps": {
-            "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "enable": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "type": {
-            "enum": [
-              "pause",
-              "resume",
-              "remove",
-              "reannounce",
-              "recheck",
-              "sequential",
-              "rate"
-            ],
-            "type": "string"
-          },
-          "upload_bps": {
-            "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "type"
-        ],
-        "type": "object"
-      },
-      "TorrentCreateRequest": {
-        "properties": {
-          "download_dir": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "exclude": {
-            "items": {
-              "type": "string"
+            "HealthComponent": {
+                "properties": {
+                    "revision": {
+                        "format": "int64",
+                        "type": "integer"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
+                },
+                "required": ["status"],
+                "type": "object"
             },
-            "type": "array"
-          },
-          "id": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "include": {
-            "items": {
-              "type": "string"
+            "HealthMetricsResponse": {
+                "properties": {
+                    "config_apply_latency_ms": {
+                        "format": "int64",
+                        "type": "integer"
+                    },
+                    "config_update_failures_total": {
+                        "format": "int64",
+                        "type": "integer"
+                    },
+                    "config_watch_latency_ms": {
+                        "format": "int64",
+                        "type": "integer"
+                    },
+                    "config_watch_slow_total": {
+                        "format": "int64",
+                        "type": "integer"
+                    },
+                    "guardrail_violations_total": {
+                        "format": "int64",
+                        "type": "integer"
+                    },
+                    "rate_limit_throttled_total": {
+                        "format": "int64",
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "config_watch_latency_ms",
+                    "config_apply_latency_ms",
+                    "config_update_failures_total",
+                    "config_watch_slow_total",
+                    "guardrail_violations_total",
+                    "rate_limit_throttled_total"
+                ],
+                "type": "object"
             },
-            "type": "array"
-          },
-          "magnet": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "max_download_bps": {
-            "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "max_upload_bps": {
-            "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "metainfo": {
-            "format": "byte",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "sequential": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "skip_fluff": {
-            "type": "boolean"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
+            "HealthResponse": {
+                "properties": {
+                    "database": {
+                        "$ref": "#/components/schemas/HealthComponent"
+                    },
+                    "mode": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    }
+                },
+                "required": ["status", "mode", "database"],
+                "type": "object"
             },
-            "type": "array"
-          },
-          "trackers": {
-            "items": {
-              "type": "string"
+            "ProblemDetails": {
+                "properties": {
+                    "detail": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "integer"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    }
+                },
+                "required": ["type", "title", "status"],
+                "type": "object"
             },
-            "type": "array"
-          }
-        },
-        "required": [
-          "id"
-        ],
-        "type": "object"
-      },
-      "TorrentDetail": {
-        "properties": {
-          "files": {
-            "items": {
-              "$ref": "#/components/schemas/TorrentFileView"
+            "SettingsChangeset": {
+                "properties": {
+                    "api_keys": {
+                        "items": {
+                            "type": "object"
+                        },
+                        "type": "array"
+                    },
+                    "app_profile": {
+                        "type": ["object", "null"]
+                    },
+                    "engine_profile": {
+                        "type": ["object", "null"]
+                    },
+                    "fs_policy": {
+                        "type": ["object", "null"]
+                    },
+                    "secrets": {
+                        "items": {
+                            "type": "object"
+                        },
+                        "type": "array"
+                    }
+                },
+                "type": "object"
             },
-            "type": [
-              "array",
-              "null"
-            ]
-          },
-          "summary": {
-            "$ref": "#/components/schemas/TorrentSummary"
-          }
-        },
-        "required": [
-          "summary"
-        ],
-        "type": "object"
-      },
-      "TorrentFileView": {
-        "properties": {
-          "bytes_completed": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "index": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "path": {
-            "type": "string"
-          },
-          "priority": {
-            "enum": [
-              "skip",
-              "low",
-              "normal",
-              "high"
-            ],
-            "type": "string"
-          },
-          "selected": {
-            "type": "boolean"
-          },
-          "size_bytes": {
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "index",
-          "path",
-          "size_bytes",
-          "bytes_completed",
-          "priority",
-          "selected"
-        ],
-        "type": "object"
-      },
-      "TorrentHealthSnapshot": {
-        "properties": {
-          "active": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "queue_depth": {
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "active",
-          "queue_depth"
-        ],
-        "type": "object"
-      },
-      "TorrentListResponse": {
-        "properties": {
-          "next": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "torrents": {
-            "items": {
-              "$ref": "#/components/schemas/TorrentSummary"
+            "SetupStartRequest": {
+                "properties": {
+                    "issued_by": {
+                        "type": "string"
+                    },
+                    "ttl_seconds": {
+                        "format": "int64",
+                        "type": "integer"
+                    }
+                },
+                "type": "object"
             },
-            "type": "array"
-          }
-        },
-        "required": [
-          "torrents"
-        ],
-        "type": "object"
-      },
-      "TorrentProgressView": {
-        "properties": {
-          "bytes_downloaded": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "bytes_total": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "eta_seconds": {
-            "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "percent_complete": {
-            "format": "float",
-            "type": "number"
-          }
-        },
-        "required": [
-          "bytes_downloaded",
-          "bytes_total",
-          "percent_complete"
-        ],
-        "type": "object"
-      },
-      "TorrentRatesView": {
-        "properties": {
-          "download_bps": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "ratio": {
-            "format": "float",
-            "type": "number"
-          },
-          "upload_bps": {
-            "format": "int64",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "download_bps",
-          "upload_bps",
-          "ratio"
-        ],
-        "type": "object"
-      },
-      "TorrentSelectionRequest": {
-        "properties": {
-          "exclude": {
-            "items": {
-              "type": "string"
+            "SetupStartResponse": {
+                "properties": {
+                    "expires_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "token": {
+                        "type": "string"
+                    }
+                },
+                "required": ["token", "expires_at"],
+                "type": "object"
             },
-            "type": "array"
-          },
-          "include": {
-            "items": {
-              "type": "string"
+            "TorrentAction": {
+                "properties": {
+                    "delete_data": {
+                        "type": ["boolean", "null"]
+                    },
+                    "download_bps": {
+                        "format": "int64",
+                        "type": ["integer", "null"]
+                    },
+                    "enable": {
+                        "type": ["boolean", "null"]
+                    },
+                    "type": {
+                        "enum": [
+                            "pause",
+                            "resume",
+                            "remove",
+                            "reannounce",
+                            "recheck",
+                            "sequential",
+                            "rate"
+                        ],
+                        "type": "string"
+                    },
+                    "upload_bps": {
+                        "format": "int64",
+                        "type": ["integer", "null"]
+                    }
+                },
+                "required": ["type"],
+                "type": "object"
             },
-            "type": "array"
-          },
-          "priorities": {
-            "items": {
-              "$ref": "#/components/schemas/FilePriorityOverride"
+            "TorrentCreateRequest": {
+                "properties": {
+                    "download_dir": {
+                        "type": ["string", "null"]
+                    },
+                    "exclude": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "id": {
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "include": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "magnet": {
+                        "type": ["string", "null"]
+                    },
+                    "max_download_bps": {
+                        "format": "int64",
+                        "type": ["integer", "null"]
+                    },
+                    "max_upload_bps": {
+                        "format": "int64",
+                        "type": ["integer", "null"]
+                    },
+                    "metainfo": {
+                        "format": "byte",
+                        "type": ["string", "null"]
+                    },
+                    "name": {
+                        "type": ["string", "null"]
+                    },
+                    "sequential": {
+                        "type": ["boolean", "null"]
+                    },
+                    "skip_fluff": {
+                        "type": "boolean"
+                    },
+                    "tags": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "trackers": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": ["id"],
+                "type": "object"
             },
-            "type": "array"
-          },
-          "skip_fluff": {
-            "type": "boolean"
-          }
+            "TorrentDetail": {
+                "properties": {
+                    "files": {
+                        "items": {
+                            "$ref": "#/components/schemas/TorrentFileView"
+                        },
+                        "type": ["array", "null"]
+                    },
+                    "summary": {
+                        "$ref": "#/components/schemas/TorrentSummary"
+                    }
+                },
+                "required": ["summary"],
+                "type": "object"
+            },
+            "TorrentFileView": {
+                "properties": {
+                    "bytes_completed": {
+                        "format": "int64",
+                        "type": "integer"
+                    },
+                    "index": {
+                        "format": "int32",
+                        "type": "integer"
+                    },
+                    "path": {
+                        "type": "string"
+                    },
+                    "priority": {
+                        "enum": ["skip", "low", "normal", "high"],
+                        "type": "string"
+                    },
+                    "selected": {
+                        "type": "boolean"
+                    },
+                    "size_bytes": {
+                        "format": "int64",
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "index",
+                    "path",
+                    "size_bytes",
+                    "bytes_completed",
+                    "priority",
+                    "selected"
+                ],
+                "type": "object"
+            },
+            "TorrentHealthSnapshot": {
+                "properties": {
+                    "active": {
+                        "format": "int64",
+                        "type": "integer"
+                    },
+                    "queue_depth": {
+                        "format": "int64",
+                        "type": "integer"
+                    }
+                },
+                "required": ["active", "queue_depth"],
+                "type": "object"
+            },
+            "TorrentListResponse": {
+                "properties": {
+                    "next": {
+                        "type": ["string", "null"]
+                    },
+                    "torrents": {
+                        "items": {
+                            "$ref": "#/components/schemas/TorrentSummary"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": ["torrents"],
+                "type": "object"
+            },
+            "TorrentProgressView": {
+                "properties": {
+                    "bytes_downloaded": {
+                        "format": "int64",
+                        "type": "integer"
+                    },
+                    "bytes_total": {
+                        "format": "int64",
+                        "type": "integer"
+                    },
+                    "eta_seconds": {
+                        "format": "int64",
+                        "type": ["integer", "null"]
+                    },
+                    "percent_complete": {
+                        "format": "float",
+                        "type": "number"
+                    }
+                },
+                "required": [
+                    "bytes_downloaded",
+                    "bytes_total",
+                    "percent_complete"
+                ],
+                "type": "object"
+            },
+            "TorrentRatesView": {
+                "properties": {
+                    "download_bps": {
+                        "format": "int64",
+                        "type": "integer"
+                    },
+                    "ratio": {
+                        "format": "float",
+                        "type": "number"
+                    },
+                    "upload_bps": {
+                        "format": "int64",
+                        "type": "integer"
+                    }
+                },
+                "required": ["download_bps", "upload_bps", "ratio"],
+                "type": "object"
+            },
+            "TorrentSelectionRequest": {
+                "properties": {
+                    "exclude": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "include": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "priorities": {
+                        "items": {
+                            "$ref": "#/components/schemas/FilePriorityOverride"
+                        },
+                        "type": "array"
+                    },
+                    "skip_fluff": {
+                        "type": "boolean"
+                    }
+                },
+                "type": "object"
+            },
+            "TorrentStateView": {
+                "properties": {
+                    "failure_message": {
+                        "type": ["string", "null"]
+                    },
+                    "kind": {
+                        "enum": [
+                            "queued",
+                            "fetching_metadata",
+                            "downloading",
+                            "seeding",
+                            "completed",
+                            "failed",
+                            "stopped"
+                        ],
+                        "type": "string"
+                    }
+                },
+                "required": ["kind"],
+                "type": "object"
+            },
+            "TorrentSummary": {
+                "properties": {
+                    "added_at": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "completed_at": {
+                        "format": "date-time",
+                        "type": ["string", "null"]
+                    },
+                    "download_dir": {
+                        "type": ["string", "null"]
+                    },
+                    "id": {
+                        "format": "uuid",
+                        "type": "string"
+                    },
+                    "last_updated": {
+                        "format": "date-time",
+                        "type": "string"
+                    },
+                    "library_path": {
+                        "type": ["string", "null"]
+                    },
+                    "name": {
+                        "type": ["string", "null"]
+                    },
+                    "progress": {
+                        "$ref": "#/components/schemas/TorrentProgressView"
+                    },
+                    "rates": {
+                        "$ref": "#/components/schemas/TorrentRatesView"
+                    },
+                    "sequential": {
+                        "type": "boolean"
+                    },
+                    "state": {
+                        "$ref": "#/components/schemas/TorrentStateView"
+                    },
+                    "tags": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    },
+                    "trackers": {
+                        "items": {
+                            "type": "string"
+                        },
+                        "type": "array"
+                    }
+                },
+                "required": [
+                    "id",
+                    "state",
+                    "progress",
+                    "rates",
+                    "sequential",
+                    "tags",
+                    "trackers",
+                    "added_at",
+                    "last_updated"
+                ],
+                "type": "object"
+            }
         },
-        "type": "object"
-      },
-      "TorrentStateView": {
-        "properties": {
-          "failure_message": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "kind": {
-            "enum": [
-              "queued",
-              "fetching_metadata",
-              "downloading",
-              "seeding",
-              "completed",
-              "failed",
-              "stopped"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind"
-        ],
-        "type": "object"
-      },
-      "TorrentSummary": {
-        "properties": {
-          "added_at": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "completed_at": {
-            "format": "date-time",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "download_dir": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "id": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "last_updated": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "library_path": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "progress": {
-            "$ref": "#/components/schemas/TorrentProgressView"
-          },
-          "rates": {
-            "$ref": "#/components/schemas/TorrentRatesView"
-          },
-          "sequential": {
-            "type": "boolean"
-          },
-          "state": {
-            "$ref": "#/components/schemas/TorrentStateView"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
+        "securitySchemes": {
+            "ApiKeyAuth": {
+                "in": "header",
+                "name": "x-revaer-api-key",
+                "type": "apiKey"
             },
-            "type": "array"
-          },
-          "trackers": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          }
-        },
-        "required": [
-          "id",
-          "state",
-          "progress",
-          "rates",
-          "sequential",
-          "tags",
-          "trackers",
-          "added_at",
-          "last_updated"
-        ],
-        "type": "object"
-      }
+            "SetupToken": {
+                "in": "header",
+                "name": "x-revaer-setup-token",
+                "type": "apiKey"
+            }
+        }
     },
-    "securitySchemes": {
-      "ApiKeyAuth": {
-        "in": "header",
-        "name": "x-revaer-api-key",
-        "type": "apiKey"
-      },
-      "SetupToken": {
-        "in": "header",
-        "name": "x-revaer-setup-token",
-        "type": "apiKey"
-      }
-    }
-  },
-  "info": {
-    "title": "Revaer Control Plane API",
-    "version": "0.1.0"
-  },
-  "openapi": "3.1.0",
-  "paths": {
-    "/.well-known/revaer.json": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConfigSnapshot"
-                }
-              }
-            },
-            "description": "Configuration document"
-          }
-        },
-        "summary": "Retrieve the configuration snapshot exposed to clients"
-      }
+    "info": {
+        "title": "Revaer Control Plane API",
+        "version": "0.1.0"
     },
-    "/admin/settings": {
-      "patch": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SettingsChangeset"
-              }
+    "openapi": "3.1.0",
+    "paths": {
+        "/.well-known/revaer.json": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConfigSnapshot"
+                                }
+                            }
+                        },
+                        "description": "Configuration document"
+                    }
+                },
+                "summary": "Retrieve the configuration snapshot exposed to clients"
             }
-          },
-          "required": true
         },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConfigSnapshot"
-                }
-              }
-            },
-            "description": "Updated configuration snapshot"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Authentication failed"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Validation error"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Rate limit exceeded"
-          }
+        "/admin/settings": {
+            "patch": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SettingsChangeset"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConfigSnapshot"
+                                }
+                            }
+                        },
+                        "description": "Updated configuration snapshot"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Authentication failed"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Validation error"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Rate limit exceeded"
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "summary": "Apply configuration mutations"
+            }
         },
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "summary": "Apply configuration mutations"
-      }
+        "/admin/setup/complete": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SettingsChangeset"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConfigSnapshot"
+                                }
+                            }
+                        },
+                        "description": "Snapshot after setup"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Invalid setup token"
+                    }
+                },
+                "security": [
+                    {
+                        "SetupToken": []
+                    }
+                ],
+                "summary": "Complete initial setup and persist configuration"
+            }
+        },
+        "/admin/setup/start": {
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetupStartRequest"
+                            }
+                        }
+                    },
+                    "required": false
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/SetupStartResponse"
+                                }
+                            }
+                        },
+                        "description": "Setup token issued"
+                    },
+                    "409": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "System already configured"
+                    }
+                },
+                "summary": "Issue a one-time setup token"
+            }
+        },
+        "/docs/openapi.json": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object"
+                                }
+                            }
+                        },
+                        "description": "OpenAPI document"
+                    }
+                },
+                "summary": "Serve the generated OpenAPI specification"
+            }
+        },
+        "/health": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/HealthResponse"
+                                }
+                            }
+                        },
+                        "description": "Health snapshot"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Service unavailable"
+                    }
+                },
+                "summary": "Read the lightweight health probe"
+            }
+        },
+        "/health/full": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/FullHealthResponse"
+                                }
+                            }
+                        },
+                        "description": "Detailed health snapshot"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Service unavailable"
+                    }
+                },
+                "summary": "Read the extended health probe"
+            }
+        },
+        "/metrics": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "text/plain": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "Prometheus metrics"
+                    }
+                },
+                "summary": "Expose Prometheus metrics"
+            }
+        },
+        "/v1/config": {
+            "get": {
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConfigSnapshot"
+                                }
+                            }
+                        },
+                        "description": "Configuration snapshot"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Authentication failed"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Rate limit exceeded"
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "summary": "Retrieve the authenticated configuration snapshot"
+            },
+            "patch": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SettingsChangeset"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ConfigSnapshot"
+                                }
+                            }
+                        },
+                        "description": "Updated configuration snapshot"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Authentication failed"
+                    },
+                    "422": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Validation error"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Rate limit exceeded"
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "summary": "Apply configuration mutations"
+            }
+        },
+        "/v1/torrents": {
+            "get": {
+                "parameters": [
+                    {
+                        "in": "query",
+                        "name": "limit",
+                        "schema": {
+                            "maximum": 200,
+                            "minimum": 1,
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "cursor",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "state",
+                        "schema": {
+                            "enum": [
+                                "queued",
+                                "fetching_metadata",
+                                "downloading",
+                                "seeding",
+                                "completed",
+                                "failed",
+                                "stopped"
+                            ],
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "tracker",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "extension",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Comma separated list of tags",
+                        "in": "query",
+                        "name": "tags",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "in": "query",
+                        "name": "name",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TorrentListResponse"
+                                }
+                            }
+                        },
+                        "description": "Torrent collection"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Invalid filters"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Authentication failed"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Rate limit exceeded"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Torrent workflow unavailable"
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "summary": "List torrents with pagination and filters"
+            },
+            "post": {
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TorrentCreateRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "202": {
+                        "description": "Torrent accepted"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Invalid submission"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Authentication failed"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Rate limit exceeded"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Torrent workflow unavailable"
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "summary": "Submit a torrent descriptor to the engine"
+            }
+        },
+        "/v1/torrents/events": {
+            "get": {
+                "parameters": [
+                    {
+                        "description": "Comma separated torrent identifiers",
+                        "in": "query",
+                        "name": "torrent",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Comma separated event kinds",
+                        "in": "query",
+                        "name": "event",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "description": "Filter state change events by new state",
+                        "in": "query",
+                        "name": "state",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "text/event-stream": {
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "description": "SSE stream"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Authentication failed"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Rate limit exceeded"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Event stream unavailable"
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "summary": "Subscribe to torrent events via SSE"
+            }
+        },
+        "/v1/torrents/{id}": {
+            "get": {
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/TorrentDetail"
+                                }
+                            }
+                        },
+                        "description": "Torrent detail"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Authentication failed"
+                    },
+                    "404": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Torrent not found"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Rate limit exceeded"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Torrent workflow unavailable"
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "summary": "Fetch torrent detail by identifier"
+            }
+        },
+        "/v1/torrents/{id}/action": {
+            "post": {
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TorrentAction"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "202": {
+                        "description": "Action accepted"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Invalid action payload"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Authentication failed"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Rate limit exceeded"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Torrent workflow unavailable"
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "summary": "Trigger a torrent control action"
+            }
+        },
+        "/v1/torrents/{id}/select": {
+            "post": {
+                "parameters": [
+                    {
+                        "in": "path",
+                        "name": "id",
+                        "required": true,
+                        "schema": {
+                            "format": "uuid",
+                            "type": "string"
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TorrentSelectionRequest"
+                            }
+                        }
+                    },
+                    "required": true
+                },
+                "responses": {
+                    "202": {
+                        "description": "Selection update accepted"
+                    },
+                    "400": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Invalid selection payload"
+                    },
+                    "401": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Authentication failed"
+                    },
+                    "429": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Rate limit exceeded"
+                    },
+                    "503": {
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/ProblemDetails"
+                                }
+                            }
+                        },
+                        "description": "Torrent workflow unavailable"
+                    }
+                },
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "summary": "Update a torrent's file selection"
+            }
+        }
     },
-    "/admin/setup/complete": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SettingsChangeset"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ConfigSnapshot"
-                }
-              }
-            },
-            "description": "Snapshot after setup"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Invalid setup token"
-          }
-        },
-        "security": [
-          {
-            "SetupToken": []
-          }
-        ],
-        "summary": "Complete initial setup and persist configuration"
-      }
-    },
-    "/admin/setup/start": {
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/SetupStartRequest"
-              }
-            }
-          },
-          "required": false
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SetupStartResponse"
-                }
-              }
-            },
-            "description": "Setup token issued"
-          },
-          "409": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "System already configured"
-          }
-        },
-        "summary": "Issue a one-time setup token"
-      }
-    },
-    "/docs/openapi.json": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            },
-            "description": "OpenAPI document"
-          }
-        },
-        "summary": "Serve the generated OpenAPI specification"
-      }
-    },
-    "/health": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HealthResponse"
-                }
-              }
-            },
-            "description": "Health snapshot"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Service unavailable"
-          }
-        },
-        "summary": "Read the lightweight health probe"
-      }
-    },
-    "/health/full": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FullHealthResponse"
-                }
-              }
-            },
-            "description": "Detailed health snapshot"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Service unavailable"
-          }
-        },
-        "summary": "Read the extended health probe"
-      }
-    },
-    "/metrics": {
-      "get": {
-        "responses": {
-          "200": {
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": "Prometheus metrics"
-          }
-        },
-        "summary": "Expose Prometheus metrics"
-      }
-    },
-    "/v1/torrents": {
-      "get": {
-        "parameters": [
-          {
-            "in": "query",
-            "name": "limit",
-            "schema": {
-              "maximum": 200,
-              "minimum": 1,
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "cursor",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "state",
-            "schema": {
-              "enum": [
-                "queued",
-                "fetching_metadata",
-                "downloading",
-                "seeding",
-                "completed",
-                "failed",
-                "stopped"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "tracker",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "extension",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Comma separated list of tags",
-            "in": "query",
-            "name": "tags",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "name",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TorrentListResponse"
-                }
-              }
-            },
-            "description": "Torrent collection"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Invalid filters"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Authentication failed"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Rate limit exceeded"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Torrent workflow unavailable"
-          }
-        },
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "summary": "List torrents with pagination and filters"
-      },
-      "post": {
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TorrentCreateRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "description": "Torrent accepted"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Invalid submission"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Authentication failed"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Rate limit exceeded"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Torrent workflow unavailable"
-          }
-        },
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "summary": "Submit a torrent descriptor to the engine"
-      }
-    },
-    "/v1/torrents/events": {
-      "get": {
-        "parameters": [
-          {
-            "description": "Comma separated torrent identifiers",
-            "in": "query",
-            "name": "torrent",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Comma separated event kinds",
-            "in": "query",
-            "name": "event",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "description": "Filter state change events by new state",
-            "in": "query",
-            "name": "state",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            },
-            "description": "SSE stream"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Authentication failed"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Rate limit exceeded"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Event stream unavailable"
-          }
-        },
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "summary": "Subscribe to torrent events via SSE"
-      }
-    },
-    "/v1/torrents/{id}": {
-      "get": {
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TorrentDetail"
-                }
-              }
-            },
-            "description": "Torrent detail"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Authentication failed"
-          },
-          "404": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Torrent not found"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Rate limit exceeded"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Torrent workflow unavailable"
-          }
-        },
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "summary": "Fetch torrent detail by identifier"
-      }
-    },
-    "/v1/torrents/{id}/action": {
-      "post": {
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TorrentAction"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "description": "Action accepted"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Invalid action payload"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Authentication failed"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Rate limit exceeded"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Torrent workflow unavailable"
-          }
-        },
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "summary": "Trigger a torrent control action"
-      }
-    },
-    "/v1/torrents/{id}/select": {
-      "post": {
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TorrentSelectionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "description": "Selection update accepted"
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Invalid selection payload"
-          },
-          "401": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Authentication failed"
-          },
-          "429": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Rate limit exceeded"
-          },
-          "503": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            },
-            "description": "Torrent workflow unavailable"
-          }
-        },
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "summary": "Update a torrent's file selection"
-      }
-    }
-  },
-  "servers": [
-    {
-      "url": "http://localhost:7070"
-    }
-  ]
+    "servers": [
+        {
+            "url": "http://localhost:7070"
+        }
+    ]
 }

@@ -1,5 +1,5 @@
 <!DOCTYPE HTML>
-<html lang="en" class="rust sidebar-visible" dir="ltr">
+<html lang="en" class="light sidebar-visible" dir="ltr">
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
@@ -13,21 +13,20 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="theme-color" content="#ffffff">
 
-        <link rel="icon" href="favicon.svg">
-        <link rel="shortcut icon" href="favicon.png">
-        <link rel="stylesheet" href="css/variables.css">
-        <link rel="stylesheet" href="css/general.css">
-        <link rel="stylesheet" href="css/chrome.css">
-        <link rel="stylesheet" href="css/print.css" media="print">
+        <link rel="icon" href="favicon-de23e50b.svg">
+        <link rel="shortcut icon" href="favicon-8114d1fc.png">
+        <link rel="stylesheet" href="css/variables-8adf115d.css">
+        <link rel="stylesheet" href="css/general-2459343d.css">
+        <link rel="stylesheet" href="css/chrome-ae938929.css">
+        <link rel="stylesheet" href="css/print-9e4910d8.css" media="print">
 
         <!-- Fonts -->
-        <link rel="stylesheet" href="FontAwesome/css/font-awesome.css">
-        <link rel="stylesheet" href="fonts/fonts.css">
+        <link rel="stylesheet" href="fonts/fonts-9644e21d.css">
 
         <!-- Highlight.js Stylesheets -->
-        <link rel="stylesheet" id="highlight-css" href="highlight.css">
-        <link rel="stylesheet" id="tomorrow-night-css" href="tomorrow-night.css">
-        <link rel="stylesheet" id="ayu-highlight-css" href="ayu-highlight.css">
+        <link rel="stylesheet" id="mdbook-highlight-css" href="highlight-493f70e1.css">
+        <link rel="stylesheet" id="mdbook-tomorrow-night-css" href="tomorrow-night-4c0ae647.css">
+        <link rel="stylesheet" id="mdbook-ayu-highlight-css" href="ayu-highlight-3fdfc3ac.css">
 
         <!-- Custom theme stylesheets -->
 
@@ -35,12 +34,12 @@
         <!-- Provide site root and default themes to javascript -->
         <script>
             const path_to_root = "";
-            const default_light_theme = "rust";
-            const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex.js";
+            const default_light_theme = "light";
+            const default_dark_theme = "navy";
+            window.path_to_searchindex_js = "searchindex-487393ab.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc.js"></script>
+        <script src="toc-19d24fe5.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -54,7 +53,7 @@
             </div>
         </div>
     </div>
-    <div id="body-container">
+    <div id="mdbook-body-container">
         <!-- Work around some values being stored in localStorage wrapped in quotes -->
         <script>
             try {
@@ -78,17 +77,17 @@
             try { theme = localStorage.getItem('mdbook-theme'); } catch(e) { }
             if (theme === null || theme === undefined) { theme = default_theme; }
             const html = document.documentElement;
-            html.classList.remove('rust')
+            html.classList.remove('light')
             html.classList.add(theme);
             html.classList.add("js");
         </script>
 
-        <input type="checkbox" id="sidebar-toggle-anchor" class="hidden">
+        <input type="checkbox" id="mdbook-sidebar-toggle-anchor" class="hidden">
 
         <!-- Hide / unhide sidebar before it is displayed -->
         <script>
             let sidebar = null;
-            const sidebar_toggle = document.getElementById("sidebar-toggle-anchor");
+            const sidebar_toggle = document.getElementById("mdbook-sidebar-toggle-anchor");
             if (document.body.clientWidth >= 1080) {
                 try { sidebar = localStorage.getItem('mdbook-sidebar'); } catch(e) { }
                 sidebar = sidebar || 'visible';
@@ -103,39 +102,39 @@
             }
         </script>
 
-        <nav id="sidebar" class="sidebar" aria-label="Table of contents">
+        <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
             <!-- populated by js -->
             <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
             <noscript>
                 <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
             </noscript>
-            <div id="sidebar-resize-handle" class="sidebar-resize-handle">
+            <div id="mdbook-sidebar-resize-handle" class="sidebar-resize-handle">
                 <div class="sidebar-resize-indicator"></div>
             </div>
         </nav>
 
-        <div id="page-wrapper" class="page-wrapper">
+        <div id="mdbook-page-wrapper" class="page-wrapper">
 
             <div class="page">
-                <div id="menu-bar-hover-placeholder"></div>
-                <div id="menu-bar" class="menu-bar sticky">
+                <div id="mdbook-menu-bar-hover-placeholder"></div>
+                <div id="mdbook-menu-bar" class="menu-bar sticky">
                     <div class="left-buttons">
-                        <label id="sidebar-toggle" class="icon-button" for="sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="sidebar">
-                            <i class="fa fa-bars"></i>
+                        <label id="mdbook-sidebar-toggle" class="icon-button" for="mdbook-sidebar-toggle-anchor" title="Toggle Table of Contents" aria-label="Toggle Table of Contents" aria-controls="mdbook-sidebar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M0 96C0 78.3 14.3 64 32 64H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32C14.3 128 0 113.7 0 96zM0 256c0-17.7 14.3-32 32-32H416c17.7 0 32 14.3 32 32s-14.3 32-32 32H32c-17.7 0-32-14.3-32-32zM448 416c0 17.7-14.3 32-32 32H32c-17.7 0-32-14.3-32-32s14.3-32 32-32H416c17.7 0 32 14.3 32 32z"/></svg></span>
                         </label>
-                        <button id="theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="theme-list">
-                            <i class="fa fa-paint-brush"></i>
+                        <button id="mdbook-theme-toggle" class="icon-button" type="button" title="Change theme" aria-label="Change theme" aria-haspopup="true" aria-expanded="false" aria-controls="mdbook-theme-list">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M371.3 367.1c27.3-3.9 51.9-19.4 67.2-42.9L600.2 74.1c12.6-19.5 9.4-45.3-7.6-61.2S549.7-4.4 531.1 9.6L294.4 187.2c-24 18-38.2 46.1-38.4 76.1L371.3 367.1zm-19.6 25.4l-116-104.4C175.9 290.3 128 339.6 128 400c0 3.9 .2 7.8 .6 11.6c1.8 17.5-10.2 36.4-27.8 36.4H96c-17.7 0-32 14.3-32 32s14.3 32 32 32H240c61.9 0 112-50.1 112-112c0-2.5-.1-5-.2-7.5z"/></svg></span>
                         </button>
-                        <ul id="theme-list" class="theme-popup" aria-label="Themes" role="menu">
-                            <li role="none"><button role="menuitem" class="theme" id="default_theme">Auto</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="light">Light</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="rust">Rust</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="coal">Coal</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="navy">Navy</button></li>
-                            <li role="none"><button role="menuitem" class="theme" id="ayu">Ayu</button></li>
+                        <ul id="mdbook-theme-list" class="theme-popup" aria-label="Themes" role="menu">
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-default_theme">Auto</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-light">Light</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-rust">Rust</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-coal">Coal</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-navy">Navy</button></li>
+                            <li role="none"><button role="menuitem" class="theme" id="mdbook-theme-ayu">Ayu</button></li>
                         </ul>
-                        <button id="search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="searchbar">
-                            <i class="fa fa-search"></i>
+                        <button id="mdbook-search-toggle" class="icon-button" type="button" title="Search (`/`)" aria-label="Toggle Searchbar" aria-expanded="false" aria-keyshortcuts="/ s" aria-controls="mdbook-searchbar">
+                            <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 32.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352c79.5 0 144-64.5 144-144s-64.5-144-144-144S64 128.5 64 208s64.5 144 144 144z"/></svg></span>
                         </button>
                     </div>
 
@@ -143,41 +142,38 @@
 
                     <div class="right-buttons">
                         <a href="print.html" title="Print this book" aria-label="Print this book">
-                            <i id="print-button" class="fa fa-print"></i>
-                        </a>
-                        <a href="https://github.com/VannaDii/revaer" title="Git repository" aria-label="Git repository">
-                            <i id="git-repository-button" class="fa fa-github"></i>
+                            <span class=fa-svg id="print-button"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M128 0C92.7 0 64 28.7 64 64v96h64V64H354.7L384 93.3V160h64V93.3c0-17-6.7-33.3-18.7-45.3L400 18.7C388 6.7 371.7 0 354.7 0H128zM384 352v32 64H128V384 368 352H384zm64 32h32c17.7 0 32-14.3 32-32V256c0-35.3-28.7-64-64-64H64c-35.3 0-64 28.7-64 64v96c0 17.7 14.3 32 32 32H64v64c0 35.3 28.7 64 64 64H384c35.3 0 64-28.7 64-64V384zm-16-88c-13.3 0-24-10.7-24-24s10.7-24 24-24s24 10.7 24 24s-10.7 24-24 24z"/></svg></span>
                         </a>
 
                     </div>
                 </div>
 
-                <div id="search-wrapper" class="hidden">
-                    <form id="searchbar-outer" class="searchbar-outer">
+                <div id="mdbook-search-wrapper" class="hidden">
+                    <form id="mdbook-searchbar-outer" class="searchbar-outer">
                         <div class="search-wrapper">
-                            <input type="search" id="searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="searchresults-outer" aria-describedby="searchresults-header">
+                            <input type="search" id="mdbook-searchbar" name="searchbar" placeholder="Search this book ..." aria-controls="mdbook-searchresults-outer" aria-describedby="searchresults-header">
                             <div class="spinner-wrapper">
-                                <i class="fa fa-spinner fa-spin"></i>
+                                <span class=fa-svg id="fa-spin"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M304 48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zm0 416c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM48 304c26.5 0 48-21.5 48-48s-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48zm464-48c0-26.5-21.5-48-48-48s-48 21.5-48 48s21.5 48 48 48s48-21.5 48-48zM142.9 437c18.7-18.7 18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zm0-294.2c18.7-18.7 18.7-49.1 0-67.9S93.7 56.2 75 75s-18.7 49.1 0 67.9s49.1 18.7 67.9 0zM369.1 437c18.7 18.7 49.1 18.7 67.9 0s18.7-49.1 0-67.9s-49.1-18.7-67.9 0s-18.7 49.1 0 67.9z"/></svg></span>
                             </div>
                         </div>
                     </form>
-                    <div id="searchresults-outer" class="searchresults-outer hidden">
-                        <div id="searchresults-header" class="searchresults-header"></div>
-                        <ul id="searchresults">
+                    <div id="mdbook-searchresults-outer" class="searchresults-outer hidden">
+                        <div id="mdbook-searchresults-header" class="searchresults-header"></div>
+                        <ul id="mdbook-searchresults">
                         </ul>
                     </div>
                 </div>
 
                 <!-- Apply ARIA attributes after the sidebar and the sidebar toggle button are added to the DOM -->
                 <script>
-                    document.getElementById('sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
-                    document.getElementById('sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
-                    Array.from(document.querySelectorAll('#sidebar a')).forEach(function(link) {
+                    document.getElementById('mdbook-sidebar-toggle').setAttribute('aria-expanded', sidebar === 'visible');
+                    document.getElementById('mdbook-sidebar').setAttribute('aria-hidden', sidebar !== 'visible');
+                    Array.from(document.querySelectorAll('#mdbook-sidebar a')).forEach(function(link) {
                         link.setAttribute('tabIndex', sidebar === 'visible' ? 0 : -1);
                     });
                 </script>
 
-                <div id="content" class="content">
+                <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="revaer"><a class="header" href="#revaer">Revaer</a></h1>
 <blockquote>
@@ -198,11 +194,19 @@
 <pre><code class="language-bash">just docs
 </code></pre>
 <p>This builds the mdBook site and refreshes the LLM manifests that power the documentation search experience.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="phase-one-roadmap"><a class="header" href="#phase-one-roadmap">Phase One Roadmap</a></h1>
+<h2 id="llm-manifests"><a class="header" href="#llm-manifests">LLM Manifests</a></h2>
+<p>For ChatGPT and other LLM-based tooling, see the <a href="#llm-integration">LLM Integration</a> page for links and descriptions of the published JSON manifests used by the documentation search experience.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="phase-one-roadmap"><a class="header" href="#phase-one-roadmap">Phase One Roadmap</a></h1>
 <p><em>Last updated: 2025-10-16</em></p>
 <p>This document captures the current delta between the Phase One objective and the existing codebase. It should be kept in sync as work progresses across the eight workstreams.</p>
 <h2 id="snapshot"><a class="header" href="#snapshot">Snapshot</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Workstream</th><th>Current State</th><th>Key Gaps</th><th>Immediate Actions</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Workstream</th><th>Current State</th><th>Key Gaps</th><th>Immediate Actions</th></tr>
+</thead>
+<tbody>
 <tr><td>Control Plane &amp; Setup</td><td>Postgres schema, ConfigService watcher, setup CLI/API, immutable-key guard, history logging; loopback enforcement + RFC7807 pointers live</td><td>Engine hot-reload not yet exercising throttles; setup token lifecycle/error telemetry still thin</td><td>Add watcher-driven throttle tests, expand setup diagnostics and rate-limit guardrails</td></tr>
 <tr><td>Torrent Domain &amp; Adapter</td><td>Event bus, orchestrator scaffold, enriched torrent DTOs, stub session worker now persists resume metadata/fastresume, reconciles selection/sequential flags, enforces throttle guard rails, and surfaces degraded health</td><td>Real libtorrent FFI binding and alert pump still pending; need to exercise live fast-resume blobs and real libtorrent rate/health controls</td><td>Replace stub session with libtorrent bindings, translate real alerts, and validate against native libtorrent in the feature-gated suite</td></tr>
 <tr><td>File Selection &amp; FsOps</td><td>Idempotent FsOps pipeline extracts zip payloads, flattens single directories, enforces allow lists, records <code>.revaer.meta</code>, and applies move/copy/hardlink transfers with chmod/chown/umask handling</td><td>Extraction currently limited to zip archives, PAR2 stage still absent, cleanup rules lack checksum awareness, pipeline assumes Unix tooling for ownership changes</td><td>Expand extractor matrix (7z/tar), add PAR2 verification, surface non-Unix fallbacks, and extend cleanup/telemetry coverage</td></tr>
@@ -211,7 +215,8 @@
 <tr><td>Security &amp; Observability</td><td>API key storage hashed, tracing initialised, metrics registry struct</td><td>No per-key rate limits, no X-RateLimit headers, magnet/body bounds missing, tracing not propagated to engine/fsops, metrics unused</td><td>Introduce token-bucket middleware, enforce payload bounds, propagate spans through orchestrator/fsops, export Prometheus counters</td></tr>
 <tr><td>CI &amp; Packaging</td><td>Workspace compiles, justfile for fmt/lint/test</td><td>No CI workflows, cargo-deny/audit missing, no env access guard, no Docker packaging or healthcheck</td><td>Author GitHub Actions (lint, security, tests, build), enforce env guard lint, build minimal non-root container with HEALTHCHECK</td></tr>
 <tr><td>Operational End-to-End</td><td>Bootstrap skeleton and event bus exist</td><td>Torrent download, fs pipeline, restart resume, throttling, degraded health scenarios unimplemented</td><td>Sequence implementation/testing to satisfy runbook once engine/fsops/API parity are in place</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <h2 id="remaining-scope-specification"><a class="header" href="#remaining-scope-specification">Remaining Scope Specification</a></h2>
 <h3 id="1-torrent-engine-integration"><a class="header" href="#1-torrent-engine-integration">1. Torrent Engine Integration</a></h3>
@@ -281,7 +286,8 @@
 <li>Expose <code>/v1/*</code> APIs + CLI parity and reinforce security/observability.</li>
 <li>Stand up CI, packaging, and full runbook validation.</li>
 </ol>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="phase-one-remaining-engineering-specification"><a class="header" href="#phase-one-remaining-engineering-specification">Phase One Remaining Engineering Specification</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="phase-one-remaining-engineering-specification"><a class="header" href="#phase-one-remaining-engineering-specification">Phase One Remaining Engineering Specification</a></h1>
 <h2 id="objectives"><a class="header" href="#objectives">Objectives</a></h2>
 <ul>
 <li>Deliver a production-ready public interface (HTTP API, SSE, CLI) for torrent orchestration.</li>
@@ -475,7 +481,8 @@
 <li>OpenAPI specification and CLI docs match implemented behaviour.</li>
 <li>Release checklist completed with artefacts attached (binaries, Docker image, OpenAPI, docs).</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="phase-one-runbook"><a class="header" href="#phase-one-runbook">Phase One Runbook</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="phase-one-runbook"><a class="header" href="#phase-one-runbook">Phase One Runbook</a></h1>
 <p>This runbook exercises the end-to-end control plane, validating FsOps, telemetry, and guard rails.</p>
 <h2 id="prerequisites"><a class="header" href="#prerequisites">Prerequisites</a></h2>
 <ul>
@@ -491,7 +498,7 @@
 <ul>
 <li>Issue a setup token: <code>revaer setup start --issued-by runbook</code>.</li>
 <li>Complete configuration with CLI secrets and directories: <code>revaer setup complete --instance runbook --bind 127.0.0.1 --resume-dir /data/resume --download-root /data/downloads --library-root /data/library --api-key-label runbook --passphrase &lt;pass&gt;</code>.</li>
-<li>Confirm <code>/health/full</code> returns <code>status=ok</code> and <code>guardrail_violations_total=0</code>.</li>
+<li>Capture the committed snapshot via <code>revaer config get --output table</code> and confirm <code>/health/full</code> returns <code>status=ok</code> with <code>guardrail_violations_total=0</code>.</li>
 </ul>
 </li>
 <li>
@@ -512,7 +519,7 @@
 <li>
 <p><strong>Rate Limit Guard-Rail</strong></p>
 <ul>
-<li>Apply a tight API key limit (burst <code>1</code> / <code>per_seconds 60</code>) via <code>config apply</code>.</li>
+<li>Apply a tight API key limit (burst <code>1</code> / <code>per_seconds 60</code>) via <code>revaer config set --file rate-limit.json</code> (using a JSON patch that updates the relevant key).</li>
 <li>Execute three rapid CLI calls (e.g., <code>revaer status &lt;id&gt;</code>). The third should exit with code <code>3</code>, displaying a <code>429</code> Problem+JSON response.</li>
 <li>Inspect <code>/metrics</code> to verify <code>api_rate_limit_throttled_total</code> incremented and <code>/health/full</code> reflects <code>degraded=["api_rate_limit_guard"]</code>.</li>
 </ul>
@@ -520,7 +527,7 @@
 <li>
 <p><strong>Recovery</strong></p>
 <ul>
-<li>Restore the API key limit to an acceptable value.</li>
+<li>Restore the API key limit to an acceptable value through another <code>revaer config set ...</code> invocation.</li>
 <li>Re-run <code>revaer status &lt;id&gt;</code> to confirm success, <code>guardrail_violations_total</code> stops increasing, and <code>degraded</code> returns to <code>[]</code>.</li>
 </ul>
 </li>
@@ -540,7 +547,8 @@
 <li>Record <code>/health/full</code> JSON snapshots for each phase.</li>
 </ul>
 <p>Successful completion of this runbook satisfies the operational validation gate defined in <code>AGENT.md</code>.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="phase-one-release-checklist"><a class="header" href="#phase-one-release-checklist">Phase One Release Checklist</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="phase-one-release-checklist"><a class="header" href="#phase-one-release-checklist">Phase One Release Checklist</a></h1>
 <ol>
 <li>
 <p><strong>Branch Hygiene</strong></p>
@@ -597,13 +605,160 @@
 </ul>
 </li>
 </ol>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="configuration-surface"><a class="header" href="#configuration-surface">Configuration Surface</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="llm-integration"><a class="header" href="#llm-integration">LLM Integration</a></h1>
+<p>The documentation site publishes machine-readable JSON manifests to help ChatGPT and other LLMs index and search the content. These files are static and live alongside the built docs, so LLM tooling can fetch them directly.</p>
+<ul>
+<li><strong><a href="llm/manifest.json"><code>manifest.json</code></a></strong> — Master index of documentation entries with IDs, titles, tags, and canonical URLs. Shared so LLMs can discover the page graph without crawling the entire site.</li>
+<li><strong><a href="llm/summaries.json"><code>summaries.json</code></a></strong> — Concise per-entry summaries extracted from the docs. Shared to provide quick context for answers and improve retrieval quality.</li>
+<li><strong><a href="llm/schema.json"><code>schema.json</code></a></strong> — JSON Schema describing the manifest/summaries format. Shared so LLM integrators can validate and evolve their tooling against a stable contract.</li>
+</ul>
+<p>These files are generated during <code>just docs</code> and hosted with the site; consuming them keeps search fast and avoids scraping overhead.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="web-ui---phase-1"><a class="header" href="#web-ui---phase-1">Web UI - Phase 1</a></h1>
+<p>Rust/Yew implementation plan for the Phase 1 torrent-only UI described in <code>REVAER_PHASE1_WEBUX_SPEC.md</code>. The goal is a responsive, touch-friendly surface that stays usable on 360px phones through 4K desktops while handling 50k+ torrents.</p>
+<ul>
+<li><strong>Pages:</strong> Dashboard, Torrents (list + detail), Search (shared list), Jobs/Post-processing, Settings, Logs. Indexers/Library stay hidden until Phase 2.</li>
+<li><strong>Modes:</strong> Simple (default, trimmed controls) and Advanced (all filters, columns, bulk actions). Persisted in local storage without reload.</li>
+<li><strong>Transport:</strong> REST for initial payloads; SSE for torrents, transfers, queue, jobs, and VPN state with backoff and jitter handling.</li>
+</ul>
+<h2 id="layout--breakpoints"><a class="header" href="#layout--breakpoints">Layout &amp; Breakpoints</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Name</th><th>Width</th><th>Default behaviors</th></tr>
+</thead>
+<tbody>
+<tr><td>xs</td><td>0–479px</td><td>Card view for torrents, bottom sheet actions, stacked dashboard cards, hamburger navigation</td></tr>
+<tr><td>sm</td><td>480–767px</td><td>Card view, two-column stats grid inside cards, slide-out navigation</td></tr>
+<tr><td>md</td><td>768–1023px</td><td>Compact table (2–4 columns), tabbed detail view, 2-column dashboard grid</td></tr>
+<tr><td>lg</td><td>1024–1439px</td><td>Full table, fixed sidebar with labels, 3-column dashboard grid</td></tr>
+<tr><td>xl</td><td>1440–1919px</td><td>Adaptive column expansion, split-pane detail, 4-column dashboard grid</td></tr>
+<tr><td>2xl</td><td>1920px+</td><td>Ultrawide-friendly table and split panes with max readable line lengths</td></tr>
+</tbody>
+</table>
+</div>
+<p>Table responsiveness: required columns (Name, Status, Progress, Speed up/down) stay pinned; ETA, Ratio, Size, Tags, Tracker, Path collapse into overflow or the detail drawer when space is constrained. Horizontal scroll must preserve keyboard navigation and roving tabindex.</p>
+<p>Detail view: mobile renders tabs (<code>Files</code>, <code>Peers</code>, <code>Trackers</code>, <code>Log</code>, <code>Info</code>) with accordion file tree; desktop/laptop promotes a split grid showing file tree + metadata alongside peers/trackers/log simultaneously.</p>
+<p>Virtualization: torrent list uses a windowed renderer (row-height aware with overscan) to keep 50k+ rows responsive; horizontal scroll remains keyboard-safe and selection stays highlighted for shortcut actions.</p>
+<p>Auth: remote mode always requires an API key; prompt stores key in local storage, LAN anonymous mode is allowed only if backend advertises <code>allow_anonymous</code>. SSE currently appends the key via querystring (EventSource lacks header support); use TLS and avoid logging URLs in deployment. Live updates: SSE feeds torrent progress/rates plus dashboard rates/queue/VPN status; reconnect badge/overlay surfaces failures and retries.</p>
+<p>Add flow: drop <code>.torrent</code> or paste magnet/URL with inline validation and error copy; invalid file types are rejected. Submissions post to <code>/v1/torrents</code>, surface toast feedback, and refresh the list.
+Search &amp; filters: search box hits <code>/v1/torrents?search=</code> with optional <code>regex=true</code>; Regex toggle is inline in the toolbar and clears with Escape.
+Live sync: SSE streams torrent progress/rates/state plus added/removed events to keep the list aligned without manual refresh.</p>
+<h2 id="theming--tokens"><a class="header" href="#theming--tokens">Theming &amp; Tokens</a></h2>
+<ul>
+<li>Palette: Primary (<code>#265D81</code> base), Secondary (<code>#775A96</code>), Accent (<code>#258BD3</code>), Neutral 50–900, Success/Warning/Error scales; dark mode uses <code>background-dark #121417</code>, <code>surface-dark #1A1C20</code>, and text tokens.</li>
+<li>Scale: Spacing 4/8/12/16/24/32; radius 4/8/12; elevation tiers flat/raised/floating; type scale xs–2xl.</li>
+<li>States: focus ring 2px accent-500, hover/pressed darken by one tone; inputs/tables use border tokens.</li>
+<li>Theme selection follows OS preference on first load and persists to local storage; user toggle is always available.</li>
+</ul>
+<h2 id="localization"><a class="header" href="#localization">Localization</a></h2>
+<ul>
+<li>Languages: ar, de, es, hi, it, jv, mr, pt, ta, tr, bn, en, fr, id, ja, ko, pa, ru, te, zh.</li>
+<li>Bundles: JSON files at <code>crates/revaer-ui/i18n/*.json</code> with English fallback; dotted keys supported in <code>TranslationBundle</code>.</li>
+<li>RTL: bidi layout, mirrored progress bars, reversed file tree, and RTL-aware table alignment. <code>meta.rtl</code> in bundles hints at direction and is applied on load.</li>
+<li>Numbers/dates: browser locale by default with user override; binary units for rates/sizes.</li>
+</ul>
+<h2 id="accessibility--interaction"><a class="header" href="#accessibility--interaction">Accessibility &amp; Interaction</a></h2>
+<ul>
+<li>WCAG 2.1 AA: semantic markup, focus-visible rings, high-contrast dark mode, 40px touch targets on mobile, focus traps for drawers/modals.</li>
+<li>Keyboard shortcuts (wired in demo UI): <code>/</code> search focus, <code>j/k</code> row move, <code>space</code> pause/resume, <code>delete</code> delete, <code>shift+delete</code> delete+data, <code>p</code> recheck. Selected row highlights; actions surface in a status banner.</li>
+<li>Screen-reader flow follows DOM order (mobile collapse must not break navigation).</li>
+<li>Confirmations: delete (“Remove torrent ‘<name>’? Files remain on disk”), delete+data (“Remove torrent and delete data? This cannot be undone.”), recheck prompt.</name></li>
+<li>Mobile action bar: sticky bottom row for Pause/Resume/Delete/More on xs/sm; desktop retains row actions in-table.</li>
+<li>SSE downtime overlay: shows last event timestamp, retry countdown (1s→30s with jitter), reason, and retry button; badge reflects reconnect state in top bar.</li>
+</ul>
+<h2 id="performance--resilience"><a class="header" href="#performance--resilience">Performance &amp; Resilience</a></h2>
+<ul>
+<li>Target: &lt;300ms initial UI load on modern mobile (cached assets), virtualization for all tables beyond 500 rows, main-thread budget aligned with 50k torrents.</li>
+<li>SSE: event batching and reconnect backoff (1s→30s with jitter), Last-Event-ID awareness, overlay with retry countdown and last event timestamp on disconnect.</li>
+<li>Offline/remote awareness: API key prompt stored locally; remote mode always enforces key even if backend advertises anonymous LAN support.</li>
+</ul>
+<h2 id="running-the-ui"><a class="header" href="#running-the-ui">Running the UI</a></h2>
+<ul>
+<li>Crate: <code>crates/revaer-ui</code> (Yew + wasm).</li>
+<li>Commands: <code>rustup target add wasm32-unknown-unknown</code>, <code>cargo install trunk</code>, <code>trunk serve --open</code> to preview.</li>
+<li>Assets: <code>static/style.css</code> holds palette/breakpoints; <code>index.html</code> + <code>Trunk.toml</code> bootstrap trunk.</li>
+<li>Demo data lives in <code>components/dashboard.rs</code> and <code>components/torrents.rs</code>; swap in REST/SSE adapters to connect to the backend once available.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="web-ui-flows--diagrams"><a class="header" href="#web-ui-flows--diagrams">Web UI Flows &amp; Diagrams</a></h1>
+<p>Visual references for the Phase 1 UX: navigation, component wiring, SSE handling, and torrent lifecycle. Use these diagrams when extending the UI or adding tests.</p>
+<h2 id="navigation-flow"><a class="header" href="#navigation-flow">Navigation Flow</a></h2>
+<pre class="mermaid">flowchart LR
+    Nav[Sidebar / Hamburger] --&gt; Dash[Dashboard]
+    Nav --&gt; Torrents[Torrents]
+    Nav --&gt; Search[Search]
+    Nav --&gt; Jobs[Jobs / Post-processing]
+    Nav --&gt; Settings[Settings]
+    Nav --&gt; Logs[Logs]
+    Torrents --&gt; Detail[Detail Drawer / Tabs]
+    Detail --&gt; Files[Files]
+    Detail --&gt; Peers[Peers]
+    Detail --&gt; Trackers[Trackers]
+    Detail --&gt; Events[Event Log]
+    Detail --&gt; Info[Metadata]
+</pre>
+
+<h2 id="component-graph"><a class="header" href="#component-graph">Component Graph</a></h2>
+<pre class="mermaid">flowchart TB
+    App[App (RevaerApp)]
+    Shell[AppShell (nav, mode/theme toggle, locale picker)]
+    Dash[DashboardPanel]
+    Table[TorrentView (virtualized list + filters)]
+    Add[AddTorrentPanel]
+    Detail[Detail Drawer/Tabs]
+
+    App --&gt; Shell
+    Shell --&gt; Dash
+    Shell --&gt; Table
+    Table --&gt; Add
+    Table --&gt; Detail
+    Add --&gt;|POST /v1/torrents| API
+    Detail --&gt;|PATCH /v1/torrents/{id}| API
+</pre>
+
+<h2 id="sse-event-flow"><a class="header" href="#sse-event-flow">SSE Event Flow</a></h2>
+<pre class="mermaid">sequenceDiagram
+    participant API as API / SSE
+    participant Stream as EventStream
+    participant State as UI State (torrents, queue, jobs, vpn)
+    participant UI as Components
+
+    API--&gt;&gt;Stream: SSE events (torrent_progress, torrent_state, queue_status, jobs_update, vpn_state)
+    Stream-&gt;&gt;State: Batch apply with backoff + dedupe
+    State--&gt;&gt;UI: Render updates (virtualized table, dashboard tiles, badges)
+    UI--&gt;&gt;API: Last-Event-ID on reconnect; filters included in SSE query
+</pre>
+
+<h2 id="torrent-lifecycle-ui-perspective"><a class="header" href="#torrent-lifecycle-ui-perspective">Torrent Lifecycle (UI Perspective)</a></h2>
+<pre class="mermaid">stateDiagram-v2
+    [*] --&gt; Added : magnet/upload
+    Added --&gt; Queueing : server-side validation
+    Queueing --&gt; Downloading
+    Downloading --&gt; Checking : recheck or hash
+    Downloading --&gt; Completed : 100% + seeding ready
+    Checking --&gt; Downloading : if data matches
+    Completed --&gt; FsOps : move/rename per policy
+    FsOps --&gt; Seeding
+    Seeding --&gt; Completed : ratio met / stop rules
+    Completed --&gt; Removed : delete (+data optional)
+</pre>
+
+<h2 id="interaction-notes"><a class="header" href="#interaction-notes">Interaction Notes</a></h2>
+<ul>
+<li>SSE disconnect overlay shows last event timestamp, retry countdown (1s→30s exponential with jitter), and diagnostics (network mode, reason).</li>
+<li>Table virtualization is mandatory beyond 500 rows; virtual scroll must preserve keyboard focus order and pinned columns.</li>
+<li>Mobile detail view uses tabs (Files, Peers, Trackers, Log, Info); desktop uses split panes so file tree + metadata stay visible together at xl+.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="configuration-surface"><a class="header" href="#configuration-surface">Configuration Surface</a></h1>
 <blockquote>
 <p>Canonical reference for the PostgreSQL-backed settings documents that drive Revaer’s runtime behaviour.</p>
 </blockquote>
 <p>Revaer persists all operator-facing configuration inside the <code>settings_*</code> tables. The API (<code>ConfigService</code>) exposes strongly-typed snapshots that are consumed by the API server, torrent engine, filesystem pipeline, and CLI. Every change flows through a <code>SettingsChangeset</code>, ensuring a single validation path whether commands originate from the setup flow or the admin API.</p>
 <h2 id="snapshot-components"><a class="header" href="#snapshot-components">Snapshot Components</a></h2>
-<p>The <code>/ .well-known/revaer.json</code> endpoint and <code>revaer setup complete</code> CLI command both return the same structure:</p>
+<p>The <code>/.well-known/revaer.json</code> endpoint, the authenticated <code>GET /v1/config</code> route, and the <code>revaer config get</code> CLI command all return the same structure:</p>
 <pre><code class="language-json">{
     "revision": 42,
     "app_profile": {
@@ -626,7 +781,12 @@
 }
 </code></pre>
 <h3 id="app-profile-settings_app_profile"><a class="header" href="#app-profile-settings_app_profile">App Profile (<code>settings_app_profile</code>)</a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
 <tr><td><code>id</code></td><td>UUID</td><td>Singleton identifier for the current document.</td></tr>
 <tr><td><code>instance_name</code></td><td>string</td><td>Human readable label surfaced in the CLI after setup.</td></tr>
 <tr><td><code>mode</code></td><td><code>"setup"</code> or <code>"active"</code></td><td>Gatekeeper for the authentication middleware. Setup requests are rejected once the system enters <code>active</code>.</td></tr>
@@ -636,10 +796,16 @@
 <tr><td><code>telemetry</code></td><td>object</td><td>Free-form map for logging + metrics toggles (e.g. <code>log_level</code>, <code>prometheus</code>).</td></tr>
 <tr><td><code>features</code></td><td>object</td><td>Feature switches such as <code>fs_extract</code>, <code>par2</code>, <code>sse_backpressure</code>.</td></tr>
 <tr><td><code>immutable_keys</code></td><td>array</td><td>List of fields that cannot be mutated via patches (<code>ConfigError::ImmutableField</code>).</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <h3 id="engine-profile-settings_engine_profile"><a class="header" href="#engine-profile-settings_engine_profile">Engine Profile (<code>settings_engine_profile</code>)</a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
 <tr><td><code>implementation</code></td><td>string</td><td>Currently <code>libtorrent</code>. Used to select the torrent workflow implementation.</td></tr>
 <tr><td><code>listen_port</code></td><td>integer?</td><td>Optional external listen port override for the engine.</td></tr>
 <tr><td><code>dht</code></td><td>bool</td><td>Enables/disables the DHT module.</td></tr>
@@ -650,10 +816,16 @@
 <tr><td><code>resume_dir</code></td><td>string</td><td>Filesystem location where fast-resume artefacts are stored.</td></tr>
 <tr><td><code>download_root</code></td><td>string</td><td>Directory used for in-progress torrent payloads.</td></tr>
 <tr><td><code>tracker</code></td><td>object</td><td>Tracker configuration (user-agent, announce overrides).</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <h3 id="filesystem-policy-settings_fs_policy"><a class="header" href="#filesystem-policy-settings_fs_policy">Filesystem Policy (<code>settings_fs_policy</code>)</a></h3>
-<div class="table-wrapper"><table><thead><tr><th>Field</th><th>Type</th><th>Description</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Field</th><th>Type</th><th>Description</th></tr>
+</thead>
+<tbody>
 <tr><td><code>library_root</code></td><td>string</td><td>Destination directory for completed artefacts.</td></tr>
 <tr><td><code>extract</code></td><td>bool</td><td>Whether completed payloads are extracted.</td></tr>
 <tr><td><code>par2</code></td><td>string</td><td><code>off</code>, <code>verify</code>, or <code>repair</code> depending on PAR2 behaviour.</td></tr>
@@ -664,7 +836,8 @@
 <tr><td><code>owner</code> / <code>group</code></td><td>string?</td><td>Optional ownership override resolved against system users/groups on Unix platforms; unsupported on non-Unix systems (FsOps emits a guarded failure).</td></tr>
 <tr><td><code>umask</code></td><td>string?</td><td>Umask applied during FsOps and used to derive default file/directory modes when explicit chmod directives are absent.</td></tr>
 <tr><td><code>allow_paths</code></td><td>array</td><td>Allowed staging/library paths the pipeline accepts.</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <h3 id="api-keys--secrets"><a class="header" href="#api-keys--secrets">API Keys &amp; Secrets</a></h3>
 <p>Patches can create, update, or revoke keys and named secrets. The request format mirrors <code>SettingsChangeset</code>:</p>
@@ -685,14 +858,17 @@
 }
 </code></pre>
 <p>The API server enforces bucketed rate limits if <code>rate_limit</code> is supplied (<code>burst</code> per <code>per_seconds</code>). Invalid field names or mutations against <code>immutable_keys</code> yield RFC9457 <code>ProblemDetails</code> responses with an <code>invalid_params</code> array matching the JSON pointer returned by <code>ConfigError</code>.</p>
+<h2 id="telemetry-toggle"><a class="header" href="#telemetry-toggle">Telemetry Toggle</a></h2>
+<p>Revaer boots with structured logging and Prometheus metrics by default. OpenTelemetry export remains opt-in for Phase One: set <code>REVAER_ENABLE_OTEL=true</code> alongside your <code>revaer-app</code> process (optionally overriding <code>REVAER_OTEL_SERVICE_NAME</code> and <code>REVAER_OTEL_EXPORTER</code>) to attach the stubbed tracing layer. When the flag is absent, no OpenTelemetry dependencies are activated.</p>
 <h2 id="change-workflows"><a class="header" href="#change-workflows">Change Workflows</a></h2>
 <ul>
 <li><strong>Setup</strong> – <code>POST /admin/setup/start</code> issues a one-time token. <code>POST /admin/setup/complete</code> consumes that token, applies the provided <code>SettingsChangeset</code>, forces <code>app_profile.mode</code> to <code>active</code>, and returns the hydrated snapshot along with the generated API key (also echoed in the CLI output).</li>
-<li><strong>Ongoing updates</strong> – <code>PATCH /admin/settings</code> (CLI: <code>revaer settings patch --file changes.json</code>) requires an API key and supports partial documents. Any field omitted from the payload remains untouched.</li>
-<li><strong>Snapshot access</strong> – <code>GET /.well-known/revaer.json</code> (no auth) and <code>GET /health/full</code> both return the revision and enable automation to verify configuration drift. Automation and dashboards can poll these endpoints without authenticating.</li>
+<li><strong>Ongoing updates</strong> – <code>PATCH /v1/config</code> (CLI: <code>revaer config set --file changes.json</code>) requires an API key and supports partial documents. Any field omitted from the payload remains untouched. The legacy <code>/admin/settings</code> alias remains for compatibility.</li>
+<li><strong>Snapshot access</strong> – <code>GET /.well-known/revaer.json</code> (no auth), <code>GET /v1/config</code> (API key), <code>GET /health/full</code>, and <code>revaer config get</code> return the current revision so automation and dashboards can verify configuration drift without shell access.</li>
 </ul>
 <p>Revaer publishes <code>SettingsChanged</code> events on every successful mutation, ensuring subscribers refresh in-memory caches without polling.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="http-api"><a class="header" href="#http-api">HTTP API</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="http-api"><a class="header" href="#http-api">HTTP API</a></h1>
 <blockquote>
 <p>REST + SSE surface exposed by <code>revaer-api</code>. The OpenAPI document at <code>/docs/openapi.json</code> is generated by <code>just api-export</code>.</p>
 </blockquote>
@@ -704,13 +880,20 @@
 </ul>
 <p>Error responses follow RFC9457 (<code>ProblemDetails</code>), populated with <code>invalid_params</code> entries whenever validation pinpoints a JSON pointer within the payload.</p>
 <h2 id="endpoint-inventory"><a class="header" href="#endpoint-inventory">Endpoint Inventory</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr>
+</thead>
+<tbody>
 <tr><td><code>GET</code></td><td><code>/health</code></td><td>none</td><td>Lightweight readiness probe returning mode + database status.</td></tr>
 <tr><td><code>GET</code></td><td><code>/health/full</code></td><td>none</td><td>Extended health snapshot with build SHA, metrics counters, and torrent queue depth.</td></tr>
 <tr><td><code>GET</code></td><td><code>/.well-known/revaer.json</code></td><td>none</td><td>Full configuration snapshot (<code>ConfigSnapshot</code>) including current revision.</td></tr>
+<tr><td><code>GET</code></td><td><code>/v1/config</code></td><td>API key</td><td>Authenticated configuration snapshot (same payload as <code>/.well-known/revaer.json</code>).</td></tr>
+<tr><td><code>PATCH</code></td><td><code>/v1/config</code></td><td>API key</td><td>Applies partial configuration updates (<code>SettingsChangeset</code>) and broadcasts <code>SettingsChanged</code>.</td></tr>
 <tr><td><code>POST</code></td><td><code>/admin/setup/start</code></td><td>none</td><td>Issues a setup token; optionally accepts <code>issued_by</code> + <code>ttl_seconds</code>.</td></tr>
 <tr><td><code>POST</code></td><td><code>/admin/setup/complete</code></td><td>setup token</td><td>Applies a <code>SettingsChangeset</code>, promotes the instance to <code>active</code>, consumes the token, and returns the hydrated snapshot.</td></tr>
-<tr><td><code>PATCH</code></td><td><code>/admin/settings</code></td><td>API key</td><td>Applies partial configuration updates (<code>SettingsChangeset</code>) and broadcasts <code>SettingsChanged</code>.</td></tr>
+<tr><td><code>PATCH</code></td><td><code>/admin/settings</code></td><td>API key</td><td>Alias for <code>PATCH /v1/config</code>; retained for admin tooling.</td></tr>
 <tr><td><code>GET</code></td><td><code>/admin/torrents</code></td><td>API key</td><td>Same as <code>GET /v1/torrents</code>; retained for admin tooling.</td></tr>
 <tr><td><code>POST</code></td><td><code>/admin/torrents</code></td><td>API key</td><td>Alias for <code>POST /v1/torrents</code>.</td></tr>
 <tr><td><code>GET</code></td><td><code>/admin/torrents/:id</code></td><td>API key</td><td>Alias for <code>GET /v1/torrents/:id</code>.</td></tr>
@@ -723,7 +906,8 @@
 <tr><td><code>GET</code></td><td><code>/v1/events</code></td><td>API key</td><td>Server-sent events stream (alias: <code>/v1/torrents/events</code>). Supports filtering by torrent ID, state, and event kind.</td></tr>
 <tr><td><code>GET</code></td><td><code>/metrics</code></td><td>none</td><td>Prometheus-formatted metrics from <code>revaer-telemetry</code>.</td></tr>
 <tr><td><code>GET</code></td><td><code>/docs/openapi.json</code></td><td>none</td><td>Static OpenAPI document used by the docs site and clients.</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <p>All torrent-managing endpoints ensure the torrent workflow is wired. If the engine is unavailable, the API returns <code>503 Service Unavailable</code>.</p>
 <h3 id="torrent-submission-post-v1torrents"><a class="header" href="#torrent-submission-post-v1torrents">Torrent Submission (<code>POST /v1/torrents</code>)</a></h3>
@@ -771,17 +955,24 @@
 <li><code>GET /metrics</code> – Exposes the same counters for Prometheus scraping.</li>
 </ul>
 <p>For the complete schema definitions, consult the generated OpenAPI (<code>just api-export</code>).</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="cli-reference"><a class="header" href="#cli-reference">CLI Reference</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="cli-reference"><a class="header" href="#cli-reference">CLI Reference</a></h1>
 <blockquote>
 <p><code>revaer-cli</code> provides parity with the API for setup, configuration management, torrent lifecycle, and observability.</p>
 </blockquote>
 <h2 id="global-flags--environment"><a class="header" href="#global-flags--environment">Global Flags &amp; Environment</a></h2>
-<div class="table-wrapper"><table><thead><tr><th>Flag</th><th>Environment</th><th>Default</th><th>Description</th></tr></thead><tbody>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Flag</th><th>Environment</th><th>Default</th><th>Description</th></tr>
+</thead>
+<tbody>
 <tr><td><code>--api-url &lt;URL&gt;</code></td><td><code>REVAER_API_URL</code></td><td><code>http://127.0.0.1:7070</code></td><td>Base URL for API requests.</td></tr>
 <tr><td><code>--api-key &lt;key_id:secret&gt;</code></td><td><code>REVAER_API_KEY</code></td><td><em>none</em></td><td>Required for all post-setup commands that mutate or read torrents.</td></tr>
 <tr><td><code>--timeout &lt;secs&gt;</code></td><td><code>REVAER_HTTP_TIMEOUT_SECS</code></td><td><code>10</code></td><td>Per-request HTTP timeout.</td></tr>
 <tr><td><code>--output &lt;table|json&gt;</code></td><td><em>none</em></td><td><code>table</code></td><td>Output format for structured responses (<code>json</code> is script-friendly).</td></tr>
-</tbody></table>
+</tbody>
+</table>
 </div>
 <p>Each invocation bubbles a unique <code>x-request-id</code> through the API; the CLI also emits optional telemetry events when <code>REVAER_TELEMETRY_ENDPOINT</code> is set.</p>
 <h2 id="setup-flow"><a class="header" href="#setup-flow">Setup Flow</a></h2>
@@ -849,7 +1040,25 @@
 <li><code>--retry-secs</code> controls the backoff between reconnect attempts (default: 5 seconds).</li>
 </ul>
 <p>All torrent commands require an API key. The CLI surfaces API problems exactly as the server returns them, including RFC9457 validation errors and rate-limit responses (<code>429 Too Many Requests</code> with retry metadata in the body).</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="api-documentation"><a class="header" href="#api-documentation">API Documentation</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="native-libtorrent-integration-tests"><a class="header" href="#native-libtorrent-integration-tests">Native Libtorrent Integration Tests</a></h1>
+<p>These tests are opt-in (gated by <code>REVAER_NATIVE_IT</code>) to keep the default matrix deterministic; include them explicitly in feature-matrix runs.</p>
+<p>To run the feature-gated native libtorrent integration suite locally:</p>
+<pre><code class="language-bash"># Ensure Docker (or colima) is running and DOCKER_HOST is set if not using /var/run/docker.sock
+export DOCKER_HOST=${DOCKER_HOST:-unix:///Users/vanna/.colima/default/docker.sock}
+
+# Enable native integration tests
+export REVAER_NATIVE_IT=1
+
+# Run the full gate (preferred)
+just ci
+
+# Or target only the libtorrent crate tests
+cargo test -p revaer-torrent-libt --all-features
+</code></pre>
+<p>CI note: add a matrix job that sets <code>REVAER_NATIVE_IT=1</code> and points <code>DOCKER_HOST</code> at the runner’s daemon to ensure the native path stays covered.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="api-documentation"><a class="header" href="#api-documentation">API Documentation</a></h1>
 <p>This directory hosts HTTP API specifications, generated OpenAPI documents, and usage guides for the Revaer control plane.</p>
 <h2 id="contents"><a class="header" href="#contents">Contents</a></h2>
 <ul>
@@ -870,7 +1079,8 @@
 <li>Provide troubleshooting recipes for common workflow failures (engine unavailable, filesystem policy rejection).</li>
 <li>Expand SSE consumer documentation with incremental backfill strategies.</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="openapi-reference"><a class="header" href="#openapi-reference">OpenAPI Reference</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="openapi-reference"><a class="header" href="#openapi-reference">OpenAPI Reference</a></h1>
 <blockquote>
 <p>Canonical machine-readable description of the Revaer control plane surface.</p>
 </blockquote>
@@ -878,7 +1088,8 @@
 <pre><code class="language-bash">just api-export
 </code></pre>
 <p>Once refreshed, rebuild the documentation (<code>just docs</code>) to publish the updated schema to the static site and LLM manifests. API consumers can download the JSON directly from the deployed documentation site or via the repository.</p>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="architecture-decision-records"><a class="header" href="#architecture-decision-records">Architecture Decision Records</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="architecture-decision-records"><a class="header" href="#architecture-decision-records">Architecture Decision Records</a></h1>
 <p>ADR documents capture the rationale behind significant technical decisions.</p>
 <h2 id="suggested-workflow"><a class="header" href="#suggested-workflow">Suggested Workflow</a></h2>
 <ol>
@@ -887,7 +1098,8 @@
 <li>Capture context, decision, consequences, and follow-up actions.</li>
 <li>Reference ADRs from code comments or docs where the decision applies.</li>
 </ol>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="001--global-configuration-revisioning"><a class="header" href="#001--global-configuration-revisioning">001 – Global Configuration Revisioning</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="001--global-configuration-revisioning"><a class="header" href="#001--global-configuration-revisioning">001 – Global Configuration Revisioning</a></h1>
 <ul>
 <li>Status: Proposed</li>
 <li>Date: 2025-02-23</li>
@@ -922,14 +1134,15 @@
 <li>Implement <code>apply_changeset</code> to write history rows with the associated revision.</li>
 <li>Add integration tests that exercise transactionally updating multiple tables and verifying a single revision increment.</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="002--setup-token-lifecycle--secrets-bootstrap"><a class="header" href="#002--setup-token-lifecycle--secrets-bootstrap">002 – Setup Token Lifecycle &amp; Secrets Bootstrap</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="002--setup-token-lifecycle--secrets-bootstrap"><a class="header" href="#002--setup-token-lifecycle--secrets-bootstrap">002 – Setup Token Lifecycle &amp; Secrets Bootstrap</a></h1>
 <ul>
 <li>Status: Proposed</li>
 <li>Date: 2025-02-23</li>
 </ul>
 <h2 id="context-1"><a class="header" href="#context-1">Context</a></h2>
 <ul>
-<li>Initial deployments must boot in a locked-down "Setup Mode" where only a one-time token grants access to the setup API.</li>
+<li>Initial deployments must boot in a locked-down “Setup Mode” where only a one-time token grants access to the setup API.</li>
 <li>Tokens should be observable/auditable, expire automatically, and support regeneration without requiring an application restart.</li>
 <li>A follow-on requirement is to collect an encryption passphrase or server-side key for pgcrypto-backed secrets before exiting Setup Mode.</li>
 </ul>
@@ -959,7 +1172,8 @@
 <li>Define the CLI workflow (<code>revaer-cli setup</code>) that wraps token issuance and completion for headless environments.</li>
 <li>Add problem detail responses for expired/consumed tokens in the API.</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="003--libtorrent-session-runner-architecture"><a class="header" href="#003--libtorrent-session-runner-architecture">003 – Libtorrent Session Runner Architecture</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="003--libtorrent-session-runner-architecture"><a class="header" href="#003--libtorrent-session-runner-architecture">003 – Libtorrent Session Runner Architecture</a></h1>
 <ul>
 <li>Status: Accepted</li>
 <li>Date: 2025-10-16</li>
@@ -991,7 +1205,8 @@
 <li>Maintain regression coverage for the <code>libtorrent</code> feature path, ensuring fast-resume reconciliation and guard-rail health events remain stable.</li>
 <li>Track upstream libtorrent upgrades and refresh the operator documentation whenever the resume layout or dependency expectations shift.</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="004--phase-one-delivery-track"><a class="header" href="#004--phase-one-delivery-track">004 – Phase One Delivery Track</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="004--phase-one-delivery-track"><a class="header" href="#004--phase-one-delivery-track">004 – Phase One Delivery Track</a></h1>
 <ul>
 <li>Status: Accepted</li>
 <li>Date: 2025-10-17</li>
@@ -1045,7 +1260,8 @@
 <li>Alternatives considered (including bespoke implementations) and why they were rejected.</li>
 <li>Security and maintenance assessment (license compatibility, release cadence).</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="005--fsops-pipeline-hardening"><a class="header" href="#005--fsops-pipeline-hardening">005 – FsOps Pipeline Hardening</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="005--fsops-pipeline-hardening"><a class="header" href="#005--fsops-pipeline-hardening">005 – FsOps Pipeline Hardening</a></h1>
 <ul>
 <li>Status: Accepted</li>
 <li>Date: 2025-10-17</li>
@@ -1074,7 +1290,8 @@
 <li><code>just test</code> exercises FsOps unit cases, while orchestrator integration tests validate event emission, degradation flows, and metadata reconciliation.</li>
 <li><code>/health/full</code> and Prometheus snapshots display FsOps metrics during the runbook, confirming latency guard rails and failure counters behave as expected.</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="006--unified-api--cli-contract"><a class="header" href="#006--unified-api--cli-contract">006 – Unified API &amp; CLI Contract</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="006--unified-api--cli-contract"><a class="header" href="#006--unified-api--cli-contract">006 – Unified API &amp; CLI Contract</a></h1>
 <ul>
 <li>Status: Accepted</li>
 <li>Date: 2025-10-17</li>
@@ -1103,7 +1320,8 @@
 <li>Integration tests cover pagination, filter validation, SSE replay, and CLI HTTP interactions via <code>httpmock</code>, ensuring behaviour remains in lockstep.</li>
 <li><code>just api-export</code> regenerates <code>docs/api/openapi.json</code>, and CI asserts the CLI uses the shared DTOs by compiling with the workspace feature set.</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="007--api-key-security--rate-limiting"><a class="header" href="#007--api-key-security--rate-limiting">007 – API Key Security &amp; Rate Limiting</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="007--api-key-security--rate-limiting"><a class="header" href="#007--api-key-security--rate-limiting">007 – API Key Security &amp; Rate Limiting</a></h1>
 <ul>
 <li>Status: Accepted</li>
 <li>Date: 2025-10-17</li>
@@ -1132,7 +1350,8 @@
 <li>Unit tests cover rate-limit parsing and token-bucket behaviour; integration tests assert <code>429</code> responses and CLI exit codes.</li>
 <li><code>/health/full</code> exposes rate-limit metrics, and the Docker image runs as a non-root user with health checks hitting the authenticated endpoints.</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 id="008--phase-one-remaining-delivery-task-record"><a class="header" href="#008--phase-one-remaining-delivery-task-record">008 – Phase One Remaining Delivery (Task Record)</a></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="008--phase-one-remaining-delivery-task-record"><a class="header" href="#008--phase-one-remaining-delivery-task-record">008 – Phase One Remaining Delivery (Task Record)</a></h1>
 <ul>
 <li>Status: In Progress</li>
 <li>Date: 2025-10-17</li>
@@ -1171,7 +1390,8 @@
 <ul>
 <li>No new Rust crates were introduced. Docker scanning uses <code>trivy</code> via CI and manual recipe; it is optional for local development.</li>
 </ul>
-<div style="break-before: page; page-break-before: always;"></div><h1 ADR="" Title=""></h1>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 ADR="" Title="" id=""><a class="header" href="#"></a></h1>
 <ul>
 <li>Status: {Proposed|Accepted|Superseded}</li>
 <li>Date: {YYYY-MM-DD}</li>
@@ -1218,6 +1438,11 @@
 
         </div>
 
+        <template id=fa-eye><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 576 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M288 32c-80.8 0-145.5 36.8-192.6 80.6C48.6 156 17.3 208 2.5 243.7c-3.3 7.9-3.3 16.7 0 24.6C17.3 304 48.6 356 95.4 399.4C142.5 443.2 207.2 480 288 480s145.5-36.8 192.6-80.6c46.8-43.5 78.1-95.4 93-131.1c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C433.5 68.8 368.8 32 288 32zM432 256c0 79.5-64.5 144-144 144s-144-64.5-144-144s64.5-144 144-144s144 64.5 144 144zM288 192c0 35.3-28.7 64-64 64c-11.5 0-22.3-3-31.6-8.4c-.2 2.8-.4 5.5-.4 8.4c0 53 43 96 96 96s96-43 96-96s-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6z"/></svg></span></template>
+        <template id=fa-eye-slash><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M38.8 5.1C28.4-3.1 13.3-1.2 5.1 9.2S-1.2 34.7 9.2 42.9l592 464c10.4 8.2 25.5 6.3 33.7-4.1s6.3-25.5-4.1-33.7L525.6 386.7c39.6-40.6 66.4-86.1 79.9-118.4c3.3-7.9 3.3-16.7 0-24.6c-14.9-35.7-46.2-87.7-93-131.1C465.5 68.8 400.8 32 320 32c-68.2 0-125 26.3-169.3 60.8L38.8 5.1zM223.1 149.5C248.6 126.2 282.7 112 320 112c79.5 0 144 64.5 144 144c0 24.9-6.3 48.3-17.4 68.7L408 294.5c5.2-11.8 8-24.8 8-38.5c0-53-43-96-96-96c-2.8 0-5.6 .1-8.4 .4c5.3 9.3 8.4 20.1 8.4 31.6c0 10.2-2.4 19.8-6.6 28.3l-90.3-70.8zm223.1 298L373 389.9c-16.4 6.5-34.3 10.1-53 10.1c-79.5 0-144-64.5-144-144c0-6.9 .5-13.6 1.4-20.2L83.1 161.5C60.3 191.2 44 220.8 34.5 243.7c-3.3 7.9-3.3 16.7 0 24.6c14.9 35.7 46.2 87.7 93 131.1C174.5 443.2 239.2 480 320 480c47.8 0 89.9-12.9 126.2-32.5z"/></svg></span></template>
+        <template id=fa-copy><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M502.6 70.63l-61.25-61.25C435.4 3.371 427.2 0 418.7 0H255.1c-35.35 0-64 28.66-64 64l.0195 256C192 355.4 220.7 384 256 384h192c35.2 0 64-28.8 64-64V93.25C512 84.77 508.6 76.63 502.6 70.63zM464 320c0 8.836-7.164 16-16 16H255.1c-8.838 0-16-7.164-16-16L239.1 64.13c0-8.836 7.164-16 16-16h128L384 96c0 17.67 14.33 32 32 32h47.1V320zM272 448c0 8.836-7.164 16-16 16H63.1c-8.838 0-16-7.164-16-16L47.98 192.1c0-8.836 7.164-16 16-16H160V128H63.99c-35.35 0-64 28.65-64 64l.0098 256C.002 483.3 28.66 512 64 512h192c35.2 0 64-28.8 64-64v-32h-47.1L272 448z"/></svg></span></template>
+        <template id=fa-play><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 384 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M73 39c-14.8-9.1-33.4-9.4-48.5-.9S0 62.6 0 80V432c0 17.4 9.4 33.4 24.5 41.9s33.7 8.1 48.5-.9L361 297c14.3-8.7 23-24.2 23-41s-8.7-32.2-23-41L73 39z"/></svg></span></template>
+        <template id=fa-clock-rotate-left><span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M75 75L41 41C25.9 25.9 0 36.6 0 57.9V168c0 13.3 10.7 24 24 24H134.1c21.4 0 32.1-25.9 17-41l-30.8-30.8C155 85.5 203 64 256 64c106 0 192 86 192 192s-86 192-192 192c-40.8 0-78.6-12.7-109.7-34.4c-14.5-10.1-34.4-6.6-44.6 7.9s-6.6 34.4 7.9 44.6C151.2 495 201.7 512 256 512c141.4 0 256-114.6 256-256S397.4 0 256 0C185.3 0 121.3 28.7 75 75zm181 53c-13.3 0-24 10.7-24 24V256c0 6.4 2.5 12.5 7 17l72 72c9.4 9.4 24.6 9.4 33.9 0s9.4-24.6 0-33.9l-65-65V152c0-13.3-10.7-24-24-24z"/></svg></span></template>
 
 
 
@@ -1226,17 +1451,15 @@
         </script>
 
 
-        <script src="elasticlunr.min.js"></script>
-        <script src="mark.min.js"></script>
-        <script src="searcher.js"></script>
+        <script src="elasticlunr-ef4e11c1.min.js"></script>
+        <script src="mark-09e88c2c.min.js"></script>
+        <script src="searcher-c2a407aa.js"></script>
 
-        <script src="clipboard.min.js"></script>
-        <script src="highlight.js"></script>
-        <script src="book.js"></script>
+        <script src="clipboard-1626706a.min.js"></script>
+        <script src="highlight-abc7f01d.js"></script>
+        <script src="book-a0b12cfe.js"></script>
 
         <!-- Custom JS scripts -->
-        <script src="scripts/mermaid.min.js"></script>
-        <script src="scripts/mermaid-init.js"></script>
 
         <script>
         window.addEventListener('load', function() {

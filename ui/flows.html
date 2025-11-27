@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>001: Configuration Revisioning - Revaer Documentation</title>
+        <title>Web UI Flows - Revaer Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -174,51 +174,85 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="001--global-configuration-revisioning"><a class="header" href="#001--global-configuration-revisioning">001 – Global Configuration Revisioning</a></h1>
+                        <h1 id="web-ui-flows--diagrams"><a class="header" href="#web-ui-flows--diagrams">Web UI Flows &amp; Diagrams</a></h1>
+<p>Visual references for the Phase 1 UX: navigation, component wiring, SSE handling, and torrent lifecycle. Use these diagrams when extending the UI or adding tests.</p>
+<h2 id="navigation-flow"><a class="header" href="#navigation-flow">Navigation Flow</a></h2>
+<pre class="mermaid">flowchart LR
+    Nav[Sidebar / Hamburger] --&gt; Dash[Dashboard]
+    Nav --&gt; Torrents[Torrents]
+    Nav --&gt; Search[Search]
+    Nav --&gt; Jobs[Jobs / Post-processing]
+    Nav --&gt; Settings[Settings]
+    Nav --&gt; Logs[Logs]
+    Torrents --&gt; Detail[Detail Drawer / Tabs]
+    Detail --&gt; Files[Files]
+    Detail --&gt; Peers[Peers]
+    Detail --&gt; Trackers[Trackers]
+    Detail --&gt; Events[Event Log]
+    Detail --&gt; Info[Metadata]
+</pre>
+
+<h2 id="component-graph"><a class="header" href="#component-graph">Component Graph</a></h2>
+<pre class="mermaid">flowchart TB
+    App[App (RevaerApp)]
+    Shell[AppShell (nav, mode/theme toggle, locale picker)]
+    Dash[DashboardPanel]
+    Table[TorrentView (virtualized list + filters)]
+    Add[AddTorrentPanel]
+    Detail[Detail Drawer/Tabs]
+
+    App --&gt; Shell
+    Shell --&gt; Dash
+    Shell --&gt; Table
+    Table --&gt; Add
+    Table --&gt; Detail
+    Add --&gt;|POST /v1/torrents| API
+    Detail --&gt;|PATCH /v1/torrents/{id}| API
+</pre>
+
+<h2 id="sse-event-flow"><a class="header" href="#sse-event-flow">SSE Event Flow</a></h2>
+<pre class="mermaid">sequenceDiagram
+    participant API as API / SSE
+    participant Stream as EventStream
+    participant State as UI State (torrents, queue, jobs, vpn)
+    participant UI as Components
+
+    API--&gt;&gt;Stream: SSE events (torrent_progress, torrent_state, queue_status, jobs_update, vpn_state)
+    Stream-&gt;&gt;State: Batch apply with backoff + dedupe
+    State--&gt;&gt;UI: Render updates (virtualized table, dashboard tiles, badges)
+    UI--&gt;&gt;API: Last-Event-ID on reconnect; filters included in SSE query
+</pre>
+
+<h2 id="torrent-lifecycle-ui-perspective"><a class="header" href="#torrent-lifecycle-ui-perspective">Torrent Lifecycle (UI Perspective)</a></h2>
+<pre class="mermaid">stateDiagram-v2
+    [*] --&gt; Added : magnet/upload
+    Added --&gt; Queueing : server-side validation
+    Queueing --&gt; Downloading
+    Downloading --&gt; Checking : recheck or hash
+    Downloading --&gt; Completed : 100% + seeding ready
+    Checking --&gt; Downloading : if data matches
+    Completed --&gt; FsOps : move/rename per policy
+    FsOps --&gt; Seeding
+    Seeding --&gt; Completed : ratio met / stop rules
+    Completed --&gt; Removed : delete (+data optional)
+</pre>
+
+<h2 id="interaction-notes"><a class="header" href="#interaction-notes">Interaction Notes</a></h2>
 <ul>
-<li>Status: Proposed</li>
-<li>Date: 2025-02-23</li>
-</ul>
-<h2 id="context"><a class="header" href="#context">Context</a></h2>
-<ul>
-<li>All runtime configuration must be hot-reloadable across multiple crates.</li>
-<li>Consumers need a consistent ordering guarantee for applying changes received via LISTEN/NOTIFY, with a fallback to polling.</li>
-<li>We require a DB-native mechanism that can be incremented from triggers without race conditions and that carries across deployments.</li>
-</ul>
-<h2 id="decision"><a class="header" href="#decision">Decision</a></h2>
-<ul>
-<li>Introduce a singleton <code>settings_revision</code> table with an ever-incrementing <code>revision</code> counter.</li>
-<li>Wrap updates to configuration tables (<code>app_profile</code>, <code>engine_profile</code>, <code>fs_policy</code>, <code>auth_api_keys</code>, <code>query_presets</code>) in triggers that:
-<ol>
-<li>Update <code>settings_revision.revision = revision + 1</code>.</li>
-<li>Emit <code>NOTIFY revaer_settings_changed, '&lt;table&gt;:&lt;revision&gt;:&lt;op&gt;'</code>.</li>
-</ol>
-</li>
-<li><code>ConfigService</code> exposes <code>ConfigSnapshot</code> to materialize a consistent view (revision + documents) for the application bootstrap path.</li>
-<li>The revision remains monotonic even if polling is used (consumers record the last seen revision and request deltas if they miss notifications).</li>
-<li>Mutation APIs validate payloads server-side, applying field-level type checks and respecting <code>app_profile.immutable_keys</code>. Violations surface as structured errors with section/field metadata, preventing silent drift.</li>
-</ul>
-<h2 id="consequences"><a class="header" href="#consequences">Consequences</a></h2>
-<ul>
-<li>Multi-table updates executed inside a transaction surface as a single revision bump, preserving ordering for consumers.</li>
-<li>LISTEN subscribers that drop their connection can reconcile by reloading <code>settings_revision</code> and querying deltas &gt; last_seen_revision.</li>
-<li>Trigger-level logic slightly increases write cost but keeps business code free of manual revision management.</li>
-</ul>
-<h2 id="follow-up"><a class="header" href="#follow-up">Follow-up</a></h2>
-<ul>
-<li>Implement <code>apply_changeset</code> to write history rows with the associated revision.</li>
-<li>Add integration tests that exercise transactionally updating multiple tables and verifying a single revision increment.</li>
+<li>SSE disconnect overlay shows last event timestamp, retry countdown (1s→30s exponential with jitter), and diagnostics (network mode, reason).</li>
+<li>Table virtualization is mandatory beyond 500 rows; virtual scroll must preserve keyboard focus order and pinned columns.</li>
+<li>Mobile detail view uses tabs (Files, Peers, Trackers, Log, Info); desktop uses split panes so file tree + metadata stay visible together at xl+.</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../adr/index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../ui/index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../adr/002-setup-token-lifecycle.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../platform/configuration.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -228,11 +262,11 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../adr/index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../ui/index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../adr/002-setup-token-lifecycle.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../platform/configuration.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
