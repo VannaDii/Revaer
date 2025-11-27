@@ -26,6 +26,7 @@ Virtualization: torrent list uses a windowed renderer (row-height aware with ove
 Auth: remote mode always requires an API key; prompt stores key in local storage, LAN anonymous mode is allowed only if backend advertises `allow_anonymous`. SSE currently appends the key via querystring (EventSource lacks header support); use TLS and avoid logging URLs in deployment. Live updates: SSE feeds torrent progress/rates plus dashboard rates/queue/VPN status; reconnect badge/overlay surfaces failures and retries.
 
 Add flow: drop `.torrent` or paste magnet/URL with inline validation and error copy; invalid file types are rejected. Submissions post to `/v1/torrents`, surface toast feedback, and refresh the list.
+Search & filters: search box hits `/v1/torrents?search=` with optional `regex=true`; Regex toggle is inline in the toolbar and clears with Escape.
 Live sync: SSE streams torrent progress/rates/state plus added/removed events to keep the list aligned without manual refresh.
 
 ## Theming & Tokens

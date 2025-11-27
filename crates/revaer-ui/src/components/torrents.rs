@@ -1,5 +1,6 @@
 use crate::components::detail::{DetailData, DetailView, demo_detail};
 use crate::components::virtual_list::VirtualList;
+use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::TorrentSummary;
 use crate::{Density, UiMode};
 use wasm_bindgen::JsCast;
@@ -33,6 +34,10 @@ pub struct TorrentProps {
     pub on_action: Callback<(TorrentAction, String)>,
     pub on_add: Callback<AddTorrentInput>,
     pub add_busy: bool,
+    pub search: String,
+    pub regex: bool,
+    pub on_search: Callback<String>,
+    pub on_toggle_regex: Callback<()>,
 }
 
 #[derive(Clone, Debug)]
@@ -56,6 +61,9 @@ impl PartialEq for AddTorrentInput {
 
 #[function_component(TorrentView)]
 pub fn torrent_view(props: &TorrentProps) -> Html {
+    let bundle = use_context::<TranslationBundle>()
+        .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
+    let t = |key: &str| bundle.text(key, "");
     let selected = use_state(|| demo_detail("1"));
     let selected_idx = use_state(|| 0usize);
     let action_banner = use_state(|| None as Option<String>);
@@ -167,6 +175,13 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                                     .set(Some(format!("Toggled pause/resume for {}", row.name)));
                             }
                         }
+                        "Escape" => {
+                            if let Some(input) = search_ref.cast::<web_sys::HtmlInputElement>() {
+                                input.set_value("");
+                                let _ = input.blur();
+                                props.on_search.emit(String::new());
+                            }
+                        }
                         key if key == "Delete" && event.shift_key() => {
                             event.prevent_default();
                             confirm.set(Some(ConfirmKind::DeleteData));
@@ -206,16 +221,37 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
         <section class={classes!("torrents-view", density_class, mode_class)}>
             <header class="toolbar">
                 <div class="search">
-                    <input aria-label="Search torrents" placeholder="Search name, path, tracker" ref={search_ref.clone()} />
-                    <button class="ghost">{"Regex"}</button>
+                    <input
+                        aria-label="Search torrents"
+                        placeholder={t("torrents.search_placeholder")}
+                        ref={search_ref.clone()}
+                        value={props.search.clone()}
+                        oninput={{
+                            let on_search = props.on_search.clone();
+                            Callback::from(move |e: InputEvent| {
+                                if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
+                                    on_search.emit(input.value());
+                                }
+                            })
+                        }}
+                    />
+                    <button
+                        class={classes!("ghost", if props.regex { Some("active") } else { None })}
+                        onclick={{
+                            let cb = props.on_toggle_regex.clone();
+                            Callback::from(move |_| cb.emit(()))
+                        }}
+                    >
+                        {t("toolbar.regex")}
+                    </button>
                 </div>
                 <div class="actions">
                     <div class="segmented density">
                         {Density::all().iter().map(|option| {
                             let label = match option {
-                                Density::Compact => "Compact",
-                                Density::Normal => "Normal",
-                                Density::Comfy => "Comfy",
+                                Density::Compact => t("density.compact"),
+                                Density::Normal => t("density.normal"),
+                                Density::Comfy => t("density.comfy"),
                             };
                             let active = props.density == *option;
                             let callback = {
@@ -228,10 +264,10 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                             }
                         }).collect::<Html>()}
                     </div>
-                    <button class="ghost" onclick={pause_selected}>{"Pause"}</button>
-                    <button class="ghost" onclick={resume_selected}>{"Resume"}</button>
-                    <button class="ghost danger" onclick={delete_selected}>{"Delete"}</button>
-                    <button class="solid">{"Add"}</button>
+                    <button class="ghost" onclick={pause_selected}>{t("toolbar.pause")}</button>
+                    <button class="ghost" onclick={resume_selected}>{t("toolbar.resume")}</button>
+                    <button class="ghost danger" onclick={delete_selected}>{t("toolbar.delete")}</button>
+                    <button class="solid">{t("toolbar.add")}</button>
                 </div>
             </header>
 
@@ -245,11 +281,18 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                 render={{
                     let on_select = on_select.clone();
                     let torrents = props.torrents.clone();
+                    let bundle = bundle.clone();
                     let selected_idx = *selected_idx;
                     let on_action = props.on_action.clone();
                     Callback::from(move |idx: usize| {
                         if let Some(row) = torrents.get(idx) {
-                            render_row(row, idx == selected_idx, on_select.clone(), on_action.clone())
+                            render_row(
+                                row,
+                                idx == selected_idx,
+                                on_select.clone(),
+                                on_action.clone(),
+                                bundle.clone(),
+                            )
                         } else {
                             html! {}
                         }
@@ -272,6 +315,7 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                     let selected_idx = *selected_idx;
                     let action_banner = action_banner.clone();
                     let on_action = props.on_action.clone();
+                    let bundle = bundle.clone();
                     Callback::from(move |kind: ConfirmKind| {
                         confirm.set(None);
                         if let Some(row) = torrents.get(selected_idx) {
@@ -281,14 +325,8 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                                 ConfirmKind::Recheck => TorrentAction::Recheck,
                             };
                             on_action.emit((action.clone(), row.id.clone()));
-                            let msg = match action {
-                                TorrentAction::Delete { with_data: true } => format!("Removed torrent + data {}", row.name),
-                                TorrentAction::Delete { with_data: false } => format!("Removed torrent {}", row.name),
-                                TorrentAction::Recheck => format!("Rechecking {}", row.name),
-                                TorrentAction::Pause => format!("Paused {}", row.name),
-                                TorrentAction::Resume => format!("Resumed {}", row.name),
-                            };
-                            action_banner.set(Some(msg));
+                            action_banner
+                                .set(Some(action_banner_message(&bundle, &action, &row.name)));
                         }
                     })
                 }}
@@ -302,7 +340,9 @@ fn render_row(
     selected: bool,
     on_select: Callback<String>,
     on_action: Callback<(TorrentAction, String)>,
+    bundle: TranslationBundle,
 ) -> Html {
+    let t = |key: &str| bundle.text(key, "");
     let select = {
         let on_select = on_select.clone();
         let id = row.id.to_string();
@@ -342,41 +382,41 @@ fn render_row(
                     <div class="progress">
                         <div class="bar" style={format!("width: {:.1}%", row.progress * 100.0)}></div>
                         <span class="muted">{format!("{:.1}%", row.progress * 100.0)}</span>
-                        <span class="muted">{row.eta.unwrap_or("∞")}</span>
+                        <span class="muted">{row.eta.clone().unwrap_or_else(|| t("torrents.eta_infinite"))}</span>
                     </div>
                 </div>
             </div>
             <div class="row-secondary">
                 <div class="stat">
-                    <small>{"Down"}</small>
+                    <small>{t("torrents.down")}</small>
                     <strong>{format_rate(row.download_bps)}</strong>
                 </div>
                 <div class="stat">
-                    <small>{"Up"}</small>
+                    <small>{t("torrents.up")}</small>
                     <strong>{format_rate(row.upload_bps)}</strong>
                 </div>
                 <div class="stat">
-                    <small>{"Ratio"}</small>
+                    <small>{t("torrents.ratio")}</small>
                     <strong>{format!("{:.2}", row.ratio)}</strong>
                 </div>
                 <div class="stat">
-                    <small>{"Size"}</small>
+                    <small>{t("torrents.size")}</small>
                     <strong>{format!("{:.2} GB", row.size_gb)}</strong>
                 </div>
             </div>
             <div class="row-meta">
                 <span class="muted">{row.path}</span>
                 <div class="tags">
-                    <span class="pill subtle">{row.category}</span>
+                    <span class="pill subtle">{row.category.clone()}</span>
                     {for row.tags.iter().map(|tag| html! { <span class="pill subtle">{tag.to_owned()}</span> })}
                 </div>
             </div>
             <div class="row-actions">
-                <button class="ghost" onclick={select.clone()}>{"Open detail"}</button>
-                <button class="ghost" onclick={pause}>{"Pause"}</button>
-                <button class="ghost" onclick={resume}>{"Resume"}</button>
-                <button class="ghost" onclick={recheck}>{"Recheck"}</button>
-                <button class="ghost danger" onclick={delete_data}>{"Delete + data"}</button>
+                <button class="ghost" onclick={select.clone()}>{t("torrents.open_detail")}</button>
+                <button class="ghost" onclick={pause}>{t("toolbar.pause")}</button>
+                <button class="ghost" onclick={resume}>{t("toolbar.resume")}</button>
+                <button class="ghost" onclick={recheck}>{t("toolbar.recheck")}</button>
+                <button class="ghost danger" onclick={delete_data}>{t("toolbar.delete_data")}</button>
             </div>
         </article>
     }
@@ -408,6 +448,49 @@ fn format_rate(value: u64) -> String {
     }
 }
 
+fn action_banner_message(bundle: &TranslationBundle, action: &TorrentAction, name: &str) -> String {
+    match action {
+        TorrentAction::Delete { with_data: true } => {
+            format!("{} {name}", bundle.text("torrents.banner.removed_data", ""))
+        }
+        TorrentAction::Delete { with_data: false } => {
+            format!("{} {name}", bundle.text("torrents.banner.removed", ""))
+        }
+        TorrentAction::Recheck => {
+            format!("{} {name}", bundle.text("torrents.banner.recheck", ""))
+        }
+        TorrentAction::Pause => format!("{} {name}", bundle.text("torrents.banner.pause", "")),
+        TorrentAction::Resume => format!("{} {name}", bundle.text("torrents.banner.resume", "")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_class_maps_states() {
+        assert_eq!(status_class("downloading"), "ok");
+        assert_eq!(status_class("paused"), "muted");
+        assert_eq!(status_class("unknown"), "muted");
+    }
+
+    #[test]
+    fn format_rate_scales_units() {
+        assert_eq!(format_rate(512), "512 B/s");
+        assert_eq!(format_rate(2048), "2.0 KiB/s");
+        assert!(format_rate(5_242_880).contains("MiB"));
+        assert!(format_rate(2_147_483_648).contains("GiB"));
+    }
+
+    #[test]
+    fn action_banner_uses_locale_strings() {
+        let bundle = TranslationBundle::new(DEFAULT_LOCALE);
+        let msg = action_banner_message(&bundle, &TorrentAction::Pause, "alpha");
+        assert!(msg.contains(&bundle.text("torrents.banner.pause", "")));
+    }
+}
+
 #[derive(Properties, PartialEq)]
 pub struct AddTorrentProps {
     pub on_submit: Callback<AddTorrentInput>,
@@ -416,6 +499,9 @@ pub struct AddTorrentProps {
 
 #[function_component(AddTorrentPanel)]
 fn add_torrent_panel(props: &AddTorrentProps) -> Html {
+    let bundle = use_context::<TranslationBundle>()
+        .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
+    let t = |key: &str| bundle.text(key, "");
     let input_value = use_state(String::new);
     let category = use_state(String::new);
     let tags = use_state(String::new);
@@ -438,13 +524,11 @@ fn add_torrent_panel(props: &AddTorrentProps) -> Html {
             let is_magnet = value.starts_with("magnet:?xt=urn:btih:");
             let is_url = value.starts_with("http://") || value.starts_with("https://");
             if value.is_empty() && !has_file {
-                error.set(Some(
-                    "Enter a magnet link, URL, or drop a .torrent".to_string(),
-                ));
+                error.set(Some(t("torrents.error.empty")));
                 return;
             }
             if !has_file && !(is_magnet || is_url) {
-                error.set(Some("Invalid magnet or URL".to_string()));
+                error.set(Some(t("torrents.error.invalid")));
                 return;
             }
             error.set(None);
@@ -506,7 +590,7 @@ fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                 let file: File = files.get(0).unwrap();
                 let name = file.name();
                 if !name.ends_with(".torrent") {
-                    error.set(Some("Unsupported file type".to_string()));
+                    error.set(Some(t("torrents.error.file_type")));
                 } else {
                     error.set(None);
                     file_state.set(Some(file));
@@ -536,29 +620,29 @@ fn add_torrent_panel(props: &AddTorrentProps) -> Html {
             <div
                 class={classes!("drop-zone", if *drag_over { "drag-over" } else { "" })}
                 role="button"
-                aria-label="Upload torrent"
+                aria-label={t("torrents.upload_label")}
                 ondrop={on_drop}
                 ondragover={on_drag_over}
                 ondragleave={on_drag_leave}
             >
-                <p><strong>{"Drop .torrent or paste magnet"}</strong></p>
-                <p class="muted">{"Validates magnet/URL, supports drag/drop and file selection."}</p>
+                <p><strong>{t("torrents.drop_help")}</strong></p>
+                <p class="muted">{t("torrents.drop_sub")}</p>
                 <div class="inputs">
-                    <input aria-label="Magnet or URL" placeholder="Magnet or URL" value={(*input_value).clone()} oninput={on_input} />
+                    <input aria-label={t("torrents.add_placeholder")} placeholder={t("torrents.add_placeholder")} value={(*input_value).clone()} oninput={on_input} />
                     <button class="solid" onclick={submit.clone()} disabled={props.pending}>
-                        {if props.pending { "Adding…" } else { "Add" }}
+                        {if props.pending { t("torrents.adding") } else { t("toolbar.add") }}
                     </button>
                 </div>
                 {if let Some(err) = &*error {
                     html! { <p class="error-text">{err}</p> }
                 } else if let Some(f) = &*file {
-                    html! { <p class="muted">{format!("Ready to upload {}", f.name())}</p> }
+                    html! { <p class="muted">{format!("{} {}", t("torrents.ready_prefix"), f.name())}</p> }
                 } else { html! {} }}
             </div>
             <div class="pre-flight">
                 <label>
-                    <span>{"Category"}</span>
-                    <input placeholder="tv, movies, music" value={(*category).clone()} oninput={{
+                    <span>{t("torrents.category")}</span>
+                    <input placeholder={t("torrents.category_placeholder")} value={(*category).clone()} oninput={{
                         let category = category.clone();
                         Callback::from(move |e: InputEvent| {
                             if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
@@ -568,8 +652,8 @@ fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                     }} />
                 </label>
                 <label>
-                    <span>{"Tags"}</span>
-                    <input placeholder="4K, hevc, scene" value={(*tags).clone()} oninput={{
+                    <span>{t("torrents.tags")}</span>
+                    <input placeholder={t("torrents.tags_placeholder")} value={(*tags).clone()} oninput={{
                         let tags = tags.clone();
                         Callback::from(move |e: InputEvent| {
                             if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
@@ -579,8 +663,8 @@ fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                     }} />
                 </label>
                 <label>
-                    <span>{"Save path"}</span>
-                    <input placeholder="/data/incomplete" value={(*save_path).clone()} oninput={{
+                    <span>{t("torrents.save_path")}</span>
+                    <input placeholder={t("torrents.save_path_placeholder")} value={(*save_path).clone()} oninput={{
                         let save_path = save_path.clone();
                         Callback::from(move |e: InputEvent| {
                             if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
@@ -596,6 +680,9 @@ fn add_torrent_panel(props: &AddTorrentProps) -> Html {
 
 #[function_component(MobileActionRow)]
 fn mobile_action_row(props: &MobileActionProps) -> Html {
+    let bundle = use_context::<TranslationBundle>()
+        .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
+    let t = |key: &str| bundle.text(key, "");
     let pause = {
         let on_action = props.on_action.clone();
         let id = props.selected.clone();
@@ -625,10 +712,10 @@ fn mobile_action_row(props: &MobileActionProps) -> Html {
     };
     html! {
         <div class="mobile-action-row">
-            <button class="ghost" onclick={pause}>{"Pause"}</button>
-            <button class="ghost" onclick={resume}>{"Resume"}</button>
-            <button class="ghost danger" onclick={delete}>{"Delete"}</button>
-            <button class="solid">{"More…"}</button>
+            <button class="ghost" onclick={pause}>{t("toolbar.pause")}</button>
+            <button class="ghost" onclick={resume}>{t("toolbar.resume")}</button>
+            <button class="ghost danger" onclick={delete}>{t("toolbar.delete")}</button>
+            <button class="solid">{t("torrents.more")}</button>
         </div>
     }
 }
@@ -657,25 +744,28 @@ pub struct ConfirmProps {
 
 #[function_component(ConfirmDialog)]
 fn confirm_dialog(props: &ConfirmProps) -> Html {
+    let bundle = use_context::<TranslationBundle>()
+        .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
+    let t = |key: &str| bundle.text(key, "");
     let Some(kind) = &props.kind else {
         return html! {};
     };
 
     let (title, body, action) = match kind {
         ConfirmKind::Delete => (
-            "Remove torrent?",
-            "Files remain on disk. This cannot be undone without data deletion.",
-            "Remove",
+            t("confirm.delete.title"),
+            t("confirm.delete.body"),
+            t("confirm.delete.cta"),
         ),
         ConfirmKind::DeleteData => (
-            "Remove torrent and delete data?",
-            "This permanently deletes files from disk.",
-            "Delete data",
+            t("confirm.delete_data.title"),
+            t("confirm.delete_data.body"),
+            t("confirm.delete_data.cta"),
         ),
         ConfirmKind::Recheck => (
-            "Recheck data?",
-            "Hash check will verify existing data.",
-            "Recheck",
+            t("confirm.recheck.title"),
+            t("confirm.recheck.body"),
+            t("confirm.recheck.cta"),
         ),
     };
 
@@ -693,7 +783,7 @@ fn confirm_dialog(props: &ConfirmProps) -> Html {
                 </header>
                 <p class="muted">{body}</p>
                 <div class="actions">
-                    <button class="ghost" onclick={props.on_close.clone()}>{"Cancel"}</button>
+                    <button class="ghost" onclick={props.on_close.clone()}>{t("confirm.cancel")}</button>
                     <button class="solid danger" onclick={confirm}>{action}</button>
                 </div>
             </div>
@@ -714,12 +804,15 @@ pub struct MobileActionProps {
 
 #[function_component(ActionBanner)]
 fn action_banner(props: &BannerProps) -> Html {
+    let bundle = use_context::<TranslationBundle>()
+        .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
+    let t = |key: &str| bundle.text(key, "");
     let Some(msg) = props.message.clone() else {
         return html! {};
     };
     html! {
         <div class="action-banner" role="status" aria-live="polite">
-            <span class="pill subtle">{"Shortcut"}</span>
+            <span class="pill subtle">{t("torrents.shortcut")}</span>
             <span>{msg}</span>
         </div>
     }

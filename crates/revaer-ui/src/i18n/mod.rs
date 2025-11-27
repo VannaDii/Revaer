@@ -133,6 +133,12 @@ pub struct TranslationBundle {
     rtl: bool,
 }
 
+impl PartialEq for TranslationBundle {
+    fn eq(&self, other: &Self) -> bool {
+        self.locale == other.locale
+    }
+}
+
 impl TranslationBundle {
     #[must_use]
     pub fn new(locale: LocaleCode) -> Self {

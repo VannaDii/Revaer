@@ -33,16 +33,191 @@
     "search_placeholder": "Search name, path, tracker",
     "add_placeholder": "Magnet or URL",
     "drop_help": "Drop .torrent or paste magnet",
+    "drop_sub": "Validates magnet/URL, supports drag/drop and file selection.",
+    "upload_label": "Upload torrent",
+    "adding": "Adding…",
+    "ready_prefix": "Ready to upload",
     "category": "Category",
+    "category_placeholder": "tv, movies, music",
     "tags": "Tags",
-    "save_path": "Save path"
+    "tags_placeholder": "4K, hevc, scene",
+    "save_path": "Save path",
+    "save_path_placeholder": "/data/incomplete",
+    "open_detail": "Open detail",
+    "eta_infinite": "∞",
+    "down": "Down",
+    "up": "Up",
+    "ratio": "Ratio",
+    "size": "Size",
+    "error": {
+      "empty": "Enter a magnet link, URL, or drop a .torrent",
+      "invalid": "Invalid magnet or URL",
+      "file_type": "Unsupported file type"
+    },
+    "shortcut": "Shortcut",
+    "more": "More…",
+    "banner": {
+      "removed_data": "Removed torrent + data",
+      "removed": "Removed torrent",
+      "recheck": "Rechecking",
+      "pause": "Paused",
+      "resume": "Resumed"
+    }
   },
   "dashboard": {
     "speeds": "Global Speeds",
+    "live": "SSE live",
+    "down": "Down",
+    "up": "Up",
+    "speeds_subtext": "Sub-second updates with backoff on mobile and constrained networks.",
     "torrents": "Torrents",
+    "torrents_sub": "Active / Paused / Completed",
+    "active": "Active",
+    "paused": "Paused",
+    "completed": "Completed",
     "disk": "Disk Usage",
+    "disk_sub": "Global + per path",
+    "total": "Total",
     "queue": "Queue",
+    "queue_sub": "Depth and paused counts",
+    "queued": "Queued",
+    "depth": "Depth",
     "vpn": "VPN Status",
-    "events": "Recent Events"
+    "vpn_state": "State",
+    "vpn_message": "Message",
+    "tracker_health": "Tracker Health",
+    "tracker_sub": "Aggregated",
+    "ok": "OK",
+    "warn": "Warn",
+    "error": "Error",
+    "tracker_help": "Failures surface in the event log with next announce timestamps.",
+    "events": "Recent Events",
+    "events_sub": "Warnings and tracker issues",
+    "event_info": "Info",
+    "event_warn": "Warn",
+    "event_error": "Error"
+  },
+  "confirm": {
+    "delete": {
+      "title": "Remove torrent?",
+      "body": "Files remain on disk. This cannot be undone without data deletion.",
+      "cta": "Remove"
+    },
+    "delete_data": {
+      "title": "Remove torrent and delete data?",
+      "body": "This permanently deletes files from disk.",
+      "cta": "Delete data"
+    },
+    "recheck": {
+      "title": "Recheck data?",
+      "body": "Hash check will verify existing data.",
+      "cta": "Recheck"
+    },
+    "cancel": "Cancel"
+  },
+  "detail": {
+    "select_title": "Select a torrent",
+    "select_body": "Open a torrent to view files, peers, trackers, and metadata.",
+    "view_label": "Detail view",
+    "tab": {
+      "files": "Files",
+      "peers": "Peers",
+      "trackers": "Trackers",
+      "log": "Log",
+      "info": "Info"
+    },
+    "files": {
+      "title": "Files",
+      "body": "Per-file priority + wanted/unwanted toggles. Accordion on mobile.",
+      "wanted": "Wanted"
+    },
+    "peers": {
+      "title": "Peers",
+      "body": "Sortable by speed/progress; shows flags + country where available.",
+      "down": "Down",
+      "up": "Up",
+      "progress": "Prog"
+    },
+    "trackers": {
+      "title": "Trackers",
+      "body": "Status, next announce, and errors with warning badges."
+    },
+    "log": {
+      "title": "Event Log",
+      "body": "Warnings, tracker issues, state transitions."
+    },
+    "info": {
+      "title": "Metadata",
+      "body": "Hash, magnet, size, piece count, piece size.",
+      "hash": "Hash",
+      "magnet": "Magnet",
+      "size": "Size",
+      "pieces": "Pieces",
+      "piece_size": "Piece size"
+    }
+  },
+  "auth": {
+    "error_required": "API key required for remote mode",
+    "title": "API access required",
+    "body": "Enter your API key to connect. Remote mode always requires a key; LAN mode may allow anonymous if enabled by the backend.",
+    "label": "API Key",
+    "placeholder": "revaer_api_key",
+    "allow_anon": "LAN mode detected: leave blank to continue anonymously.",
+    "use_anon": "Use anonymous (if allowed)",
+    "submit": "Continue"
+  },
+  "sse": {
+    "title": "SSE disconnected",
+    "body": "Reconnecting with exponential backoff and jitter.",
+    "next_retry": "Next retry in",
+    "last_event": "Last event",
+    "reason": "Reason:",
+    "retry": "Retry now",
+    "dismiss": "Dismiss overlay",
+    "badge": "SSE",
+    "badge_reconnecting": "SSE reconnecting"
+  },
+  "shell": {
+    "theme": {
+      "light": "Light",
+      "dark": "Dark",
+      "label": "Theme"
+    },
+    "close_nav": "Close navigation",
+    "open_nav": "Open navigation",
+    "brand": "Revaer",
+    "phase": "Phase 1",
+    "mode": "Mode",
+    "locale": "Locale",
+    "search_placeholder": "Search torrents (/ to focus)",
+    "search_label": "Global search",
+    "simulate_sse": "Simulate SSE drop",
+    "toggle_theme": "Toggle theme",
+    "network_connected": "connected",
+    "network_remote": "remote (API key)"
+  },
+  "placeholder": {
+    "jobs_title": "Jobs / Post-processing",
+    "jobs_body": "Job states, watch folder errors, SSE updates",
+    "settings_title": "Settings",
+    "settings_body": "Engine profile, paths, roles, remote mode",
+    "logs_title": "Logs",
+    "logs_body": "Streaming event log with filters",
+    "not_found_title": "Not found",
+    "not_found_body": "Use the navigation to return to a supported view.",
+    "badge": "Mobile + desktop responsive layout ready."
+  },
+  "toast": {
+    "pause": "Paused",
+    "resume": "Resumed",
+    "recheck": "Rechecking",
+    "delete": "Removed",
+    "delete_data": "Removed (data deleted)",
+    "add_success": "Added",
+    "add_refresh_failed": "Added, but refresh failed:",
+    "add_failed": "Add failed:",
+    "action_failed": "Action failed for",
+    "torrent_placeholder": "Torrent",
+    "dismiss": "Dismiss"
   }
 }

@@ -53,6 +53,8 @@ pub fn revaer_app() -> Html {
     let api_key = use_state(load_api_key);
     let torrents = use_state(demo_rows);
     let dashboard = use_state(demo_snapshot);
+    let search = use_state(String::new);
+    let regex = use_state(|| false);
     let toasts = use_state(Vec::<Toast>::new);
     let toast_id = use_state(|| 0u64);
     let add_busy = use_state(|| false);
@@ -93,16 +95,8 @@ pub fn revaer_app() -> Html {
     }
     {
         let api_key = (*api_key).clone();
-        let torrents = torrents.clone();
         let dashboard = dashboard.clone();
         use_effect(move || {
-            let client = ApiClient::new(api_base_url(), api_key.clone());
-            yew::platform::spawn_local(async move {
-                match client.fetch_torrents().await {
-                    Ok(list) if !list.is_empty() => torrents.set(list),
-                    _ => torrents.set(demo_rows()),
-                }
-            });
             let dashboard_client = ApiClient::new(api_base_url(), api_key.clone());
             yew::platform::spawn_local(async move {
                 if let Ok(snapshot) = dashboard_client.fetch_dashboard().await {
@@ -115,6 +109,27 @@ pub fn revaer_app() -> Html {
     {
         let api_key = (*api_key).clone();
         let torrents = torrents.clone();
+        let search = (*search).clone();
+        let regex = *regex;
+        use_effect_with_deps(
+            move |_| {
+                let client = ApiClient::new(api_base_url(), api_key.clone());
+                yew::platform::spawn_local(async move {
+                    match client.fetch_torrents(Some(search.clone()), regex).await {
+                        Ok(list) if !list.is_empty() => torrents.set(list),
+                        _ => torrents.set(demo_rows()),
+                    }
+                });
+                || ()
+            },
+            (search.clone(), regex),
+        );
+    }
+    {
+        let api_key = (*api_key).clone();
+        let torrents = torrents.clone();
+        let search = (*search).clone();
+        let regex = *regex;
         let sse_handle = sse_handle.clone();
         let sse_state = sse_state.clone();
         let dashboard_state = dashboard.clone();
@@ -171,9 +186,11 @@ pub fn revaer_app() -> Html {
                         crate::models::SseEvent::TorrentAdded { .. } => {
                             let torrents = state_updater.clone();
                             let api_key = api_key.clone();
+                            let search = search.clone();
+                            let regex = regex;
                             yew::platform::spawn_local(async move {
                                 let client = ApiClient::new(api_base_url(), api_key.clone());
-                                if let Ok(list) = client.fetch_torrents().await {
+                                if let Ok(list) = client.fetch_torrents(Some(search), regex).await {
                                     torrents.set(list);
                                 }
                             });
@@ -317,6 +334,14 @@ pub fn revaer_app() -> Html {
         let density = density.clone();
         Callback::from(move |next: Density| density.set(next))
     };
+    let set_search = {
+        let search = search.clone();
+        Callback::from(move |value: String| search.set(value))
+    };
+    let toggle_regex = {
+        let regex = regex.clone();
+        Callback::from(move |_| regex.set(!*regex))
+    };
     let simulate_sse_drop = {
         let sse_state = sse_state.clone();
         Callback::from(move |_| {
@@ -349,12 +374,18 @@ pub fn revaer_app() -> Html {
         let toasts = toasts.clone();
         let toast_id = toast_id.clone();
         let add_busy = add_busy.clone();
+        let search = search.clone();
+        let regex = regex.clone();
+        let bundle = (*bundle).clone();
         Callback::from(move |input: AddTorrentInput| {
             let client = ApiClient::new(api_base_url(), (*api_key).clone());
             let torrents = torrents.clone();
             let toasts = toasts.clone();
             let toast_id = toast_id.clone();
             let add_busy = add_busy.clone();
+            let search = (*search).clone();
+            let regex = *regex;
+            let bundle = bundle.clone();
             add_busy.set(true);
             yew::platform::spawn_local(async move {
                 match client.add_torrent(input).await {
@@ -363,15 +394,15 @@ pub fn revaer_app() -> Html {
                             &toasts,
                             &toast_id,
                             ToastKind::Success,
-                            format!("Added {}", row.name),
+                            format!("{} {}", bundle.text("toast.add_success", ""), row.name),
                         );
-                        match client.fetch_torrents().await {
+                        match client.fetch_torrents(Some(search), regex).await {
                             Ok(list) => torrents.set(list),
                             Err(err) => push_toast(
                                 &toasts,
                                 &toast_id,
                                 ToastKind::Info,
-                                format!("Added, but refresh failed: {err}"),
+                                format!("{} {err}", bundle.text("toast.add_refresh_failed", "")),
                             ),
                         }
                     }
@@ -379,7 +410,7 @@ pub fn revaer_app() -> Html {
                         &toasts,
                         &toast_id,
                         ToastKind::Error,
-                        format!("Add failed: {err}"),
+                        format!("{} {err}", bundle.text("toast.add_failed", "")),
                     ),
                 }
                 add_busy.set(false);
@@ -391,17 +422,21 @@ pub fn revaer_app() -> Html {
         let torrents = torrents.clone();
         let toasts = toasts.clone();
         let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
         Callback::from(move |(action, id): (TorrentAction, String)| {
             let client = ApiClient::new(api_base_url(), (*api_key).clone());
             let torrents = torrents.clone();
             let toasts = toasts.clone();
             let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
             yew::platform::spawn_local(async move {
                 let display_name = (*torrents)
                     .iter()
                     .find(|row| row.id == id)
                     .map(|row| row.name.clone())
-                    .unwrap_or_else(|| format!("Torrent {id}"));
+                    .unwrap_or_else(|| {
+                        format!("{} {id}", bundle.text("toast.torrent_placeholder", ""))
+                    });
                 match client.perform_action(&id, action.clone()).await {
                     Ok(_) => {
                         if matches!(action, TorrentAction::Delete { .. }) {
@@ -417,14 +452,17 @@ pub fn revaer_app() -> Html {
                             &toasts,
                             &toast_id,
                             ToastKind::Success,
-                            success_message(&action, &display_name),
+                            success_message(&bundle, &action, &display_name),
                         );
                     }
                     Err(err) => push_toast(
                         &toasts,
                         &toast_id,
                         ToastKind::Error,
-                        format!("Action failed for {display_name}: {err}"),
+                        format!(
+                            "{} {display_name}: {err}",
+                            bundle.text("toast.action_failed", "")
+                        ),
                     ),
                 }
             });
@@ -452,63 +490,68 @@ pub fn revaer_app() -> Html {
     };
 
     html! {
-        <BrowserRouter>
-            <AppShell
-                theme={*theme}
-                on_toggle_theme={toggle_theme}
-                mode={*mode}
-                on_mode_change={set_mode}
-                active={current_route}
-                locale_selector={locale_selector}
-                nav={nav_labels}
-                breakpoint={*breakpoint}
-                sse_state={*sse_state}
-                on_sse_retry={simulate_sse_drop}
-                network_mode={"connected"}
-            >
-                <Switch<Route> render={move |route| {
-                    match route {
-                        Route::Dashboard => html! { <DashboardPanel snapshot={(*dashboard).clone()} mode={*mode} density={*density} /> },
-                        Route::Torrents | Route::Search => html! { <TorrentView torrents={(*torrents).clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={*add_busy} /> },
-                        Route::Jobs => html! { <Placeholder title="Jobs / Post-processing" body="Job states, watch folder errors, SSE updates" /> },
-                        Route::Settings => html! { <Placeholder title="Settings" body="Engine profile, paths, roles, remote mode" /> },
-                        Route::Logs => html! { <Placeholder title="Logs" body="Streaming event log with filters" /> },
-                        Route::NotFound => html! { <Placeholder title="Not found" body="Use the navigation to return to a supported view." /> },
+        <ContextProvider<TranslationBundle> context={(*bundle).clone()}>
+            <BrowserRouter>
+                <AppShell
+                    theme={*theme}
+                    on_toggle_theme={toggle_theme}
+                    mode={*mode}
+                    on_mode_change={set_mode}
+                    active={current_route}
+                    locale_selector={locale_selector}
+                    nav={nav_labels}
+                    breakpoint={*breakpoint}
+                    sse_state={*sse_state}
+                    on_sse_retry={simulate_sse_drop}
+                    network_mode={bundle.text("shell.network_connected", "")}
+                >
+                    <Switch<Route> render={move |route| {
+                        let bundle = (*bundle).clone();
+                        match route {
+                            Route::Dashboard => html! { <DashboardPanel snapshot={(*dashboard).clone()} mode={*mode} density={*density} /> },
+                            Route::Torrents | Route::Search => html! { <TorrentView torrents={(*torrents).clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={*add_busy} search={(*search).clone()} regex={*regex} on_search={set_search.clone()} on_toggle_regex={toggle_regex.clone()} /> },
+                            Route::Jobs => html! { <Placeholder title={bundle.text("placeholder.jobs_title", "")} body={bundle.text("placeholder.jobs_body", "")} /> },
+                            Route::Settings => html! { <Placeholder title={bundle.text("placeholder.settings_title", "")} body={bundle.text("placeholder.settings_body", "")} /> },
+                            Route::Logs => html! { <Placeholder title={bundle.text("placeholder.logs_title", "")} body={bundle.text("placeholder.logs_body", "")} /> },
+                            Route::NotFound => html! { <Placeholder title={bundle.text("placeholder.not_found_title", "")} body={bundle.text("placeholder.not_found_body", "")} /> },
+                        }
+                    }} />
+                </AppShell>
+                <ToastHost toasts={(*toasts).clone()} on_dismiss={dismiss_toast.clone()} />
+                <SseOverlay state={*sse_state} on_retry={clear_sse_overlay} network_mode={bundle.text("shell.network_remote", "")} />
+                {if api_key.is_none() {
+                    html! {
+                        <AuthPrompt
+                            require_key={true}
+                            allow_anonymous={ALLOW_ANON}
+                            on_submit={{
+                                let api_key = api_key.clone();
+                                Callback::from(move |value: Option<String>| {
+                                    if let Some(key) = value.clone() {
+                                        let _ = LocalStorage::set(API_KEY_KEY, &key);
+                                    }
+                                    api_key.set(value);
+                                })
+                            }}
+                        />
                     }
-                }} />
-            </AppShell>
-            <ToastHost toasts={(*toasts).clone()} on_dismiss={dismiss_toast.clone()} />
-            <SseOverlay state={*sse_state} on_retry={clear_sse_overlay} network_mode={"remote (API key)"} />
-            {if api_key.is_none() {
-                html! {
-                    <AuthPrompt
-                        require_key={true}
-                        allow_anonymous={ALLOW_ANON}
-                        on_submit={{
-                            let api_key = api_key.clone();
-                            Callback::from(move |value: Option<String>| {
-                                if let Some(key) = value.clone() {
-                                    let _ = LocalStorage::set(API_KEY_KEY, &key);
-                                }
-                                api_key.set(value);
-                            })
-                        }}
-                    />
-                }
-            } else {
-                html!{}
-            }}
-        </BrowserRouter>
+                } else {
+                    html!{}
+                }}
+            </BrowserRouter>
+        </ContextProvider<TranslationBundle>>
     }
 }
 
 #[function_component(Placeholder)]
 fn placeholder(props: &PlaceholderProps) -> Html {
+    let bundle = use_context::<TranslationBundle>()
+        .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
     html! {
         <div class="placeholder">
             <h2>{&props.title}</h2>
             <p class="muted">{&props.body}</p>
-            <div class="pill subtle">{"Mobile + desktop responsive layout ready."}</div>
+            <div class="pill subtle">{bundle.text("placeholder.badge", "")}</div>
         </div>
     }
 }
@@ -536,16 +579,20 @@ fn push_toast(
     toasts.set(list);
 }
 
-fn success_message(action: &TorrentAction, name: &str) -> String {
+fn success_message(
+    bundle: &crate::i18n::TranslationBundle,
+    action: &TorrentAction,
+    name: &str,
+) -> String {
     match action {
-        TorrentAction::Pause => format!("Paused {name}"),
-        TorrentAction::Resume => format!("Resumed {name}"),
-        TorrentAction::Recheck => format!("Rechecking {name}"),
+        TorrentAction::Pause => format!("{} {name}", bundle.text("toast.pause", "")),
+        TorrentAction::Resume => format!("{} {name}", bundle.text("toast.resume", "")),
+        TorrentAction::Recheck => format!("{} {name}", bundle.text("toast.recheck", "")),
         TorrentAction::Delete { with_data } => {
             if *with_data {
-                format!("Removed {name} and deleted data")
+                format!("{} {name}", bundle.text("toast.delete_data", ""))
             } else {
-                format!("Removed {name}")
+                format!("{} {name}", bundle.text("toast.delete", ""))
             }
         }
     }
@@ -651,8 +698,49 @@ fn update_progress(
     download_bps: u64,
     upload_bps: u64,
 ) -> Vec<crate::components::torrents::TorrentRow> {
-    state
-        .iter()
+    apply_progress(
+        &(*state),
+        id,
+        progress,
+        eta_seconds,
+        download_bps,
+        upload_bps,
+    )
+}
+
+fn update_rates(
+    state: &UseStateHandle<Vec<crate::components::torrents::TorrentRow>>,
+    id: String,
+    download_bps: u64,
+    upload_bps: u64,
+) -> Vec<crate::components::torrents::TorrentRow> {
+    apply_rates(&(*state), id, download_bps, upload_bps)
+}
+
+fn update_status(
+    state: &UseStateHandle<Vec<crate::components::torrents::TorrentRow>>,
+    id: String,
+    status: String,
+) -> Vec<crate::components::torrents::TorrentRow> {
+    apply_status(&(*state), id, status)
+}
+
+fn remove_torrent(
+    state: &UseStateHandle<Vec<crate::components::torrents::TorrentRow>>,
+    id: String,
+) -> Vec<crate::components::torrents::TorrentRow> {
+    apply_remove(&(*state), id)
+}
+
+fn apply_progress(
+    rows: &[crate::components::torrents::TorrentRow],
+    id: String,
+    progress: f32,
+    eta_seconds: Option<u64>,
+    download_bps: u64,
+    upload_bps: u64,
+) -> Vec<crate::components::torrents::TorrentRow> {
+    rows.iter()
         .cloned()
         .map(|mut row| {
             if row.id == id {
@@ -672,14 +760,13 @@ fn update_progress(
         .collect()
 }
 
-fn update_rates(
-    state: &UseStateHandle<Vec<crate::components::torrents::TorrentRow>>,
+fn apply_rates(
+    rows: &[crate::components::torrents::TorrentRow],
     id: String,
     download_bps: u64,
     upload_bps: u64,
 ) -> Vec<crate::components::torrents::TorrentRow> {
-    state
-        .iter()
+    rows.iter()
         .cloned()
         .map(|mut row| {
             if row.id == id {
@@ -691,13 +778,12 @@ fn update_rates(
         .collect()
 }
 
-fn update_status(
-    state: &UseStateHandle<Vec<crate::components::torrents::TorrentRow>>,
+fn apply_status(
+    rows: &[crate::components::torrents::TorrentRow],
     id: String,
     status: String,
 ) -> Vec<crate::components::torrents::TorrentRow> {
-    state
-        .iter()
+    rows.iter()
         .cloned()
         .map(|mut row| {
             if row.id == id {
@@ -708,11 +794,97 @@ fn update_status(
         .collect()
 }
 
-fn remove_torrent(
-    state: &UseStateHandle<Vec<crate::components::torrents::TorrentRow>>,
+fn apply_remove(
+    rows: &[crate::components::torrents::TorrentRow],
     id: String,
 ) -> Vec<crate::components::torrents::TorrentRow> {
-    state.iter().cloned().filter(|row| row.id != id).collect()
+    rows.iter().cloned().filter(|row| row.id != id).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::components::torrents::{TorrentAction, TorrentRow};
+
+    fn sample_rows() -> Vec<TorrentRow> {
+        vec![
+            TorrentRow {
+                id: "1".into(),
+                name: "alpha".into(),
+                status: "downloading".into(),
+                progress: 0.1,
+                eta: Some("10s".into()),
+                ratio: 0.0,
+                tags: vec![],
+                tracker: "t1".into(),
+                path: "/data/a".into(),
+                category: "tv".into(),
+                size_gb: 1.0,
+                upload_bps: 0,
+                download_bps: 0,
+            },
+            TorrentRow {
+                id: "2".into(),
+                name: "beta".into(),
+                status: "paused".into(),
+                progress: 0.5,
+                eta: None,
+                ratio: 0.0,
+                tags: vec![],
+                tracker: "t2".into(),
+                path: "/data/b".into(),
+                category: "movies".into(),
+                size_gb: 2.0,
+                upload_bps: 0,
+                download_bps: 0,
+            },
+        ]
+    }
+
+    #[test]
+    fn progress_updates_fields() {
+        let updated = apply_progress(&sample_rows(), "1".into(), 0.25, Some(5), 10, 20);
+        let first = updated.iter().find(|r| r.id == "1").unwrap();
+        assert_eq!(first.progress, 0.25);
+        assert_eq!(first.eta.as_deref(), Some("5s"));
+        assert_eq!(first.download_bps, 10);
+        assert_eq!(first.upload_bps, 20);
+    }
+
+    #[test]
+    fn rates_update_only_target() {
+        let updated = apply_rates(&sample_rows(), "2".into(), 5, 9);
+        let second = updated.iter().find(|r| r.id == "2").unwrap();
+        assert_eq!(second.download_bps, 5);
+        assert_eq!(second.upload_bps, 9);
+        let first = updated.iter().find(|r| r.id == "1").unwrap();
+        assert_eq!(first.download_bps, 0);
+    }
+
+    #[test]
+    fn status_and_remove_work() {
+        let status = apply_status(&sample_rows(), "2".into(), "checking".into());
+        assert_eq!(
+            status.iter().find(|r| r.id == "2").unwrap().status,
+            "checking"
+        );
+        let removed = apply_remove(&status, "1".into());
+        assert_eq!(removed.len(), 1);
+        assert!(removed.iter().all(|r| r.id == "2"));
+    }
+
+    #[test]
+    fn success_messages_are_localised() {
+        let bundle = crate::i18n::TranslationBundle::new(DEFAULT_LOCALE);
+        assert!(
+            success_message(&bundle, &TorrentAction::Pause, "alpha")
+                .starts_with(&bundle.text("toast.pause", ""))
+        );
+        assert!(
+            success_message(&bundle, &TorrentAction::Delete { with_data: true }, "alpha")
+                .contains(&bundle.text("toast.delete_data", ""))
+        );
+    }
 }
 
 fn update_system_rates(

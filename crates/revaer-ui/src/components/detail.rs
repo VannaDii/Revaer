@@ -1,4 +1,5 @@
 use crate::Pane;
+use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use yew::prelude::*;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -63,12 +64,15 @@ pub struct DetailProps {
 
 #[function_component(DetailView)]
 pub fn detail_view(props: &DetailProps) -> Html {
+    let bundle = use_context::<TranslationBundle>()
+        .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
+    let t = |key: &str| bundle.text(key, "");
     let active = use_state(|| Pane::Files);
     let Some(detail) = props.data.clone() else {
         return html! {
             <section class="detail-panel placeholder">
-                <h3>{"Select a torrent"}</h3>
-                <p class="muted">{"Open a torrent to view files, peers, trackers, and metadata."}</p>
+                <h3>{t("detail.select_title")}</h3>
+                <p class="muted">{t("detail.select_body")}</p>
             </section>
         };
     };
@@ -77,12 +81,18 @@ pub fn detail_view(props: &DetailProps) -> Html {
         <section class="detail-panel">
             <header class="detail-header">
                 <div>
-                    <small class="muted">{"Detail view"}</small>
+                    <small class="muted">{t("detail.view_label")}</small>
                     <h3>{detail.name}</h3>
                 </div>
                 <div class="pane-tabs mobile-only">
                     {for [Pane::Files, Pane::Peers, Pane::Trackers, Pane::Log, Pane::Info].iter().map(|pane| {
-                        let label = pane_label(*pane);
+                        let label = match pane {
+                            Pane::Files => t("detail.tab.files"),
+                            Pane::Peers => t("detail.tab.peers"),
+                            Pane::Trackers => t("detail.tab.trackers"),
+                            Pane::Log => t("detail.tab.log"),
+                            Pane::Info => t("detail.tab.info"),
+                        };
                         let active_state = *active == *pane;
                         let onclick = {
                             let active = active.clone();
@@ -99,18 +109,18 @@ pub fn detail_view(props: &DetailProps) -> Html {
             <div class="detail-grid">
                 <section class={pane_classes(Pane::Files, *active)} data-pane="files">
                     <header>
-                        <h4>{"Files"}</h4>
-                        <p class="muted">{"Per-file priority + wanted/unwanted toggles. Accordion on mobile."}</p>
+                        <h4>{t("detail.files.title")}</h4>
+                        <p class="muted">{t("detail.files.body")}</p>
                     </header>
                     <div class="file-tree">
-                        {for detail.files.iter().map(|node| render_file(node, 0))}
+                        {let wanted_label = t("detail.files.wanted"); for detail.files.iter().map(|node| render_file(node, 0, &wanted_label))}
                     </div>
                 </section>
 
                 <section class={pane_classes(Pane::Peers, *active)} data-pane="peers">
                     <header>
-                        <h4>{"Peers"}</h4>
-                        <p class="muted">{"Sortable by speed/progress; shows flags + country where available."}</p>
+                        <h4>{t("detail.peers.title")}</h4>
+                        <p class="muted">{t("detail.peers.body")}</p>
                     </header>
                     <div class="table-like">
                         {for detail.peers.iter().map(|peer| html! {
@@ -121,9 +131,9 @@ pub fn detail_view(props: &DetailProps) -> Html {
                                 </div>
                                 <div class="pill subtle">{peer.flags}</div>
                                 <div class="pill subtle">{peer.country}</div>
-                                <div class="stat"><small>{"Down"}</small><strong>{format_rate(peer.download_bps)}</strong></div>
-                                <div class="stat"><small>{"Up"}</small><strong>{format_rate(peer.upload_bps)}</strong></div>
-                                <div class="stat"><small>{"Prog"}</small><strong>{format!("{:.0}%", peer.progress * 100.0)}</strong></div>
+                                <div class="stat"><small>{t("detail.peers.down")}</small><strong>{format_rate(peer.download_bps)}</strong></div>
+                                <div class="stat"><small>{t("detail.peers.up")}</small><strong>{format_rate(peer.upload_bps)}</strong></div>
+                                <div class="stat"><small>{t("detail.peers.progress")}</small><strong>{format!("{:.0}%", peer.progress * 100.0)}</strong></div>
                             </div>
                         })}
                     </div>
@@ -131,8 +141,8 @@ pub fn detail_view(props: &DetailProps) -> Html {
 
                 <section class={pane_classes(Pane::Trackers, *active)} data-pane="trackers">
                     <header>
-                        <h4>{"Trackers"}</h4>
-                        <p class="muted">{"Status, next announce, and errors with warning badges."}</p>
+                        <h4>{t("detail.trackers.title")}</h4>
+                        <p class="muted">{t("detail.trackers.body")}</p>
                     </header>
                     <div class="table-like">
                         {for detail.trackers.iter().map(|tracker| html! {
@@ -154,8 +164,8 @@ pub fn detail_view(props: &DetailProps) -> Html {
 
                 <section class={pane_classes(Pane::Log, *active)} data-pane="log">
                     <header>
-                        <h4>{"Event Log"}</h4>
-                        <p class="muted">{"Warnings, tracker issues, state transitions."}</p>
+                        <h4>{t("detail.log.title")}</h4>
+                        <p class="muted">{t("detail.log.body")}</p>
                     </header>
                     <ul class="event-log">
                         {for detail.events.iter().map(|entry| html! {
@@ -170,15 +180,15 @@ pub fn detail_view(props: &DetailProps) -> Html {
 
                 <section class={pane_classes(Pane::Info, *active)} data-pane="info">
                     <header>
-                        <h4>{"Metadata"}</h4>
-                        <p class="muted">{"Hash, magnet, size, piece count, piece size."}</p>
+                        <h4>{t("detail.info.title")}</h4>
+                        <p class="muted">{t("detail.info.body")}</p>
                     </header>
                     <dl class="metadata">
-                        <div><dt>{"Hash"}</dt><dd>{detail.metadata.hash}</dd></div>
-                        <div><dt>{"Magnet"}</dt><dd class="truncate">{detail.metadata.magnet}</dd></div>
-                        <div><dt>{"Size"}</dt><dd>{format!("{:.2} GB", detail.metadata.size_gb)}</dd></div>
-                        <div><dt>{"Pieces"}</dt><dd>{detail.metadata.piece_count}</dd></div>
-                        <div><dt>{"Piece size"}</dt><dd>{format!("{} MB", detail.metadata.piece_size_mb)}</dd></div>
+                        <div><dt>{t("detail.info.hash")}</dt><dd>{detail.metadata.hash}</dd></div>
+                        <div><dt>{t("detail.info.magnet")}</dt><dd class="truncate">{detail.metadata.magnet}</dd></div>
+                        <div><dt>{t("detail.info.size")}</dt><dd>{format!("{:.2} GB", detail.metadata.size_gb)}</dd></div>
+                        <div><dt>{t("detail.info.pieces")}</dt><dd>{detail.metadata.piece_count}</dd></div>
+                        <div><dt>{t("detail.info.piece_size")}</dt><dd>{format!("{} MB", detail.metadata.piece_size_mb)}</dd></div>
                     </dl>
                 </section>
             </div>
@@ -193,16 +203,6 @@ fn pane_classes(pane: Pane, active: Pane) -> Classes {
     )
 }
 
-fn pane_label(pane: Pane) -> &'static str {
-    match pane {
-        Pane::Files => "Files",
-        Pane::Peers => "Peers",
-        Pane::Trackers => "Trackers",
-        Pane::Log => "Log",
-        Pane::Info => "Info",
-    }
-}
-
 fn log_level(level: &str) -> &'static str {
     match level {
         "warn" => "warn",
@@ -211,7 +211,7 @@ fn log_level(level: &str) -> &'static str {
     }
 }
 
-fn render_file(node: &FileNode, depth: usize) -> Html {
+fn render_file(node: &FileNode, depth: usize, wanted_label: &str) -> Html {
     let indent = depth * 12;
     let has_children = !node.children.is_empty();
     let summary = html! {
@@ -228,7 +228,7 @@ fn render_file(node: &FileNode, depth: usize) -> Html {
             <div class="file-actions">
                 <span class="pill subtle">{node.priority}</span>
                 <label class="switch">
-                    <input type="checkbox" checked={node.wanted} aria-label="Wanted" />
+                    <input type="checkbox" checked={node.wanted} aria-label={wanted_label} />
                     <span class="slider"></span>
                 </label>
             </div>
@@ -240,7 +240,7 @@ fn render_file(node: &FileNode, depth: usize) -> Html {
             <details open={depth == 0}>
                 <summary>{summary}</summary>
                 <div class="file-children">
-                    {for node.children.iter().map(|child| render_file(child, depth + 1))}
+                    {for node.children.iter().map(|child| render_file(child, depth + 1, wanted_label))}
                 </div>
             </details>
         }

@@ -1,3 +1,4 @@
+use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::{Density, UiMode};
 use yew::prelude::*;
 
@@ -69,6 +70,9 @@ pub struct DashboardProps {
 
 #[function_component(DashboardPanel)]
 pub fn dashboard_panel(props: &DashboardProps) -> Html {
+    let bundle = use_context::<TranslationBundle>()
+        .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
+    let t = |key: &str| bundle.text(key, "");
     let density_class = match props.density {
         Density::Compact => "density-compact",
         Density::Normal => "density-normal",
@@ -82,27 +86,27 @@ pub fn dashboard_panel(props: &DashboardProps) -> Html {
     html! {
         <section class={classes!("dashboard-grid", density_class, mode_class)}>
             <div class="tile metric">
-                <header><span>{"Global Speeds"}</span><span class="pill live">{"SSE live"}</span></header>
+                <header><span>{t("dashboard.speeds")}</span><span class="pill live">{t("dashboard.live")}</span></header>
                 <div class="metric-row">
-                    <div><small>{"Down"}</small><strong>{format_rate(props.snapshot.download_bps)}</strong></div>
-                    <div><small>{"Up"}</small><strong>{format_rate(props.snapshot.upload_bps)}</strong></div>
+                    <div><small>{t("dashboard.down")}</small><strong>{format_rate(props.snapshot.download_bps)}</strong></div>
+                    <div><small>{t("dashboard.up")}</small><strong>{format_rate(props.snapshot.upload_bps)}</strong></div>
                 </div>
-                <p class="muted">{"Sub-second updates with backoff on mobile and constrained networks."}</p>
+                <p class="muted">{t("dashboard.speeds_subtext")}</p>
             </div>
             <div class="tile stats">
-                <header><span>{"Torrents"}</span><span class="muted">{"Active / Paused / Completed"}</span></header>
+                <header><span>{t("dashboard.torrents")}</span><span class="muted">{t("dashboard.torrents_sub")}</span></header>
                 <div class="stat-row">
-                    <div><strong>{props.snapshot.active}</strong><small>{"Active"}</small></div>
-                    <div><strong>{props.snapshot.paused}</strong><small>{"Paused"}</small></div>
-                    <div><strong>{props.snapshot.completed}</strong><small>{"Completed"}</small></div>
+                    <div><strong>{props.snapshot.active}</strong><small>{t("dashboard.active")}</small></div>
+                    <div><strong>{props.snapshot.paused}</strong><small>{t("dashboard.paused")}</small></div>
+                    <div><strong>{props.snapshot.completed}</strong><small>{t("dashboard.completed")}</small></div>
                 </div>
             </div>
             <div class="tile stats">
-                <header><span>{"Disk Usage"}</span><span class="muted">{"Global + per path"}</span></header>
+                <header><span>{t("dashboard.disk")}</span><span class="muted">{t("dashboard.disk_sub")}</span></header>
                 <div class="stat-row">
                     <div>
                         <strong>{format!("{} / {} GB", props.snapshot.disk_used_gb, props.snapshot.disk_total_gb)}</strong>
-                        <small>{"Total"}</small>
+                        <small>{t("dashboard.total")}</small>
                     </div>
                 </div>
                 <ul class="path-usage">
@@ -115,31 +119,31 @@ pub fn dashboard_panel(props: &DashboardProps) -> Html {
                 </ul>
             </div>
             <div class="tile stats">
-                <header><span>{"Tracker Health"}</span><span class="muted">{"Aggregated"}</span></header>
+                <header><span>{t("dashboard.tracker_health")}</span><span class="muted">{t("dashboard.tracker_sub")}</span></header>
                 <div class="stat-row">
-                    <div><strong class="ok">{props.snapshot.tracker_health.ok}</strong><small>{"OK"}</small></div>
-                    <div><strong class="warn">{props.snapshot.tracker_health.warn}</strong><small>{"Warn"}</small></div>
-                    <div><strong class="error">{props.snapshot.tracker_health.error}</strong><small>{"Error"}</small></div>
+                    <div><strong class="ok">{props.snapshot.tracker_health.ok}</strong><small>{t("dashboard.ok")}</small></div>
+                    <div><strong class="warn">{props.snapshot.tracker_health.warn}</strong><small>{t("dashboard.warn")}</small></div>
+                    <div><strong class="error">{props.snapshot.tracker_health.error}</strong><small>{t("dashboard.error")}</small></div>
                 </div>
-                <p class="muted">{"Failures surface in the event log with next announce timestamps."}</p>
+                <p class="muted">{t("dashboard.tracker_help")}</p>
             </div>
             <div class="tile stats">
-                <header><span>{"Queue"}</span><span class="muted">{"Depth and paused counts"}</span></header>
+                <header><span>{t("dashboard.queue")}</span><span class="muted">{t("dashboard.queue_sub")}</span></header>
                 <div class="stat-row">
-                    <div><strong>{props.snapshot.queue.active}</strong><small>{"Active"}</small></div>
-                    <div><strong>{props.snapshot.queue.queued}</strong><small>{"Queued"}</small></div>
-                    <div><strong>{props.snapshot.queue.depth}</strong><small>{"Depth"}</small></div>
+                    <div><strong>{props.snapshot.queue.active}</strong><small>{t("dashboard.active")}</small></div>
+                    <div><strong>{props.snapshot.queue.queued}</strong><small>{t("dashboard.queued")}</small></div>
+                    <div><strong>{props.snapshot.queue.depth}</strong><small>{t("dashboard.depth")}</small></div>
                 </div>
             </div>
             <div class="tile stats">
-                <header><span>{"VPN Status"}</span><span class="muted">{props.snapshot.vpn.last_change}</span></header>
+                <header><span>{t("dashboard.vpn")}</span><span class="muted">{props.snapshot.vpn.last_change}</span></header>
                 <div class="stat-row">
-                    <div><strong>{props.snapshot.vpn.state}</strong><small>{"State"}</small></div>
-                    <div><strong>{props.snapshot.vpn.message}</strong><small>{"Message"}</small></div>
+                    <div><strong>{props.snapshot.vpn.state}</strong><small>{t("dashboard.vpn_state")}</small></div>
+                    <div><strong>{props.snapshot.vpn.message}</strong><small>{t("dashboard.vpn_message")}</small></div>
                 </div>
             </div>
             <div class="tile events">
-                <header><span>{"Recent Events"}</span><span class="muted">{"Warnings and tracker issues"}</span></header>
+                <header><span>{t("dashboard.events")}</span><span class="muted">{t("dashboard.events_sub")}</span></header>
                 <ul>
                     {for props.snapshot.recent_events.iter().map(|event| {
                         let badge = match event.kind {
@@ -149,7 +153,11 @@ pub fn dashboard_panel(props: &DashboardProps) -> Html {
                         };
                         html! {
                             <li>
-                                <span class={badge}>{format!("{:?}", event.kind)}</span>
+                                <span class={badge}>{match event.kind {
+                                    EventKind::Info => t("dashboard.event_info"),
+                                    EventKind::Warning => t("dashboard.event_warn"),
+                                    EventKind::Error => t("dashboard.event_error"),
+                                }}</span>
                                 <div>
                                     <strong>{event.label}</strong>
                                     <p class="muted">{event.detail}</p>

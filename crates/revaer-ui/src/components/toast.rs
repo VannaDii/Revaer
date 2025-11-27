@@ -1,3 +1,4 @@
+use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use gloo::timers::callback::Timeout;
 use yew::prelude::*;
 
@@ -23,6 +24,9 @@ pub struct ToastHostProps {
 
 #[function_component(ToastHost)]
 pub fn toast_host(props: &ToastHostProps) -> Html {
+    let bundle = use_context::<TranslationBundle>()
+        .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
+    let t = |key: &str| bundle.text(key, "");
     {
         let toasts = props.toasts.clone();
         let on_dismiss = props.on_dismiss.clone();
@@ -42,12 +46,12 @@ pub fn toast_host(props: &ToastHostProps) -> Html {
 
     html! {
         <div class="toast-host" aria-live="polite" aria-atomic="true">
-            {for props.toasts.iter().map(|toast| render_toast(toast, props.on_dismiss.clone()))}
+            {for props.toasts.iter().map(|toast| render_toast(toast, props.on_dismiss.clone(), t("toast.dismiss")))}
         </div>
     }
 }
 
-fn render_toast(toast: &Toast, on_dismiss: Callback<u64>) -> Html {
+fn render_toast(toast: &Toast, on_dismiss: Callback<u64>, dismiss_label: String) -> Html {
     let class = match toast.kind {
         ToastKind::Info => "info",
         ToastKind::Success => "success",
@@ -62,7 +66,7 @@ fn render_toast(toast: &Toast, on_dismiss: Callback<u64>) -> Html {
     html! {
         <div class={classes!("toast", class)} role="status">
             <span>{toast.message.clone()}</span>
-            <button class="ghost" aria-label="Dismiss" onclick={on_close}>{"✕"}</button>
+            <button class="ghost" aria-label={dismiss_label.clone()} onclick={on_close}>{"✕"}</button>
         </div>
     }
 }

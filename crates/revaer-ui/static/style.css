@@ -222,6 +222,12 @@ a {
   gap: 8px;
 }
 
+.toolbar .search .ghost.active {
+  background: var(--primary-50);
+  border: 1px solid var(--primary-200);
+  color: var(--primary-700);
+}
+
 .toolbar input {
   flex: 1;
   padding: 10px 12px;

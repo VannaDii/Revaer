@@ -1,3 +1,4 @@
+use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
@@ -9,6 +10,9 @@ pub struct AuthPromptProps {
 
 #[function_component(AuthPrompt)]
 pub fn auth_prompt(props: &AuthPromptProps) -> Html {
+    let bundle = use_context::<TranslationBundle>()
+        .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
+    let t = |key: &str| bundle.text(key, "");
     let api_key = use_state(String::new);
     let error = use_state(|| None as Option<String>);
 
@@ -18,7 +22,7 @@ pub fn auth_prompt(props: &AuthPromptProps) -> Html {
         let on_submit = props.on_submit.clone();
         Callback::from(move |_| {
             if api_key.is_empty() && props.require_key && !props.allow_anonymous {
-                error.set(Some("API key required for remote mode".to_string()));
+                error.set(Some(t("auth.error_required")));
                 return;
             }
             error.set(None);
@@ -44,17 +48,17 @@ pub fn auth_prompt(props: &AuthPromptProps) -> Html {
         <div class="auth-overlay" role="dialog" aria-modal="true">
             <div class="card">
                 <header>
-                    <h3>{"API access required"}</h3>
+                    <h3>{t("auth.title")}</h3>
                 </header>
                 <p class="muted">
-                    {"Enter your API key to connect. Remote mode always requires a key; LAN mode may allow anonymous if enabled by the backend."}
+                    {t("auth.body")}
                 </p>
                 <label class="stack">
-                    <span>{"API Key"}</span>
-                    <input type="password" placeholder="revaer_api_key" onchange={on_input} />
+                    <span>{t("auth.label")}</span>
+                    <input type="password" placeholder={t("auth.placeholder")} onchange={on_input} />
                 </label>
                 {if props.allow_anonymous {
-                    html! { <p class="muted">{"LAN mode detected: leave blank to continue anonymously."}</p> }
+                    html! { <p class="muted">{t("auth.allow_anon")}</p> }
                 } else { html!{} }}
                 {if let Some(err) = &*error {
                     html! { <p class="error-text">{err}</p> }
@@ -63,8 +67,8 @@ pub fn auth_prompt(props: &AuthPromptProps) -> Html {
                     <button class="ghost" onclick={{
                         let on_submit = props.on_submit.clone();
                         Callback::from(move |_| on_submit.emit(None))
-                    }}>{"Use anonymous (if allowed)"}</button>
-                    <button class="solid" onclick={submit}>{"Continue"}</button>
+                    }}>{t("auth.use_anon")}</button>
+                    <button class="solid" onclick={submit}>{t("auth.submit")}</button>
                 </div>
             </div>
         </div>

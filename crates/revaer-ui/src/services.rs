@@ -61,8 +61,22 @@ impl ApiClient {
         }
     }
 
-    pub async fn fetch_torrents(&self) -> anyhow::Result<Vec<TorrentRow>> {
-        let data: Vec<TorrentSummary> = self.get_json("/v1/torrents").await?;
+    pub async fn fetch_torrents(
+        &self,
+        search: Option<String>,
+        regex: bool,
+    ) -> anyhow::Result<Vec<TorrentRow>> {
+        let mut path = "/v1/torrents".to_string();
+        if search.as_ref().map(|s| !s.is_empty()).unwrap_or(false) {
+            let query = urlencoding::encode(search.as_ref().unwrap());
+            path = format!(
+                "/v1/torrents?search={query}{}",
+                if regex { "&regex=true" } else { "" }
+            );
+        } else if regex {
+            path = "/v1/torrents?regex=true".to_string();
+        }
+        let data: Vec<TorrentSummary> = self.get_json(&path).await?;
         Ok(data.into_iter().map(TorrentRow::from).collect())
     }
 

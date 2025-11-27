@@ -1,3 +1,4 @@
+use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use yew::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -19,6 +20,9 @@ pub struct SseProps {
 
 #[function_component(SseOverlay)]
 pub fn sse_overlay(props: &SseProps) -> Html {
+    let bundle = use_context::<TranslationBundle>()
+        .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
+    let t = |key: &str| bundle.text(key, "");
     if props.state == SseState::Connected {
         return html! {};
     }
@@ -41,18 +45,18 @@ pub fn sse_overlay(props: &SseProps) -> Html {
         <div class="sse-overlay" role="status" aria-live="polite">
             <div class="card">
                 <header>
-                    <strong>{"SSE disconnected"}</strong>
+                    <strong>{t("sse.title")}</strong>
                     <span class="pill warn">{props.network_mode}</span>
                 </header>
-                <p>{"Reconnecting with exponential backoff and jitter."}</p>
+                <p>{t("sse.body")}</p>
                 <ul>
-                    <li>{format!("Next retry in {}s", retry_in_secs)}</li>
-                    <li>{format!("Last event {}", last_event)}</li>
-                    <li>{format!("Reason: {}", reason)}</li>
+                    <li>{format!("{} {}", t("sse.next_retry"), format!("{retry_in_secs}s"))}</li>
+                    <li>{format!("{} {}", t("sse.last_event"), last_event)}</li>
+                    <li>{format!("{} {}", t("sse.reason"), reason)}</li>
                 </ul>
                 <div class="actions">
-                    <button class="ghost" onclick={retry_now}>{"Retry now"}</button>
-                    <button class="solid" onclick={retry_now}>{"Dismiss overlay"}</button>
+                    <button class="ghost" onclick={retry_now}>{t("sse.retry")}</button>
+                    <button class="solid" onclick={retry_now}>{t("sse.dismiss")}</button>
                 </div>
             </div>
         </div>
@@ -66,10 +70,13 @@ pub struct SseBadgeProps {
 
 #[function_component(SseBadge)]
 pub fn sse_badge(props: &SseBadgeProps) -> Html {
+    let bundle = use_context::<TranslationBundle>()
+        .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
+    let t = |key: &str| bundle.text(key, "");
     match props.state {
-        SseState::Connected => html! { <span class="pill live">{"SSE"}</span> },
+        SseState::Connected => html! { <span class="pill live">{t("sse.badge")}</span> },
         SseState::Reconnecting { retry_in_secs, .. } => html! {
-            <span class="pill warn">{format!("SSE reconnecting ({retry_in_secs}s)")}</span>
+            <span class="pill warn">{format!("{} ({retry_in_secs}s)", t("sse.badge_reconnecting"))}</span>
         },
     }
 }

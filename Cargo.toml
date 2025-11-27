@@ -52,4 +52,3 @@ jsonschema = { version = "0.33", default-features = false }
 revaer-test-support = { path = "crates/revaer-test-support" }
 
 [workspace.metadata.cargo-llvm-cov]
-exclude = ["revaer-ui"]
