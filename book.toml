@@ -7,7 +7,6 @@ src = "docs"
 [output.html]
 default-theme = "rust"
 preferred-dark-theme = "coal"
-copy-fonts = true
 no-section-label = true
 git-repository-url = "https://github.com/VannaDii/revaer"
 additional-js = ["scripts/mermaid.min.js", "scripts/mermaid-init.js"]

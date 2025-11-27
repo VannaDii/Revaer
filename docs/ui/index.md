@@ -48,7 +48,7 @@ Live sync: SSE streams torrent progress/rates/state plus added/removed events to
 - WCAG 2.1 AA: semantic markup, focus-visible rings, high-contrast dark mode, 40px touch targets on mobile, focus traps for drawers/modals.
 - Keyboard shortcuts (wired in demo UI): `/` search focus, `j/k` row move, `space` pause/resume, `delete` delete, `shift+delete` delete+data, `p` recheck. Selected row highlights; actions surface in a status banner.
 - Screen-reader flow follows DOM order (mobile collapse must not break navigation).
-- Confirmations: delete (“Remove torrent ‘<name>’? Files remain on disk”), delete+data (“Remove torrent and delete data? This cannot be undone.”), recheck prompt.
+- Confirmations: delete (“Remove torrent ‘&lt;name&gt;’? Files remain on disk”), delete+data (“Remove torrent and delete data? This cannot be undone.”), recheck prompt.
 - Mobile action bar: sticky bottom row for Pause/Resume/Delete/More on xs/sm; desktop retains row actions in-table.
 - SSE downtime overlay: shows last event timestamp, retry countdown (1s→30s with jitter), reason, and retry button; badge reflects reconnect state in top bar.
 
