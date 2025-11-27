@@ -21,3 +21,7 @@ just docs
 ```
 
 This builds the mdBook site and refreshes the LLM manifests that power the documentation search experience.
+
+## LLM Manifests
+
+For ChatGPT and other LLM-based tooling, see the [LLM Integration](llm/index.md) page for links and descriptions of the published JSON manifests used by the documentation search experience.

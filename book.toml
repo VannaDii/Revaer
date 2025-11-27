@@ -1,6 +1,6 @@
 [book]
 title = "Revaer Documentation"
-author = "Revaer Contributors"
+authors = ["Revaer Contributors"]
 language = "en"
 src = "docs"
 multilingual = false

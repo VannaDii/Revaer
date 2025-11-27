@@ -6,6 +6,10 @@
 - [Runbook](runbook.md)
 - [Release Checklist](release-checklist.md)
 
+## LLM Manifests
+
+- [LLM Integration](llm/index.md)
+
 ## Web UI
 
 - [Web UI - Phase 1](ui/index.md)
