@@ -491,6 +491,57 @@ pub fn revaer_app() -> Html {
             });
         })
     };
+    let on_bulk_action = {
+        let api_key = api_key.clone();
+        let torrents = torrents.clone();
+        let toasts = toasts.clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
+        Callback::from(move |(action, ids): (TorrentAction, Vec<String>)| {
+            let client = ApiClient::new(api_base_url(), (*api_key).clone());
+            let torrents = torrents.clone();
+            let toasts = toasts.clone();
+            let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
+            yew::platform::spawn_local(async move {
+                for id in ids.clone() {
+                    let display_name = (*torrents)
+                        .iter()
+                        .find(|row| row.id == id)
+                        .map(|row| row.name.clone())
+                        .unwrap_or_else(|| {
+                            format!("{} {id}", bundle.text("toast.torrent_placeholder", ""))
+                        });
+                    if let Err(err) = client.perform_action(&id, action.clone()).await {
+                        push_toast(
+                            &toasts,
+                            &toast_id,
+                            ToastKind::Error,
+                            format!(
+                                "{} {display_name}: {err}",
+                                bundle.text("toast.action_failed", "")
+                            ),
+                        );
+                    }
+                }
+                if matches!(action, TorrentAction::Delete { .. }) {
+                    torrents.set(
+                        torrents
+                            .iter()
+                            .cloned()
+                            .filter(|row| !ids.contains(&row.id))
+                            .collect(),
+                    );
+                }
+                push_toast(
+                    &toasts,
+                    &toast_id,
+                    ToastKind::Success,
+                    format!("{} {}", bundle.text("toast.bulk_done", ""), ids.len()),
+                );
+            });
+        })
+    };
 
     let locale_selector = {
         let locale = locale.clone();
@@ -532,7 +583,7 @@ pub fn revaer_app() -> Html {
                         let bundle = (*bundle).clone();
                         match route {
                             Route::Dashboard => html! { <DashboardPanel snapshot={(*dashboard).clone()} mode={*mode} density={*density} /> },
-                            Route::Torrents | Route::Search => html! { <TorrentView breakpoint={*breakpoint} torrents={(*torrents).clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={*add_busy} search={(*search).clone()} regex={*regex} on_search={set_search.clone()} on_toggle_regex={toggle_regex.clone()} /> },
+                            Route::Torrents | Route::Search => html! { <TorrentView base_url={api_base_url()} api_key={(*api_key).clone()} breakpoint={*breakpoint} torrents={(*torrents).clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_bulk_action={on_bulk_action.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={*add_busy} search={(*search).clone()} regex={*regex} on_search={set_search.clone()} on_toggle_regex={toggle_regex.clone()} /> },
                             Route::Jobs => html! { <Placeholder title={bundle.text("placeholder.jobs_title", "")} body={bundle.text("placeholder.jobs_body", "")} /> },
                             Route::Settings => html! { <Placeholder title={bundle.text("placeholder.settings_title", "")} body={bundle.text("placeholder.settings_body", "")} /> },
                             Route::Logs => html! { <Placeholder title={bundle.text("placeholder.logs_title", "")} body={bundle.text("placeholder.logs_body", "")} /> },

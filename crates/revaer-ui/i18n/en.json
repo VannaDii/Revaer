@@ -30,6 +30,7 @@
     "recheck": "Recheck"
   },
   "torrents": {
+    "search_label": "Search torrents",
     "search_placeholder": "Search name, path, tracker",
     "add_placeholder": "Magnet or URL",
     "drop_help": "Drop .torrent or paste magnet",
@@ -49,6 +50,11 @@
     "up": "Up",
     "ratio": "Ratio",
     "size": "Size",
+    "select_row": "Select torrent",
+    "select_all": "Select all",
+    "selected": "selected",
+    "watch_folder": "Watch folder",
+    "watch_folder_body": "Watch path is enabled; failures will appear in Jobs/Post-processing.",
     "error": {
       "empty": "Enter a magnet link, URL, or drop a .torrent",
       "invalid": "Invalid magnet or URL",
@@ -218,6 +224,7 @@
     "add_failed": "Add failed:",
     "action_failed": "Action failed for",
     "torrent_placeholder": "Torrent",
+    "bulk_done": "Bulk actions completed for",
     "dismiss": "Dismiss"
   }
 }

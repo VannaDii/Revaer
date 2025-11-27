@@ -1,8 +1,9 @@
 //! HTTP and SSE client helpers (REST + fallback stubs).
 
 use crate::components::dashboard::{DashboardSnapshot, QueueStatus, TrackerHealth, VpnState};
+use crate::components::detail::DetailData;
 use crate::components::torrents::AddTorrentInput;
-use crate::models::{SseEvent, TorrentSummary};
+use crate::models::{SseEvent, TorrentDetail, TorrentSummary};
 use crate::state::{TorrentAction, TorrentRow};
 use gloo_net::http::Request;
 use serde::Serialize;
@@ -132,6 +133,11 @@ impl ApiClient {
         } else {
             Err(anyhow::anyhow!("No torrent payload provided"))
         }
+    }
+
+    pub async fn fetch_torrent_detail(&self, id: &str) -> anyhow::Result<DetailData> {
+        let detail: TorrentDetail = self.get_json(&format!("/v1/torrents/{id}")).await?;
+        Ok(DetailData::from(detail))
     }
 
     async fn add_torrent_text(

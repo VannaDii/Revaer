@@ -191,3 +191,41 @@ pub struct Job {
     /// Last update timestamp in RFC3339.
     pub updated_at: String,
 }
+
+/// Event log entry for torrent detail views.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct DetailEvent {
+    /// Timestamp string (RFC3339 or time-of-day).
+    pub timestamp: String,
+    /// Severity level (info/warn/error).
+    pub level: String,
+    /// Human-readable message.
+    pub message: String,
+}
+
+/// Detailed torrent view including files, peers, trackers, and metadata.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TorrentDetail {
+    /// Torrent identifier.
+    pub id: Uuid,
+    /// Display name.
+    pub name: String,
+    /// File tree for the torrent.
+    pub files: Vec<TorrentFile>,
+    /// Peers connected to the torrent.
+    pub peers: Vec<Peer>,
+    /// Tracker list with announce metadata.
+    pub trackers: Vec<Tracker>,
+    /// Event log for the torrent lifecycle.
+    pub events: Vec<DetailEvent>,
+    /// Info hash for the torrent.
+    pub hash: String,
+    /// Magnet URI representation.
+    pub magnet: String,
+    /// Total payload size in bytes.
+    pub size_bytes: u64,
+    /// Total piece count.
+    pub piece_count: u32,
+    /// Piece size in bytes.
+    pub piece_size_bytes: u32,
+}

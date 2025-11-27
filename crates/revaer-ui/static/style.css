@@ -222,6 +222,19 @@ a {
   gap: 8px;
 }
 
+.bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.bulk-actions .bulk-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .toolbar .search .ghost.active {
   background: var(--primary-50);
   border: 1px solid var(--primary-200);
@@ -280,6 +293,7 @@ a {
   border-radius: 12px;
   padding: 12px;
   display: grid;
+  grid-template-columns: auto 1fr;
   gap: 8px;
   box-shadow: var(--shadow);
 }
@@ -287,6 +301,12 @@ a {
 .torrent-row.selected {
   border-color: var(--accent-500);
   box-shadow: 0 0 0 2px rgba(37, 139, 211, 0.2);
+}
+
+.row-checkbox {
+  display: flex;
+  align-items: flex-start;
+  padding-top: 6px;
 }
 
 .row-primary {
@@ -357,6 +377,7 @@ a {
 
 .torrent-row.mobile {
   gap: 10px;
+  grid-template-columns: 1fr;
 }
 
 .torrent-row .mobile-stats {
@@ -655,6 +676,12 @@ button:focus-visible {
 .table-like {
   display: grid;
   gap: 8px;
+}
+
+.watch-folder {
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 10px;
 }
 
 .table-row {

@@ -3,8 +3,10 @@ use crate::components::detail::{DetailData, DetailView, demo_detail};
 use crate::components::virtual_list::VirtualList;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::TorrentSummary;
+use crate::services::ApiClient;
 use crate::state::{TorrentAction, TorrentRow};
 use crate::{Density, UiMode};
+use std::collections::BTreeSet;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::closure::Closure;
 use web_sys::{DragEvent, File, HtmlElement, KeyboardEvent};
@@ -14,10 +16,15 @@ use yew::prelude::*;
 pub struct TorrentProps {
     /// Current responsive breakpoint for layout decisions.
     pub breakpoint: Breakpoint,
+    /// API base URL for detail and add flows.
+    pub base_url: String,
+    /// Optional API key for authenticated calls.
+    pub api_key: Option<String>,
     pub torrents: Vec<TorrentRow>,
     pub density: Density,
     pub mode: UiMode,
     pub on_density_change: Callback<Density>,
+    pub on_bulk_action: Callback<(TorrentAction, Vec<String>)>,
     pub on_action: Callback<(TorrentAction, String)>,
     pub on_add: Callback<AddTorrentInput>,
     pub add_busy: bool,
@@ -53,6 +60,7 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
     let t = |key: &str| bundle.text(key, "");
     let selected = use_state(|| demo_detail("1"));
     let selected_idx = use_state(|| 0usize);
+    let selected_ids = use_state(BTreeSet::<String>::new);
     let action_banner = use_state(|| None as Option<String>);
     let confirm = use_state(|| None as Option<ConfirmKind>);
     let search_ref = use_node_ref();
@@ -79,6 +87,7 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
         UiMode::Advanced => "mode-advanced",
     };
     let selected_id = props.torrents.get(*selected_idx).map(|row| row.id.clone());
+    let selected_count = selected_ids.len();
     let pause_selected = {
         let on_action = props.on_action.clone();
         let selected_id = selected_id.clone();
@@ -110,11 +119,20 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
     let on_select = {
         let selected = selected.clone();
         let selected_idx = selected_idx.clone();
+        let base_url = props.base_url.clone();
+        let api_key = props.api_key.clone();
         Callback::from(move |id: String| {
             if let Some(idx) = props.torrents.iter().position(|row| row.id == id) {
                 selected_idx.set(idx);
             }
-            selected.set(demo_detail(&id));
+            let selected = selected.clone();
+            let client = ApiClient::new(base_url.clone(), api_key.clone());
+            yew::platform::spawn_local(async move {
+                match client.fetch_torrent_detail(&id).await {
+                    Ok(detail) => selected.set(Some(detail)),
+                    Err(_) => selected.set(demo_detail(&id)),
+                }
+            });
         })
     };
 
@@ -122,7 +140,7 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
     {
         let torrents = props.torrents.clone();
         let selected_idx = selected_idx.clone();
-        let selected = selected.clone();
+        let on_select = on_select.clone();
         let search_ref = search_ref.clone();
         let action_banner = action_banner.clone();
         let confirm = confirm.clone();
@@ -149,7 +167,7 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                             if next != *selected_idx {
                                 selected_idx.set(next);
                                 if let Some(row) = torrents.get(next) {
-                                    selected.set(demo_detail(row.id));
+                                    on_select.emit(row.id.clone());
                                 }
                             }
                         }
@@ -159,7 +177,7 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                             if next != *selected_idx {
                                 selected_idx.set(next);
                                 if let Some(row) = torrents.get(next) {
-                                    selected.set(demo_detail(row.id));
+                                    on_select.emit(row.id.clone());
                                 }
                             }
                         }
@@ -217,7 +235,7 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
             <header class="toolbar">
                 <div class="search">
                     <input
-                        aria-label="Search torrents"
+                        aria-label={t("torrents.search_label")}
                         placeholder={t("torrents.search_placeholder")}
                         ref={search_ref.clone()}
                         value={props.search.clone()}
@@ -239,6 +257,55 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                     >
                         {t("toolbar.regex")}
                     </button>
+                </div>
+                <div class="bulk-actions">
+                    <button class="ghost" onclick={{
+                        let selected_ids = selected_ids.clone();
+                        let torrents = props.torrents.clone();
+                        Callback::from(move |_| {
+                            let mut next = selected_ids.clone();
+                            if next.len() == torrents.len() {
+                                next.clear();
+                            } else {
+                                next = torrents.iter().map(|t| t.id.clone()).collect();
+                            }
+                            selected_ids.set(next);
+                        })
+                    }}>
+                        {t("torrents.select_all")}
+                    </button>
+                    <span class="muted">{format!("{} {}", selected_count, t("torrents.selected"))}</span>
+                    <div class="bulk-buttons">
+                        {for [
+                            (TorrentAction::Pause, "toolbar.pause"),
+                            (TorrentAction::Resume, "toolbar.resume"),
+                            (TorrentAction::Recheck, "toolbar.recheck"),
+                        ]
+                        .iter()
+                        .map(|(action, key)| {
+                            let label = t(key);
+                            let cb = {
+                                let on_bulk = props.on_bulk_action.clone();
+                                let ids = selected_ids.clone();
+                                let action = action.clone();
+                                Callback::from(move |_| {
+                                    if !ids.is_empty() {
+                                        on_bulk.emit((action.clone(), ids.iter().cloned().collect()));
+                                    }
+                                })
+                            };
+                            html! { <button class="ghost" onclick={cb}>{label}</button> }
+                        })}
+                        <button class="ghost danger" onclick={{
+                            let on_bulk = props.on_bulk_action.clone();
+                            let ids = selected_ids.clone();
+                            Callback::from(move |_| {
+                                if !ids.is_empty() {
+                                    on_bulk.emit((TorrentAction::Delete { with_data: false }, ids.iter().cloned().collect()));
+                                }
+                            })
+                        }}>{t("toolbar.delete")}</button>
+                    </div>
                 </div>
                 <div class="actions">
                     <div class="segmented density">
@@ -281,13 +348,23 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                     let selected_idx = *selected_idx;
                     let on_action = props.on_action.clone();
                     let is_mobile = is_mobile;
+                    let selected_ids_handle = selected_ids.clone();
+                    let toggle_select = Callback::from(move |id: String| {
+                        let mut next = (*selected_ids_handle).clone();
+                        if !next.remove(&id) {
+                            next.insert(id);
+                        }
+                        selected_ids_handle.set(next);
+                    });
                     Callback::from(move |idx: usize| {
                         if let Some(row) = torrents.get(idx) {
                             if is_mobile {
                                 render_mobile_row(
                                     row,
                                     idx == selected_idx,
+                                    selected_ids.contains(&row.id),
                                     on_select.clone(),
+                                    toggle_select.clone(),
                                     on_action.clone(),
                                     bundle.clone(),
                                 )
@@ -295,7 +372,9 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                                 render_row(
                                     row,
                                     idx == selected_idx,
+                                    selected_ids.contains(&row.id),
                                     on_select.clone(),
+                                    toggle_select.clone(),
                                     on_action.clone(),
                                     bundle.clone(),
                                 )
@@ -345,7 +424,9 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
 fn render_row(
     row: &TorrentRow,
     selected: bool,
+    checked: bool,
     on_select: Callback<String>,
+    on_toggle: Callback<String>,
     on_action: Callback<(TorrentAction, String)>,
     bundle: TranslationBundle,
 ) -> Html {
@@ -379,6 +460,18 @@ fn render_row(
     };
     html! {
         <article class={classes!("torrent-row", if selected { Some("selected") } else { None })} aria-selected={selected.to_string()}>
+            <div class="row-checkbox">
+                <input
+                    type="checkbox"
+                    aria-label={t("torrents.select_row")}
+                    checked={checked}
+                    onclick={{
+                        let on_toggle = on_toggle.clone();
+                        let id = row.id.clone();
+                        Callback::from(move |_| on_toggle.emit(id.clone()))
+                    }}
+                />
+            </div>
             <div class="row-primary">
                 <div class="title">
                     <strong>{row.name}</strong>
@@ -432,7 +525,9 @@ fn render_row(
 fn render_mobile_row(
     row: &TorrentRow,
     selected: bool,
+    checked: bool,
     on_select: Callback<String>,
+    on_toggle: Callback<String>,
     on_action: Callback<(TorrentAction, String)>,
     bundle: TranslationBundle,
 ) -> Html {
@@ -462,6 +557,18 @@ fn render_mobile_row(
     html! {
         <article class={classes!("torrent-row", "mobile", if selected { Some("selected") } else { None })} aria-selected={selected.to_string()}>
             <header class="title">
+                <div class="row-checkbox">
+                    <input
+                        type="checkbox"
+                        aria-label={t("torrents.select_row")}
+                        checked={checked}
+                        onclick={{
+                            let on_toggle = on_toggle.clone();
+                            let id = row.id.clone();
+                            Callback::from(move |_| on_toggle.emit(id.clone()))
+                        }}
+                    />
+                </div>
                 <div>
                     <strong>{row.name.clone()}</strong>
                     <p class="muted ellipsis">{row.tracker.clone()}</p>
@@ -716,6 +823,10 @@ fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                 } else { html! {} }}
             </div>
             <div class="pre-flight">
+                <div class="watch-folder">
+                    <strong>{t("torrents.watch_folder")}</strong>
+                    <p class="muted">{t("torrents.watch_folder_body")}</p>
+                </div>
                 <label>
                     <span>{t("torrents.category")}</span>
                     <input placeholder={t("torrents.category_placeholder")} value={(*category).clone()} oninput={{

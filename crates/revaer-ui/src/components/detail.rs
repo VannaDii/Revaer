@@ -1,23 +1,25 @@
 use crate::Pane;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
+use crate::models::{DetailEvent, TorrentDetail, TorrentFile};
 use yew::prelude::*;
 
+#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct FileNode {
-    pub name: &'static str,
+    pub name: String,
     pub size_gb: f32,
     pub completed_gb: f32,
-    pub priority: &'static str,
+    pub priority: String,
     pub wanted: bool,
     pub children: Vec<FileNode>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PeerRow {
-    pub ip: &'static str,
-    pub client: &'static str,
-    pub flags: &'static str,
-    pub country: &'static str,
+    pub ip: String,
+    pub client: String,
+    pub flags: String,
+    pub country: String,
     pub download_bps: u64,
     pub upload_bps: u64,
     pub progress: f32,
@@ -25,23 +27,23 @@ pub struct PeerRow {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TrackerRow {
-    pub url: &'static str,
-    pub status: &'static str,
-    pub next_announce: &'static str,
-    pub last_error: Option<&'static str>,
+    pub url: String,
+    pub status: String,
+    pub next_announce: String,
+    pub last_error: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct EventRow {
-    pub timestamp: &'static str,
-    pub level: &'static str,
-    pub message: &'static str,
+    pub timestamp: String,
+    pub level: String,
+    pub message: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Metadata {
-    pub hash: &'static str,
-    pub magnet: &'static str,
+    pub hash: String,
+    pub magnet: String,
     pub size_gb: f32,
     pub piece_count: u32,
     pub piece_size_mb: u32,
@@ -49,7 +51,7 @@ pub struct Metadata {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct DetailData {
-    pub name: &'static str,
+    pub name: String,
     pub files: Vec<FileNode>,
     pub peers: Vec<PeerRow>,
     pub trackers: Vec<TrackerRow>,
@@ -196,6 +198,69 @@ pub fn detail_view(props: &DetailProps) -> Html {
     }
 }
 
+impl From<TorrentDetail> for DetailData {
+    fn from(detail: TorrentDetail) -> Self {
+        let files = detail
+            .files
+            .into_iter()
+            .map(|file| FileNode {
+                name: file.path,
+                size_gb: file.size_bytes as f32 / (1024.0 * 1024.0 * 1024.0),
+                completed_gb: file.completed_bytes as f32 / (1024.0 * 1024.0 * 1024.0),
+                priority: file.priority,
+                wanted: file.wanted,
+                children: vec![],
+            })
+            .collect();
+        let peers = detail
+            .peers
+            .into_iter()
+            .map(|peer| PeerRow {
+                ip: peer.ip,
+                client: peer.client,
+                flags: peer.flags,
+                country: peer.country.unwrap_or_default(),
+                download_bps: peer.download_bps,
+                upload_bps: peer.upload_bps,
+                progress: peer.progress,
+            })
+            .collect();
+        let trackers = detail
+            .trackers
+            .into_iter()
+            .map(|tracker| TrackerRow {
+                url: tracker.url,
+                status: tracker.status,
+                next_announce: tracker.next_announce_at.unwrap_or_else(|| "-".to_string()),
+                last_error: tracker.last_error,
+            })
+            .collect();
+        let events = detail
+            .events
+            .into_iter()
+            .map(|event| EventRow {
+                timestamp: event.timestamp,
+                level: event.level,
+                message: event.message,
+            })
+            .collect();
+        Self {
+            name: detail.name,
+            files,
+            peers,
+            trackers,
+            events,
+            metadata: Metadata {
+                hash: detail.hash,
+                magnet: detail.magnet,
+                size_gb: detail.size_bytes as f32 / (1024.0 * 1024.0 * 1024.0),
+                piece_count: detail.piece_count,
+                piece_size_mb: detail.piece_size_bytes / 1024 / 1024,
+            },
+        }
+    }
+}
+
 fn pane_classes(pane: Pane, active: Pane) -> Classes {
     classes!(
         "detail-pane",
@@ -273,36 +338,36 @@ pub fn demo_detail(id: &str) -> Option<DetailData> {
     };
 
     Some(DetailData {
-        name,
+        name: name.to_string(),
         files: vec![
             FileNode {
-                name: "Foundation.S02E08.mkv",
+                name: "Foundation.S02E08.mkv".to_string(),
                 size_gb: 14.2,
                 completed_gb: 6.1,
-                priority: "high",
+                priority: "high".to_string(),
                 wanted: true,
                 children: vec![],
             },
             FileNode {
-                name: "Extras",
+                name: "Extras".to_string(),
                 size_gb: 3.2,
                 completed_gb: 1.4,
-                priority: "normal",
+                priority: "normal".to_string(),
                 wanted: true,
                 children: vec![
                     FileNode {
-                        name: "Featurette-01.mkv",
+                        name: "Featurette-01.mkv".to_string(),
                         size_gb: 1.1,
                         completed_gb: 1.1,
-                        priority: "normal",
+                        priority: "normal".to_string(),
                         wanted: true,
                         children: vec![],
                     },
                     FileNode {
-                        name: "Interview-01.mkv",
+                        name: "Interview-01.mkv".to_string(),
                         size_gb: 0.9,
                         completed_gb: 0.2,
-                        priority: "low",
+                        priority: "low".to_string(),
                         wanted: false,
                         children: vec![],
                     },
@@ -311,28 +376,28 @@ pub fn demo_detail(id: &str) -> Option<DetailData> {
         ],
         peers: vec![
             PeerRow {
-                ip: "203.0.113.24",
-                client: "qBittorrent 4.6",
-                flags: "DIXE",
-                country: "CA",
+                ip: "203.0.113.24".to_string(),
+                client: "qBittorrent 4.6".to_string(),
+                flags: "DIXE".to_string(),
+                country: "CA".to_string(),
                 download_bps: 8_400_000,
                 upload_bps: 650_000,
                 progress: 0.54,
             },
             PeerRow {
-                ip: "198.51.100.18",
-                client: "Transmission 4.0",
-                flags: "UXE",
-                country: "US",
+                ip: "198.51.100.18".to_string(),
+                client: "Transmission 4.0".to_string(),
+                flags: "UXE".to_string(),
+                country: "US".to_string(),
                 download_bps: 2_200_000,
                 upload_bps: 120_000,
                 progress: 0.12,
             },
             PeerRow {
-                ip: "203.0.113.88",
-                client: "libtorrent/2.0",
-                flags: "HSD",
-                country: "DE",
+                ip: "203.0.113.88".to_string(),
+                client: "libtorrent/2.0".to_string(),
+                flags: "HSD".to_string(),
+                country: "DE".to_string(),
                 download_bps: 0,
                 upload_bps: 320_000,
                 progress: 1.0,
@@ -340,43 +405,43 @@ pub fn demo_detail(id: &str) -> Option<DetailData> {
         ],
         trackers: vec![
             TrackerRow {
-                url: "udp://tracker.hypothetical.org",
-                status: "working",
-                next_announce: "3m",
+                url: "udp://tracker.hypothetical.org".to_string(),
+                status: "working".to_string(),
+                next_announce: "3m".to_string(),
                 last_error: None,
             },
             TrackerRow {
-                url: "https://movies.example.net/announce",
-                status: "warning",
-                next_announce: "5m",
-                last_error: Some("timeout"),
+                url: "https://movies.example.net/announce".to_string(),
+                status: "warning".to_string(),
+                next_announce: "5m".to_string(),
+                last_error: Some("timeout".to_string()),
             },
         ],
         events: vec![
             EventRow {
-                timestamp: "08:01:12",
-                level: "info",
-                message: "Added via magnet",
+                timestamp: "08:01:12".to_string(),
+                level: "info".to_string(),
+                message: "Added via magnet".to_string(),
             },
             EventRow {
-                timestamp: "08:03:44",
-                level: "warn",
-                message: "Tracker timeout, retrying in 5m",
+                timestamp: "08:03:44".to_string(),
+                level: "warn".to_string(),
+                message: "Tracker timeout, retrying in 5m".to_string(),
             },
             EventRow {
-                timestamp: "08:04:22",
-                level: "info",
-                message: "Peers discovered (23)",
+                timestamp: "08:04:22".to_string(),
+                level: "info".to_string(),
+                message: "Peers discovered (23)".to_string(),
             },
             EventRow {
-                timestamp: "08:12:40",
-                level: "info",
-                message: "Reannounce triggered by user",
+                timestamp: "08:12:40".to_string(),
+                level: "info".to_string(),
+                message: "Reannounce triggered by user".to_string(),
             },
         ],
         metadata: Metadata {
-            hash: "0123456789ABCDEF0123456789ABCDEF01234567",
-            magnet: "magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567",
+            hash: "0123456789ABCDEF0123456789ABCDEF01234567".to_string(),
+            magnet: "magnet:?xt=urn:btih:0123456789ABCDEF0123456789ABCDEF01234567".to_string(),
             size_gb: 17.4,
             piece_count: 6840,
             piece_size_mb: 4,
