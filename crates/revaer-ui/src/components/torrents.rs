@@ -3,7 +3,7 @@ use crate::components::detail::{DetailData, DetailView, demo_detail};
 use crate::components::virtual_list::VirtualList;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::logic::{
-    plan_columns, ShortcutOutcome, format_rate, interpret_shortcut, select_all_or_clear,
+    ShortcutOutcome, format_rate, interpret_shortcut, plan_columns, select_all_or_clear,
     toggle_selection, validate_add_input,
 };
 use crate::models::TorrentSummary;
@@ -77,15 +77,14 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
         Density::Normal => "density-normal",
         Density::Comfy => "density-comfy",
     };
-    let row_height = if is_mobile {
-        210
-    } else {
-        match props.density {
-            Density::Compact => 120,
-            Density::Normal => 148,
-            Density::Comfy => 164,
-        }
-    };
+    let row_height = crate::logic::row_height(
+        props.density,
+        if is_mobile {
+            crate::logic::LayoutMode::Card
+        } else {
+            crate::logic::LayoutMode::Table
+        },
+    );
     let mode_class = match props.mode {
         UiMode::Simple => "mode-simple",
         UiMode::Advanced => "mode-advanced",
@@ -356,6 +355,9 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                     let selected_idx = *selected_idx;
                     let on_action = props.on_action.clone();
                     let is_mobile = is_mobile;
+                    let width_hint =
+                        props.breakpoint.max_width.unwrap_or(props.breakpoint.min_width);
+                    let (visible_cols, overflow_cols) = plan_columns(width_hint);
                     let toggle_select = Callback::from(move |id: String| {
                         selected_ids.set(toggle_selection(&selected_ids, &id));
                     });
@@ -370,6 +372,8 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                                     toggle_select.clone(),
                                     on_action.clone(),
                                     bundle.clone(),
+                                    &visible_cols,
+                                    &overflow_cols,
                                 )
                             } else {
                                 render_row(
@@ -380,6 +384,8 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                                     toggle_select.clone(),
                                     on_action.clone(),
                                     bundle.clone(),
+                                    &visible_cols,
+                                    &overflow_cols,
                                 )
                             }
                         } else {
@@ -432,8 +438,36 @@ fn render_row(
     on_toggle: Callback<String>,
     on_action: Callback<(TorrentAction, String)>,
     bundle: TranslationBundle,
+    visible_cols: &[&str],
+    overflow_cols: &[&str],
 ) -> Html {
     let t = |key: &str| bundle.text(key, "");
+    let show_eta = visible_cols.contains(&"eta");
+    let show_ratio = visible_cols.contains(&"ratio");
+    let show_size = visible_cols.contains(&"size");
+    let show_tags = visible_cols.contains(&"tags");
+    let show_path = visible_cols.contains(&"path");
+    let mut overflow = Vec::new();
+    if overflow_cols.contains(&"eta") {
+        overflow.push((
+            t("torrents.eta"),
+            row.eta
+                .clone()
+                .unwrap_or_else(|| t("torrents.eta_infinite")),
+        ));
+    }
+    if overflow_cols.contains(&"ratio") {
+        overflow.push((t("torrents.ratio"), format!("{:.2}", row.ratio)));
+    }
+    if overflow_cols.contains(&"size") {
+        overflow.push((t("torrents.size"), row.size_label()));
+    }
+    if overflow_cols.contains(&"tags") && !row.tags.is_empty() {
+        overflow.push((t("torrents.tags"), row.tags.join(", ")));
+    }
+    if overflow_cols.contains(&"path") && !row.path.is_empty() {
+        overflow.push((t("torrents.save_path"), row.path.clone()));
+    }
     let select = {
         let on_select = on_select.clone();
         let id = row.id.to_string();
@@ -485,7 +519,9 @@ fn render_row(
                     <div class="progress">
                         <div class="bar" style={format!("width: {:.1}%", row.progress * 100.0)}></div>
                         <span class="muted">{format!("{:.1}%", row.progress * 100.0)}</span>
-                        <span class="muted">{row.eta.clone().unwrap_or_else(|| t("torrents.eta_infinite"))}</span>
+                        {if show_eta {
+                            html! { <span class="muted">{row.eta.clone().unwrap_or_else(|| t("torrents.eta_infinite"))}</span> }
+                        } else { html!{} }}
                     </div>
                 </div>
             </div>
@@ -498,22 +534,37 @@ fn render_row(
                     <small>{t("torrents.up")}</small>
                     <strong>{format_rate(row.upload_bps)}</strong>
                 </div>
-                <div class="stat">
-                    <small>{t("torrents.ratio")}</small>
-                    <strong>{format!("{:.2}", row.ratio)}</strong>
-                </div>
-                <div class="stat">
-                    <small>{t("torrents.size")}</small>
-                    <strong>{row.size_label()}</strong>
-                </div>
+                {if show_ratio { html! {
+                    <div class="stat">
+                        <small>{t("torrents.ratio")}</small>
+                        <strong>{format!("{:.2}", row.ratio)}</strong>
+                    </div>
+                }} else { html!{} }}
+                {if show_size { html! {
+                    <div class="stat">
+                        <small>{t("torrents.size")}</small>
+                        <strong>{row.size_label()}</strong>
+                    </div>
+                }} else { html!{} }}
             </div>
             <div class="row-meta">
-                <span class="muted">{row.path}</span>
+                {if show_path { html! { <span class="muted">{row.path.clone()}</span> }} else { html!{} }}
                 <div class="tags">
                     <span class="pill subtle">{row.category.clone()}</span>
-                    {for row.tags.iter().map(|tag| html! { <span class="pill subtle">{tag.to_owned()}</span> })}
+                    {if show_tags {
+                        html! {for row.tags.iter().map(|tag| html! { <span class="pill subtle">{tag.to_owned()}</span> }) }
+                    } else { html!{} }}
                 </div>
             </div>
+            {if overflow.is_empty() { html!{} } else {
+                html! {
+                    <div class="row-overflow">
+                        {for overflow.iter().map(|(label, value)| html!{
+                            <span class="pill subtle">{format!("{label}: {value}")}</span>
+                        })}
+                    </div>
+                }
+            }}
             <div class="row-actions">
                 <button class="ghost" onclick={select.clone()}>{t("torrents.open_detail")}</button>
                 <button class="ghost" onclick={pause}>{t("toolbar.pause")}</button>
@@ -533,8 +584,36 @@ fn render_mobile_row(
     on_toggle: Callback<String>,
     on_action: Callback<(TorrentAction, String)>,
     bundle: TranslationBundle,
+    visible_cols: &[&str],
+    overflow_cols: &[&str],
 ) -> Html {
     let t = |key: &str| bundle.text(key, "");
+    let show_eta = visible_cols.contains(&"eta");
+    let show_ratio = visible_cols.contains(&"ratio");
+    let show_size = visible_cols.contains(&"size");
+    let show_tags = visible_cols.contains(&"tags");
+    let show_path = visible_cols.contains(&"path");
+    let mut overflow = Vec::new();
+    if overflow_cols.contains(&"eta") {
+        overflow.push((
+            t("torrents.eta"),
+            row.eta
+                .clone()
+                .unwrap_or_else(|| t("torrents.eta_infinite")),
+        ));
+    }
+    if overflow_cols.contains(&"ratio") {
+        overflow.push((t("torrents.ratio"), format!("{:.2}", row.ratio)));
+    }
+    if overflow_cols.contains(&"size") {
+        overflow.push((t("torrents.size"), row.size_label()));
+    }
+    if overflow_cols.contains(&"tags") && !row.tags.is_empty() {
+        overflow.push((t("torrents.tags"), row.tags.join(", ")));
+    }
+    if overflow_cols.contains(&"path") && !row.path.is_empty() {
+        overflow.push((t("torrents.save_path"), row.path.clone()));
+    }
     let select = {
         let on_select = on_select.clone();
         let id = row.id.to_string();
@@ -582,22 +661,33 @@ fn render_mobile_row(
                 <div class="bar" style={format!("width: {:.1}%", row.progress * 100.0)}></div>
                 <div class="meta">
                     <span class="muted">{format!("{:.1}%", row.progress * 100.0)}</span>
-                    <span class="muted">{row.eta.clone().unwrap_or_else(|| t("torrents.eta_infinite"))}</span>
+                    {if show_eta {
+                        html! { <span class="muted">{row.eta.clone().unwrap_or_else(|| t("torrents.eta_infinite"))}</span> }
+                    } else { html!{} }}
                 </div>
             </div>
             <div class="mobile-stats">
                 <div><small>{t("torrents.down")}</small><strong>{format_rate(row.download_bps)}</strong></div>
                 <div><small>{t("torrents.up")}</small><strong>{format_rate(row.upload_bps)}</strong></div>
-                <div><small>{t("torrents.ratio")}</small><strong>{format!("{:.2}", row.ratio)}</strong></div>
-                <div><small>{t("torrents.size")}</small><strong>{row.size_label()}</strong></div>
+                {if show_ratio { html! { <div><small>{t("torrents.ratio")}</small><strong>{format!("{:.2}", row.ratio)}</strong></div> }} else { html!{} }}
+                {if show_size { html! { <div><small>{t("torrents.size")}</small><strong>{row.size_label()}</strong></div> }} else { html!{} }}
             </div>
             <div class="row-meta">
-                <span class="muted ellipsis">{row.path.clone()}</span>
+                {if show_path { html! { <span class="muted ellipsis">{row.path.clone()}</span> }} else { html!{} }}
                 <div class="tags">
                     <span class="pill subtle">{row.category.clone()}</span>
-                    {for row.tags.iter().map(|tag| html! { <span class="pill subtle">{tag.to_owned()}</span> })}
+                    {if show_tags { html! {for row.tags.iter().map(|tag| html! { <span class="pill subtle">{tag.to_owned()}</span> }) }} else { html!{} }}
                 </div>
             </div>
+            {if overflow.is_empty() { html!{} } else {
+                html! {
+                    <div class="row-overflow">
+                        {for overflow.iter().map(|(label, value)| html!{
+                            <span class="pill subtle">{format!("{label}: {value}")}</span>
+                        })}
+                    </div>
+                }
+            }}
             <div class="row-actions mobile-grid">
                 <button class="ghost" onclick={select.clone()}>{t("torrents.open_detail")}</button>
                 <button class="ghost" onclick={pause}>{t("toolbar.pause")}</button>

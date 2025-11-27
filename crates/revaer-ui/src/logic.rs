@@ -189,6 +189,19 @@ pub fn layout_for_breakpoint(bp: crate::breakpoints::Breakpoint) -> LayoutMode {
     }
 }
 
+/// Compute row height based on density and layout mode.
+#[must_use]
+pub fn row_height(density: crate::Density, layout: LayoutMode) -> u32 {
+    if layout == LayoutMode::Card {
+        return 210;
+    }
+    match density {
+        crate::Density::Compact => 120,
+        crate::Density::Normal => 148,
+        crate::Density::Comfy => 164,
+    }
+}
+
 /// Move selection based on shortcut; returns the next index if it changed.
 #[must_use]
 pub fn advance_selection(outcome: ShortcutOutcome, current: usize, total: usize) -> Option<usize> {
@@ -411,6 +424,13 @@ mod tests {
     }
 
     #[test]
+    fn row_height_matches_density_and_layout() {
+        assert_eq!(row_height(crate::Density::Normal, LayoutMode::Card), 210);
+        assert_eq!(row_height(crate::Density::Compact, LayoutMode::Table), 120);
+        assert_eq!(row_height(crate::Density::Comfy, LayoutMode::Table), 164);
+    }
+
+    #[test]
     fn tags_are_parsed_and_cleaned() {
         assert_eq!(
             parse_tags("a, b , ,c"),
@@ -450,5 +470,15 @@ mod tests {
         assert!(end > start);
         assert_eq!(offset, 0);
         assert_eq!(total, 200);
+    }
+
+    #[test]
+    fn plan_columns_collapses_optionals() {
+        let (xs_visible, xs_overflow) = plan_columns(crate::breakpoints::XS.max_width.unwrap());
+        assert!(xs_visible.contains(&"status"));
+        assert!(xs_overflow.contains(&"eta"));
+        let (lg_visible, lg_overflow) = plan_columns(crate::breakpoints::LG.min_width);
+        assert!(lg_visible.contains(&"size"));
+        assert!(lg_overflow.is_empty());
     }
 }

@@ -228,3 +228,20 @@ const fn raw_locale(locale: LocaleCode) -> &'static str {
         LocaleCode::Zh => include_str!("../../i18n/zh.json"),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn missing_key_falls_back_to_default() {
+        let bundle = TranslationBundle::new(LocaleCode::Fr);
+        assert_eq!(bundle.text("nonexistent.key", "fallback"), "fallback");
+    }
+
+    #[test]
+    fn rtl_flag_respects_meta() {
+        assert!(TranslationBundle::new(LocaleCode::Ar).rtl());
+        assert!(!TranslationBundle::new(LocaleCode::En).rtl());
+    }
+}

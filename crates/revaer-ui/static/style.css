@@ -369,6 +369,12 @@ a {
   flex-wrap: wrap;
 }
 
+.row-overflow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .ellipsis {
   overflow: hidden;
   text-overflow: ellipsis;
