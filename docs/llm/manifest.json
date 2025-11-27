@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2025-11-27T18:50:19.751700+00:00",
+  "generated": "2025-11-27T19:21:26.461602+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -264,9 +264,17 @@
       "summary": "Centralized torrent orchestration with hot-reloadable configuration, consistent CLI/API surfaces, and observability-first defaults.",
       "tags": [
         "contributing-updates",
+        "llm-manifests",
         "what-youll-find-here"
       ],
       "href": "/index/"
+    },
+    {
+      "id": "llm/index",
+      "title": "LLM Integration",
+      "summary": "The documentation site publishes machine-readable JSON manifests to help ChatGPT and other LLMs index and search the content. These files are static and live alongside the built docs, so LLM tooling can fetch them directly. **[manifest.json](manifest.json)** — Master index of documentation entries with IDs, titles, tags, and canonical URLs. Shared so LLMs can discover the page graph without crawling the entire site. **[summaries.json](summaries.json)** — Concise per-entry summaries extracted from the docs. Shared to provide quick context for answers and improve retrieval quality. **[schema.json](schema.json)** — JSON Schema describing the manifest/summaries format. Shared so LLM integrators can validate and evolve their tooling",
+      "tags": [],
+      "href": "/llm/index/"
     },
     {
       "id": "phase-one-remaining-spec",
