@@ -38,26 +38,48 @@ pub struct RuntimeStore {
 
 const UPSERT_TORRENT_CALL: &str = r"
     SELECT revaer_runtime.upsert_torrent(
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+        _torrent_id => $1,
+        _name => $2,
+        _state => $3,
+        _state_message => $4,
+        _progress_bytes_downloaded => $5,
+        _progress_bytes_total => $6,
+        _progress_eta_seconds => $7,
+        _download_bps => $8,
+        _upload_bps => $9,
+        _ratio => $10,
+        _sequential => $11,
+        _library_path => $12,
+        _download_dir => $13,
+        _payload => $14,
+        _files => $15,
+        _added_at => $16,
+        _completed_at => $17,
+        _updated_at => $18
     )
 ";
 
 const DELETE_TORRENT_CALL: &str = r"
-    SELECT revaer_runtime.delete_torrent($1)
+    SELECT revaer_runtime.delete_torrent(_torrent_id => $1)
 ";
 
 const SELECT_TORRENTS_CALL: &str = r"SELECT * FROM revaer_runtime.list_torrents()";
 
 const FS_JOB_STARTED_CALL: &str = r"
-    SELECT revaer_runtime.mark_fs_job_started($1, $2)
+    SELECT revaer_runtime.mark_fs_job_started(_torrent_id => $1, _source => $2)
 ";
 
 const FS_JOB_COMPLETED_CALL: &str = r"
-    SELECT revaer_runtime.mark_fs_job_completed($1, $2, $3, $4)
+    SELECT revaer_runtime.mark_fs_job_completed(
+        _torrent_id => $1,
+        _source => $2,
+        _destination => $3,
+        _transfer_mode => $4
+    )
 ";
 
 const FS_JOB_FAILED_CALL: &str = r"
-    SELECT revaer_runtime.mark_fs_job_failed($1, $2)
+    SELECT revaer_runtime.mark_fs_job_failed(_torrent_id => $1, _error => $2)
 ";
 
 const SELECT_FS_JOB_STATE_CALL: &str = r"
@@ -68,7 +90,7 @@ const SELECT_FS_JOB_STATE_CALL: &str = r"
            transfer_mode,
            last_error,
            updated_at
-    FROM revaer_runtime.fs_job_state($1)
+    FROM revaer_runtime.fs_job_state(_torrent_id => $1)
 ";
 
 impl RuntimeStore {

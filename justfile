@@ -110,18 +110,31 @@ ui-build:
     cd crates/revaer-ui && trunk build --release
 
 dev:
+    just db-start
+    db_url="${DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"; \
+    for port in 7070 8080; do \
+        pids=$(lsof -ti :$port 2>/dev/null || true); \
+        if [ -n "$pids" ]; then \
+            echo "Killing processes on port $port: $pids"; \
+            kill $pids 2>/dev/null || true; \
+        fi; \
+    done; \
     if ! command -v cargo-watch >/dev/null 2>&1; then \
         cargo install cargo-watch; \
-    fi
-    rustup target add wasm32-unknown-unknown
+    fi; \
+    rustup target add wasm32-unknown-unknown; \
     if ! command -v trunk >/dev/null 2>&1; then \
         cargo install trunk; \
-    fi
-    RUST_LOG=${RUST_LOG:-debug} cargo watch -x "run -p revaer-app" &
+    fi; \
+    DATABASE_URL="${db_url}" RUST_LOG=${RUST_LOG:-debug} cargo watch \
+        --ignore 'docs/api/openapi.json' \
+        --ignore 'crates/revaer-ui/dist/**' \
+        --ignore 'artifacts/**' \
+        -x "run -p revaer-app" & \
     api_pid=$!; \
-    ( cd crates/revaer-ui && trunk serve --open ) &
+    ( cd crates/revaer-ui && DATABASE_URL="${db_url}" RUST_LOG=${RUST_LOG:-info} trunk serve --open ) & \
     ui_pid=$!; \
-    trap 'kill $api_pid $ui_pid' EXIT; \
+    trap 'kill -0 $api_pid 2>/dev/null && kill $api_pid; kill -0 $ui_pid 2>/dev/null && kill $ui_pid' EXIT; \
     wait $api_pid $ui_pid
 
 install-docs:
@@ -153,3 +166,42 @@ docs-link-check:
 docs:
     just docs-build
     just docs-index
+
+# Start a local Postgres suitable for running the backend and run migrations once the
+# container is ready. Uses the dev-friendly defaults unless DATABASE_URL is set.
+db-start:
+    db_url="${DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"; \
+    container_name="${PG_CONTAINER:-revaer-db}"; \
+    existing_container="$(docker ps -aq -f name=^${container_name}$)"; \
+    if [ -n "$existing_container" ]; then \
+        if [ -z "$(docker ps -q -f name=^${container_name}$)" ]; then \
+            docker start "${container_name}" >/dev/null; \
+        fi; \
+    else \
+        docker run -d \
+            --name "${container_name}" \
+            -e POSTGRES_USER=revaer \
+            -e POSTGRES_PASSWORD=revaer \
+            -e POSTGRES_DB=revaer \
+            -p 5432:5432 \
+            -v revaer-pgdata:/var/lib/postgresql/data \
+            postgres:16-alpine >/dev/null; \
+    fi; \
+    echo "Waiting for Postgres to become ready..."; \
+    for _ in $(seq 1 30); do \
+        if docker exec "${container_name}" pg_isready -U revaer -d revaer >/dev/null 2>&1; then \
+            break; \
+        fi; \
+        sleep 1; \
+    done; \
+    if ! command -v sqlx >/dev/null 2>&1; then \
+        cargo install sqlx-cli --no-default-features --features postgres; \
+    fi; \
+    DATABASE_URL="${db_url}" sqlx database create --database-url "${db_url}" 2>/dev/null || true; \
+    DATABASE_URL="${db_url}" sqlx migrate run --database-url "${db_url}" --source crates/revaer-data/migrations
+
+# Seed the dev database with a default API key and sensible defaults for local runs.
+db-seed:
+    db_url="${DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"; \
+    just db-start; \
+    cat scripts/dev-seed.sql | DATABASE_URL="${db_url}" docker exec -i "${PG_CONTAINER:-revaer-db}" psql -U revaer -d revaer >/dev/null

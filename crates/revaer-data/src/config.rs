@@ -298,7 +298,7 @@ pub async fn fetch_secret_by_name<'e, E>(executor: E, name: &str) -> Result<Opti
 where
     E: Executor<'e, Database = Postgres>,
 {
-    sqlx::query_as::<_, SecretRow>("SELECT * FROM revaer_config.fetch_secret_by_name($1)")
+    sqlx::query_as::<_, SecretRow>("SELECT * FROM revaer_config.fetch_secret_by_name(_name => $1)")
         .bind(name)
         .fetch_optional(executor)
         .await
@@ -455,11 +455,13 @@ pub async fn fetch_app_profile_row<'e, E>(executor: E, id: Uuid) -> Result<AppPr
 where
     E: Executor<'e, Database = Postgres>,
 {
-    sqlx::query_as::<_, AppProfileRow>("SELECT * FROM revaer_config.fetch_app_profile_row($1)")
-        .bind(id)
-        .fetch_one(executor)
-        .await
-        .context("failed to load app_profile row")
+    sqlx::query_as::<_, AppProfileRow>(
+        "SELECT * FROM revaer_config.fetch_app_profile_row(_id => $1)",
+    )
+    .bind(id)
+    .fetch_one(executor)
+    .await
+    .context("failed to load app_profile row")
 }
 
 /// Load the engine profile row for the provided identifier.
@@ -472,7 +474,7 @@ where
     E: Executor<'e, Database = Postgres>,
 {
     sqlx::query_as::<_, EngineProfileRow>(
-        "SELECT * FROM revaer_config.fetch_engine_profile_row($1)",
+        "SELECT * FROM revaer_config.fetch_engine_profile_row(_id => $1)",
     )
     .bind(id)
     .fetch_one(executor)
@@ -489,7 +491,7 @@ pub async fn fetch_fs_policy_row<'e, E>(executor: E, id: Uuid) -> Result<FsPolic
 where
     E: Executor<'e, Database = Postgres>,
 {
-    sqlx::query_as::<_, FsPolicyRow>("SELECT * FROM revaer_config.fetch_fs_policy_row($1)")
+    sqlx::query_as::<_, FsPolicyRow>("SELECT * FROM revaer_config.fetch_fs_policy_row(_id => $1)")
         .bind(id)
         .fetch_one(executor)
         .await
@@ -520,7 +522,7 @@ pub async fn fetch_app_profile_json<'e, E>(executor: E, id: Uuid) -> Result<Valu
 where
     E: Executor<'e, Database = Postgres>,
 {
-    sqlx::query_scalar("SELECT revaer_config.fetch_app_profile_json($1)")
+    sqlx::query_scalar("SELECT revaer_config.fetch_app_profile_json(_id => $1)")
         .bind(id)
         .fetch_one(executor)
         .await
@@ -536,7 +538,7 @@ pub async fn fetch_engine_profile_json<'e, E>(executor: E, id: Uuid) -> Result<V
 where
     E: Executor<'e, Database = Postgres>,
 {
-    sqlx::query_scalar("SELECT revaer_config.fetch_engine_profile_json($1)")
+    sqlx::query_scalar("SELECT revaer_config.fetch_engine_profile_json(_id => $1)")
         .bind(id)
         .fetch_one(executor)
         .await
@@ -552,7 +554,7 @@ pub async fn fetch_fs_policy_json<'e, E>(executor: E, id: Uuid) -> Result<Value>
 where
     E: Executor<'e, Database = Postgres>,
 {
-    sqlx::query_scalar("SELECT revaer_config.fetch_fs_policy_json($1)")
+    sqlx::query_scalar("SELECT revaer_config.fetch_fs_policy_json(_id => $1)")
         .bind(id)
         .fetch_one(executor)
         .await
@@ -598,11 +600,13 @@ pub async fn fetch_api_key_auth<'e, E>(executor: E, key_id: &str) -> Result<Opti
 where
     E: Executor<'e, Database = Postgres>,
 {
-    sqlx::query_as::<_, ApiKeyAuthRow>("SELECT * FROM revaer_config.fetch_api_key_auth($1)")
-        .bind(key_id)
-        .fetch_optional(executor)
-        .await
-        .context("failed to fetch API key auth material")
+    sqlx::query_as::<_, ApiKeyAuthRow>(
+        "SELECT * FROM revaer_config.fetch_api_key_auth(_key_id => $1)",
+    )
+    .bind(key_id)
+    .fetch_optional(executor)
+    .await
+    .context("failed to fetch API key auth material")
 }
 
 /// Fetch the hashed secret for a given API key.
@@ -614,11 +618,13 @@ pub async fn fetch_api_key_hash<'e, E>(executor: E, key_id: &str) -> Result<Opti
 where
     E: Executor<'e, Database = Postgres>,
 {
-    sqlx::query_scalar::<_, Option<String>>("SELECT revaer_config.fetch_api_key_hash($1)")
-        .bind(key_id)
-        .fetch_one(executor)
-        .await
-        .context("failed to fetch auth_api_keys.hash")
+    sqlx::query_scalar::<_, Option<String>>(
+        "SELECT revaer_config.fetch_api_key_hash(_key_id => $1)",
+    )
+    .bind(key_id)
+    .fetch_one(executor)
+    .await
+    .context("failed to fetch auth_api_keys.hash")
 }
 
 /// Delete an API key.
@@ -630,11 +636,12 @@ pub async fn delete_api_key<'e, E>(executor: E, key_id: &str) -> Result<u64>
 where
     E: Executor<'e, Database = Postgres>,
 {
-    let removed = sqlx::query_scalar::<_, i64>("SELECT revaer_config.delete_api_key($1)")
-        .bind(key_id)
-        .fetch_one(executor)
-        .await
-        .context("failed to delete auth_api_keys row")?;
+    let removed =
+        sqlx::query_scalar::<_, i64>("SELECT revaer_config.delete_api_key(_key_id => $1)")
+            .bind(key_id)
+            .fetch_one(executor)
+            .await
+            .context("failed to delete auth_api_keys row")?;
     Ok(u64::try_from(removed).unwrap_or_default())
 }
 
@@ -781,7 +788,7 @@ pub async fn delete_secret<'e, E>(executor: E, name: &str) -> Result<u64>
 where
     E: Executor<'e, Database = Postgres>,
 {
-    let removed = sqlx::query_scalar::<_, i64>("SELECT revaer_config.delete_secret($1)")
+    let removed = sqlx::query_scalar::<_, i64>("SELECT revaer_config.delete_secret(_name => $1)")
         .bind(name)
         .fetch_one(executor)
         .await

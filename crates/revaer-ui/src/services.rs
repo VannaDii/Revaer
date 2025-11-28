@@ -31,7 +31,7 @@ impl ApiClient {
     async fn get_json<T: for<'de> serde::Deserialize<'de>>(&self, path: &str) -> anyhow::Result<T> {
         let mut req = Request::get(&format!("{}{}", self.base_url, path));
         if let Some(key) = &self.api_key {
-            req = req.header("x-api-key", key);
+            req = req.header("x-revaer-api-key", key);
         }
         Ok(req.send().await?.json::<T>().await?)
     }
@@ -39,7 +39,7 @@ impl ApiClient {
     async fn post_empty(&self, path: &str) -> anyhow::Result<()> {
         let mut req = Request::post(&format!("{}{}", self.base_url, path));
         if let Some(key) = &self.api_key {
-            req = req.header("x-api-key", key);
+            req = req.header("x-revaer-api-key", key);
         }
         req.send().await?;
         Ok(())
@@ -58,7 +58,7 @@ impl ApiClient {
                 };
                 let mut req = Request::delete(&format!("{}{}", self.base_url, path));
                 if let Some(key) = &self.api_key {
-                    req = req.header("x-api-key", key);
+                    req = req.header("x-revaer-api-key", key);
                 }
                 req.send().await?;
                 Ok(())
@@ -152,7 +152,7 @@ impl ApiClient {
             self.base_url.trim_end_matches('/')
         ));
         if let Some(key) = &self.api_key {
-            req = req.header("x-api-key", key);
+            req = req.header("x-revaer-api-key", key);
         }
         let resp = req.json(&Body {
             source,
@@ -188,7 +188,7 @@ impl ApiClient {
         ))
         .body(form);
         if let Some(key) = &self.api_key {
-            req = req.header("x-api-key", key);
+            req = req.header("x-revaer-api-key", key);
         }
         Ok(req.send().await?.json::<TorrentSummary>().await?.into())
     }
@@ -202,7 +202,10 @@ pub fn connect_sse(
 ) -> Option<EventSource> {
     let url = build_sse_url(base_url, &api_key);
     let init = EventSourceInit::new();
-    init.set_with_credentials(true);
+    // We rely on API key headers/query params instead of cookies, so disable
+    // credentials to avoid stricter CORS requirements when the UI is on a
+    // different port during dev.
+    init.set_with_credentials(false);
     let source = EventSource::new_with_event_source_init_dict(&url, &init).ok()?;
     let handler = Closure::<dyn FnMut(_)>::wrap(Box::new(move |event: web_sys::Event| {
         if let Ok(msg) = event.dyn_into::<MessageEvent>() {

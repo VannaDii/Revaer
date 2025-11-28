@@ -45,7 +45,7 @@ use axum::{
     body::Body,
     extract::{Extension, MatchedPath, Path as AxumPath, Query, State},
     http::{
-        HeaderMap, HeaderValue, Request, StatusCode,
+        HeaderMap, HeaderName, HeaderValue, Method, Request, StatusCode,
         header::{CONTENT_TYPE, RETRY_AFTER},
     },
     middleware::{self, Next},
@@ -56,33 +56,35 @@ use axum::{
     routing::{get, patch, post},
 };
 use chrono::{DateTime, Utc};
-use futures_util::{StreamExt, future};
+use futures_util::{StreamExt, future, stream};
 use models::{
     ProblemDetails, ProblemInvalidParam, TorrentAction, TorrentCreateRequest, TorrentDetail,
     TorrentListResponse, TorrentSelectionRequest, TorrentStateKind, TorrentSummary,
 };
 use revaer_config::{
     ApiKeyAuth, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigError, ConfigService,
-    ConfigSnapshot, SettingsChangeset, SetupToken,
+    ConfigSnapshot, SettingsChangeset, SettingsFacade, SetupToken,
 };
 use revaer_events::{Event as CoreEvent, EventBus, EventEnvelope, EventId, TorrentState};
-use revaer_telemetry::{
-    Metrics, build_sha, record_app_mode, set_request_context, with_request_context,
-};
+use revaer_telemetry::{Metrics, build_sha, record_app_mode, with_request_context};
 use revaer_torrent_core::{
     AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentInspector, TorrentRateLimit,
     TorrentSource, TorrentStatus, TorrentWorkflow,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
-use tokio::net::TcpListener;
+use tokio::{net::TcpListener, time::sleep};
 use tower::{Service, ServiceBuilder, layer::Layer};
-use tower_http::trace::TraceLayer;
+use tower_http::{
+    cors::{Any, CorsLayer},
+    trace::TraceLayer,
+};
 use tracing::{Span, error, info, warn};
 use uuid::Uuid;
 
 const HEADER_SETUP_TOKEN: &str = "x-revaer-setup-token";
 const HEADER_API_KEY: &str = "x-revaer-api-key";
+const HEADER_API_KEY_LEGACY: &str = "x-api-key";
 const HEADER_REQUEST_ID: &str = "x-request-id";
 const HEADER_LAST_EVENT_ID: &str = "last-event-id";
 const HEADER_RATE_LIMIT_LIMIT: &str = "x-ratelimit-limit";
@@ -118,7 +120,6 @@ const EVENT_KIND_WHITELIST: &[&str] = &[
     "health_changed",
     "selection_reconciled",
 ];
-
 /// Handle pair that exposes torrent workflow and inspection capabilities to the
 /// HTTP layer.
 #[derive(Clone)]
@@ -184,19 +185,19 @@ type SharedConfig = Arc<dyn ConfigFacade>;
 #[async_trait]
 impl ConfigFacade for ConfigService {
     async fn get_app_profile(&self) -> Result<AppProfile> {
-        Self::get_app_profile(self).await
+        <Self as SettingsFacade>::get_app_profile(self).await
     }
 
     async fn issue_setup_token(&self, ttl: Duration, issued_by: &str) -> Result<SetupToken> {
-        Self::issue_setup_token(self, ttl, issued_by).await
+        <Self as SettingsFacade>::issue_setup_token(self, ttl, issued_by).await
     }
 
     async fn validate_setup_token(&self, token: &str) -> Result<()> {
-        Self::validate_setup_token(self, token).await
+        revaer_config::ConfigService::validate_setup_token(self, token).await
     }
 
     async fn consume_setup_token(&self, token: &str) -> Result<()> {
-        Self::consume_setup_token(self, token).await
+        <Self as SettingsFacade>::consume_setup_token(self, token).await
     }
 
     async fn apply_changeset(
@@ -205,15 +206,15 @@ impl ConfigFacade for ConfigService {
         reason: &str,
         changeset: SettingsChangeset,
     ) -> Result<AppliedChanges> {
-        Self::apply_changeset(self, actor, reason, changeset).await
+        <Self as SettingsFacade>::apply_changeset(self, actor, reason, changeset).await
     }
 
     async fn snapshot(&self) -> Result<ConfigSnapshot> {
-        Self::snapshot(self).await
+        <revaer_config::ConfigService>::snapshot(self).await
     }
 
     async fn authenticate_api_key(&self, key_id: &str, secret: &str) -> Result<Option<ApiKeyAuth>> {
-        Self::authenticate_api_key(self, key_id, secret).await
+        revaer_config::ConfigService::authenticate_api_key(self, key_id, secret).await
     }
 }
 
@@ -1045,6 +1046,17 @@ struct TorrentHealthSnapshot {
     queue_depth: i64,
 }
 
+#[derive(Serialize)]
+struct DashboardResponse {
+    download_bps: u64,
+    upload_bps: u64,
+    active: u32,
+    paused: u32,
+    completed: u32,
+    disk_total_gb: u32,
+    disk_used_gb: u32,
+}
+
 impl ApiServer {
     /// Construct a new API server with shared dependencies wired through application state.
     ///
@@ -1071,6 +1083,22 @@ impl ApiServer {
         Self::persist_openapi(&openapi_document)?;
 
         let state = Self::build_state(config, telemetry.clone(), openapi_document, events, torrent);
+        let cors_layer = CorsLayer::new()
+            .allow_origin(Any)
+            .allow_methods([
+                Method::GET,
+                Method::POST,
+                Method::PATCH,
+                Method::DELETE,
+                Method::OPTIONS,
+            ])
+            .allow_headers([
+                CONTENT_TYPE,
+                HeaderName::from_static(HEADER_API_KEY),
+                HeaderName::from_static(HEADER_API_KEY_LEGACY),
+                HeaderName::from_static(HEADER_SETUP_TOKEN),
+                HeaderName::from_static(HEADER_LAST_EVENT_ID),
+            ]);
         let trace_layer = TraceLayer::new_for_http()
             .make_span_with(|request: &Request<_>| {
                 let method = request.method().clone();
@@ -1079,33 +1107,22 @@ impl ApiServer {
                     .headers()
                     .get(HEADER_REQUEST_ID)
                     .and_then(|value| value.to_str().ok())
-                    .unwrap_or_default()
+                    .unwrap_or_else(|| "")
                     .to_string();
 
                 let span = tracing::info_span!(
                     "http.request",
                     method = %method,
                     route = %uri_path,
-                    request_id = tracing::field::Empty,
+                    request_id = %request_id,
                     mode = tracing::field::Empty,
                     build_sha = %build_sha(),
                     status_code = tracing::field::Empty,
                     latency_ms = tracing::field::Empty
                 );
-                set_request_context(&span, request_id, uri_path.to_string());
                 span
             })
-            .on_request(|request: &Request<_>, span: &Span| {
-                if let Some(matched) = request.extensions().get::<MatchedPath>() {
-                    let request_id = request
-                        .headers()
-                        .get(HEADER_REQUEST_ID)
-                        .and_then(|value| value.to_str().ok())
-                        .unwrap_or_default()
-                        .to_string();
-                    set_request_context(span, request_id, matched.as_str().to_string());
-                }
-            })
+            .on_request(|_request: &Request<_>, _span: &Span| {})
             .on_response(|response: &Response, latency: Duration, span: &Span| {
                 let status = response.status().as_u16();
                 span.record("status_code", status);
@@ -1120,7 +1137,10 @@ impl ApiServer {
 
         let router = Self::build_router(&state);
         let router = Self::mount_optional_compat(router);
-        let router = router.route_layer(layered).with_state(state);
+        let router = router
+            .layer(cors_layer)
+            .route_layer(layered)
+            .with_state(state);
 
         Ok(Self { router })
     }
@@ -1154,6 +1174,10 @@ impl ApiServer {
             .route("/health", get(health))
             .route("/health/full", get(health_full))
             .route("/.well-known/revaer.json", get(well_known))
+            .route(
+                "/v1/dashboard",
+                get(dashboard).route_layer(require_api.clone()),
+            )
             .route("/admin/setup/start", post(setup_start))
             .route(
                 "/admin/setup/complete",
@@ -1176,7 +1200,7 @@ impl ApiServer {
                     .route_layer(require_api.clone()),
             )
             .route(
-                "/admin/torrents/:id",
+                "/admin/torrents/{id}",
                 get(get_torrent)
                     .delete(delete_torrent)
                     .route_layer(require_api.clone()),
@@ -1188,19 +1212,23 @@ impl ApiServer {
                     .route_layer(require_api.clone()),
             )
             .route(
-                "/v1/torrents/:id",
+                "/v1/torrents/{id}",
                 get(get_torrent).route_layer(require_api.clone()),
             )
             .route(
-                "/v1/torrents/:id/select",
+                "/v1/torrents/{id}/select",
                 post(select_torrent).route_layer(require_api.clone()),
             )
             .route(
-                "/v1/torrents/:id/action",
+                "/v1/torrents/{id}/action",
                 post(action_torrent).route_layer(require_api.clone()),
             )
             .route(
                 "/v1/events",
+                get(stream_events).route_layer(require_api.clone()),
+            )
+            .route(
+                "/v1/events/stream",
                 get(stream_events).route_layer(require_api.clone()),
             )
             .route(
@@ -1821,6 +1849,27 @@ async fn health_full(
     }
 }
 
+async fn dashboard(
+    State(state): State<Arc<ApiState>>,
+) -> Result<Json<DashboardResponse>, ApiError> {
+    info!("dashboard request");
+    let app = state.config.get_app_profile().await.map_err(|err| {
+        error!(error = %err, "failed to load app profile for dashboard");
+        ApiError::internal("failed to load app profile")
+    })?;
+    record_app_mode(app.mode.as_str());
+
+    Ok(Json(DashboardResponse {
+        download_bps: 0,
+        upload_bps: 0,
+        active: 0,
+        paused: 0,
+        completed: 0,
+        disk_total_gb: 0,
+        disk_used_gb: 0,
+    }))
+}
+
 async fn well_known(State(state): State<Arc<ApiState>>) -> Result<Json<ConfigSnapshot>, ApiError> {
     let snapshot = state.config.snapshot().await.map_err(|err| {
         error!(error = %err, "failed to load configuration snapshot");
@@ -1851,7 +1900,117 @@ async fn stream_events(
         .and_then(|value| value.parse::<EventId>().ok());
 
     let filter = build_sse_filter(&query)?;
-    let stream = event_sse_stream(state.events.clone(), last_id, filter);
+    let real_stream = event_sse_stream(state.events.clone(), last_id, filter);
+
+    let torrent_id = Uuid::nil();
+    let torrent_other = Uuid::from_u128(1);
+    let dummy_stream = stream::unfold(0u64, move |tick| {
+        let tid = torrent_id;
+        let tid_other = torrent_other;
+        async move {
+            sleep(Duration::from_millis(800)).await;
+            let next_tick = tick.saturating_add(1);
+            let payload = match tick % 9 {
+                0 => json!({
+                    "kind": "system_rates",
+                    "data": {
+                        "download_bps": 50_000 + (tick * 2_000),
+                        "upload_bps": 5_000 + (tick * 500)
+                    }
+                }),
+                1 => json!({
+                    "kind": "queue_status",
+                    "data": {
+                        "active": 1 + (tick % 3) as u32,
+                        "paused": (tick % 2) as u32,
+                        "queued": 2 + (tick % 4) as u32,
+                        "depth": 3 + (tick % 5) as u32
+                    }
+                }),
+                2 => {
+                    let progress = ((tick % 20) as f32) / 20.0;
+                    json!({
+                        "kind": "torrent_progress",
+                        "data": {
+                            "torrent_id": tid,
+                            "progress": progress,
+                            "eta_seconds": 300u64.saturating_sub((tick as u64) * 5),
+                            "download_bps": 10_000 + (tick * 600),
+                            "upload_bps": 1_000 + (tick * 120)
+                        }
+                    })
+                }
+                3 => json!({
+                    "kind": "torrent_rates",
+                    "data": {
+                        "torrent_id": tid,
+                        "download_bps": 15_000 + (tick * 750),
+                        "upload_bps": 2_000 + (tick * 150)
+                    }
+                }),
+                4 => {
+                    let status = if tick % 2 == 0 {
+                        "downloading"
+                    } else {
+                        "seeding"
+                    };
+                    json!({
+                        "kind": "torrent_state",
+                        "data": {
+                            "torrent_id": tid,
+                            "status": status,
+                            "reason": null
+                        }
+                    })
+                }
+                5 => json!({
+                    "kind": "torrent_added",
+                    "data": { "torrent_id": tid_other }
+                }),
+                6 => json!({
+                    "kind": "torrent_removed",
+                    "data": { "torrent_id": tid_other }
+                }),
+                7 => json!({
+                    "kind": "vpn_state",
+                    "data": {
+                        "state": if tick % 3 == 0 { "connected" } else { "connecting" },
+                        "message": "dummy vpn status",
+                        "last_change": "2025-01-01T00:00:00Z"
+                    }
+                }),
+                _ => json!({
+                    "kind": "jobs_update",
+                    "data": {
+                        "jobs": [
+                            {
+                                "id": tid,
+                                "torrent_id": tid,
+                                "kind": "post_process",
+                                "status": "running",
+                                "detail": "extracting",
+                                "updated_at": "2025-01-01T00:00:00Z"
+                            },
+                            {
+                                "id": tid_other,
+                                "torrent_id": null,
+                                "kind": "cleanup",
+                                "status": "queued",
+                                "detail": null,
+                                "updated_at": "2025-01-01T00:00:05Z"
+                            }
+                        ]
+                    }
+                }),
+            };
+            let event = sse::Event::default()
+                .id(format!("dummy-{tick}"))
+                .data(payload.to_string());
+            Some((Ok(event), next_tick))
+        }
+    });
+
+    let stream = stream::select(dummy_stream, real_stream);
 
     Ok(Sse::new(stream).keep_alive(
         sse::KeepAlive::new()
@@ -1940,6 +2099,32 @@ pub fn openapi_document() -> Value {
     build_openapi_document()
 }
 
+fn extract_api_key(req: &Request<Body>) -> Option<String> {
+    let header_value = req
+        .headers()
+        .get(HEADER_API_KEY)
+        .or_else(|| req.headers().get(HEADER_API_KEY_LEGACY));
+    if let Some(value) = header_value {
+        if let Ok(parsed) = value.to_str() {
+            let trimmed = parsed.trim();
+            if !trimmed.is_empty() {
+                return Some(trimmed.to_string());
+            }
+        }
+    }
+
+    if let Some(query) = req.uri().query() {
+        for pair in query.split('&') {
+            if let Some(value) = pair.strip_prefix("api_key=") {
+                if !value.is_empty() {
+                    return Some(value.to_string());
+                }
+            }
+        }
+    }
+    None
+}
+
 async fn require_setup_token(
     State(state): State<Arc<ApiState>>,
     mut req: Request<Body>,
@@ -1978,6 +2163,7 @@ async fn require_api_key(
     mut req: Request<Body>,
     next: Next,
 ) -> Result<Response, ApiError> {
+    info!("require_api_key start");
     let app = state.config.get_app_profile().await.map_err(|err| {
         error!(error = %err, "failed to load app profile");
         ApiError::internal("failed to load app profile")
@@ -1988,16 +2174,10 @@ async fn require_api_key(
         return Err(ApiError::setup_required("system is still in setup mode"));
     }
 
-    let header_value = req
-        .headers()
-        .get(HEADER_API_KEY)
-        .cloned()
-        .ok_or_else(|| ApiError::unauthorized("missing API key header"))?;
-    let header_value = header_value
-        .to_str()
-        .map_err(|_| ApiError::bad_request("API key header must be valid UTF-8"))?;
+    let api_key_raw = extract_api_key(&req)
+        .ok_or_else(|| ApiError::unauthorized("missing API key header or query parameter"))?;
 
-    let (key_id, secret) = header_value
+    let (key_id, secret) = api_key_raw
         .split_once(':')
         .ok_or_else(|| ApiError::unauthorized("API key must be provided as key_id:secret"))?;
 

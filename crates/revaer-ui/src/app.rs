@@ -18,7 +18,7 @@ use gloo::storage::{LocalStorage, Storage};
 use gloo::utils::window;
 use gloo_timers::callback::Timeout;
 use wasm_bindgen::JsCast;
-use web_sys::{EventSource, MediaQueryList};
+use web_sys::{EventSource, MediaQueryList, Url};
 use yew::prelude::*;
 use yew_router::prelude::*;
 
@@ -27,8 +27,6 @@ const MODE_KEY: &str = "revaer.mode";
 const LOCALE_KEY: &str = "revaer.locale";
 const DENSITY_KEY: &str = "revaer.density";
 const API_KEY_KEY: &str = "revaer.api_key";
-const ALLOW_ANON: bool = false;
-
 #[derive(Clone, Routable, PartialEq, Eq, Debug)]
 pub(crate) enum Route {
     #[at("/")]
@@ -55,7 +53,8 @@ pub fn revaer_app() -> Html {
     let density = use_state(load_density);
     let locale = use_state(load_locale);
     let breakpoint = use_state(current_breakpoint);
-    let api_key = use_state(load_api_key);
+    let allow_anon = allow_anonymous();
+    let api_key = use_state(|| load_api_key(allow_anon));
     let torrents = use_state(demo_rows);
     let dashboard = use_state(demo_snapshot);
     let search = use_state(String::new);
@@ -102,15 +101,18 @@ pub fn revaer_app() -> Html {
     {
         let api_key = (*api_key).clone();
         let dashboard = dashboard.clone();
-        use_effect(move || {
-            let dashboard_client = ApiClient::new(api_base_url(), api_key.clone());
-            yew::platform::spawn_local(async move {
-                if let Ok(snapshot) = dashboard_client.fetch_dashboard().await {
-                    dashboard.set(snapshot);
-                }
-            });
-            || ()
-        });
+        use_effect_with_deps(
+            move |_| {
+                let dashboard_client = ApiClient::new(api_base_url(), api_key.clone());
+                yew::platform::spawn_local(async move {
+                    if let Ok(snapshot) = dashboard_client.fetch_dashboard().await {
+                        dashboard.set(snapshot);
+                    }
+                });
+                || ()
+            },
+            (), // run only once
+        );
     }
     {
         let api_key = (*api_key).clone();
@@ -602,11 +604,11 @@ pub fn revaer_app() -> Html {
                 </AppShell>
                 <ToastHost toasts={(*toasts).clone()} on_dismiss={dismiss_toast.clone()} />
                 <SseOverlay state={*sse_state} on_retry={clear_sse_overlay} network_mode={bundle_sse.text("shell.network_remote", "")} />
-                {if api_key.is_none() {
+                {if api_key.is_none() && !allow_anon {
                     html! {
                         <AuthPrompt
-                            require_key={true}
-                            allow_anonymous={ALLOW_ANON}
+                            require_key={!allow_anon}
+                            allow_anonymous={allow_anon}
                             on_submit={{
                                 let api_key = api_key.clone();
                                 Callback::from(move |value: Option<String>| {
@@ -743,15 +745,78 @@ fn load_locale() -> LocaleCode {
     DEFAULT_LOCALE
 }
 
-fn load_api_key() -> Option<String> {
-    LocalStorage::get::<String>(API_KEY_KEY).ok()
+fn load_api_key(allow_anon: bool) -> Option<String> {
+    if let Ok(value) = LocalStorage::get::<String>(API_KEY_KEY) {
+        if !value.trim().is_empty() {
+            return Some(value);
+        }
+    }
+    if allow_anon {
+        // Dev-friendly default aligns with `scripts/dev-seed.sql`.
+        Some("dev:revaer_dev".to_string())
+    } else {
+        None
+    }
+}
+
+fn allow_anonymous() -> bool {
+    is_local_host()
+}
+
+fn is_local_host() -> bool {
+    let host = window()
+        .location()
+        .hostname()
+        .unwrap_or_else(|_| String::new())
+        .to_ascii_lowercase();
+    if host.is_empty()
+        || host == "localhost"
+        || host == "127.0.0.1"
+        || host == "::1"
+        || host.starts_with("127.")
+        || host.starts_with("10.")
+        || host.starts_with("192.168.")
+        || (host.starts_with("172.")
+            && host
+                .split('.')
+                .nth(1)
+                .and_then(|b| b.parse::<u8>().ok())
+                .map_or(false, |b| (16..=31).contains(&b)))
+        || host.ends_with(".local")
+    {
+        return true;
+    }
+    false
 }
 
 fn api_base_url() -> String {
-    window()
+    // During `trunk serve` the UI is served from 8080 while the API listens on 7070.
+    // Remap that common dev case so EventSource/HTTP calls hit the backend instead of the
+    // static asset server (which would return HTML and break SSE).
+    let href = window()
         .location()
-        .origin()
-        .unwrap_or_else(|_| "http://localhost:7878".to_string())
+        .href()
+        .unwrap_or_else(|_| "http://localhost:8080".to_string());
+
+    if let Ok(url) = Url::new(&href) {
+        let protocol = url.protocol();
+        let host = url.hostname();
+        let port = url.port();
+        let mapped_port = match port.as_str() {
+            "" => None,
+            "8080" => Some("7070"),
+            other => Some(other),
+        };
+
+        let mut base = format!("{}//{}", protocol, host);
+        if let Some(port) = mapped_port {
+            base.push(':');
+            base.push_str(port);
+        }
+        return base;
+    }
+
+    "http://localhost:7070".to_string()
 }
 
 fn update_progress(
