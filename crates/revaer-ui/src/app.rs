@@ -849,5 +849,10 @@ fn prefers_dark() -> Option<bool> {
 
 /// Entrypoint invoked by Trunk for wasm32 builds.
 pub fn run_app() {
-    yew::Renderer::<RevaerApp>::new().render();
+    console_error_panic_hook::set_once();
+    if let Some(root) = gloo::utils::document().get_element_by_id("root") {
+        yew::Renderer::<RevaerApp>::with_root(root).render();
+    } else {
+        yew::Renderer::<RevaerApp>::new().render();
+    }
 }
