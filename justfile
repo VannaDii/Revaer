@@ -95,6 +95,28 @@ docker-scan:
     fi
     trivy image --exit-code 1 --severity HIGH,CRITICAL revaer:ci
 
+ui-serve:
+    rustup target add wasm32-unknown-unknown
+    if ! command -v trunk >/dev/null 2>&1; then \
+        cargo install trunk; \
+    fi
+    cd crates/revaer-ui && trunk serve --open
+
+dev:
+    if ! command -v cargo-watch >/dev/null 2>&1; then \
+        cargo install cargo-watch; \
+    fi
+    rustup target add wasm32-unknown-unknown
+    if ! command -v trunk >/dev/null 2>&1; then \
+        cargo install trunk; \
+    fi
+    RUST_LOG=${RUST_LOG:-debug} cargo watch -x "run -p revaer-app" &
+    api_pid=$!; \
+    ( cd crates/revaer-ui && trunk serve --open ) &
+    ui_pid=$!; \
+    trap 'kill $api_pid $ui_pid' EXIT; \
+    wait $api_pid $ui_pid
+
 install-docs:
     if ! command -v mdbook >/dev/null 2>&1; then \
         cargo install --locked mdbook; \
