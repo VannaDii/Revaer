@@ -2,7 +2,7 @@ use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use yew::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SseState {
+pub(crate) enum SseState {
     Connected,
     Reconnecting {
         retry_in_secs: u8,
@@ -12,14 +12,14 @@ pub enum SseState {
 }
 
 #[derive(Properties, PartialEq)]
-pub struct SseProps {
+pub(crate) struct SseProps {
     pub state: SseState,
     pub on_retry: Callback<()>,
-    pub network_mode: &'static str,
+    pub network_mode: String,
 }
 
 #[function_component(SseOverlay)]
-pub fn sse_overlay(props: &SseProps) -> Html {
+pub(crate) fn sse_overlay(props: &SseProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
     let t = |key: &str| bundle.text(key, "");
@@ -46,7 +46,7 @@ pub fn sse_overlay(props: &SseProps) -> Html {
             <div class="card">
                 <header>
                     <strong>{t("sse.title")}</strong>
-                    <span class="pill warn">{props.network_mode}</span>
+                    <span class="pill warn">{props.network_mode.clone()}</span>
                 </header>
                 <p>{t("sse.body")}</p>
                 <ul>
@@ -55,7 +55,7 @@ pub fn sse_overlay(props: &SseProps) -> Html {
                     <li>{format!("{} {}", t("sse.reason"), reason)}</li>
                 </ul>
                 <div class="actions">
-                    <button class="ghost" onclick={retry_now}>{t("sse.retry")}</button>
+                    <button class="ghost" onclick={retry_now.clone()}>{t("sse.retry")}</button>
                     <button class="solid" onclick={retry_now}>{t("sse.dismiss")}</button>
                 </div>
             </div>
@@ -64,12 +64,12 @@ pub fn sse_overlay(props: &SseProps) -> Html {
 }
 
 #[derive(Properties, PartialEq)]
-pub struct SseBadgeProps {
+pub(crate) struct SseBadgeProps {
     pub state: SseState,
 }
 
 #[function_component(SseBadge)]
-pub fn sse_badge(props: &SseBadgeProps) -> Html {
+pub(crate) fn sse_badge(props: &SseBadgeProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
     let t = |key: &str| bundle.text(key, "");

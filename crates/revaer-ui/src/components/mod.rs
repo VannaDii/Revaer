@@ -1,8 +1,8 @@
-pub mod auth;
-pub mod dashboard;
-pub mod detail;
-pub mod shell;
-pub mod status;
-pub mod toast;
-pub mod torrents;
-pub mod virtual_list;
+pub(crate) mod auth;
+pub(crate) mod dashboard;
+pub(crate) mod detail;
+pub(crate) mod shell;
+pub(crate) mod status;
+pub(crate) mod toast;
+pub(crate) mod torrents;
+pub(crate) mod virtual_list;

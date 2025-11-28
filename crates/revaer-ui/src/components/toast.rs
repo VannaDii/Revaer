@@ -3,27 +3,27 @@ use gloo::timers::callback::Timeout;
 use yew::prelude::*;
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum ToastKind {
+pub(crate) enum ToastKind {
     Info,
     Success,
     Error,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Toast {
+pub(crate) struct Toast {
     pub id: u64,
     pub message: String,
     pub kind: ToastKind,
 }
 
 #[derive(Properties, PartialEq)]
-pub struct ToastHostProps {
+pub(crate) struct ToastHostProps {
     pub toasts: Vec<Toast>,
     pub on_dismiss: Callback<u64>,
 }
 
 #[function_component(ToastHost)]
-pub fn toast_host(props: &ToastHostProps) -> Html {
+pub(crate) fn toast_host(props: &ToastHostProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
     let t = |key: &str| bundle.text(key, "");

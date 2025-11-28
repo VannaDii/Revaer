@@ -8,7 +8,7 @@ use yew::prelude::*;
 use yew_router::prelude::Link;
 
 #[derive(Clone, PartialEq)]
-pub struct NavLabels {
+pub(crate) struct NavLabels {
     pub dashboard: String,
     pub torrents: String,
     pub search: String,
@@ -18,7 +18,7 @@ pub struct NavLabels {
 }
 
 #[derive(Properties, PartialEq)]
-pub struct ShellProps {
+pub(crate) struct ShellProps {
     pub children: Children,
     pub theme: ThemeMode,
     pub on_toggle_theme: Callback<()>,
@@ -30,11 +30,11 @@ pub struct ShellProps {
     pub breakpoint: Breakpoint,
     pub sse_state: SseState,
     pub on_sse_retry: Callback<()>,
-    pub network_mode: &'static str,
+    pub network_mode: String,
 }
 
 #[function_component(AppShell)]
-pub fn app_shell(props: &ShellProps) -> Html {
+pub(crate) fn app_shell(props: &ShellProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
     let t = |key: &str| bundle.text(key, "");
@@ -58,12 +58,12 @@ pub fn app_shell(props: &ShellProps) -> Html {
                     <span class="muted">{t("shell.phase")}</span>
                 </div>
                 <nav>
-                    {nav_item(Route::Dashboard, &props.nav.dashboard, props.active)}
-                    {nav_item(Route::Torrents, &props.nav.torrents, props.active)}
-                    {nav_item(Route::Search, &props.nav.search, props.active)}
-                    {nav_item(Route::Jobs, &props.nav.jobs, props.active)}
-                    {nav_item(Route::Settings, &props.nav.settings, props.active)}
-                    {nav_item(Route::Logs, &props.nav.logs, props.active)}
+                    {nav_item(Route::Dashboard, &props.nav.dashboard, props.active.clone())}
+                    {nav_item(Route::Torrents, &props.nav.torrents, props.active.clone())}
+                    {nav_item(Route::Search, &props.nav.search, props.active.clone())}
+                    {nav_item(Route::Jobs, &props.nav.jobs, props.active.clone())}
+                    {nav_item(Route::Settings, &props.nav.settings, props.active.clone())}
+                    {nav_item(Route::Logs, &props.nav.logs, props.active.clone())}
                 </nav>
                 <div class="sidebar-footer">
                     <div class="mode-toggle">
@@ -81,7 +81,10 @@ pub fn app_shell(props: &ShellProps) -> Html {
                     </div>
                     <div class="theme-toggle">
                         <small>{t("shell.theme.label")}</small>
-                        <button class="ghost" onclick={props.on_toggle_theme.clone()}>{theme_label}</button>
+                        <button class="ghost" onclick={{
+                            let cb = props.on_toggle_theme.clone();
+                            Callback::from(move |_| cb.emit(()))
+                        }}>{theme_label}</button>
                     </div>
                     <div class="locale-toggle">
                         <small>{t("shell.locale")}</small>
@@ -97,10 +100,16 @@ pub fn app_shell(props: &ShellProps) -> Html {
                     </div>
                     <div class="top-actions">
                         <SseBadge state={props.sse_state} />
-                        <button class="ghost" onclick={props.on_sse_retry.clone()}>{t("shell.simulate_sse")}</button>
+                        <button class="ghost" onclick={{
+                            let cb = props.on_sse_retry.clone();
+                            Callback::from(move |_| cb.emit(()))
+                        }}>{t("shell.simulate_sse")}</button>
                         <span class="pill subtle">{format!("BP: {}", props.breakpoint.name)}</span>
                         <span class="pill subtle">{format!("VPN: {}", props.network_mode)}</span>
-                        <button class="ghost" onclick={props.on_toggle_theme.clone()} aria-label={t("shell.toggle_theme")}>{"🌓"}</button>
+                        <button class="ghost" onclick={{
+                            let cb = props.on_toggle_theme.clone();
+                            Callback::from(move |_| cb.emit(()))
+                        }} aria-label={t("shell.toggle_theme")}>{"🌓"}</button>
                     </div>
                 </header>
                 <main>

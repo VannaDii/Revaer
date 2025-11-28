@@ -30,7 +30,7 @@ const API_KEY_KEY: &str = "revaer.api_key";
 const ALLOW_ANON: bool = false;
 
 #[derive(Clone, Routable, PartialEq, Eq, Debug)]
-pub enum Route {
+pub(crate) enum Route {
     #[at("/")]
     Dashboard,
     #[at("/torrents")]
@@ -115,11 +115,13 @@ pub fn revaer_app() -> Html {
     {
         let api_key = (*api_key).clone();
         let torrents = torrents.clone();
-        let search = (*search).clone();
+        let search_val = (*search).clone();
+        let search_dep = search_val.clone();
         let regex = *regex;
         use_effect_with_deps(
             move |_| {
                 let client = ApiClient::new(api_base_url(), api_key.clone());
+                let search = search_val.clone();
                 yew::platform::spawn_local(async move {
                     match client.fetch_torrents(Some(search.clone()), regex).await {
                         Ok(list) if !list.is_empty() => torrents.set(list),
@@ -128,11 +130,10 @@ pub fn revaer_app() -> Html {
                 });
                 || ()
             },
-            (search.clone(), regex),
+            (search_dep, regex),
         );
     }
     {
-        let api_key = (*api_key).clone();
         let torrents = torrents.clone();
         let search_value = (*search).clone();
         let regex_flag = *regex;
@@ -140,18 +141,20 @@ pub fn revaer_app() -> Html {
         let sse_state = sse_state.clone();
         let dashboard_state = dashboard.clone();
         let sse_retry = sse_retry.clone();
-        use_effect(
-            move || {
+        use_effect_with_deps(
+            move |api_key: &Option<String>| {
                 if let Some(src) = sse_handle.borrow_mut().take() {
                     src.close();
                 }
                 let state_updater = torrents.clone();
-                let sse_state = sse_state.clone();
+                let sse_state_events = sse_state.clone();
+                let sse_retry_events = sse_retry.clone();
                 let mut cancel_timer: Option<Timeout> = None;
                 let search = search_value.clone();
                 let regex = regex_flag;
+                let key = api_key.clone();
                 if let Some(source) =
-                    crate::services::connect_sse(&api_base_url(), api_key.clone(), move |event| {
+                    crate::services::connect_sse(&api_base_url(), key.clone(), move |event| {
                         match event {
                             crate::models::SseEvent::TorrentProgress {
                                 torrent_id,
@@ -196,7 +199,7 @@ pub fn revaer_app() -> Html {
                             }
                             crate::models::SseEvent::TorrentAdded { .. } => {
                                 let torrents = state_updater.clone();
-                                let api_key = api_key.clone();
+                                let api_key = key.clone();
                                 let search = search.clone();
                                 yew::platform::spawn_local(async move {
                                     let client = ApiClient::new(api_base_url(), api_key.clone());
@@ -245,8 +248,8 @@ pub fn revaer_app() -> Html {
                             }
                             _ => {}
                         }
-                        sse_state.set(SseState::Connected);
-                        sse_retry.set(0);
+                        sse_state_events.set(SseState::Connected);
+                        sse_retry_events.set(0);
                     })
                 {
                     *sse_handle.borrow_mut() = Some(source);
@@ -279,7 +282,7 @@ pub fn revaer_app() -> Html {
         let breakpoint = breakpoint.clone();
         use_effect(move || {
             apply_breakpoint(*breakpoint);
-            let handler = gloo::events::EventListener::new(&gloo::utils::window(), "resize", {
+            let handler = EventListener::new(&gloo::utils::window(), "resize", {
                 let breakpoint = breakpoint.clone();
                 move |_event| {
                     let bp = current_breakpoint();
@@ -564,8 +567,13 @@ pub fn revaer_app() -> Html {
         }
     };
 
+    let bundle_ctx = bundle.clone();
+    let bundle_routes = bundle.clone();
+    let bundle_sse = bundle.clone();
+    let api_key_routes = api_key.clone();
+
     html! {
-        <ContextProvider<TranslationBundle> context={(*bundle).clone()}>
+        <ContextProvider<TranslationBundle> context={(*bundle_ctx).clone()}>
             <BrowserRouter>
                 <AppShell
                     theme={*theme}
@@ -578,13 +586,13 @@ pub fn revaer_app() -> Html {
                     breakpoint={*breakpoint}
                     sse_state={*sse_state}
                     on_sse_retry={simulate_sse_drop}
-                    network_mode={bundle.text("shell.network_connected", "")}
+                    network_mode={bundle_ctx.text("shell.network_connected", "")}
                 >
                     <Switch<Route> render={move |route| {
-                        let bundle = (*bundle).clone();
+                        let bundle = (*bundle_routes).clone();
                         match route {
                             Route::Dashboard => html! { <DashboardPanel snapshot={(*dashboard).clone()} mode={*mode} density={*density} /> },
-                            Route::Torrents | Route::Search => html! { <TorrentView base_url={api_base_url()} api_key={(*api_key).clone()} breakpoint={*breakpoint} torrents={(*torrents).clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_bulk_action={on_bulk_action.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={*add_busy} search={(*search).clone()} regex={*regex} on_search={set_search.clone()} on_toggle_regex={toggle_regex.clone()} /> },
+                            Route::Torrents | Route::Search => html! { <TorrentView base_url={api_base_url()} api_key={(*api_key_routes).clone()} breakpoint={*breakpoint} torrents={(*torrents).clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_bulk_action={on_bulk_action.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={*add_busy} search={(*search).clone()} regex={*regex} on_search={set_search.clone()} on_toggle_regex={toggle_regex.clone()} /> },
                             Route::Jobs => html! { <Placeholder title={bundle.text("placeholder.jobs_title", "")} body={bundle.text("placeholder.jobs_body", "")} /> },
                             Route::Settings => html! { <Placeholder title={bundle.text("placeholder.settings_title", "")} body={bundle.text("placeholder.settings_body", "")} /> },
                             Route::Logs => html! { <Placeholder title={bundle.text("placeholder.logs_title", "")} body={bundle.text("placeholder.logs_body", "")} /> },
@@ -593,7 +601,7 @@ pub fn revaer_app() -> Html {
                     }} />
                 </AppShell>
                 <ToastHost toasts={(*toasts).clone()} on_dismiss={dismiss_toast.clone()} />
-                <SseOverlay state={*sse_state} on_retry={clear_sse_overlay} network_mode={bundle.text("shell.network_remote", "")} />
+                <SseOverlay state={*sse_state} on_retry={clear_sse_overlay} network_mode={bundle_sse.text("shell.network_remote", "")} />
                 {if api_key.is_none() {
                     html! {
                         <AuthPrompt
@@ -643,9 +651,9 @@ fn push_toast(
     kind: ToastKind,
     message: String,
 ) {
-    let id = *next_id + 1;
+    let id = **next_id + 1;
     next_id.set(id);
-    let mut list = (*toasts).clone();
+    let mut list = (**toasts).clone();
     list.push(Toast { id, message, kind });
     if list.len() > 4 {
         let drain = list.len() - 4;
@@ -793,7 +801,7 @@ fn update_system_rates(
     download_bps: u64,
     upload_bps: u64,
 ) -> crate::components::dashboard::DashboardSnapshot {
-    let mut snapshot = (*state).clone();
+    let mut snapshot = (**state).clone();
     snapshot.download_bps = download_bps;
     snapshot.upload_bps = upload_bps;
     snapshot
@@ -806,7 +814,7 @@ fn update_queue(
     queued: u32,
     depth: u32,
 ) -> crate::components::dashboard::DashboardSnapshot {
-    let mut snapshot = (*state).clone();
+    let mut snapshot = (**state).clone();
     snapshot.queue = crate::components::dashboard::QueueStatus {
         active: active as u16,
         paused: paused as u16,
@@ -822,7 +830,7 @@ fn update_vpn(
     message: String,
     last_change: String,
 ) -> crate::components::dashboard::DashboardSnapshot {
-    let mut snapshot = (*state).clone();
+    let mut snapshot = (**state).clone();
     snapshot.vpn = crate::components::dashboard::VpnState {
         state: status,
         message,
@@ -834,8 +842,8 @@ fn update_vpn(
 fn prefers_dark() -> Option<bool> {
     let media: MediaQueryList = window()
         .match_media("(prefers-color-scheme: dark)")
-        .ok()?
-        .flatten()?;
+        .ok()
+        .and_then(|m| m)?;
     Some(media.matches())
 }
 

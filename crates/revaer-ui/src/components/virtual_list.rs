@@ -7,7 +7,7 @@ use crate::logic::compute_window;
 
 /// Minimal vertical virtualization helper to keep 50k+ rows responsive.
 #[derive(Properties, PartialEq)]
-pub struct VirtualListProps {
+pub(crate) struct VirtualListProps {
     pub len: usize,
     pub row_height: u32,
     #[prop_or(4)]
@@ -20,7 +20,7 @@ pub struct VirtualListProps {
 }
 
 #[function_component(VirtualList)]
-pub fn virtual_list(props: &VirtualListProps) -> Html {
+pub(crate) fn virtual_list(props: &VirtualListProps) -> Html {
     let viewport_height = use_state(|| 0u32);
     let scroll_top = use_state(|| 0u32);
     let container_ref = use_node_ref();
@@ -97,7 +97,7 @@ pub fn virtual_list(props: &VirtualListProps) -> Html {
         >
             <div style={format!("height:{}px; position:relative;", total_height)} aria-hidden="true"></div>
             <div style={format!("position:absolute; top:{}px; left:0; right:0;", offset)}>
-                {for (start..end).map(|idx| (props.render)(idx))}
+                {for (start..end).map(|idx| props.render.emit(idx))}
             </div>
         </div>
     }

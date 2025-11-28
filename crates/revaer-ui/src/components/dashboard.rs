@@ -3,7 +3,7 @@ use crate::{Density, UiMode};
 use yew::prelude::*;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct DashboardSnapshot {
+pub(crate) struct DashboardSnapshot {
     pub download_bps: u64,
     pub upload_bps: u64,
     pub active: u32,
@@ -19,35 +19,36 @@ pub struct DashboardSnapshot {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct PathUsage {
+pub(crate) struct PathUsage {
     pub label: &'static str,
     pub used_gb: u32,
     pub total_gb: u32,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct DashboardEvent {
+pub(crate) struct DashboardEvent {
     pub label: &'static str,
     pub detail: &'static str,
     pub kind: EventKind,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum EventKind {
+#[allow(dead_code)]
+pub(crate) enum EventKind {
     Info,
     Warning,
     Error,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct TrackerHealth {
+pub(crate) struct TrackerHealth {
     pub ok: u16,
     pub warn: u16,
     pub error: u16,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct QueueStatus {
+pub(crate) struct QueueStatus {
     pub active: u16,
     pub paused: u16,
     pub queued: u16,
@@ -55,21 +56,21 @@ pub struct QueueStatus {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct VpnState {
-    pub state: &'static str,
-    pub message: &'static str,
-    pub last_change: &'static str,
+pub(crate) struct VpnState {
+    pub state: String,
+    pub message: String,
+    pub last_change: String,
 }
 
 #[derive(Properties, PartialEq)]
-pub struct DashboardProps {
+pub(crate) struct DashboardProps {
     pub snapshot: DashboardSnapshot,
     pub mode: UiMode,
     pub density: Density,
 }
 
 #[function_component(DashboardPanel)]
-pub fn dashboard_panel(props: &DashboardProps) -> Html {
+pub(crate) fn dashboard_panel(props: &DashboardProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
     let t = |key: &str| bundle.text(key, "");
@@ -136,10 +137,10 @@ pub fn dashboard_panel(props: &DashboardProps) -> Html {
                 </div>
             </div>
             <div class="tile stats">
-                <header><span>{t("dashboard.vpn")}</span><span class="muted">{props.snapshot.vpn.last_change}</span></header>
+                <header><span>{t("dashboard.vpn")}</span><span class="muted">{props.snapshot.vpn.last_change.clone()}</span></header>
                 <div class="stat-row">
-                    <div><strong>{props.snapshot.vpn.state}</strong><small>{t("dashboard.vpn_state")}</small></div>
-                    <div><strong>{props.snapshot.vpn.message}</strong><small>{t("dashboard.vpn_message")}</small></div>
+                    <div><strong>{props.snapshot.vpn.state.clone()}</strong><small>{t("dashboard.vpn_state")}</small></div>
+                    <div><strong>{props.snapshot.vpn.message.clone()}</strong><small>{t("dashboard.vpn_message")}</small></div>
                 </div>
             </div>
             <div class="tile events">
@@ -188,7 +189,7 @@ fn format_rate(value: u64) -> String {
 
 /// Demo snapshot used by the initial UI shell.
 #[must_use]
-pub fn demo_snapshot() -> DashboardSnapshot {
+pub(crate) fn demo_snapshot() -> DashboardSnapshot {
     DashboardSnapshot {
         download_bps: 142_000_000,
         upload_bps: 22_000_000,
@@ -243,9 +244,9 @@ pub fn demo_snapshot() -> DashboardSnapshot {
             depth: 34,
         },
         vpn: VpnState {
-            state: "connected",
-            message: "Routing through wg0",
-            last_change: "12s ago",
+            state: "connected".into(),
+            message: "Routing through wg0".into(),
+            last_change: "12s ago".into(),
         },
     }
 }

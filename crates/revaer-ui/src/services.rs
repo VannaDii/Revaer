@@ -1,3 +1,5 @@
+#![allow(missing_docs, unreachable_pub)]
+
 //! HTTP and SSE client helpers (REST + fallback stubs).
 
 use crate::components::dashboard::{DashboardSnapshot, QueueStatus, TrackerHealth, VpnState};
@@ -13,7 +15,7 @@ use wasm_bindgen::closure::Closure;
 use web_sys::{EventSource, EventSourceInit, FormData, MessageEvent};
 
 #[derive(Clone, Debug)]
-pub struct ApiClient {
+pub(crate) struct ApiClient {
     pub base_url: String,
     pub api_key: Option<String>,
 }
@@ -107,9 +109,9 @@ impl ApiClient {
                 depth: 0,
             },
             vpn: VpnState {
-                state: "unknown",
-                message: "-",
-                last_change: "-",
+                state: "unknown".into(),
+                message: "-".into(),
+                last_change: "-".into(),
             },
         })
     }
@@ -199,8 +201,8 @@ pub fn connect_sse(
     on_event: impl Fn(SseEvent) + 'static,
 ) -> Option<EventSource> {
     let url = build_sse_url(base_url, &api_key);
-    let mut init = EventSourceInit::new();
-    init.with_credentials(true);
+    let init = EventSourceInit::new();
+    init.set_with_credentials(true);
     let source = EventSource::new_with_event_source_init_dict(&url, &init).ok()?;
     let handler = Closure::<dyn FnMut(_)>::wrap(Box::new(move |event: web_sys::Event| {
         if let Ok(msg) = event.dyn_into::<MessageEvent>() {

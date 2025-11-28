@@ -1,11 +1,11 @@
 use crate::Pane;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
-use crate::models::{DetailEvent, TorrentDetail, TorrentFile};
+use crate::models::TorrentDetail;
 use yew::prelude::*;
 
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, PartialEq)]
-pub struct FileNode {
+pub(crate) struct FileNode {
     pub name: String,
     pub size_gb: f32,
     pub completed_gb: f32,
@@ -15,7 +15,7 @@ pub struct FileNode {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct PeerRow {
+pub(crate) struct PeerRow {
     pub ip: String,
     pub client: String,
     pub flags: String,
@@ -26,7 +26,7 @@ pub struct PeerRow {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct TrackerRow {
+pub(crate) struct TrackerRow {
     pub url: String,
     pub status: String,
     pub next_announce: String,
@@ -34,14 +34,14 @@ pub struct TrackerRow {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct EventRow {
+pub(crate) struct EventRow {
     pub timestamp: String,
     pub level: String,
     pub message: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct Metadata {
+pub(crate) struct Metadata {
     pub hash: String,
     pub magnet: String,
     pub size_gb: f32,
@@ -50,7 +50,7 @@ pub struct Metadata {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct DetailData {
+pub(crate) struct DetailData {
     pub name: String,
     pub files: Vec<FileNode>,
     pub peers: Vec<PeerRow>,
@@ -60,15 +60,16 @@ pub struct DetailData {
 }
 
 #[derive(Properties, PartialEq)]
-pub struct DetailProps {
+pub(crate) struct DetailProps {
     pub data: Option<DetailData>,
 }
 
 #[function_component(DetailView)]
-pub fn detail_view(props: &DetailProps) -> Html {
+pub(crate) fn detail_view(props: &DetailProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
     let t = |key: &str| bundle.text(key, "");
+    let wanted_label = t("detail.files.wanted");
     let active = use_state(|| Pane::Files);
     let Some(detail) = props.data.clone() else {
         return html! {
@@ -115,7 +116,7 @@ pub fn detail_view(props: &DetailProps) -> Html {
                         <p class="muted">{t("detail.files.body")}</p>
                     </header>
                     <div class="file-tree">
-                        {let wanted_label = t("detail.files.wanted"); for detail.files.iter().map(|node| render_file(node, 0, &wanted_label))}
+                        {for detail.files.iter().map(|node| render_file(node, 0, &wanted_label))}
                     </div>
                 </section>
 
@@ -128,11 +129,11 @@ pub fn detail_view(props: &DetailProps) -> Html {
                         {for detail.peers.iter().map(|peer| html! {
                             <div class="table-row">
                                 <div>
-                                    <strong>{peer.ip}</strong>
-                                    <span class="muted">{peer.client}</span>
+                                    <strong>{peer.ip.clone()}</strong>
+                                    <span class="muted">{peer.client.clone()}</span>
                                 </div>
-                                <div class="pill subtle">{peer.flags}</div>
-                                <div class="pill subtle">{peer.country}</div>
+                                <div class="pill subtle">{peer.flags.clone()}</div>
+                                <div class="pill subtle">{peer.country.clone()}</div>
                                 <div class="stat"><small>{t("detail.peers.down")}</small><strong>{crate::logic::format_rate(peer.download_bps)}</strong></div>
                                 <div class="stat"><small>{t("detail.peers.up")}</small><strong>{crate::logic::format_rate(peer.upload_bps)}</strong></div>
                                 <div class="stat"><small>{t("detail.peers.progress")}</small><strong>{format!("{:.0}%", peer.progress * 100.0)}</strong></div>
@@ -150,15 +151,15 @@ pub fn detail_view(props: &DetailProps) -> Html {
                         {for detail.trackers.iter().map(|tracker| html! {
                             <div class="table-row">
                                 <div class="tracker-url">
-                                    <strong>{tracker.url}</strong>
-                                    {if let Some(err) = tracker.last_error {
-                                        html! { <span class="pill warn">{err}</span> }
+                                    <strong>{tracker.url.clone()}</strong>
+                                    {if let Some(err) = tracker.last_error.as_ref() {
+                                        html! { <span class="pill warn">{err.clone()}</span> }
                                     } else {
                                         html! {}
                                     }}
                                 </div>
-                                <div class="pill subtle">{tracker.status}</div>
-                                <span class="muted">{tracker.next_announce}</span>
+                                <div class="pill subtle">{tracker.status.clone()}</div>
+                                <span class="muted">{tracker.next_announce.clone()}</span>
                             </div>
                         })}
                     </div>
@@ -172,9 +173,9 @@ pub fn detail_view(props: &DetailProps) -> Html {
                     <ul class="event-log">
                         {for detail.events.iter().map(|entry| html! {
                             <li>
-                                <span class="muted">{entry.timestamp}</span>
-                                <span class={classes!("pill", log_level(&entry.level))}>{entry.level}</span>
-                                <span>{entry.message}</span>
+                                <span class="muted">{entry.timestamp.clone()}</span>
+                                <span class={classes!("pill", log_level(&entry.level))}>{entry.level.clone()}</span>
+                                <span>{entry.message.clone()}</span>
                             </li>
                         })}
                     </ul>
@@ -283,7 +284,7 @@ fn render_file(node: &FileNode, depth: usize, wanted_label: &str) -> Html {
         <div class="file-row">
             <div class="file-main">
                 <span class="file-name" style={format!("padding-inline-start: {}px", indent)}>
-                    {node.name}
+                    {node.name.clone()}
                 </span>
                 <div class="file-progress">
                     <span class="muted">{format!("{:.2} / {:.2} GB", node.completed_gb, node.size_gb)}</span>
@@ -291,9 +292,9 @@ fn render_file(node: &FileNode, depth: usize, wanted_label: &str) -> Html {
                 </div>
             </div>
             <div class="file-actions">
-                <span class="pill subtle">{node.priority}</span>
+                <span class="pill subtle">{node.priority.clone()}</span>
                 <label class="switch">
-                    <input type="checkbox" checked={node.wanted} aria-label={wanted_label} />
+                    <input type="checkbox" checked={node.wanted} aria-label={wanted_label.to_string()} />
                     <span class="slider"></span>
                 </label>
             </div>
@@ -316,7 +317,7 @@ fn render_file(node: &FileNode, depth: usize, wanted_label: &str) -> Html {
 
 /// Demo detail record used by the torrent view.
 #[must_use]
-pub fn demo_detail(id: &str) -> Option<DetailData> {
+pub(crate) fn demo_detail(id: &str) -> Option<DetailData> {
     let name = match id {
         "2" => "The.Expanse.S01E05.1080p.BluRay.DTS.x264",
         "3" => "Dune.Part.One.2021.2160p.REMUX.DV.DTS-HD.MA.7.1",

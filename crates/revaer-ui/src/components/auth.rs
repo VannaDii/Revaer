@@ -2,17 +2,17 @@ use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
-pub struct AuthPromptProps {
+pub(crate) struct AuthPromptProps {
     pub require_key: bool,
     pub allow_anonymous: bool,
     pub on_submit: Callback<Option<String>>,
 }
 
 #[function_component(AuthPrompt)]
-pub fn auth_prompt(props: &AuthPromptProps) -> Html {
+pub(crate) fn auth_prompt(props: &AuthPromptProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let t = |key: &str| bundle.text(key, "");
+    let t = move |key: &str| bundle.text(key, "");
     let api_key = use_state(String::new);
     let error = use_state(|| None as Option<String>);
 
@@ -20,8 +20,11 @@ pub fn auth_prompt(props: &AuthPromptProps) -> Html {
         let api_key = api_key.clone();
         let error = error.clone();
         let on_submit = props.on_submit.clone();
+        let require_key = props.require_key;
+        let allow_anonymous = props.allow_anonymous;
+        let t = t.clone();
         Callback::from(move |_| {
-            if api_key.is_empty() && props.require_key && !props.allow_anonymous {
+            if api_key.is_empty() && require_key && !allow_anonymous {
                 error.set(Some(t("auth.error_required")));
                 return;
             }
@@ -55,7 +58,7 @@ pub fn auth_prompt(props: &AuthPromptProps) -> Html {
                 </p>
                 <label class="stack">
                     <span>{t("auth.label")}</span>
-                    <input type="password" placeholder={t("auth.placeholder")} onchange={on_input} />
+                    <input type="password" placeholder={t("auth.placeholder")} oninput={on_input} />
                 </label>
                 {if props.allow_anonymous {
                     html! { <p class="muted">{t("auth.allow_anon")}</p> }

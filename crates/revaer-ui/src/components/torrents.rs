@@ -1,12 +1,11 @@
 use crate::breakpoints::Breakpoint;
-use crate::components::detail::{DetailData, DetailView, demo_detail};
+use crate::components::detail::{DetailView, demo_detail};
 use crate::components::virtual_list::VirtualList;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::logic::{
     ShortcutOutcome, format_rate, interpret_shortcut, plan_columns, select_all_or_clear,
-    toggle_selection, validate_add_input,
+    toggle_selection,
 };
-use crate::models::TorrentSummary;
 use crate::services::ApiClient;
 use crate::state::{TorrentAction, TorrentRow};
 use crate::{Density, UiMode};
@@ -17,7 +16,7 @@ use web_sys::{DragEvent, File, HtmlElement, KeyboardEvent};
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
-pub struct TorrentProps {
+pub(crate) struct TorrentProps {
     /// Current responsive breakpoint for layout decisions.
     pub breakpoint: Breakpoint,
     /// API base URL for detail and add flows.
@@ -39,7 +38,7 @@ pub struct TorrentProps {
 }
 
 #[derive(Clone, Debug)]
-pub struct AddTorrentInput {
+pub(crate) struct AddTorrentInput {
     pub value: Option<String>,
     pub file: Option<File>,
     pub category: Option<String>,
@@ -58,10 +57,12 @@ impl PartialEq for AddTorrentInput {
 }
 
 #[function_component(TorrentView)]
-pub fn torrent_view(props: &TorrentProps) -> Html {
+pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let t = |key: &str| bundle.text(key, "");
+    let bundle_for_t = bundle.clone();
+    let bundle = bundle.clone();
+    let t = move |key: &str| bundle_for_t.text(key, "");
     let selected = use_state(|| demo_detail("1"));
     let selected_idx = use_state(|| 0usize);
     let selected_ids = use_state(BTreeSet::<String>::new);
@@ -127,9 +128,10 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
         let base_url = props.base_url.clone();
         let api_key = props.api_key.clone();
         let selected_ids = selected_ids.clone();
+        let torrents_list = props.torrents.clone();
         Callback::from(move |id: String| {
             selected_ids.set(toggle_selection(&selected_ids, &id));
-            if let Some(idx) = props.torrents.iter().position(|row| row.id == id) {
+            if let Some(idx) = torrents_list.iter().position(|row| row.id == id) {
                 selected_idx.set(idx);
             }
             let selected = selected.clone();
@@ -347,7 +349,7 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                 len={props.torrents.len()}
                 row_height={row_height}
                 overscan={6}
-                height={if is_mobile { Some("70vh".into()) } else { None }}
+                height={if is_mobile { Some(String::from("70vh")) } else { Option::<String>::None }}
                 render={{
                     let on_select = on_select.clone();
                     let torrents = props.torrents.clone();
@@ -358,16 +360,18 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                     let width_hint =
                         props.breakpoint.max_width.unwrap_or(props.breakpoint.min_width);
                     let (visible_cols, overflow_cols) = plan_columns(width_hint);
+                    let selected_ids_for_toggle = selected_ids.clone();
                     let toggle_select = Callback::from(move |id: String| {
-                        selected_ids.set(toggle_selection(&selected_ids, &id));
+                        selected_ids_for_toggle.set(toggle_selection(&selected_ids_for_toggle, &id));
                     });
+                    let selected_ids_for_render = selected_ids.clone();
                     Callback::from(move |idx: usize| {
                         if let Some(row) = torrents.get(idx) {
                             if is_mobile {
                                 render_mobile_row(
                                     row,
                                     idx == selected_idx,
-                                    selected_ids.contains(&row.id),
+                                    selected_ids_for_render.contains(&row.id),
                                     on_select.clone(),
                                     toggle_select.clone(),
                                     on_action.clone(),
@@ -379,7 +383,7 @@ pub fn torrent_view(props: &TorrentProps) -> Html {
                                 render_row(
                                     row,
                                     idx == selected_idx,
-                                    selected_ids.contains(&row.id),
+                                    selected_ids_for_render.contains(&row.id),
                                     on_select.clone(),
                                     toggle_select.clone(),
                                     on_action.clone(),
@@ -511,11 +515,11 @@ fn render_row(
             </div>
             <div class="row-primary">
                 <div class="title">
-                    <strong>{row.name}</strong>
-                    <span class="muted">{row.tracker}</span>
+                    <strong>{row.name.clone()}</strong>
+                    <span class="muted">{row.tracker.clone()}</span>
                 </div>
                 <div class="status">
-                    <span class={classes!("pill", status_class(row.status))}>{row.status}</span>
+                    <span class={classes!("pill", status_class(&row.status))}>{row.status.clone()}</span>
                     <div class="progress">
                         <div class="bar" style={format!("width: {:.1}%", row.progress * 100.0)}></div>
                         <span class="muted">{format!("{:.1}%", row.progress * 100.0)}</span>
@@ -655,7 +659,7 @@ fn render_mobile_row(
                     <strong>{row.name.clone()}</strong>
                     <p class="muted ellipsis">{row.tracker.clone()}</p>
                 </div>
-                <span class={classes!("pill", status_class(row.status))}>{row.status.clone()}</span>
+                <span class={classes!("pill", status_class(&row.status))}>{row.status.clone()}</span>
             </header>
             <div class="progress">
                 <div class="bar" style={format!("width: {:.1}%", row.progress * 100.0)}></div>
@@ -753,7 +757,7 @@ mod tests {
 }
 
 #[derive(Properties, PartialEq)]
-pub struct AddTorrentProps {
+pub(crate) struct AddTorrentProps {
     pub on_submit: Callback<AddTorrentInput>,
     pub pending: bool,
 }
@@ -763,6 +767,8 @@ fn add_torrent_panel(props: &AddTorrentProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
     let t = |key: &str| bundle.text(key, "");
+    let bundle_for_submit = bundle.clone();
+    let bundle_for_drop = bundle.clone();
     let input_value = use_state(String::new);
     let category = use_state(String::new);
     let tags = use_state(String::new);
@@ -779,6 +785,7 @@ fn add_torrent_panel(props: &AddTorrentProps) -> Html {
         let file = file.clone();
         let error = error.clone();
         let on_submit = props.on_submit.clone();
+        let bundle = bundle_for_submit.clone();
         Callback::from(move |_| {
             let value = input_value.trim().to_string();
             let has_file = (*file).is_some();
@@ -790,11 +797,11 @@ fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                     payload
                 }
                 Err(crate::logic::AddInputError::Empty) => {
-                    error.set(Some(t("torrents.error.empty")));
+                    error.set(Some(bundle.text("torrents.error.empty", "")));
                     return;
                 }
                 Err(crate::logic::AddInputError::Invalid) => {
-                    error.set(Some(t("torrents.error.invalid")));
+                    error.set(Some(bundle.text("torrents.error.invalid", "")));
                     return;
                 }
             };
@@ -822,6 +829,7 @@ fn add_torrent_panel(props: &AddTorrentProps) -> Html {
         let error = error.clone();
         let input_value = input_value.clone();
         let file_state = file.clone();
+        let bundle = bundle_for_drop.clone();
         Callback::from(move |event: DragEvent| {
             event.prevent_default();
             drag_over.set(false);
@@ -832,7 +840,7 @@ fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                 let file: File = files.get(0).unwrap();
                 let name = file.name();
                 if !name.ends_with(".torrent") {
-                    error.set(Some(t("torrents.error.file_type")));
+                    error.set(Some(bundle.text("torrents.error.file_type", "")));
                 } else {
                     error.set(None);
                     file_state.set(Some(file));
@@ -967,14 +975,14 @@ fn mobile_action_row(props: &MobileActionProps) -> Html {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum ConfirmKind {
+pub(crate) enum ConfirmKind {
     Delete,
     DeleteData,
     Recheck,
 }
 
 #[derive(Properties, PartialEq)]
-pub struct ConfirmProps {
+pub(crate) struct ConfirmProps {
     pub kind: Option<ConfirmKind>,
     pub on_close: Callback<()>,
     pub on_confirm: Callback<ConfirmKind>,
@@ -1021,7 +1029,10 @@ fn confirm_dialog(props: &ConfirmProps) -> Html {
                 </header>
                 <p class="muted">{body}</p>
                 <div class="actions">
-                    <button class="ghost" onclick={props.on_close.clone()}>{t("confirm.cancel")}</button>
+                    <button class="ghost" onclick={{
+                        let cb = props.on_close.clone();
+                        Callback::from(move |_| cb.emit(()))
+                    }}>{t("confirm.cancel")}</button>
                     <button class="solid danger" onclick={confirm}>{action}</button>
                 </div>
             </div>
@@ -1030,12 +1041,12 @@ fn confirm_dialog(props: &ConfirmProps) -> Html {
 }
 
 #[derive(Properties, PartialEq)]
-pub struct BannerProps {
+pub(crate) struct BannerProps {
     pub message: Option<String>,
 }
 
 #[derive(Properties, PartialEq)]
-pub struct MobileActionProps {
+pub(crate) struct MobileActionProps {
     pub on_action: Callback<(TorrentAction, String)>,
     pub selected: Option<String>,
 }
@@ -1058,7 +1069,7 @@ fn action_banner(props: &BannerProps) -> Html {
 
 /// Demo torrent set referenced by the default view.
 #[must_use]
-pub fn demo_rows() -> Vec<TorrentRow> {
+pub(crate) fn demo_rows() -> Vec<TorrentRow> {
     const GIB: u64 = 1_073_741_824;
     vec![
         TorrentRow {
@@ -1151,8 +1162,4 @@ pub fn demo_rows() -> Vec<TorrentRow> {
     ]
 }
 
-impl From<TorrentSummary> for TorrentRow {
-    fn from(value: TorrentSummary) -> Self {
-        crate::state::TorrentRow::from(value)
-    }
-}
+// Intentionally rely on `crate::state::TorrentRow` conversion to avoid duplication.
