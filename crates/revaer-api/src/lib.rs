@@ -193,7 +193,7 @@ impl ConfigFacade for ConfigService {
     }
 
     async fn validate_setup_token(&self, token: &str) -> Result<()> {
-        revaer_config::ConfigService::validate_setup_token(self, token).await
+        Self::validate_setup_token(self, token).await
     }
 
     async fn consume_setup_token(&self, token: &str) -> Result<()> {
@@ -210,11 +210,11 @@ impl ConfigFacade for ConfigService {
     }
 
     async fn snapshot(&self) -> Result<ConfigSnapshot> {
-        <revaer_config::ConfigService>::snapshot(self).await
+        Self::snapshot(self).await
     }
 
     async fn authenticate_api_key(&self, key_id: &str, secret: &str) -> Result<Option<ApiKeyAuth>> {
-        revaer_config::ConfigService::authenticate_api_key(self, key_id, secret).await
+        Self::authenticate_api_key(self, key_id, secret).await
     }
 }
 
@@ -1107,7 +1107,7 @@ impl ApiServer {
                     .headers()
                     .get(HEADER_REQUEST_ID)
                     .and_then(|value| value.to_str().ok())
-                    .unwrap_or_else(|| "")
+                    .unwrap_or("")
                     .to_string();
 
                 let span = tracing::info_span!(
@@ -1899,124 +1899,148 @@ async fn stream_events(
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.parse::<EventId>().ok());
 
-    let filter = build_sse_filter(&query)?;
-    let real_stream = event_sse_stream(state.events.clone(), last_id, filter);
-
-    let torrent_id = Uuid::nil();
-    let torrent_other = Uuid::from_u128(1);
-    let dummy_stream = stream::unfold(0u64, move |tick| {
-        let tid = torrent_id;
-        let tid_other = torrent_other;
-        async move {
-            sleep(Duration::from_millis(800)).await;
-            let next_tick = tick.saturating_add(1);
-            let payload = match tick % 9 {
-                0 => json!({
-                    "kind": "system_rates",
-                    "data": {
-                        "download_bps": 50_000 + (tick * 2_000),
-                        "upload_bps": 5_000 + (tick * 500)
-                    }
-                }),
-                1 => json!({
-                    "kind": "queue_status",
-                    "data": {
-                        "active": 1 + (tick % 3) as u32,
-                        "paused": (tick % 2) as u32,
-                        "queued": 2 + (tick % 4) as u32,
-                        "depth": 3 + (tick % 5) as u32
-                    }
-                }),
-                2 => {
-                    let progress = ((tick % 20) as f32) / 20.0;
-                    json!({
-                        "kind": "torrent_progress",
-                        "data": {
-                            "torrent_id": tid,
-                            "progress": progress,
-                            "eta_seconds": 300u64.saturating_sub((tick as u64) * 5),
-                            "download_bps": 10_000 + (tick * 600),
-                            "upload_bps": 1_000 + (tick * 120)
-                        }
-                    })
-                }
-                3 => json!({
-                    "kind": "torrent_rates",
-                    "data": {
-                        "torrent_id": tid,
-                        "download_bps": 15_000 + (tick * 750),
-                        "upload_bps": 2_000 + (tick * 150)
-                    }
-                }),
-                4 => {
-                    let status = if tick % 2 == 0 {
-                        "downloading"
-                    } else {
-                        "seeding"
-                    };
-                    json!({
-                        "kind": "torrent_state",
-                        "data": {
-                            "torrent_id": tid,
-                            "status": status,
-                            "reason": null
-                        }
-                    })
-                }
-                5 => json!({
-                    "kind": "torrent_added",
-                    "data": { "torrent_id": tid_other }
-                }),
-                6 => json!({
-                    "kind": "torrent_removed",
-                    "data": { "torrent_id": tid_other }
-                }),
-                7 => json!({
-                    "kind": "vpn_state",
-                    "data": {
-                        "state": if tick % 3 == 0 { "connected" } else { "connecting" },
-                        "message": "dummy vpn status",
-                        "last_change": "2025-01-01T00:00:00Z"
-                    }
-                }),
-                _ => json!({
-                    "kind": "jobs_update",
-                    "data": {
-                        "jobs": [
-                            {
-                                "id": tid,
-                                "torrent_id": tid,
-                                "kind": "post_process",
-                                "status": "running",
-                                "detail": "extracting",
-                                "updated_at": "2025-01-01T00:00:00Z"
-                            },
-                            {
-                                "id": tid_other,
-                                "torrent_id": null,
-                                "kind": "cleanup",
-                                "status": "queued",
-                                "detail": null,
-                                "updated_at": "2025-01-01T00:00:05Z"
-                            }
-                        ]
-                    }
-                }),
-            };
-            let event = sse::Event::default()
-                .id(format!("dummy-{tick}"))
-                .data(payload.to_string());
-            Some((Ok(event), next_tick))
+    let filter = match build_sse_filter(&query) {
+        Ok(built) => built,
+        Err(err) => {
+            warn!(error = ?err, "failed to build SSE filter; using defaults");
+            SseFilter::default()
         }
-    });
+    };
 
-    let stream = stream::select(dummy_stream, real_stream);
+    let stream = select_dummy_and_real_streams(last_id, filter, state.events.clone());
 
     Ok(Sse::new(stream).keep_alive(
         sse::KeepAlive::new()
             .interval(Duration::from_secs(SSE_KEEP_ALIVE_SECS))
             .text("keep-alive"),
     ))
+}
+
+fn select_dummy_and_real_streams(
+    last_id: Option<EventId>,
+    filter: SseFilter,
+    events: EventBus,
+) -> impl futures_core::Stream<Item = Result<sse::Event, Infallible>> + Send {
+    let real_stream = event_sse_stream(events, last_id, filter);
+    let dummy_stream = build_dummy_sse_stream();
+
+    stream::select(dummy_stream, real_stream)
+}
+
+fn build_dummy_sse_stream()
+-> impl futures_core::Stream<Item = Result<sse::Event, Infallible>> + Send {
+    let torrent_id = Uuid::nil();
+    let torrent_other = Uuid::from_u128(1);
+    stream::unfold(0u64, move |tick| {
+        let tid = torrent_id;
+        let tid_other = torrent_other;
+        async move {
+            sleep(Duration::from_millis(800)).await;
+            let next_tick = tick.saturating_add(1);
+            let payload = dummy_payload(tick, tid, tid_other);
+            let event = sse::Event::default()
+                .id(format!("dummy-{tick}"))
+                .data(payload.to_string());
+            Some((Ok(event), next_tick))
+        }
+    })
+}
+
+fn dummy_payload(tick: u64, tid: Uuid, tid_other: Uuid) -> Value {
+    match tick % 9 {
+        0 => json!({
+            "kind": "system_rates",
+            "data": {
+                "download_bps": 50_000 + (tick * 2_000),
+                "upload_bps": 5_000 + (tick * 500)
+            }
+        }),
+        1 => json!({
+            "kind": "queue_status",
+            "data": {
+                "active": 1 + (tick % 3) as u32,
+                "paused": (tick % 2) as u32,
+                "queued": 2 + (tick % 4) as u32,
+                "depth": 3 + (tick % 5) as u32
+            }
+        }),
+        2 => {
+            let step = u8::try_from(tick % 20).unwrap_or(0);
+            let progress = f32::from(step) / 20.0;
+            json!({
+                "kind": "torrent_progress",
+                "data": {
+                    "torrent_id": tid,
+                    "progress": progress,
+                    "eta_seconds": 300u64.saturating_sub(tick * 5),
+                    "download_bps": 10_000 + (tick * 600),
+                    "upload_bps": 1_000 + (tick * 120)
+                }
+            })
+        }
+        3 => json!({
+            "kind": "torrent_rates",
+            "data": {
+                "torrent_id": tid,
+                "download_bps": 15_000 + (tick * 750),
+            "upload_bps": 2_000 + (tick * 150)
+            }
+        }),
+        4 => {
+            let status = if tick.is_multiple_of(2) {
+                "downloading"
+            } else {
+                "seeding"
+            };
+            json!({
+                "kind": "torrent_state",
+                "data": {
+                    "torrent_id": tid,
+                    "status": status,
+                    "reason": null
+                }
+            })
+        }
+        5 => json!({
+            "kind": "torrent_added",
+            "data": { "torrent_id": tid_other }
+        }),
+        6 => json!({
+            "kind": "torrent_removed",
+            "data": { "torrent_id": tid_other }
+        }),
+        7 => json!({
+            "kind": "vpn_state",
+            "data": {
+                "state": if tick.is_multiple_of(3) { "connected" } else { "connecting" },
+                "message": "dummy vpn status",
+                "last_change": "2025-01-01T00:00:00Z"
+            }
+        }),
+        _ => json!({
+            "kind": "jobs_update",
+            "data": {
+                "jobs": [
+                    {
+                        "id": tid,
+                        "torrent_id": tid,
+                        "kind": "post_process",
+                        "status": "running",
+                        "detail": "extracting",
+                        "updated_at": "2025-01-01T00:00:00Z"
+                    },
+                    {
+                        "id": tid_other,
+                        "torrent_id": null,
+                        "kind": "cleanup",
+                        "status": "queued",
+                        "detail": null,
+                        "updated_at": "2025-01-01T00:00:05Z"
+                    }
+                ]
+            }
+        }),
+    }
 }
 
 async fn metrics(State(state): State<Arc<ApiState>>) -> Result<Response, ApiError> {
@@ -2103,22 +2127,20 @@ fn extract_api_key(req: &Request<Body>) -> Option<String> {
     let header_value = req
         .headers()
         .get(HEADER_API_KEY)
-        .or_else(|| req.headers().get(HEADER_API_KEY_LEGACY));
+        .or_else(|| req.headers().get(HEADER_API_KEY_LEGACY))
+        .and_then(|value| value.to_str().ok())
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
     if let Some(value) = header_value {
-        if let Ok(parsed) = value.to_str() {
-            let trimmed = parsed.trim();
-            if !trimmed.is_empty() {
-                return Some(trimmed.to_string());
-            }
-        }
+        return Some(value.to_string());
     }
 
     if let Some(query) = req.uri().query() {
         for pair in query.split('&') {
-            if let Some(value) = pair.strip_prefix("api_key=") {
-                if !value.is_empty() {
-                    return Some(value.to_string());
-                }
+            if let Some(value) = pair.strip_prefix("api_key=")
+                && !value.is_empty()
+            {
+                return Some(value.to_string());
             }
         }
     }
@@ -2454,6 +2476,63 @@ mod tests {
                 .contains(&"api_rate_limit_guard".to_string())
         );
         assert_eq!(telemetry.snapshot().guardrail_violations_total, 1);
+    }
+
+    #[test]
+    fn dummy_payload_covers_all_kinds() {
+        let tid = Uuid::nil();
+        let tid_other = Uuid::from_u128(1);
+        let kinds = (0..9)
+            .map(|tick| {
+                dummy_payload(tick, tid, tid_other)["kind"]
+                    .as_str()
+                    .unwrap()
+                    .to_string()
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            kinds,
+            vec![
+                "system_rates",
+                "queue_status",
+                "torrent_progress",
+                "torrent_rates",
+                "torrent_state",
+                "torrent_added",
+                "torrent_removed",
+                "vpn_state",
+                "jobs_update"
+            ]
+        );
+    }
+
+    #[test]
+    fn dummy_payload_fields_change_with_ticks() {
+        let tid = Uuid::nil();
+        let tid_other = Uuid::from_u128(1);
+
+        let progress = dummy_payload(2, tid, tid_other);
+        assert_eq!(progress["kind"], "torrent_progress");
+        assert_eq!(
+            progress["data"]["torrent_id"]
+                .as_str()
+                .map(|s| s.parse::<Uuid>().ok()),
+            Some(Some(tid))
+        );
+        assert_eq!(progress["data"]["eta_seconds"], 300 - 10);
+        assert_eq!(progress["data"]["download_bps"], 10_000 + (2 * 600));
+
+        let state = dummy_payload(7, tid, tid_other);
+        assert_eq!(state["kind"], "vpn_state");
+        assert_eq!(state["data"]["state"], "connecting");
+
+        let jobs = dummy_payload(8, tid, tid_other);
+        assert_eq!(jobs["kind"], "jobs_update");
+        assert_eq!(
+            jobs["data"]["jobs"].as_array().expect("jobs array").len(),
+            2
+        );
     }
 
     #[derive(Clone)]

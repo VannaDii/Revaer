@@ -66,14 +66,14 @@ const DELETE_TORRENT_CALL: &str = r"
 const SELECT_TORRENTS_CALL: &str = r"SELECT * FROM revaer_runtime.list_torrents()";
 
 const FS_JOB_STARTED_CALL: &str = r"
-    SELECT revaer_runtime.mark_fs_job_started(_torrent_id => $1, _source => $2)
+    SELECT revaer_runtime.mark_fs_job_started(_torrent_id => $1, _src_path => $2)
 ";
 
 const FS_JOB_COMPLETED_CALL: &str = r"
     SELECT revaer_runtime.mark_fs_job_completed(
         _torrent_id => $1,
-        _source => $2,
-        _destination => $3,
+        _src_path => $2,
+        _dst_path => $3,
         _transfer_mode => $4
     )
 ";

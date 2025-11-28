@@ -2,6 +2,25 @@
 
 ADR documents capture the rationale behind significant technical decisions.
 
+## Catalogue
+- [001](001-configuration-revisioning.md) – Configuration revisioning
+- [002](002-setup-token-lifecycle.md) – Setup token lifecycle
+- [003](003-libtorrent-session-runner.md) – Libtorrent session runner
+- [004](004-phase-one-delivery.md) – Phase one delivery
+- [005](005-fsops-pipeline.md) – FS operations pipeline
+- [006](006-api-cli-contract.md) – API/CLI contract
+- [007](007-security-posture.md) – Security posture
+- [008](008-phase-one-remaining-task.md) – Remaining phase-one tasks
+- [009](009-fsops-permission-hardening.md) – FS ops permission hardening
+- [010](010-agent-compliance-sweep.md) – Agent compliance sweep
+- [011](011-coverage-hardening-phase-two.md) – Coverage hardening
+- [012](012-agent-compliance-refresh.md) – Agent compliance refresh
+- [013](013-runtime-persistence.md) – Runtime persistence
+- [014](014-data-access-layer.md) – Data access layer
+- [015](015-agent-compliance-hardening.md) – Agent compliance hardening
+- [016](016-libtorrent-restoration.md) – Libtorrent restoration
+- [017](017-sqlx-named-bind.md) – Avoid `sqlx-named-bind`
+
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.
 2. Give it a sequential identifier (e.g., `001`, `002`) and a concise title.

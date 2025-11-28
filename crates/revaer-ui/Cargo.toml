@@ -6,6 +6,9 @@ license = "MIT OR Apache-2.0"
 authors = ["Revaer Contributors"]
 publish = false
 
+[package.metadata.cargo-udeps.ignore]
+normal = ["gloo", "gloo-net", "gloo-timers", "js-sys", "yew", "yew-router"]
+
 [lib]
 crate-type = ["cdylib", "rlib"]
 

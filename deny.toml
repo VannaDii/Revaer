@@ -79,116 +79,60 @@ crate = "rand_core@0.9.3"
 reason = "rand 0.9.x stack required by reqwest/testcontainers."
 
 [[bans.skip]]
-crate = "gloo@0.8.1"
-reason = "yew transitively pulls historic gloo versions; allow multi until upstream unifies."
+crate = "indexmap@1.9.3"
+reason = "yew stack remains on indexmap 1.x; rest of workspace uses 2.x."
 
 [[bans.skip]]
-crate = "gloo@0.10.0"
-reason = "yew transitively pulls historic gloo versions; allow multi until upstream unifies."
+crate = "indexmap@2.11.4"
+reason = "primary dependencies use 2.x alongside yew's 1.x requirement."
 
 [[bans.skip]]
-crate = "gloo@0.11.0"
-reason = "Workspace UI targets latest gloo; yew pulls older lines."
+crate = "gloo@*"
+reason = "UI and router stacks require multiple gloo generations; allow co-existence."
 
 [[bans.skip]]
-crate = "gloo-console@0.2.3"
-reason = "yew macro stack pins 0.2.x; UI uses newer line."
+crate = "gloo-console@*"
+reason = "yew macro stack and UI pull different gloo-console lines."
 
 [[bans.skip]]
-crate = "gloo-console@0.3.0"
-reason = "UI depends on newer gloo stack; coexist with legacy."
+crate = "gloo-dialogs@*"
+reason = "router stack is still on 0.1.x while UI uses newer releases."
 
 [[bans.skip]]
-crate = "gloo-dialogs@0.1.1"
-reason = "yew pulls 0.1.x; new gloo stack uses 0.2.x."
+crate = "gloo-events@*"
+reason = "multiple gloo generations are present across yew/router."
 
 [[bans.skip]]
-crate = "gloo-dialogs@0.2.0"
-reason = "UI uses 0.2.x while yew still references 0.1.x."
+crate = "gloo-file@*"
+reason = "router stack and UI depend on different gloo-file versions."
 
 [[bans.skip]]
-crate = "gloo-events@0.1.2"
-reason = "yew pulls 0.1.x."
+crate = "gloo-history@*"
+reason = "router stack and UI depend on different gloo-history versions."
 
 [[bans.skip]]
-crate = "gloo-events@0.2.0"
-reason = "UI stack uses 0.2.x."
+crate = "gloo-net@*"
+reason = "router stack and UI depend on different gloo-net versions."
 
 [[bans.skip]]
-crate = "gloo-file@0.2.3"
-reason = "yew pulls 0.2.x."
+crate = "gloo-render@*"
+reason = "yew macro stack differs from the UI gloo-render line."
 
 [[bans.skip]]
-crate = "gloo-file@0.3.0"
-reason = "UI stack uses 0.3.x."
+crate = "gloo-storage@*"
+reason = "router stack and UI depend on different gloo-storage versions."
 
 [[bans.skip]]
-crate = "gloo-history@0.1.5"
-reason = "yew pulls 0.1.x."
+crate = "gloo-timers@*"
+reason = "router stack and UI depend on different gloo-timers versions."
 
 [[bans.skip]]
-crate = "gloo-history@0.2.2"
-reason = "UI stack uses 0.2.x."
+crate = "gloo-utils@*"
+reason = "yew pulls older gloo-utils while UI targets newer releases."
 
 [[bans.skip]]
-crate = "gloo-net@0.3.1"
-reason = "yew pulls 0.3.x."
-
-[[bans.skip]]
-crate = "gloo-net@0.4.0"
-reason = "Intermediate gloo line from router dependency."
-
-[[bans.skip]]
-crate = "gloo-net@0.5.0"
-reason = "Intermediate gloo line from router dependency."
-
-[[bans.skip]]
-crate = "gloo-net@0.6.0"
-reason = "UI uses latest gloo-net."
-
-[[bans.skip]]
-crate = "gloo-render@0.1.1"
-reason = "yew pulls 0.1.x."
-
-[[bans.skip]]
-crate = "gloo-render@0.2.0"
-reason = "UI stack uses 0.2.x."
-
-[[bans.skip]]
-crate = "gloo-storage@0.2.2"
-reason = "yew pulls 0.2.x."
-
-[[bans.skip]]
-crate = "gloo-storage@0.3.0"
-reason = "UI stack uses 0.3.x."
-
-[[bans.skip]]
-crate = "gloo-timers@0.2.6"
-reason = "yew pulls 0.2.x."
-
-[[bans.skip]]
-crate = "gloo-timers@0.3.0"
-reason = "UI stack uses 0.3.x."
-
-[[bans.skip]]
-crate = "gloo-utils@0.1.7"
-reason = "yew pulls 0.1.x."
-
-[[bans.skip]]
-crate = "gloo-utils@0.2.0"
-reason = "UI stack uses 0.2.x."
-
-[[bans.skip]]
-crate = "gloo-worker@0.2.1"
-reason = "yew pulls 0.2.x."
-
-[[bans.skip]]
-crate = "gloo-worker@0.4.0"
-reason = "Router dependencies pull 0.4.x."
-
-[[bans.skip]]
-crate = "gloo-worker@0.5.0"
-reason = "UI stack uses 0.5.x."
+crate = "gloo-worker@*"
+reason = "router stack and UI depend on different gloo-worker versions."
 
 [[bans.skip]]
 crate = "http@0.2.12"

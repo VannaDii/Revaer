@@ -24,14 +24,14 @@ Error responses follow RFC9457 (`ProblemDetails`), populated with `invalid_param
 | `PATCH`  | `/admin/settings`          | API key     | Alias for `PATCH /v1/config`; retained for admin tooling.                                                                |
 | `GET`    | `/admin/torrents`          | API key     | Same as `GET /v1/torrents`; retained for admin tooling.                                                                  |
 | `POST`   | `/admin/torrents`          | API key     | Alias for `POST /v1/torrents`.                                                                                           |
-| `GET`    | `/admin/torrents/:id`      | API key     | Alias for `GET /v1/torrents/:id`.                                                                                        |
-| `DELETE` | `/admin/torrents/:id`      | API key     | Alias for invoking the `remove` action.                                                                                  |
+| `GET`    | `/admin/torrents/{id}`     | API key     | Alias for `GET /v1/torrents/{id}`.                                                                                        |
+| `DELETE` | `/admin/torrents/{id}`     | API key     | Alias for invoking the `remove` action.                                                                                  |
 | `GET`    | `/v1/torrents`             | API key     | Cursor-paginated torrent summaries with filtering (state, tracker, extension, tags, name).                               |
 | `POST`   | `/v1/torrents`             | API key     | Submits a magnet URI or base64-encoded `.torrent`, optional tags/trackers, file rules, and per-torrent rate limits.      |
-| `GET`    | `/v1/torrents/:id`         | API key     | Detailed torrent view including file metadata when available.                                                            |
-| `POST`   | `/v1/torrents/:id/select`  | API key     | Adjusts inclusion/exclusion globs, fluff skipping, and per-file priorities.                                              |
-| `POST`   | `/v1/torrents/:id/action`  | API key     | Lifecycle management (`pause`, `resume`, `remove`, `reannounce`, `recheck`, `sequential`, `rate`).                       |
-| `GET`    | `/v1/events`               | API key     | Server-sent events stream (alias: `/v1/torrents/events`). Supports filtering by torrent ID, state, and event kind.       |
+| `GET`    | `/v1/torrents/{id}`        | API key     | Detailed torrent view including file metadata when available.                                                            |
+| `POST`   | `/v1/torrents/{id}/select` | API key     | Adjusts inclusion/exclusion globs, fluff skipping, and per-file priorities.                                              |
+| `POST`   | `/v1/torrents/{id}/action` | API key     | Lifecycle management (`pause`, `resume`, `remove`, `reannounce`, `recheck`, `sequential`, `rate`).                       |
+| `GET`    | `/v1/events`               | API key     | Server-sent events stream (aliases: `/v1/events/stream`, `/v1/torrents/events`). Supports filtering by torrent ID, state, and event kind. |
 | `GET`    | `/metrics`                 | none        | Prometheus-formatted metrics from `revaer-telemetry`.                                                                    |
 | `GET`    | `/docs/openapi.json`       | none        | Static OpenAPI document used by the docs site and clients.                                                               |
 
@@ -59,7 +59,7 @@ Query parameters:
 
 The response body is `TorrentListResponse` with an optional `next` cursor when additional pages exist.
 
-### Torrent Actions (`POST /v1/torrents/:id/action`)
+### Torrent Actions (`POST /v1/torrents/{id}/action`)
 
 `type` determines the shape of the body:
 
