@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-97596ab8.js";
+            window.path_to_searchindex_js = "../searchindex-c1788488.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-ea6e47b5.js"></script>
@@ -197,33 +197,34 @@
 
 <h2 id="component-graph"><a class="header" href="#component-graph">Component Graph</a></h2>
 <pre class="mermaid">flowchart TB
-    App[App (RevaerApp)]
-    Shell[AppShell (nav, mode/theme toggle, locale picker)]
-    Dash[DashboardPanel]
-    Table[TorrentView (virtualized list + filters)]
-    Add[AddTorrentPanel]
-    Detail[Detail Drawer/Tabs]
+    app["App (RevaerApp)"]
+    shell["AppShell: nav / theme / locale"]
+    dash[DashboardPanel]
+    table["TorrentView: virtualized list + filters"]
+    add_panel[AddTorrentPanel]
+    detail["Detail drawer / tabs"]
+    api[API]
 
-    App --&gt; Shell
-    Shell --&gt; Dash
-    Shell --&gt; Table
-    Table --&gt; Add
-    Table --&gt; Detail
-    Add --&gt;|POST /v1/torrents| API
-    Detail --&gt;|PATCH /v1/torrents/{id}| API
+    app --&gt; shell
+    shell --&gt; dash
+    shell --&gt; table
+    table --&gt; add_panel
+    table --&gt; detail
+    add_panel -- "POST /v1/torrents" --&gt; api
+    detail -- "PATCH /v1/torrents/{id}" --&gt; api
 </pre>
 
 <h2 id="sse-event-flow"><a class="header" href="#sse-event-flow">SSE Event Flow</a></h2>
 <pre class="mermaid">sequenceDiagram
-    participant API as API / SSE
+    participant API as API/SSE
     participant Stream as EventStream
-    participant State as UI State (torrents, queue, jobs, vpn)
+    participant State as UIState
     participant UI as Components
 
-    API--&gt;&gt;Stream: SSE events (torrent_progress, torrent_state, queue_status, jobs_update, vpn_state)
+    API-&gt;&gt;Stream: SSE events (progress, state, queue, jobs, vpn)
     Stream-&gt;&gt;State: Batch apply with backoff + dedupe
-    State--&gt;&gt;UI: Render updates (virtualized table, dashboard tiles, badges)
-    UI--&gt;&gt;API: Last-Event-ID on reconnect; filters included in SSE query
+    State-&gt;&gt;UI: Render updates (virtualized table, dashboard tiles, badges)
+    UI-&gt;&gt;API: Last-Event-ID on reconnect with filters in SSE query
 </pre>
 
 <h2 id="torrent-lifecycle-ui-perspective"><a class="header" href="#torrent-lifecycle-ui-perspective">Torrent Lifecycle (UI Perspective)</a></h2>

@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-97596ab8.js";
+            window.path_to_searchindex_js = "searchindex-c1788488.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-ea6e47b5.js"></script>
@@ -178,7 +178,7 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="phase-one-roadmap"><a class="header" href="#phase-one-roadmap">Phase One Roadmap</a></h1>
-<p><em>Last updated: 2025-10-16</em></p>
+<p><em>Last updated: 2025-11-27</em></p>
 <p>This document captures the current delta between the Phase One objective and the existing codebase. It should be kept in sync as work progresses across the eight workstreams.</p>
 <h2 id="snapshot"><a class="header" href="#snapshot">Snapshot</a></h2>
 <div class="table-wrapper">
@@ -188,12 +188,12 @@
 </thead>
 <tbody>
 <tr><td>Control Plane &amp; Setup</td><td>Postgres schema, ConfigService watcher, setup CLI/API, immutable-key guard, history logging; loopback enforcement + RFC7807 pointers live</td><td>Engine hot-reload not yet exercising throttles; setup token lifecycle/error telemetry still thin</td><td>Add watcher-driven throttle tests, expand setup diagnostics and rate-limit guardrails</td></tr>
-<tr><td>Torrent Domain &amp; Adapter</td><td>Event bus, orchestrator scaffold, enriched torrent DTOs, stub session worker now persists resume metadata/fastresume, reconciles selection/sequential flags, enforces throttle guard rails, and surfaces degraded health</td><td>Real libtorrent FFI binding and alert pump still pending; need to exercise live fast-resume blobs and real libtorrent rate/health controls</td><td>Replace stub session with libtorrent bindings, translate real alerts, and validate against native libtorrent in the feature-gated suite</td></tr>
+<tr><td>Torrent Domain &amp; Adapter</td><td>Native libtorrent FFI (cxx) restored and default-enabled; session worker with alert pump/resume store, throttles, selection, and degraded health surfaced via event bus; stub path retained only when the feature is disabled</td><td>Native integration suite still opt-in and not exercised in CI; alert/rate-limit regression coverage is thin; need broader validation of resume reconciliation and failure handling</td><td>Add REVAER_NATIVE_IT matrix in CI (with Docker host) to run native tests; deepen alert/rate-limit/resume validation and harden failure handling</td></tr>
 <tr><td>File Selection &amp; FsOps</td><td>Idempotent FsOps pipeline extracts zip payloads, flattens single directories, enforces allow lists, records <code>.revaer.meta</code>, and applies move/copy/hardlink transfers with chmod/chown/umask handling</td><td>Extraction currently limited to zip archives, PAR2 stage still absent, cleanup rules lack checksum awareness, pipeline assumes Unix tooling for ownership changes</td><td>Expand extractor matrix (7z/tar), add PAR2 verification, surface non-Unix fallbacks, and extend cleanup/telemetry coverage</td></tr>
 <tr><td>Public HTTP API &amp; SSE</td><td>Admin setup/settings/torrent CRUD, SSE stream, metrics stub, OpenAPI generator, <code>/api/v2/*</code> qB façade (auth stub, version, torrents info/add/pause/resume/delete, transfer limits, incremental <code>rid</code> sync, basic removal tracking)</td><td><code>/v1/torrents/*</code> pagination/filter matrix still partial, qB façade lacks authenticated sessions, differential removal events, rename/category endpoints; SSE replay still missing Last-Event-ID coverage</td><td>Finish pagination/filter story, tighten façade auth/session handling, surface removals/categories in incremental sync, and expand SSE regression tests</td></tr>
 <tr><td>CLI Parity</td><td>Supports setup start/complete, settings patch, admin torrent add/remove (magnet-aware), status</td><td>Missing <code>select</code>, <code>action</code>, <code>ls</code>, <code>status</code> detail view, <code>tail</code> SSE client, richer validation</td><td>Extend CLI command surface to mirror API, add reconnecting SSE tailer, flesh out filtering and exit-code contract</td></tr>
 <tr><td>Security &amp; Observability</td><td>API key storage hashed, tracing initialised, metrics registry struct</td><td>No per-key rate limits, no X-RateLimit headers, magnet/body bounds missing, tracing not propagated to engine/fsops, metrics unused</td><td>Introduce token-bucket middleware, enforce payload bounds, propagate spans through orchestrator/fsops, export Prometheus counters</td></tr>
-<tr><td>CI &amp; Packaging</td><td>Workspace compiles, justfile for fmt/lint/test</td><td>No CI workflows, cargo-deny/audit missing, no env access guard, no Docker packaging or healthcheck</td><td>Author GitHub Actions (lint, security, tests, build), enforce env guard lint, build minimal non-root container with HEALTHCHECK</td></tr>
+<tr><td>CI &amp; Packaging</td><td>GitHub Actions cover fmt/lint/deny/audit/tests/cov via <code>just ci</code>; libtorrent deps installed on runners; Dockerfile builds non-root image with bundled libtorrent and HEALTHCHECK; docs workflow publishes mdBook</td><td>Native libtorrent tests not in default matrix; provenance/signing absent; rootfs not read-only; no cross-arch artifacts or enforced image scan in CI</td><td>Add matrix job with REVAER_NATIVE_IT=1 + Docker host, wire provenance/signing and image scan, harden container runtime (read-only root, drop caps), and add cross-arch build artifacts</td></tr>
 <tr><td>Operational End-to-End</td><td>Bootstrap skeleton and event bus exist</td><td>Torrent download, fs pipeline, restart resume, throttling, degraded health scenarios unimplemented</td><td>Sequence implementation/testing to satisfy runbook once engine/fsops/API parity are in place</td></tr>
 </tbody>
 </table>
@@ -201,7 +201,7 @@
 <h2 id="remaining-scope-specification"><a class="header" href="#remaining-scope-specification">Remaining Scope Specification</a></h2>
 <h3 id="1-torrent-engine-integration"><a class="header" href="#1-torrent-engine-integration">1. Torrent Engine Integration</a></h3>
 <ul>
-<li>Swap the stubbed <code>LibtSession</code> for the real libtorrent binding so the existing worker drives a native session while continuing to process commands for add/pause/resume/remove, sequential toggles, rate limits, selection updates, reannounce, and force-recheck.</li>
+<li>Harden the native libtorrent session: keep the stub only for feature-off builds while ensuring the default path drives the real adapter for add/pause/resume/remove, sequential toggles, rate limits, selection updates, reannounce, and force-recheck.</li>
 <li>Validate persisted fast-resume payloads, priorities, target directories, and sequential flags against the live session on startup; continue emitting reconciliation events when divergence is detected.</li>
 <li>Translate libtorrent alerts into EventBus messages (<code>FilesDiscovered</code>, <code>Progress</code>, <code>StateChanged</code>, <code>Completed</code>, <code>Failure</code>) while respecting the ≤10 Hz per-torrent coalescing rule; recover from alert polling failures by degrading health and attempting bounded restarts.</li>
 <li>Ensure global and per-torrent rate caps driven by <code>engine_profile</code> updates are enforced by libtorrent within two seconds, with audit logs surfaced when caps change.</li>
@@ -240,10 +240,10 @@
 </ul>
 <h3 id="6-ci--packaging"><a class="header" href="#6-ci--packaging">6. CI &amp; Packaging</a></h3>
 <ul>
-<li>Create GitHub Actions (or equivalent) workflows for formatting (<code>cargo fmt</code>), linting (<code>cargo clippy -D warnings</code>), security scans (<code>cargo deny</code>, <code>cargo audit</code>), tests (unit/integration with Postgres and libtorrent behind an opt-in guard), and cross-compilation artifacts for Linux x86_64 and aarch64.</li>
+<li>Keep GitHub Actions green across fmt/lint/deny/audit/tests/cov and add a matrix leg that runs the native libtorrent suite (REVAER_NATIVE_IT=1 with Docker host wiring).</li>
 <li>Enforce an environment-access lint that fails CI if <code>std::env</code> reads occur outside the composition root (excluding <code>DATABASE_URL</code>).</li>
-<li>Produce a non-root Docker image with read-only root filesystem, declared volumes, and a healthcheck hitting <code>/health</code>; ensure runtime documentation validates within the image.</li>
-<li>Publish build artifacts and container digests with provenance metadata; wire CI status into the roadmap release checklist.</li>
+<li>Harden the container: retain non-root user, switch to read-only rootfs with explicit writable mounts, and gate builds with image scans and provenance/signing.</li>
+<li>Produce cross-arch artifacts (x86_64/aarch64) and publish digests alongside build outputs and release notes.</li>
 </ul>
 <h3 id="7-operational-runbook-automation"><a class="header" href="#7-operational-runbook-automation">7. Operational Runbook Automation</a></h3>
 <ul>
@@ -261,7 +261,7 @@
 <h2 id="next-steps-tracking"><a class="header" href="#next-steps-tracking">Next Steps Tracking</a></h2>
 <ol>
 <li>Land setup/network hardening and control-plane polish.</li>
-<li>Replace the stub worker with a real libtorrent session, resume store, and alert-driven event bridge.</li>
+<li>Keep the native libtorrent session as the default, expand coverage (native CI leg, alert/rate-limit/resume validation), and preserve the stub only for feature-off builds.</li>
 <li>Implement FsOps pipeline with allow-listed execution and metadata.</li>
 <li>Expose <code>/v1/*</code> APIs + CLI parity and reinforce security/observability.</li>
 <li>Stand up CI, packaging, and full runbook validation.</li>
