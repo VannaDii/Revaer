@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-c1788488.js";
+            window.path_to_searchindex_js = "searchindex-c5711e67.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-ea6e47b5.js"></script>
@@ -900,14 +900,14 @@ Live sync: SSE streams torrent progress/rates/state plus added/removed events to
 <tr><td><code>PATCH</code></td><td><code>/admin/settings</code></td><td>API key</td><td>Alias for <code>PATCH /v1/config</code>; retained for admin tooling.</td></tr>
 <tr><td><code>GET</code></td><td><code>/admin/torrents</code></td><td>API key</td><td>Same as <code>GET /v1/torrents</code>; retained for admin tooling.</td></tr>
 <tr><td><code>POST</code></td><td><code>/admin/torrents</code></td><td>API key</td><td>Alias for <code>POST /v1/torrents</code>.</td></tr>
-<tr><td><code>GET</code></td><td><code>/admin/torrents/:id</code></td><td>API key</td><td>Alias for <code>GET /v1/torrents/:id</code>.</td></tr>
-<tr><td><code>DELETE</code></td><td><code>/admin/torrents/:id</code></td><td>API key</td><td>Alias for invoking the <code>remove</code> action.</td></tr>
+<tr><td><code>GET</code></td><td><code>/admin/torrents/{id}</code></td><td>API key</td><td>Alias for <code>GET /v1/torrents/{id}</code>.</td></tr>
+<tr><td><code>DELETE</code></td><td><code>/admin/torrents/{id}</code></td><td>API key</td><td>Alias for invoking the <code>remove</code> action.</td></tr>
 <tr><td><code>GET</code></td><td><code>/v1/torrents</code></td><td>API key</td><td>Cursor-paginated torrent summaries with filtering (state, tracker, extension, tags, name).</td></tr>
 <tr><td><code>POST</code></td><td><code>/v1/torrents</code></td><td>API key</td><td>Submits a magnet URI or base64-encoded <code>.torrent</code>, optional tags/trackers, file rules, and per-torrent rate limits.</td></tr>
-<tr><td><code>GET</code></td><td><code>/v1/torrents/:id</code></td><td>API key</td><td>Detailed torrent view including file metadata when available.</td></tr>
-<tr><td><code>POST</code></td><td><code>/v1/torrents/:id/select</code></td><td>API key</td><td>Adjusts inclusion/exclusion globs, fluff skipping, and per-file priorities.</td></tr>
-<tr><td><code>POST</code></td><td><code>/v1/torrents/:id/action</code></td><td>API key</td><td>Lifecycle management (<code>pause</code>, <code>resume</code>, <code>remove</code>, <code>reannounce</code>, <code>recheck</code>, <code>sequential</code>, <code>rate</code>).</td></tr>
-<tr><td><code>GET</code></td><td><code>/v1/events</code></td><td>API key</td><td>Server-sent events stream (alias: <code>/v1/torrents/events</code>). Supports filtering by torrent ID, state, and event kind.</td></tr>
+<tr><td><code>GET</code></td><td><code>/v1/torrents/{id}</code></td><td>API key</td><td>Detailed torrent view including file metadata when available.</td></tr>
+<tr><td><code>POST</code></td><td><code>/v1/torrents/{id}/select</code></td><td>API key</td><td>Adjusts inclusion/exclusion globs, fluff skipping, and per-file priorities.</td></tr>
+<tr><td><code>POST</code></td><td><code>/v1/torrents/{id}/action</code></td><td>API key</td><td>Lifecycle management (<code>pause</code>, <code>resume</code>, <code>remove</code>, <code>reannounce</code>, <code>recheck</code>, <code>sequential</code>, <code>rate</code>).</td></tr>
+<tr><td><code>GET</code></td><td><code>/v1/events</code></td><td>API key</td><td>Server-sent events stream (aliases: <code>/v1/events/stream</code>, <code>/v1/torrents/events</code>). Supports filtering by torrent ID, state, and event kind.</td></tr>
 <tr><td><code>GET</code></td><td><code>/metrics</code></td><td>none</td><td>Prometheus-formatted metrics from <code>revaer-telemetry</code>.</td></tr>
 <tr><td><code>GET</code></td><td><code>/docs/openapi.json</code></td><td>none</td><td>Static OpenAPI document used by the docs site and clients.</td></tr>
 </tbody>
@@ -932,7 +932,7 @@ Live sync: SSE streams torrent progress/rates/state plus added/removed events to
 <li><code>state</code>, <code>tracker</code>, <code>extension</code>, <code>tags</code>, <code>name</code> – Comma-separated filters (case-insensitive).</li>
 </ul>
 <p>The response body is <code>TorrentListResponse</code> with an optional <code>next</code> cursor when additional pages exist.</p>
-<h3 id="torrent-actions-post-v1torrentsidaction"><a class="header" href="#torrent-actions-post-v1torrentsidaction">Torrent Actions (<code>POST /v1/torrents/:id/action</code>)</a></h3>
+<h3 id="torrent-actions-post-v1torrentsidaction"><a class="header" href="#torrent-actions-post-v1torrentsidaction">Torrent Actions (<code>POST /v1/torrents/{id}/action</code>)</a></h3>
 <p><code>type</code> determines the shape of the body:</p>
 <pre><code class="language-json">{ "type": "remove", "delete_data": true }
 { "type": "sequential", "enable": false }
@@ -1095,6 +1095,26 @@ cargo test -p revaer-torrent-libt --all-features
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="architecture-decision-records"><a class="header" href="#architecture-decision-records">Architecture Decision Records</a></h1>
 <p>ADR documents capture the rationale behind significant technical decisions.</p>
+<h2 id="catalogue"><a class="header" href="#catalogue">Catalogue</a></h2>
+<ul>
+<li><a href="#001--global-configuration-revisioning">001</a> – Configuration revisioning</li>
+<li><a href="#002--setup-token-lifecycle--secrets-bootstrap">002</a> – Setup token lifecycle</li>
+<li><a href="#003--libtorrent-session-runner-architecture">003</a> – Libtorrent session runner</li>
+<li><a href="#004--phase-one-delivery-track">004</a> – Phase one delivery</li>
+<li><a href="#005--fsops-pipeline-hardening">005</a> – FS operations pipeline</li>
+<li><a href="#006--unified-api--cli-contract">006</a> – API/CLI contract</li>
+<li><a href="#007--api-key-security--rate-limiting">007</a> – Security posture</li>
+<li><a href="#008--phase-one-remaining-delivery-task-record">008</a> – Remaining phase-one tasks</li>
+<li><a href="adr/009-fsops-permission-hardening.html">009</a> – FS ops permission hardening</li>
+<li><a href="adr/010-agent-compliance-sweep.html">010</a> – Agent compliance sweep</li>
+<li><a href="adr/011-coverage-hardening-phase-two.html">011</a> – Coverage hardening</li>
+<li><a href="adr/012-agent-compliance-refresh.html">012</a> – Agent compliance refresh</li>
+<li><a href="adr/013-runtime-persistence.html">013</a> – Runtime persistence</li>
+<li><a href="adr/014-data-access-layer.html">014</a> – Data access layer</li>
+<li><a href="adr/015-agent-compliance-hardening.html">015</a> – Agent compliance hardening</li>
+<li><a href="adr/016-libtorrent-restoration.html">016</a> – Libtorrent restoration</li>
+<li><a href="adr/017-sqlx-named-bind.html">017</a> – Avoid <code>sqlx-named-bind</code></li>
+</ul>
 <h2 id="suggested-workflow"><a class="header" href="#suggested-workflow">Suggested Workflow</a></h2>
 <ol>
 <li>Create a new ADR using the template in <code>docs/adr/template.md</code>.</li>

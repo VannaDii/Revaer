@@ -176,10 +176,23 @@
     "href": "/adr/016-libtorrent-restoration/"
   },
   {
+    "id": "adr/017-sqlx-named-bind",
+    "title": "Avoid `sqlx-named-bind`",
+    "summary": "Status: Accepted Date: 2025-11-28",
+    "tags": [
+      "consequences",
+      "context",
+      "decision",
+      "follow-up"
+    ],
+    "href": "/adr/017-sqlx-named-bind/"
+  },
+  {
     "id": "adr/index",
     "title": "Architecture Decision Records",
     "summary": "ADR documents capture the rationale behind significant technical decisions.",
     "tags": [
+      "catalogue",
       "suggested-workflow"
     ],
     "href": "/adr/index/"
