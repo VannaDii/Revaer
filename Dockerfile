@@ -1,49 +1,44 @@
 # syntax=docker/dockerfile:1.7
-ARG LIBTORRENT_BUNDLE_DIR=/bundle
-
 ## Build stage ---------------------------------------------------------------
-FROM rust:1.91.0-alpine3.20 AS builder
-ARG LIBTORRENT_BUNDLE_DIR
+FROM rust:alpine AS builder
 WORKDIR /workspace
 
 RUN apk add --no-cache \
         boost-dev \
         build-base \
+        clang \
         libtorrent-rasterbar-dev \
         musl-dev \
         openssl-dev \
         pkgconf
 
-RUN rustup target add x86_64-unknown-linux-musl
-
 COPY . .
 
-ENV LIBTORRENT_BUNDLE_DIR=${LIBTORRENT_BUNDLE_DIR}
-RUN cargo build --release --locked \
-        --package revaer-app \
-        --target x86_64-unknown-linux-musl
+# Install the toolchain components listed in rust-toolchain.toml for the host arch.
+RUN rustup toolchain install stable --profile minimal \
+        --component rustfmt --component clippy --component llvm-tools-preview \
+    && rustup default stable
+
+# Link dynamically against musl for third-party libs (libtorrent/openssl) on Alpine.
+ENV RUSTFLAGS="-C target-feature=-crt-static"
+
+RUN cargo build --release --locked --package revaer-app
 
 RUN cargo run --package revaer-api --bin generate_openapi
 
-# Capture the libtorrent/boost/crypto libs used during the build so runtime is pinned.
-RUN ./scripts/build-libtorrent-bundle.sh
-
 ## Runtime stage -------------------------------------------------------------
-FROM alpine:3.20 AS runtime
-ARG LIBTORRENT_BUNDLE_DIR
+FROM alpine:latest AS runtime
 
 RUN addgroup -S revaer && adduser -S revaer -G revaer \
-    && apk add --no-cache ca-certificates libstdc++ curl \
+    && apk add --no-cache ca-certificates libstdc++ curl openssl libtorrent-rasterbar \
     && mkdir -p /app /data /config \
     && chown -R revaer:revaer /app /data /config
 
 WORKDIR /app
 
-COPY --from=builder --chown=revaer:revaer /workspace/target/x86_64-unknown-linux-musl/release/revaer-app /usr/local/bin/revaer-app
+COPY --from=builder --chown=revaer:revaer /workspace/target/release/revaer-app /usr/local/bin/revaer-app
 COPY --from=builder --chown=revaer:revaer /workspace/docs /app/docs
 COPY --from=builder --chown=revaer:revaer /workspace/config /app/config
-COPY --from=builder ${LIBTORRENT_BUNDLE_DIR}.tar.gz /tmp/libtorrent-bundle.tar.gz
-RUN tar -xzf /tmp/libtorrent-bundle.tar.gz -C /usr/local && rm /tmp/libtorrent-bundle.tar.gz
 
 VOLUME ["/data", "/config"]
 ENV RUST_LOG=info

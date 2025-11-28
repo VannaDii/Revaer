@@ -10,3 +10,4 @@ Cargo.lock
 /dist
 /book
 /deploy
+/artifacts

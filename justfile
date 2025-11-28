@@ -67,15 +67,26 @@ api-export:
 ci:
     just fmt lint udeps audit deny test cov
 
-libtorrent-bundle bundle_dir="":
-    if [ -n "{{bundle_dir}}" ]; then \
-        ./scripts/build-libtorrent-bundle.sh "{{bundle_dir}}"; \
-    else \
-        ./scripts/build-libtorrent-bundle.sh; \
-    fi
-
 docker-build:
-    docker build --tag revaer:ci .
+    platforms="${PLATFORMS:-linux/amd64,linux/arm64}"; \
+    version="${VERSION:-dev.$(date -u +%y%m%d).$(git rev-parse --short HEAD)}"; \
+    tags="--tag revaer:latest --tag revaer:${version}"; \
+    builder="${BUILDX_BUILDER:-revaer-builder}"; \
+    if ! docker buildx inspect "$builder" >/dev/null 2>&1; then \
+        docker buildx create --name "$builder" --driver docker-container --use; \
+    else \
+        docker buildx use "$builder"; \
+    fi; \
+    if printf "%s" "$platforms" | grep -q ','; then \
+        mkdir -p artifacts; \
+        docker buildx build --builder "$builder" --platform "$platforms" $tags \
+            --output=type=oci,dest=artifacts/revaer-${version}.oci \
+            .; \
+    else \
+        docker buildx build --builder "$builder" --platform "$platforms" $tags \
+            --load \
+            .; \
+    fi
 
 docker-scan:
     if ! command -v trivy >/dev/null 2>&1; then \
