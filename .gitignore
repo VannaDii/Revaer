@@ -7,7 +7,7 @@ Cargo.lock
 .DS_Store
 /.env
 /tmp
-/dist
+dist
 /book
 /deploy
 /artifacts

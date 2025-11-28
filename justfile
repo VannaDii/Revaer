@@ -102,6 +102,13 @@ ui-serve:
     fi
     cd crates/revaer-ui && trunk serve --open
 
+ui-build:
+    rustup target add wasm32-unknown-unknown
+    if ! command -v trunk >/dev/null 2>&1; then \
+        cargo install trunk; \
+    fi
+    cd crates/revaer-ui && trunk build --release
+
 dev:
     if ! command -v cargo-watch >/dev/null 2>&1; then \
         cargo install cargo-watch; \
