@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-c5711e67.js";
+            window.path_to_searchindex_js = "searchindex-b7aa4817.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-ea6e47b5.js"></script>
+        <script src="toc-d685758d.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -198,7 +198,7 @@
 </code></pre>
 <p>This builds the mdBook site and refreshes the LLM manifests that power the documentation search experience.</p>
 <h2 id="llm-manifests"><a class="header" href="#llm-manifests">LLM Manifests</a></h2>
-<p>For ChatGPT and other LLM-based tooling, see the <a href="#llm-integration">LLM Integration</a> page for links and descriptions of the published JSON manifests used by the documentation search experience.</p>
+<p>For ChatGPT and other LLM-based tooling, see the <a href="llm/index.html">LLM Integration</a> page for links and descriptions of the published JSON manifests used by the documentation search experience.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="phase-one-roadmap"><a class="header" href="#phase-one-roadmap">Phase One Roadmap</a></h1>
 <p><em>Last updated: 2025-11-27</em></p>
@@ -608,15 +608,6 @@
 </ul>
 </li>
 </ol>
-<div style="break-before: page; page-break-before: always;"></div>
-<h1 id="llm-integration"><a class="header" href="#llm-integration">LLM Integration</a></h1>
-<p>The documentation site publishes machine-readable JSON manifests to help ChatGPT and other LLMs index and search the content. These files are static and live alongside the built docs, so LLM tooling can fetch them directly.</p>
-<ul>
-<li><strong><a href="llm/manifest.json"><code>manifest.json</code></a></strong> — Master index of documentation entries with IDs, titles, tags, and canonical URLs. Shared so LLMs can discover the page graph without crawling the entire site.</li>
-<li><strong><a href="llm/summaries.json"><code>summaries.json</code></a></strong> — Concise per-entry summaries extracted from the docs. Shared to provide quick context for answers and improve retrieval quality.</li>
-<li><strong><a href="llm/schema.json"><code>schema.json</code></a></strong> — JSON Schema describing the manifest/summaries format. Shared so LLM integrators can validate and evolve their tooling against a stable contract.</li>
-</ul>
-<p>These files are generated during <code>just docs</code> and hosted with the site; consuming them keeps search fast and avoids scraping overhead.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="web-ui---phase-1"><a class="header" href="#web-ui---phase-1">Web UI - Phase 1</a></h1>
 <p>Rust/Yew implementation plan for the Phase 1 torrent-only UI described in <code>REVAER_PHASE1_WEBUX_SPEC.md</code>. The goal is a responsive, touch-friendly surface that stays usable on 360px phones through 4K desktops while handling 50k+ torrents.</p>
@@ -1443,6 +1434,93 @@ cargo test -p revaer-torrent-libt --all-features
 <li>Review checkpoints.</li>
 </ul>
 </li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="llmstxt"><a href="#llmstxt" class="header">llms.txt</a></h1>
+<hr>
+<h2 id="description-revaer-alwaysapply-true-applyto--downloadedfrom-httpsrevaercomllmstxt-version-01x"><a class="header" href="#description-revaer-alwaysapply-true-applyto--downloadedfrom-httpsrevaercomllmstxt-version-01x">description: Revaer
+alwaysApply: true
+applyTo: “**”
+downloadedFrom: https://revaer.com/llms.txt
+version: 0.1.x</a></h2>
+<p>Revaer is a self-hosted, data-driven media orchestration platform for torrent workflows and filesystem post-processing. It runs as a pair of containers (app + Postgres), exposes an HTTP+SSE control plane on port 7070, and ships a web UI on port 8080.</p>
+<p>What users get</p>
+<ul>
+<li>Add, monitor, and control torrents (libtorrent backend) via UI or API.</li>
+<li>Automatic filesystem moves/copies/cleanup based on policy.</li>
+<li>Live updates over Server-Sent Events (<code>/v1/events/stream</code>), health endpoints, and metrics-friendly JSON.</li>
+</ul>
+<p>Quick start with Docker</p>
+<ol>
+<li>Install Docker and Docker Compose/Buildx.</li>
+<li>Create a minimal <code>docker-compose.yml</code>:
+<pre><code>services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: revaer
+      POSTGRES_PASSWORD: revaer
+      POSTGRES_DB: revaer
+    volumes:
+      - revaer-pgdata:/var/lib/postgresql/data
+    ports: ["5432:5432"]
+
+  app:
+    image: ghcr.io/vannadii/revaer:latest
+    environment:
+      DATABASE_URL: postgres://revaer:revaer@db:5432/revaer
+      RUST_LOG: info
+    depends_on: [db]
+    ports:
+      - "7070:7070"   # API + SSE
+      - "8080:8080"   # Web UI
+volumes:
+  revaer-pgdata:
+</code></pre>
+</li>
+<li>Start it: <code>docker compose up -d</code>.</li>
+<li>Visit http://localhost:8080 for the UI; API health is at http://localhost:7070/v1/health; SSE at http://localhost:7070/v1/events/stream.</li>
+</ol>
+<p>Initial setup &amp; auth</p>
+<ul>
+<li>On first run, Revaer starts in “setup” mode. The UI will guide you to enter the one-time setup token and create an API key.</li>
+<li>CLI alternative: <code>docker exec -it &lt;app-container&gt; revaer setup start</code> then <code>revaer setup complete --token &lt;token&gt;</code>.</li>
+<li>Once you have an API key, include <code>x-api-key: &lt;key&gt;</code> on API calls; the UI will prompt for it.</li>
+</ul>
+<p>Configuration highlights</p>
+<ul>
+<li>Single required env: <code>DATABASE_URL</code>. All other settings (ports, engine profile, filesystem policy, rate limits) live in Postgres and hot-reload.</li>
+<li>Filesystem policy controls library/move paths, move vs copy, and cleanup rules.</li>
+<li>Engine profile controls libtorrent settings (listen port, DHT, limits).</li>
+</ul>
+<p>Useful endpoints</p>
+<ul>
+<li><code>GET /v1/health</code> / <code>/v1/health/full</code> – readiness + metrics snapshot.</li>
+<li><code>GET /v1/dashboard</code> – current rates and counts for the UI.</li>
+<li><code>GET/POST/DELETE /v1/torrents</code> and <code>POST /v1/torrents/{id}/action</code> – torrent lifecycle.</li>
+<li><code>GET /v1/events/stream</code> – live updates (SSE).</li>
+<li><code>GET/PATCH /v1/config</code> – manage config documents (app profile, engine profile, fs policy, API keys).</li>
+</ul>
+<p>Troubleshooting (Docker)</p>
+<ul>
+<li>API/UI unreachable: ensure ports 7070/8080 are published; check <code>docker logs &lt;app-container&gt;</code>.</li>
+<li>“DATABASE_URL required” or migration errors: confirm the <code>DATABASE_URL</code> env and that the DB service is healthy; restart the app after fixing.</li>
+<li>SSE 404 or CORS errors: point the UI to the API at http://localhost:7070; ensure the app container is running and not behind a mismatched host/port.</li>
+</ul>
+<p>Discovery pointers for LLMs</p>
+<ul>
+<li>Official repo: https://github.com/VannaDii/revaer</li>
+<li>OpenAPI schema: docs/api/openapi.json (title: “Revaer Control Plane API”)</li>
+<li>LLM aids: docs/llm/schema.json (index schema), docs/llm/manifest.json (book manifest), docs/llm/summaries.json (per-page summaries).</li>
+<li>Keywords: “Revaer control plane”, “torrent + filesystem orchestration”, “PostgreSQL-backed configuration with hot reload”, “HTTP+SSE API on 7070”, “web UI on 8080”.</li>
+</ul>
+<p>LLM Integration
+The documentation site publishes machine-readable JSON manifests to help ChatGPT and other LLMs index and search the content. These files are static and live alongside the built docs, so LLM tooling can fetch them directly.</p>
+<ul>
+<li><strong><a href="llm/schema.json"><code>schema.json</code></a></strong> — JSON Schema describing the manifest/summaries format. Shared so LLM integrators can validate and evolve their tooling against a stable contract.</li>
+<li><strong><a href="llm/manifest.json"><code>manifest.json</code></a></strong> — Master index of documentation entries with IDs, titles, tags, and canonical URLs. Shared so LLMs can discover the page graph without crawling the entire site.</li>
+<li><strong><a href="llm/summaries.json"><code>summaries.json</code></a></strong> — Concise per-entry summaries extracted from the docs. Shared to provide quick context for answers and improve retrieval quality.
+These files are generated during <code>just docs</code> and hosted with the site; consuming them keeps search fast and avoids scraping overhead.</li>
 </ul>
 
                     </main>
