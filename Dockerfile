@@ -1,7 +1,10 @@
 # syntax=docker/dockerfile:1.7
+
 ## Build stage ---------------------------------------------------------------
 FROM rust:alpine AS builder
 WORKDIR /workspace
+
+ARG TARGETPLATFORM
 
 RUN apk add --no-cache \
         boost-dev \
@@ -22,9 +25,21 @@ RUN rustup toolchain install stable --profile minimal \
 # Link dynamically against musl for third-party libs (libtorrent/openssl) on Alpine.
 ENV RUSTFLAGS="-C target-feature=-crt-static"
 
-RUN cargo build --release --locked --package revaer-app
-
-RUN cargo run --package revaer-api --bin generate_openapi
+RUN set -eux; \
+  case "${TARGETPLATFORM}" in \
+    "linux/amd64")  RUST_TARGET="x86_64-unknown-linux-musl" ;; \
+    "linux/arm64")  RUST_TARGET="aarch64-unknown-linux-musl" ;; \
+    *) echo "Unsupported TARGETPLATFORM=${TARGETPLATFORM}"; exit 1 ;; \
+  esac; \
+  rustup target add "${RUST_TARGET}"; \
+  # Force a fixed target dir so we can normalize the output path
+  export CARGO_TARGET_DIR=/workspace/target; \
+  cargo build --release --locked --package revaer-app --target "${RUST_TARGET}"; \
+  # Normalize to /workspace/target/release/revaer-app regardless of target triple
+  mkdir -p /workspace/target/release; \
+  cp "/workspace/target/${RUST_TARGET}/release/revaer-app" \
+     "/workspace/target/release/revaer-app"; \
+  ls -l /workspace/target/release
 
 ## Runtime stage -------------------------------------------------------------
 FROM alpine:latest AS runtime
@@ -36,6 +51,7 @@ RUN addgroup -S revaer && adduser -S revaer -G revaer \
 
 WORKDIR /app
 
+# Always copy from normalized path
 COPY --from=builder --chown=revaer:revaer /workspace/target/release/revaer-app /usr/local/bin/revaer-app
 COPY --from=builder --chown=revaer:revaer /workspace/docs /app/docs
 COPY --from=builder --chown=revaer:revaer /workspace/config /app/config
