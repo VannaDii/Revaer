@@ -144,7 +144,6 @@ The Dashboard must display **four** metric cards:
 1. **Global upload speed**
 2. **Global download speed**
 3. **Torrent counts (Active / Paused / Completed)** — primary value shows Active; Paused and Completed appear as inline subvalues.
-4. **Active users/sessions** — count of active devices/users (matches master spec’s fourth metric).
 
 ---
 
