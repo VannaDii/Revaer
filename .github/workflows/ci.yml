@@ -112,7 +112,14 @@ jobs:
       - uses: taiki-e/install-action@just
 
       - name: Set image version tag
-        run: echo "VERSION=$(if [[ '${{ github.ref }}' == refs/tags/* ]]; then echo '${{ github.ref_name }}'; else echo dev.$(date -u +%y%m%d).${GITHUB_SHA::7}; fi)" >> "$GITHUB_ENV"
+        run: |
+          version=$(if [[ '${{ github.ref }}' == refs/tags/* ]]; then echo '${{ github.ref_name }}'; else echo dev.$(date -u +%y%m%d).${GITHUB_SHA::7}; fi)
+          version_lower=$(echo "$version" | tr '[:upper:]' '[:lower:]')
+          repo_lower=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
+          echo "VERSION=$version_lower" >> "$GITHUB_ENV"
+          echo "IMAGE_LOCAL_TAG=revaer:$version_lower" >> "$GITHUB_ENV"
+          echo "IMAGE_GHCR_TAG_VERSION=ghcr.io/$repo_lower:$version_lower" >> "$GITHUB_ENV"
+          echo "IMAGE_GHCR_TAG_LATEST=ghcr.io/$repo_lower:latest" >> "$GITHUB_ENV"
 
       - name: Build Docker images
         run: PLATFORMS=linux/amd64,linux/arm64 VERSION=${{ env.VERSION }} just docker-build
@@ -126,17 +133,17 @@ jobs:
 
       - name: Tag GHCR images
         run: |
-          docker tag revaer:latest ghcr.io/${{ github.repository }}:latest
-          docker tag revaer:${{ env.VERSION }} ghcr.io/${{ github.repository }}:${{ env.VERSION }}
+          docker tag revaer:latest ${{ env.IMAGE_GHCR_TAG_LATEST }}
+          docker tag ${{ env.IMAGE_LOCAL_TAG }} ${{ env.IMAGE_GHCR_TAG_VERSION }}
 
       - name: Push GHCR images
         run: |
-          docker push ghcr.io/${{ github.repository }}:latest
-          docker push ghcr.io/${{ github.repository }}:${{ env.VERSION }}
+          docker push ${{ env.IMAGE_GHCR_TAG_LATEST }}
+          docker push ${{ env.IMAGE_GHCR_TAG_VERSION }}
 
       - uses: aquasecurity/trivy-action@master
         with:
-          image-ref: "revaer:${{ env.VERSION }}"
+          image-ref: "${{ env.IMAGE_LOCAL_TAG }}"
           format: "sarif"
           output: "trivy-results.sarif"
           exit-code: "1"
