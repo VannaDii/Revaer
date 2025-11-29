@@ -161,6 +161,7 @@ target/              # build artifacts
 -   **Fuzz** (where applicable): torrent/magnet/file-pattern parsers.
 -   **Determinism**: seeded RNGs; avoid flaky time-based assertions (use injected clocks).
 -   **Coverage**: `cargo-llvm-cov` via `just cov`; libraries must meet **≥ 80%** coverage; **no regression** allowed.
+-   **All crates are covered**: the workspace coverage gate (80% line) applies to every crate, including new ones. If a crate ships a binary, put logic in `lib` and test it to satisfy the gate; no exemptions.
 -   **No coverage suppression**: never pass `--ignore-filename-regex`, `--ignore-run-fail`, `--no-report`, `--summary-only`, target filters, or any other `cargo llvm-cov` option that hides code from analysis. If the gate fails, add tests or remove code—do not suppress it.
 
 ---
@@ -443,6 +444,13 @@ src/
 -   Retroactive mandate: reorganize existing crates to match; deviations require an ADR with rationale.
 -   Keep domain modules pure; IO and side effects live in `infra`, `http`, or `tasks` as appropriate.
 -   Each crate documents its module layout in `lib.rs` rustdoc (one paragraph, updated with structure changes).
+-   New crates (forward-looking rules):
+    -   Choose an archetype above before creating files; note the choice + rationale in an ADR.
+    -   Scaffold the directory tree up front (empty modules with `// TODO` are not allowed; add minimal code + tests or omit the file).
+    -   No `utils.rs`/`helpers.rs`/`misc.rs` in new crates; place code in the archetype folders.
+    -   Keep `pub(crate)` by default; expose only the minimal API needed by dependants.
+    -   Add crate docs in `lib.rs` describing its purpose and chosen archetype; update when structure changes.
+    -   Wire new crates into `just`/CI if they add binaries, migrations, or feature flags.
 
 ---
 
