@@ -24,4 +24,4 @@ This builds the mdBook site and refreshes the LLM manifests that power the docum
 
 ## LLM Manifests
 
-For ChatGPT and other LLM-based tooling, see the [LLM Integration](llm/index.md) page for links and descriptions of the published JSON manifests used by the documentation search experience.
+For ChatGPT and other LLM-based tooling, fetch `/llms.txt` (left as a plain text manifest in the site root) and the JSON manifests under `/llm/` (`schema.json`, `manifest.json`, `summaries.json`) used by the documentation search experience.

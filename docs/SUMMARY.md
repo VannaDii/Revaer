@@ -35,7 +35,3 @@
 -   [007: Security Posture](adr/007-security-posture.md)
 -   [008: Phase One Remaining Task](adr/008-phase-one-remaining-task.md)
 -   [ADR Template](adr/template.md)
-
-## LLM Manifests
-
--   [llms.txt](llms.txt)
