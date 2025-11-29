@@ -304,4 +304,33 @@ Required jobs (fail-fast):
 
 ---
 
+## 17) Frontend (`crates/revaer-ui`) organization (retroactive and forward)
+
+-   Layout (normalize existing files to match; no new grab-bags at crate root):
+
+```text
+crates/revaer-ui/src/
+  app/{mod.rs,routes.rs,preferences.rs,storage.rs,sse.rs}
+  core/{ui.rs,breakpoints.rs,theme.rs,i18n/,logic/{layout.rs,shortcuts.rs,format.rs,virtual_list.rs}}
+  services/{api.rs,sse.rs}
+  features/
+    torrents/{mod.rs,view.rs,state.rs,actions.rs,logic.rs,api.rs}
+    dashboard/{mod.rs,view.rs,state.rs,api.rs}
+    ... (one folder per route/vertical slice)
+  components/   # shared UI atoms/composites only
+  models.rs     # transport DTOs only
+  main.rs       # wasm entry stub
+  lib.rs        # exports/re-exports of core primitives
+```
+
+-   `app/*` is the only place that touches `window`, `LocalStorage`, `EventSource`, router, and context providers. `preferences.rs` owns persistence keys + `api_base_url` remapping; `sse.rs` handles EventSource + backoff + dispatch to reducers.
+-   `core/*` is DOM-free and testable on the host; keep UI primitives (`UiMode`, `Density`, `Pane`), breakpoints, theme tokens, i18n data, and pure logic helpers there.
+-   `services/*` is transport-only (REST + SSE); no Yew/gloo/web-sys. Convert DTOs to feature state before returning.
+-   `features/*` are vertical slices. Each owns `state.rs` (view state + reducers, pure), `actions.rs` (enums/toast text), `logic.rs` (per-feature helpers), `api.rs` (calls into services), `view.rs` (Yew components), `mod.rs` (re-exports). Features do not reach into each other directly; they depend on `core`, `components`, and `services`.
+-   `components/*` hosts shared UI pieces (AppShell, ToastHost, SseOverlay, virtual list). No persistence, API calls, or SSE side effects inside components; data flows via props/callbacks.
+-   `models.rs` holds transport DTOs only. UI-only fields live in feature state. Keep conversions in `services` or feature `state.rs`.
+-   Retroactive mandate: migrate existing `app.rs`, `logic.rs`, `state.rs`, and other root-level helpers into the structure above. New code must align with this layout; deviations require ADR approval.
+
+---
+
 _This document is normative. If code and AGENT.MD disagree, update the code to comply._
