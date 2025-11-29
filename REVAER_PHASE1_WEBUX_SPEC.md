@@ -421,138 +421,242 @@ Breakpoints should use **min-width media queries**.
 
 ---
 
-# 5.3 Brand Palette
+## 5.3 Brand Palette
 
-### **Brand Palette**
+The Revaer UI uses a dual-theme color system:
 
-Use the following palette.
+-   **Revaer Dark** — primary, default theme for desktop UI (matches the dashboard reference image).
+-   **Revaer Light** — complementary, future-ready light mode using the same brand hues.
 
-## 🎨 **Revaer Full Color Palette (Expanded)**
-
----
-
-## **Brand Colors**
-
-### **Primary – Deep Nautical Blue (`#265D81`)**
-
--   `primary-50`: `#E7EFF4`
--   `primary-100`: `#C2D6E4`
--   `primary-200`: `#9CBBD3`
--   `primary-300`: `#76A0C2`
--   `primary-400`: `#4F85B1`
--   `primary-500`: `#265D81` _(base)_
--   `primary-600`: `#1F4D6A`
--   `primary-700`: `#183C52`
--   `primary-800`: `#112B3A`
--   `primary-900`: `#0A1B23`
+All tokens below must be represented in the Tailwind + daisyUI theme configuration. Names are descriptive to aid mapping, but engineers may adapt to `primary`, `secondary`, `base-100`, etc., as long as semantics are preserved.
 
 ---
 
-### **Secondary – Muted Violet (`#775A96`)**
+### 5.3.1 Revaer Dark Theme Palette
 
--   `secondary-50`: `#F0EBF5`
--   `secondary-100`: `#DAD1E7`
--   `secondary-200`: `#C3B5D8`
--   `secondary-300`: `#A997C7`
--   `secondary-400`: `#8E78B4`
--   `secondary-500`: `#775A96` _(base)_
--   `secondary-600`: `#60497A`
--   `secondary-700`: `#4C3962`
--   `secondary-800`: `#372A48`
--   `secondary-900`: `#241C2F`
+This theme matches the attached dark dashboard mock: deep blue/indigo surfaces, neon magenta/violet brand, cyan accents.
+
+#### Brand & Accent Colors
+
+Brand gradient (used for logo, high-impact accents):
+
+-   `brand-gradient-start` – **#F43F9E** (neon magenta)
+-   `brand-gradient-mid` – **#A855F7** (electric violet)
+-   `brand-gradient-end` – **#6366F1** (indigo blue)
+
+Solid brand tokens:
+
+-   `primary` – **#A855F7**
+    Primary actions, active nav text, primary badges.
+-   `primary-soft` – **#7C3AED**
+    Hover/pressed state for primary, lower-intensity fills.
+-   `secondary` – **#6366F1**
+    Secondary buttons, secondary data highlights.
+-   `accent` – **#22D3EE**
+    Links, subtle accents, focus rings.
+
+These are the only saturated hues intended for frequent use; all other UI areas should lean on neutrals.
+
+#### Surfaces & Backgrounds
+
+Layered surfaces support depth without overwhelming contrast:
+
+-   `bg-app` – **#050816**
+    Root application background (body).
+-   `bg-sidebar` – **#050B16**
+    Sidebar base surface.
+-   `bg-surface-1` – **#0B1020**
+    Primary cards (stats, metrics, VPN card).
+-   `bg-surface-2` – **#111827**
+    Raised cards (Recent Events, Tracker Health, Queue Status).
+-   `bg-surface-3` – **#1F2933**
+    Highest elevation surfaces (modals, toasts) — use sparingly.
+-   `bg-sidebar-active` – **#1E1B4B**
+    Base for active nav item background (with optional low-opacity gradient overlay).
+-   `bg-table-header` – **#0F172A**
+-   `bg-table-row` – **#020617**
+-   `bg-table-row-alt` – **#02091A**
+
+In daisyUI terms:
+
+-   Map `base-100` → `bg-surface-1`
+-   Map `base-200` → `bg-surface-2`
+-   Map `base-300` → `bg-surface-3`
+
+#### Text Colors
+
+-   `text-primary` – **#E5E7EB**
+    Main content text (card titles, table rows).
+-   `text-secondary` – **#9CA3AF**
+    Subtitles, helper copy, column headers.
+-   `text-muted` – **#6B7280**
+    Hints, placeholders.
+-   `text-disabled` – **#4B5563**
+    Disabled labels, inactive controls.
+-   `text-inverse` – **#020617**
+    Text on bright badges (warning/success) or chips.
+
+daisyUI mapping suggestion:
+
+-   `--fallback-bc` / `base-content` → `text-primary`
+-   `neutral-content` → `text-secondary`
+
+#### Borders, Dividers & Outlines
+
+-   `border-subtle` – **#1F2933**
+    Card/table borders, subtle separators.
+-   `border-strong` – **#374151**
+    Major section dividers.
+-   `divider` – **#111827**
+    Thin rules (e.g., table header underline).
+-   `focus-ring` – **#22D3EE**
+    2px focus outline for keyboard navigation.
+
+#### Semantic Status Colors
+
+Used consistently for torrent and system states:
+
+-   `info` – **#38BDF8**
+    Neutral informational states.
+-   `success` – **#22C55E**
+    Healthy torrents (seeding), OK tracker state.
+-   `warning` – **#EAB308**
+    Paused, stalled, or attention-needed state.
+-   `error` – **#F97373**
+    Failed torrents, tracker error, system error.
+-   `neutral-pill` – **#6B7280**
+    Non-critical neutral labels (e.g., "Queued").
+
+These must be wired to daisyUI `info`, `success`, `warning`, and `error` tokens.
+
+#### Progress, Charts & Micro-Visuals
+
+-   `progress-bg` – **#1F2933**
+    Background track for progress bars.
+-   `progress-primary` – **#A855F7**
+    Default progress fill.
+-   `progress-secondary` – **#6366F1**
+    Used for secondary metrics.
+-   `queue-bar` – **#A855F7**
+    Vertical bars in Queue Status card.
+-   `queue-bar-muted` – **#4C1D95**
+    Less-active queue states.
+
+#### Sidebar & Navigation Specifics
+
+-   `nav-text` – **#CBD5F5**
+    Primary nav text.
+-   `nav-text-muted` – **#6B7280**
+    Non-active nav items.
+-   `nav-icon` – **#9CA3AF**
+    Default icon color.
+-   `nav-icon-active` – gradient from **#F43F9E** → **#A855F7**
+    Applied via gradient fill or mask.
+
+Active nav item background:
+
+-   `nav-active-bg` – **#1E1B4B** with optional subtle brand gradient overlay on the left edge.
 
 ---
 
-### **Accent – Bright Blue (`#258BD3`)**
+### 5.3.2 Revaer Light Theme Palette
 
--   `accent-50`: `#E6F2FB`
--   `accent-100`: `#C0DFF8`
--   `accent-200`: `#97C8F2`
--   `accent-300`: `#6DAFEC`
--   `accent-400`: `#4497E4`
--   `accent-500`: `#258BD3` _(base)_
--   `accent-600`: `#1F78B5`
--   `accent-700`: `#196391`
--   `accent-800`: `#134C6C`
--   `accent-900`: `#0D3549`
+The light theme is visually complementary, not a separate brand. All brand hues remain identical; only neutrals and surfaces invert.
+
+#### Brand & Accent Colors (shared)
+
+-   `primary` – **#A855F7**
+-   `primary-soft` – **#8B5CF6**
+-   `secondary` – **#6366F1**
+-   `accent` – **#0EA5E9**
+    Slightly lighter teal for better contrast on light backgrounds.
+
+Logo gradient should reuse `brand-gradient-start/mid/end` on a light‑friendly backdrop.
+
+#### Surfaces & Backgrounds
+
+-   `bg-app` – **#F3F4F6**
+    Overall page background.
+-   `bg-sidebar` – **#F9FAFB**
+    Sidebar background.
+-   `bg-surface-1` – **#FFFFFF**
+    Main cards.
+-   `bg-surface-2` – **#E5E7EB**
+    Raised surfaces, hovered table rows.
+-   `bg-surface-3` – **#D1D5DB**
+    Highest elevation elements (modals, toasts).
+-   `bg-sidebar-active` – **#E0E7FF**
+    Active nav item background.
+-   `bg-table-header` – **#F3F4F6**
+-   `bg-table-row` – **#FFFFFF**
+-   `bg-table-row-alt` – **#F9FAFB**
+
+Suggested daisyUI mapping:
+
+-   `base-100` → `bg-surface-1`
+-   `base-200` → `bg-surface-2`
+-   `base-300` → `bg-surface-3`
+
+#### Text Colors
+
+-   `text-primary` – **#111827**
+    Core content text.
+-   `text-secondary` – **#4B5563**
+    Secondary labels.
+-   `text-muted` – **#9CA3AF**
+    Helper copy and placeholders.
+-   `text-disabled` – **#D1D5DB**
+    Disabled text.
+-   `text-inverse` – **#F9FAFB**
+    Text on primary/secondary buttons and strong badges.
+
+#### Borders & Dividers
+
+-   `border-subtle` – **#E5E7EB**
+    Card/table borders.
+-   `border-strong` – **#D1D5DB**
+    Section dividers.
+-   `divider` – **#E5E7EB**
+-   `focus-ring` – **#6366F1**
+    Indigo focus outline.
+
+#### Semantic Status Colors (Light)
+
+Use the same semantics as dark theme, adjusted for light contrast:
+
+-   `info` – **#0EA5E9**
+-   `success` – **#16A34A**
+-   `warning` – **#F59E0B**
+-   `error` – **#EF4444**
+
+All semantic badges should use `text-inverse` to maintain readability.
+
+#### Progress, Charts & Elements
+
+-   `progress-bg` – **#E5E7EB**
+-   `progress-primary` – **#A855F7**
+-   `progress-secondary` – \*\*#6366F1`
+-   `queue-bar` – \*\*#6366F1`
+-   `queue-bar-muted` – \*\*#C4B5FD`
+
+#### Sidebar & Navigation (Light)
+
+-   `nav-text` – **#111827**
+-   `nav-text-muted` – **#6B7280**
+-   `nav-icon` – **#6B7280**
+-   `nav-icon-active` – `primary` (violet)
+
+Active nav item background:
+
+-   `nav-active-bg` – **#E0E7FF** with optional very subtle left‑edge brand gradient.
 
 ---
 
-## **Neutral Grays**
+### 5.3.3 Usage Notes
 
-### **Light Neutrals**
-
--   `neutral-50`: `#FFFFFF`
--   `neutral-100`: `#F8F9FA`
--   `neutral-150`: `#F1F3F5`
--   `neutral-200`: `#E9ECEF`
--   `neutral-250`: `#DFE3E6`
--   `neutral-300`: `#DEE2E6`
-
-### **Mid Neutrals**
-
--   `neutral-400`: `#CED4DA`
--   `neutral-500`: `#ADB5BD`
--   `neutral-600`: `#6C757D`
-
-### **Dark Neutrals**
-
--   `neutral-700`: `#495057`
--   `neutral-800`: `#343A40`
--   `neutral-900`: `#212529`
-
----
-
-## **Semantic Colors**
-
-### **Success**
-
--   `success-100`: `#D9F0EA`
--   `success-500`: `#2F9E7A`
--   `success-700`: `#1E6A51`
-
-### **Warning**
-
--   `warning-100`: `#FFF4D8`
--   `warning-500`: `#E2AC2F`
--   `warning-700`: `#A4761A`
-
-### **Error**
-
--   `error-100`: `#FCE6EE`
--   `error-500`: `#C43A61`
--   `error-700`: `#8E2643`
-
----
-
-## 🌗 **Dark Mode Palette**
-
-### **Base Tokens**
-
--   `background-dark`: `#121417`
--   `surface-dark`: `#1A1C20`
--   `surface-dark-raised`: `#1F2226`
--   `border-dark`: `#2B2F34`
--   `text-dark-primary`: `#F8F9FA`
--   `text-dark-secondary`: `#C8CDD2`
--   `text-dark-muted`: `#959DA6`
-
-### **Primary (Dark Mode)**
-
--   `primary-dark-500`: `#4F85B1`
--   `primary-dark-700`: `#2F526F`
-
-### **Secondary (Dark Mode)**
-
--   `secondary-dark-500`: `#A997C7`
--   `secondary-dark-700`: `#6C5387`
-
-### **Accent (Dark Mode)**
-
--   `accent-dark-500`: `#4497E4`
--   `accent-dark-700`: `#1E5984`
-
----
+-   All components must derive their colors from these tokens via Tailwind/daisyUI theme configuration. No ad‑hoc hex values should be used in markup.
+-   The dark theme is the default for Phase 1. The light theme is defined now so that engineers can wire both themes via daisyUI without revisiting color decisions later.
+-   Any additional colors introduced (e.g., for charts) must be sampled from or derived from this palette to maintain visual cohesion.
 
 # 6. Localization & i18n
 
@@ -746,3 +850,467 @@ Required:
 ---
 
 # End of Phase 1 Specification
+
+# Revaer UI — UX Engineering Specification (Phase 1)
+
+**Version:** 1.0
+**Owner:** UX Engineering
+**Audience:** UI Engineers, Yew Developers, QA, Product
+**Stack:** Yew + TailwindCSS + daisyUI
+**Scope:** Desktop‑first responsive dashboard, left‑sidebar navigation, metrics display, routing scaffolding
+**Non‑scope:** API implementation details, data virtualization implementation, business logic
+
+---
+
+## 1. Product & UX Direction
+
+Revaer is a **clean, modern home‑server UI** for managing torrents with **Arr‑level capabilities**, designed with **power‑user controls** but a **simple, discoverable layout**. The UI should feel like:
+
+-   A focused, dark, neon‑noir dashboard
+-   Built for local server operators and power users
+-   Approachable enough for semi‑technical household users
+
+The visual direction is:
+
+-   Dark background, high contrast
+-   Neon magenta/violet brand accent
+-   Soft cards, clear hierarchy
+-   Minimal decorative chrome, maximum signal
+
+The experience must:
+
+-   Be fast and responsive
+-   Avoid clutter and over‑nested navigation
+-   Emphasize clarity of torrent state, performance, and health
+
+---
+
+## 2. Technical Stack & UI Frameworks
+
+### 2.1 Frontend Framework
+
+-   **Yew (Rust → WASM)** as the UI framework
+-   Component‑based architecture with:
+    -   App‑level shell component
+    -   Route‑level page components
+    -   Reusable UI primitives (cards, tables, badges, etc.)
+
+### 2.2 Styling & Components
+
+-   **TailwindCSS** for utility‑first styling
+-   **daisyUI** as the primary component framework on top of Tailwind
+-   **Custom Revaer daisyUI theme** (named `revaer`) is required
+-   No standalone `.css` files for layouts; layout is expressed via Tailwind utility classes and daisyUI component classes.
+
+### 2.3 DaisyUI Theme Requirements
+
+Define a custom theme `revaer` with at least these tokens:
+
+-   `primary`: neon magenta/violet (for brand and primary actions)
+-   `secondary`: deep blue/purple (for secondary emphasis)
+-   `accent`: cyan/blue (for links, subtle accents)
+-   `neutral`: slate/graphite tones for sidebar and text
+-   `base-100`, `base-200`, `base-300`: layered dark backgrounds for surface, raised surface, and higher elevation cards
+-   `info`, `success`, `warning`, `error`: mapped to torrent‑related statuses (info, seeding, paused, error)
+
+Only the `revaer` theme (and optionally a `revaer-light` in the future) should be enabled. All default daisyUI themes must be disabled to avoid visual drift and bloated CSS.
+
+### 2.4 Tailwind Configuration
+
+Tailwind must:
+
+-   Use **min‑width breakpoints** aligned to the spec:
+    -   `xs`: 0–479px
+    -   `sm`: 480–767px
+    -   `md`: 768–1023px
+    -   `lg`: 1024–1439px
+    -   `xl`: 1440–1919px
+    -   `2xl`: 1920px+
+-   Include custom tokens for:
+    -   Spacing scale (4/8/12/16/24/32)
+    -   Border radius (4/8/12 for small/medium/large)
+    -   Elevation (flat/raised/floating) via `boxShadow`
+    -   Typography scale (`xs`–`2xl` with consistent line heights)
+-   Purge unused styles from all `src/**/*.rs` and template files
+
+Typography stack: `system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif` unless a brand typeface is introduced later.
+
+---
+
+## 3. Information Architecture & Navigation
+
+### 3.1 Top‑Level Navigation
+
+The sidebar must expose the following primary views, in this order:
+
+1. **Dashboard**
+2. **Torrents** (primary working view)
+3. **Search**
+4. **Jobs / Post‑processing**
+5. **Settings**
+6. **Logs**
+
+Future items:
+
+-   **Indexers** (Phase 2; hidden or disabled for Phase 1)
+-   **Library** (Phase 2; hidden or disabled for Phase 1)
+
+### 3.2 Sidebar Layout
+
+-   Left‑hand vertical sidebar, fixed width on desktop
+-   Contains:
+    -   Revaer logo + wordmark at the top
+    -   Navigation menu using **daisyUI `menu menu-lg`** component
+    -   Optional footer section for version/build info (later)
+
+Logo requirements:
+
+-   Use the new neon Revaer "R" logo
+-   Height approximately 32–36px
+-   Positioned with padding (`mt` and `ml`) to visually align with nav items
+-   Wordmark "Revaer" to the right of the logo in desktop layout (text‑lg, semibold)
+
+### 3.3 Active and Hover States
+
+-   Active menu item:
+    -   Gradient background (purple → magenta)
+    -   Left accent bar (approx. 3px wide)
+    -   Icon and label in `primary` color
+    -   Bold label
+-   Hover state:
+    -   Text and icon shift to `primary`
+    -   No full background fill; subtle highlight only
+
+Icons should be SVGs (Heroicons/Tabler Icons), size 20–24px, with consistent stroke weight.
+
+### 3.4 Page Layout
+
+Each page uses the same structural pattern:
+
+-   **Page header**: title (left), optional actions (right)
+-   **Main content area**: scrollable, with standard paddings
+
+No nested scrollbars inside cards. The main content scrolls as a single column.
+
+---
+
+## 4. Responsiveness & Layout Behavior
+
+Revaer uses a **mobile‑first approach** with explicit behavior at each breakpoint.
+
+### 4.1 Breakpoints
+
+-   `xs` / `sm`: mobile
+-   `md`: tablet
+-   `lg`: laptop
+-   `xl`, `2xl`: desktop and ultrawide
+
+All media queries are min‑width.
+
+### 4.2 Behavior by Breakpoint
+
+#### Mobile (xs–sm)
+
+-   Sidebar collapses to **hamburger menu** (daisyUI `drawer` or equivalent pattern)
+-   Dashboard stat cards stack vertically
+-   Torrent list switches to **card view** (one torrent per card), showing:
+    -   Name
+    -   Status badge
+    -   Progress bar
+    -   DL/UL speeds
+-   Actions for a torrent (Pause/Resume, Delete, More) rendered as a bottom action row or small icon row inside the card.
+
+#### Tablet (md)
+
+-   Sidebar may remain collapsible but can be shown by default
+-   Torrent list can use a compact table with fewer columns visible
+-   Dashboard cards arranged in a two‑column grid
+
+#### Laptop (lg)
+
+-   Sidebar fixed and always visible
+-   Dashboard metrics use a four‑column grid where space allows
+-   Torrent table shows default columns (Name, Status, Progress, DL, UL, Size)
+
+#### Desktop / Ultrawide (xl–2xl)
+
+-   Use available width to:
+    -   Expand torrent table columns
+    -   Show more metadata inline
+    -   Allow split views for detail (later phases)
+-   Text content should not exceed a comfortable line length (~110–150 characters)
+
+### 4.3 Table Responsiveness
+
+-   Columns must be priority‑ranked; lower‑priority columns collapse first on small widths
+-   Highest priority: Name, Status, Progress, DL/UL
+-   Lower priority: Size, Ratio, ETA, Tags, Tracker, Save path
+-   Collapsed information may move into:
+    -   An expandable row section
+    -   A side drawer (later)
+    -   A "More details" area in mobile card view
+
+Horizontal scrolling is allowed on small devices but must:
+
+-   Preserve keyboard navigation
+-   Show a visual indication that the table scrolls horizontally
+
+### 4.4 Component Responsiveness
+
+-   Dashboard widgets: respond via CSS grid; no fixed pixel widths
+-   Torrent detail: on mobile, detail sections are tabs; on desktop, they may be side‑by‑side
+-   File tree: accordion list on mobile; traditional tree at `md+`
+
+---
+
+## 5. Dashboard UX Specification
+
+The **Dashboard** is the default landing view. It is composed of four major sections in vertical order:
+
+1. **Top Metrics Row**
+2. **Disk Usage & VPN Status**
+3. **Events / Tracker Health / Queue Status**
+4. **Torrent Table Preview**
+
+### 5.1 Top Metrics Row
+
+The top row displays high‑level metrics in a four‑column grid. Each metric uses a **daisyUI `stat`** component inside a card‑like surface.
+
+Required metrics:
+
+-   Global upload speed
+-   Global download speed
+-   Active users / sessions
+-   Completed torrents / activity summary (configurable)
+
+Each stat shows:
+
+-   Title (e.g., "Global upload")
+-   Value (e.g., "31.5 MB/s")
+-   Short descriptor (e.g., "Past 60 seconds")
+
+Values should appear stable and not excessively flicker; real‑time updates should be visually smooth (increment changes without jittery animations).
+
+### 5.2 Disk Usage & VPN Status
+
+Two primary cards on the second row:
+
+#### Disk Usage Card
+
+-   Title: "Disk usage"
+-   Numeric value and percentage used
+-   A single progress bar showing utilization
+-   Optional breakdown by path (Phase 2)
+
+#### VPN Status Card
+
+-   Title: "VPN"
+-   Status indicator using a **badge** (Connected, Disconnected, Error)
+-   Short description (e.g., "All torrent traffic routed through VPN")
+-   Optional indicator of current endpoint/location
+
+### 5.3 Events, Tracker Health, Queue
+
+Third row consists of:
+
+1. **Recent Events card**
+    - Shows last N events or "No recent events"
+    - Each event has a short label and timestamp
+2. **Tracker Health card**
+    - Aggregated counts: OK, Warning, Error
+    - Visualized via colored dots or small inline bars
+3. **Queue Status card**
+    - Visual representation of queue depth and state
+    - Uses simple vertical bars or mini chart; no heavy charting library required in Phase 1
+
+### 5.4 Torrent Table (Preview)
+
+At the bottom of the dashboard, a small torrent table preview is shown (e.g., top 5 torrents by activity). This uses the same table component and styling as the full **Torrents** view, but limited rows.
+
+---
+
+## 6. Torrents View UX Specification
+
+The **Torrents** page is the primary working view.
+
+### 6.1 Columns (Desktop)
+
+Default desktop columns:
+
+-   Name
+-   Status
+-   Progress
+-   ETA
+-   Ratio
+-   DL speed
+-   UL speed
+-   Size
+
+Optional/secondary columns (configurable later):
+
+-   Tags / labels
+-   Tracker
+-   Save path
+-   Category / media type
+
+### 6.2 Status Badges
+
+Torrent status must be represented with **daisyUI `badge`** components:
+
+-   Downloading → info style
+-   Seeding → success style
+-   Paused → warning style
+-   Error → error style
+-   Completed → neutral or success based on design preference
+
+### 6.3 Progress Representation
+
+Each torrent row includes:
+
+-   Percentage (e.g., `64%`)
+-   Thin progress bar (full row width or under the Name or Progress column)
+
+Progress bar must be visually subtle but readable.
+
+### 6.4 Row Interactions
+
+-   Hover: subtle background color change
+-   Click: reserved for future detail view (Phase 2); for now, may be no‑op or open a placeholder
+-   Bulk selection (Phase 1): optional; if implemented, checkboxes must be aligned in first column
+
+### 6.5 Filtering & Search (Phase 1 UX)
+
+UI must expose:
+
+-   A search input for name/path
+-   Basic filters for status and tags
+
+Advanced filters (regex, multi‑field combinations) are allowed but can be behind an "Advanced" toggle.
+
+---
+
+## 7. Adding Torrents UX
+
+An **Add torrent** affordance must exist:
+
+-   Primary button on the Dashboard and Torrents page header
+-   The action opens a modal or side panel with:
+    -   Field for magnet link / URL
+    -   File dropzone for `.torrent` files
+    -   Optional fields for category, tags, save path if supported
+
+Validation behaviors:
+
+-   Invalid magnet/URL: inline error under the input
+-   Unsupported file type: inline error under dropzone
+-   Network/backend error: toast notification + inline message if appropriate
+
+On success:
+
+-   Show a toast (e.g., "Torrent added")
+-   Optionally offer a link or button to "View in Torrents" or highlight the new entry
+
+---
+
+## 8. Global Interaction Patterns
+
+### 8.1 Keyboard Shortcuts (Desktop)
+
+Phase 1 must support:
+
+-   `/` → Focus search input (when present)
+-   `j` / `k` → Navigate up/down in torrent list (when list has focus)
+-   `space` → Pause/Resume focused torrent (if applicable)
+-   `delete` → Delete prompt for focused torrent
+-   `shift + delete` → Delete + data prompt
+-   `p` → Recheck focused torrent
+
+Shortcuts must:
+
+-   Only fire when the relevant context is active (e.g., list focused)
+-   Respect forms and text inputs (no hijacking when typing)
+
+### 8.2 Notifications
+
+Use:
+
+-   Toasts/snackbars for transient messages
+-   A persistent activity panel or log for longer‑lived system events (Phase 2)
+
+Error messages must:
+
+-   Be human‑readable
+-   Include a short machine detail in an expandable section when relevant
+
+---
+
+## 9. Accessibility Requirements
+
+Revaer UI must align with **WCAG 2.1 AA** principles:
+
+-   Sufficient color contrast for all text and interactive elements
+-   Keyboard navigability throughout the app
+-   Visible focus states for all interactive components
+-   Semantic HTML where possible (tables for tabular data, lists for menus)
+-   ARIA attributes used appropriately for complex components (menus, dialogs, tabs)
+
+For modals and drawers:
+
+-   Focus must move into the modal when opened
+-   Focus must be trapped inside until dismissed
+-   Focus must return to the invoking control when closed
+
+---
+
+## 10. Performance & Perceived UX
+
+The UI must:
+
+-   Render the app shell (sidebar + header) quickly, even before data has loaded
+-   Use skeletons or loading states instead of blank screens
+-   Avoid jarring layout shifts when data arrives
+
+Partial data is allowed:
+
+-   Sidebar and header should always render first
+-   Metrics and table contents can show skeleton loaders or placeholders
+
+---
+
+## 11. Documentation & Handover
+
+The engineering team must produce:
+
+-   A living **UI component inventory** documenting:
+    -   Sidebar
+    -   Page layout
+    -   Stat cards
+    -   Torrent table
+    -   Badges, chips, buttons, inputs, modals
+-   Screenshots of:
+    -   Dashboard (desktop, lg/xl)
+    -   Torrents view (desktop, lg/xl)
+-   Notes on any deviations from this spec and rationale
+
+---
+
+## 12. Out of Scope (Phase 1)
+
+-   Indexer configuration UI
+-   Library/media‑aware grouping
+-   Full torrent detail pages (files/peers/trackers/log as separate view)
+-   Mobile‑optimized nav patterns beyond basic responsiveness
+
+These will be defined in subsequent UX Engineering specs.
+
+---
+
+## 13. Summary
+
+This spec defines **what** the Revaer UI must look and feel like for Phase 1 and **how** it must be structured at a UX and component level, without prescribing code. Engineers should be able to:
+
+-   Stand up Yew + Tailwind + daisyUI
+-   Implement the app shell, sidebar, dashboard, and torrents view
+-   Achieve a near‑pixel‑perfect realization of the intended dark, neon Revaer dashboard
+
+Any ambiguity or deviation should be captured and fed back into the next revision of this spec.
