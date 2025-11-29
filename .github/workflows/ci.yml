@@ -81,6 +81,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-release-
             ${{ runner.os }}-cargo-
+
       - name: Build Release
         run: just build-release
 
@@ -117,9 +118,8 @@ jobs:
           version_lower=$(echo "$version" | tr '[:upper:]' '[:lower:]')
           repo_lower=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')
           echo "VERSION=$version_lower" >> "$GITHUB_ENV"
-          echo "IMAGE_LOCAL_TAG=revaer:$version_lower" >> "$GITHUB_ENV"
-          echo "IMAGE_GHCR_TAG_VERSION=ghcr.io/$repo_lower:$version_lower" >> "$GITHUB_ENV"
-          echo "IMAGE_GHCR_TAG_LATEST=ghcr.io/$repo_lower:latest" >> "$GITHUB_ENV"
+          echo "IMAGE_GHCR_TAG_VERSION=$repo_lower:$version_lower" >> "$GITHUB_ENV"
+          echo "IMAGE_GHCR_TAG_LATEST=$repo_lower:latest" >> "$GITHUB_ENV"
 
       - name: Build Docker images
         run: PLATFORMS=linux/amd64,linux/arm64 VERSION=${{ env.VERSION }} just docker-build
@@ -131,20 +131,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Tag GHCR images
-        run: |
-          docker tag revaer:latest ${{ env.IMAGE_GHCR_TAG_LATEST }}
-          docker tag ${{ env.IMAGE_LOCAL_TAG }} ${{ env.IMAGE_GHCR_TAG_VERSION }}
-
-      - name: Push GHCR images
-        run: |
-          docker push ${{ env.IMAGE_GHCR_TAG_LATEST }}
-          docker push ${{ env.IMAGE_GHCR_TAG_VERSION }}
-
-      - uses: aquasecurity/trivy-action@master
+      - name: Build and push multi-arch image
+        uses: docker/build-push-action@v6
         with:
-          image-ref: "${{ env.IMAGE_LOCAL_TAG }}"
-          format: "sarif"
-          output: "trivy-results.sarif"
-          exit-code: "1"
-          severity: "HIGH,CRITICAL"
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ghcr.io/${{ env.IMAGE_GHCR_TAG_VERSION }}
+            ghcr.io/${{ env.IMAGE_GHCR_TAG_LATEST }}
