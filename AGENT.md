@@ -333,4 +333,117 @@ crates/revaer-ui/src/
 
 ---
 
+## 18) Crate archetypes & layout (retroactive; applies to all crates)
+
+Pick the matching archetype and align existing crates; no grab-bag modules at root. Each crate’s `main.rs` (if any) must be a thin bootstrap that defers to `lib.rs`.
+
+### Service/daemon crates (`revaer-api`, `revaer-runtime`, `revaer-doc-indexer`)
+```
+src/
+  main.rs       # thin: parse config, call bootstrap
+  lib.rs        # re-exports + crate docs
+  bootstrap.rs  # wire config, telemetry, infra, router/workers
+  config/       # typed config + validation (no IO side effects)
+  domain/       # pure domain models/policies (no IO)
+  app/          # use-cases/services orchestrating domain + infra
+  http/         # router.rs, routes.rs, handlers/, dto/, extractors/, middleware/
+  infra/        # adapters: db repos, external clients, storage, queues, cache
+  tasks/        # background jobs/cron/schedulers (no HTTP handlers)
+  telemetry/    # crate-scoped metrics/tracing helpers (rely on revaer-telemetry)
+```
+-   `http` owns request/response DTOs; domain stays JSON-free.
+-   `app` uses interfaces defined in `domain` and implemented in `infra`; no direct DB calls from handlers.
+
+### CLI crate (`revaer-cli`)
+```
+src/
+  main.rs     # thin: parse CLI, invoke commands
+  lib.rs
+  cli.rs      # clap args + validation
+  commands/   # one file per subcommand (pure orchestration)
+  client.rs   # API client wrapper
+  output.rs   # renderers (table/json), no network
+  config.rs   # CLI config loading/merging (reuse revaer-config types)
+```
+-   Commands call `client.rs`/`app` helpers; rendering isolated in `output.rs`.
+
+### Config crate (`revaer-config`)
+```
+src/
+  lib.rs
+  model.rs     # typed config structs
+  defaults.rs
+  loader.rs    # file/env/cli merge (no globals)
+  validate.rs
+```
+-   No runtime state; pure data + validation.
+
+### Data/migrations crate (`revaer-data`)
+```
+src/
+  lib.rs
+  config.rs
+  runtime.rs      # migration runner/stores facade
+migrations/       # SQL/procs only
+tests/            # integration tests hitting migrator/stores
+```
+-   Runtime code calls stored procedures only; no inline SQL outside migrations.
+
+### Telemetry crate (`revaer-telemetry`)
+```
+src/
+  lib.rs
+  init.rs       # setup tracing/metrics/logging
+  filters.rs
+  layers.rs
+  context.rs    # request/task scoped IDs, redaction helpers
+  metrics.rs    # metric registrations/helpers
+```
+-   No business logic; only observability primitives consumed by other crates.
+
+### Events crate (`revaer-events`)
+```
+src/
+  lib.rs
+  topics.rs     # topic/channel names
+  payloads.rs   # event structs/enums (serde)
+  routing.rs    # helper traits for producers/consumers
+```
+-   Pure types + helpers; no transport clients here.
+
+### Domain/engine crates (`revaer-torrent-core`, `revaer-fsops`)
+```
+src/
+  lib.rs
+  model/        # core types/newtypes
+  policy/       # rules/decisions
+  service/      # pure services/use-cases (no IO)
+  planner/      # schedulers/strategies (pure)
+  adapters/     # optional abstractions for IO implemented elsewhere
+```
+-   Keep them IO-free; external effects belong to callers/adapters in infra crates.
+
+### FFI/integration crate (`revaer-torrent-libt`)
+```
+src/
+  lib.rs
+  ffi.rs        # unsafe boundary isolated here
+  types.rs      # translated types/newtypes
+  adapter.rs    # safe wrappers around FFI calls
+  convert.rs    # mapping between FFI and domain types
+```
+-   Unsafe contained to `ffi.rs`; public surface is safe wrappers.
+
+### Runtime/support crates (`revaer-runtime`, `revaer-test-support`)
+-   `revaer-runtime`: follow Service layout; background workers/schedulers live under `tasks/`; runtime wiring in `bootstrap.rs`.
+-   `revaer-test-support`: helpers/fixtures only. `src/{lib.rs,fixtures.rs,mocks.rs,assert.rs}`; no network/DB side effects by default (use traits/injected clients for fakes).
+
+### Cross-cutting rules
+-   No new root-level catch-all modules (`utils`, `helpers`, `logic`) in any crate. Place code in the archetype folders above.
+-   Retroactive mandate: reorganize existing crates to match; deviations require an ADR with rationale.
+-   Keep domain modules pure; IO and side effects live in `infra`, `http`, or `tasks` as appropriate.
+-   Each crate documents its module layout in `lib.rs` rustdoc (one paragraph, updated with structure changes).
+
+---
+
 _This document is normative. If code and AGENT.MD disagree, update the code to comply._
