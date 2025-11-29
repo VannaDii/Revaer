@@ -113,7 +113,7 @@ jobs:
       matrix:
         include:
           - name: amd64
-            runner: ubuntu-24.04
+            runner: ubuntu-latest
             platform: linux/amd64
             rust_target: x86_64-unknown-linux-musl
             arch_tag: amd64
@@ -143,10 +143,10 @@ jobs:
         env:
           PLATFORM: ${{ matrix.platform }}
           ARCH_TAG: ${{ matrix.arch_tag }}
-          REPO_OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
 
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           IMAGE_BASE="ghcr.io/${REPO_OWNER}/${IMAGE_NAME}"
           IMAGE_TAG="${IMAGE_BASE}:${GITHUB_SHA}-${ARCH_TAG}"
 
@@ -175,11 +175,10 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create and push multi-arch manifest
-        env:
-          REPO_OWNER: ${{ github.repository_owner }}
         run: |
           set -euo pipefail
 
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           IMAGE_BASE="ghcr.io/${REPO_OWNER}/${IMAGE_NAME}"
 
           AMD64_TAG="${IMAGE_BASE}:${GITHUB_SHA}-amd64"
