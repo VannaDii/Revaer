@@ -109,6 +109,8 @@ jobs:
   # Docker build and scan (only on main branch or tags)
   build-and-push-arch-image:
     name: Build & push ${{ matrix.name }}
+    needs: ci
+
     strategy:
       matrix:
         include:
