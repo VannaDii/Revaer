@@ -44,7 +44,15 @@ reason = "sqlx 0.8 still depends on hashbrown 0.15.x for hashlink support."
 
 [[bans.skip]]
 crate = "hashbrown@0.16.0"
-reason = "Latest indexmap release chain (reqwest, axum) requires 0.16.x."
+reason = "Indexmap 2.x chain requires 0.16.x."
+
+[[bans.skip]]
+crate = "hashbrown@0.16.1"
+reason = "Indexmap 2.x chain requires 0.16.x."
+
+[[bans.skip]]
+crate = "hashbrown@0.12.3"
+reason = "Indexmap 1.x (yew stack) still depends on 0.12.x."
 
 [[bans.skip]]
 crate = "foldhash@0.1.5"
@@ -84,6 +92,10 @@ reason = "yew stack remains on indexmap 1.x; rest of workspace uses 2.x."
 
 [[bans.skip]]
 crate = "indexmap@2.11.4"
+reason = "primary dependencies use 2.x alongside yew's 1.x requirement."
+
+[[bans.skip]]
+crate = "indexmap@2.12.1"
 reason = "primary dependencies use 2.x alongside yew's 1.x requirement."
 
 [[bans.skip]]
