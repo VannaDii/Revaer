@@ -148,9 +148,10 @@ jobs:
         run: |
           set -euo pipefail
 
+          GIT_SHA_SHORT=$(git rev-parse --short HEAD)
           REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           IMAGE_BASE="ghcr.io/${REPO_OWNER}/${IMAGE_NAME}"
-          IMAGE_TAG="${IMAGE_BASE}:${GITHUB_SHA}-${ARCH_TAG}"
+          IMAGE_TAG="${IMAGE_BASE}:${GIT_SHA_SHORT}-${ARCH_TAG}"
 
           echo "Building ${IMAGE_TAG} for ${PLATFORM}"
 
@@ -159,54 +160,3 @@ jobs:
             -t "${IMAGE_TAG}" \
             --push \
             .
-
-  create-multiarch-manifest:
-    name: Create multi-arch manifest (GHCR)
-    runs-on: ubuntu-latest
-    needs: build-and-push-arch-image
-
-    steps:
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create and push multi-arch manifest
-        run: |
-          set -euo pipefail
-
-          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
-          IMAGE_BASE="ghcr.io/${REPO_OWNER}/${IMAGE_NAME}"
-
-          AMD64_TAG="${IMAGE_BASE}:${GITHUB_SHA}-amd64"
-          ARM64_TAG="${IMAGE_BASE}:${GITHUB_SHA}-arm64"
-
-          # Digest-based tag
-          SHA_TAG="${IMAGE_BASE}:${GITHUB_SHA}"
-
-          # Optional latest only on main branch
-          if [ "${GITHUB_REF_TYPE}" = "branch" ] && [ "${GITHUB_REF_NAME}" = "main" ]; then
-            LATEST_TAG="${IMAGE_BASE}:latest"
-          else
-            LATEST_TAG=""
-          fi
-
-          echo "Will create multi-arch manifest for:"
-          echo "  ${SHA_TAG}"
-          [ -n "${LATEST_TAG}" ] && echo "  ${LATEST_TAG}"
-          echo "Using:"
-          echo "  ${AMD64_TAG}"
-          echo "  ${ARM64_TAG}"
-
-          TAG_ARGS="-t ${SHA_TAG}"
-          [ -n "${LATEST_TAG}" ] && TAG_ARGS="${TAG_ARGS} -t ${LATEST_TAG}"
-
-          docker buildx imagetools create \
-            ${TAG_ARGS} \
-            "${AMD64_TAG}" \
-            "${ARM64_TAG}"
