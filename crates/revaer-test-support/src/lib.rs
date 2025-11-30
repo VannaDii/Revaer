@@ -18,27 +18,8 @@
 #![allow(unexpected_cfgs)]
 
 //! Shared test helpers used across integration suites.
+//! Layout: fixtures.rs (env/helpers), mocks.rs (fake clients), assert.rs (test assertions).
 
-/// Docker-related helpers for integration tests that rely on a container runtime.
-pub mod docker {
-    use std::path::Path;
-    use std::process::Command;
-
-    /// Returns `true` if a Docker daemon is reachable for integration tests.
-    #[must_use]
-    pub fn available() -> bool {
-        if let Ok(host) = std::env::var("DOCKER_HOST") {
-            if let Some(path) = host.strip_prefix("unix://") {
-                return Path::new(path).exists();
-            }
-            return true;
-        }
-
-        Path::new("/var/run/docker.sock").exists()
-            || Command::new("docker")
-                .args(["info"])
-                .output()
-                .map(|output| output.status.success())
-                .unwrap_or(false)
-    }
-}
+pub mod assert;
+pub mod fixtures;
+pub mod mocks;

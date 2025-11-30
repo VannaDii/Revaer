@@ -3,7 +3,7 @@ use wasm_bindgen::closure::Closure;
 use web_sys::{Event, HtmlDivElement};
 use yew::prelude::*;
 
-use crate::logic::compute_window;
+use crate::core::logic::compute_window;
 
 /// Minimal vertical virtualization helper to keep 50k+ rows responsive.
 #[derive(Properties, PartialEq)]

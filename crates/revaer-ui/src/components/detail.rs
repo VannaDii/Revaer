@@ -134,8 +134,8 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
                                 </div>
                                 <div class="pill subtle">{peer.flags.clone()}</div>
                                 <div class="pill subtle">{peer.country.clone()}</div>
-                                <div class="stat"><small>{t("detail.peers.down")}</small><strong>{crate::logic::format_rate(peer.download_bps)}</strong></div>
-                                <div class="stat"><small>{t("detail.peers.up")}</small><strong>{crate::logic::format_rate(peer.upload_bps)}</strong></div>
+                                <div class="stat"><small>{t("detail.peers.down")}</small><strong>{crate::core::logic::format_rate(peer.download_bps)}</strong></div>
+                                <div class="stat"><small>{t("detail.peers.up")}</small><strong>{crate::core::logic::format_rate(peer.upload_bps)}</strong></div>
                                 <div class="stat"><small>{t("detail.peers.progress")}</small><strong>{format!("{:.0}%", peer.progress * 100.0)}</strong></div>
                             </div>
                         })}

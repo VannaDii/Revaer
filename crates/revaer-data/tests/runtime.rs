@@ -6,7 +6,7 @@ use anyhow::{Context, Result};
 use chrono::Utc;
 use revaer_data::runtime::RuntimeStore;
 use revaer_events::TorrentState;
-use revaer_test_support::docker;
+use revaer_test_support::fixtures::docker_available;
 use revaer_torrent_core::{TorrentFile, TorrentProgress, TorrentRates, TorrentStatus};
 use sqlx::Row;
 use sqlx::postgres::PgPoolOptions;
@@ -24,7 +24,7 @@ where
     F: FnOnce(RuntimeStore) -> Fut,
     Fut: Future<Output = Result<()>>,
 {
-    if !docker::available() {
+    if !docker_available() {
         eprintln!("skipping runtime store tests: docker socket missing");
         return Ok(());
     }

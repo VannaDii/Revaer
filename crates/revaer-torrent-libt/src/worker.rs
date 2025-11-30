@@ -678,16 +678,16 @@ mod tests {
     };
     use tempfile::TempDir;
     use tokio::time::{sleep, timeout};
+    use tokio_stream::StreamExt;
 
     async fn next_event_with_timeout(
         stream: &mut revaer_events::EventStream,
         timeout_ms: u64,
     ) -> Option<Event> {
-        timeout(Duration::from_millis(timeout_ms), stream.next())
-            .await
-            .ok()
-            .flatten()
-            .map(|envelope| envelope.event)
+        match timeout(Duration::from_millis(timeout_ms), stream.next()).await {
+            Ok(Some(Ok(envelope))) => Some(envelope.event),
+            _ => None,
+        }
     }
 
     #[tokio::test]

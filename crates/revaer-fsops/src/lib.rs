@@ -1759,7 +1759,7 @@ mod tests {
     use revaer_config::ConfigService;
     use revaer_events::{EventBus, TorrentState};
     use revaer_runtime::{FsJobState, RuntimeStore};
-    use revaer_test_support::docker;
+    use revaer_test_support::fixtures::docker_available;
     use revaer_torrent_core::{TorrentProgress, TorrentRates, TorrentStatus};
     use serde_json::json;
     #[cfg(unix)]
@@ -1769,6 +1769,7 @@ mod tests {
     use testcontainers::runners::AsyncRunner;
     use testcontainers::{ContainerAsync, GenericImage, ImageExt};
     use tokio::time::{Duration, sleep, timeout};
+    use tokio_stream::StreamExt;
     use zip::{ZipWriter, write::FileOptions};
 
     fn sample_policy(root: &Path) -> FsPolicy {
@@ -1795,7 +1796,7 @@ mod tests {
         let mut events = Vec::new();
         for _ in 0..count {
             match timeout(Duration::from_secs(2), stream.next()).await {
-                Ok(Some(envelope)) => events.push(envelope.event),
+                Ok(Some(Ok(envelope))) => events.push(envelope.event),
                 _ => break,
             }
         }
@@ -1958,7 +1959,7 @@ mod tests {
 
     #[tokio::test]
     async fn pipeline_records_runtime_store_entries() -> Result<()> {
-        if !docker::available() {
+        if !docker_available() {
             eprintln!("skipping pipeline_records_runtime_store_entries: docker socket missing");
             return Ok(());
         }

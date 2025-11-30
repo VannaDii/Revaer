@@ -1,13 +1,14 @@
-use crate::breakpoints::Breakpoint;
 use crate::components::detail::{DetailView, demo_detail};
 use crate::components::virtual_list::VirtualList;
-use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
-use crate::logic::{
+use crate::core::breakpoints::Breakpoint;
+use crate::core::logic::{
     ShortcutOutcome, format_rate, interpret_shortcut, plan_columns, select_all_or_clear,
     toggle_selection,
 };
-use crate::services::ApiClient;
-use crate::state::{TorrentAction, TorrentRow};
+use crate::features::torrents::actions::TorrentAction;
+use crate::features::torrents::state::TorrentRow;
+use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
+use crate::services::api::ApiClient;
 use crate::{Density, UiMode};
 use std::collections::BTreeSet;
 use wasm_bindgen::JsCast;
@@ -78,20 +79,20 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
         Density::Normal => "density-normal",
         Density::Comfy => "density-comfy",
     };
-    let row_height = crate::logic::row_height(
+    let row_height = crate::core::logic::row_height(
         props.density,
         if is_mobile {
-            crate::logic::LayoutMode::Card
+            crate::core::logic::LayoutMode::Card
         } else {
-            crate::logic::LayoutMode::Table
+            crate::core::logic::LayoutMode::Table
         },
     );
     let mode_class = match props.mode {
         UiMode::Simple => "mode-simple",
         UiMode::Advanced => "mode-advanced",
     };
-    let is_mobile =
-        crate::logic::layout_for_breakpoint(props.breakpoint) == crate::logic::LayoutMode::Card;
+    let is_mobile = crate::core::logic::layout_for_breakpoint(props.breakpoint)
+        == crate::core::logic::LayoutMode::Card;
     let selected_id = props.torrents.get(*selected_idx).map(|row| row.id.clone());
     let selected_count = selected_ids.len();
     let pause_selected = {
@@ -176,7 +177,7 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                                 }
                             }
                             ShortcutOutcome::SelectNext => {
-                                if let Some(next) = crate::logic::advance_selection(
+                                if let Some(next) = crate::core::logic::advance_selection(
                                     ShortcutOutcome::SelectNext,
                                     *selected_idx,
                                     torrents.len(),
@@ -188,7 +189,7 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                                 }
                             }
                             ShortcutOutcome::SelectPrev => {
-                                if let Some(next) = crate::logic::advance_selection(
+                                if let Some(next) = crate::core::logic::advance_selection(
                                     ShortcutOutcome::SelectPrev,
                                     *selected_idx,
                                     torrents.len(),
@@ -742,10 +743,10 @@ mod tests {
 
     #[test]
     fn format_rate_scales_units() {
-        assert_eq!(crate::logic::format_rate(512), "512 B/s");
-        assert_eq!(crate::logic::format_rate(2048), "2.0 KiB/s");
-        assert!(crate::logic::format_rate(5_242_880).contains("MiB"));
-        assert!(crate::logic::format_rate(2_147_483_648).contains("GiB"));
+        assert_eq!(crate::core::logic::format_rate(512), "512 B/s");
+        assert_eq!(crate::core::logic::format_rate(2048), "2.0 KiB/s");
+        assert!(crate::core::logic::format_rate(5_242_880).contains("MiB"));
+        assert!(crate::core::logic::format_rate(2_147_483_648).contains("GiB"));
     }
 
     #[test]
@@ -789,18 +790,18 @@ fn add_torrent_panel(props: &AddTorrentProps) -> Html {
         Callback::from(move |_| {
             let value = input_value.trim().to_string();
             let has_file = (*file).is_some();
-            let payload = match crate::logic::build_add_payload(
+            let payload = match crate::core::logic::build_add_payload(
                 &value, &category, &tags, &save_path, has_file,
             ) {
                 Ok(payload) => {
                     error.set(None);
                     payload
                 }
-                Err(crate::logic::AddInputError::Empty) => {
+                Err(crate::core::logic::AddInputError::Empty) => {
                     error.set(Some(bundle.text("torrents.error.empty", "")));
                     return;
                 }
-                Err(crate::logic::AddInputError::Invalid) => {
+                Err(crate::core::logic::AddInputError::Invalid) => {
                     error.set(Some(bundle.text("torrents.error.invalid", "")));
                     return;
                 }
@@ -1162,4 +1163,4 @@ pub(crate) fn demo_rows() -> Vec<TorrentRow> {
     ]
 }
 
-// Intentionally rely on `crate::state::TorrentRow` conversion to avoid duplication.
+// Intentionally rely on `crate::features::torrents::state::TorrentRow` conversion to avoid duplication.

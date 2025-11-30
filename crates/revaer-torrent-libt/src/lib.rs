@@ -204,13 +204,15 @@ mod tests {
     use revaer_events::{Event, EventBus};
     use tempfile::TempDir;
     use tokio::time::{Duration, timeout};
+    use tokio_stream::StreamExt;
 
     async fn next_event(stream: &mut revaer_events::EventStream) -> Event {
-        timeout(Duration::from_millis(100), stream.next())
+        let envelope = timeout(Duration::from_millis(100), stream.next())
             .await
             .expect("timed out waiting for event")
             .expect("event stream closed unexpectedly")
-            .event
+            .expect("stream recv error");
+        envelope.event
     }
 
     #[tokio::test]

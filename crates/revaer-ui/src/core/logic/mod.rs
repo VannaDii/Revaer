@@ -1,6 +1,6 @@
 //! Pure UI helpers extracted from components for non-wasm testing.
 
-use crate::state::TorrentRow;
+use crate::features::torrents::state::TorrentRow;
 use std::collections::BTreeSet;
 use std::fmt::Write;
 
@@ -308,7 +308,7 @@ pub fn compute_window(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::state::TorrentRow;
+    use crate::features::torrents::state::TorrentRow;
 
     fn row(id: &str) -> TorrentRow {
         TorrentRow {

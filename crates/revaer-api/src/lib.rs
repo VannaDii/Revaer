@@ -19,8 +19,8 @@
 #![allow(clippy::multiple_crate_versions)]
 
 //! HTTP API server and shared routing primitives for the Revaer platform.
+//! Layout: bootstrap.rs (wiring), config/, domain/, app/, http/, infra/.
 
-/// Shared request/response DTOs consumed by the API and CLI clients.
 pub mod models;
 
 #[cfg(feature = "compat-qb")]
@@ -2070,8 +2070,10 @@ fn event_replay_stream(
 ) -> impl futures_core::Stream<Item = EventEnvelope> + Send {
     stream! {
         let mut stream = bus.subscribe(since);
-        while let Some(envelope) = stream.next().await {
-            yield envelope;
+        while let Some(result) = stream.next().await {
+            if let Ok(envelope) = result {
+                yield envelope;
+            }
         }
     }
 }
@@ -2992,7 +2994,8 @@ mod tests {
         let event = timeout(Duration::from_secs(1), event_stream.next())
             .await
             .expect("settings event")
-            .expect("event value");
+            .expect("event value")
+            .expect("stream recv error");
         assert!(matches!(event.event, CoreEvent::SettingsChanged { .. }));
         Ok(())
     }

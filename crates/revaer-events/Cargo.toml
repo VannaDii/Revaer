@@ -12,5 +12,5 @@ authors.workspace = true
 chrono.workspace = true
 serde.workspace = true
 tokio.workspace = true
+tokio-stream.workspace = true
 uuid.workspace = true
-tracing.workspace = true

@@ -1,18 +1,17 @@
 #![allow(missing_docs, unreachable_pub)]
 
-//! HTTP and SSE client helpers (REST + fallback stubs).
+//! HTTP client helpers (REST).
 
 use crate::components::dashboard::{DashboardSnapshot, QueueStatus, TrackerHealth, VpnState};
 use crate::components::detail::DetailData;
 use crate::components::torrents::AddTorrentInput;
-use crate::logic::{build_sse_url, build_torrents_path};
-use crate::models::{SseEvent, TorrentDetail, TorrentSummary};
-use crate::state::{TorrentAction, TorrentRow};
+use crate::core::logic::build_torrents_path;
+use crate::features::torrents::actions::TorrentAction;
+use crate::features::torrents::state::TorrentRow;
+use crate::models::{TorrentDetail, TorrentSummary};
 use gloo_net::http::Request;
 use serde::Serialize;
-use wasm_bindgen::JsCast;
-use wasm_bindgen::closure::Closure;
-use web_sys::{EventSource, EventSourceInit, FormData, MessageEvent};
+use web_sys::FormData;
 
 #[derive(Clone, Debug)]
 pub(crate) struct ApiClient {
@@ -192,31 +191,4 @@ impl ApiClient {
         }
         Ok(req.send().await?.json::<TorrentSummary>().await?.into())
     }
-}
-
-/// Handle SSE events pushed from the backend using `EventSource`.
-pub fn connect_sse(
-    base_url: &str,
-    api_key: Option<String>,
-    on_event: impl Fn(SseEvent) + 'static,
-) -> Option<EventSource> {
-    let url = build_sse_url(base_url, &api_key);
-    let init = EventSourceInit::new();
-    // We rely on API key headers/query params instead of cookies, so disable
-    // credentials to avoid stricter CORS requirements when the UI is on a
-    // different port during dev.
-    init.set_with_credentials(false);
-    let source = EventSource::new_with_event_source_init_dict(&url, &init).ok()?;
-    let handler = Closure::<dyn FnMut(_)>::wrap(Box::new(move |event: web_sys::Event| {
-        if let Ok(msg) = event.dyn_into::<MessageEvent>() {
-            if let Ok(text) = msg.data().dyn_into::<js_sys::JsString>() {
-                if let Ok(parsed) = serde_json::from_str::<SseEvent>(&String::from(text)) {
-                    on_event(parsed);
-                }
-            }
-        }
-    }) as Box<dyn FnMut(_)>);
-    let _ = source.add_event_listener_with_callback("message", handler.as_ref().unchecked_ref());
-    handler.forget();
-    Some(source)
 }

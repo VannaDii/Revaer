@@ -1,50 +1,35 @@
-use crate::breakpoints::Breakpoint;
 use crate::components::auth::AuthPrompt;
 use crate::components::dashboard::{DashboardPanel, demo_snapshot};
 use crate::components::shell::{AppShell, NavLabels};
 use crate::components::status::{SseOverlay, SseState};
 use crate::components::toast::{Toast, ToastHost, ToastKind};
 use crate::components::torrents::{AddTorrentInput, TorrentView, demo_rows};
+use crate::core::breakpoints::Breakpoint;
+use crate::core::logic::backoff_delay_ms;
+use crate::core::theme::ThemeMode;
+use crate::core::ui::{Density, UiMode};
+use crate::features::torrents::actions::{TorrentAction, success_message};
+use crate::features::torrents::state::{apply_progress, apply_rates, apply_remove, apply_status};
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode, TranslationBundle};
-use crate::logic::backoff_delay_ms;
-use crate::services::ApiClient;
-use crate::state::{
-    TorrentAction, apply_progress, apply_rates, apply_remove, apply_status, success_message,
-};
-use crate::theme::ThemeMode;
-use crate::{Density, UiMode};
+use crate::models::SseEvent;
+use crate::services::api::ApiClient;
+use crate::services::sse::connect_sse;
 use gloo::events::EventListener;
 use gloo::storage::{LocalStorage, Storage};
 use gloo::utils::window;
 use gloo_timers::callback::Timeout;
+use preferences::{
+    API_KEY_KEY, DENSITY_KEY, LOCALE_KEY, MODE_KEY, THEME_KEY, allow_anonymous, api_base_url,
+    load_api_key, load_density, load_locale, load_mode, load_theme,
+};
+use routes::Route;
 use wasm_bindgen::JsCast;
-use web_sys::{EventSource, MediaQueryList, Url};
+use web_sys::EventSource;
 use yew::prelude::*;
 use yew_router::prelude::*;
 
-const THEME_KEY: &str = "revaer.theme";
-const MODE_KEY: &str = "revaer.mode";
-const LOCALE_KEY: &str = "revaer.locale";
-const DENSITY_KEY: &str = "revaer.density";
-const API_KEY_KEY: &str = "revaer.api_key";
-#[derive(Clone, Routable, PartialEq, Eq, Debug)]
-pub(crate) enum Route {
-    #[at("/")]
-    Dashboard,
-    #[at("/torrents")]
-    Torrents,
-    #[at("/search")]
-    Search,
-    #[at("/jobs")]
-    Jobs,
-    #[at("/settings")]
-    Settings,
-    #[at("/logs")]
-    Logs,
-    #[not_found]
-    #[at("/404")]
-    NotFound,
-}
+mod preferences;
+mod routes;
 
 #[function_component(RevaerApp)]
 pub fn revaer_app() -> Html {
@@ -155,105 +140,101 @@ pub fn revaer_app() -> Html {
                 let search = search_value.clone();
                 let regex = regex_flag;
                 let key = api_key.clone();
-                if let Some(source) =
-                    crate::services::connect_sse(&api_base_url(), key.clone(), move |event| {
-                        match event {
-                            crate::models::SseEvent::TorrentProgress {
-                                torrent_id,
+                if let Some(source) = connect_sse(&api_base_url(), key.clone(), move |event| {
+                    match event {
+                        crate::models::SseEvent::TorrentProgress {
+                            torrent_id,
+                            progress,
+                            eta_seconds,
+                            download_bps,
+                            upload_bps,
+                        } => {
+                            state_updater.set(update_progress(
+                                &state_updater,
+                                torrent_id.to_string(),
                                 progress,
                                 eta_seconds,
                                 download_bps,
                                 upload_bps,
-                            } => {
-                                state_updater.set(update_progress(
-                                    &state_updater,
-                                    torrent_id.to_string(),
-                                    progress,
-                                    eta_seconds,
-                                    download_bps,
-                                    upload_bps,
-                                ));
-                            }
-                            crate::models::SseEvent::TorrentRates {
-                                torrent_id,
+                            ));
+                        }
+                        crate::models::SseEvent::TorrentRates {
+                            torrent_id,
+                            download_bps,
+                            upload_bps,
+                        } => {
+                            state_updater.set(update_rates(
+                                &state_updater,
+                                torrent_id.to_string(),
                                 download_bps,
                                 upload_bps,
-                            } => {
-                                state_updater.set(update_rates(
-                                    &state_updater,
-                                    torrent_id.to_string(),
-                                    download_bps,
-                                    upload_bps,
-                                ));
-                            }
-                            crate::models::SseEvent::TorrentState {
-                                torrent_id, status, ..
-                            } => {
-                                state_updater.set(update_status(
-                                    &state_updater,
-                                    torrent_id.to_string(),
-                                    status,
-                                ));
-                            }
-                            crate::models::SseEvent::TorrentRemoved { torrent_id } => {
-                                state_updater
-                                    .set(remove_torrent(&state_updater, torrent_id.to_string()));
-                            }
-                            crate::models::SseEvent::TorrentAdded { .. } => {
-                                let torrents = state_updater.clone();
-                                let api_key = key.clone();
-                                let search = search.clone();
-                                yew::platform::spawn_local(async move {
-                                    let client = ApiClient::new(api_base_url(), api_key.clone());
-                                    if let Ok(list) =
-                                        client.fetch_torrents(Some(search), regex).await
-                                    {
-                                        torrents.set(list);
-                                    }
-                                });
-                            }
-                            crate::models::SseEvent::SystemRates {
+                            ));
+                        }
+                        crate::models::SseEvent::TorrentState {
+                            torrent_id, status, ..
+                        } => {
+                            state_updater.set(update_status(
+                                &state_updater,
+                                torrent_id.to_string(),
+                                status,
+                            ));
+                        }
+                        crate::models::SseEvent::TorrentRemoved { torrent_id } => {
+                            state_updater
+                                .set(remove_torrent(&state_updater, torrent_id.to_string()));
+                        }
+                        crate::models::SseEvent::TorrentAdded { .. } => {
+                            let torrents = state_updater.clone();
+                            let api_key = key.clone();
+                            let search = search.clone();
+                            yew::platform::spawn_local(async move {
+                                let client = ApiClient::new(api_base_url(), api_key.clone());
+                                if let Ok(list) = client.fetch_torrents(Some(search), regex).await {
+                                    torrents.set(list);
+                                }
+                            });
+                        }
+                        crate::models::SseEvent::SystemRates {
+                            download_bps,
+                            upload_bps,
+                        } => {
+                            dashboard_state.set(update_system_rates(
+                                &dashboard_state,
                                 download_bps,
                                 upload_bps,
-                            } => {
-                                dashboard_state.set(update_system_rates(
-                                    &dashboard_state,
-                                    download_bps,
-                                    upload_bps,
-                                ));
-                            }
-                            crate::models::SseEvent::QueueStatus {
+                            ));
+                        }
+                        crate::models::SseEvent::QueueStatus {
+                            active,
+                            paused,
+                            queued,
+                            depth,
+                        } => {
+                            dashboard_state.set(update_queue(
+                                &dashboard_state,
                                 active,
                                 paused,
                                 queued,
                                 depth,
-                            } => {
-                                dashboard_state.set(update_queue(
-                                    &dashboard_state,
-                                    active,
-                                    paused,
-                                    queued,
-                                    depth,
-                                ));
-                            }
-                            crate::models::SseEvent::VpnState {
+                            ));
+                        }
+                        crate::models::SseEvent::VpnState {
+                            state,
+                            message,
+                            last_change,
+                        } => {
+                            dashboard_state.set(update_vpn(
+                                &dashboard_state,
                                 state,
                                 message,
                                 last_change,
-                            } => {
-                                dashboard_state.set(update_vpn(
-                                    &dashboard_state,
-                                    state,
-                                    message,
-                                    last_change,
-                                ));
-                            }
-                            _ => {}
+                            ));
                         }
-                        sse_state_events.set(SseState::Connected);
-                        sse_retry_events.set(0);
-                    })
-                {
+                        _ => {}
+                    }
+                    sse_state_events.set(SseState::Connected);
+                    sse_retry_events.set(0);
+                }) {
                     *sse_handle.borrow_mut() = Some(source);
                 } else {
                     let attempt = *sse_retry;
@@ -697,136 +678,14 @@ fn current_breakpoint() -> Breakpoint {
     crate::breakpoints::for_width(width)
 }
 
-fn load_theme() -> ThemeMode {
-    if let Ok(value) = LocalStorage::get::<String>(THEME_KEY) {
-        return match value.as_str() {
-            "dark" => ThemeMode::Dark,
-            _ => ThemeMode::Light,
-        };
-    }
-    prefers_dark()
-        .unwrap_or(false)
-        .then_some(ThemeMode::Dark)
-        .unwrap_or(ThemeMode::Light)
-}
-
-fn load_mode() -> UiMode {
-    if let Ok(value) = LocalStorage::get::<String>(MODE_KEY) {
-        return match value.as_str() {
-            "advanced" => UiMode::Advanced,
-            _ => UiMode::Simple,
-        };
-    }
-    UiMode::Simple
-}
-
-fn load_density() -> Density {
-    if let Ok(value) = LocalStorage::get::<String>(DENSITY_KEY) {
-        return match value.as_str() {
-            "compact" => Density::Compact,
-            "comfy" => Density::Comfy,
-            _ => Density::Normal,
-        };
-    }
-    Density::Normal
-}
-
-fn load_locale() -> LocaleCode {
-    if let Ok(value) = LocalStorage::get::<String>(LOCALE_KEY) {
-        if let Some(locale) = LocaleCode::from_lang_tag(&value) {
-            return locale;
-        }
-    }
-    if let Some(nav) = window().navigator().language() {
-        if let Some(locale) = LocaleCode::from_lang_tag(&nav) {
-            return locale;
-        }
-    }
-    DEFAULT_LOCALE
-}
-
-fn load_api_key(allow_anon: bool) -> Option<String> {
-    if let Ok(value) = LocalStorage::get::<String>(API_KEY_KEY) {
-        if !value.trim().is_empty() {
-            return Some(value);
-        }
-    }
-    if allow_anon {
-        // Dev-friendly default aligns with `scripts/dev-seed.sql`.
-        Some("dev:revaer_dev".to_string())
-    } else {
-        None
-    }
-}
-
-fn allow_anonymous() -> bool {
-    is_local_host()
-}
-
-fn is_local_host() -> bool {
-    let host = window()
-        .location()
-        .hostname()
-        .unwrap_or_else(|_| String::new())
-        .to_ascii_lowercase();
-    if host.is_empty()
-        || host == "localhost"
-        || host == "127.0.0.1"
-        || host == "::1"
-        || host.starts_with("127.")
-        || host.starts_with("10.")
-        || host.starts_with("192.168.")
-        || (host.starts_with("172.")
-            && host
-                .split('.')
-                .nth(1)
-                .and_then(|b| b.parse::<u8>().ok())
-                .map_or(false, |b| (16..=31).contains(&b)))
-        || host.ends_with(".local")
-    {
-        return true;
-    }
-    false
-}
-
-fn api_base_url() -> String {
-    // During `trunk serve` the UI is served from 8080 while the API listens on 7070.
-    // Remap that common dev case so EventSource/HTTP calls hit the backend instead of the
-    // static asset server (which would return HTML and break SSE).
-    let href = window()
-        .location()
-        .href()
-        .unwrap_or_else(|_| "http://localhost:8080".to_string());
-
-    if let Ok(url) = Url::new(&href) {
-        let protocol = url.protocol();
-        let host = url.hostname();
-        let port = url.port();
-        let mapped_port = match port.as_str() {
-            "" => None,
-            "8080" => Some("7070"),
-            other => Some(other),
-        };
-
-        let mut base = format!("{}//{}", protocol, host);
-        if let Some(port) = mapped_port {
-            base.push(':');
-            base.push_str(port);
-        }
-        return base;
-    }
-
-    "http://localhost:7070".to_string()
-}
-
 fn update_progress(
-    state: &UseStateHandle<Vec<crate::state::TorrentRow>>,
+    state: &UseStateHandle<Vec<crate::features::torrents::state::TorrentRow>>,
     id: String,
     progress: f32,
     eta_seconds: Option<u64>,
     download_bps: u64,
     upload_bps: u64,
-) -> Vec<crate::state::TorrentRow> {
+) -> Vec<crate::features::torrents::state::TorrentRow> {
     apply_progress(
         &(*state),
         &id,
@@ -838,26 +697,26 @@ fn update_progress(
 }
 
 fn update_rates(
-    state: &UseStateHandle<Vec<crate::state::TorrentRow>>,
+    state: &UseStateHandle<Vec<crate::features::torrents::state::TorrentRow>>,
     id: String,
     download_bps: u64,
     upload_bps: u64,
-) -> Vec<crate::state::TorrentRow> {
+) -> Vec<crate::features::torrents::state::TorrentRow> {
     apply_rates(&(*state), &id, download_bps, upload_bps)
 }
 
 fn update_status(
-    state: &UseStateHandle<Vec<crate::state::TorrentRow>>,
+    state: &UseStateHandle<Vec<crate::features::torrents::state::TorrentRow>>,
     id: String,
     status: String,
-) -> Vec<crate::state::TorrentRow> {
+) -> Vec<crate::features::torrents::state::TorrentRow> {
     apply_status(&(*state), &id, &status)
 }
 
 fn remove_torrent(
-    state: &UseStateHandle<Vec<crate::state::TorrentRow>>,
+    state: &UseStateHandle<Vec<crate::features::torrents::state::TorrentRow>>,
     id: String,
-) -> Vec<crate::state::TorrentRow> {
+) -> Vec<crate::features::torrents::state::TorrentRow> {
     apply_remove(&(*state), &id)
 }
 
@@ -902,14 +761,6 @@ fn update_vpn(
         last_change,
     };
     snapshot
-}
-
-fn prefers_dark() -> Option<bool> {
-    let media: MediaQueryList = window()
-        .match_media("(prefers-color-scheme: dark)")
-        .ok()
-        .and_then(|m| m)?;
-    Some(media.matches())
 }
 
 /// Entrypoint invoked by Trunk for wasm32 builds.

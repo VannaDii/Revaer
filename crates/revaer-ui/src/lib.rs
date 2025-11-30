@@ -19,58 +19,13 @@
 //! Revaer Web UI (Phase 1) scaffolding.
 //! This crate holds the Yew front-end entrypoint plus shared tokens and locale metadata.
 
-pub mod breakpoints;
+pub mod core;
+pub mod features;
 pub mod i18n;
-pub mod logic;
 pub mod models;
-pub mod state;
-pub mod theme;
 
 #[cfg(target_arch = "wasm32")]
 pub mod services;
-
-/// UI surface mode toggle. Defaults to [`UiMode::Simple`] for first-run users.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum UiMode {
-    /// Simplified view with minimal controls.
-    Simple,
-    /// Full advanced controls exposed.
-    Advanced,
-}
-
-/// Density preference for tables and cards.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Density {
-    /// Compact rows (tight padding).
-    Compact,
-    /// Default spacing.
-    Normal,
-    /// Comfortable spacing for readability.
-    Comfy,
-}
-
-impl Density {
-    /// All supported density presets for toggle controls.
-    #[must_use]
-    pub const fn all() -> [Self; 3] {
-        [Self::Compact, Self::Normal, Self::Comfy]
-    }
-}
-
-/// Quick description of supported layout panes used across dashboard and torrent detail views.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Pane {
-    /// Files pane.
-    Files,
-    /// Peers pane.
-    Peers,
-    /// Trackers pane.
-    Trackers,
-    /// Log pane.
-    Log,
-    /// Info pane.
-    Info,
-}
 
 #[cfg(target_arch = "wasm32")]
 mod app;
@@ -79,6 +34,14 @@ mod components;
 
 #[cfg(target_arch = "wasm32")]
 pub use app::run_app;
+
+pub use core::breakpoints;
+pub use core::logic;
+pub use core::theme;
+pub use core::ui::{Density, Pane, UiMode};
+pub use features::torrents::actions::TorrentAction;
+pub use features::torrents::actions::success_message;
+pub use features::torrents::state;
 
 #[cfg(test)]
 mod tests {

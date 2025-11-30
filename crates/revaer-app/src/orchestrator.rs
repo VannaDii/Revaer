@@ -20,6 +20,7 @@ use revaer_torrent_core::{
     TorrentWorkflow,
 };
 use tokio::{sync::RwLock, task::JoinHandle};
+use tokio_stream::StreamExt;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
@@ -184,7 +185,7 @@ where
         let orchestrator = Arc::clone(self);
         tokio::spawn(async move {
             let mut stream = orchestrator.events.subscribe(None);
-            while let Some(envelope) = stream.next().await {
+            while let Some(Ok(envelope)) = stream.next().await {
                 if let Err(err) = orchestrator.handle_event(&envelope.event).await {
                     error!(
                         error = %err,
@@ -651,7 +652,7 @@ mod tests {
     use anyhow::{Context, bail};
     use revaer_config::ConfigService;
     use revaer_events::EventBus;
-    use revaer_test_support::docker;
+    use revaer_test_support::fixtures::docker_available;
     use revaer_torrent_core::{AddTorrent, AddTorrentOptions, TorrentSource};
     use serde_json::json;
     use std::fs;
@@ -700,7 +701,7 @@ mod tests {
 
     #[tokio::test]
     async fn orchestrator_persists_runtime_state() -> Result<()> {
-        if !docker::available() {
+        if !docker_available() {
             eprintln!("skipping orchestrator_persists_runtime_state: docker socket missing");
             return Ok(());
         }
@@ -829,7 +830,8 @@ mod tests {
                 let envelope = stream
                     .next()
                     .await
-                    .ok_or_else(|| anyhow!("event stream closed before fsops completion"))?;
+                    .ok_or_else(|| anyhow!("event stream closed before fsops completion"))?
+                    .expect("stream recv error");
                 match envelope.event {
                     Event::FsopsCompleted { torrent_id: id } if id == torrent_id => {
                         return Ok::<(), anyhow::Error>(());
@@ -883,7 +885,8 @@ mod tests {
                 let envelope = stream
                     .next()
                     .await
-                    .ok_or_else(|| anyhow!("event stream closed before fsops failure"))?;
+                    .ok_or_else(|| anyhow!("event stream closed before fsops failure"))?
+                    .expect("stream recv error");
                 match envelope.event {
                     Event::FsopsFailed { torrent_id: id, .. } if id == torrent_id => {
                         return Ok::<(), anyhow::Error>(());
@@ -944,21 +947,23 @@ mod tests {
         orchestrator.apply_fsops(torrent_id).await?;
         timeout(Duration::from_secs(5), async {
             loop {
-                let envelope = stream
+                let result = stream
                     .next()
                     .await
                     .ok_or_else(|| anyhow!("event stream closed before fsops completion"))?;
-                match envelope.event {
-                    Event::FsopsCompleted { torrent_id: id } if id == torrent_id => {
-                        return Ok::<(), anyhow::Error>(());
+                if let Ok(envelope) = result {
+                    match envelope.event {
+                        Event::FsopsCompleted { torrent_id: id } if id == torrent_id => {
+                            return Ok::<(), anyhow::Error>(());
+                        }
+                        Event::FsopsFailed {
+                            torrent_id: id,
+                            ref message,
+                        } if id == torrent_id => {
+                            bail!("fsops failed unexpectedly: {message}");
+                        }
+                        _ => {}
                     }
-                    Event::FsopsFailed {
-                        torrent_id: id,
-                        ref message,
-                    } if id == torrent_id => {
-                        bail!("fsops failed unexpectedly: {message}");
-                    }
-                    _ => {}
                 }
             }
         })

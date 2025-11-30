@@ -5,13 +5,14 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use revaer_events::{Event, TorrentState};
-use revaer_test_support::docker;
+use revaer_test_support::fixtures::docker_available;
 use revaer_torrent_core::{
     AddTorrent, AddTorrentOptions, TorrentEngine, TorrentRateLimit, TorrentSource,
 };
 use revaer_torrent_libt::{EncryptionPolicy, EngineRuntimeConfig, LibtorrentEngine};
 use tempfile::TempDir;
 use tokio::time::timeout;
+use tokio_stream::StreamExt;
 use uuid::Uuid;
 
 const MAGNET_URI: &str = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=demo";
@@ -22,7 +23,7 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
         eprintln!("skipping native libtorrent integration (set REVAER_NATIVE_IT=1 to run)");
         return Ok(());
     }
-    if !docker::available() {
+    if !docker_available() {
         eprintln!("skipping native libtorrent integration: docker not available");
         return Ok(());
     }
@@ -75,7 +76,7 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
     let window = Duration::from_secs(15);
     while !(saw_progress && saw_state) {
         match timeout(window, stream.next()).await {
-            Ok(Some(envelope)) => match envelope.event {
+            Ok(Some(Ok(envelope))) => match envelope.event {
                 Event::Progress { torrent_id: id, .. } if id == torrent_id => {
                     saw_progress = true;
                 }
@@ -92,6 +93,7 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
                 }
                 _ => {}
             },
+            Ok(Some(Err(_))) => {}
             _ => break,
         }
     }

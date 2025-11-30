@@ -1,0 +1,21 @@
+//! Routing definitions for the Revaer UI.
+use yew_router::prelude::*;
+
+#[derive(Clone, Routable, PartialEq, Eq, Debug)]
+pub(crate) enum Route {
+    #[at("/")]
+    Dashboard,
+    #[at("/torrents")]
+    Torrents,
+    #[at("/search")]
+    Search,
+    #[at("/jobs")]
+    Jobs,
+    #[at("/settings")]
+    Settings,
+    #[at("/logs")]
+    Logs,
+    #[not_found]
+    #[at("/404")]
+    NotFound,
+}

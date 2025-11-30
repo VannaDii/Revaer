@@ -191,6 +191,13 @@ impl TranslationBundle {
     pub const fn rtl(&self) -> bool {
         self.rtl
     }
+
+    #[cfg(test)]
+    #[must_use]
+    /// Locale backing this bundle.
+    pub const fn locale(&self) -> LocaleCode {
+        self.locale
+    }
 }
 
 static EN_FALLBACK: LazyLock<TranslationBundle> =
@@ -243,5 +250,14 @@ mod tests {
     fn rtl_flag_respects_meta() {
         assert!(TranslationBundle::new(LocaleCode::Ar).rtl());
         assert!(!TranslationBundle::new(LocaleCode::En).rtl());
+    }
+
+    #[test]
+    fn bundles_load_all_locales() {
+        for locale in LocaleCode::all() {
+            let bundle = TranslationBundle::new(locale);
+            assert_eq!(bundle.locale(), locale);
+            assert!(!bundle.text("nav.dashboard", "Dash").is_empty());
+        }
     }
 }

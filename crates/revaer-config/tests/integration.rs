@@ -8,7 +8,7 @@ use revaer_config::{
     SettingsPayload,
 };
 use revaer_data::config as data_config;
-use revaer_test_support::docker;
+use revaer_test_support::fixtures::docker_available;
 use serde_json::{Value, json};
 use serial_test::serial;
 use testcontainers::core::{ContainerPort, WaitFor};
@@ -26,7 +26,7 @@ where
         return test(service).await;
     }
 
-    if !docker::available() {
+    if !docker_available() {
         eprintln!("skipping config integration tests: docker socket missing");
         return Ok(());
     }

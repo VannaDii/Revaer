@@ -2840,6 +2840,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tokio-stream",
  "tower",
  "tower-http",
  "tracing",
@@ -2866,6 +2867,7 @@ dependencies = [
  "tempfile",
  "testcontainers",
  "tokio",
+ "tokio-stream",
  "tracing",
  "uuid",
 ]
@@ -2957,7 +2959,7 @@ dependencies = [
  "chrono",
  "serde",
  "tokio",
- "tracing",
+ "tokio-stream",
  "uuid",
 ]
 
@@ -2981,6 +2983,7 @@ dependencies = [
  "tempfile",
  "testcontainers",
  "tokio",
+ "tokio-stream",
  "tracing",
  "uuid",
  "walkdir",
@@ -3047,6 +3050,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "tokio",
+ "tokio-stream",
  "tracing",
  "uuid",
 ]
@@ -4100,6 +4104,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]

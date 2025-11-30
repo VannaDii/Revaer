@@ -148,28 +148,39 @@ async fn main() -> Result<()> {
 }
 
 fn load_otel_config_from_env() -> Option<OpenTelemetryConfig<'static>> {
-    if !env_flag("REVAER_ENABLE_OTEL") {
-        return None;
-    }
+    let enabled = env_flag("REVAER_ENABLE_OTEL");
     let service_name =
         std::env::var("REVAER_OTEL_SERVICE_NAME").unwrap_or_else(|_| "revaer-app".to_string());
     let endpoint = std::env::var("REVAER_OTEL_EXPORTER").ok();
+    otel_config_from_values(enabled, service_name, endpoint)
+}
+
+fn env_flag(name: &str) -> bool {
+    env_flag_value(std::env::var(name).ok().as_deref())
+}
+
+fn env_flag_value(value: Option<&str>) -> bool {
+    value.is_some_and(|v| {
+        matches!(
+            v.trim().to_ascii_lowercase().as_str(),
+            "1" | "true" | "yes" | "on"
+        )
+    })
+}
+
+fn otel_config_from_values(
+    enabled: bool,
+    service_name: String,
+    endpoint: Option<String>,
+) -> Option<OpenTelemetryConfig<'static>> {
+    if !enabled {
+        return None;
+    }
     Some(OpenTelemetryConfig {
         enabled: true,
         service_name: Cow::Owned(service_name),
         endpoint: endpoint.map(Cow::Owned),
     })
-}
-
-fn env_flag(name: &str) -> bool {
-    std::env::var(name)
-        .map(|value| {
-            matches!(
-                value.trim().to_ascii_lowercase().as_str(),
-                "1" | "true" | "yes" | "on"
-            )
-        })
-        .unwrap_or(false)
 }
 
 #[cfg(feature = "libtorrent")]
@@ -299,6 +310,23 @@ mod tests {
     use super::*;
     use std::str::FromStr;
     use tokio::runtime::Runtime;
+    use tokio_stream::StreamExt;
+
+    #[test]
+    fn env_flag_handles_truthy_and_falsey() {
+        assert!(env_flag_value(Some("TrUe")));
+        assert!(!env_flag_value(Some("no")));
+        assert!(!env_flag_value(None));
+    }
+
+    #[test]
+    fn load_otel_config_reads_values() {
+        let cfg = otel_config_from_values(true, "svc".into(), Some("http://collector".into()))
+            .expect("otel enabled");
+        assert_eq!(cfg.service_name.as_ref(), "svc");
+        assert_eq!(cfg.endpoint.as_deref(), Some("http://collector"));
+        assert!(otel_config_from_values(false, "svc".into(), None).is_none());
+    }
 
     #[test]
     fn loopback_guard_allows_loopback_address() {
@@ -338,7 +366,8 @@ mod tests {
 
         let envelope = runtime
             .block_on(async { stream.next().await })
-            .expect("health event emitted");
+            .expect("health event emitted")
+            .expect("stream recv error");
         assert!(matches!(
             envelope.event,
             revaer_events::Event::HealthChanged { .. }

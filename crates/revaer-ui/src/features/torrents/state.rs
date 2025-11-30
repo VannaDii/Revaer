@@ -1,6 +1,5 @@
 //! Shared torrent models and pure state transformations for testing outside wasm.
 
-use crate::i18n::TranslationBundle;
 use crate::models::TorrentSummary;
 
 /// UI-friendly torrent snapshot used across list/state helpers.
@@ -45,22 +44,6 @@ impl TorrentRow {
         let frac = hundredths % 100;
         format!("{whole}.{frac:02} GB")
     }
-}
-
-/// Torrent actions emitted from UI controls.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum TorrentAction {
-    /// Pause the torrent.
-    Pause,
-    /// Resume the torrent.
-    Resume,
-    /// Force a recheck.
-    Recheck,
-    /// Delete the torrent, optionally removing data.
-    Delete {
-        /// Whether payload data should also be removed.
-        with_data: bool,
-    },
 }
 
 impl From<TorrentSummary> for TorrentRow {
@@ -161,26 +144,10 @@ pub fn apply_remove(rows: &[TorrentRow], id: &str) -> Vec<TorrentRow> {
     rows.iter().filter(|row| row.id != id).cloned().collect()
 }
 
-/// Format a toast message for a successful action.
-#[must_use]
-pub fn success_message(bundle: &TranslationBundle, action: &TorrentAction, name: &str) -> String {
-    match action {
-        TorrentAction::Pause => format!("{} {name}", bundle.text("toast.pause", "")),
-        TorrentAction::Resume => format!("{} {name}", bundle.text("toast.resume", "")),
-        TorrentAction::Recheck => format!("{} {name}", bundle.text("toast.recheck", "")),
-        TorrentAction::Delete { with_data } => {
-            if *with_data {
-                format!("{} {name}", bundle.text("toast.delete_data", ""))
-            } else {
-                format!("{} {name}", bundle.text("toast.delete", ""))
-            }
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::features::torrents::actions::{TorrentAction, success_message};
     use crate::i18n::{LocaleCode, TranslationBundle};
     use uuid::Uuid;
 
