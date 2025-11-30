@@ -289,4 +289,36 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn load_all_returns_empty_for_missing_directory() -> Result<()> {
+        let temp = TempDir::new()?;
+        let missing = temp.path().join("missing");
+        let store = FastResumeStore::new(&missing);
+        assert!(store.load_all()?.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn load_all_skips_unrecognised_files() -> Result<()> {
+        let temp = TempDir::new()?;
+        let store = FastResumeStore::new(temp.path());
+        fs::write(temp.path().join("readme.txt"), "not a torrent")?;
+        let entries = store.load_all()?;
+        assert!(entries.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn load_all_errors_on_corrupt_metadata() -> Result<()> {
+        let temp = TempDir::new()?;
+        let store = FastResumeStore::new(temp.path());
+        let torrent_id = Uuid::new_v4();
+        let meta_path = temp.path().join(format!("{torrent_id}{META_SUFFIX}"));
+        fs::write(&meta_path, "not-json")?;
+
+        let err = store.load_all().expect_err("corrupt metadata should fail");
+        assert!(err.to_string().contains("failed to parse metadata JSON"));
+        Ok(())
+    }
 }

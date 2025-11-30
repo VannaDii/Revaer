@@ -137,21 +137,98 @@ mod tests {
 
     #[test]
     fn event_kind_maps_variants() {
-        assert_eq!(
-            Event::TorrentRemoved {
-                torrent_id: Uuid::nil()
-            }
-            .kind(),
-            "torrent_removed"
-        );
-        assert_eq!(
-            Event::FsopsFailed {
-                torrent_id: Uuid::nil(),
-                message: "err".into()
-            }
-            .kind(),
-            "fsops_failed"
-        );
+        let events = vec![
+            (
+                Event::TorrentAdded {
+                    torrent_id: Uuid::nil(),
+                    name: "demo".into(),
+                },
+                "torrent_added",
+            ),
+            (
+                Event::FilesDiscovered {
+                    torrent_id: Uuid::nil(),
+                    files: vec![],
+                },
+                "files_discovered",
+            ),
+            (
+                Event::Progress {
+                    torrent_id: Uuid::nil(),
+                    bytes_downloaded: 1,
+                    bytes_total: 2,
+                },
+                "progress",
+            ),
+            (
+                Event::StateChanged {
+                    torrent_id: Uuid::nil(),
+                    state: TorrentState::Queued,
+                },
+                "state_changed",
+            ),
+            (
+                Event::Completed {
+                    torrent_id: Uuid::nil(),
+                    library_path: "/tmp".into(),
+                },
+                "completed",
+            ),
+            (
+                Event::TorrentRemoved {
+                    torrent_id: Uuid::nil(),
+                },
+                "torrent_removed",
+            ),
+            (
+                Event::FsopsStarted {
+                    torrent_id: Uuid::nil(),
+                },
+                "fsops_started",
+            ),
+            (
+                Event::FsopsProgress {
+                    torrent_id: Uuid::nil(),
+                    step: "extract".into(),
+                },
+                "fsops_progress",
+            ),
+            (
+                Event::FsopsCompleted {
+                    torrent_id: Uuid::nil(),
+                },
+                "fsops_completed",
+            ),
+            (
+                Event::FsopsFailed {
+                    torrent_id: Uuid::nil(),
+                    message: "err".into(),
+                },
+                "fsops_failed",
+            ),
+            (
+                Event::SettingsChanged {
+                    description: "desc".into(),
+                },
+                "settings_changed",
+            ),
+            (
+                Event::HealthChanged {
+                    degraded: vec!["x".into()],
+                },
+                "health_changed",
+            ),
+            (
+                Event::SelectionReconciled {
+                    torrent_id: Uuid::nil(),
+                    reason: "policy".into(),
+                },
+                "selection_reconciled",
+            ),
+        ];
+        for (event, expected) in events {
+            assert_eq!(event.kind(), expected);
+        }
     }
 
     #[test]

@@ -34,3 +34,14 @@ fn main() {
         }
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn native_main_writes_warning() {
+        // Ensure the native stub executes without panicking.
+        main();
+    }
+}

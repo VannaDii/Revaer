@@ -2415,6 +2415,30 @@ mod tests {
         assert!(format!("{err:#}").contains("expected array"));
     }
 
+    #[test]
+    fn prepare_directories_fails_for_file_path() {
+        let events = EventBus::with_capacity(4);
+        let metrics = Metrics::new().expect("metrics");
+        let service = FsOpsService::new(events, metrics);
+
+        let temp = TempDir::new().expect("tempdir");
+        let file_root = temp.path().join("not_a_dir");
+        fs::write(&file_root, "file").expect("write file");
+        let meta_dir = temp.path().join("meta");
+        let meta_path = temp.path().join("meta.json");
+
+        let torrent_id = Uuid::new_v4();
+        let mut meta = FsOpsMeta::new(torrent_id, Uuid::new_v4());
+
+        let result = service
+            .run_prepare_directories(torrent_id, &mut meta, &meta_path, &file_root, &meta_dir);
+
+        assert!(
+            result.is_err(),
+            "expected directory creation to fail on file path"
+        );
+    }
+
     #[tokio::test]
     async fn pipeline_flattens_single_directory() -> Result<()> {
         let bus = EventBus::with_capacity(8);

@@ -21,10 +21,11 @@
 //! HTTP API server and shared routing primitives for the Revaer platform.
 //! Layout: bootstrap.rs (wiring), config/, domain/, app/, http/, infra/.
 
+pub mod http;
 pub mod models;
 
 #[cfg(feature = "compat-qb")]
-pub(crate) mod compat_qb;
+pub(crate) use http::compat_qb;
 
 use async_trait::async_trait;
 use base64::{Engine as _, engine::general_purpose};
@@ -1079,8 +1080,24 @@ impl ApiServer {
         torrent: Option<TorrentHandles>,
         telemetry: Metrics,
     ) -> Result<Self> {
+        Self::with_config_at(
+            config,
+            events,
+            torrent,
+            telemetry,
+            Path::new("docs/api/openapi.json"),
+        )
+    }
+
+    fn with_config_at(
+        config: SharedConfig,
+        events: EventBus,
+        torrent: Option<TorrentHandles>,
+        telemetry: Metrics,
+        openapi_path: &Path,
+    ) -> Result<Self> {
         let openapi_document = Arc::new(build_openapi_document());
-        Self::persist_openapi(&openapi_document)?;
+        Self::persist_openapi_at(openapi_path, &openapi_document)?;
 
         let state = Self::build_state(config, telemetry.clone(), openapi_document, events, torrent);
         let cors_layer = CorsLayer::new()
@@ -1145,8 +1162,8 @@ impl ApiServer {
         Ok(Self { router })
     }
 
-    fn persist_openapi(document: &Arc<Value>) -> Result<()> {
-        revaer_telemetry::persist_openapi(Path::new("docs/api/openapi.json"), document)?;
+    fn persist_openapi_at(path: &Path, document: &Arc<Value>) -> Result<()> {
+        revaer_telemetry::persist_openapi(path, document)?;
         Ok(())
     }
 
@@ -2379,7 +2396,7 @@ mod tests {
     use axum::http::{HeaderMap, HeaderValue, header::COOKIE};
     use axum::{
         extract::{Form, Query, State},
-        http::StatusCode,
+        http::{Request, StatusCode},
     };
     use chrono::{Duration as ChronoDuration, Utc};
     use futures_util::{StreamExt, pin_mut};
@@ -2396,6 +2413,7 @@ mod tests {
     use std::time::{Duration, Instant};
     use tokio::sync::{Mutex, oneshot};
     use tokio::time::{sleep, timeout};
+    use tower::ServiceExt;
     use uuid::Uuid;
 
     use serde_json::json;
@@ -3317,6 +3335,169 @@ mod tests {
         );
         let later = start + Duration::from_secs(2);
         assert!(limiter.evaluate(&limit, later).allowed);
+    }
+
+    #[test]
+    fn rate_limiter_handles_zero_capacity_and_period() {
+        let zero_limit = ApiKeyRateLimit {
+            burst: 0,
+            replenish_period: Duration::from_secs(1),
+        };
+        let mut zero_cap = RateLimiter::new(zero_limit.clone());
+        let now = Instant::now();
+        let denied = zero_cap.evaluate(&zero_limit, now);
+        assert!(!denied.allowed);
+        assert_eq!(denied.remaining, 0);
+        assert_eq!(denied.retry_after, Duration::MAX);
+
+        let zero_config = ApiKeyRateLimit {
+            burst: 1,
+            replenish_period: Duration::ZERO,
+        };
+        let mut zero_period = RateLimiter::new(zero_config.clone());
+        zero_period.tokens = 0;
+        zero_period.last_refill = now;
+        let blocked = zero_period.evaluate(&zero_config, now);
+        assert!(!blocked.allowed);
+        assert_eq!(blocked.retry_after, Duration::ZERO);
+    }
+
+    #[test]
+    fn api_error_builders_cover_all_variants() {
+        let cases = vec![
+            (
+                ApiError::internal("oops"),
+                StatusCode::INTERNAL_SERVER_ERROR,
+                PROBLEM_INTERNAL,
+                false,
+            ),
+            (
+                ApiError::unauthorized("no auth"),
+                StatusCode::UNAUTHORIZED,
+                PROBLEM_UNAUTHORIZED,
+                false,
+            ),
+            (
+                ApiError::forbidden("nope"),
+                StatusCode::FORBIDDEN,
+                PROBLEM_FORBIDDEN,
+                false,
+            ),
+            (
+                ApiError::bad_request("bad"),
+                StatusCode::BAD_REQUEST,
+                PROBLEM_BAD_REQUEST,
+                false,
+            ),
+            (
+                ApiError::not_found("gone"),
+                StatusCode::NOT_FOUND,
+                PROBLEM_NOT_FOUND,
+                false,
+            ),
+            (
+                ApiError::conflict("clash"),
+                StatusCode::CONFLICT,
+                PROBLEM_CONFLICT,
+                false,
+            ),
+            (
+                ApiError::setup_required("setup"),
+                StatusCode::CONFLICT,
+                PROBLEM_SETUP_REQUIRED,
+                false,
+            ),
+            (
+                ApiError::config_invalid("invalid"),
+                StatusCode::UNPROCESSABLE_ENTITY,
+                PROBLEM_CONFIG_INVALID,
+                false,
+            ),
+            (
+                ApiError::service_unavailable("down"),
+                StatusCode::SERVICE_UNAVAILABLE,
+                PROBLEM_SERVICE_UNAVAILABLE,
+                false,
+            ),
+            (
+                ApiError::too_many_requests("slow").with_rate_limit_headers(
+                    10,
+                    3,
+                    Some(Duration::from_millis(500)),
+                ),
+                StatusCode::TOO_MANY_REQUESTS,
+                PROBLEM_RATE_LIMITED,
+                true,
+            ),
+        ];
+
+        for (error, status, kind, with_rate) in cases {
+            assert_eq!(error.status, status);
+            assert_eq!(error.kind, kind);
+            assert_eq!(error.rate_limit.is_some(), with_rate);
+            let response = error.into_response();
+            assert_eq!(response.status(), status);
+        }
+    }
+
+    #[test]
+    fn api_error_includes_rate_limit_headers() {
+        let response = ApiError::too_many_requests("throttled")
+            .with_rate_limit_headers(5, 0, Some(Duration::from_millis(250)))
+            .into_response();
+        let headers = response.headers();
+        assert_eq!(headers.get(HEADER_RATE_LIMIT_LIMIT).unwrap(), "5");
+        assert_eq!(headers.get(HEADER_RATE_LIMIT_REMAINING).unwrap(), "0");
+        assert_eq!(headers.get(HEADER_RATE_LIMIT_RESET).unwrap(), "1");
+        assert_eq!(headers.get(RETRY_AFTER).unwrap(), "1");
+    }
+
+    #[tokio::test]
+    async fn api_state_tracks_health_and_sessions() {
+        let config: SharedConfig = Arc::new(MockConfig::new());
+        let telemetry = Metrics::new().expect("metrics available");
+        let state = ApiServer::build_state(
+            config,
+            telemetry,
+            Arc::new(json!({ "openapi": "stub" })),
+            EventBus::with_capacity(8),
+            None,
+        );
+
+        assert!(state.add_degraded_component("storage"));
+        assert!(!state.add_degraded_component("storage"));
+        assert!(state.remove_degraded_component("storage"));
+        assert!(!state.remove_degraded_component("storage"));
+
+        let session = state.issue_qb_session();
+        assert!(state.validate_qb_session(&session));
+        state.revoke_qb_session(&session);
+        assert!(!state.validate_qb_session(&session));
+
+        state.update_torrent_metrics().await;
+    }
+
+    #[tokio::test]
+    async fn api_server_builds_router_with_mock_config() {
+        let config: SharedConfig = Arc::new(MockConfig::new());
+        let telemetry = Metrics::new().expect("metrics available");
+        let events = EventBus::with_capacity(8);
+        let openapi_path = std::env::temp_dir().join("revaer-openapi-test.json");
+        let server = ApiServer::with_config_at(config, events, None, telemetry, &openapi_path)
+            .expect("router should build");
+
+        let response = server
+            .router
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .uri("/health")
+                    .body(Body::empty())
+                    .expect("request"),
+            )
+            .await
+            .expect("response");
+        assert_eq!(response.status(), StatusCode::OK);
     }
 
     #[tokio::test]

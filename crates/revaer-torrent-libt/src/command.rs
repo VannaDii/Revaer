@@ -82,3 +82,15 @@ impl EncryptionPolicy {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::EncryptionPolicy;
+
+    #[test]
+    fn encryption_policy_maps_to_expected_values() {
+        assert_eq!(EncryptionPolicy::Require.as_u8(), 0);
+        assert_eq!(EncryptionPolicy::Prefer.as_u8(), 1);
+        assert_eq!(EncryptionPolicy::Disable.as_u8(), 2);
+    }
+}

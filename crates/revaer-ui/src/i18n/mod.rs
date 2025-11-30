@@ -260,4 +260,26 @@ mod tests {
             assert!(!bundle.text("nav.dashboard", "Dash").is_empty());
         }
     }
+
+    #[test]
+    fn locale_codes_and_labels_cover_all_locales() {
+        let locales = LocaleCode::all();
+        assert_eq!(locales.len(), 20);
+        let mut codes = std::collections::HashSet::new();
+        for locale in locales {
+            assert!(!LocaleCode::label(locale).is_empty());
+            assert!(codes.insert(LocaleCode::code(locale)));
+        }
+        assert!(codes.contains("en"));
+        assert_eq!(codes.len(), locales.len());
+    }
+
+    #[test]
+    fn locale_from_lang_tag_handles_variants() {
+        assert_eq!(LocaleCode::from_lang_tag("en-US"), Some(LocaleCode::En));
+        assert_eq!(LocaleCode::from_lang_tag("FR"), Some(LocaleCode::Fr));
+        assert_eq!(LocaleCode::from_lang_tag("zh-hans"), Some(LocaleCode::Zh));
+        assert_eq!(LocaleCode::from_lang_tag("pt-BR"), Some(LocaleCode::Pt));
+        assert!(LocaleCode::from_lang_tag("xx").is_none());
+    }
 }

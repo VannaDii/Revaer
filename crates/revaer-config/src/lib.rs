@@ -2124,6 +2124,7 @@ fn parse_bind_addr(value: &str) -> Result<IpAddr> {
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::str::FromStr;
     use std::time::Duration;
 
     #[test]
@@ -2156,5 +2157,32 @@ mod tests {
         let value = json!({ "burst": 5 });
         let err = parse_api_key_rate_limit_for_config(&value).unwrap_err();
         assert!(matches!(err, ConfigError::InvalidField { .. }));
+    }
+
+    #[test]
+    fn app_mode_parses_and_formats() {
+        assert_eq!(AppMode::from_str("setup").unwrap(), AppMode::Setup);
+        assert_eq!(AppMode::from_str("active").unwrap(), AppMode::Active);
+        assert!(AppMode::from_str("invalid").is_err());
+        assert_eq!(AppMode::Setup.as_str(), "setup");
+        assert_eq!(AppMode::Active.as_str(), "active");
+    }
+
+    #[test]
+    fn parse_port_accepts_valid_range() {
+        let value = json!(8080);
+        let port = parse_port(&value, "app_profile", "http_port").expect("port should parse");
+        assert_eq!(port, 8080);
+    }
+
+    #[test]
+    fn parse_port_rejects_out_of_range_and_non_numeric() {
+        let value = json!(0);
+        let err = parse_port(&value, "app_profile", "http_port").unwrap_err();
+        assert!(err.to_string().contains("between 1 and 65535"));
+
+        let non_numeric = json!("not-a-port");
+        let err = parse_port(&non_numeric, "app_profile", "http_port").unwrap_err();
+        assert!(err.to_string().contains("must be an integer"));
     }
 }
