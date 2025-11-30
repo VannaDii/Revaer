@@ -35,16 +35,8 @@ crate = "getrandom@0.2.16"
 reason = "Legacy rand 0.8 stack from password hashing dependencies."
 
 [[bans.skip]]
-crate = "getrandom@0.3.3"
-reason = "Hashbrown/ahash stack pulled by jsonschema and rand 0.9 users."
-
-[[bans.skip]]
 crate = "hashbrown@0.15.5"
 reason = "sqlx 0.8 still depends on hashbrown 0.15.x for hashlink support."
-
-[[bans.skip]]
-crate = "hashbrown@0.16.0"
-reason = "Indexmap 2.x chain requires 0.16.x."
 
 [[bans.skip]]
 crate = "hashbrown@0.12.3"
@@ -87,10 +79,6 @@ crate = "indexmap@1.9.3"
 reason = "yew stack remains on indexmap 1.x; rest of workspace uses 2.x."
 
 [[bans.skip]]
-crate = "indexmap@2.11.4"
-reason = "primary dependencies use 2.x alongside yew's 1.x requirement."
-
-[[bans.skip]]
 crate = "http@0.2.12"
 reason = "Legacy gloo-net depends on http 0.2; allow alongside http 1.x."
 
@@ -121,14 +109,6 @@ reason = "Matches thiserror 1.x pinned by prometheus/protobuf."
 [[bans.skip]]
 crate = "thiserror-impl@2.0.17"
 reason = "Matches thiserror 2.x used by workspace crates."
-
-[[bans.skip]]
-crate = "wasi@0.11.1+wasi-snapshot-preview1"
-reason = "Legacy rand 0.8 stack depends on the snapshot preview runtime."
-
-[[bans.skip]]
-crate = "wasi@0.14.7+wasi-0.2.4"
-reason = "rand 0.9 stack requires the new WASI 0.2 bindings."
 
 [[bans.skip]]
 crate = "webpki-roots@*"
