@@ -175,6 +175,37 @@ jobs:
             target/release/revaer-app.sha256
             docs/api/openapi.json
 
+  publish-release:
+    name: Publish Release
+    runs-on: ubuntu-latest
+    needs: build-release
+    # Only create a release for tags like refs/tags/v1.2.3
+    if: startsWith(github.ref, 'refs/tags/')
+
+    permissions:
+      contents: write # needed to create a release
+
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: revaer-release-${{ github.sha }}
+          path: dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: Revaer ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+          files: |
+            dist/revaer-app
+            dist/revaer-app.sha256
+            dist/openapi.json
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   # Docker build and scan (only on main branch or tags)
   build-images:
     name: Build & push ${{ matrix.name }}
