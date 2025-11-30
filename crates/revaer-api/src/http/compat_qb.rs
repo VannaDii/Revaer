@@ -29,10 +29,11 @@ use uuid::Uuid;
 use revaer_events::{Event as CoreEvent, TorrentState};
 use revaer_torrent_core::{RemoveTorrent, TorrentRateLimit, TorrentStatus};
 
-use crate::{
-    ApiError, ApiState, COMPAT_SESSION_TTL, TorrentHandles, TorrentMetadata, dispatch_torrent_add,
-    models::TorrentCreateRequest,
-};
+use crate::http::errors::ApiError;
+use crate::http::torrents::handlers::dispatch_torrent_add;
+use crate::http::torrents::{TorrentHandles, TorrentMetadata};
+use crate::models::TorrentCreateRequest;
+use crate::state::{ApiState, COMPAT_SESSION_TTL};
 
 /// Attach qBittorrent-compatible endpoints to the primary router.
 pub(crate) fn mount(router: Router<Arc<ApiState>>) -> Router<Arc<ApiState>> {
@@ -728,6 +729,7 @@ fn ok_plain() -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::config::ConfigFacade;
     use anyhow::{Result, anyhow};
     use async_trait::async_trait;
     use axum::{
@@ -874,7 +876,7 @@ mod tests {
     }
 
     fn test_state() -> Arc<ApiState> {
-        let config: Arc<dyn crate::ConfigFacade> = Arc::new(TestConfig);
+        let config: Arc<dyn ConfigFacade> = Arc::new(TestConfig);
         Arc::new(ApiState::new(
             config,
             Metrics::new().expect("metrics init"),
@@ -888,7 +890,7 @@ mod tests {
     struct TestConfig;
 
     #[async_trait]
-    impl crate::ConfigFacade for TestConfig {
+    impl ConfigFacade for TestConfig {
         async fn get_app_profile(&self) -> Result<AppProfile> {
             Err(anyhow!("not implemented in tests"))
         }
