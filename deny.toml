@@ -47,10 +47,6 @@ crate = "hashbrown@0.16.0"
 reason = "Indexmap 2.x chain requires 0.16.x."
 
 [[bans.skip]]
-crate = "hashbrown@0.16.1"
-reason = "Indexmap 2.x chain requires 0.16.x."
-
-[[bans.skip]]
 crate = "hashbrown@0.12.3"
 reason = "Indexmap 1.x (yew stack) still depends on 0.12.x."
 
@@ -95,64 +91,16 @@ crate = "indexmap@2.11.4"
 reason = "primary dependencies use 2.x alongside yew's 1.x requirement."
 
 [[bans.skip]]
-crate = "indexmap@2.12.1"
-reason = "primary dependencies use 2.x alongside yew's 1.x requirement."
-
-[[bans.skip]]
-crate = "gloo@*"
-reason = "UI and router stacks require multiple gloo generations; allow co-existence."
-
-[[bans.skip]]
-crate = "gloo-console@*"
-reason = "yew macro stack and UI pull different gloo-console lines."
-
-[[bans.skip]]
-crate = "gloo-dialogs@*"
-reason = "router stack is still on 0.1.x while UI uses newer releases."
-
-[[bans.skip]]
-crate = "gloo-events@*"
-reason = "multiple gloo generations are present across yew/router."
-
-[[bans.skip]]
-crate = "gloo-file@*"
-reason = "router stack and UI depend on different gloo-file versions."
-
-[[bans.skip]]
-crate = "gloo-history@*"
-reason = "router stack and UI depend on different gloo-history versions."
-
-[[bans.skip]]
-crate = "gloo-net@*"
-reason = "router stack and UI depend on different gloo-net versions."
-
-[[bans.skip]]
-crate = "gloo-render@*"
-reason = "yew macro stack differs from the UI gloo-render line."
-
-[[bans.skip]]
-crate = "gloo-storage@*"
-reason = "router stack and UI depend on different gloo-storage versions."
-
-[[bans.skip]]
-crate = "gloo-timers@*"
-reason = "router stack and UI depend on different gloo-timers versions."
-
-[[bans.skip]]
-crate = "gloo-utils@*"
-reason = "yew pulls older gloo-utils while UI targets newer releases."
-
-[[bans.skip]]
-crate = "gloo-worker@*"
-reason = "router stack and UI depend on different gloo-worker versions."
-
-[[bans.skip]]
 crate = "http@0.2.12"
 reason = "Legacy gloo-net depends on http 0.2; allow alongside http 1.x."
 
 [[bans.skip]]
-crate = "serde-wasm-bindgen@0.5.0"
-reason = "gloo-history 0.1.x pins serde-wasm-bindgen 0.5.x."
+crate = "gloo-net@0.2.6"
+reason = "UI stack pulls gloo-net 0.2.x; allow alongside 0.3.x."
+
+[[bans.skip]]
+crate = "gloo-net@0.3.1"
+reason = "Yew/prokio pull gloo-net 0.3.x; allow alongside 0.2.x."
 
 [[bans.skip]]
 crate = "syn@1.0.109"

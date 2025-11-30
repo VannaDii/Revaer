@@ -36,6 +36,36 @@ pub(crate) trait EngineConfigurator: Send + Sync {
 use revaer_torrent_libt::{EncryptionPolicy, EngineRuntimeConfig, LibtorrentEngine};
 
 #[cfg(feature = "libtorrent")]
+/// Dependencies required to spawn a libtorrent-backed orchestrator.
+pub(crate) struct LibtorrentOrchestratorDeps {
+    pub engine: Arc<LibtorrentEngine>,
+    pub fsops: FsOpsService,
+    pub runtime: Option<RuntimeStore>,
+}
+
+#[cfg(feature = "libtorrent")]
+impl LibtorrentOrchestratorDeps {
+    /// Build production dependencies using the shared event bus and metrics registry.
+    pub(crate) fn new(
+        events: &EventBus,
+        metrics: &Metrics,
+        runtime: Option<RuntimeStore>,
+    ) -> Result<Self> {
+        let engine = Arc::new(LibtorrentEngine::new(events.clone())?);
+        let fsops = runtime.as_ref().map_or_else(
+            || FsOpsService::new(events.clone(), metrics.clone()),
+            |store| FsOpsService::new(events.clone(), metrics.clone()).with_runtime(store.clone()),
+        );
+
+        Ok(Self {
+            engine,
+            fsops,
+            runtime,
+        })
+    }
+}
+
+#[cfg(feature = "libtorrent")]
 #[async_trait]
 impl EngineConfigurator for LibtorrentEngine {
     async fn apply_engine_profile(&self, profile: &EngineProfile) -> Result<()> {
@@ -303,21 +333,20 @@ const fn event_torrent_id(event: &Event) -> Option<Uuid> {
 #[cfg(feature = "libtorrent")]
 pub(crate) async fn spawn_libtorrent_orchestrator(
     events: &EventBus,
-    metrics: Metrics,
     fs_policy: FsPolicy,
     engine_profile: EngineProfile,
-    runtime: Option<RuntimeStore>,
+    deps: LibtorrentOrchestratorDeps,
 ) -> Result<(
     Arc<LibtorrentEngine>,
     Arc<TorrentOrchestrator<LibtorrentEngine>>,
     JoinHandle<()>,
 )> {
-    let engine = Arc::new(LibtorrentEngine::new(events.clone())?);
+    let LibtorrentOrchestratorDeps {
+        engine,
+        fsops,
+        runtime,
+    } = deps;
     engine.apply_engine_profile(&engine_profile).await?;
-    let fsops = runtime.clone().map_or_else(
-        || FsOpsService::new(events.clone(), metrics.clone()),
-        |store| FsOpsService::new(events.clone(), metrics.clone()).with_runtime(store),
-    );
     let orchestrator = Arc::new(TorrentOrchestrator::new(
         Arc::clone(&engine),
         fsops,
@@ -721,10 +750,16 @@ mod tests {
             .start()
             .await
             .context("failed to start postgres container")?;
-        let port = container
-            .get_host_port_ipv4(ContainerPort::Tcp(5432))
-            .await
-            .context("failed to resolve postgres port")?;
+        let port = match container.get_host_port_ipv4(ContainerPort::Tcp(5432)).await {
+            Ok(port) => port,
+            Err(err) => {
+                eprintln!(
+                    "skipping orchestrator_persists_runtime_state: failed to resolve postgres port: {err}"
+                );
+                drop(container);
+                return Ok(());
+            }
+        };
         let url = format!("postgres://postgres:password@127.0.0.1:{port}/postgres");
 
         let config = {
@@ -748,12 +783,12 @@ mod tests {
 
         let bus = EventBus::with_capacity(16);
         let metrics = Metrics::new()?;
+        let deps = LibtorrentOrchestratorDeps::new(&bus, &metrics, Some(runtime.clone()))?;
         let (_engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
             &bus,
-            metrics.clone(),
             sample_fs_policy("/tmp/library"),
             sample_engine_profile(),
-            Some(runtime.clone()),
+            deps,
         )
         .await
         .expect("failed to spawn orchestrator with runtime store");
@@ -796,15 +831,11 @@ mod tests {
                 .to_str()
                 .expect("library root path should be valid UTF-8"),
         );
-        let (engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
-            &bus,
-            metrics.clone(),
-            policy.clone(),
-            sample_engine_profile(),
-            None,
-        )
-        .await
-        .expect("failed to spawn orchestrator");
+        let deps = LibtorrentOrchestratorDeps::new(&bus, &metrics, None)?;
+        let (engine, orchestrator, worker) =
+            spawn_libtorrent_orchestrator(&bus, policy.clone(), sample_engine_profile(), deps)
+                .await
+                .expect("failed to spawn orchestrator");
 
         let mut stream = bus.subscribe(None);
         orchestrator
@@ -862,12 +893,13 @@ mod tests {
     async fn orchestrator_reports_fsops_failures() {
         let bus = EventBus::with_capacity(16);
         let metrics = Metrics::new().expect("metrics registry");
+        let deps =
+            LibtorrentOrchestratorDeps::new(&bus, &metrics, None).expect("libtorrent dependencies");
         let (engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
             &bus,
-            metrics.clone(),
             sample_fs_policy("   "),
             sample_engine_profile(),
-            None,
+            deps,
         )
         .await
         .expect("failed to spawn orchestrator");
@@ -911,12 +943,12 @@ mod tests {
     async fn orchestrator_updates_policy_dynamically() -> Result<()> {
         let bus = EventBus::with_capacity(16);
         let metrics = Metrics::new()?;
+        let deps = LibtorrentOrchestratorDeps::new(&bus, &metrics, None)?;
         let (engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
             &bus,
-            metrics.clone(),
             sample_fs_policy("   "),
             sample_engine_profile(),
-            None,
+            deps,
         )
         .await
         .expect("failed to spawn orchestrator");

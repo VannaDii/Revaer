@@ -22,12 +22,27 @@
 use std::path::Path;
 
 use anyhow::Result;
+use serde_json::Value;
 
 /// Serialises the generated `OpenAPI` document to `docs/api/openapi.json`.
 fn main() -> Result<()> {
     let document = revaer_api::openapi_document();
-    revaer_telemetry::persist_openapi(Path::new("docs/api/openapi.json"), &document)?;
-    println!("OpenAPI document written to docs/api/openapi.json");
+    export_openapi(
+        &document,
+        Path::new("docs/api/openapi.json"),
+        |path, doc| revaer_telemetry::persist_openapi(path, doc).map(|_| ()),
+    )?;
+    Ok(())
+}
+
+/// Persist the provided `OpenAPI` document using the supplied writer.
+fn export_openapi(
+    document: &Value,
+    destination: &Path,
+    persist: impl FnOnce(&Path, &Value) -> Result<()>,
+) -> Result<()> {
+    persist(destination, document)?;
+    println!("OpenAPI document written to {}", destination.display());
     Ok(())
 }
 
@@ -35,6 +50,7 @@ fn main() -> Result<()> {
 mod tests {
     use super::*;
     use anyhow::Context;
+    use serde_json::json;
     use std::{
         env, fs,
         path::{Path, PathBuf},
@@ -77,6 +93,24 @@ mod tests {
             "generated document should contain openapi metadata"
         );
         fs::remove_dir_all(&temp_root).context("failed to clean up temporary directory")?;
+
+        Ok(())
+    }
+
+    #[test]
+    fn export_openapi_uses_injected_persister() -> Result<()> {
+        let document = json!({ "openapi": "3.1.0" });
+        let target = PathBuf::from("docs/api/openapi.json");
+        let mut persisted = false;
+
+        export_openapi(&document, &target, |path, payload| {
+            assert_eq!(path, &target);
+            assert_eq!(payload, &document);
+            persisted = true;
+            Ok(())
+        })?;
+
+        assert!(persisted, "export should invoke injected persister");
 
         Ok(())
     }

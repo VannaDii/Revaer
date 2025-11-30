@@ -5,13 +5,13 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail, ensure};
 use revaer_api::TorrentHandles;
-use revaer_config::{AppMode, ConfigService};
+use revaer_config::{AppMode, ConfigService, ConfigSnapshot};
 use revaer_events::EventBus;
 use revaer_telemetry::{GlobalContextGuard, LoggingConfig, Metrics, OpenTelemetryConfig};
 use tracing::{error, info, warn};
 
 #[cfg(feature = "libtorrent")]
-use crate::orchestrator::spawn_libtorrent_orchestrator;
+use crate::orchestrator::{LibtorrentOrchestratorDeps, spawn_libtorrent_orchestrator};
 #[cfg(feature = "libtorrent")]
 use revaer_runtime::RuntimeStore;
 #[cfg(feature = "libtorrent")]
@@ -19,42 +19,105 @@ use revaer_torrent_core::{TorrentInspector, TorrentWorkflow};
 #[cfg(feature = "libtorrent")]
 use revaer_torrent_libt::LibtorrentEngine;
 
+/// Dependencies required to bootstrap the Revaer application.
+pub(crate) struct BootstrapDependencies {
+    logging: LoggingConfig<'static>,
+    otel_config: Option<OpenTelemetryConfig<'static>>,
+    config: ConfigService,
+    snapshot: ConfigSnapshot,
+    watcher: revaer_config::ConfigWatcher,
+    events: EventBus,
+    telemetry: Metrics,
+    #[cfg(feature = "libtorrent")]
+    libtorrent: Option<LibtorrentOrchestratorDeps>,
+}
+
+impl BootstrapDependencies {
+    /// Construct production dependencies from the environment for the binary entrypoint.
+    pub(crate) async fn from_env() -> Result<Self> {
+        let logging = LoggingConfig::default();
+        let otel_config = load_otel_config_from_env();
+
+        let database_url = std::env::var("DATABASE_URL")
+            .context("DATABASE_URL environment variable is required")?;
+
+        let config = ConfigService::new(database_url)
+            .await
+            .context("failed to initialize configuration service")?;
+
+        let (snapshot, watcher) = config
+            .watch_settings(Duration::from_secs(5))
+            .await
+            .context("failed to initialize configuration watcher")?;
+
+        let events = EventBus::new();
+        let telemetry = Metrics::new().context("failed to initialize telemetry registry")?;
+
+        #[cfg(feature = "libtorrent")]
+        let runtime = Some(
+            RuntimeStore::new(config.pool().clone())
+                .await
+                .context("failed to initialise runtime store")?,
+        );
+        #[cfg(not(feature = "libtorrent"))]
+        let runtime: Option<RuntimeStore> = None;
+
+        #[cfg(feature = "libtorrent")]
+        let libtorrent = Some(
+            LibtorrentOrchestratorDeps::new(&events, &telemetry, runtime)
+                .context("failed to construct libtorrent dependencies")?,
+        );
+
+        Ok(Self {
+            logging,
+            otel_config,
+            config,
+            snapshot,
+            watcher,
+            events,
+            telemetry,
+            #[cfg(feature = "libtorrent")]
+            libtorrent,
+        })
+    }
+}
+
 /// Entry point for the Revaer application boot sequence.
 pub(crate) async fn run_app() -> Result<()> {
-    let logging = LoggingConfig::default();
-    let otel_config = load_otel_config_from_env();
-    let otel_ref = otel_config.as_ref().map(|cfg| cfg as &OpenTelemetryConfig);
-    let _otel_guard = revaer_telemetry::init_logging_with_otel(&logging, otel_ref)?;
+    let dependencies = BootstrapDependencies::from_env().await?;
+    run_app_with(dependencies).await
+}
+
+/// Boot sequence that relies entirely on injected dependencies to simplify testing.
+pub(crate) async fn run_app_with(dependencies: BootstrapDependencies) -> Result<()> {
+    let otel_ref = dependencies
+        .otel_config
+        .as_ref()
+        .map(|cfg| cfg as &OpenTelemetryConfig);
+    let _otel_guard = revaer_telemetry::init_logging_with_otel(&dependencies.logging, otel_ref)?;
     let _context = GlobalContextGuard::new("bootstrap");
 
     info!("Revaer application bootstrap starting");
 
-    let database_url =
-        std::env::var("DATABASE_URL").context("DATABASE_URL environment variable is required")?;
-
-    let config = ConfigService::new(database_url)
-        .await
-        .context("failed to initialise configuration service")?;
-
-    let (snapshot, watcher) = config
-        .watch_settings(Duration::from_secs(5))
-        .await
-        .context("failed to initialise configuration watcher")?;
-
-    let events = EventBus::new();
-    let telemetry = Metrics::new().context("failed to initialise telemetry registry")?;
+    let BootstrapDependencies {
+        logging: _,
+        otel_config: _,
+        config,
+        snapshot,
+        watcher,
+        events,
+        telemetry,
+        #[cfg(feature = "libtorrent")]
+        libtorrent,
+    } = dependencies;
 
     #[cfg(feature = "libtorrent")]
     let (fsops_worker, config_task, torrent_handles) = {
-        let runtime_store = RuntimeStore::new(config.pool().clone())
-            .await
-            .context("failed to initialise runtime store")?;
         let (_engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
             &events,
-            telemetry.clone(),
             snapshot.fs_policy.clone(),
             snapshot.engine_profile.clone(),
-            Some(runtime_store.clone()),
+            libtorrent.expect("libtorrent dependencies must be provided"),
         )
         .await
         .context("failed to initialise torrent orchestrator")?;

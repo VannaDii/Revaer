@@ -27,20 +27,9 @@ pub mod models;
 #[cfg(feature = "compat-qb")]
 pub(crate) use http::compat_qb;
 
-use async_trait::async_trait;
-use base64::{Engine as _, engine::general_purpose};
-use std::collections::{HashMap, HashSet};
-use std::convert::{Infallible, TryFrom};
-use std::future::Future;
-use std::net::SocketAddr;
-use std::path::Path;
-use std::pin::Pin;
-use std::sync::{Arc, Mutex, MutexGuard};
-use std::task::{Context as TaskContext, Poll};
-use std::time::{Duration, Instant};
-
 use anyhow::Result;
 use async_stream::stream;
+use async_trait::async_trait;
 use axum::{
     Json, Router,
     body::Body,
@@ -56,6 +45,7 @@ use axum::{
     },
     routing::{get, patch, post},
 };
+use base64::{Engine as _, engine::general_purpose};
 use chrono::{DateTime, Utc};
 use futures_util::{StreamExt, future, stream};
 use models::{
@@ -74,6 +64,15 @@ use revaer_torrent_core::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
+use std::collections::{HashMap, HashSet};
+use std::convert::{Infallible, TryFrom};
+use std::future::Future;
+use std::net::SocketAddr;
+use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::task::{Context as TaskContext, Poll};
+use std::time::{Duration, Instant};
 use tokio::{net::TcpListener, time::sleep};
 use tower::{Service, ServiceBuilder, layer::Layer};
 use tower_http::{
@@ -1071,7 +1070,8 @@ impl ApiServer {
         torrent: Option<TorrentHandles>,
         telemetry: Metrics,
     ) -> Result<Self> {
-        Self::with_config(Arc::new(config), events, torrent, telemetry)
+        let openapi = OpenApiDependencies::embedded_at(Path::new("docs/api/openapi.json"));
+        Self::with_config(Arc::new(config), events, torrent, telemetry, &openapi)
     }
 
     fn with_config(
@@ -1079,14 +1079,9 @@ impl ApiServer {
         events: EventBus,
         torrent: Option<TorrentHandles>,
         telemetry: Metrics,
+        openapi: &OpenApiDependencies,
     ) -> Result<Self> {
-        Self::with_config_at(
-            config,
-            events,
-            torrent,
-            telemetry,
-            Path::new("docs/api/openapi.json"),
-        )
+        Self::with_config_at(config, events, torrent, telemetry, openapi)
     }
 
     fn with_config_at(
@@ -1094,12 +1089,26 @@ impl ApiServer {
         events: EventBus,
         torrent: Option<TorrentHandles>,
         telemetry: Metrics,
-        openapi_path: &Path,
+        openapi: &OpenApiDependencies,
     ) -> Result<Self> {
-        let openapi_document = Arc::new(build_openapi_document());
-        Self::persist_openapi_at(openapi_path, &openapi_document)?;
+        Self::with_dependencies(config, events, torrent, telemetry, openapi)
+    }
 
-        let state = Self::build_state(config, telemetry.clone(), openapi_document, events, torrent);
+    fn with_dependencies(
+        config: SharedConfig,
+        events: EventBus,
+        torrent: Option<TorrentHandles>,
+        telemetry: Metrics,
+        openapi: &OpenApiDependencies,
+    ) -> Result<Self> {
+        (openapi.persist)(&openapi.path, &openapi.document)?;
+        let state = Self::build_state(
+            config,
+            telemetry.clone(),
+            Arc::clone(&openapi.document),
+            events,
+            torrent,
+        );
         let cors_layer = CorsLayer::new()
             .allow_origin(Any)
             .allow_methods([
@@ -1160,11 +1169,6 @@ impl ApiServer {
             .with_state(state);
 
         Ok(Self { router })
-    }
-
-    fn persist_openapi_at(path: &Path, document: &Arc<Value>) -> Result<()> {
-        revaer_telemetry::persist_openapi(path, document)?;
-        Ok(())
     }
 
     fn build_state(
@@ -2129,6 +2133,35 @@ fn event_sse_stream(
         })
 }
 
+type OpenApiPersistFn = Arc<dyn Fn(&Path, &Value) -> Result<()> + Send + Sync>;
+
+struct OpenApiDependencies {
+    document: Arc<Value>,
+    path: PathBuf,
+    persist: OpenApiPersistFn,
+}
+
+impl OpenApiDependencies {
+    fn new(document: Arc<Value>, path: PathBuf, persist: OpenApiPersistFn) -> Self {
+        Self {
+            document,
+            path,
+            persist,
+        }
+    }
+
+    fn embedded_at(path: &Path) -> Self {
+        Self::new(
+            Arc::new(build_openapi_document()),
+            path.to_path_buf(),
+            Arc::new(|destination, document| {
+                revaer_telemetry::persist_openapi(destination, document)?;
+                Ok(())
+            }),
+        )
+    }
+}
+
 fn build_openapi_document() -> Value {
     match serde_json::from_str(include_str!("../../../docs/api/openapi.json")) {
         Ok(value) => value,
@@ -2410,6 +2443,7 @@ mod tests {
     use std::net::IpAddr;
     use std::str::FromStr;
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::time::{Duration, Instant};
     use tokio::sync::{Mutex, oneshot};
     use tokio::time::{sleep, timeout};
@@ -2417,7 +2451,6 @@ mod tests {
     use uuid::Uuid;
 
     use serde_json::json;
-    use std::sync::atomic::{AtomicBool, Ordering};
 
     #[cfg(feature = "compat-qb")]
     use crate::compat_qb::{
@@ -3483,7 +3516,24 @@ mod tests {
         let telemetry = Metrics::new().expect("metrics available");
         let events = EventBus::with_capacity(8);
         let openapi_path = std::env::temp_dir().join("revaer-openapi-test.json");
-        let server = ApiServer::with_config_at(config, events, None, telemetry, &openapi_path)
+        let persisted = Arc::new(AtomicBool::new(false));
+        let document = Arc::new(json!({ "openapi": "stub" }));
+        let openapi = {
+            let path_clone = openapi_path.clone();
+            let flag = Arc::clone(&persisted);
+            let doc_clone = Arc::clone(&document);
+            OpenApiDependencies::new(
+                document,
+                openapi_path,
+                Arc::new(move |path, payload| {
+                    assert_eq!(path, &path_clone);
+                    assert_eq!(payload, doc_clone.as_ref());
+                    flag.store(true, Ordering::SeqCst);
+                    Ok(())
+                }),
+            )
+        };
+        let server = ApiServer::with_config_at(config, events, None, telemetry, &openapi)
             .expect("router should build");
 
         let response = server
@@ -3498,6 +3548,10 @@ mod tests {
             .await
             .expect("response");
         assert_eq!(response.status(), StatusCode::OK);
+        assert!(
+            persisted.load(Ordering::SeqCst),
+            "OpenAPI persistence should be invoked"
+        );
     }
 
     #[tokio::test]

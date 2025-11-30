@@ -55,6 +55,33 @@ const HEADER_LAST_EVENT_ID: &str = "Last-Event-ID";
 const DEFAULT_TIMEOUT_SECS: u64 = 10;
 const DEFAULT_API_URL: &str = "http://127.0.0.1:7070";
 
+#[derive(Clone)]
+struct CliDependencies {
+    client: Client,
+    telemetry: Option<TelemetryEmitter>,
+}
+
+impl CliDependencies {
+    fn from_env(cli: &Cli, trace_id: &str) -> CliResult<Self> {
+        let mut default_headers = HeaderMap::new();
+        let request_id = HeaderValue::from_str(trace_id).map_err(|_| {
+            CliError::failure(anyhow!("trace identifier contains invalid characters"))
+        })?;
+        default_headers.insert(HEADER_REQUEST_ID, request_id);
+
+        let client = Client::builder()
+            .timeout(Duration::from_secs(cli.timeout))
+            .default_headers(default_headers)
+            .build()
+            .map_err(|err| CliError::failure(anyhow!("failed to build HTTP client: {err}")))?;
+
+        Ok(Self {
+            client,
+            telemetry: TelemetryEmitter::from_env(),
+        })
+    }
+}
+
 /// Parses CLI arguments, executes the requested command, and handles
 /// user-facing telemetry emission.
 #[tokio::main]
@@ -62,9 +89,16 @@ async fn main() {
     let cli = Cli::parse();
     let command_name = command_label(&cli.command);
     let trace_id = Uuid::new_v4().to_string();
-    let telemetry = TelemetryEmitter::from_env();
+    let deps = match CliDependencies::from_env(&cli, &trace_id) {
+        Ok(deps) => deps,
+        Err(err) => {
+            eprintln!("error: {}", err.display_message());
+            process::exit(err.exit_code());
+        }
+    };
+    let telemetry = deps.telemetry.clone();
 
-    let result = run(cli, &trace_id).await;
+    let result = run(cli, &deps).await;
 
     let (exit_code, message, outcome) = match result {
         Ok(()) => (0, None, "success"),
@@ -93,22 +127,11 @@ async fn main() {
     }
 }
 
-async fn run(cli: Cli, trace_id: &str) -> CliResult<()> {
-    let mut default_headers = HeaderMap::new();
-    let request_id = HeaderValue::from_str(trace_id)
-        .map_err(|_| CliError::failure(anyhow!("trace identifier contains invalid characters")))?;
-    default_headers.insert(HEADER_REQUEST_ID, request_id);
-
-    let client = Client::builder()
-        .timeout(Duration::from_secs(cli.timeout))
-        .default_headers(default_headers)
-        .build()
-        .map_err(|err| CliError::failure(anyhow!("failed to build HTTP client: {err}")))?;
-
+async fn run(cli: Cli, deps: &CliDependencies) -> CliResult<()> {
     let api_key = parse_api_key(cli.api_key)?;
 
     let ctx = AppContext {
-        client,
+        client: deps.client.clone(),
         base_url: cli.api_url,
         api_key,
     };
@@ -417,6 +440,7 @@ impl CliError {
     }
 }
 
+#[derive(Clone)]
 struct TelemetryEmitter {
     client: Client,
     endpoint: Url,
