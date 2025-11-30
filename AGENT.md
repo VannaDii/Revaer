@@ -8,6 +8,7 @@
 > 4. **All operations via `just`**. CI **and** local dev MUST use the Justfile—never raw cargo in pipelines.
 > 5. **Stored procedures or bust**: every runtime database interaction is executed via stored procedures; inline SQL is only allowed inside migrations.
 > 6. **`just ci` before every hand-off**: run the full pipeline locally and fix failures before you declare a task done.
+> 7. **Dependencies are injected**: runtime logic receives collaborators from callers (traits/fakes allowed); only bootstrap/wiring code may construct concrete impls or read the environment.
 >
 > **Completion Rule:** Because Codex runs locally, **a task is not complete** until **all requirements in this AGENT.MD are satisfied** and **`just ci` passes cleanly (no warnings, no errors)**.
 
@@ -338,7 +339,127 @@ crates/revaer-ui/src/
 
 Pick the matching archetype and align existing crates; no grab-bag modules at root. Each crate’s `main.rs` (if any) must be a thin bootstrap that defers to `lib.rs`.
 
+---
+
+## 19) File & Module Organization (small, cohesive units)
+
+The goal is that **no single file becomes a grab-bag**. Files must stay **small, cohesive, and named for what they own**. If you’re scrolling forever or adding unrelated types “because they’re nearby,” you’re breaking this rule.
+
+### 19.1 General rules
+
+-   **Single responsibility per file**
+
+    -   Each `*.rs` file must have **one primary responsibility** along a clear axis:
+        -   by layer (`domain`, `app`, `http`, `infra`, `tasks`, `telemetry`, `config`, etc.), or
+        -   by feature/vertical (`torrents`, `setup`, `dashboard`, `indexers`), or
+        -   by type kind (`requests`, `responses`, `errors`, `extractors`, `rate_limit`, etc.).
+    -   If you can’t summarize the file in a single sentence without “and also,” it’s probably doing too much.
+
+-   **File size guidance**
+
+    -   Target **≤ ~300–400 non-test LOC per file** for production code.
+    -   Hitting `clippy::too_many_lines` is treated as a **design smell**, not a lint to be silenced. Fix it by:
+        -   extracting helpers into private functions,
+        -   moving cohesive logic into a dedicated module, or
+        -   splitting the file along a clear responsibility boundary.
+    -   Test modules may be larger, but if a single `tests` module starts to sprawl, split into `mod something_tests;` files under `tests/`.
+
+-   **Naming must reflect contents**
+    -   A file name must clearly describe what it owns. Some canonical patterns:
+        -   `api.rs` – API trait / router wiring for a feature or service.
+        -   `requests.rs` / `responses.rs` – transport DTOs for HTTP.
+        -   `errors.rs` – error enums/types for that module.
+        -   `state.rs` – module-local state structs, not global grab-bags.
+        -   `auth.rs`, `rate_limit.rs`, `sse.rs`, `health.rs` – behaviorally scoped modules.
+    -   If someone can’t guess what’s inside from the filename, rename or split it.
+
+### 19.2 Types-per-file rules (“like-kind” only)
+
+-   **Allowed:** multiple types of the same “kind” in a single file when the name reflects that:
+
+    -   `responses.rs` may contain all HTTP response shapes for a given area:
+        -   `DashboardResponse`, `HealthResponse`, `FullHealthResponse`, etc.
+    -   `errors.rs` may hold `ApiError`, `DomainError`, helper structs like `ErrorRateLimitContext`, as long as they are **error-centric and local** to that module.
+    -   `rate_limit.rs` may hold `RateLimiter`, `RateLimitStatus`, `RateLimitSnapshot`, `RateLimitError`, plus helpers.
+
+-   **Not allowed:** mixing unrelated kinds in one file:
+
+    -   Do **not** define API traits, HTTP handlers, router construction, DTOs, auth extractors, rate limiting, OpenAPI persistence, and test harnesses all in a single `lib.rs` or `api.rs`.
+    -   Do **not** put domain types, HTTP DTOs, and infra adapters in one file “for convenience.”
+    -   If two types **would normally live in different folders** (`domain/`, `http/`, `infra/`, `telemetry/`), they must **not** share a file.
+
+-   **Like-kind rule of thumb**
+    -   If all types would be described with the same suffix in docs (“…response types”, “…request types”, “…rate limiting primitives”, “…auth extractors”), they can share a file.
+    -   If you’d naturally split the sentence (“this file has API traits, response types, and the whole router”), it must be split.
+
+### 19.3 `lib.rs` and `main.rs` constraints
+
+-   **`lib.rs`**
+
+    -   `lib.rs` is for:
+        -   crate docs (`//!`),
+        -   `pub mod` declarations,
+        -   **light** re-exports, and
+        -   very small glue types (simple newtypes, marker traits) that truly represent the crate boundary.
+    -   `lib.rs` must **not**:
+        -   contain full API implementations,
+        -   define large structs with behavior,
+        -   host HTTP handlers, routers, or Axum/Tower wiring,
+        -   embed rate limiting logic, event streaming, or complex state structs.
+    -   Any non-trivial behavior seen in `lib.rs` must be moved to an appropriately named module:
+        -   e.g. `http/api_server.rs`, `http/state.rs`, `http/auth.rs`, `http/rate_limit.rs`, `http/sse.rs`, `http/health.rs`, `http/openapi.rs`, etc., with `lib.rs` re-exporting as needed.
+
+-   **`main.rs`**
+    -   `main.rs` remains a **thin bootstrap only**:
+        -   parse config/CLI,
+        -   initialize telemetry,
+        -   wire concrete implementations,
+        -   call a `run()` in `bootstrap.rs` or equivalent.
+    -   No business logic, no HTTP handlers, no domain types in `main.rs`.
+
+### 19.4 Module hierarchy & layering
+
+-   **Respect crate archetypes (Section 18)** at the directory level and mirror that at the file level:
+
+    -   `http/`:
+        -   `router.rs` – route wiring.
+        -   `handlers/` – one file per feature/vertical (e.g. `torrents.rs`, `setup.rs`, `health.rs`, `dashboard.rs`).
+        -   `dto/` – `requests.rs`, `responses.rs`, `errors.rs`.
+        -   `auth.rs`, `rate_limit.rs`, `sse.rs`, `middleware.rs` – cross-cutting concerns.
+    -   `app/`:
+        -   `services/` – orchestration per use-case (`torrents_service.rs`, `setup_service.rs`).
+        -   No HTTP or transport types here; operate on domain types.
+    -   `domain/`:
+        -   `model/` – core types per concept (`torrent.rs`, `config.rs`).
+        -   `policy/` – rules/decisions in dedicated files.
+        -   `service/` – pure services per domain concern.
+
+-   **Tests and support code**
+    -   Unit tests local to a module live in the same file in `#[cfg(test)] mod tests { … }`, or in a dedicated `modname_tests.rs` if they get large.
+    -   Shared test helpers belong in a test support crate (`revaer-test-support`) or clearly named `tests/fixtures.rs`, **never** in production modules.
+
+### 19.5 Refactoring triggers (when you MUST split a file)
+
+You **must** split or reorganize a file when any of the following are true:
+
+1. Clippy complains about `too_many_lines` and you’re tempted to silence it.
+2. The file defines:
+    - a long-lived state struct (`ApiState`) **and**
+    - a server wrapper (`ApiServer`) **and**
+    - HTTP handlers **and**
+    - middleware **and/or**
+    - DTOs and helper types.
+3. A reviewer or your future self struggles to find where a given behaviour lives (“where is rate limiting implemented?”, “where is SSE filtered?”).
+4. You find yourself using comments like `// region: X` to mentally group sections — each “region” probably deserves a module.
+
+At each trigger, **split by responsibility** and ensure file names and paths reflect the new structure. Update `lib.rs`/`mod.rs` docs to describe the layout after the change.
+
+_This section is normative. If a file organization choice conflicts with 19.x, reorganize the code to comply rather than weakening lints or adding grab-bag files._
+
+---
+
 ### Service/daemon crates (`revaer-api`, `revaer-runtime`, `revaer-doc-indexer`)
+
 ```
 src/
   main.rs       # thin: parse config, call bootstrap
@@ -352,10 +473,12 @@ src/
   tasks/        # background jobs/cron/schedulers (no HTTP handlers)
   telemetry/    # crate-scoped metrics/tracing helpers (rely on revaer-telemetry)
 ```
+
 -   `http` owns request/response DTOs; domain stays JSON-free.
 -   `app` uses interfaces defined in `domain` and implemented in `infra`; no direct DB calls from handlers.
 
 ### CLI crate (`revaer-cli`)
+
 ```
 src/
   main.rs     # thin: parse CLI, invoke commands
@@ -366,9 +489,11 @@ src/
   output.rs   # renderers (table/json), no network
   config.rs   # CLI config loading/merging (reuse revaer-config types)
 ```
+
 -   Commands call `client.rs`/`app` helpers; rendering isolated in `output.rs`.
 
 ### Config crate (`revaer-config`)
+
 ```
 src/
   lib.rs
@@ -377,9 +502,11 @@ src/
   loader.rs    # file/env/cli merge (no globals)
   validate.rs
 ```
+
 -   No runtime state; pure data + validation.
 
 ### Data/migrations crate (`revaer-data`)
+
 ```
 src/
   lib.rs
@@ -388,9 +515,11 @@ src/
 migrations/       # SQL/procs only
 tests/            # integration tests hitting migrator/stores
 ```
+
 -   Runtime code calls stored procedures only; no inline SQL outside migrations.
 
 ### Telemetry crate (`revaer-telemetry`)
+
 ```
 src/
   lib.rs
@@ -400,9 +529,11 @@ src/
   context.rs    # request/task scoped IDs, redaction helpers
   metrics.rs    # metric registrations/helpers
 ```
+
 -   No business logic; only observability primitives consumed by other crates.
 
 ### Events crate (`revaer-events`)
+
 ```
 src/
   lib.rs
@@ -410,9 +541,11 @@ src/
   payloads.rs   # event structs/enums (serde)
   routing.rs    # helper traits for producers/consumers
 ```
+
 -   Pure types + helpers; no transport clients here.
 
 ### Domain/engine crates (`revaer-torrent-core`, `revaer-fsops`)
+
 ```
 src/
   lib.rs
@@ -422,9 +555,11 @@ src/
   planner/      # schedulers/strategies (pure)
   adapters/     # optional abstractions for IO implemented elsewhere
 ```
+
 -   Keep them IO-free; external effects belong to callers/adapters in infra crates.
 
 ### FFI/integration crate (`revaer-torrent-libt`)
+
 ```
 src/
   lib.rs
@@ -433,13 +568,16 @@ src/
   adapter.rs    # safe wrappers around FFI calls
   convert.rs    # mapping between FFI and domain types
 ```
+
 -   Unsafe contained to `ffi.rs`; public surface is safe wrappers.
 
 ### Runtime/support crates (`revaer-runtime`, `revaer-test-support`)
+
 -   `revaer-runtime`: follow Service layout; background workers/schedulers live under `tasks/`; runtime wiring in `bootstrap.rs`.
 -   `revaer-test-support`: helpers/fixtures only. `src/{lib.rs,fixtures.rs,mocks.rs,assert.rs}`; no network/DB side effects by default (use traits/injected clients for fakes).
 
 ### Cross-cutting rules
+
 -   No new root-level catch-all modules (`utils`, `helpers`, `logic`) in any crate. Place code in the archetype folders above.
 -   Retroactive mandate: reorganize existing crates to match; deviations require an ADR with rationale.
 -   Keep domain modules pure; IO and side effects live in `infra`, `http`, or `tasks` as appropriate.
