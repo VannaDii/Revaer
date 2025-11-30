@@ -19,6 +19,7 @@ env:
 jobs:
   # Quick formatting check that can run in parallel
   fmt:
+    name: Check Formatting
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +32,7 @@ jobs:
         run: just fmt
 
   lint:
+    name: Check Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,11 +40,17 @@ jobs:
         with:
           components: rustfmt
       - uses: taiki-e/install-action@just
+
+      - name: Install native libtorrent dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtorrent-rasterbar-dev pkg-config
 
       - name: Lint
         run: just lint
 
   check:
+    name: Run Checks
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -50,11 +58,17 @@ jobs:
         with:
           components: rustfmt
       - uses: taiki-e/install-action@just
+
+      - name: Install native libtorrent dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtorrent-rasterbar-dev pkg-config
 
       - name: Check
         run: just check
 
   coverage:
+    name: Check Coverage
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -63,10 +77,16 @@ jobs:
           components: rustfmt
       - uses: taiki-e/install-action@just
 
+      - name: Install native libtorrent dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtorrent-rasterbar-dev pkg-config
+
       - name: Coverage
         run: just cov
 
   audit:
+    name: Run Audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -79,6 +99,7 @@ jobs:
         run: just audit
 
   deny:
+    name: Check Deny
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -91,6 +112,7 @@ jobs:
         run: just deny
 
   udeps:
+    name: Check Unused Deps
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -98,6 +120,11 @@ jobs:
         with:
           components: rustfmt
       - uses: taiki-e/install-action@just
+
+      - name: Install native libtorrent dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtorrent-rasterbar-dev pkg-config
 
       - name: Unused Deps
         run: just udeps
@@ -148,7 +175,7 @@ jobs:
             docs/api/openapi.json
 
   # Docker build and scan (only on main branch or tags)
-  build-and-push-arch-image:
+  build-images:
     name: Build & push ${{ matrix.name }}
     needs: [fmt, lint, check, coverage, audit, deny, udeps]
 
@@ -182,7 +209,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & push arch-specific image
+      - name: Build & push arch image
         env:
           PLATFORM: ${{ matrix.platform }}
           ARCH_TAG: ${{ matrix.arch_tag }}
