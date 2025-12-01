@@ -8,14 +8,11 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
-    clippy::cargo,
     clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
     missing_docs
 )]
-#![allow(clippy::module_name_repetitions, clippy::multiple_crate_versions)]
-#![allow(unexpected_cfgs)]
 
 //! Filesystem post-processing pipeline for completed torrents.
 
@@ -1750,7 +1747,6 @@ fn build_globset(patterns: Vec<String>) -> Result<Option<GlobSet>> {
 
 #[cfg(test)]
 mod tests {
-    #![allow(clippy::redundant_clone)]
 
     use super::*;
     use std::io::Write;
@@ -2154,9 +2150,9 @@ mod tests {
             Some("hardlink"),
             "transfer mode should record hardlink strategy"
         );
-        let artifact_path = PathBuf::from(
+        let artifact_path = Path::new(
             meta.artifact_path
-                .clone()
+                .as_deref()
                 .expect("artifact path recorded after transfer"),
         );
         let destination_file = artifact_path.join("movie.mkv");
@@ -2184,7 +2180,7 @@ mod tests {
     async fn pipeline_is_idempotent_when_meta_completed() -> Result<()> {
         let bus = EventBus::with_capacity(16);
         let metrics = Metrics::new()?;
-        let service = FsOpsService::new(bus.clone(), metrics);
+        let service = FsOpsService::new(bus, metrics);
         let torrent_id = Uuid::new_v4();
         let temp = TempDir::new()?;
         let policy = sample_policy(temp.path());
@@ -2223,7 +2219,7 @@ mod tests {
     async fn pipeline_resumes_incomplete_meta() -> Result<()> {
         let bus = EventBus::with_capacity(16);
         let metrics = Metrics::new()?;
-        let service = FsOpsService::new(bus.clone(), metrics);
+        let service = FsOpsService::new(bus, metrics);
         let torrent_id = Uuid::new_v4();
         let temp = TempDir::new()?;
         let policy = sample_policy(temp.path());

@@ -1,5 +1,3 @@
-#![allow(missing_docs, unreachable_pub)]
-
 //! HTTP client helpers (REST).
 
 use crate::components::dashboard::{DashboardSnapshot, QueueStatus, TrackerHealth, VpnState};

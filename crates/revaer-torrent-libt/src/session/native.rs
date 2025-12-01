@@ -1,5 +1,3 @@
-#![allow(clippy::redundant_pub_crate)]
-
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use cxx::UniquePtr;
@@ -7,7 +5,7 @@ use tracing::debug;
 use uuid::Uuid;
 
 use crate::command::EngineRuntimeConfig;
-use crate::ffi::bridge::ffi;
+use crate::ffi::ffi;
 use ffi::{NativeEvent, NativeEventKind, NativeTorrentState, SourceKind};
 use revaer_events::TorrentState as EventState;
 use revaer_torrent_core::{
@@ -17,11 +15,11 @@ use revaer_torrent_core::{
 
 use super::LibtSession;
 
-pub(crate) struct NativeSession {
+pub(super) struct NativeSession {
     inner: UniquePtr<ffi::Session>,
 }
 
-pub(crate) fn create_session() -> Result<Box<dyn LibtSession>> {
+pub(super) fn create_session() -> Result<Box<dyn LibtSession>> {
     let options = base_options();
     let inner = initialise_session(&options)?;
     Ok(Box::new(NativeSession { inner }))

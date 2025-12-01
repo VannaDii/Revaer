@@ -1,5 +1,3 @@
-#![allow(clippy::redundant_pub_crate)]
-
 //! qBittorrent compatibility façade (`/api/v2`).
 //!
 //! The façade maps Revaer's domain model onto the subset of qBittorrent

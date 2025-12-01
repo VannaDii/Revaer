@@ -1,6 +1,4 @@
-#![allow(clippy::all)]
-#![allow(unreachable_pub)]
-
+#[allow(missing_docs)]
 #[cxx::bridge(namespace = "revaer")]
 pub mod ffi {
     #[derive(Debug)]
@@ -119,18 +117,31 @@ pub mod ffi {
 
         type Session;
 
+        #[must_use]
         fn new_session(options: &SessionOptions) -> UniquePtr<Session>;
+        #[must_use]
         fn apply_engine_profile(self: Pin<&mut Session>, options: &EngineOptions) -> String;
+        #[must_use]
         fn add_torrent(self: Pin<&mut Session>, request: &AddTorrentRequest) -> String;
+        #[must_use]
         fn remove_torrent(self: Pin<&mut Session>, id: &str, with_data: bool) -> String;
+        #[must_use]
         fn pause_torrent(self: Pin<&mut Session>, id: &str) -> String;
+        #[must_use]
         fn resume_torrent(self: Pin<&mut Session>, id: &str) -> String;
+        #[must_use]
         fn set_sequential(self: Pin<&mut Session>, id: &str, sequential: bool) -> String;
+        #[must_use]
         fn load_fastresume(self: Pin<&mut Session>, id: &str, payload: &[u8]) -> String;
+        #[must_use]
         fn update_limits(self: Pin<&mut Session>, request: &LimitRequest) -> String;
+        #[must_use]
         fn update_selection(self: Pin<&mut Session>, request: &SelectionRules) -> String;
+        #[must_use]
         fn reannounce(self: Pin<&mut Session>, id: &str) -> String;
+        #[must_use]
         fn recheck(self: Pin<&mut Session>, id: &str) -> String;
+        #[must_use]
         fn poll_events(self: Pin<&mut Session>) -> Vec<NativeEvent>;
     }
 }

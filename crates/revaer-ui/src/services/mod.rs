@@ -1,3 +1,3 @@
 //! Transport-layer helpers (REST + SSE).
-pub mod api;
-pub mod sse;
+pub(crate) mod api;
+pub(crate) mod sse;

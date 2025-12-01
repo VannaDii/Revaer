@@ -8,15 +8,11 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
-    clippy::cargo,
     clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
     missing_docs
 )]
-#![allow(clippy::module_name_repetitions)]
-#![allow(unexpected_cfgs)]
-#![allow(clippy::multiple_crate_versions)]
 
 //! Command-line client for interacting with a Revaer server instance.
 
@@ -1441,6 +1437,7 @@ struct SetupStartResponse {
 mod tests {
     use super::*;
     use chrono::Utc;
+    use httpmock::Method::PATCH;
     use httpmock::prelude::*;
     use reqwest::Client;
     use revaer_api::models::{

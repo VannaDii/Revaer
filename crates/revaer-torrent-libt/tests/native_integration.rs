@@ -1,5 +1,3 @@
-#![allow(clippy::print_stdout)]
-
 use std::env;
 use std::time::Duration;
 
@@ -20,11 +18,9 @@ const MAGNET_URI: &str = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
     if env::var("REVAER_NATIVE_IT").is_err() {
-        eprintln!("skipping native libtorrent integration (set REVAER_NATIVE_IT=1 to run)");
         return Ok(());
     }
     if !docker_available() {
-        eprintln!("skipping native libtorrent integration: docker not available");
         return Ok(());
     }
 

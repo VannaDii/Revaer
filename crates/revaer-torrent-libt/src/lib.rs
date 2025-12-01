@@ -8,15 +8,13 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
-    clippy::cargo,
     clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
     missing_docs
 )]
-#![allow(clippy::module_name_repetitions)]
-#![allow(unexpected_cfgs)]
-#![allow(clippy::multiple_crate_versions)]
+
+//! Libtorrent adapter implementation backed by the native C++ session bridge.
 
 //! Libtorrent adapter implementation backed by the native C++ session bridge.
 
@@ -24,10 +22,12 @@
 pub mod command;
 #[cfg(feature = "libtorrent")]
 #[allow(unsafe_code)]
-pub(crate) mod ffi;
-pub(crate) mod session;
+pub mod ffi;
+/// Session abstraction and native/stub implementations.
+pub mod session;
 mod store;
-pub(crate) mod worker;
+/// Background worker that drives the libtorrent session.
+pub mod worker;
 
 pub use command::{EncryptionPolicy, EngineRuntimeConfig};
 pub use store::{FastResumeStore, StoredTorrentMetadata, StoredTorrentState};

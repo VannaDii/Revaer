@@ -1,4 +1,4 @@
-#![allow(clippy::redundant_pub_crate)]
+//! Background task that drives the libtorrent session and emits events.
 
 use crate::{
     EngineRuntimeConfig,
@@ -22,7 +22,8 @@ use uuid::Uuid;
 const ALERT_POLL_INTERVAL: Duration = Duration::from_millis(200);
 const PROGRESS_COALESCE_INTERVAL: Duration = Duration::from_millis(100);
 
-pub(crate) fn spawn(
+/// Launch the background task that consumes engine commands and publishes events.
+pub fn spawn(
     events: EventBus,
     mut commands: mpsc::Receiver<EngineCommand>,
     store: Option<FastResumeStore>,

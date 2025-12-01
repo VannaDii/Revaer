@@ -1,5 +1,3 @@
-#![allow(clippy::redundant_pub_crate)]
-
 use std::collections::HashMap;
 
 use anyhow::{Result, anyhow};
@@ -15,8 +13,9 @@ use super::LibtSession;
 use crate::command::EngineRuntimeConfig;
 use revaer_torrent_core::{FilePriorityOverride, FileSelectionRules};
 
+/// In-memory test double for the libtorrent session interface.
 #[derive(Default)]
-pub(crate) struct StubSession {
+pub struct StubSession {
     torrents: HashMap<Uuid, StubTorrent>,
     pending_events: Vec<EngineEvent>,
 }

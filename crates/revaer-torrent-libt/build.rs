@@ -1,5 +1,3 @@
-#![allow(clippy::all)]
-
 use std::env;
 use std::path::PathBuf;
 

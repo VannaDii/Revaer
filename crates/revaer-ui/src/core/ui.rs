@@ -1,5 +1,4 @@
 //! UI primitives shared across the crate (layout modes, density, panes).
-#![allow(missing_docs)]
 
 /// UI surface mode toggle. Defaults to [`UiMode::Simple`] for first-run users.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

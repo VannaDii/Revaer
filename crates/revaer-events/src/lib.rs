@@ -8,15 +8,11 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
-    clippy::cargo,
     clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
     missing_docs
 )]
-#![allow(clippy::module_name_repetitions)]
-#![allow(clippy::multiple_crate_versions)]
-#![allow(unexpected_cfgs)]
 
 //! Core event bus for the Revaer platform.
 //! Layout: `topics.rs` (identifiers), `payloads.rs` (event types), `routing.rs` (bus helpers).

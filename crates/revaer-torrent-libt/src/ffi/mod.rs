@@ -1,5 +1,6 @@
-#![allow(unreachable_pub)]
+//! CXX bridge exposing the native libtorrent session surface.
 
+#[allow(missing_docs)]
 pub mod bridge;
 
 #[cfg(feature = "libtorrent")]
@@ -8,3 +9,5 @@ pub mod bridge;
 // SAFETY: the C++ session wrapper is created on the main thread and moved into the
 // dedicated worker task exactly once; it is never shared concurrently across threads.
 unsafe impl Send for bridge::ffi::Session {}
+
+pub use bridge::ffi;

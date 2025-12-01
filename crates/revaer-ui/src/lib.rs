@@ -8,14 +8,11 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
-    clippy::cargo,
     clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
     missing_docs
 )]
-#![allow(clippy::module_name_repetitions)]
-#![allow(clippy::multiple_crate_versions)]
 //! Revaer Web UI (Phase 1) scaffolding.
 //! This crate holds the Yew front-end entrypoint plus shared tokens and locale metadata.
 

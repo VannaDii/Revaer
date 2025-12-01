@@ -8,15 +8,11 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
-    clippy::cargo,
     clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
     missing_docs
 )]
-#![allow(clippy::module_name_repetitions)]
-#![allow(unexpected_cfgs)]
-#![allow(clippy::multiple_crate_versions)]
 
 //! Shared data access layer for Revaer: migrations, stored procedures, and repositories.
 
