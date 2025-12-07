@@ -13,6 +13,209 @@ use crate::http::settings::invalid_params_for_config_error;
 use crate::rate_limit::insert_rate_limit_headers;
 use crate::state::ApiState;
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::Result;
+    use async_trait::async_trait;
+    use axum::{
+        Router,
+        body::Body,
+        http::{Request, StatusCode},
+        middleware,
+        routing::get,
+    };
+    use revaer_config::{
+        ApiKeyAuth, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigSnapshot,
+        SettingsChangeset, SetupToken,
+    };
+    use revaer_events::EventBus;
+    use revaer_telemetry::Metrics;
+    use serde_json::json;
+    use std::{
+        net::{IpAddr, Ipv4Addr},
+        time::Duration,
+    };
+    use tower::ServiceExt;
+    use uuid::Uuid;
+
+    #[derive(Clone)]
+    struct MockConfig {
+        mode: AppMode,
+        api_auth: Option<ApiKeyAuth>,
+    }
+
+    #[async_trait]
+    impl crate::config::ConfigFacade for MockConfig {
+        async fn get_app_profile(&self) -> Result<AppProfile> {
+            Ok(AppProfile {
+                id: Uuid::new_v4(),
+                instance_name: "demo".to_string(),
+                mode: self.mode.clone(),
+                version: 1,
+                http_port: 8080,
+                bind_addr: IpAddr::V4(Ipv4Addr::LOCALHOST),
+                telemetry: json!({}),
+                features: json!({}),
+                immutable_keys: json!([]),
+            })
+        }
+
+        async fn issue_setup_token(&self, _: Duration, _: &str) -> Result<SetupToken> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
+
+        async fn validate_setup_token(&self, _: &str) -> Result<()> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
+
+        async fn consume_setup_token(&self, _: &str) -> Result<()> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
+
+        async fn apply_changeset(
+            &self,
+            _: &str,
+            _: &str,
+            _: SettingsChangeset,
+        ) -> Result<AppliedChanges> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
+
+        async fn snapshot(&self) -> Result<ConfigSnapshot> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
+
+        async fn authenticate_api_key(&self, _: &str, _: &str) -> Result<Option<ApiKeyAuth>> {
+            Ok(self.api_auth.clone())
+        }
+    }
+
+    fn router_with_state(state: &Arc<ApiState>) -> Router {
+        Router::new()
+            .route("/", get(|| async { "ok" }))
+            .with_state(state.clone())
+            .route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                require_api_key,
+            ))
+    }
+
+    fn setup_router_with_state(state: &Arc<ApiState>) -> Router {
+        Router::new()
+            .route("/", get(|| async { "setup" }))
+            .with_state(state.clone())
+            .route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                require_setup_token,
+            ))
+    }
+
+    fn api_state(mode: AppMode, auth: Option<ApiKeyAuth>) -> Arc<ApiState> {
+        let metrics = Metrics::new().expect("metrics");
+        Arc::new(ApiState::new(
+            Arc::new(MockConfig {
+                mode,
+                api_auth: auth,
+            }),
+            metrics,
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            None,
+        ))
+    }
+
+    #[tokio::test]
+    async fn require_api_key_rejects_missing_and_invalid() {
+        let state = api_state(AppMode::Active, None);
+        let app = router_with_state(&state);
+
+        let response = app
+            .clone()
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header(crate::http::constants::HEADER_API_KEY, "invalid")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn require_api_key_allows_authenticated_request() {
+        let auth = ApiKeyAuth {
+            key_id: "demo".to_string(),
+            label: Some("label".to_string()),
+            rate_limit: Some(ApiKeyRateLimit {
+                burst: 5,
+                replenish_period: Duration::from_secs(60),
+            }),
+        };
+        let state = api_state(AppMode::Active, Some(auth));
+        let app = router_with_state(&state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header(crate::http::constants::HEADER_API_KEY, "demo:secret-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn require_setup_token_enforces_mode_and_header() {
+        let state = api_state(AppMode::Setup, None);
+        let app = setup_router_with_state(&state);
+
+        let missing = app
+            .clone()
+            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(missing.status(), StatusCode::UNAUTHORIZED);
+
+        let ok = app
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header(crate::http::constants::HEADER_SETUP_TOKEN, "token-123")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(ok.status(), StatusCode::OK);
+
+        // Active mode should reject setup tokens.
+        let active_app = setup_router_with_state(&api_state(AppMode::Active, None));
+        let rejected = active_app
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header(crate::http::constants::HEADER_SETUP_TOKEN, "token-123")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(rejected.status(), StatusCode::CONFLICT);
+    }
+}
+
 #[derive(Clone)]
 pub(crate) enum AuthContext {
     SetupToken(String),

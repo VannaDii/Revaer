@@ -22,5 +22,4 @@ tracing.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
-testcontainers = "0.25"
-revaer-test-support.workspace = true
+revaer-test-support = { path = "../revaer-test-support" }

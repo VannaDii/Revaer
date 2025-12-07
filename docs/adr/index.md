@@ -20,6 +20,7 @@ ADR documents capture the rationale behind significant technical decisions.
 - [015](015-agent-compliance-hardening.md) – Agent compliance hardening
 - [016](016-libtorrent-restoration.md) – Libtorrent restoration
 - [017](017-sqlx-named-bind.md) – Avoid `sqlx-named-bind`
+- [018](018-retire-testcontainers.md) – Retire testcontainers
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

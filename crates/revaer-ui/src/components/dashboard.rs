@@ -33,7 +33,6 @@ pub(crate) struct DashboardEvent {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-#[allow(dead_code)]
 pub(crate) enum EventKind {
     Info,
     Warning,

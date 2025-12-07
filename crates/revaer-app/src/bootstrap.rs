@@ -83,7 +83,11 @@ impl BootstrapDependencies {
 }
 
 /// Entry point for the Revaer application boot sequence.
-pub(crate) async fn run_app() -> Result<()> {
+///
+/// # Errors
+///
+/// Returns an error if dependency construction or application startup fails.
+pub async fn run_app() -> Result<()> {
     let dependencies = BootstrapDependencies::from_env().await?;
     run_app_with(dependencies).await
 }

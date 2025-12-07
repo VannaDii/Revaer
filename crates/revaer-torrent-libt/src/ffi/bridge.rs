@@ -1,146 +1,238 @@
-#[allow(missing_docs)]
 #[cxx::bridge(namespace = "revaer")]
+/// Native bridge types and functions exposed to Rust.
 pub mod ffi {
+    /// Options used when constructing a libtorrent session.
     #[derive(Debug)]
     struct SessionOptions {
+        /// Root path for active downloads.
         download_root: String,
+        /// Directory used to persist resume data.
         resume_dir: String,
+        /// Whether to enable DHT.
         enable_dht: bool,
+        /// Default sequential download preference.
         sequential_default: bool,
     }
 
+    /// Runtime engine configuration forwarded to the native layer.
     #[derive(Debug)]
     struct EngineOptions {
+        /// Desired listen port for the engine.
         listen_port: i32,
+        /// Whether to apply the listen port override.
         set_listen_port: bool,
+        /// Whether to enable DHT.
         enable_dht: bool,
+        /// Maximum active torrents.
         max_active: i32,
+        /// Global download cap in bytes per second.
         download_rate_limit: i64,
+        /// Global upload cap in bytes per second.
         upload_rate_limit: i64,
+        /// Default sequential preference for torrents.
         sequential_default: bool,
+        /// Encryption policy flag.
         encryption_policy: u8,
+        /// Root path for downloads.
         download_root: String,
+        /// Directory for resume data.
         resume_dir: String,
     }
 
+    /// Request payload for adding a torrent to the native session.
     #[derive(Debug)]
     struct AddTorrentRequest {
+        /// Torrent identifier.
         id: String,
+        /// Whether the source is magnet or metainfo.
         source_kind: SourceKind,
+        /// Magnet URI when applicable.
         magnet_uri: String,
+        /// Raw metainfo payload when applicable.
         metainfo: Vec<u8>,
+        /// Override download directory.
         download_dir: String,
+        /// Flag indicating whether a download dir override was provided.
         has_download_dir: bool,
+        /// Sequential preference override.
         sequential: bool,
+        /// Flag indicating whether sequential override was provided.
         has_sequential_override: bool,
+        /// Tags associated with the torrent.
         tags: Vec<String>,
     }
 
+    /// Rate limit update applied globally or for a specific torrent.
     #[derive(Debug)]
     struct LimitRequest {
+        /// Whether the limit applies globally.
         apply_globally: bool,
+        /// Torrent identifier (empty when global).
         id: String,
+        /// Download cap in bytes per second.
         download_bps: i64,
+        /// Upload cap in bytes per second.
         upload_bps: i64,
     }
 
+    /// Per-file priority override entry.
     #[derive(Debug)]
     struct FilePriorityOverride {
+        /// File index within the torrent.
         index: u32,
+        /// Desired priority flag.
         priority: u8,
     }
 
+    /// Selection rules pushed down to libtorrent.
     #[derive(Debug)]
     struct SelectionRules {
+        /// Torrent identifier.
         id: String,
+        /// Inclusion globs.
         include: Vec<String>,
+        /// Exclusion globs.
         exclude: Vec<String>,
+        /// Priority overrides.
         priorities: Vec<FilePriorityOverride>,
+        /// Whether to drop fluff files.
         skip_fluff: bool,
     }
 
+    /// File metadata emitted by the native session.
     #[derive(Debug)]
     struct NativeFile {
+        /// File index within the torrent.
         index: u32,
+        /// File path.
         path: String,
+        /// File size in bytes.
         size_bytes: u64,
     }
 
+    /// Event envelope emitted by the native session.
     #[derive(Debug)]
     struct NativeEvent {
+        /// Torrent identifier.
         id: String,
+        /// Event kind.
         kind: NativeEventKind,
+        /// Torrent state snapshot.
         state: NativeTorrentState,
+        /// Torrent name.
         name: String,
+        /// Download directory in use.
         download_dir: String,
+        /// Library path once moved.
         library_path: String,
+        /// Bytes downloaded so far.
         bytes_downloaded: u64,
+        /// Total bytes expected.
         bytes_total: u64,
+        /// Current download rate.
         download_bps: u64,
+        /// Current upload rate.
         upload_bps: u64,
+        /// Current share ratio.
         ratio: f64,
+        /// File list snapshot.
         files: Vec<NativeFile>,
+        /// Serialized resume data.
         resume_data: Vec<u8>,
+        /// Human-readable message, when present.
         message: String,
     }
 
+    /// Event kinds surfaced by the native bridge.
     #[derive(Debug)]
     enum NativeEventKind {
+        /// Newly discovered files.
         FilesDiscovered,
+        /// Progress update.
         Progress,
+        /// State transition.
         StateChanged,
+        /// Completion notification.
         Completed,
+        /// Metadata update.
         MetadataUpdated,
+        /// New resume data generated.
         ResumeData,
+        /// Error encountered.
         Error,
     }
 
+    /// Torrent lifecycle states emitted by libtorrent.
     #[derive(Debug)]
     enum NativeTorrentState {
+        /// Waiting to start.
         Queued,
+        /// Fetching metadata.
         FetchingMetadata,
+        /// Actively downloading.
         Downloading,
+        /// Seeding.
         Seeding,
+        /// Completed state.
         Completed,
+        /// Failed state.
         Failed,
+        /// Explicitly stopped.
         Stopped,
     }
 
+    /// Source type used when adding a torrent.
     #[derive(Debug)]
     enum SourceKind {
+        /// Magnet URI source.
         Magnet,
+        /// Metainfo bytes source.
         Metainfo,
     }
 
     unsafe extern "C++" {
         include!("revaer/session.hpp");
 
+        /// Opaque handle to the native libtorrent session.
         type Session;
 
+        /// Create a new libtorrent session with the provided options.
         #[must_use]
         fn new_session(options: &SessionOptions) -> UniquePtr<Session>;
+        /// Apply an engine profile to the running session.
         #[must_use]
         fn apply_engine_profile(self: Pin<&mut Session>, options: &EngineOptions) -> String;
+        /// Add a torrent to the session.
         #[must_use]
         fn add_torrent(self: Pin<&mut Session>, request: &AddTorrentRequest) -> String;
+        /// Remove a torrent and optionally its data.
         #[must_use]
         fn remove_torrent(self: Pin<&mut Session>, id: &str, with_data: bool) -> String;
+        /// Pause a torrent in the session.
         #[must_use]
         fn pause_torrent(self: Pin<&mut Session>, id: &str) -> String;
+        /// Resume a paused torrent.
         #[must_use]
         fn resume_torrent(self: Pin<&mut Session>, id: &str) -> String;
+        /// Toggle sequential mode for a torrent.
         #[must_use]
         fn set_sequential(self: Pin<&mut Session>, id: &str, sequential: bool) -> String;
+        /// Load fast-resume payload for a torrent.
         #[must_use]
         fn load_fastresume(self: Pin<&mut Session>, id: &str, payload: &[u8]) -> String;
+        /// Apply rate limits to the session or a specific torrent.
         #[must_use]
         fn update_limits(self: Pin<&mut Session>, request: &LimitRequest) -> String;
+        /// Update selection rules for a torrent.
         #[must_use]
         fn update_selection(self: Pin<&mut Session>, request: &SelectionRules) -> String;
+        /// Trigger tracker reannounce.
         #[must_use]
         fn reannounce(self: Pin<&mut Session>, id: &str) -> String;
+        /// Recheck on-disk data for a torrent.
         #[must_use]
         fn recheck(self: Pin<&mut Session>, id: &str) -> String;
+        /// Poll pending events from the session.
         #[must_use]
         fn poll_events(self: Pin<&mut Session>) -> Vec<NativeEvent>;
     }

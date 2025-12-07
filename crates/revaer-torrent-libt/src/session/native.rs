@@ -35,8 +35,7 @@ impl NativeSession {
     }
 }
 
-#[allow(clippy::missing_const_for_fn)]
-fn base_options() -> ffi::SessionOptions {
+const fn base_options() -> ffi::SessionOptions {
     ffi::SessionOptions {
         download_root: String::new(),
         resume_dir: String::new(),

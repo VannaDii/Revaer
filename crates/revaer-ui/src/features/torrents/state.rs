@@ -3,7 +3,6 @@
 use crate::models::TorrentSummary;
 
 /// UI-friendly torrent snapshot used across list/state helpers.
-#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct TorrentRow {
     /// Stable torrent identifier.

@@ -174,3 +174,207 @@ pub(crate) async fn metrics(State(state): State<Arc<ApiState>>) -> Result<Respon
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::ConfigFacade;
+    use anyhow::{Result, anyhow};
+    use async_trait::async_trait;
+    use chrono::Utc;
+    use revaer_config::{
+        ApiKeyAuth, AppProfile, AppliedChanges, ConfigSnapshot, EngineProfile, FsPolicy,
+        SettingsChangeset, SetupToken,
+    };
+    use revaer_events::EventBus;
+    use revaer_telemetry::Metrics;
+    use serde_json::json;
+    use std::time::Duration;
+    use uuid::Uuid;
+
+    #[derive(Clone)]
+    struct StubConfig {
+        snapshot: ConfigSnapshot,
+        fail: bool,
+    }
+
+    impl StubConfig {
+        fn healthy(mode: AppMode) -> Self {
+            Self {
+                snapshot: sample_snapshot(mode),
+                fail: false,
+            }
+        }
+
+        fn failing(mode: AppMode) -> Self {
+            Self {
+                snapshot: sample_snapshot(mode),
+                fail: true,
+            }
+        }
+
+        fn maybe_fail<T>(&self, value: T) -> Result<T> {
+            if self.fail {
+                Err(anyhow!("config unavailable"))
+            } else {
+                Ok(value)
+            }
+        }
+    }
+
+    #[async_trait]
+    impl ConfigFacade for StubConfig {
+        async fn get_app_profile(&self) -> Result<AppProfile> {
+            self.maybe_fail(self.snapshot.app_profile.clone())
+        }
+
+        async fn issue_setup_token(&self, _ttl: Duration, _issued_by: &str) -> Result<SetupToken> {
+            self.maybe_fail(SetupToken {
+                plaintext: "token".into(),
+                expires_at: Utc::now(),
+            })
+        }
+
+        async fn validate_setup_token(&self, _token: &str) -> Result<()> {
+            self.maybe_fail(())
+        }
+
+        async fn consume_setup_token(&self, _token: &str) -> Result<()> {
+            self.maybe_fail(())
+        }
+
+        async fn apply_changeset(
+            &self,
+            _actor: &str,
+            _reason: &str,
+            _changeset: SettingsChangeset,
+        ) -> Result<AppliedChanges> {
+            self.maybe_fail(())?;
+            Err(anyhow!("not implemented"))
+        }
+
+        async fn snapshot(&self) -> Result<ConfigSnapshot> {
+            self.maybe_fail(self.snapshot.clone())
+        }
+
+        async fn authenticate_api_key(
+            &self,
+            _key_id: &str,
+            _secret: &str,
+        ) -> Result<Option<ApiKeyAuth>> {
+            self.maybe_fail(None)
+        }
+    }
+
+    fn sample_snapshot(mode: AppMode) -> ConfigSnapshot {
+        ConfigSnapshot {
+            revision: 7,
+            app_profile: AppProfile {
+                id: Uuid::nil(),
+                instance_name: "test".into(),
+                mode,
+                version: 1,
+                http_port: 3030,
+                bind_addr: "127.0.0.1".parse().expect("bind addr"),
+                telemetry: json!({}),
+                features: json!({}),
+                immutable_keys: json!([]),
+            },
+            engine_profile: EngineProfile {
+                id: Uuid::nil(),
+                implementation: "stub".into(),
+                listen_port: None,
+                dht: true,
+                encryption: "prefer".into(),
+                max_active: Some(1),
+                max_download_bps: None,
+                max_upload_bps: None,
+                sequential_default: false,
+                resume_dir: "/tmp".into(),
+                download_root: "/tmp/downloads".into(),
+                tracker: json!([]),
+            },
+            fs_policy: FsPolicy {
+                id: Uuid::nil(),
+                library_root: "/tmp/library".into(),
+                extract: false,
+                par2: "disabled".into(),
+                flatten: false,
+                move_mode: "copy".into(),
+                cleanup_keep: json!([]),
+                cleanup_drop: json!([]),
+                chmod_file: None,
+                chmod_dir: None,
+                owner: None,
+                group: None,
+                umask: None,
+                allow_paths: json!([]),
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn health_success_clears_degraded_component() {
+        let config: Arc<dyn ConfigFacade> = Arc::new(StubConfig::healthy(AppMode::Active));
+        let telemetry = Metrics::new().expect("metrics");
+        let state = Arc::new(ApiState::new(
+            config,
+            telemetry,
+            Arc::new(json!({})),
+            EventBus::new(),
+            None,
+        ));
+        state.add_degraded_component("database");
+
+        let response = health(State(state.clone())).await.expect("health ok");
+        assert_eq!(response.0.status, "ok");
+        assert!(
+            state.current_health_degraded().is_empty(),
+            "database component should be cleared on success"
+        );
+    }
+
+    #[tokio::test]
+    async fn health_failure_marks_database_degraded() {
+        let config: Arc<dyn ConfigFacade> = Arc::new(StubConfig::failing(AppMode::Active));
+        let telemetry = Metrics::new().expect("metrics");
+        let state = Arc::new(ApiState::new(
+            config,
+            telemetry,
+            Arc::new(json!({})),
+            EventBus::new(),
+            None,
+        ));
+
+        let Err(err) = health(State(state.clone())).await else {
+            panic!("expected failure")
+        };
+        assert_eq!(err.status, StatusCode::SERVICE_UNAVAILABLE);
+        assert!(
+            state
+                .current_health_degraded()
+                .iter()
+                .any(|component| component == "database"),
+            "database component should be marked degraded on failure"
+        );
+    }
+
+    #[tokio::test]
+    async fn dashboard_maps_config_errors_to_internal() {
+        let config: Arc<dyn ConfigFacade> = Arc::new(StubConfig::failing(AppMode::Active));
+        let telemetry = Metrics::new().expect("metrics");
+        let state = Arc::new(ApiState::new(
+            config,
+            telemetry,
+            Arc::new(json!({})),
+            EventBus::new(),
+            None,
+        ));
+
+        let Err(result) = dashboard(State(state)).await else {
+            panic!("expected dashboard failure")
+        };
+        assert_eq!(result.status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(result.kind, crate::http::constants::PROBLEM_INTERNAL);
+    }
+}

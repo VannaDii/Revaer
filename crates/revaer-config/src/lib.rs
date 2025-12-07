@@ -16,9 +16,10 @@
 
 //! Database-backed configuration facade built on `PostgreSQL`.
 //!
-//! This module exposes a `SettingsFacade` trait and a concrete `ConfigService`
-//! that coordinates migrations, safe reads, and LISTEN/NOTIFY driven updates
-//! for runtime configuration.
+//! Layout: `model.rs` (typed config models and changesets), `validate.rs`
+//! (validation/parsing helpers and `ConfigError`), with `lib.rs` hosting the
+//! `SettingsFacade`/`ConfigService` implementation and history/persistence
+//! glue.
 
 use anyhow::{Context, Result, anyhow, ensure};
 use argon2::Argon2;
@@ -27,7 +28,7 @@ use argon2::password_hash::{
     rand_core::OsRng,
 };
 use async_trait::async_trait;
-use chrono::{DateTime, Duration as ChronoDuration, Utc};
+use chrono::{Duration as ChronoDuration, Utc};
 use rand::Rng;
 use rand::distr::Alphanumeric;
 use revaer_data::config::{
@@ -35,7 +36,6 @@ use revaer_data::config::{
     EngineTextField, FsArrayField, FsBooleanField, FsOptionalStringField, FsPolicyRow,
     FsStringField, HistoryInsert, NewSetupToken, SETTINGS_CHANNEL,
 };
-use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use sqlx::postgres::{PgListener, PgNotification, PgPoolOptions};
 use sqlx::{Executor, Postgres, Transaction};
@@ -44,131 +44,30 @@ use std::convert::TryFrom;
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::Duration;
-use thiserror::Error;
 use tokio::time::sleep;
 use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
+mod model;
+pub(crate) mod validate;
+use crate::validate::{
+    parse_api_key_rate_limit, parse_api_key_rate_limit_for_config, parse_bind_addr, parse_port,
+    parse_uuid,
+};
+
+pub use model::{
+    ApiKeyAuth, ApiKeyPatch, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigSnapshot,
+    EngineProfile, FsPolicy, SecretPatch, SettingsChange, SettingsChangeset, SettingsPayload,
+    SetupToken,
+};
+pub use validate::ConfigError;
+
 const APP_PROFILE_ID: &str = "00000000-0000-0000-0000-000000000001";
 const ENGINE_PROFILE_ID: &str = "00000000-0000-0000-0000-000000000002";
 const FS_POLICY_ID: &str = "00000000-0000-0000-0000-000000000003";
-/// High-level view of the application profile.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AppProfile {
-    /// Primary key for the application profile row.
-    pub id: Uuid,
-    /// Friendly identifier displayed in user interfaces.
-    pub instance_name: String,
-    /// Operating mode (`setup` or `active`).
-    pub mode: AppMode,
-    /// Monotonic version used to detect concurrent updates.
-    pub version: i64,
-    /// HTTP port the API server should bind to.
-    pub http_port: i32,
-    /// IP address (and interface) the API server should bind to.
-    pub bind_addr: IpAddr,
-    /// Structured telemetry configuration (JSON object).
-    pub telemetry: Value,
-    /// Feature flags exposed to the application (JSON object).
-    pub features: Value,
-    /// Immutable keys that must not be edited by clients.
-    pub immutable_keys: Value,
-}
+// Models are defined in model.rs.
 
-/// Setup or active mode flag recorded in `app_profile.mode`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "lowercase")]
-pub enum AppMode {
-    /// Provisioning mode that restricts APIs to setup operations.
-    Setup,
-    /// Normal operational mode.
-    Active,
-}
-
-impl FromStr for AppMode {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "setup" => Ok(Self::Setup),
-            "active" => Ok(Self::Active),
-            other => Err(anyhow!("invalid app mode '{other}'")),
-        }
-    }
-}
-
-impl AppMode {
-    #[must_use]
-    /// Render the mode as its lowercase string representation.
-    pub const fn as_str(&self) -> &'static str {
-        match self {
-            Self::Setup => "setup",
-            Self::Active => "active",
-        }
-    }
-}
-
-/// Engine configuration surfaced to consumers.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EngineProfile {
-    /// Primary key for the engine profile row.
-    pub id: Uuid,
-    /// Engine implementation identifier (e.g., `stub`, `libtorrent`).
-    pub implementation: String,
-    /// Optional TCP port the engine should listen on.
-    pub listen_port: Option<i32>,
-    /// Whether the engine enables the DHT subsystem.
-    pub dht: bool,
-    /// Encryption policy string forwarded to the engine.
-    pub encryption: String,
-    /// Maximum number of concurrent active torrents.
-    pub max_active: Option<i32>,
-    /// Global download cap in bytes per second.
-    pub max_download_bps: Option<i64>,
-    /// Global upload cap in bytes per second.
-    pub max_upload_bps: Option<i64>,
-    /// Whether torrents default to sequential download.
-    pub sequential_default: bool,
-    /// Filesystem path for storing resume data.
-    pub resume_dir: String,
-    /// Root directory for active downloads.
-    pub download_root: String,
-    /// Arbitrary tracker configuration payload (JSON object).
-    pub tracker: Value,
-}
-
-/// Filesystem policy configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FsPolicy {
-    /// Primary key for the filesystem policy row.
-    pub id: Uuid,
-    /// Destination directory for completed artifacts.
-    pub library_root: String,
-    /// Whether archives should be extracted automatically.
-    pub extract: bool,
-    /// PAR2 verification policy (`disabled`, `verify`, etc.).
-    pub par2: String,
-    /// Whether nested directory structures should be flattened.
-    pub flatten: bool,
-    /// Move mode (`copy`, `move`, `hardlink`).
-    pub move_mode: String,
-    /// Cleanup rules describing paths to retain (JSON array).
-    pub cleanup_keep: Value,
-    /// Cleanup rules describing paths to purge (JSON array).
-    pub cleanup_drop: Value,
-    /// Optional chmod value applied to files.
-    pub chmod_file: Option<String>,
-    /// Optional chmod value applied to directories.
-    pub chmod_dir: Option<String>,
-    /// Optional owner applied to moved files.
-    pub owner: Option<String>,
-    /// Optional group applied to moved files.
-    pub group: Option<String>,
-    /// Optional umask enforced during filesystem operations.
-    pub umask: Option<String>,
-    /// Allow-list of destination paths (JSON array).
-    pub allow_paths: Value,
-}
+// Models are defined in model.rs.
 
 #[async_trait]
 /// Abstraction over configuration backends used by the application service.
@@ -194,136 +93,10 @@ pub trait SettingsFacade: Send + Sync {
     async fn consume_setup_token(&self, token: &str) -> Result<()>;
 }
 
-/// Structured change payload emitted by LISTEN/NOTIFY.
+// Models are defined in model.rs.
+
+/// Pending history entry captured before persistence.
 #[derive(Debug, Clone)]
-pub struct SettingsChange {
-    /// Database table that triggered the notification.
-    pub table: String,
-    /// Revision recorded after applying the change.
-    pub revision: i64,
-    /// Operation descriptor (`insert`, `update`, `delete`).
-    pub operation: String,
-    /// Optional payload describing the updated document.
-    pub payload: SettingsPayload,
-}
-
-/// Optional rich payload associated with a `SettingsChange`.
-#[derive(Debug, Clone)]
-pub enum SettingsPayload {
-    /// Application profile document that changed.
-    AppProfile(AppProfile),
-    /// Engine profile document that changed.
-    EngineProfile(EngineProfile),
-    /// Filesystem policy document that changed.
-    FsPolicy(FsPolicy),
-    /// Notification that did not include a payload.
-    None,
-}
-
-/// Structured errors emitted during configuration validation/mutation.
-#[derive(Debug, Error)]
-pub enum ConfigError {
-    /// Attempted to modify a field marked as immutable.
-    #[error("immutable field '{field}' in '{section}' cannot be modified")]
-    ImmutableField {
-        /// Section containing the immutable field.
-        section: String,
-        /// Name of the immutable field.
-        field: String,
-    },
-
-    /// Field contained an invalid value.
-    #[error("invalid value for '{field}' in '{section}': {message}")]
-    InvalidField {
-        /// Section that failed validation.
-        section: String,
-        /// Field that failed validation.
-        field: String,
-        /// Human-readable error description.
-        message: String,
-    },
-
-    /// Field did not exist in the target section.
-    #[error("unknown field '{field}' in '{section}' settings")]
-    UnknownField {
-        /// Section where the unknown field was encountered.
-        section: String,
-        /// Name of the unexpected field.
-        field: String,
-    },
-}
-
-/// Structured request describing modifications to config documents.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct SettingsChangeset {
-    /// Optional application profile update payload.
-    pub app_profile: Option<Value>,
-    /// Optional engine profile update payload.
-    pub engine_profile: Option<Value>,
-    /// Optional filesystem policy update payload.
-    pub fs_policy: Option<Value>,
-    /// API key upserts/deletions included in the changeset.
-    pub api_keys: Vec<ApiKeyPatch>,
-    /// Secret store mutations included in the changeset.
-    pub secrets: Vec<SecretPatch>,
-}
-
-/// Patch description for API keys.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "op", rename_all = "lowercase")]
-pub enum ApiKeyPatch {
-    /// Insert or update an API key record.
-    Upsert {
-        /// Identifier for the API key.
-        key_id: String,
-        /// Optional human-readable label.
-        label: Option<String>,
-        /// Optional enabled flag override.
-        enabled: Option<bool>,
-        /// Optional new secret value.
-        secret: Option<String>,
-        /// Optional rate limit configuration payload.
-        rate_limit: Option<Value>,
-    },
-    /// Remove an API key record.
-    Delete {
-        /// Identifier for the API key to remove.
-        key_id: String,
-    },
-}
-
-/// Patch description for secrets stored in `settings_secret`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "op", rename_all = "lowercase")]
-pub enum SecretPatch {
-    /// Insert or update a secret value.
-    Set {
-        /// Secret key identifier.
-        name: String,
-        /// Secret value material.
-        value: String,
-    },
-    /// Remove a secret entry.
-    Delete {
-        /// Secret key identifier to remove.
-        name: String,
-    },
-}
-
-/// Context returned after applying a changeset.
-#[derive(Debug, Clone, Serialize)]
-pub struct AppliedChanges {
-    /// Revision recorded after the changeset was applied.
-    pub revision: i64,
-    /// New application profile snapshot when relevant.
-    pub app_profile: Option<AppProfile>,
-    /// Updated engine profile snapshot when relevant.
-    pub engine_profile: Option<EngineProfile>,
-    /// Updated filesystem policy snapshot when relevant.
-    pub fs_policy: Option<FsPolicy>,
-}
-
-#[derive(Debug)]
 struct PendingHistoryEntry {
     kind: &'static str,
     old: Option<Value>,
@@ -354,46 +127,7 @@ async fn persist_history_entries(
     Ok(())
 }
 
-/// Token representation surfaced to the caller. The plaintext value is only
-/// available at issuance time.
-#[derive(Debug, Clone)]
-pub struct SetupToken {
-    /// Clear-text token value (only returned at issuance time).
-    pub plaintext: String,
-    /// Expiration timestamp for the token.
-    pub expires_at: DateTime<Utc>,
-}
-
-/// Authentication context returned for a validated API key.
-#[derive(Debug, Clone)]
-pub struct ApiKeyAuth {
-    /// Unique identifier associated with the API key record.
-    pub key_id: String,
-    /// Optional human-readable label for the key.
-    pub label: Option<String>,
-    /// Optional token-bucket rate limit applied to requests.
-    pub rate_limit: Option<ApiKeyRateLimit>,
-}
-
-/// Token-bucket rate limit configuration applied per API key.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ApiKeyRateLimit {
-    /// Maximum number of requests allowed within a replenishment window.
-    pub burst: u32,
-    /// Duration between token replenishments.
-    pub replenish_period: Duration,
-}
-
-impl ApiKeyRateLimit {
-    /// Serialise the rate limit into a stable JSON representation.
-    #[must_use]
-    pub fn to_json(&self) -> Value {
-        json!({
-            "burst": self.burst,
-            "per_seconds": self.replenish_period.as_secs(),
-        })
-    }
-}
+// Rate limit/authentication models are defined in model.rs.
 
 /// Stream wrapper around a `PostgreSQL` LISTEN connection.
 pub struct SettingsStream {
@@ -575,19 +309,6 @@ impl ConfigService {
             rate_limit,
         }))
     }
-}
-
-/// Captures a consistent view of configuration at a given revision.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConfigSnapshot {
-    /// Revision of the configuration snapshot.
-    pub revision: i64,
-    /// Application profile in effect for this revision.
-    pub app_profile: AppProfile,
-    /// Engine profile describing torrent runtime behaviour.
-    pub engine_profile: EngineProfile,
-    /// Filesystem policy applied to completed torrents.
-    pub fs_policy: FsPolicy,
 }
 
 /// Watches configuration changes, automatically falling back to polling if
@@ -1259,31 +980,6 @@ async fn bump_app_profile_version(tx: &mut Transaction<'_, Postgres>, app_id: Uu
     Ok(())
 }
 
-fn parse_port(value: &Value, section: &str, field: &str) -> Result<i32> {
-    let Some(port) = value.as_i64() else {
-        return Err(ConfigError::InvalidField {
-            section: section.to_string(),
-            field: field.to_string(),
-            message: "must be an integer".to_string(),
-        }
-        .into());
-    };
-    ensure!(
-        (1..=i64::from(u16::MAX)).contains(&port),
-        ConfigError::InvalidField {
-            section: section.to_string(),
-            field: field.to_string(),
-            message: "must be between 1 and 65535".to_string(),
-        }
-    );
-    let port_i32 = i32::try_from(port).map_err(|_| ConfigError::InvalidField {
-        section: section.to_string(),
-        field: field.to_string(),
-        message: "must fit within 32-bit signed integer range".to_string(),
-    })?;
-    Ok(port_i32)
-}
-
 fn ensure_object(value: &Value, section: &str, field: &str) -> Result<()> {
     ensure!(
         value.is_object(),
@@ -1940,84 +1636,6 @@ async fn apply_secret_patches(
     Ok(events)
 }
 
-fn parse_api_key_rate_limit(value: &Value) -> Result<Option<ApiKeyRateLimit>> {
-    parse_api_key_rate_limit_for_config(value).map_err(Into::into)
-}
-
-fn parse_api_key_rate_limit_for_config(
-    value: &Value,
-) -> Result<Option<ApiKeyRateLimit>, ConfigError> {
-    let Value::Object(map) = value else {
-        if value.is_null() {
-            return Ok(None);
-        }
-        return Err(ConfigError::InvalidField {
-            section: "auth_api_keys".to_string(),
-            field: "rate_limit".to_string(),
-            message: "must be a JSON object with burst and per_seconds fields".to_string(),
-        });
-    };
-
-    if map.is_empty() {
-        return Ok(None);
-    }
-
-    let burst = map
-        .get("burst")
-        .ok_or_else(|| ConfigError::InvalidField {
-            section: "auth_api_keys".to_string(),
-            field: "rate_limit".to_string(),
-            message: "missing 'burst' field".to_string(),
-        })?
-        .as_u64()
-        .ok_or_else(|| ConfigError::InvalidField {
-            section: "auth_api_keys".to_string(),
-            field: "rate_limit".to_string(),
-            message: "'burst' must be a positive integer".to_string(),
-        })?;
-
-    if burst == 0 {
-        return Err(ConfigError::InvalidField {
-            section: "auth_api_keys".to_string(),
-            field: "rate_limit".to_string(),
-            message: "'burst' must be between 1 and 4_294_967_295".to_string(),
-        });
-    }
-
-    let burst = u32::try_from(burst).map_err(|_| ConfigError::InvalidField {
-        section: "auth_api_keys".to_string(),
-        field: "rate_limit".to_string(),
-        message: "'burst' must be between 1 and 4_294_967_295".to_string(),
-    })?;
-
-    let per_seconds = map
-        .get("per_seconds")
-        .ok_or_else(|| ConfigError::InvalidField {
-            section: "auth_api_keys".to_string(),
-            field: "rate_limit".to_string(),
-            message: "missing 'per_seconds' field".to_string(),
-        })?
-        .as_u64()
-        .ok_or_else(|| ConfigError::InvalidField {
-            section: "auth_api_keys".to_string(),
-            field: "rate_limit".to_string(),
-            message: "'per_seconds' must be a positive integer".to_string(),
-        })?;
-
-    if per_seconds == 0 {
-        return Err(ConfigError::InvalidField {
-            section: "auth_api_keys".to_string(),
-            field: "rate_limit".to_string(),
-            message: "'per_seconds' must be greater than zero".to_string(),
-        });
-    }
-
-    Ok(Some(ApiKeyRateLimit {
-        burst,
-        replenish_period: Duration::from_secs(per_seconds),
-    }))
-}
-
 fn serialise_rate_limit(limit: Option<&ApiKeyRateLimit>) -> Value {
     limit.map_or_else(|| Value::Object(Map::new()), ApiKeyRateLimit::to_json)
 }
@@ -2099,61 +1717,11 @@ fn ensure_mutable(
     Ok(())
 }
 
-fn parse_uuid(value: &str) -> Result<Uuid> {
-    Uuid::parse_str(value).with_context(|| format!("invalid UUID literal '{value}'"))
-}
-
-fn parse_bind_addr(value: &str) -> Result<IpAddr> {
-    if let Ok(addr) = value.parse::<IpAddr>() {
-        return Ok(addr);
-    }
-
-    let Some(host) = value.split('/').next() else {
-        return Err(anyhow!("invalid bind address '{value}'"));
-    };
-
-    host.parse::<IpAddr>()
-        .with_context(|| format!("invalid bind address '{value}'"))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
     use std::str::FromStr;
-    use std::time::Duration;
-
-    #[test]
-    fn parse_rate_limit_accepts_empty_object() {
-        let value = Value::Object(Map::new());
-        let parsed =
-            parse_api_key_rate_limit_for_config(&value).expect("empty object should be accepted");
-        assert!(parsed.is_none());
-    }
-
-    #[test]
-    fn parse_rate_limit_valid_configuration() {
-        let value = json!({ "burst": 10, "per_seconds": 60 });
-        let parsed =
-            parse_api_key_rate_limit_for_config(&value).expect("valid configuration should parse");
-        let limit = parsed.expect("limit should be present");
-        assert_eq!(limit.burst, 10);
-        assert_eq!(limit.replenish_period, Duration::from_secs(60));
-    }
-
-    #[test]
-    fn parse_rate_limit_rejects_zero_burst() {
-        let value = json!({ "burst": 0, "per_seconds": 30 });
-        let err = parse_api_key_rate_limit_for_config(&value).unwrap_err();
-        assert!(matches!(err, ConfigError::InvalidField { .. }));
-    }
-
-    #[test]
-    fn parse_rate_limit_rejects_missing_fields() {
-        let value = json!({ "burst": 5 });
-        let err = parse_api_key_rate_limit_for_config(&value).unwrap_err();
-        assert!(matches!(err, ConfigError::InvalidField { .. }));
-    }
 
     #[test]
     fn app_mode_parses_and_formats() {

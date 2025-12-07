@@ -3,7 +3,6 @@ use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::TorrentDetail;
 use yew::prelude::*;
 
-#[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct FileNode {
     pub name: String,

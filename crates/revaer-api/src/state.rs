@@ -17,6 +17,196 @@ use crate::config::ConfigFacade;
 use crate::http::torrents::TorrentMetadata;
 use crate::rate_limit::{RateLimitError, RateLimitSnapshot, RateLimiter};
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::Result;
+    use async_trait::async_trait;
+    use revaer_config::{AppMode, AppProfile};
+    use revaer_torrent_core::{
+        AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentWorkflow,
+    };
+    use serde_json::json;
+    use tokio::runtime::Runtime;
+    use tokio::sync::RwLock;
+    use tokio_stream::StreamExt;
+
+    #[derive(Clone, Default)]
+    struct NoopConfig;
+
+    #[async_trait]
+    impl ConfigFacade for NoopConfig {
+        async fn get_app_profile(&self) -> Result<AppProfile> {
+            Ok(AppProfile {
+                id: Uuid::new_v4(),
+                instance_name: "test".to_string(),
+                mode: AppMode::Active,
+                version: 1,
+                http_port: 8080,
+                bind_addr: std::net::IpAddr::from([127, 0, 0, 1]),
+                telemetry: json!({}),
+                features: json!({}),
+                immutable_keys: json!([]),
+            })
+        }
+
+        async fn issue_setup_token(
+            &self,
+            _: Duration,
+            _: &str,
+        ) -> Result<revaer_config::SetupToken> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
+
+        async fn validate_setup_token(&self, _: &str) -> Result<()> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
+
+        async fn consume_setup_token(&self, _: &str) -> Result<()> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
+
+        async fn apply_changeset(
+            &self,
+            _: &str,
+            _: &str,
+            _: revaer_config::SettingsChangeset,
+        ) -> Result<revaer_config::AppliedChanges> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
+
+        async fn snapshot(&self) -> Result<revaer_config::ConfigSnapshot> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
+
+        async fn authenticate_api_key(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> Result<Option<revaer_config::ApiKeyAuth>> {
+            Ok(None)
+        }
+    }
+
+    #[derive(Default)]
+    struct RecordingWorkflow {
+        statuses: RwLock<Vec<TorrentStatus>>,
+    }
+
+    impl RecordingWorkflow {
+        fn with_status(status: TorrentStatus) -> Arc<Self> {
+            Self {
+                statuses: RwLock::new(vec![status]),
+            }
+            .into()
+        }
+    }
+
+    #[async_trait]
+    impl TorrentWorkflow for RecordingWorkflow {
+        async fn add_torrent(&self, _: AddTorrent) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn remove_torrent(&self, _: Uuid, _: RemoveTorrent) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn pause_torrent(&self, _: Uuid) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn resume_torrent(&self, _: Uuid) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn set_sequential(&self, _: Uuid, _: bool) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn update_limits(&self, _: Option<Uuid>, _: TorrentRateLimit) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn update_selection(&self, _: Uuid, _: FileSelectionUpdate) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn reannounce(&self, _: Uuid) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn recheck(&self, _: Uuid) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl revaer_torrent_core::TorrentInspector for RecordingWorkflow {
+        async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+            Ok(self.statuses.read().await.clone())
+        }
+
+        async fn get(&self, _: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+            Ok(None)
+        }
+    }
+
+    #[test]
+    fn add_and_remove_degraded_components_emit_events() {
+        let events = EventBus::with_capacity(4);
+        let metrics = Metrics::new().expect("metrics");
+        let state = ApiState::new(
+            Arc::new(NoopConfig),
+            metrics,
+            Arc::new(json!({})),
+            events.clone(),
+            None,
+        );
+        let runtime = Runtime::new().expect("runtime");
+        let mut stream = events.subscribe(None);
+
+        assert!(state.add_degraded_component("db"));
+        assert!(!state.add_degraded_component("db"));
+
+        let envelope = runtime
+            .block_on(async { stream.next().await })
+            .expect("health event emitted")
+            .expect("stream recv error");
+        assert!(matches!(envelope.event, CoreEvent::HealthChanged { .. }));
+        assert!(state.remove_degraded_component("db"));
+    }
+
+    #[tokio::test]
+    async fn update_torrent_metrics_handles_stub_handles() {
+        let status = TorrentStatus {
+            id: Uuid::new_v4(),
+            name: Some("demo".into()),
+            state: TorrentState::Completed,
+            progress: revaer_torrent_core::TorrentProgress::default(),
+            rates: revaer_torrent_core::TorrentRates::default(),
+            files: None,
+            library_path: None,
+            download_dir: None,
+            sequential: false,
+            added_at: chrono::Utc::now(),
+            completed_at: Some(chrono::Utc::now()),
+            last_updated: chrono::Utc::now(),
+        };
+        let workflow = RecordingWorkflow::with_status(status);
+        let handles = TorrentHandles::new(workflow.clone(), workflow);
+        let state = ApiState::new(
+            Arc::new(NoopConfig),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            Some(handles),
+        );
+
+        state.update_torrent_metrics().await;
+    }
+}
+
 pub(crate) struct ApiState {
     pub(crate) config: Arc<dyn ConfigFacade>,
     pub(crate) setup_token_ttl: Duration,

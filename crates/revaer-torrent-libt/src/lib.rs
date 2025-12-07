@@ -16,8 +16,6 @@
 
 //! Libtorrent adapter implementation backed by the native C++ session bridge.
 
-//! Libtorrent adapter implementation backed by the native C++ session bridge.
-
 /// Engine command definitions and shared request types used by the adapter.
 pub mod command;
 #[cfg(feature = "libtorrent")]

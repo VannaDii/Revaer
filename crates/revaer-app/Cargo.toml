@@ -29,8 +29,6 @@ tokio-stream.workspace = true
 [dev-dependencies]
 serde_json.workspace = true
 tempfile = "3.10"
-testcontainers = "0.25"
-revaer-test-support = { path = "../revaer-test-support" }
 
 [features]
 default = ["libtorrent"]

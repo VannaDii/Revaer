@@ -1,0 +1,24 @@
+# Retire testcontainers
+
+- Status: Accepted
+- Date: 2025-12-06
+- Context:
+  - `cargo audit` flagged `rustls-pemfile` (RUSTSEC-2025-0134) as unmaintained, pulled via `testcontainers` → `bollard`.
+  - AGENT.md forbids local patches and prefers minimal dependencies; maintaining a forked TLS stack would violate both.
+  - Our Docker-backed integration tests (Postgres + libtorrent) depended on `testcontainers`; removing the crate requires alternate coverage.
+- Decision:
+  - Remove `testcontainers` and associated patches from the workspace; delete Docker-backed integration tests and replace them with lightweight unit coverage.
+  - Keep filesystem orchestration tests in place using in-process fakes instead of containerized services.
+  - Drop the `.secignore`/`deny.toml` allowances tied to the `testcontainers` advisory; rely solely on crates.io sources.
+- Alternatives considered:
+  - Upgrade to a newer `testcontainers`/`bollard` release: no maintained option exists today without `rustls-pemfile`.
+  - Carry an internal fork or patch the dependency: rejected per AGENT.md (no local patches, minimal deps).
+  - Switch to another Docker client (`shiplift`/`dockertest`) or Podman socket: deferred until a maintained client with Rustls support emerges and dependency impact is clear.
+- Consequences:
+  - Supply chain is clean of the unmaintained TLS crate; `just audit`/`just deny` can run without ignores for this issue.
+  - Lost container-backed integration coverage; current tests rely on unit-level fakes and filesystem exercises instead of live Postgres/libtorrent flows.
+  - Simpler dependency graph and faster CI runs, with fewer heavy test prerequisites.
+- Follow-up:
+  - Design a replacement integration harness that can target a developer-provided Postgres/libtorrent endpoint (feature-guarded) without adding Docker client dependencies.
+  - Update existing docs/ADRs that reference `testcontainers` to note deprecation when they next change.
+  - Monitor upstream for a maintained container client or a `testcontainers` release that drops `rustls-pemfile`; reconsider adoption once available.

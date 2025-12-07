@@ -14,13 +14,11 @@
     missing_docs
 )]
 
-//! Thin entrypoint that delegates to the library for CLI execution.
+//! Administrative CLI for interacting with a Revaer server instance.
+//!
+//! Layout: `cli.rs` (argument parsing, command dispatch) with a thin `main.rs`
+//! that delegates to `run()`.
 
-/// Parses CLI arguments and executes the requested command.
-#[tokio::main]
-async fn main() {
-    let exit_code = revaer_cli::run().await;
-    if exit_code != 0 {
-        std::process::exit(exit_code);
-    }
-}
+pub mod cli;
+
+pub use cli::run;

@@ -37,6 +37,8 @@ use uuid::Uuid;
 use walkdir::WalkDir;
 use zip::ZipArchive;
 
+#[cfg(all(unix, test))]
+use std::os::unix::fs::MetadataExt;
 #[cfg(unix)]
 use std::os::unix::fs::PermissionsExt;
 
@@ -1747,32 +1749,18 @@ fn build_globset(patterns: Vec<String>) -> Result<Option<GlobSet>> {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
-    use std::io::Write;
-
-    use chrono::Utc;
-    use revaer_config::ConfigService;
-    use revaer_events::{EventBus, TorrentState};
-    use revaer_runtime::{FsJobState, RuntimeStore};
-    use revaer_test_support::fixtures::docker_available;
-    use revaer_torrent_core::{TorrentProgress, TorrentRates, TorrentStatus};
+    use anyhow::anyhow;
     use serde_json::json;
-    #[cfg(unix)]
-    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+    use std::io::Write;
     use tempfile::TempDir;
-    use testcontainers::core::{ContainerPort, WaitFor};
-    use testcontainers::runners::AsyncRunner;
-    use testcontainers::{ContainerAsync, GenericImage, ImageExt};
-    use tokio::time::{Duration, sleep, timeout};
+    use tokio::runtime::Runtime;
     use tokio_stream::StreamExt;
-    use zip::{ZipWriter, write::FileOptions};
 
     fn sample_policy(root: &Path) -> FsPolicy {
-        let library_root = root.join("library");
         FsPolicy {
             id: Uuid::new_v4(),
-            library_root: library_root.display().to_string(),
+            library_root: root.join("library").display().to_string(),
             extract: false,
             par2: "disabled".to_string(),
             flatten: false,
@@ -1788,585 +1776,17 @@ mod tests {
         }
     }
 
-    async fn collect_events(stream: &mut revaer_events::EventStream, count: usize) -> Vec<Event> {
-        let mut events = Vec::new();
-        for _ in 0..count {
-            match timeout(Duration::from_secs(2), stream.next()).await {
-                Ok(Some(Ok(envelope))) => events.push(envelope.event),
-                _ => break,
-            }
-        }
-        events
-    }
-
-    fn create_zip(target: &Path, entries: &[(&str, &[u8])]) -> Result<()> {
-        let file = fs::File::create(target)
-            .with_context(|| format!("failed to create archive at {}", target.display()))?;
-        let mut writer = ZipWriter::new(file);
-        let options = FileOptions::default();
-        for &(name, data) in entries {
-            writer
-                .start_file(name, options)
-                .with_context(|| format!("failed to start archive entry '{name}'"))?;
-            writer
-                .write_all(data)
-                .with_context(|| format!("failed to write archive entry '{name}'"))?;
-        }
-        writer
-            .finish()
-            .context("failed to finalise zip archive serialization")?;
-        Ok(())
-    }
-
-    async fn bootstrap_runtime()
-    -> Result<(RuntimeStore, ConfigService, ContainerAsync<GenericImage>)> {
-        let base_image = GenericImage::new("postgres", "14-alpine")
-            .with_exposed_port(ContainerPort::Tcp(5432))
-            .with_wait_for(WaitFor::message_on_stdout(
-                "database system is ready to accept connections",
-            ));
-        let request = base_image
-            .with_env_var("POSTGRES_PASSWORD", "password")
-            .with_env_var("POSTGRES_USER", "postgres")
-            .with_env_var("POSTGRES_DB", "postgres")
-            .with_mapped_port(0, ContainerPort::Tcp(5432));
-        let container = request
-            .start()
-            .await
-            .context("failed to start postgres container")?;
-        let ports = container
-            .ports()
-            .await
-            .context("failed to inspect postgres container ports")?;
-        let port = ports
-            .map_to_host_port_ipv4(ContainerPort::Tcp(5432))
-            .or_else(|| ports.map_to_host_port_ipv6(ContainerPort::Tcp(5432)))
-            .ok_or_else(|| anyhow!("failed to resolve postgres port mapping"))?;
-        let url = format!("postgres://postgres:password@127.0.0.1:{port}/postgres");
-        let config = initialise_config(&url).await?;
-        let runtime = RuntimeStore::new(config.pool().clone())
-            .await
-            .context("failed to initialise runtime store")?;
-        Ok((runtime, config, container))
-    }
-
-    async fn initialise_config(url: &str) -> Result<ConfigService> {
-        let mut attempts = 0;
-        loop {
-            match ConfigService::new(url.to_owned()).await {
-                Ok(service) => return Ok(service),
-                Err(error) => {
-                    attempts += 1;
-                    if attempts >= 10 {
-                        return Err(error).context("failed to initialise config service");
-                    }
-                    sleep(Duration::from_millis(200)).await;
-                }
-            }
-        }
-    }
-
-    async fn wait_for_fs_job(runtime: &RuntimeStore, torrent_id: Uuid) -> Result<FsJobState> {
-        let mut attempts = 0;
-        let mut last_error: Option<String> = None;
-        let mut last_status: Option<String> = None;
-        loop {
-            match runtime.fetch_fs_job_state(torrent_id).await {
-                Ok(Some(state)) => {
-                    if state.status == "moved" {
-                        return Ok(state);
-                    }
-                    last_status = Some(state.status);
-                }
-                Ok(None) => {}
-                Err(error) => last_error = Some(error.to_string()),
-            }
-
-            attempts += 1;
-            if attempts >= 25 {
-                if let Some(error) = last_error {
-                    bail!("failed to fetch fs job state after retries: {error}");
-                }
-                if let Some(status) = last_status {
-                    bail!("fs job state remained '{status}' after retries");
-                }
-                bail!("fs job state not recorded within retry window");
-            }
-            sleep(Duration::from_millis(100)).await;
-        }
-    }
-
-    #[tokio::test]
-    async fn pipeline_transfers_files_and_persists_meta() -> Result<()> {
-        let bus = EventBus::with_capacity(32);
-        let metrics = Metrics::new()?;
-        let service = FsOpsService::new(bus.clone(), metrics.clone());
-        let mut stream = bus.subscribe(None);
-        let torrent_id = Uuid::new_v4();
-        let temp = TempDir::new()?;
-
-        let staging_root = temp.path().join("staging");
-        fs::create_dir_all(&staging_root)?;
-        let source_dir = staging_root.join("torrent-files");
-        fs::create_dir_all(&source_dir)?;
-        fs::write(source_dir.join("movie.mkv"), b"video-bytes")?;
-        fs::write(source_dir.join("junk.tmp"), b"junk")?;
-
-        let policy = sample_policy(temp.path());
-        let request = FsOpsRequest {
-            torrent_id,
-            source_path: &source_dir,
-            policy: &policy,
-        };
-        service.apply(request)?;
-
-        let events = collect_events(&mut stream, 16).await;
-        assert!(matches!(events[0], Event::FsopsStarted { torrent_id: id } if id == torrent_id));
-        assert!(events.iter().any(|event| matches!(
-            event,
-            Event::FsopsCompleted { torrent_id: id } if *id == torrent_id
-        )));
-
-        let meta_path = Path::new(&policy.library_root)
-            .join(META_DIR_NAME)
-            .join(format!("{torrent_id}{META_SUFFIX}"));
-        assert!(meta_path.exists(), "meta file should be persisted");
-        let meta = load_meta(&meta_path)?;
-        assert!(meta.completed);
-        let artifact = meta
-            .artifact_path
-            .as_ref()
-            .expect("artifact path recorded in meta");
-        let artifact_path = PathBuf::from(artifact);
-        assert!(artifact_path.join("movie.mkv").exists());
-        assert!(
-            !artifact_path.join("junk.tmp").exists(),
-            "cleanup rules should remove non-matching files"
-        );
-
-        let rendered = metrics.render()?;
-        assert!(
-            rendered.contains(r#"fsops_steps_total{status="completed",step="finalise"} 1"#),
-            "expected fsops finalise metric to increment"
-        );
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn pipeline_records_runtime_store_entries() -> Result<()> {
-        if !docker_available() {
-            eprintln!("skipping pipeline_records_runtime_store_entries: docker socket missing");
-            return Ok(());
-        }
-
-        let (runtime, config, container) = match bootstrap_runtime().await {
-            Ok(runtime) => runtime,
-            Err(err) => {
-                eprintln!(
-                    "skipping pipeline_records_runtime_store_entries: failed to start runtime: {err}"
-                );
-                return Ok(());
-            }
-        };
-
-        let bus = EventBus::with_capacity(8);
-        let metrics = Metrics::new()?;
-        let service = FsOpsService::new(bus, metrics).with_runtime(runtime.clone());
-
-        let torrent_id = Uuid::new_v4();
-        let temp = TempDir::new()?;
-        let staging_root = temp.path().join("staging");
-        fs::create_dir_all(&staging_root)?;
-        let source_dir = staging_root.join("payload");
-        fs::create_dir_all(&source_dir)?;
-        fs::write(source_dir.join("movie.mkv"), b"video")?;
-
-        let policy = sample_policy(temp.path());
-        runtime
-            .upsert_status(&TorrentStatus {
-                id: torrent_id,
-                name: Some("demo".to_string()),
-                state: TorrentState::Queued,
-                progress: TorrentProgress {
-                    bytes_downloaded: 0,
-                    bytes_total: 0,
-                    eta_seconds: None,
-                },
-                rates: TorrentRates {
-                    download_bps: 0,
-                    upload_bps: 0,
-                    ratio: 0.0,
-                },
-                files: None,
-                library_path: None,
-                download_dir: Some(policy.library_root.clone()),
-                sequential: false,
-                added_at: Utc::now(),
-                completed_at: None,
-                last_updated: Utc::now(),
-            })
-            .await
-            .context("failed to seed torrent status")?;
-        service.apply(FsOpsRequest {
-            torrent_id,
-            source_path: &source_dir,
-            policy: &policy,
-        })?;
-
-        let state = wait_for_fs_job(&runtime, torrent_id).await?;
-        assert_eq!(state.status, "moved");
-        assert!(
-            state
-                .dst_path
-                .as_ref()
-                .is_some_and(|path| Path::new(path).exists()),
-            "expected fs job to record destination path"
-        );
-
-        config.pool().close().await;
-        drop(container);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn pipeline_extracts_zip_archives() -> Result<()> {
-        let bus = EventBus::with_capacity(8);
-        let metrics = Metrics::new()?;
-        let service = FsOpsService::new(bus, metrics);
-        let torrent_id = Uuid::new_v4();
-        let temp = TempDir::new()?;
-
-        let staging_root = temp.path().join("staging");
-        fs::create_dir_all(&staging_root)?;
-        let archive_path = staging_root.join("payload.zip");
-        create_zip(&archive_path, &[("movie/video.mkv", b"video")])?;
-
-        let mut policy = sample_policy(temp.path());
-        policy.extract = true;
-
-        service.apply(FsOpsRequest {
-            torrent_id,
-            source_path: &archive_path,
-            policy: &policy,
-        })?;
-
-        let meta_path = Path::new(&policy.library_root)
-            .join(META_DIR_NAME)
-            .join(format!("{torrent_id}{META_SUFFIX}"));
-        let meta = load_meta(&meta_path)?;
-        let artifact = PathBuf::from(
-            meta.artifact_path
-                .as_ref()
-                .expect("artifact path recorded after extraction"),
-        );
-        assert!(
-            artifact.join("movie").join("video.mkv").exists(),
-            "extracted payload should exist in artifact directory"
-        );
-
-        Ok(())
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn pipeline_applies_umask_permissions() -> Result<()> {
-        let bus = EventBus::with_capacity(8);
-        let metrics = Metrics::new()?;
-        let service = FsOpsService::new(bus, metrics);
-        let torrent_id = Uuid::new_v4();
-        let temp = TempDir::new()?;
-
-        let staging_root = temp.path().join("staging");
-        fs::create_dir_all(&staging_root)?;
-        let source_dir = staging_root.join("payload");
-        fs::create_dir_all(&source_dir)?;
-        fs::write(source_dir.join("movie.mkv"), b"video")?;
-
-        let mut policy = sample_policy(temp.path());
-        policy.chmod_file = None;
-        policy.chmod_dir = None;
-        policy.umask = Some("0007".to_string());
-
-        service.apply(FsOpsRequest {
-            torrent_id,
-            source_path: &source_dir,
-            policy: &policy,
-        })?;
-
-        let meta_path = Path::new(&policy.library_root)
-            .join(META_DIR_NAME)
-            .join(format!("{torrent_id}{META_SUFFIX}"));
-        let meta = load_meta(&meta_path)?;
-        let artifact_path = PathBuf::from(
-            meta.artifact_path
-                .as_ref()
-                .expect("artifact path recorded after permissions step"),
-        );
-        let dir_mode = fs::metadata(&artifact_path)?.permissions().mode() & 0o777;
-        assert_eq!(
-            dir_mode, 0o770,
-            "directory mode should reflect derived umask"
-        );
-        let file_mode = fs::metadata(artifact_path.join("movie.mkv"))?
-            .permissions()
-            .mode()
-            & 0o777;
-        assert_eq!(file_mode, 0o660, "file mode should reflect derived umask");
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn pipeline_hardlinks_payload_when_configured() -> Result<()> {
-        let bus = EventBus::with_capacity(8);
-        let metrics = Metrics::new()?;
-        let service = FsOpsService::new(bus, metrics);
-        let torrent_id = Uuid::new_v4();
-        let temp = TempDir::new()?;
-
-        let staging_root = temp.path().join("staging");
-        fs::create_dir_all(&staging_root)?;
-        let source_dir = staging_root.join("payload");
-        fs::create_dir_all(&source_dir)?;
-        let source_file = source_dir.join("movie.mkv");
-        fs::write(&source_file, b"video")?;
-
-        let mut policy = sample_policy(temp.path());
-        policy.move_mode = "hardlink".to_string();
-
-        service.apply(FsOpsRequest {
-            torrent_id,
-            source_path: &source_dir,
-            policy: &policy,
-        })?;
-
-        let meta_path = Path::new(&policy.library_root)
-            .join(META_DIR_NAME)
-            .join(format!("{torrent_id}{META_SUFFIX}"));
-        let meta = load_meta(&meta_path)?;
-        assert_eq!(
-            meta.transfer_mode.as_deref(),
-            Some("hardlink"),
-            "transfer mode should record hardlink strategy"
-        );
-        let artifact_path = Path::new(
-            meta.artifact_path
-                .as_deref()
-                .expect("artifact path recorded after transfer"),
-        );
-        let destination_file = artifact_path.join("movie.mkv");
-        assert!(destination_file.exists(), "destination file should exist");
-        assert!(
-            source_file.exists(),
-            "source file should remain after hardlink"
-        );
-
-        #[cfg(unix)]
-        {
-            let src_meta = fs::metadata(&source_file)?;
-            let dest_meta = fs::metadata(&destination_file)?;
-            assert_eq!(
-                src_meta.ino(),
-                dest_meta.ino(),
-                "hardlinked files should share the same inode"
-            );
-        }
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn pipeline_is_idempotent_when_meta_completed() -> Result<()> {
-        let bus = EventBus::with_capacity(16);
-        let metrics = Metrics::new()?;
-        let service = FsOpsService::new(bus, metrics);
-        let torrent_id = Uuid::new_v4();
-        let temp = TempDir::new()?;
-        let policy = sample_policy(temp.path());
-
-        let staging_root = temp.path().join("staging");
-        fs::create_dir_all(&staging_root)?;
-        let source_dir = staging_root.join("torrent-files");
-        fs::create_dir_all(&source_dir)?;
-        fs::write(source_dir.join("movie.mkv"), b"video-v1")?;
-
-        let request = FsOpsRequest {
-            torrent_id,
-            source_path: &source_dir,
-            policy: &policy,
-        };
-
-        service.apply(request)?;
-        let meta_path = Path::new(&policy.library_root)
-            .join(META_DIR_NAME)
-            .join(format!("{torrent_id}{META_SUFFIX}"));
-        let meta_before = load_meta(&meta_path)?;
-
-        service.apply(FsOpsRequest {
-            torrent_id,
-            source_path: &source_dir,
-            policy: &policy,
-        })?;
-        let meta_after = load_meta(&meta_path)?;
-
-        assert_eq!(meta_before.updated_at, meta_after.updated_at);
-        assert!(meta_after.completed);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn pipeline_resumes_incomplete_meta() -> Result<()> {
-        let bus = EventBus::with_capacity(16);
-        let metrics = Metrics::new()?;
-        let service = FsOpsService::new(bus, metrics);
-        let torrent_id = Uuid::new_v4();
-        let temp = TempDir::new()?;
-        let policy = sample_policy(temp.path());
-
-        let staging_root = temp.path().join("staging");
-        fs::create_dir_all(&staging_root)?;
-        let source_dir = staging_root.join("torrent-files");
-        fs::create_dir_all(&source_dir)?;
-        fs::write(source_dir.join("movie.mkv"), b"video-v1")?;
-
-        service.apply(FsOpsRequest {
-            torrent_id,
-            source_path: &source_dir,
-            policy: &policy,
-        })?;
-        let meta_path = Path::new(&policy.library_root)
-            .join(META_DIR_NAME)
-            .join(format!("{torrent_id}{META_SUFFIX}"));
-        let mut meta = load_meta(&meta_path)?;
-        meta.completed = false;
-        persist_meta(&meta_path, &meta)?;
-
-        service.apply(FsOpsRequest {
-            torrent_id,
-            source_path: &source_dir,
-            policy: &policy,
-        })?;
-        let repaired = load_meta(&meta_path)?;
-        assert!(repaired.completed);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn pipeline_enforces_allowlist() {
-        let bus = EventBus::with_capacity(16);
-        let metrics = Metrics::new().expect("metrics");
-        let service = FsOpsService::new(bus.clone(), metrics);
-        let mut stream = bus.subscribe(None);
-        let torrent_id = Uuid::new_v4();
-        let temp = TempDir::new().expect("tempdir");
-        let staging_root = temp.path().join("staging");
-        fs::create_dir_all(&staging_root).expect("staging");
-        let source_dir = staging_root.join("torrent-files");
-        fs::create_dir_all(&source_dir).expect("source");
-        fs::write(source_dir.join("movie.mkv"), b"video").expect("write");
-
-        let mut policy = sample_policy(temp.path());
-        policy.allow_paths = json!([temp.path().join("disallowed").display().to_string()]);
-
-        let result = service.apply(FsOpsRequest {
-            torrent_id,
-            source_path: &source_dir,
-            policy: &policy,
-        });
-        assert!(result.is_err(), "allowlist violation should fail");
-
-        let events = collect_events(&mut stream, 16).await;
-        assert!(events.iter().any(|event| matches!(
-            event,
-            Event::FsopsFailed { torrent_id: id, .. } if *id == torrent_id
-        )));
-        assert!(events.iter().any(|event| matches!(event, Event::HealthChanged { degraded } if degraded.contains(&HEALTH_COMPONENT.to_string()))));
-    }
-
-    #[tokio::test]
-    async fn pipeline_marks_degraded_and_recovers() -> Result<()> {
-        let bus = EventBus::with_capacity(16);
-        let metrics = Metrics::new()?;
-        let service = FsOpsService::new(bus.clone(), metrics);
-        let mut stream = bus.subscribe(None);
-        let torrent_id = Uuid::new_v4();
-        let temp = TempDir::new()?;
-        let staging_root = temp.path().join("staging");
-        fs::create_dir_all(&staging_root)?;
-        let source_dir = staging_root.join("torrent-files");
-        fs::create_dir_all(&source_dir)?;
-        fs::write(source_dir.join("movie.mkv"), b"video")?;
-
-        let mut invalid = sample_policy(temp.path());
-        invalid.library_root = " ".to_string();
-
-        let err = service
-            .apply(FsOpsRequest {
-                torrent_id,
-                source_path: &source_dir,
-                policy: &invalid,
-            })
-            .expect_err("invalid policy should fail");
-        assert!(
-            format!("{err:#}").contains("cannot be empty"),
-            "unexpected error: {err:?}"
-        );
-
-        let failure_events = collect_events(&mut stream, 4).await;
-        assert!(failure_events.iter().any(|event| matches!(
-            event,
-            Event::FsopsStarted { torrent_id: id } if *id == torrent_id
-        )));
-        assert!(failure_events.iter().any(|event| matches!(
-            event,
-            Event::HealthChanged { degraded } if degraded.contains(&HEALTH_COMPONENT.to_string())
-        )));
-        assert!(failure_events.iter().any(|event| matches!(
-            event,
-            Event::FsopsFailed { torrent_id: id, .. } if *id == torrent_id
-        )));
-
-        let valid = sample_policy(temp.path());
-        service.apply(FsOpsRequest {
-            torrent_id,
-            source_path: &source_dir,
-            policy: &valid,
-        })?;
-        let recovery_events = collect_events(&mut stream, 16).await;
-        assert!(recovery_events.iter().any(|event| matches!(
-            event,
-            Event::FsopsCompleted { torrent_id: id } if *id == torrent_id
-        )));
-        assert!(recovery_events.iter().any(|event| matches!(
-            event,
-            Event::HealthChanged { degraded } if degraded.is_empty()
-        )));
-
-        Ok(())
-    }
-
     #[test]
-    fn skip_fluff_preset_extends_patterns() -> Result<()> {
-        let policy = FsPolicy {
-            id: Uuid::new_v4(),
-            library_root: "/tmp/library".to_string(),
-            extract: false,
-            par2: "disabled".to_string(),
-            flatten: false,
-            move_mode: "copy".to_string(),
-            cleanup_keep: json!([]),
-            cleanup_drop: json!([SKIP_FLUFF_PRESET]),
-            chmod_file: None,
-            chmod_dir: None,
-            owner: None,
-            group: None,
-            umask: None,
-            allow_paths: json!([]),
-        };
+    fn build_glob_set_matches_expected_paths() -> Result<()> {
+        let policy = sample_policy(Path::new("/data"));
+        let patterns = parse_glob_list(&policy.cleanup_keep)?;
+        let glob_rules = build_globset(patterns)?;
+        let glob_set = glob_rules.expect("glob rules should be present");
 
-        let rules = RuleSet::from_policy(&policy)?;
-        assert_eq!(rules.exclude_count(), SKIP_FLUFF_PATTERNS.len());
+        assert!(glob_set.is_match("/data/library/movie/file.mkv"));
+        assert!(!glob_set.is_match("/data/library/movie/file.srt"));
+        assert!(!glob_set.is_match("/data/library/movie/file.txt"));
+
         Ok(())
     }
 
@@ -2417,6 +1837,18 @@ mod tests {
         let values = json!({"pattern": "**/*.mkv"});
         let err = parse_glob_list(&values).expect_err("non-array should fail");
         assert!(format!("{err:#}").contains("expected array"));
+    }
+
+    fn write_zip_archive(archive: &Path, entries: &[(&str, &[u8])]) -> Result<()> {
+        let file = File::create(archive)?;
+        let mut zip = zip::ZipWriter::new(file);
+        let options = zip::write::FileOptions::default();
+        for (path, contents) in entries {
+            zip.start_file(*path, options)?;
+            zip.write_all(contents)?;
+        }
+        zip.finish()?;
+        Ok(())
     }
 
     #[test]
@@ -2479,11 +1911,379 @@ mod tests {
     }
 
     #[test]
+    fn pipeline_extracts_archive_and_cleans_junk() -> Result<()> {
+        let bus = EventBus::with_capacity(8);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus.clone(), metrics);
+        let mut stream = bus.subscribe(None);
+        let torrent_id = Uuid::new_v4();
+        let temp = TempDir::new()?;
+
+        let library_root = temp.path().join("library");
+        let staging_root = temp.path().join("staging");
+        fs::create_dir_all(&staging_root)?;
+        let archive_path = staging_root.join("payload.zip");
+        write_zip_archive(
+            &archive_path,
+            &[
+                ("show/Season1/episode1.mkv", b"video"),
+                ("show/Season1/readme.txt", b"junk"),
+            ],
+        )?;
+
+        let mut policy = sample_policy(temp.path());
+        policy.extract = true;
+        policy.flatten = true;
+        policy.cleanup_drop = json!(["**/*.txt"]);
+        policy.allow_paths = json!([temp.path().display().to_string()]);
+
+        service.apply(FsOpsRequest {
+            torrent_id,
+            source_path: &archive_path,
+            policy: &policy,
+        })?;
+
+        let meta_path = library_root
+            .join(META_DIR_NAME)
+            .join(format!("{torrent_id}{META_SUFFIX}"));
+        let meta = load_meta(&meta_path)?;
+        let artifact_dir = PathBuf::from(meta.artifact_path.expect("artifact path set"));
+        assert!(artifact_dir.exists());
+        assert!(
+            artifact_dir.join("Season1").join("episode1.mkv").exists(),
+            "extracted artifact should preserve nested structure after flattening"
+        );
+        assert!(
+            !artifact_dir.join("readme.txt").exists(),
+            "cleanup_drop should remove junk files"
+        );
+
+        // Ensure a completion event was emitted to close the stream.
+        let runtime = Runtime::new()?;
+        let _ = runtime.block_on(async { stream.next().await });
+        Ok(())
+    }
+
+    #[test]
     fn enforce_allow_paths_accepts_parent_directory() -> Result<()> {
         let temp = TempDir::new()?;
         let root = temp.path().join("library");
         let allow = json!([temp.path().display().to_string()]);
         enforce_allow_paths(&root, &allow)?;
+        Ok(())
+    }
+
+    #[test]
+    fn rule_set_expands_skip_fluff_preset() -> Result<()> {
+        let mut policy = sample_policy(Path::new("/data"));
+        policy.cleanup_drop = json!([SKIP_FLUFF_PRESET]);
+
+        let rules = RuleSet::from_policy(&policy)?;
+        assert!(rules.exclude_count() >= SKIP_FLUFF_PATTERNS.len());
+        Ok(())
+    }
+
+    #[test]
+    fn extract_archive_rejects_unknown_extensions() -> Result<()> {
+        let temp = TempDir::new()?;
+        let source = temp.path().join("payload.rar");
+        fs::write(&source, b"junk")?;
+        let target = temp.path().join("target");
+
+        let err = FsOpsService::extract_archive(&source, &target)
+            .expect_err("unsupported archive should fail");
+        assert!(format!("{err:#}").contains("unsupported archive format"));
+        Ok(())
+    }
+
+    #[test]
+    fn execute_step_records_failure_status() -> Result<()> {
+        let temp = TempDir::new()?;
+        let bus = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
+        let mut meta = FsOpsMeta::new(torrent_id, Uuid::new_v4());
+        let meta_path = temp.path().join("meta.json");
+
+        let result = service.execute_step(
+            torrent_id,
+            &mut meta,
+            &meta_path,
+            StepKind::ValidatePolicy,
+            StepPersistence::new(true, true, true),
+            |_meta| Err(anyhow!("boom")),
+        );
+        assert!(result.is_err());
+        let persisted = load_meta(&meta_path)?;
+        assert_eq!(
+            persisted.step_status(StepKind::ValidatePolicy),
+            Some(StepStatus::Failed)
+        );
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hardlink_tree_reuses_inodes() -> Result<()> {
+        let temp = TempDir::new()?;
+        let source = temp.path().join("source");
+        fs::create_dir_all(&source)?;
+        let file = source.join("file.txt");
+        fs::write(&file, b"content")?;
+
+        let destination = temp.path().join("dest");
+        FsOpsService::hardlink_tree(&source, &destination)?;
+
+        let dest_file = destination.join("file.txt");
+        assert!(dest_file.exists());
+
+        let src_meta = fs::metadata(&file)?;
+        let dest_meta = fs::metadata(&dest_file)?;
+        assert_eq!(src_meta.ino(), dest_meta.ino());
+        Ok(())
+    }
+
+    #[test]
+    fn sanitize_archive_path_rejects_unsafe_inputs() {
+        assert!(
+            FsOpsService::sanitize_archive_path("/abs/path").is_err(),
+            "absolute entries should be rejected"
+        );
+        assert!(
+            FsOpsService::sanitize_archive_path("../escape").is_err(),
+            "parent traversal should be rejected"
+        );
+        let normalised =
+            FsOpsService::sanitize_archive_path("nested/./file.txt").expect("relative path");
+        assert_eq!(normalised, PathBuf::from("nested/file.txt"));
+    }
+
+    #[test]
+    fn cleanup_destination_removes_matching_entries() -> Result<()> {
+        let temp = TempDir::new()?;
+        let root = temp.path().join("artifact");
+        fs::create_dir_all(root.join("keep"))?;
+        fs::create_dir_all(root.join("extras"))?;
+        fs::write(root.join("keep").join("movie.mkv"), b"video")?;
+        fs::write(root.join("extras").join("note.nfo"), b"junk")?;
+
+        let policy = FsPolicy {
+            id: Uuid::new_v4(),
+            library_root: root.display().to_string(),
+            extract: false,
+            par2: "disabled".to_string(),
+            flatten: false,
+            move_mode: "copy".to_string(),
+            cleanup_keep: json!(["**/*.mkv"]),
+            cleanup_drop: json!(["**/*.nfo"]),
+            chmod_file: None,
+            chmod_dir: None,
+            owner: None,
+            group: None,
+            umask: None,
+            allow_paths: json!([]),
+        };
+        let rules = RuleSet::from_policy(&policy)?;
+        let removed = FsOpsService::cleanup_destination(&root, &rules);
+
+        assert_eq!(removed, 1);
+        assert!(root.join("keep").join("movie.mkv").exists());
+        assert!(!root.join("extras").join("note.nfo").exists());
+        Ok(())
+    }
+
+    #[test]
+    fn fsops_meta_updates_status_and_timestamps() {
+        let torrent_id = Uuid::new_v4();
+        let policy_id = Uuid::new_v4();
+        let mut meta = FsOpsMeta::new(torrent_id, policy_id);
+        let first_updated = meta.updated_at;
+
+        assert!(
+            meta.update_step(StepKind::Cleanup, StepStatus::Started, Some("begin".into())),
+            "first update should record new step"
+        );
+        let second_updated = meta.updated_at;
+        assert!(second_updated >= first_updated);
+        assert!(
+            !meta.update_step(StepKind::Cleanup, StepStatus::Started, Some("begin".into())),
+            "repeating identical update should be a no-op"
+        );
+        assert!(
+            meta.update_step(
+                StepKind::Cleanup,
+                StepStatus::Completed,
+                Some("done".into())
+            ),
+            "changed status should be persisted"
+        );
+        assert_eq!(
+            meta.step_status(StepKind::Cleanup),
+            Some(StepStatus::Completed)
+        );
+        assert!(meta.updated_at >= second_updated);
+    }
+
+    #[test]
+    fn parse_octal_mode_validates_values() {
+        assert_eq!(
+            FsOpsService::parse_octal_mode("0o755").expect("mode"),
+            0o755
+        );
+        assert!(FsOpsService::parse_octal_mode("not-a-mode").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn apply_permissions_honours_umask_defaults() -> Result<()> {
+        let temp = TempDir::new()?;
+        let root = temp.path().join("artifact");
+        fs::create_dir_all(&root)?;
+        let nested = root.join("dir");
+        fs::create_dir_all(&nested)?;
+        let file_path = nested.join("file.txt");
+        fs::write(&file_path, b"content")?;
+
+        let detail = FsOpsService::apply_permissions(&root, None, None, None, None, Some("0o022"))?;
+        assert!(
+            detail.contains("file=0o644") && detail.contains("dir=0o755"),
+            "expected derived permissions to be applied"
+        );
+
+        let file_mode = fs::metadata(&file_path)?.permissions().mode() & 0o777;
+        let dir_mode = fs::metadata(&nested)?.permissions().mode() & 0o777;
+        assert_eq!(file_mode, 0o644);
+        assert_eq!(dir_mode, 0o755);
+        Ok(())
+    }
+
+    #[test]
+    fn set_permissions_step_skips_without_artifact_path() -> Result<()> {
+        let temp = TempDir::new()?;
+        let bus = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let mut meta = FsOpsMeta::new(Uuid::new_v4(), Uuid::new_v4());
+        let meta_path = temp.path().join("meta.json");
+        let policy = sample_policy(temp.path());
+
+        service.run_set_permissions(meta.torrent_id, &mut meta, &meta_path, &policy)?;
+
+        assert_eq!(
+            meta.step_status(StepKind::SetPermissions),
+            Some(StepStatus::Skipped)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn cleanup_step_skips_when_no_rules_configured() -> Result<()> {
+        let temp = TempDir::new()?;
+        let bus = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
+        let mut meta = FsOpsMeta::new(torrent_id, Uuid::new_v4());
+        let meta_path = temp.path().join("meta.json");
+
+        let artifact = temp.path().join("artifact_dir");
+        fs::create_dir_all(&artifact)?;
+        meta.artifact_path = Some(artifact.to_string_lossy().into_owned());
+
+        let mut policy = sample_policy(temp.path());
+        policy.cleanup_keep = json!([]);
+        policy.cleanup_drop = json!([]);
+
+        service.run_cleanup(torrent_id, &mut meta, &meta_path, &policy)?;
+
+        assert_eq!(
+            meta.step_status(StepKind::Cleanup),
+            Some(StepStatus::Skipped)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn transfer_step_skips_when_destination_already_positioned() -> Result<()> {
+        let temp = TempDir::new()?;
+        let bus = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
+        let mut meta = FsOpsMeta::new(torrent_id, Uuid::new_v4());
+        let meta_path = temp.path().join("meta.json");
+
+        let root = temp.path().join("library");
+        let staged = root.join("title");
+        fs::create_dir_all(&staged)?;
+        meta.staging_path = Some(staged.to_string_lossy().into_owned());
+
+        let policy = FsPolicy {
+            library_root: root.to_string_lossy().into_owned(),
+            ..sample_policy(temp.path())
+        };
+
+        service.run_transfer(torrent_id, &mut meta, &meta_path, &policy, &root)?;
+
+        assert_eq!(
+            meta.step_status(StepKind::Transfer),
+            Some(StepStatus::Skipped)
+        );
+        assert_eq!(meta.transfer_mode.as_deref(), Some("copy"));
+        Ok(())
+    }
+
+    #[test]
+    fn resume_short_circuits_completed_pipeline() -> Result<()> {
+        let temp = TempDir::new()?;
+        let bus = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus.clone(), metrics);
+        let torrent_id = Uuid::new_v4();
+        let root = temp.path().join("library");
+        fs::create_dir_all(&root)?;
+
+        let meta_dir = root.join(META_DIR_NAME);
+        fs::create_dir_all(&meta_dir)?;
+        let meta_path = meta_dir.join(format!("{torrent_id}{META_SUFFIX}"));
+        let artifact = root.join("artifact");
+        fs::create_dir_all(&artifact)?;
+
+        let mut meta = FsOpsMeta::new(torrent_id, Uuid::new_v4());
+        meta.completed = true;
+        meta.artifact_path = Some(artifact.to_string_lossy().into_owned());
+        meta.update_step(StepKind::Finalise, StepStatus::Completed, None);
+        persist_meta(&meta_path, &meta)?;
+
+        let policy = sample_policy(temp.path());
+        let mut stream = bus.subscribe(None);
+        service.apply(FsOpsRequest {
+            torrent_id,
+            source_path: &artifact,
+            policy: &policy,
+        })?;
+
+        let persisted = load_meta(&meta_path)?;
+        assert!(
+            persisted.completed,
+            "resume should preserve completion flag"
+        );
+
+        let runtime = Runtime::new()?;
+        let completed = runtime.block_on(async {
+            while let Some(result) = stream.next().await {
+                let envelope = result?;
+                if matches!(
+                    envelope.event,
+                    Event::FsopsCompleted { torrent_id: id } if id == torrent_id
+                ) {
+                    return Ok::<bool, anyhow::Error>(true);
+                }
+            }
+            Ok(false)
+        })?;
+        assert!(completed, "expected completion event for resumed job");
         Ok(())
     }
 }

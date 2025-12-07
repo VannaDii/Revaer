@@ -29,9 +29,3 @@ zip = { version = "0.6", default-features = false, features = ["deflate"] }
 
 [dev-dependencies]
 tempfile = "3.10"
-sqlx.workspace = true
-revaer-config = { path = "../revaer-config" }
-revaer-runtime = { path = "../revaer-runtime" }
-testcontainers = "0.25"
-revaer-torrent-core = { path = "../revaer-torrent-core" }
-revaer-test-support.workspace = true

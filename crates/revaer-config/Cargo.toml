@@ -26,9 +26,4 @@ thiserror.workspace = true
 revaer-data = { path = "../revaer-data" }
 
 [dev-dependencies]
-once_cell = "1.21"
-serde_json.workspace = true
-testcontainers = "0.25"
-tokio.workspace = true
-serial_test = { version = "3.2", features = ["async"] }
-revaer-test-support.workspace = true
+revaer-test-support = { path = "../revaer-test-support" }

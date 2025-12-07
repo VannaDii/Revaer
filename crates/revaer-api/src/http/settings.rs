@@ -87,3 +87,185 @@ pub(crate) fn invalid_params_for_config_error(error: &ConfigError) -> Vec<Proble
         }],
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::ConfigFacade;
+    use anyhow::{Result, anyhow};
+    use async_trait::async_trait;
+    use chrono::Utc;
+    use revaer_config::{
+        ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigError, ConfigSnapshot,
+        EngineProfile, FsPolicy, SettingsChangeset, SetupToken,
+    };
+    use revaer_events::EventBus;
+    use revaer_telemetry::Metrics;
+    use serde_json::json;
+    use std::time::Duration;
+    use uuid::Uuid;
+
+    #[derive(Clone)]
+    struct StubConfig {
+        snapshot: ConfigSnapshot,
+    }
+
+    #[async_trait]
+    impl ConfigFacade for StubConfig {
+        async fn get_app_profile(&self) -> Result<AppProfile> {
+            Ok(self.snapshot.app_profile.clone())
+        }
+
+        async fn issue_setup_token(&self, _ttl: Duration, _issued_by: &str) -> Result<SetupToken> {
+            Ok(SetupToken {
+                plaintext: "token".into(),
+                expires_at: Utc::now(),
+            })
+        }
+
+        async fn validate_setup_token(&self, _token: &str) -> Result<()> {
+            Ok(())
+        }
+
+        async fn consume_setup_token(&self, _token: &str) -> Result<()> {
+            Ok(())
+        }
+
+        async fn apply_changeset(
+            &self,
+            _actor: &str,
+            _reason: &str,
+            _changeset: SettingsChangeset,
+        ) -> Result<AppliedChanges> {
+            Err(anyhow!("not implemented"))
+        }
+
+        async fn snapshot(&self) -> Result<ConfigSnapshot> {
+            Ok(self.snapshot.clone())
+        }
+
+        async fn authenticate_api_key(
+            &self,
+            _key_id: &str,
+            _secret: &str,
+        ) -> Result<Option<ApiKeyAuth>> {
+            Ok(None)
+        }
+    }
+
+    fn sample_snapshot() -> ConfigSnapshot {
+        ConfigSnapshot {
+            revision: 11,
+            app_profile: AppProfile {
+                id: Uuid::nil(),
+                instance_name: "test".into(),
+                mode: AppMode::Active,
+                version: 1,
+                http_port: 3030,
+                bind_addr: "127.0.0.1".parse().expect("bind addr"),
+                telemetry: json!({}),
+                features: json!({}),
+                immutable_keys: json!([]),
+            },
+            engine_profile: EngineProfile {
+                id: Uuid::nil(),
+                implementation: "stub".into(),
+                listen_port: None,
+                dht: true,
+                encryption: "prefer".into(),
+                max_active: Some(1),
+                max_download_bps: None,
+                max_upload_bps: None,
+                sequential_default: false,
+                resume_dir: "/tmp".into(),
+                download_root: "/tmp/downloads".into(),
+                tracker: json!([]),
+            },
+            fs_policy: FsPolicy {
+                id: Uuid::nil(),
+                library_root: "/tmp/library".into(),
+                extract: false,
+                par2: "disabled".into(),
+                flatten: false,
+                move_mode: "copy".into(),
+                cleanup_keep: json!([]),
+                cleanup_drop: json!([]),
+                chmod_file: None,
+                chmod_dir: None,
+                owner: None,
+                group: None,
+                umask: None,
+                allow_paths: json!([]),
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn settings_patch_rejects_setup_token_context() {
+        let state = Arc::new(ApiState::new(
+            Arc::new(StubConfig {
+                snapshot: sample_snapshot(),
+            }),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::new(),
+            None,
+        ));
+        let context = AuthContext::SetupToken("token".into());
+        let result = settings_patch(
+            State(state),
+            Extension(context),
+            Json(SettingsChangeset::default()),
+        )
+        .await;
+        assert!(result.is_err(), "setup tokens cannot patch settings");
+    }
+
+    #[tokio::test]
+    async fn well_known_returns_snapshot() {
+        let snapshot = sample_snapshot();
+        let state = Arc::new(ApiState::new(
+            Arc::new(StubConfig {
+                snapshot: snapshot.clone(),
+            }),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::new(),
+            None,
+        ));
+
+        let Json(body) = well_known(State(state)).await.expect("well_known");
+        assert_eq!(body.revision, snapshot.revision);
+    }
+
+    #[test]
+    fn invalid_params_are_projected_from_config_error() {
+        let immutables = invalid_params_for_config_error(&ConfigError::ImmutableField {
+            section: "app_profile".into(),
+            field: "http_port".into(),
+        });
+        assert_eq!(immutables[0].pointer, "/app_profile/http_port");
+        assert!(
+            immutables[0].message.contains("immutable"),
+            "immutable error should be described"
+        );
+
+        let invalids = invalid_params_for_config_error(&ConfigError::InvalidField {
+            section: "fs_policy".into(),
+            field: "move_mode".into(),
+            message: "bad value".into(),
+        });
+        assert_eq!(invalids[0].pointer, "/fs_policy/move_mode");
+        assert_eq!(invalids[0].message, "bad value");
+
+        let unknowns = invalid_params_for_config_error(&ConfigError::UnknownField {
+            section: "engine_profile".into(),
+            field: "unexpected".into(),
+        });
+        assert_eq!(unknowns[0].pointer, "/engine_profile/unexpected");
+        assert!(
+            unknowns[0].message.contains("unknown field"),
+            "unknown field should be described"
+        );
+    }
+}

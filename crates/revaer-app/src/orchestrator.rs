@@ -32,6 +32,70 @@ pub(crate) trait EngineConfigurator: Send + Sync {
     async fn apply_engine_profile(&self, profile: &EngineProfile) -> Result<()>;
 }
 
+#[cfg(all(test, feature = "libtorrent"))]
+mod libtorrent_mapping_tests {
+    use super::*;
+
+    #[test]
+    fn map_encryption_policy_normalises_inputs() {
+        assert!(matches!(
+            map_encryption_policy("require"),
+            revaer_torrent_libt::EncryptionPolicy::Require
+        ));
+        assert!(matches!(
+            map_encryption_policy("disable"),
+            revaer_torrent_libt::EncryptionPolicy::Disable
+        ));
+        assert!(matches!(
+            map_encryption_policy("prefer"),
+            revaer_torrent_libt::EncryptionPolicy::Prefer
+        ));
+    }
+
+    #[test]
+    fn runtime_config_reflects_profile_fields() {
+        let profile = EngineProfile {
+            id: Uuid::new_v4(),
+            implementation: "libtorrent".into(),
+            listen_port: Some(6_881),
+            dht: true,
+            encryption: "require".into(),
+            max_active: Some(2),
+            max_download_bps: Some(1_000_000),
+            max_upload_bps: Some(500_000),
+            sequential_default: true,
+            resume_dir: "/tmp/resume".into(),
+            download_root: "/downloads".into(),
+            tracker: serde_json::json!([]),
+        };
+        let config = runtime_config_from_profile(&profile);
+        assert_eq!(config.download_root, profile.download_root);
+        assert_eq!(config.resume_dir, profile.resume_dir);
+        assert_eq!(config.listen_port, profile.listen_port);
+        assert_eq!(config.enable_dht, profile.dht);
+        assert_eq!(config.max_active, profile.max_active);
+        assert_eq!(config.download_rate_limit, profile.max_download_bps);
+        assert_eq!(config.upload_rate_limit, profile.max_upload_bps);
+        assert!(matches!(
+            config.encryption,
+            revaer_torrent_libt::EncryptionPolicy::Require
+        ));
+    }
+}
+
+#[cfg(test)]
+mod rate_guardrail_tests {
+    use super::*;
+
+    #[test]
+    fn log_rate_guardrail_covers_branching() {
+        log_rate_guardrail("download", None);
+        log_rate_guardrail("download", Some(0));
+        log_rate_guardrail("download", Some(RATE_LIMIT_GUARD_BPS + 1));
+        log_rate_guardrail("download", Some(1_000));
+    }
+}
+
 #[cfg(feature = "libtorrent")]
 use revaer_torrent_libt::{EncryptionPolicy, EngineRuntimeConfig, LibtorrentEngine};
 
@@ -675,27 +739,42 @@ const fn bytes_to_f64(value: u64) -> f64 {
     }
 }
 
-#[cfg(all(test, feature = "libtorrent"))]
-mod tests {
+#[cfg(test)]
+mod orchestrator_tests {
     use super::*;
-    use anyhow::{Context, bail};
-    use revaer_config::ConfigService;
-    use revaer_events::EventBus;
-    use revaer_test_support::fixtures::docker_available;
-    use revaer_torrent_core::{AddTorrent, AddTorrentOptions, TorrentSource};
+    use anyhow::bail;
     use serde_json::json;
     use std::fs;
+    use std::path::{Path, PathBuf};
     use tempfile::TempDir;
-    use testcontainers::core::{ContainerPort, WaitFor};
-    use testcontainers::runners::AsyncRunner;
-    use testcontainers::{GenericImage, ImageExt};
-    use tokio::task::yield_now;
-    use tokio::time::{Duration, sleep, timeout};
+    use tokio::time::{Duration, timeout};
+    use tokio_stream::StreamExt;
 
-    fn sample_fs_policy(library_root: &str) -> FsPolicy {
+    #[derive(Default)]
+    struct StubEngine;
+
+    #[async_trait]
+    impl TorrentEngine for StubEngine {
+        async fn add_torrent(&self, _request: AddTorrent) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn remove_torrent(&self, _id: Uuid, _options: RemoveTorrent) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[async_trait]
+    impl EngineConfigurator for StubEngine {
+        async fn apply_engine_profile(&self, _profile: &EngineProfile) -> Result<()> {
+            Ok(())
+        }
+    }
+
+    fn sample_fs_policy(root: &Path) -> FsPolicy {
         FsPolicy {
             id: Uuid::new_v4(),
-            library_root: library_root.to_string(),
+            library_root: root.join("library").display().to_string(),
             extract: false,
             par2: "disabled".to_string(),
             flatten: false,
@@ -707,7 +786,7 @@ mod tests {
             owner: None,
             group: None,
             umask: None,
-            allow_paths: json!([]),
+            allow_paths: json!([root.display().to_string()]),
         }
     }
 
@@ -729,140 +808,37 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn orchestrator_persists_runtime_state() -> Result<()> {
-        if !docker_available() {
-            eprintln!("skipping orchestrator_persists_runtime_state: docker socket missing");
-            return Ok(());
-        }
-
-        let base_image = GenericImage::new("postgres", "14-alpine")
-            .with_exposed_port(ContainerPort::Tcp(5432))
-            .with_wait_for(WaitFor::message_on_stdout(
-                "database system is ready to accept connections",
-            ));
-
-        let request = base_image
-            .with_env_var("POSTGRES_PASSWORD", "password")
-            .with_env_var("POSTGRES_USER", "postgres")
-            .with_env_var("POSTGRES_DB", "postgres");
-
-        let container = request
-            .start()
-            .await
-            .context("failed to start postgres container")?;
-        let port = match container.get_host_port_ipv4(ContainerPort::Tcp(5432)).await {
-            Ok(port) => port,
-            Err(err) => {
-                eprintln!(
-                    "skipping orchestrator_persists_runtime_state: failed to resolve postgres port: {err}"
-                );
-                drop(container);
-                return Ok(());
-            }
-        };
-        let url = format!("postgres://postgres:password@127.0.0.1:{port}/postgres");
-
-        let config = {
-            let mut attempts = 0;
-            loop {
-                match ConfigService::new(url.clone()).await {
-                    Ok(service) => break service,
-                    Err(error) => {
-                        attempts += 1;
-                        if attempts >= 10 {
-                            return Err(error).context("failed to initialise config service");
-                        }
-                        sleep(Duration::from_millis(200)).await;
-                    }
-                }
-            }
-        };
-        let runtime = RuntimeStore::new(config.pool().clone())
-            .await
-            .context("failed to initialise runtime store")?;
-
-        let bus = EventBus::with_capacity(16);
-        let metrics = Metrics::new()?;
-        let deps = LibtorrentOrchestratorDeps::new(&bus, &metrics, Some(runtime.clone()))?;
-        let (_engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
-            &bus,
-            sample_fs_policy("/tmp/library"),
-            sample_engine_profile(),
-            deps,
-        )
-        .await
-        .expect("failed to spawn orchestrator with runtime store");
-
-        let torrent_id = Uuid::new_v4();
-        orchestrator
-            .handle_event(&Event::TorrentAdded {
-                torrent_id,
-                name: "demo".to_string(),
-            })
-            .await?;
-
-        let statuses = runtime.load_statuses().await?;
-        assert_eq!(statuses.len(), 1);
-        assert_eq!(statuses[0].id, torrent_id);
-
-        orchestrator
-            .handle_event(&Event::TorrentRemoved { torrent_id })
-            .await?;
-
-        assert!(runtime.load_statuses().await?.is_empty());
-
-        config.pool().close().await;
-        if !worker.is_finished() {
-            worker.abort();
-        }
-        let _ = worker.await;
-        drop(container);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn orchestrator_applies_fsops_on_completion() -> Result<()> {
-        let bus = EventBus::with_capacity(64);
-        let metrics = Metrics::new()?;
+    async fn completed_event_triggers_fsops_pipeline() -> Result<()> {
         let temp = TempDir::new()?;
-        let library_root = temp.path().join("library");
-        let policy = sample_fs_policy(
-            library_root
-                .to_str()
-                .expect("library root path should be valid UTF-8"),
-        );
-        let deps = LibtorrentOrchestratorDeps::new(&bus, &metrics, None)?;
-        let (engine, orchestrator, worker) =
-            spawn_libtorrent_orchestrator(&bus, policy.clone(), sample_engine_profile(), deps)
-                .await
-                .expect("failed to spawn orchestrator");
-
-        let mut stream = bus.subscribe(None);
-        orchestrator
-            .add_torrent(AddTorrent {
-                id: Uuid::new_v4(),
-                source: TorrentSource::magnet("magnet:?xt=urn:btih:demo"),
-                options: AddTorrentOptions {
-                    name_hint: Some("demo".to_string()),
-                    ..AddTorrentOptions::default()
-                },
-            })
-            .await?;
+        let policy = sample_fs_policy(temp.path());
+        let events = EventBus::with_capacity(16);
+        let metrics = Metrics::new()?;
+        let fsops = FsOpsService::new(events.clone(), metrics);
+        let orchestrator = Arc::new(TorrentOrchestrator::new(
+            Arc::new(StubEngine),
+            fsops,
+            events.clone(),
+            policy.clone(),
+            sample_engine_profile(),
+            None,
+        ));
 
         let torrent_id = Uuid::new_v4();
-        let source_path = library_root.join("incoming").join("title");
+        let source_path = temp.path().join("staging").join("title");
         fs::create_dir_all(&source_path)?;
         fs::write(source_path.join("movie.mkv"), b"video-bytes")?;
-        yield_now().await;
-        engine.publish_completed(torrent_id, source_path.to_string_lossy().into_owned());
+        let mut stream = events.subscribe(None);
+
+        orchestrator
+            .handle_event(&Event::Completed {
+                torrent_id,
+                library_path: source_path.to_string_lossy().into_owned(),
+            })
+            .await?;
 
         timeout(Duration::from_secs(5), async {
-            loop {
-                let envelope = stream
-                    .next()
-                    .await
-                    .ok_or_else(|| anyhow!("event stream closed before fsops completion"))?
-                    .expect("stream recv error");
+            while let Some(result) = stream.next().await {
+                let envelope = result?;
                 match envelope.event {
                     Event::FsopsCompleted { torrent_id: id } if id == torrent_id => {
                         return Ok::<(), anyhow::Error>(());
@@ -876,135 +852,68 @@ mod tests {
                     _ => {}
                 }
             }
+            bail!("event stream closed before fsops completion observed");
         })
-        .await
-        .expect("fsops completion event")
-        .expect("fsops pipeline failed unexpectedly");
+        .await??;
 
-        worker.abort();
-        let _ = worker.await;
-
-        let artifact_dir = PathBuf::from(&policy.library_root).join("title");
-        assert!(artifact_dir.join("movie.mkv").exists());
+        let meta_path = PathBuf::from(&policy.library_root)
+            .join(".revaer")
+            .join(format!("{torrent_id}.meta.json"));
+        assert!(
+            meta_path.exists(),
+            "fsops metadata should be written after completion"
+        );
         Ok(())
     }
 
     #[tokio::test]
-    async fn orchestrator_reports_fsops_failures() {
-        let bus = EventBus::with_capacity(16);
-        let metrics = Metrics::new().expect("metrics registry");
-        let deps =
-            LibtorrentOrchestratorDeps::new(&bus, &metrics, None).expect("libtorrent dependencies");
-        let (engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
-            &bus,
-            sample_fs_policy("   "),
+    async fn completed_event_with_invalid_policy_emits_failure() -> Result<()> {
+        let temp = TempDir::new()?;
+        let events = EventBus::with_capacity(8);
+        let metrics = Metrics::new()?;
+        let fsops = FsOpsService::new(events.clone(), metrics);
+        let mut policy = sample_fs_policy(temp.path());
+        policy.library_root = "   ".to_string();
+        policy.allow_paths = json!([]);
+        let orchestrator = Arc::new(TorrentOrchestrator::new(
+            Arc::new(StubEngine),
+            fsops,
+            events.clone(),
+            policy,
             sample_engine_profile(),
-            deps,
-        )
-        .await
-        .expect("failed to spawn orchestrator");
-        let mut stream = bus.subscribe(None);
-        let temp = TempDir::new().expect("tempdir");
-        let source_path = temp.path().join("staging").join("title");
-        fs::create_dir_all(&source_path).expect("staging path");
-        fs::write(source_path.join("movie.mkv"), b"video").expect("write");
+            None,
+        ));
 
         let torrent_id = Uuid::new_v4();
-        yield_now().await;
-        engine.publish_completed(torrent_id, source_path.to_string_lossy().into_owned());
-        timeout(Duration::from_secs(5), async {
-            loop {
-                let envelope = stream
-                    .next()
-                    .await
-                    .ok_or_else(|| anyhow!("event stream closed before fsops failure"))?
-                    .expect("stream recv error");
+        let staged = temp.path().join("staging").join("title");
+        fs::create_dir_all(&staged)?;
+        fs::write(staged.join("movie.mkv"), b"video")?;
+        let mut stream = events.subscribe(None);
+
+        let result = orchestrator
+            .handle_event(&Event::Completed {
+                torrent_id,
+                library_path: staged.to_string_lossy().into_owned(),
+            })
+            .await;
+        assert!(result.is_err(), "invalid policy should surface an error");
+
+        timeout(Duration::from_secs(3), async {
+            while let Some(event) = stream.next().await {
+                let envelope = event?;
                 match envelope.event {
                     Event::FsopsFailed { torrent_id: id, .. } if id == torrent_id => {
                         return Ok::<(), anyhow::Error>(());
                     }
                     Event::FsopsCompleted { torrent_id: id } if id == torrent_id => {
-                        bail!("fsops completed unexpectedly");
+                        bail!("fsops unexpectedly succeeded with invalid policy");
                     }
                     _ => {}
                 }
             }
+            bail!("no fsops failure observed before stream closed");
         })
-        .await
-        .expect("fsops failure event")
-        .expect("event stream closed before fsops failure");
-        let result = orchestrator.apply_fsops(torrent_id).await;
-        assert!(result.is_err(), "expected fsops to fail for blank policy");
-        worker.abort();
-        let _ = worker.await;
-    }
-
-    #[tokio::test]
-    async fn orchestrator_updates_policy_dynamically() -> Result<()> {
-        let bus = EventBus::with_capacity(16);
-        let metrics = Metrics::new()?;
-        let deps = LibtorrentOrchestratorDeps::new(&bus, &metrics, None)?;
-        let (engine, orchestrator, worker) = spawn_libtorrent_orchestrator(
-            &bus,
-            sample_fs_policy("   "),
-            sample_engine_profile(),
-            deps,
-        )
-        .await
-        .expect("failed to spawn orchestrator");
-        let mut stream = bus.subscribe(None);
-
-        orchestrator
-            .update_fs_policy(sample_fs_policy("/tmp/library"))
-            .await;
-
-        let temp = TempDir::new()?;
-        let staged = temp.path().join("stage");
-        fs::create_dir_all(&staged)?;
-        fs::write(staged.join("movie.mkv"), b"video")?;
-
-        let torrent_id = Uuid::new_v4();
-        yield_now().await;
-        engine.publish_completed(torrent_id, staged.to_string_lossy().into_owned());
-        timeout(Duration::from_secs(5), async {
-            loop {
-                if orchestrator.catalog.get(torrent_id).await.is_some() {
-                    return Ok::<(), anyhow::Error>(());
-                }
-                yield_now().await;
-            }
-        })
-        .await
-        .expect("catalog entry ready")?;
-        orchestrator.apply_fsops(torrent_id).await?;
-        timeout(Duration::from_secs(5), async {
-            loop {
-                let result = stream
-                    .next()
-                    .await
-                    .ok_or_else(|| anyhow!("event stream closed before fsops completion"))?;
-                if let Ok(envelope) = result {
-                    match envelope.event {
-                        Event::FsopsCompleted { torrent_id: id } if id == torrent_id => {
-                            return Ok::<(), anyhow::Error>(());
-                        }
-                        Event::FsopsFailed {
-                            torrent_id: id,
-                            ref message,
-                        } if id == torrent_id => {
-                            bail!("fsops failed unexpectedly: {message}");
-                        }
-                        _ => {}
-                    }
-                }
-            }
-        })
-        .await
-        .expect("fsops completion event after policy update")
-        .expect("fsops pipeline failed unexpectedly after policy update");
-
-        worker.abort();
-        let _ = worker.await;
+        .await??;
         Ok(())
     }
 }
@@ -1227,6 +1136,103 @@ mod engine_refresh_tests {
         assert_eq!(engine.reannounced.read().await.len(), 1);
         assert_eq!(engine.rechecked.read().await.len(), 1);
         assert_eq!(engine.removed.read().await.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn event_torrent_id_extracts_supported_events() {
+        let id = Uuid::new_v4();
+        assert_eq!(
+            event_torrent_id(&Event::TorrentAdded {
+                torrent_id: id,
+                name: "demo".into()
+            }),
+            Some(id)
+        );
+        assert_eq!(
+            event_torrent_id(&Event::SelectionReconciled {
+                torrent_id: id,
+                reason: "policy".into()
+            }),
+            Some(id)
+        );
+        assert_eq!(
+            event_torrent_id(&Event::HealthChanged { degraded: vec![] }),
+            None,
+            "health events should not carry torrent ids"
+        );
+    }
+
+    #[tokio::test]
+    async fn torrent_catalog_tracks_event_evolution() -> Result<()> {
+        let catalog = TorrentCatalog::new();
+        let id = Uuid::new_v4();
+        let other = Uuid::new_v4();
+
+        catalog
+            .observe(&Event::TorrentAdded {
+                torrent_id: id,
+                name: "zeta".into(),
+            })
+            .await;
+        catalog
+            .observe(&Event::FilesDiscovered {
+                torrent_id: id,
+                files: vec![
+                    DiscoveredFile {
+                        path: "movie.mkv".into(),
+                        size_bytes: 1_024,
+                    },
+                    DiscoveredFile {
+                        path: "movie.srt".into(),
+                        size_bytes: 512,
+                    },
+                ],
+            })
+            .await;
+        catalog
+            .observe(&Event::Progress {
+                torrent_id: id,
+                bytes_downloaded: 512,
+                bytes_total: 1_024,
+            })
+            .await;
+        catalog
+            .observe(&Event::StateChanged {
+                torrent_id: id,
+                state: TorrentState::Downloading,
+            })
+            .await;
+        catalog
+            .observe(&Event::Completed {
+                torrent_id: id,
+                library_path: "/library/title".into(),
+            })
+            .await;
+        catalog
+            .observe(&Event::FsopsFailed {
+                torrent_id: id,
+                message: "oops".into(),
+            })
+            .await;
+
+        catalog
+            .observe(&Event::TorrentAdded {
+                torrent_id: other,
+                name: "alpha".into(),
+            })
+            .await;
+
+        let mut statuses = catalog.list().await;
+        assert_eq!(statuses.len(), 2);
+        assert_eq!(statuses.remove(0).id, other, "sorted by name first");
+
+        let status = catalog.get(id).await.expect("status");
+        assert_eq!(status.progress.bytes_total, 1_024);
+        assert!(matches!(status.state, TorrentState::Failed { .. }));
+        let files = status.files.expect("files mapped");
+        assert_eq!(files[0].index, 0);
+        assert_eq!(files[1].index, 1);
         Ok(())
     }
 }
