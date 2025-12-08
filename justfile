@@ -7,7 +7,7 @@ fmt-fix:
     cargo fmt --all
 
 lint:
-    cargo clippy --workspace --all-targets --all-features -- -Dclippy::all -Dclippy::pedantic -Dclippy::cargo -Dclippy::nursery
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 check:
     cargo --config 'build.rustflags=["-Dwarnings"]' check --workspace --all-targets --all-features

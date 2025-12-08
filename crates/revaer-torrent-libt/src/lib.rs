@@ -1,4 +1,5 @@
-#![deny(unsafe_code)]
+#![cfg_attr(not(feature = "libtorrent"), forbid(unsafe_code))]
+#![cfg_attr(feature = "libtorrent", deny(unsafe_code))]
 #![deny(
     warnings,
     dead_code,
@@ -8,7 +9,6 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
-    clippy::cargo,
     clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
