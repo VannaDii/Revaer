@@ -13,12 +13,20 @@
     rustdoc::bare_urls,
     missing_docs
 )]
+#![allow(clippy::redundant_pub_crate)]
 
 //! Administrative CLI for interacting with a Revaer server instance.
 //!
-//! Layout: `cli.rs` (argument parsing, command dispatch) with a thin `main.rs`
-//! that delegates to `run()`.
+//! Layout:
+//! - `cli.rs`: argument parsing and command dispatch
+//! - `commands/`: command handlers grouped by concern
+//! - `client.rs`: shared HTTP client, errors, and telemetry helpers
+//! - `output.rs`: renderers and formatting helpers
+//! - `main.rs`: thin entrypoint delegating to `run()`
 
-pub mod cli;
+pub(crate) mod cli;
+pub(crate) mod client;
+pub(crate) mod commands;
+pub(crate) mod output;
 
 pub use cli::run;

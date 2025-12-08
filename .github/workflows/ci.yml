@@ -123,7 +123,7 @@ jobs:
           sudo apt-get install -y libtorrent-rasterbar-dev pkg-config
 
       - name: Feature matrix tests (no default features)
-        run: just test:features-min
+        run: just test-features-min
 
   audit:
     name: Run Audit
