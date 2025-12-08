@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2025-11-30T20:09:04.942982218+00:00",
+  "generated": "2025-12-08T03:03:20.876244089+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -189,6 +189,20 @@
         "follow-up"
       ],
       "href": "/adr/017-sqlx-named-bind/"
+    },
+    {
+      "id": "adr/018-retire-testcontainers",
+      "title": "Retire testcontainers",
+      "summary": "Status: Accepted Date: 2025-12-06 Context: cargo audit flagged rustls-pemfile (RUSTSEC-2025-0134) as unmaintained, pulled via testcontainers → bollard. AGENT.md forbids local patches and prefers minimal dependencies; maintaining a forked TLS stack would violate both. Our Docker-backed integration tests (Postgres + libtorrent) depended on testcontainers; removing the crate requires alternate coverage. Decision: Remove testcontainers and associated patches from the workspace; delete Docker-backed integration tests and replace them with lightweight unit coverage. Keep filesystem orchestration tests in place using in-process fakes instead of containerized services. Drop the .secignore/deny.toml allowances tied to the testcontainers advisory; rely solely on crates.io sources. Alternatives considered: Upgrade to",
+      "tags": [],
+      "href": "/adr/018-retire-testcontainers/"
+    },
+    {
+      "id": "adr/019-advisory-rustsec-2024-0370",
+      "title": "Advisory RUSTSEC-2024-0370 Temporary Ignore",
+      "summary": "Status: Accepted Date: 2025-02-21 Context: The workspace depends on yew for the UI crate, which transitively pulls proc-macro-error, currently flagged by advisory RUSTSEC-2024-0370 (unmaintained). The affected package is used only via the Yew compile-time macro stack; there is no direct runtime exposure, and no maintained alternative in the current Yew release line. cargo-deny and .secignore both require an explicit justification and remediation plan for any ignore. Decision: Keep the advisory ignored in .secignore and deny.toml while remaining on the current Yew release. Monitor Yew’s releases and remove the ignore as soon as Yew drops the proc-macro-error dependency or provides a",
+      "tags": [],
+      "href": "/adr/019-advisory-rustsec-2024-0370/"
     },
     {
       "id": "adr/index",
