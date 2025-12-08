@@ -16,6 +16,7 @@ concurrency: ci-${{ github.ref }}
 env:
   CARGO_TERM_COLOR: always
   IMAGE_NAME: revaer
+  RUST_TOOLCHAIN: 1.91.0
 
 jobs:
   # Quick formatting check that can run in parallel
@@ -24,8 +25,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
           components: rustfmt
       - uses: taiki-e/install-action@just
 
@@ -37,9 +39,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
-          components: rustfmt
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          components: clippy
       - uses: taiki-e/install-action@just
 
       - name: Install native libtorrent dependencies
@@ -55,9 +58,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
-          components: rustfmt
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: taiki-e/install-action@just
 
       - name: Install native libtorrent dependencies
@@ -73,9 +76,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
-          components: rustfmt
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: taiki-e/install-action@just
 
       - name: Install native libtorrent dependencies
@@ -91,9 +94,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
-          components: rustfmt
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: taiki-e/install-action@just
 
       - name: Install native libtorrent dependencies
@@ -104,14 +107,32 @@ jobs:
       - name: Test
         run: just test
 
+  feature-matrix:
+    name: Feature Matrix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: taiki-e/install-action@just
+
+      - name: Install native libtorrent dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtorrent-rasterbar-dev pkg-config
+
+      - name: Feature matrix tests (no default features)
+        run: just test:features-min
+
   audit:
     name: Run Audit
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
-          components: rustfmt
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: taiki-e/install-action@just
 
       - name: Audit
@@ -122,9 +143,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
-          components: rustfmt
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: taiki-e/install-action@just
 
       - name: Deny
@@ -135,9 +156,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
         with:
-          components: rustfmt
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: taiki-e/install-action@just
 
       - name: Install native libtorrent dependencies
@@ -156,7 +177,9 @@ jobs:
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: taiki-e/install-action@just
 
       - name: Install native libtorrent dependencies
@@ -183,16 +206,30 @@ jobs:
       - name: OpenAPI Spec
         run: just api-export
 
+      - name: Generate SBOM
+        run: just sbom
+
+      - name: Generate license report
+        run: just licenses
+
       - name: Generate SHA256 checksum
         run: sha256sum target/release/revaer-app > target/release/revaer-app.sha256
 
+      - name: Push Short SHA to ENV
+        run: |
+          github_sha_hash=${{ github.sha }}
+          github_sha_short="${github_sha_hash:0:7}"
+          echo "RELEASE_SHA_SHORT=${github_sha_short}" >> $GITHUB_ENV
+
       - uses: actions/upload-artifact@v4
         with:
-          name: revaer-release-${{ github.sha }}
+          name: revaer-release-${{ env.RELEASE_SHA_SHORT }}
           path: |
             target/release/revaer-app
             target/release/revaer-app.sha256
             docs/api/openapi.json
+            artifacts/sbom.json
+            artifacts/licenses.json
 
   publish-release:
     name: Publish Release
@@ -205,10 +242,16 @@ jobs:
       contents: write # needed to create a release
 
     steps:
+      - name: Push Short SHA to ENV
+        run: |
+          github_sha_hash=${{ github.sha }}
+          github_sha_short="${github_sha_hash:0:7}"
+          echo "RELEASE_SHA_SHORT=${github_sha_short}" >> $GITHUB_ENV
+
       - name: Download release artifacts
         uses: actions/download-artifact@v4
         with:
-          name: revaer-release-${{ github.sha }}
+          name: revaer-release-${{ env.RELEASE_SHA_SHORT }}
           path: dist
 
       - name: Create GitHub Release

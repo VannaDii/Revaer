@@ -1,4 +1,4 @@
-use crate::command::EngineRuntimeConfig;
+use crate::types::EngineRuntimeConfig;
 use anyhow::Result;
 use async_trait::async_trait;
 use revaer_torrent_core::{
@@ -6,14 +6,16 @@ use revaer_torrent_core::{
 };
 use uuid::Uuid;
 
+/// Native libtorrent session implementation backed by C++ bindings.
 #[cfg(feature = "libtorrent")]
-mod native;
+pub mod native;
+/// Stub session implementation used for non-native targets/tests.
 #[cfg(any(test, not(feature = "libtorrent")))]
-mod stub;
+pub mod stub;
 
 /// Session abstraction for the libtorrent bridge, with native and stub backends.
 #[cfg(test)]
-pub use stub::StubSession;
+pub(crate) use stub::StubSession;
 
 /// Abstraction over the native libtorrent session surface.
 #[async_trait]

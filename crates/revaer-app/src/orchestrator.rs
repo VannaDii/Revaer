@@ -175,6 +175,7 @@ where
 {
     engine: Arc<E>,
     fsops: FsOpsService,
+    #[cfg_attr(not(feature = "libtorrent"), allow(dead_code))]
     events: EventBus,
     fs_policy: Arc<RwLock<FsPolicy>>,
     engine_profile: Arc<RwLock<EngineProfile>>,
@@ -275,6 +276,7 @@ where
     }
 
     /// Spawn a background task that reacts to completion events and triggers filesystem processing.
+    #[cfg_attr(not(feature = "libtorrent"), allow(dead_code))]
     pub(crate) fn spawn_post_processing(self: &Arc<Self>) -> JoinHandle<()> {
         let orchestrator = Arc::clone(self);
         tokio::spawn(async move {
@@ -291,6 +293,7 @@ where
     }
 
     /// Update the active filesystem policy used for post-processing.
+    #[cfg_attr(not(feature = "libtorrent"), allow(dead_code))]
     pub(crate) async fn update_fs_policy(&self, policy: FsPolicy) {
         let mut guard = self.fs_policy.write().await;
         *guard = policy;
@@ -506,6 +509,7 @@ impl TorrentCatalog {
         }
     }
 
+    #[cfg_attr(not(feature = "libtorrent"), allow(dead_code))]
     async fn seed(&self, statuses: Vec<TorrentStatus>) {
         let mut entries = self.entries.write().await;
         entries.clear();

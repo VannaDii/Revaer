@@ -8,8 +8,8 @@ use revaer_telemetry::{build_sha, record_app_mode};
 use serde::Serialize;
 use tracing::{error, info, warn};
 
+use crate::app::state::ApiState;
 use crate::http::errors::ApiError;
-use crate::state::ApiState;
 #[derive(Serialize)]
 pub(crate) struct HealthComponent {
     pub(crate) status: &'static str,

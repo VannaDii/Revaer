@@ -8,12 +8,16 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
+    clippy::cargo,
     clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
     missing_docs
 )]
 
-//! Legacy shim crate that re-exports the canonical runtime store implementation from `revaer-data`.
+//! Runtime persistence facade for torrent and filesystem job tracking.
+//! Layout: `runtime.rs` (re-exports of the data-layer runtime store).
 
-pub use revaer_data::runtime::*;
+pub mod runtime;
+
+pub use runtime::*;

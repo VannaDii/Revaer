@@ -10,10 +10,10 @@ use revaer_config::{ConfigError, ConfigSnapshot, SettingsChangeset};
 use revaer_events::Event as CoreEvent;
 use tracing::error;
 
+use crate::app::state::ApiState;
 use crate::http::auth::{AuthContext, map_config_error};
 use crate::http::errors::ApiError;
 use crate::models::ProblemInvalidParam;
-use crate::state::ApiState;
 
 pub(crate) async fn settings_patch(
     State(state): State<Arc<ApiState>>,

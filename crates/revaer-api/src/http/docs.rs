@@ -5,7 +5,7 @@ use std::sync::Arc;
 use axum::{Json, extract::State};
 use serde_json::Value;
 
-use crate::state::ApiState;
+use crate::app::state::ApiState;
 
 pub(crate) async fn openapi_document_handler(State(state): State<Arc<ApiState>>) -> Json<Value> {
     Json((*state.openapi_document).clone())
@@ -141,5 +141,46 @@ mod tests {
             2,
             "document should be cloned per request"
         );
+    }
+
+    #[tokio::test]
+    async fn stub_config_exposes_expected_behaviour() {
+        let config = StubConfig;
+        let token = config
+            .issue_setup_token(Duration::from_secs(30), "tester")
+            .await
+            .expect("token issued");
+        assert_eq!(token.plaintext, "token");
+
+        config
+            .validate_setup_token("token")
+            .await
+            .expect("validation should succeed");
+        config
+            .consume_setup_token("token")
+            .await
+            .expect("consumption should succeed");
+
+        let err = config
+            .apply_changeset(
+                "actor",
+                "reason",
+                SettingsChangeset {
+                    app_profile: Some(json!({})),
+                    engine_profile: Some(json!({})),
+                    fs_policy: Some(json!({})),
+                    secrets: Vec::new(),
+                    api_keys: Vec::new(),
+                },
+            )
+            .await
+            .expect_err("apply should be unimplemented");
+        assert!(err.to_string().contains("not implemented"));
+
+        let auth = config
+            .authenticate_api_key("id", "secret")
+            .await
+            .expect("authentication call succeeds");
+        assert!(auth.is_none());
     }
 }

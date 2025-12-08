@@ -15,6 +15,10 @@ check:
 test:
     cargo --config 'build.rustflags=["-Dwarnings"]' test --workspace --all-features
 
+test-features-min:
+    cargo --config 'build.rustflags=["-Dwarnings"]' test -p revaer-api --no-default-features
+    cargo --config 'build.rustflags=["-Dwarnings"]' test -p revaer-app --no-default-features
+
 build:
     cargo build --workspace --all-targets --all-features
 
@@ -61,11 +65,22 @@ cov:
     rustup component add llvm-tools-preview
     cargo llvm-cov --workspace --fail-under-lines 80
 
+sbom:
+    mkdir -p artifacts
+    cargo metadata --format-version 1 --all-features --locked > artifacts/sbom.json
+
+licenses:
+    if ! command -v cargo-deny >/dev/null 2>&1; then \
+        cargo install cargo-deny --locked; \
+    fi
+    mkdir -p artifacts
+    cargo deny list --format json > artifacts/licenses.json
+
 api-export:
     cargo run -p revaer-api --bin generate_openapi
 
 ci:
-    just fmt lint udeps audit deny test cov
+    just fmt lint udeps audit deny test test-features-min cov
 
 docker-build:
     platforms="${PLATFORMS:-linux/amd64,linux/arm64}"; \

@@ -1,10 +1,10 @@
 //! Background task that drives the libtorrent session and emits events.
 
 use crate::{
-    EngineRuntimeConfig,
     command::EngineCommand,
     session::LibtSession,
     store::{FastResumeStore, StoredTorrentMetadata},
+    types::EngineRuntimeConfig,
 };
 use anyhow::Result;
 use revaer_events::{DiscoveredFile, Event, EventBus, TorrentState};

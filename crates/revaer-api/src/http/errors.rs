@@ -8,13 +8,15 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
+#[cfg(feature = "compat-qb")]
+use crate::http::constants::PROBLEM_FORBIDDEN;
 use crate::http::constants::{
-    PROBLEM_BAD_REQUEST, PROBLEM_CONFIG_INVALID, PROBLEM_CONFLICT, PROBLEM_FORBIDDEN,
-    PROBLEM_INTERNAL, PROBLEM_NOT_FOUND, PROBLEM_RATE_LIMITED, PROBLEM_SERVICE_UNAVAILABLE,
-    PROBLEM_SETUP_REQUIRED, PROBLEM_UNAUTHORIZED,
+    PROBLEM_BAD_REQUEST, PROBLEM_CONFIG_INVALID, PROBLEM_CONFLICT, PROBLEM_INTERNAL,
+    PROBLEM_NOT_FOUND, PROBLEM_RATE_LIMITED, PROBLEM_SERVICE_UNAVAILABLE, PROBLEM_SETUP_REQUIRED,
+    PROBLEM_UNAUTHORIZED,
 };
+use crate::http::rate_limit::insert_rate_limit_headers;
 use crate::models::{ProblemDetails, ProblemInvalidParam};
-use crate::rate_limit::insert_rate_limit_headers;
 
 /// Structured API error with optional RFC9457 fields.
 #[derive(Debug)]
@@ -88,6 +90,7 @@ impl ApiError {
         .with_detail(detail)
     }
 
+    #[cfg(feature = "compat-qb")]
     pub(crate) fn forbidden(detail: impl Into<String>) -> Self {
         Self::new(StatusCode::FORBIDDEN, PROBLEM_FORBIDDEN, "forbidden").with_detail(detail)
     }

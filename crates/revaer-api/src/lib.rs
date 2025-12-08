@@ -8,6 +8,7 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
+    clippy::cargo,
     clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
@@ -17,12 +18,11 @@
 //! HTTP API server and shared routing primitives for the Revaer platform.
 //! Layout: bootstrap.rs (wiring), config/, domain/, app/, http/, infra/.
 
+pub mod app;
 pub mod config;
 pub mod http;
 pub mod models;
 pub mod openapi;
-pub mod rate_limit;
-pub mod state;
 
 pub use http::router::ApiServer;
 pub use http::torrents::TorrentHandles;
@@ -31,16 +31,18 @@ pub use openapi::openapi_document;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::state::ApiState;
     use crate::config::{ConfigFacade, SharedConfig};
     use crate::http::auth::{AuthContext, map_config_error};
     use crate::http::constants::{
         HEADER_RATE_LIMIT_LIMIT, HEADER_RATE_LIMIT_REMAINING, HEADER_RATE_LIMIT_RESET,
-        PROBLEM_BAD_REQUEST, PROBLEM_CONFIG_INVALID, PROBLEM_CONFLICT, PROBLEM_FORBIDDEN,
-        PROBLEM_INTERNAL, PROBLEM_NOT_FOUND, PROBLEM_RATE_LIMITED, PROBLEM_SERVICE_UNAVAILABLE,
+        PROBLEM_BAD_REQUEST, PROBLEM_CONFIG_INVALID, PROBLEM_CONFLICT, PROBLEM_INTERNAL,
+        PROBLEM_NOT_FOUND, PROBLEM_RATE_LIMITED, PROBLEM_SERVICE_UNAVAILABLE,
         PROBLEM_SETUP_REQUIRED, PROBLEM_UNAUTHORIZED,
     };
     use crate::http::errors::ApiError;
     use crate::http::health::{health, health_full, metrics};
+    use crate::http::rate_limit::RateLimiter;
     use crate::http::settings::{get_config_snapshot, settings_patch};
     use crate::http::setup::{setup_complete, setup_start};
     use crate::http::sse::{
@@ -60,17 +62,17 @@ mod tests {
         TorrentAction, TorrentCreateRequest, TorrentSelectionRequest, TorrentStateKind,
     };
     use crate::openapi::OpenApiDependencies;
-    use crate::rate_limit::RateLimiter;
-    use crate::state::ApiState;
     use anyhow::Result;
     use async_trait::async_trait;
+    #[cfg(feature = "compat-qb")]
+    use axum::extract::Form;
     use axum::http::header::RETRY_AFTER;
     #[cfg(feature = "compat-qb")]
     use axum::http::{HeaderMap, HeaderValue, header::COOKIE};
     use axum::{
         Extension, Json,
         body::Body,
-        extract::{Form, Path as AxumPath, Query, State},
+        extract::{Path as AxumPath, Query, State},
         http::{Request, StatusCode},
         response::IntoResponse,
     };
@@ -1064,12 +1066,6 @@ mod tests {
                 false,
             ),
             (
-                ApiError::forbidden("nope"),
-                StatusCode::FORBIDDEN,
-                PROBLEM_FORBIDDEN,
-                false,
-            ),
-            (
                 ApiError::bad_request("bad"),
                 StatusCode::BAD_REQUEST,
                 PROBLEM_BAD_REQUEST,
@@ -1138,6 +1134,7 @@ mod tests {
         assert_eq!(headers.get(RETRY_AFTER).unwrap(), "1");
     }
 
+    #[cfg(feature = "compat-qb")]
     #[tokio::test]
     async fn api_state_tracks_health_and_sessions() {
         let config: SharedConfig = Arc::new(MockConfig::new());

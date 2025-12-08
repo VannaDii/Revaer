@@ -12,13 +12,13 @@ use base64::{Engine as _, engine::general_purpose};
 use tracing::{error, info};
 use uuid::Uuid;
 
+use crate::app::state::ApiState;
 use crate::http::constants::{DEFAULT_PAGE_SIZE, MAX_METAINFO_BYTES, MAX_PAGE_SIZE};
 use crate::http::errors::ApiError;
 use crate::models::{
     TorrentAction, TorrentCreateRequest, TorrentDetail, TorrentListResponse,
     TorrentSelectionRequest, TorrentStateKind, TorrentSummary,
 };
-use crate::state::ApiState;
 use revaer_events::Event as CoreEvent;
 use revaer_torrent_core::{
     AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentSource, TorrentStatus,

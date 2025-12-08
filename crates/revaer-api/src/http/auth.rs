@@ -7,11 +7,11 @@ use revaer_config::AppMode;
 use revaer_telemetry::record_app_mode;
 use tracing::{error, info, warn};
 
+use crate::app::state::ApiState;
 use crate::http::constants::{HEADER_API_KEY, HEADER_API_KEY_LEGACY, HEADER_SETUP_TOKEN};
 use crate::http::errors::ApiError;
+use crate::http::rate_limit::insert_rate_limit_headers;
 use crate::http::settings::invalid_params_for_config_error;
-use crate::rate_limit::insert_rate_limit_headers;
-use crate::state::ApiState;
 
 #[cfg(test)]
 mod tests {

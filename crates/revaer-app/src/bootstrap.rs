@@ -1,19 +1,24 @@
 use std::borrow::Cow;
 use std::net::{IpAddr, SocketAddr};
+#[cfg(feature = "libtorrent")]
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(feature = "libtorrent")]
+use std::time::Instant;
 
 use anyhow::{Context, Result, bail, ensure};
 use revaer_api::TorrentHandles;
 use revaer_config::{AppMode, ConfigService, ConfigSnapshot};
 use revaer_events::EventBus;
 use revaer_telemetry::{GlobalContextGuard, LoggingConfig, Metrics, OpenTelemetryConfig};
-use tracing::{error, info, warn};
+#[cfg(feature = "libtorrent")]
+use tracing::warn;
+use tracing::{error, info};
+
+use revaer_runtime::RuntimeStore;
 
 #[cfg(feature = "libtorrent")]
 use crate::orchestrator::{LibtorrentOrchestratorDeps, spawn_libtorrent_orchestrator};
-#[cfg(feature = "libtorrent")]
-use revaer_runtime::RuntimeStore;
 #[cfg(feature = "libtorrent")]
 use revaer_torrent_core::{TorrentInspector, TorrentWorkflow};
 #[cfg(feature = "libtorrent")]
@@ -60,7 +65,7 @@ impl BootstrapDependencies {
                 .context("failed to initialise runtime store")?,
         );
         #[cfg(not(feature = "libtorrent"))]
-        let runtime: Option<RuntimeStore> = None;
+        let _runtime: Option<RuntimeStore> = None;
 
         #[cfg(feature = "libtorrent")]
         let libtorrent = Some(

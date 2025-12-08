@@ -14,8 +14,8 @@ use uuid::Uuid;
 
 use crate::TorrentHandles;
 use crate::config::ConfigFacade;
+use crate::http::rate_limit::{RateLimitError, RateLimitSnapshot, RateLimiter};
 use crate::http::torrents::TorrentMetadata;
-use crate::rate_limit::{RateLimitError, RateLimitSnapshot, RateLimiter};
 
 #[cfg(test)]
 mod tests {
@@ -217,14 +217,17 @@ pub(crate) struct ApiState {
     rate_limiters: Mutex<HashMap<String, RateLimiter>>,
     torrent_metadata: Mutex<HashMap<Uuid, TorrentMetadata>>,
     pub(crate) torrent: Option<TorrentHandles>,
+    #[cfg(feature = "compat-qb")]
     compat_sessions: Mutex<HashMap<String, CompatSession>>,
 }
 
+#[cfg(feature = "compat-qb")]
 #[derive(Clone)]
 pub(crate) struct CompatSession {
     pub(crate) expires_at: Instant,
 }
 
+#[cfg(feature = "compat-qb")]
 pub(crate) const COMPAT_SESSION_TTL: Duration = Duration::from_secs(30 * 60);
 
 impl ApiState {
@@ -245,6 +248,7 @@ impl ApiState {
             rate_limiters: Mutex::new(HashMap::new()),
             torrent_metadata: Mutex::new(HashMap::new()),
             torrent,
+            #[cfg(feature = "compat-qb")]
             compat_sessions: Mutex::new(HashMap::new()),
         }
     }
@@ -368,6 +372,7 @@ impl ApiState {
         guard.remove(id);
     }
 
+    #[cfg(feature = "compat-qb")]
     pub(crate) fn issue_qb_session(&self) -> String {
         let session_id = uuid::Uuid::new_v4().simple().to_string();
         let mut guard = Self::lock_guard(&self.compat_sessions, "compat_sessions");
@@ -380,6 +385,7 @@ impl ApiState {
         session_id
     }
 
+    #[cfg(feature = "compat-qb")]
     pub(crate) fn validate_qb_session(&self, session_id: &str) -> bool {
         let mut guard = Self::lock_guard(&self.compat_sessions, "compat_sessions");
         if let Some(session) = guard.get(session_id)
@@ -391,6 +397,7 @@ impl ApiState {
         false
     }
 
+    #[cfg(feature = "compat-qb")]
     pub(crate) fn revoke_qb_session(&self, session_id: &str) {
         let mut guard = Self::lock_guard(&self.compat_sessions, "compat_sessions");
         guard.remove(session_id);

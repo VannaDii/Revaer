@@ -12,6 +12,8 @@ pub mod docs;
 pub mod errors;
 /// Health and diagnostics endpoints.
 pub mod health;
+/// Rate limit helpers for HTTP responses.
+pub mod rate_limit;
 /// Router construction and server host.
 pub mod router;
 /// Settings/configuration handlers.

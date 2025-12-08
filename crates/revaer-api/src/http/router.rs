@@ -24,6 +24,7 @@ use tower_http::{
 use tracing::Span;
 
 use crate::TorrentHandles;
+use crate::app::state::ApiState;
 use crate::config::SharedConfig;
 use crate::http::auth::{require_api_key, require_setup_token};
 #[cfg(feature = "compat-qb")]
@@ -41,7 +42,6 @@ use crate::http::torrents::handlers::{
     action_torrent, create_torrent, delete_torrent, get_torrent, list_torrents, select_torrent,
 };
 use crate::openapi::OpenApiDependencies;
-use crate::state::ApiState;
 
 /// Axum router wrapper that hosts the Revaer API services.
 pub struct ApiServer {

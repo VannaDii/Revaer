@@ -10,7 +10,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::LibtSession;
-use crate::command::EngineRuntimeConfig;
+use crate::types::EngineRuntimeConfig;
 use revaer_torrent_core::{FilePriorityOverride, FileSelectionRules};
 
 /// In-memory test double for the libtorrent session interface.

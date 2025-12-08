@@ -12,6 +12,7 @@ pub(crate) const SSE_KEEP_ALIVE_SECS: u64 = 20;
 
 pub(crate) const PROBLEM_INTERNAL: &str = "https://revaer.dev/problems/internal";
 pub(crate) const PROBLEM_UNAUTHORIZED: &str = "https://revaer.dev/problems/unauthorized";
+#[cfg(feature = "compat-qb")]
 pub(crate) const PROBLEM_FORBIDDEN: &str = "https://revaer.dev/problems/forbidden";
 pub(crate) const PROBLEM_BAD_REQUEST: &str = "https://revaer.dev/problems/bad-request";
 pub(crate) const PROBLEM_CONFLICT: &str = "https://revaer.dev/problems/conflict";

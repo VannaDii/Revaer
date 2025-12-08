@@ -8,6 +8,7 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
+    clippy::cargo,
     clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
@@ -21,6 +22,7 @@
 /// Application bootstrap and environment loading.
 pub mod bootstrap;
 /// Torrent orchestrator wiring.
+#[cfg(feature = "libtorrent")]
 pub mod orchestrator;
 
 pub use bootstrap::run_app;

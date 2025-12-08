@@ -19,11 +19,11 @@ use tokio::time::sleep;
 use tracing::{error, warn};
 use uuid::Uuid;
 
+use crate::app::state::ApiState;
 use crate::http::constants::{EVENT_KIND_WHITELIST, HEADER_LAST_EVENT_ID, SSE_KEEP_ALIVE_SECS};
 use crate::http::errors::ApiError;
 use crate::http::torrents::{parse_state_filter, split_comma_separated};
 use crate::models::TorrentStateKind;
-use crate::state::ApiState;
 
 #[derive(Debug, Default, Deserialize)]
 pub(crate) struct SseQuery {

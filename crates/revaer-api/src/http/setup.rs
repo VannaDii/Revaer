@@ -14,9 +14,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use tracing::{error, warn};
 
+use crate::app::state::ApiState;
 use crate::http::auth::{AuthContext, extract_setup_token, map_config_error};
 use crate::http::errors::ApiError;
-use crate::state::ApiState;
 
 #[derive(Debug, Default, Deserialize)]
 pub(crate) struct SetupStartRequest {

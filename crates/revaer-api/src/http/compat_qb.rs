@@ -27,11 +27,11 @@ use uuid::Uuid;
 use revaer_events::{Event as CoreEvent, TorrentState};
 use revaer_torrent_core::{RemoveTorrent, TorrentRateLimit, TorrentStatus};
 
+use crate::app::state::{ApiState, COMPAT_SESSION_TTL};
 use crate::http::errors::ApiError;
 use crate::http::torrents::handlers::dispatch_torrent_add;
 use crate::http::torrents::{TorrentHandles, TorrentMetadata};
 use crate::models::TorrentCreateRequest;
-use crate::state::{ApiState, COMPAT_SESSION_TTL};
 
 /// Attach qBittorrent-compatible endpoints to the primary router.
 pub(crate) fn mount(router: Router<Arc<ApiState>>) -> Router<Arc<ApiState>> {
