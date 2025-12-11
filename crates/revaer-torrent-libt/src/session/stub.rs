@@ -9,7 +9,7 @@ use revaer_torrent_core::{
 use serde_json::json;
 use uuid::Uuid;
 
-use super::LibtSession;
+use super::LibTorrentSession;
 use crate::types::EngineRuntimeConfig;
 use revaer_torrent_core::{FilePriorityOverride, FileSelectionRules};
 
@@ -92,7 +92,7 @@ impl StubSession {
 }
 
 #[async_trait]
-impl LibtSession for StubSession {
+impl LibTorrentSession for StubSession {
     async fn add_torrent(&mut self, request: &AddTorrent) -> Result<()> {
         let torrent = StubTorrent::from_add(request);
         let download_dir = torrent.download_dir.clone();

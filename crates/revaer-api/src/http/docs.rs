@@ -144,7 +144,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn stub_config_exposes_expected_behaviour() {
+    async fn stub_config_exposes_expected_behavior() {
         let config = StubConfig;
         let token = config
             .issue_setup_token(Duration::from_secs(30), "tester")

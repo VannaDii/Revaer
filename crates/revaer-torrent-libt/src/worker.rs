@@ -2,7 +2,7 @@
 
 use crate::{
     command::EngineCommand,
-    session::LibtSession,
+    session::LibTorrentSession,
     store::{FastResumeStore, StoredTorrentMetadata},
     types::EngineRuntimeConfig,
 };
@@ -27,7 +27,7 @@ pub fn spawn(
     events: EventBus,
     mut commands: mpsc::Receiver<EngineCommand>,
     store: Option<FastResumeStore>,
-    session: Box<dyn LibtSession>,
+    session: Box<dyn LibTorrentSession>,
 ) {
     tokio::spawn(async move {
         let mut worker = Worker::new(events, session, store);
@@ -65,7 +65,7 @@ pub fn spawn(
 
 struct Worker {
     events: EventBus,
-    session: Box<dyn LibtSession>,
+    session: Box<dyn LibTorrentSession>,
     store: Option<FastResumeStore>,
     resume_cache: HashMap<Uuid, StoredTorrentMetadata>,
     fastresume_payloads: HashMap<Uuid, Vec<u8>>,
@@ -78,7 +78,7 @@ struct Worker {
 impl Worker {
     fn new(
         events: EventBus,
-        session: Box<dyn LibtSession>,
+        session: Box<dyn LibTorrentSession>,
         store: Option<FastResumeStore>,
     ) -> Self {
         let mut resume_cache = HashMap::new();
@@ -694,7 +694,7 @@ mod tests {
     #[tokio::test]
     async fn add_command_with_stub_session_publishes_initial_events() -> Result<()> {
         let bus = EventBus::with_capacity(16);
-        let session: Box<dyn LibtSession> = Box::new(StubSession::default());
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
         let mut worker = Worker::new(bus.clone(), session, None);
         let mut stream = bus.subscribe(None);
 
@@ -733,7 +733,7 @@ mod tests {
     #[tokio::test]
     async fn remove_command_emits_stopped_event() -> Result<()> {
         let bus = EventBus::with_capacity(16);
-        let session: Box<dyn LibtSession> = Box::new(StubSession::default());
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
         let mut worker = Worker::new(bus.clone(), session, None);
         let mut stream = bus.subscribe(None);
 
@@ -771,7 +771,7 @@ mod tests {
     #[tokio::test]
     async fn pause_and_resume_commands_emit_expected_states() -> Result<()> {
         let bus = EventBus::with_capacity(16);
-        let session: Box<dyn LibtSession> = Box::new(StubSession::default());
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
         let mut worker = Worker::new(bus.clone(), session, None);
         let mut stream = bus.subscribe(None);
 
@@ -838,7 +838,7 @@ mod tests {
 
         let bus = EventBus::with_capacity(32);
         let mut stream = bus.subscribe(None);
-        let session: Box<dyn LibtSession> = Box::new(StubSession::default());
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
         let mut worker = Worker::new(bus.clone(), session, Some(store.clone()));
 
         let descriptor = AddTorrent {
@@ -908,7 +908,7 @@ mod tests {
     #[tokio::test]
     async fn progress_updates_coalesced_to_ten_hz() -> Result<()> {
         let bus = EventBus::with_capacity(16);
-        let session: Box<dyn LibtSession> = Box::new(StubSession::default());
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
         let mut worker = Worker::new(bus.clone(), session, None);
         let torrent_id = Uuid::new_v4();
         let mut stream = bus.subscribe(None);
@@ -982,7 +982,7 @@ mod tests {
     #[tokio::test]
     async fn rate_limit_violations_emit_health_degradation() -> Result<()> {
         let bus = EventBus::with_capacity(16);
-        let session: Box<dyn LibtSession> = Box::new(StubSession::default());
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
         let mut worker = Worker::new(bus.clone(), session, None);
         let torrent_id = Uuid::new_v4();
         let mut stream = bus.subscribe(None);
@@ -1057,7 +1057,7 @@ mod tests {
     struct ErrorSession;
 
     #[async_trait::async_trait]
-    impl LibtSession for ErrorSession {
+    impl LibTorrentSession for ErrorSession {
         async fn add_torrent(&mut self, _request: &AddTorrent) -> Result<()> {
             Ok(())
         }
@@ -1118,7 +1118,7 @@ mod tests {
     #[tokio::test]
     async fn session_poll_failure_marks_engine_degraded() {
         let bus = EventBus::with_capacity(8);
-        let session: Box<dyn LibtSession> = Box::new(ErrorSession);
+        let session: Box<dyn LibTorrentSession> = Box::new(ErrorSession);
         let mut worker = Worker::new(bus.clone(), session, None);
         let mut stream = bus.subscribe(None);
 

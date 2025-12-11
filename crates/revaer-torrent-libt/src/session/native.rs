@@ -11,15 +11,15 @@ use revaer_torrent_core::{
     AddTorrent, EngineEvent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentSource,
 };
 
-use super::LibtSession;
+use super::LibTorrentSession;
 
 pub(super) struct NativeSession {
     inner: UniquePtr<ffi::Session>,
 }
 
-pub(super) fn create_session() -> Result<Box<dyn LibtSession>> {
+pub(super) fn create_session() -> Result<Box<dyn LibTorrentSession>> {
     let options = base_options();
-    let inner = initialise_session(&options)?;
+    let inner = initialize_session(&options)?;
     Ok(Box::new(NativeSession { inner }))
 }
 
@@ -42,10 +42,10 @@ const fn base_options() -> ffi::SessionOptions {
     }
 }
 
-fn initialise_session(options: &ffi::SessionOptions) -> Result<UniquePtr<ffi::Session>> {
+fn initialize_session(options: &ffi::SessionOptions) -> Result<UniquePtr<ffi::Session>> {
     let inner = ffi::new_session(options);
     if inner.is_null() {
-        Err(anyhow!("failed to initialise libtorrent session"))
+        Err(anyhow!("failed to initialize libtorrent session"))
     } else {
         Ok(inner)
     }
@@ -54,12 +54,12 @@ fn initialise_session(options: &ffi::SessionOptions) -> Result<UniquePtr<ffi::Se
 #[cfg(all(test, feature = "libtorrent"))]
 fn create_native_session_for_tests() -> Result<NativeSession> {
     let options = base_options();
-    let inner = initialise_session(&options)?;
+    let inner = initialize_session(&options)?;
     Ok(NativeSession { inner })
 }
 
 #[async_trait]
-impl LibtSession for NativeSession {
+impl LibTorrentSession for NativeSession {
     async fn add_torrent(&mut self, request: &AddTorrent) -> Result<()> {
         let mut add_request = ffi::AddTorrentRequest {
             id: request.id.to_string(),

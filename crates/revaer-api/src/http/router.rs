@@ -53,7 +53,7 @@ impl ApiServer {
     ///
     /// # Errors
     ///
-    /// Returns an error if telemetry cannot be initialised or if persisting the `OpenAPI` document
+    /// Returns an error if telemetry cannot be initialized or if persisting the `OpenAPI` document
     /// fails.
     pub fn new(
         config: ConfigService,

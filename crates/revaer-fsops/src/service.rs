@@ -494,7 +494,7 @@ impl FsOpsService {
                 } else if let Some(source) = meta.source_path.as_ref() {
                     PathBuf::from(source)
                 } else {
-                    bail!("fsops source path not initialised before extraction");
+                    bail!("fsops source path not initialized before extraction");
                 };
                 if staging.is_dir() {
                     return Ok(StepOutcome::Skipped(Some(

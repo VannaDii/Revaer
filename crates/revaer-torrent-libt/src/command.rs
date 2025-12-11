@@ -12,7 +12,7 @@ pub enum EngineCommand {
     Remove {
         /// Unique torrent identifier.
         id: Uuid,
-        /// Removal behaviour and cleanup options.
+        /// Removal behavior and cleanup options.
         options: RemoveTorrent,
     },
     /// Pause an active torrent without removing it.
@@ -25,7 +25,7 @@ pub enum EngineCommand {
         /// Unique torrent identifier.
         id: Uuid,
     },
-    /// Override sequential download behaviour for a torrent.
+    /// Override sequential download behavior for a torrent.
     SetSequential {
         /// Unique torrent identifier.
         id: Uuid,

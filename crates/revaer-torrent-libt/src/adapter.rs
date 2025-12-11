@@ -26,7 +26,7 @@ impl LibtorrentEngine {
     ///
     /// # Errors
     ///
-    /// Returns an error if the native libtorrent session cannot be initialised.
+    /// Returns an error if the native libtorrent session cannot be initialized.
     pub fn new(events: EventBus) -> Result<Self> {
         Self::build(events, None)
     }
@@ -35,7 +35,7 @@ impl LibtorrentEngine {
     ///
     /// # Errors
     ///
-    /// Returns an error if the native libtorrent session cannot be initialised.
+    /// Returns an error if the native libtorrent session cannot be initialized.
     pub fn with_resume_store(events: EventBus, store: FastResumeStore) -> Result<Self> {
         Self::build(events, Some(store))
     }

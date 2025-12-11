@@ -19,7 +19,7 @@ pub(crate) use stub::StubSession;
 
 /// Abstraction over the native libtorrent session surface.
 #[async_trait]
-pub trait LibtSession: Send {
+pub trait LibTorrentSession: Send {
     /// Add a new torrent to the session.
     ///
     /// # Errors
@@ -44,7 +44,7 @@ pub trait LibtSession: Send {
     ///
     /// Returns an error if the session fails to resume the torrent.
     async fn resume_torrent(&mut self, id: Uuid) -> Result<()>;
-    /// Toggle sequential download behaviour.
+    /// Toggle sequential download behavior.
     ///
     /// # Errors
     ///
@@ -98,8 +98,8 @@ pub trait LibtSession: Send {
 ///
 /// # Errors
 ///
-/// Returns an error if the native session cannot be initialised.
-pub fn create_session() -> Result<Box<dyn LibtSession>> {
+/// Returns an error if the native session cannot be initialized.
+pub fn create_session() -> Result<Box<dyn LibTorrentSession>> {
     #[cfg(feature = "libtorrent")]
     {
         native::create_session()

@@ -300,7 +300,7 @@ mod tests {
     }
 
     #[test]
-    fn load_all_skips_unrecognised_files() -> Result<()> {
+    fn load_all_skips_unrecognized_files() -> Result<()> {
         let temp = TempDir::new()?;
         let store = FastResumeStore::new(temp.path());
         fs::write(temp.path().join("readme.txt"), "not a torrent")?;
