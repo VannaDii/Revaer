@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>005: Filesystem Operations Pipeline - Revaer Documentation</title>
+        <title>Torrent Flows - Revaer Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -174,45 +174,82 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="005--fsops-pipeline-hardening"><a class="header" href="#005--fsops-pipeline-hardening">005 – FsOps Pipeline Hardening</a></h1>
+                        <h1 id="torrent-flows"><a class="header" href="#torrent-flows">Torrent Flows</a></h1>
+<p>Operational views for the torrent lifecycle and the torrent authoring path. These diagrams are reference-only; wire changes must follow the stored-procedure, clamp-before-apply, and observability guardrails in <code>AGENT.md</code>.</p>
+<h2 id="admission--runtime--fsops"><a class="header" href="#admission--runtime--fsops">Admission → Runtime → FsOps</a></h2>
+<pre class="mermaid">flowchart TB
+    subgraph API["API/CLI"]
+        Req["POST /v1/torrents\n+ CLI add\n- validate payload\n- clamp per profile\n- hydrate metadata (tags/category/storage)\n- normalize selection + limits"]
+    end
+
+    subgraph Worker["Worker / Orchestrator"]
+        Cmd["EngineCommand::Add\n- attach profile snapshot\n- derive AddTorrentOptions\n- stash selection + metadata for FsOps"]
+        Persist["RuntimeStore\n- persist metadata/selection\n- checkpoint admission state"]
+    end
+
+    subgraph Bridge["Bridge / FFI"]
+        Opts["EngineOptions/AddTorrentRequest\n- listen/download dirs\n- per-torrent rate caps\n- queue priority / paused\n- trackers (profile + request)\n- encryption, DHT, LSD flags\n- seed mode / add paused"]
+        Session["libtorrent session\n- apply settings_pack\n- add_torrent_params\n- start/resume handles"]
+    end
+
+    subgraph Engine["Engine Loop"]
+        Progress["Native events → EngineEvent\n- progress/state\n- alert mapping\n- tracker status\n- errors (listen/storage/peer)"]
+        Cache["Per-torrent cache\n- rate caps\n- trackers\n- limits\n- tags/category"]
+    end
+
+    subgraph FsOps["FsOps Pipeline"]
+        Select["Selection reconcile\n- honor request selection\n- drop unselected paths"]
+        Extract["Extract archives (zip/rar/7z/tar.gz)\n- optional; skip when not configured\n- guardrail missing tools"]
+        Flatten["Flatten/move per policy\n- copy/move/hardlink\n- partfile handling"]
+        Perms["chmod/chown/umask\n- library root enforcement"]
+        Cleanup["Cleanup\n- drop patterns\n- keep filters\n- metadata writeback (.revaer.meta)"]
+    end
+
+    Req --&gt; Cmd
+    Cmd --&gt; Persist
+    Cmd --&gt; Opts
+    Opts --&gt; Session
+    Session --&gt; Progress
+    Progress --&gt; Cache
+    Progress --&gt;|Completed event| FsOps
+    FsOps --&gt;|Events + metrics| Worker
+    Worker --&gt;|Health + SSE| API
+</pre>
+
+<h3 id="notes"><a class="header" href="#notes">Notes</a></h3>
 <ul>
-<li>Status: Accepted</li>
-<li>Date: 2025-10-17</li>
+<li>Clamping and validation happen before persistence and before libtorrent sees the settings; unknown fields are ignored, unsafe values are clamped.</li>
+<li>Per-torrent limits (rate caps, queue priority, paused, seed mode) are applied immediately on admission and cached for later verification.</li>
+<li>FsOps runs on <code>Completed</code> with retries; every stage emits events/metrics and degrades health on guardrail breaches (tooling missing, permission errors, latency overruns).</li>
 </ul>
-<h2 id="context"><a class="header" href="#context">Context</a></h2>
+<h2 id="torrent-creation-authoring-flow"><a class="header" href="#torrent-creation-authoring-flow">Torrent Creation (Authoring) Flow</a></h2>
+<pre class="mermaid">flowchart LR
+    Input["Input\n- file/dir path\n- trackers/web seeds\n- piece size (auto/manual)\n- private flag\n- comment/source\n- alignment rules"]
+    Stage["Stage &amp; Hash\n- walk files with allowlist\n- apply size filters\n- align pieces\n- hash with deterministic order"]
+    Meta["Build metainfo\n- info dictionary\n- tracker tiers\n- web seeds\n- creation date\n- optional dht nodes"]
+    Validate["Validate\n- size/limit guards\n- path length\n- private flag vs trackers\n- duplicate file detection"]
+    PersistMeta["Persist\n- .torrent file\n- magnet link\n- optional signed manifest"]
+    Return["Return to caller\n- paths + hashes\n- effective options\n- warnings (skipped files, clamped piece size)"]
+
+    Input --&gt; Stage --&gt; Meta --&gt; Validate --&gt; PersistMeta --&gt; Return
+</pre>
+
+<h3 id="notes-1"><a class="header" href="#notes-1">Notes</a></h3>
 <ul>
-<li>Phase One promotes filesystem post-processing from a best-effort helper to a first-class workflow with explicit health semantics.</li>
-<li>The orchestrator must ensure every completed torrent flows through a deterministic FsOps state machine, emitting structured telemetry and reconciling mismatches with persisted metadata.</li>
-<li>Operators require visibility into FsOps latency, failures, and guard-rail breaches (e.g., missing extraction tools, permission errors) via <code>/health/full</code>, Prometheus, and the shared EventBus.</li>
-</ul>
-<h2 id="decision"><a class="header" href="#decision">Decision</a></h2>
-<ul>
-<li>FsOps responsibilities live inside <code>revaer-fsops</code>, invoked by the orchestrator (<code>TorrentOrchestrator::apply_fsops</code>) with an explicit <code>FsOpsRequest</code> that carries the torrent id, resolved source path, and effective policy snapshot whenever a <code>Completed</code> event surfaces.</li>
-<li>Each pipeline step (<code>extract</code>, <code>flatten</code>, <code>transfer</code>, <code>set_permissions</code>, <code>cleanup</code>, <code>finalise</code>) records start/completion/failure events and increments Prometheus counters via <code>Metrics::inc_fsops_step</code>; the extraction stage currently focuses on zip archives and gracefully skips when inputs are already directories.</li>
-<li>Metadata is persisted alongside <code>.revaer.meta</code> to reconcile selection overrides and resume directories across restarts; mismatches trigger <code>SelectionReconciled</code> events plus guard-rail telemetry.</li>
-<li>Health degradation is published when FsOps detects latency guard rails, missing tools, or unrecoverable IO errors; recovery clears the <code>fsops</code> component from the degrade set.</li>
-</ul>
-<h2 id="consequences"><a class="header" href="#consequences">Consequences</a></h2>
-<ul>
-<li>FsOps execution becomes observable and retry-friendly, enabling operator runbooks to diagnose stuck jobs with concrete metrics and events while capturing chmod/chown/umask outcomes in recorded metadata.</li>
-<li>Pipeline regressions now fail CI thanks to targeted unit/integration tests under <code>revaer-fsops</code> and orchestrator-level tests driving the shared event bus.</li>
-<li>The orchestration layer remains single-owner of FsOps invocation, simplifying future extensions (e.g., checksum verification, media tagging) without leaking concerns into the API.</li>
-</ul>
-<h2 id="verification"><a class="header" href="#verification">Verification</a></h2>
-<ul>
-<li><code>just test</code> exercises FsOps unit cases, while orchestrator integration tests validate event emission, degradation flows, and metadata reconciliation.</li>
-<li><code>/health/full</code> and Prometheus snapshots display FsOps metrics during the runbook, confirming latency guard rails and failure counters behave as expected.</li>
+<li>Creation respects the same glob filters and guardrails used by admission to avoid later FsOps surprises (e.g., exclude temporary/system files).</li>
+<li>When trackers or web seeds are provided, they remain deduplicated and ordered; private torrents skip DHT/PEX automatically.</li>
+<li>The flow is deterministic: file order, piece sizing, and hashing are reproducible given the same inputs and options.</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../adr/004-phase-one-delivery.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../platform/cli.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../adr/006-api-cli-contract.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../platform/native-tests.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -222,11 +259,11 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../adr/004-phase-one-delivery.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../platform/cli.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../adr/006-api-cli-contract.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../platform/native-tests.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

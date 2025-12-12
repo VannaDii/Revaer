@@ -202,6 +202,27 @@
     "href": "/adr/019-advisory-rustsec-2024-0370/"
   },
   {
+    "id": "adr/020-torrent-engine-precursors",
+    "title": "Torrent engine precursor hardening",
+    "summary": "Status: Accepted Date: 2025-12-10 Context: Torrent work in TORRENT_GAPS.md needs shared scaffolding before adding tracker/NAT/limit features. Validation and persistence had drifted across API/runtime/DB; per-field SQL updates risked skew and missing guard rails. The FFI surface for libtorrent was a flat struct that would become unmanageable as new knobs land. Native tests were slow to write without a harness to spin a session and apply configs. Decision: Introduced engine_profile module to normalise/validate profile patches, emit effective views with guard-rail warnings, and clamp before storage/runtime use. Replaced per-field SQL with a unified update_engine_profile stored procedure and EngineProfileUpdate data shape to keep DB/API",
+    "tags": [],
+    "href": "/adr/020-torrent-engine-precursors/"
+  },
+  {
+    "id": "adr/021-torrent-precursor-enforcement",
+    "title": "Torrent precursor enforcement",
+    "summary": "Status: Accepted Date: 2025-12-12 Context: TORRENT_GAPS precursors called for unified engine profile persistence/validation before expanding tracker/NAT features. Legacy per-field stored procedures risked drifting from the shared validator and API/runtime expectations. Runtime → FFI mapping lived inline, making it harder to clamp unsafe values or extend with new options; native tests lacked a reusable harness. Decision: Retired the per-field engine profile update functions/procedures in favour of the single update_engine_profile entry point (migration 0005_engine_profile_cleanup), keeping DB/API validation aligned. Introduced EngineOptionsPlan::from_runtime_config to clamp/disable invalid runtime values before crossing the FFI boundary and surface guard-rail warnings in the native session. Added a reusable NativeSessionHarness",
+    "tags": [],
+    "href": "/adr/021-torrent-precursor-enforcement/"
+  },
+  {
+    "id": "adr/022-torrent-settings-parity",
+    "title": "Torrent settings parity and observability",
+    "summary": "Status: Accepted Date: 2025-12-12 Context: TORRENT_GAPS precursor calls for API/runtime parity and observability of the knobs we already support. Torrent details previously lacked a single place to inspect applied settings (rate caps, selection rules, tags/trackers) and metadata drifted after rate/selection updates. Engine profile parity (stored vs effective) is already exposed via the config snapshot, but per-torrent settings needed an equivalent surface. Decision: Expose a TorrentSettingsView on torrent detail responses covering download_dir/sequential status from the inspector plus tags/trackers/rate caps and the latest selection rules captured in API state. Record selection rules and rate limit updates in TorrentMetadata on creation and after",
+    "tags": [],
+    "href": "/adr/022-torrent-settings-parity/"
+  },
+  {
     "id": "adr/index",
     "title": "Architecture Decision Records",
     "summary": "ADR documents capture the rationale behind significant technical decisions.",
@@ -359,6 +380,16 @@
     "summary": "These tests are opt-in (gated by REVAER_NATIVE_IT) to keep the default matrix deterministic; include them explicitly in feature-matrix runs. To run the feature-gated native libtorrent integration suite locally: export DOCKER_HOST=${DOCKER_HOST:-unix:///Users/vanna/.colima/default/docker.sock} export REVAER_NATIVE_IT=1 just ci cargo test -p revaer-torrent-libt --all-features CI note: add a matrix job that sets REVAER_NATIVE_IT=1 and points DOCKER_HOST at the runner’s daemon to ensure the native path stays covered.",
     "tags": [],
     "href": "/platform/native-tests/"
+  },
+  {
+    "id": "platform/torrent-flows",
+    "title": "Torrent Flows",
+    "summary": "Operational views for the torrent lifecycle and the torrent authoring path. These diagrams are reference-only; wire changes must follow the stored-procedure, clamp-before-apply, and observability guardrails in AGENT.md.",
+    "tags": [
+      "admission-runtime-fsops",
+      "torrent-creation-authoring-flow"
+    ],
+    "href": "/platform/torrent-flows/"
   },
   {
     "id": "release-checklist",

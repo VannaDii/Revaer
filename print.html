@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-602f3702.js";
+            window.path_to_searchindex_js = "searchindex-e09d733d.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-f6fa2f34.js"></script>
+        <script src="toc-34420336.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -212,7 +212,7 @@
 <tr><td>File Selection &amp; FsOps</td><td>Idempotent FsOps pipeline extracts zip payloads, flattens single directories, enforces allow lists, records <code>.revaer.meta</code>, and applies move/copy/hardlink transfers with chmod/chown/umask handling</td><td>Extraction currently limited to zip archives, PAR2 stage still absent, cleanup rules lack checksum awareness, pipeline assumes Unix tooling for ownership changes</td><td>Expand extractor matrix (7z/tar), add PAR2 verification, surface non-Unix fallbacks, and extend cleanup/telemetry coverage</td></tr>
 <tr><td>Public HTTP API &amp; SSE</td><td>Admin setup/settings/torrent CRUD, SSE stream, metrics stub, OpenAPI generator, <code>/api/v2/*</code> qB façade (auth stub, version, torrents info/add/pause/resume/delete, transfer limits, incremental <code>rid</code> sync, basic removal tracking)</td><td><code>/v1/torrents/*</code> pagination/filter matrix still partial, qB façade lacks authenticated sessions, differential removal events, rename/category endpoints; SSE replay still missing Last-Event-ID coverage</td><td>Finish pagination/filter story, tighten façade auth/session handling, surface removals/categories in incremental sync, and expand SSE regression tests</td></tr>
 <tr><td>CLI Parity</td><td>Supports setup start/complete, settings patch, admin torrent add/remove (magnet-aware), status</td><td>Missing <code>select</code>, <code>action</code>, <code>ls</code>, <code>status</code> detail view, <code>tail</code> SSE client, richer validation</td><td>Extend CLI command surface to mirror API, add reconnecting SSE tailer, flesh out filtering and exit-code contract</td></tr>
-<tr><td>Security &amp; Observability</td><td>API key storage hashed, tracing initialised, metrics registry struct</td><td>No per-key rate limits, no X-RateLimit headers, magnet/body bounds missing, tracing not propagated to engine/fsops, metrics unused</td><td>Introduce token-bucket middleware, enforce payload bounds, propagate spans through orchestrator/fsops, export Prometheus counters</td></tr>
+<tr><td>Security &amp; Observability</td><td>API key storage hashed, tracing initialized, metrics registry struct</td><td>No per-key rate limits, no X-RateLimit headers, magnet/body bounds missing, tracing not propagated to engine/fsops, metrics unused</td><td>Introduce token-bucket middleware, enforce payload bounds, propagate spans through orchestrator/fsops, export Prometheus counters</td></tr>
 <tr><td>CI &amp; Packaging</td><td>GitHub Actions cover fmt/lint/deny/audit/tests/cov via <code>just ci</code>; libtorrent deps installed on runners; Dockerfile builds non-root image with bundled libtorrent and HEALTHCHECK; docs workflow publishes mdBook</td><td>Native libtorrent tests not in default matrix; provenance/signing absent; rootfs not read-only; no cross-arch artifacts or enforced image scan in CI</td><td>Add matrix job with REVAER_NATIVE_IT=1 + Docker host, wire provenance/signing and image scan, harden container runtime (read-only root, drop caps), and add cross-arch build artifacts</td></tr>
 <tr><td>Operational End-to-End</td><td>Bootstrap skeleton and event bus exist</td><td>Torrent download, fs pipeline, restart resume, throttling, degraded health scenarios unimplemented</td><td>Sequence implementation/testing to satisfy runbook once engine/fsops/API parity are in place</td></tr>
 </tbody>
@@ -1033,6 +1033,73 @@ Live sync: SSE streams torrent progress/rates/state plus added/removed events to
 </ul>
 <p>All torrent commands require an API key. The CLI surfaces API problems exactly as the server returns them, including RFC9457 validation errors and rate-limit responses (<code>429 Too Many Requests</code> with retry metadata in the body).</p>
 <div style="break-before: page; page-break-before: always;"></div>
+<h1 id="torrent-flows"><a class="header" href="#torrent-flows">Torrent Flows</a></h1>
+<p>Operational views for the torrent lifecycle and the torrent authoring path. These diagrams are reference-only; wire changes must follow the stored-procedure, clamp-before-apply, and observability guardrails in <code>AGENT.md</code>.</p>
+<h2 id="admission--runtime--fsops"><a class="header" href="#admission--runtime--fsops">Admission → Runtime → FsOps</a></h2>
+<pre class="mermaid">flowchart TB
+    subgraph API["API/CLI"]
+        Req["POST /v1/torrents\n+ CLI add\n- validate payload\n- clamp per profile\n- hydrate metadata (tags/category/storage)\n- normalize selection + limits"]
+    end
+
+    subgraph Worker["Worker / Orchestrator"]
+        Cmd["EngineCommand::Add\n- attach profile snapshot\n- derive AddTorrentOptions\n- stash selection + metadata for FsOps"]
+        Persist["RuntimeStore\n- persist metadata/selection\n- checkpoint admission state"]
+    end
+
+    subgraph Bridge["Bridge / FFI"]
+        Opts["EngineOptions/AddTorrentRequest\n- listen/download dirs\n- per-torrent rate caps\n- queue priority / paused\n- trackers (profile + request)\n- encryption, DHT, LSD flags\n- seed mode / add paused"]
+        Session["libtorrent session\n- apply settings_pack\n- add_torrent_params\n- start/resume handles"]
+    end
+
+    subgraph Engine["Engine Loop"]
+        Progress["Native events → EngineEvent\n- progress/state\n- alert mapping\n- tracker status\n- errors (listen/storage/peer)"]
+        Cache["Per-torrent cache\n- rate caps\n- trackers\n- limits\n- tags/category"]
+    end
+
+    subgraph FsOps["FsOps Pipeline"]
+        Select["Selection reconcile\n- honor request selection\n- drop unselected paths"]
+        Extract["Extract archives (zip/rar/7z/tar.gz)\n- optional; skip when not configured\n- guardrail missing tools"]
+        Flatten["Flatten/move per policy\n- copy/move/hardlink\n- partfile handling"]
+        Perms["chmod/chown/umask\n- library root enforcement"]
+        Cleanup["Cleanup\n- drop patterns\n- keep filters\n- metadata writeback (.revaer.meta)"]
+    end
+
+    Req --&gt; Cmd
+    Cmd --&gt; Persist
+    Cmd --&gt; Opts
+    Opts --&gt; Session
+    Session --&gt; Progress
+    Progress --&gt; Cache
+    Progress --&gt;|Completed event| FsOps
+    FsOps --&gt;|Events + metrics| Worker
+    Worker --&gt;|Health + SSE| API
+</pre>
+
+<h3 id="notes"><a class="header" href="#notes">Notes</a></h3>
+<ul>
+<li>Clamping and validation happen before persistence and before libtorrent sees the settings; unknown fields are ignored, unsafe values are clamped.</li>
+<li>Per-torrent limits (rate caps, queue priority, paused, seed mode) are applied immediately on admission and cached for later verification.</li>
+<li>FsOps runs on <code>Completed</code> with retries; every stage emits events/metrics and degrades health on guardrail breaches (tooling missing, permission errors, latency overruns).</li>
+</ul>
+<h2 id="torrent-creation-authoring-flow"><a class="header" href="#torrent-creation-authoring-flow">Torrent Creation (Authoring) Flow</a></h2>
+<pre class="mermaid">flowchart LR
+    Input["Input\n- file/dir path\n- trackers/web seeds\n- piece size (auto/manual)\n- private flag\n- comment/source\n- alignment rules"]
+    Stage["Stage &amp; Hash\n- walk files with allowlist\n- apply size filters\n- align pieces\n- hash with deterministic order"]
+    Meta["Build metainfo\n- info dictionary\n- tracker tiers\n- web seeds\n- creation date\n- optional dht nodes"]
+    Validate["Validate\n- size/limit guards\n- path length\n- private flag vs trackers\n- duplicate file detection"]
+    PersistMeta["Persist\n- .torrent file\n- magnet link\n- optional signed manifest"]
+    Return["Return to caller\n- paths + hashes\n- effective options\n- warnings (skipped files, clamped piece size)"]
+
+    Input --&gt; Stage --&gt; Meta --&gt; Validate --&gt; PersistMeta --&gt; Return
+</pre>
+
+<h3 id="notes-1"><a class="header" href="#notes-1">Notes</a></h3>
+<ul>
+<li>Creation respects the same glob filters and guardrails used by admission to avoid later FsOps surprises (e.g., exclude temporary/system files).</li>
+<li>When trackers or web seeds are provided, they remain deduplicated and ordered; private torrents skip DHT/PEX automatically.</li>
+<li>The flow is deterministic: file order, piece sizing, and hashing are reproducible given the same inputs and options.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
 <h1 id="native-libtorrent-integration-tests"><a class="header" href="#native-libtorrent-integration-tests">Native Libtorrent Integration Tests</a></h1>
 <p>These tests are opt-in (gated by <code>REVAER_NATIVE_IT</code>) to keep the default matrix deterministic; include them explicitly in feature-matrix runs.</p>
 <p>To run the feature-gated native libtorrent integration suite locally:</p>
@@ -1103,6 +1170,10 @@ cargo test -p revaer-torrent-libt --all-features
 <li><a href="adr/016-libtorrent-restoration.html">016</a> – Libtorrent restoration</li>
 <li><a href="adr/017-sqlx-named-bind.html">017</a> – Avoid <code>sqlx-named-bind</code></li>
 <li><a href="adr/018-retire-testcontainers.html">018</a> – Retire testcontainers</li>
+<li><a href="adr/019-advisory-rustsec-2024-0370.html">019</a> – Advisory RUSTSEC-2024-0370 temporary ignore</li>
+<li><a href="adr/020-torrent-engine-precursors.html">020</a> – Torrent engine precursor hardening</li>
+<li><a href="adr/021-torrent-precursor-enforcement.html">021</a> – Torrent precursor enforcement</li>
+<li><a href="adr/022-torrent-settings-parity.html">022</a> – Torrent settings parity and observability</li>
 </ul>
 <h2 id="suggested-workflow"><a class="header" href="#suggested-workflow">Suggested Workflow</a></h2>
 <ol>

@@ -385,6 +385,16 @@
           },
           "summary": {
             "$ref": "#/components/schemas/TorrentSummary"
+          },
+          "settings": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TorrentSettingsView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -634,6 +644,16 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "rate_limit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TorrentRateLimit"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -646,6 +666,107 @@
           "trackers",
           "added_at",
           "last_updated"
+        ],
+        "type": "object"
+      },
+      "TorrentRateLimit": {
+        "properties": {
+          "download_bps": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "upload_bps": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "TorrentSelectionView": {
+        "properties": {
+          "exclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "include": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "priorities": {
+            "items": {
+              "$ref": "#/components/schemas/FilePriorityOverride"
+            },
+            "type": "array"
+          },
+          "skip_fluff": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "include",
+          "exclude",
+          "skip_fluff"
+        ],
+        "type": "object"
+      },
+      "TorrentSettingsView": {
+        "properties": {
+          "download_dir": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rate_limit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TorrentRateLimit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "selection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TorrentSelectionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sequential": {
+            "type": "boolean"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "trackers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "tags",
+          "trackers",
+          "sequential"
         ],
         "type": "object"
       }
