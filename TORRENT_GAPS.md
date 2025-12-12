@@ -20,7 +20,7 @@
     -   [x] Add a central “safe defaults” function for `EngineProfile` → `EngineRuntimeConfig` → `EngineOptions` that clamps/normalizes values, ignores unknown/unsupported fields, and is unit-tested.
     -   [x] Ensure worker/bridge/native paths fail safe on bad inputs without destabilizing the session.
 
--   [ ] Precursor: config/runtime parity and observability
+-   [x] Precursor: config/runtime parity and observability
 
     -   [x] Clamp/normalize before persistence; do not store insane values.
     -   [x] Expose all knobs via API: profile inspect shows stored + effective (post-clamp) values; torrent details expose current per-torrent settings (caps, limits, queue priority, PEX/super-seeding/seed-mode, storage/category/tag, seed ratio override, etc.).

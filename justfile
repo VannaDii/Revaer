@@ -13,11 +13,17 @@ check:
     cargo --config 'build.rustflags=["-Dwarnings"]' check --workspace --all-targets --all-features
 
 test:
-    cargo --config 'build.rustflags=["-Dwarnings"]' test --workspace --all-features
+    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}" \
+    DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
+        cargo --config 'build.rustflags=["-Dwarnings"]' test --workspace --all-features
 
 test-features-min:
-    cargo --config 'build.rustflags=["-Dwarnings"]' test -p revaer-api --no-default-features
-    cargo --config 'build.rustflags=["-Dwarnings"]' test -p revaer-app --no-default-features
+    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}" \
+    DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
+        cargo --config 'build.rustflags=["-Dwarnings"]' test -p revaer-api --no-default-features
+    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}" \
+    DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
+        cargo --config 'build.rustflags=["-Dwarnings"]' test -p revaer-app --no-default-features
 
 build:
     cargo build --workspace --all-targets --all-features
@@ -63,7 +69,9 @@ cov:
         cargo install cargo-llvm-cov --locked; \
     fi
     rustup component add llvm-tools-preview
-    cargo llvm-cov --workspace --fail-under-lines 80
+    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}" \
+    DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
+        cargo llvm-cov --workspace --fail-under-lines 80
 
 sbom:
     mkdir -p artifacts
@@ -80,6 +88,10 @@ api-export:
     cargo run -p revaer-api --bin generate_openapi
 
 ci:
+    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"
+    DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}"
+    export REVAER_TEST_DATABASE_URL DATABASE_URL
+    just db-start
     just fmt lint udeps audit deny test test-features-min cov
 
 docker-build:

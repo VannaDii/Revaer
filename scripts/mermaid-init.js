@@ -6,34 +6,75 @@
     const darkThemes = ['ayu', 'navy', 'coal'];
     const lightThemes = ['light', 'rust'];
 
-    const classList = document.getElementsByTagName('html')[0].classList;
+    const normalizeMermaidBlocks = () => {
+        const targets = [];
 
-    let lastThemeWasLight = true;
-    for (const cssClass of classList) {
-        if (darkThemes.includes(cssClass)) {
-            lastThemeWasLight = false;
-            break;
+        // Convert <pre class="mermaid"> and fenced code blocks into <div class="mermaid">
+        const rewrite = (node) => {
+            const container = document.createElement('div');
+            container.className = 'mermaid';
+            container.textContent = node.textContent;
+            node.replaceWith(container);
+            targets.push(container);
+        };
+
+        document.querySelectorAll('pre.mermaid').forEach(rewrite);
+        document.querySelectorAll('code.language-mermaid').forEach((code) => {
+            rewrite(code.parentElement?.tagName === 'PRE' ? code.parentElement : code);
+        });
+        document.querySelectorAll('div.mermaid').forEach((div) => targets.push(div));
+
+        return targets;
+    };
+
+    const pickTheme = () => {
+        const classList = document.documentElement.classList;
+        for (const cssClass of classList) {
+            if (darkThemes.includes(cssClass)) {
+                return { theme: 'dark', lastThemeWasLight: false };
+            }
         }
-    }
+        return { theme: 'default', lastThemeWasLight: true };
+    };
 
-    const theme = lastThemeWasLight ? 'default' : 'dark';
-    mermaid.initialize({ startOnLoad: true, theme });
+    const render = () => {
+        if (!window.mermaid) {
+            console.error('Mermaid failed to load; diagrams will stay unrendered.');
+            return;
+        }
 
-    // Simplest way to make mermaid re-render the diagrams in the new theme is via refreshing the page
+        const targets = normalizeMermaidBlocks();
+        if (targets.length === 0) {
+            return;
+        }
 
-    for (const darkTheme of darkThemes) {
-        document.getElementById(darkTheme).addEventListener('click', () => {
-            if (lastThemeWasLight) {
-                window.location.reload();
-            }
-        });
-    }
+        const { theme, lastThemeWasLight } = pickTheme();
+        mermaid.initialize({ startOnLoad: false, theme });
+        mermaid
+            .run({ querySelector: '.mermaid' })
+            .catch((err) => console.error('Failed to render mermaid diagrams', err));
 
-    for (const lightTheme of lightThemes) {
-        document.getElementById(lightTheme).addEventListener('click', () => {
-            if (!lastThemeWasLight) {
-                window.location.reload();
-            }
-        });
+        // Simplest way to make mermaid re-render the diagrams in the new theme is via refreshing the page
+        for (const darkTheme of darkThemes) {
+            document.getElementById(darkTheme)?.addEventListener('click', () => {
+                if (lastThemeWasLight) {
+                    window.location.reload();
+                }
+            });
+        }
+
+        for (const lightTheme of lightThemes) {
+            document.getElementById(lightTheme)?.addEventListener('click', () => {
+                if (!lastThemeWasLight) {
+                    window.location.reload();
+                }
+            });
+        }
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', render, { once: true });
+    } else {
+        render();
     }
 })();
