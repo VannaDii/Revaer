@@ -205,6 +205,23 @@ mod tests {
 
         state.update_torrent_metrics().await;
     }
+
+    #[test]
+    fn update_metadata_inserts_defaults() {
+        let id = Uuid::new_v4();
+        let state = ApiState::new(
+            Arc::new(NoopConfig),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            None,
+        );
+
+        state.update_metadata(&id, |metadata| metadata.tags.push("tag-a".into()));
+        let metadata = state.get_metadata(&id);
+        assert_eq!(metadata.tags, vec!["tag-a".to_string()]);
+        assert!(metadata.selection.priorities.is_empty());
+    }
 }
 
 pub(crate) struct ApiState {
@@ -358,6 +375,14 @@ impl ApiState {
     pub(crate) fn set_metadata(&self, id: Uuid, metadata: TorrentMetadata) {
         let mut guard = Self::lock_guard(&self.torrent_metadata, "torrent_metadata");
         guard.insert(id, metadata);
+    }
+
+    pub(crate) fn update_metadata(&self, id: &Uuid, update: impl FnOnce(&mut TorrentMetadata)) {
+        update(
+            Self::lock_guard(&self.torrent_metadata, "torrent_metadata")
+                .entry(*id)
+                .or_default(),
+        );
     }
 
     pub(crate) fn get_metadata(&self, id: &Uuid) -> TorrentMetadata {

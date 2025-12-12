@@ -354,10 +354,7 @@ pub(crate) async fn torrents_add(
         };
 
         dispatch_torrent_add(Some(handles), &request).await?;
-        state.set_metadata(
-            request.id,
-            TorrentMetadata::new(request.tags.clone(), request.trackers.clone()),
-        );
+        state.set_metadata(request.id, TorrentMetadata::from_request(&request));
         added += 1;
     }
 

@@ -238,6 +238,14 @@ mod tests {
 
         let Json(body) = well_known(State(state)).await.expect("well_known");
         assert_eq!(body.revision, snapshot.revision);
+        assert_eq!(
+            body.engine_profile.listen_port,
+            snapshot.engine_profile.listen_port
+        );
+        assert_eq!(
+            body.engine_profile_effective.network.listen_port,
+            snapshot.engine_profile_effective.network.listen_port
+        );
     }
 
     #[test]

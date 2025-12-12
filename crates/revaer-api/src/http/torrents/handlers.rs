@@ -45,10 +45,7 @@ pub(crate) async fn create_torrent(
     }
 
     dispatch_torrent_add(state.torrent.as_ref(), &request).await?;
-    state.set_metadata(
-        request.id,
-        TorrentMetadata::new(request.tags.clone(), request.trackers.clone()),
-    );
+    state.set_metadata(request.id, TorrentMetadata::from_request(&request));
     let torrent_name = request.name.as_deref().unwrap_or("<unspecified>");
     info!(torrent_id = %request.id, torrent_name = %torrent_name, "torrent submission requested");
     state.update_torrent_metrics().await;
@@ -99,7 +96,8 @@ pub(crate) async fn select_torrent(
         .torrent
         .as_ref()
         .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
-    let update: FileSelectionUpdate = request.into();
+    let update: FileSelectionUpdate = request.clone().into();
+    let metadata_selection = update.clone();
     handles
         .workflow()
         .update_selection(id, update)
@@ -109,6 +107,9 @@ pub(crate) async fn select_torrent(
             ApiError::internal("failed to update torrent selection")
         })?;
     info!(torrent_id = %id, "torrent selection update requested");
+    state.update_metadata(&id, |metadata| {
+        metadata.selection = metadata_selection;
+    });
     Ok(StatusCode::ACCEPTED)
 }
 
@@ -165,6 +166,20 @@ pub(crate) async fn action_torrent(
         error!(error = %err, torrent_id = %id, "torrent action failed");
         ApiError::internal("failed to execute torrent action")
     })?;
+
+    if let TorrentAction::Rate {
+        download_bps,
+        upload_bps,
+    } = action
+    {
+        let limits = TorrentRateLimit {
+            download_bps,
+            upload_bps,
+        };
+        state.update_metadata(&id, |metadata| {
+            metadata.apply_rate_limit(&limits);
+        });
+    }
 
     if matches!(action, TorrentAction::Remove { .. }) {
         state.remove_metadata(&id);

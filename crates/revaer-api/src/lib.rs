@@ -1583,10 +1583,19 @@ mod tests {
         let metadata = TorrentMetadata::new(
             vec!["tagA".to_string(), "tagB".to_string()],
             vec!["http://tracker".to_string()],
+            Some(revaer_torrent_core::TorrentRateLimit {
+                download_bps: Some(1_000),
+                upload_bps: None,
+            }),
+            revaer_torrent_core::FileSelectionUpdate::default(),
         );
         let summary = summary_from_components(status, metadata);
         assert_eq!(summary.tags, vec!["tagA".to_string(), "tagB".to_string()]);
         assert_eq!(summary.trackers, vec!["http://tracker".to_string()]);
+        assert_eq!(
+            summary.rate_limit.and_then(|limit| limit.download_bps),
+            Some(1_000)
+        );
     }
 
     #[tokio::test]
@@ -1637,7 +1646,12 @@ mod tests {
         };
         let entry = StatusEntry {
             status: status.clone(),
-            metadata: TorrentMetadata::new(vec![], vec![]),
+            metadata: TorrentMetadata::new(
+                vec![],
+                vec![],
+                None,
+                revaer_torrent_core::FileSelectionUpdate::default(),
+            ),
         };
 
         let encoded = encode_cursor_from_entry(&entry).expect("cursor encoding should succeed");
@@ -2021,11 +2035,29 @@ mod tests {
             completed_at: Some(now),
             last_updated: now,
         };
-        let metadata =
-            TorrentMetadata::new(vec!["tag".to_string()], vec!["http://tracker".to_string()]);
+        let metadata = TorrentMetadata::new(
+            vec!["tag".to_string()],
+            vec!["http://tracker".to_string()],
+            Some(revaer_torrent_core::TorrentRateLimit {
+                download_bps: Some(10),
+                upload_bps: None,
+            }),
+            revaer_torrent_core::FileSelectionUpdate::default(),
+        );
 
         let detail = detail_from_components(status, metadata);
         assert_eq!(detail.summary.tags, vec!["tag".to_string()]);
         assert_eq!(detail.summary.trackers, vec!["http://tracker".to_string()]);
+        assert_eq!(
+            detail
+                .summary
+                .rate_limit
+                .and_then(|limit| limit.download_bps),
+            Some(10)
+        );
+        assert_eq!(
+            detail.settings.as_ref().expect("settings present").trackers,
+            vec!["http://tracker".to_string()]
+        );
     }
 }

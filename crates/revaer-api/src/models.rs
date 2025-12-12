@@ -176,6 +176,55 @@ impl From<revaer_torrent_core::TorrentFile> for TorrentFileView {
     }
 }
 
+/// Current selection rules applied to a torrent.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct TorrentSelectionView {
+    #[serde(default)]
+    /// Glob-style patterns that force inclusion.
+    pub include: Vec<String>,
+    #[serde(default)]
+    /// Glob-style patterns that force exclusion.
+    pub exclude: Vec<String>,
+    /// Indicates whether fluff filtering is enabled.
+    pub skip_fluff: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    /// Explicit per-file priority overrides.
+    pub priorities: Vec<FilePriorityOverride>,
+}
+
+impl From<&FileSelectionUpdate> for TorrentSelectionView {
+    fn from(selection: &FileSelectionUpdate) -> Self {
+        Self {
+            include: selection.include.clone(),
+            exclude: selection.exclude.clone(),
+            skip_fluff: selection.skip_fluff,
+            priorities: selection.priorities.clone(),
+        }
+    }
+}
+
+/// Snapshot of the configurable settings applied to a torrent.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct TorrentSettingsView {
+    #[serde(default)]
+    /// Tags associated with the torrent.
+    pub tags: Vec<String>,
+    #[serde(default)]
+    /// Trackers recorded for the torrent.
+    pub trackers: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Per-torrent bandwidth limits when present.
+    pub rate_limit: Option<TorrentRateLimit>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Download directory applied at admission time.
+    pub download_dir: Option<String>,
+    /// Whether sequential mode is currently active.
+    pub sequential: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// File selection rules most recently requested.
+    pub selection: Option<TorrentSelectionView>,
+}
+
 /// High-level view returned when listing torrents.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct TorrentSummary {
@@ -203,6 +252,9 @@ pub struct TorrentSummary {
     #[serde(default)]
     /// Tracker URLs recorded for the torrent.
     pub trackers: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Per-torrent rate cap overrides applied on admission.
+    pub rate_limit: Option<revaer_torrent_core::TorrentRateLimit>,
     /// Timestamp when the torrent was registered with the engine.
     pub added_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -225,6 +277,7 @@ impl From<TorrentStatus> for TorrentSummary {
             sequential: status.sequential,
             tags: Vec::new(),
             trackers: Vec::new(),
+            rate_limit: None,
             added_at: status.added_at,
             completed_at: status.completed_at,
             last_updated: status.last_updated,
@@ -235,9 +288,15 @@ impl From<TorrentStatus> for TorrentSummary {
 impl TorrentSummary {
     /// Attach API-layer metadata (tags/trackers) captured alongside the torrent.
     #[must_use]
-    pub fn with_metadata(mut self, tags: Vec<String>, trackers: Vec<String>) -> Self {
+    pub fn with_metadata(
+        mut self,
+        tags: Vec<String>,
+        trackers: Vec<String>,
+        rate_limit: Option<revaer_torrent_core::TorrentRateLimit>,
+    ) -> Self {
         self.tags = tags;
         self.trackers = trackers;
+        self.rate_limit = rate_limit;
         self
     }
 }
@@ -249,6 +308,9 @@ pub struct TorrentDetail {
     /// Summary information for the torrent.
     pub summary: TorrentSummary,
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Current configurable settings applied to the torrent.
+    pub settings: Option<TorrentSettingsView>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     /// Detailed file breakdown if requested.
     pub files: Option<Vec<TorrentFileView>>,
 }
@@ -259,7 +321,19 @@ impl From<TorrentStatus> for TorrentDetail {
         let files = status
             .files
             .map(|items| items.into_iter().map(TorrentFileView::from).collect());
-        Self { summary, files }
+        let settings = TorrentSettingsView {
+            tags: Vec::new(),
+            trackers: Vec::new(),
+            rate_limit: None,
+            download_dir: status.download_dir.clone(),
+            sequential: status.sequential,
+            selection: None,
+        };
+        Self {
+            summary,
+            settings: Some(settings),
+            files,
+        }
     }
 }
 
@@ -490,15 +564,29 @@ mod tests {
             last_updated: Utc.timestamp_millis_opt(2_000).unwrap(),
         };
 
-        let summary = TorrentSummary::from(status.clone())
-            .with_metadata(vec!["tag".to_string()], vec!["tracker".to_string()]);
+        let summary = TorrentSummary::from(status.clone()).with_metadata(
+            vec!["tag".to_string()],
+            vec!["tracker".to_string()],
+            Some(revaer_torrent_core::TorrentRateLimit {
+                download_bps: Some(5_000),
+                upload_bps: None,
+            }),
+        );
         assert_eq!(summary.id, torrent_id);
         assert_eq!(summary.state.kind, TorrentStateKind::Completed);
         assert_eq!(summary.tags, vec!["tag".to_string()]);
         assert_eq!(summary.trackers, vec!["tracker".to_string()]);
+        assert_eq!(
+            summary.rate_limit.and_then(|limit| limit.download_bps),
+            Some(5_000)
+        );
 
         let detail = TorrentDetail::from(status);
         assert_eq!(detail.summary.id, torrent_id);
+        let settings = detail.settings.expect("settings should be present");
+        assert_eq!(settings.download_dir.as_deref(), Some("/downloads/movie"));
+        assert!(settings.sequential);
+        assert!(settings.selection.is_none());
         let files = detail.files.expect("files should be present");
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].path, "movie.mkv");

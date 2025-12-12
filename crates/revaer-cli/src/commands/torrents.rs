@@ -391,6 +391,7 @@ mod tests {
             sequential: false,
             tags: vec!["tag1".into()],
             trackers: vec!["https://tracker.example/announce".into()],
+            rate_limit: None,
             added_at: now,
             completed_at: None,
             last_updated: now,
@@ -494,6 +495,7 @@ mod tests {
         let now = Utc::now();
         let detail = TorrentDetail {
             summary: sample_summary(torrent_id, now),
+            settings: None,
             files: Some(vec![TorrentFileView {
                 index: 0,
                 path: "example.mkv".into(),

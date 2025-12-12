@@ -1,30 +1,30 @@
 # Torrent Gaps Checklist (implementation order)
 
--   [ ] Precursor: schema/validation scaffolding
+-   [x] Precursor: schema/validation scaffolding
 
-    -   [ ] Introduce typed `EngineProfileConfig` module and a single stored-proc update path to avoid per-field drift.
-    -   [ ] Add shared validator to keep DB/API validation in lockstep as new fields are added.
+    -   [x] Introduce typed `EngineProfileConfig` module and a single stored-proc update path to avoid per-field drift.
+    -   [x] Add shared validator to keep DB/API validation in lockstep as new fields are added.
 
--   [ ] Precursor: FFI/bridge extensibility
+-   [x] Precursor: FFI/bridge extensibility
 
-    -   [ ] Group related options into sub-structs (trackers, network, storage) to keep `EngineOptions` maintainable.
-    -   [ ] Add snapshot tests in Rust/C++ to lock struct layouts before expanding with new fields.
+    -   [x] Group related options into sub-structs (trackers, network, storage) to keep `EngineOptions` maintainable.
+    -   [x] Add snapshot tests in Rust/C++ to lock struct layouts before expanding with new fields.
 
--   [ ] Precursor: native testing harness
+-   [x] Precursor: native testing harness
 
-    -   [ ] Ensure feature-gated native tests are easy to run locally; add helper to spin up a mocked session for config application.
-    -   [ ] Use the helper to speed iteration as new engine options are added.
+    -   [x] Ensure feature-gated native tests are easy to run locally; add helper to spin up a mocked session for config application.
+    -   [x] Use the helper to speed iteration as new engine options are added.
 
--   [ ] Precursor: safety guardrail and clamping
+-   [x] Precursor: safety guardrail and clamping
 
-    -   [ ] Add a central “safe defaults” function for `EngineProfile` → `EngineRuntimeConfig` → `EngineOptions` that clamps/normalizes values, ignores unknown/unsupported fields, and is unit-tested.
-    -   [ ] Ensure worker/bridge/native paths fail safe on bad inputs without destabilizing the session.
+    -   [x] Add a central “safe defaults” function for `EngineProfile` → `EngineRuntimeConfig` → `EngineOptions` that clamps/normalizes values, ignores unknown/unsupported fields, and is unit-tested.
+    -   [x] Ensure worker/bridge/native paths fail safe on bad inputs without destabilizing the session.
 
 -   [ ] Precursor: config/runtime parity and observability
 
-    -   [ ] Clamp/normalize before persistence; do not store insane values.
-    -   [ ] Expose all knobs via API: profile inspect shows stored + effective (post-clamp) values; torrent details expose current per-torrent settings (caps, limits, queue priority, PEX/super-seeding/seed-mode, storage/category/tag, seed ratio override, etc.).
-    -   [ ] Tests: assert API-reported effective values match applied runtime/libtorrent state after normalization.
+    -   [x] Clamp/normalize before persistence; do not store insane values.
+    -   [x] Expose all knobs via API: profile inspect shows stored + effective (post-clamp) values; torrent details expose current per-torrent settings (caps, limits, queue priority, PEX/super-seeding/seed-mode, storage/category/tag, seed ratio override, etc.).
+    -   [x] Tests: assert API-reported effective values match applied runtime/libtorrent state after normalization.
 
 -   [ ] Tracker configuration flows end-to-end (profile → runtime → bridge → native)
 

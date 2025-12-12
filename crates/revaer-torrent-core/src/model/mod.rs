@@ -69,7 +69,7 @@ pub struct AddTorrentOptions {
 }
 
 /// Per-torrent rate limiting knobs.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct TorrentRateLimit {
     /// Maximum download rate in bytes per second.
     pub download_bps: Option<u64>,
@@ -109,7 +109,7 @@ pub struct FileSelectionUpdate {
 }
 
 /// Per-file priority override.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FilePriorityOverride {
     /// File index within the torrent payload.
     pub index: u32,

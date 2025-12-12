@@ -24,6 +24,7 @@ ADR documents capture the rationale behind significant technical decisions.
 - [019](019-advisory-rustsec-2024-0370.md) – Advisory RUSTSEC-2024-0370 temporary ignore
 - [020](020-torrent-engine-precursors.md) – Torrent engine precursor hardening
 - [021](021-torrent-precursor-enforcement.md) – Torrent precursor enforcement
+- [022](022-torrent-settings-parity.md) – Torrent settings parity and observability
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.
