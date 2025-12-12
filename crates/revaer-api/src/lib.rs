@@ -80,6 +80,7 @@ mod tests {
     use revaer_config::{
         ApiKeyAuth, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigError,
         ConfigSnapshot, EngineProfile, FsPolicy, SettingsChangeset, SetupToken,
+        normalize_engine_profile,
     };
     use revaer_events::{Event as CoreEvent, EventBus, TorrentState};
     use revaer_telemetry::Metrics;
@@ -262,6 +263,20 @@ mod tests {
 
     impl MockConfig {
         fn new() -> Self {
+            let engine_profile = EngineProfile {
+                id: Uuid::new_v4(),
+                implementation: "stub".to_string(),
+                listen_port: Some(6881),
+                dht: true,
+                encryption: "preferred".to_string(),
+                max_active: Some(10),
+                max_download_bps: None,
+                max_upload_bps: None,
+                sequential_default: false,
+                resume_dir: "/tmp/resume".to_string(),
+                download_root: "/tmp/downloads".to_string(),
+                tracker: Value::Null,
+            };
             let snapshot = ConfigSnapshot {
                 revision: 1,
                 app_profile: AppProfile {
@@ -275,20 +290,8 @@ mod tests {
                     features: Value::Null,
                     immutable_keys: Value::Null,
                 },
-                engine_profile: EngineProfile {
-                    id: Uuid::new_v4(),
-                    implementation: "stub".to_string(),
-                    listen_port: Some(6881),
-                    dht: true,
-                    encryption: "preferred".to_string(),
-                    max_active: Some(10),
-                    max_download_bps: None,
-                    max_upload_bps: None,
-                    sequential_default: false,
-                    resume_dir: "/tmp/resume".to_string(),
-                    download_root: "/tmp/downloads".to_string(),
-                    tracker: Value::Null,
-                },
+                engine_profile: engine_profile.clone(),
+                engine_profile_effective: normalize_engine_profile(&engine_profile),
                 fs_policy: FsPolicy {
                     id: Uuid::new_v4(),
                     library_root: "/tmp/library".to_string(),

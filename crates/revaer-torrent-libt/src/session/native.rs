@@ -10,8 +10,10 @@ use ffi::SourceKind;
 use revaer_torrent_core::{
     AddTorrent, EngineEvent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentSource,
 };
+use tracing::warn;
 
 use super::LibTorrentSession;
+use super::options::EngineOptionsPlan;
 
 pub(super) struct NativeSession {
     inner: UniquePtr<ffi::Session>,
@@ -48,6 +50,49 @@ fn initialize_session(options: &ffi::SessionOptions) -> Result<UniquePtr<ffi::Se
         Err(anyhow!("failed to initialize libtorrent session"))
     } else {
         Ok(inner)
+    }
+}
+
+/// Test harness helpers for exercising the native session.
+#[cfg(all(test, feature = "libtorrent"))]
+pub(super) mod test_support {
+    use super::{NativeSession, create_native_session_for_tests};
+    use crate::types::{EncryptionPolicy, EngineRuntimeConfig};
+    use anyhow::Result;
+    use tempfile::TempDir;
+
+    /// Convenience harness for exercising native config application in tests.
+    pub(super) struct NativeSessionHarness {
+        /// Native session under test.
+        pub(super) session: NativeSession,
+        download: TempDir,
+        resume: TempDir,
+    }
+
+    impl NativeSessionHarness {
+        /// Spin up a native session backed by temporary storage roots.
+        pub(super) fn new() -> Result<Self> {
+            Ok(Self {
+                session: create_native_session_for_tests()?,
+                download: TempDir::new()?,
+                resume: TempDir::new()?,
+            })
+        }
+
+        /// Baseline runtime configuration rooted at the harness directories.
+        pub(super) fn runtime_config(&self) -> EngineRuntimeConfig {
+            EngineRuntimeConfig {
+                download_root: self.download.path().to_string_lossy().into_owned(),
+                resume_dir: self.resume.path().to_string_lossy().into_owned(),
+                enable_dht: false,
+                sequential_default: false,
+                listen_port: None,
+                max_active: None,
+                download_rate_limit: None,
+                upload_rate_limit: None,
+                encryption: EncryptionPolicy::Prefer,
+            }
+        }
     }
 }
 
@@ -174,20 +219,12 @@ impl LibTorrentSession for NativeSession {
     }
 
     async fn apply_config(&mut self, config: &EngineRuntimeConfig) -> Result<()> {
-        let options = ffi::EngineOptions {
-            listen_port: config.listen_port.unwrap_or_default(),
-            set_listen_port: config.listen_port.is_some(),
-            enable_dht: config.enable_dht,
-            max_active: config.max_active.unwrap_or(-1),
-            download_rate_limit: config.download_rate_limit.unwrap_or(-1),
-            upload_rate_limit: config.upload_rate_limit.unwrap_or(-1),
-            sequential_default: config.sequential_default,
-            encryption_policy: config.encryption.as_u8(),
-            download_root: config.download_root.clone(),
-            resume_dir: config.resume_dir.clone(),
-        };
+        let plan = EngineOptionsPlan::from_runtime_config(config);
+        for warning in &plan.warnings {
+            warn!(%warning, "native engine guard rail applied");
+        }
         let session = self.inner.pin_mut();
-        let result = session.apply_engine_profile(&options);
+        let result = session.apply_engine_profile(&plan.options);
         Self::map_error(result)
     }
 
@@ -209,32 +246,17 @@ impl LibTorrentSession for NativeSession {
 
 #[cfg(all(test, feature = "libtorrent"))]
 mod tests {
+    use super::test_support::NativeSessionHarness;
     use super::*;
     use crate::ffi::ffi::{NativeEvent, NativeEventKind, NativeTorrentState};
-    use crate::types::{EncryptionPolicy, EngineRuntimeConfig};
     use revaer_torrent_core::{AddTorrent, AddTorrentOptions, EngineEvent, TorrentSource};
-    use tempfile::TempDir;
     use uuid::Uuid;
 
     #[tokio::test]
     async fn native_session_accepts_configuration_and_add() -> Result<()> {
-        let download = TempDir::new()?;
-        let resume_dir = TempDir::new()?;
-
-        let mut session = create_native_session_for_tests()?;
-        let config = EngineRuntimeConfig {
-            download_root: download.path().to_string_lossy().into_owned(),
-            resume_dir: resume_dir.path().to_string_lossy().into_owned(),
-            enable_dht: false,
-            sequential_default: false,
-            listen_port: None,
-            max_active: None,
-            download_rate_limit: None,
-            upload_rate_limit: None,
-            encryption: EncryptionPolicy::Prefer,
-        };
-
-        session.apply_config(&config).await?;
+        let mut harness = NativeSessionHarness::new()?;
+        let config = harness.runtime_config();
+        harness.session.apply_config(&config).await?;
 
         let descriptor = AddTorrent {
             id: Uuid::new_v4(),
@@ -244,31 +266,22 @@ mod tests {
             options: AddTorrentOptions::default(),
         };
 
-        session.add_torrent(&descriptor).await?;
+        harness.session.add_torrent(&descriptor).await?;
         // Polling immediately should succeed even if no events are queued yet.
-        let _ = session.poll_events().await?;
+        let _ = harness.session.poll_events().await?;
         Ok(())
     }
 
     #[tokio::test]
     async fn native_session_applies_rate_limits() -> Result<()> {
-        let download = TempDir::new()?;
-        let resume_dir = TempDir::new()?;
+        let mut harness = NativeSessionHarness::new()?;
+        let mut config = harness.runtime_config();
+        config.listen_port = Some(68_81);
+        config.max_active = Some(2);
+        config.download_rate_limit = Some(256_000);
+        config.upload_rate_limit = Some(128_000);
 
-        let mut session = create_native_session_for_tests()?;
-        let config = EngineRuntimeConfig {
-            download_root: download.path().to_string_lossy().into_owned(),
-            resume_dir: resume_dir.path().to_string_lossy().into_owned(),
-            enable_dht: false,
-            sequential_default: false,
-            listen_port: Some(68_81),
-            max_active: Some(2),
-            download_rate_limit: Some(256_000),
-            upload_rate_limit: Some(128_000),
-            encryption: EncryptionPolicy::Prefer,
-        };
-
-        session.apply_config(&config).await?;
+        harness.session.apply_config(&config).await?;
 
         let descriptor = AddTorrent {
             id: Uuid::new_v4(),
@@ -278,9 +291,10 @@ mod tests {
             options: AddTorrentOptions::default(),
         };
 
-        session.add_torrent(&descriptor).await?;
+        harness.session.add_torrent(&descriptor).await?;
 
-        session
+        harness
+            .session
             .update_limits(
                 None,
                 &TorrentRateLimit {
@@ -290,7 +304,8 @@ mod tests {
             )
             .await?;
 
-        session
+        harness
+            .session
             .update_limits(
                 Some(descriptor.id),
                 &TorrentRateLimit {

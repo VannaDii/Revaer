@@ -206,7 +206,7 @@ mod tests {
     use chrono::Utc;
     use httpmock::prelude::*;
     use reqwest::Client;
-    use revaer_config::{AppMode, AppProfile, EngineProfile, FsPolicy};
+    use revaer_config::{AppMode, AppProfile, EngineProfile, FsPolicy, normalize_engine_profile};
     use std::path::PathBuf;
     use tokio::time::{Duration, timeout};
     use uuid::Uuid;
@@ -232,6 +232,20 @@ mod tests {
     }
 
     fn sample_snapshot() -> ConfigSnapshot {
+        let engine_profile = EngineProfile {
+            id: Uuid::new_v4(),
+            implementation: "libtorrent".into(),
+            listen_port: Some(6881),
+            dht: true,
+            encryption: "enabled".into(),
+            max_active: Some(5),
+            max_download_bps: Some(1_000_000),
+            max_upload_bps: Some(500_000),
+            sequential_default: false,
+            resume_dir: "/var/resume".into(),
+            download_root: "/var/downloads".into(),
+            tracker: json!({}),
+        };
         ConfigSnapshot {
             revision: 42,
             app_profile: AppProfile {
@@ -245,20 +259,8 @@ mod tests {
                 features: json!({}),
                 immutable_keys: json!([]),
             },
-            engine_profile: EngineProfile {
-                id: Uuid::new_v4(),
-                implementation: "libtorrent".into(),
-                listen_port: Some(6881),
-                dht: true,
-                encryption: "enabled".into(),
-                max_active: Some(5),
-                max_download_bps: Some(1_000_000),
-                max_upload_bps: Some(500_000),
-                sequential_default: false,
-                resume_dir: "/var/resume".into(),
-                download_root: "/var/downloads".into(),
-                tracker: json!({}),
-            },
+            engine_profile: engine_profile.clone(),
+            engine_profile_effective: normalize_engine_profile(&engine_profile),
             fs_policy: FsPolicy {
                 id: Uuid::new_v4(),
                 library_root: "/library".into(),

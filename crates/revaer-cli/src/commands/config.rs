@@ -98,6 +98,20 @@ mod tests {
     }
 
     fn sample_snapshot() -> ConfigSnapshot {
+        let engine_profile = revaer_config::EngineProfile {
+            id: Uuid::new_v4(),
+            implementation: "libtorrent".into(),
+            listen_port: Some(6881),
+            dht: true,
+            encryption: "prefer".into(),
+            max_active: Some(4),
+            max_download_bps: None,
+            max_upload_bps: None,
+            sequential_default: false,
+            resume_dir: "/tmp/resume".into(),
+            download_root: "/tmp/downloads".into(),
+            tracker: json!({}),
+        };
         ConfigSnapshot {
             revision: 1,
             app_profile: revaer_config::AppProfile {
@@ -111,20 +125,8 @@ mod tests {
                 features: json!({}),
                 immutable_keys: json!([]),
             },
-            engine_profile: revaer_config::EngineProfile {
-                id: Uuid::new_v4(),
-                implementation: "libtorrent".into(),
-                listen_port: Some(6881),
-                dht: true,
-                encryption: "prefer".into(),
-                max_active: Some(4),
-                max_download_bps: None,
-                max_upload_bps: None,
-                sequential_default: false,
-                resume_dir: "/tmp/resume".into(),
-                download_root: "/tmp/downloads".into(),
-                tracker: json!({}),
-            },
+            engine_profile: engine_profile.clone(),
+            engine_profile_effective: revaer_config::normalize_engine_profile(&engine_profile),
             fs_policy: revaer_config::FsPolicy {
                 id: Uuid::new_v4(),
                 library_root: "/library".into(),

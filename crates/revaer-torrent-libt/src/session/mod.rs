@@ -6,6 +6,9 @@ use revaer_torrent_core::{
 };
 use uuid::Uuid;
 
+#[cfg(feature = "libtorrent")]
+mod options;
+
 /// Native libtorrent session implementation backed by C++ bindings.
 #[cfg(feature = "libtorrent")]
 pub mod native;

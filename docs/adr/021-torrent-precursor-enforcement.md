@@ -1,0 +1,23 @@
+# Torrent precursor enforcement
+
+- Status: Accepted
+- Date: 2025-12-12
+- Context:
+  - TORRENT_GAPS precursors called for unified engine profile persistence/validation before expanding tracker/NAT features.
+  - Legacy per-field stored procedures risked drifting from the shared validator and API/runtime expectations.
+  - Runtime → FFI mapping lived inline, making it harder to clamp unsafe values or extend with new options; native tests lacked a reusable harness.
+- Decision:
+  - Retired the per-field engine profile update functions/procedures in favour of the single `update_engine_profile` entry point (migration `0005_engine_profile_cleanup`), keeping DB/API validation aligned.
+  - Introduced `EngineOptionsPlan::from_runtime_config` to clamp/disable invalid runtime values before crossing the FFI boundary and surface guard-rail warnings in the native session.
+  - Added a reusable `NativeSessionHarness` (feature-gated) to spin up temp-backed libtorrent sessions for config application tests.
+  - Alternatives: keep per-field procs (rejected: drift risk), keep inline FFI mapping without guard rails (rejected: unsafe/defaultless), continue hand-rolled test scaffolding (rejected: slows future option additions).
+- Consequences:
+  - Engine profile persistence now flows through a single stored procedure; accidental partial updates are prevented.
+  - Native application of engine config logs guard-rail warnings and tolerates out-of-range inputs instead of destabilising the session.
+  - Native tests can reuse the harness, reducing boilerplate as tracker/NAT/limit options land.
+  - No new dependencies added.
+- Follow-up:
+  - Extend `EngineOptionsPlan` and the harness as tracker/proxy/listen-interface options are added.
+  - Keep API/CLI samples in sync with effective profiles; rerun `just api-export` when surfaces change.
+  - Tests: ensure `just ci` runs clean after changes; watch for migration `0005` application in environments with existing functions.
+  - Rollback: revert migration `0005` and restore per-field functions if a downstream consumer still relies on them, accepting the drift risk.

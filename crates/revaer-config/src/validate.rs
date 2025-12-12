@@ -1,5 +1,6 @@
 //! Validation helpers and parsing utilities for configuration documents.
 
+use std::collections::HashSet;
 use std::net::IpAddr;
 use std::time::Duration;
 
@@ -44,7 +45,11 @@ pub enum ConfigError {
 }
 
 #[allow(clippy::redundant_pub_crate)]
-pub(crate) fn parse_port(value: &Value, section: &str, field: &str) -> Result<i32> {
+pub(crate) fn parse_port(
+    value: &Value,
+    section: &str,
+    field: &str,
+) -> std::result::Result<i32, ConfigError> {
     let port = value.as_i64().ok_or_else(|| ConfigError::InvalidField {
         section: section.to_string(),
         field: field.to_string(),
@@ -56,8 +61,7 @@ pub(crate) fn parse_port(value: &Value, section: &str, field: &str) -> Result<i3
             section: section.to_string(),
             field: field.to_string(),
             message: "must be between 1 and 65535".to_string(),
-        }
-        .into());
+        });
     }
 
     let port_i32 = i32::try_from(port).map_err(|_| ConfigError::InvalidField {
@@ -149,6 +153,63 @@ pub(crate) fn parse_bind_addr(value: &str) -> Result<IpAddr> {
 
     host.parse::<IpAddr>()
         .with_context(|| format!("invalid bind address '{value}'"))
+}
+
+#[allow(clippy::redundant_pub_crate)]
+pub(crate) fn ensure_object(
+    value: &Value,
+    section: &str,
+    field: &str,
+) -> std::result::Result<(), ConfigError> {
+    if value.is_object() {
+        Ok(())
+    } else {
+        Err(ConfigError::InvalidField {
+            section: section.to_string(),
+            field: field.to_string(),
+            message: "must be an object".to_string(),
+        })
+    }
+}
+
+#[allow(clippy::redundant_pub_crate)]
+pub(crate) fn ensure_array(
+    value: &Value,
+    section: &str,
+    field: &str,
+) -> std::result::Result<(), ConfigError> {
+    if value.is_array() {
+        Ok(())
+    } else {
+        Err(ConfigError::InvalidField {
+            section: section.to_string(),
+            field: field.to_string(),
+            message: "must be an array".to_string(),
+        })
+    }
+}
+
+#[allow(clippy::redundant_pub_crate)]
+pub(crate) fn ensure_mutable(
+    immutable_keys: &HashSet<String>,
+    section: &str,
+    field: &str,
+) -> Result<(), ConfigError> {
+    if field != "immutable_keys" {
+        let scoped = format!("{section}.{field}");
+        let scoped_wildcard = format!("{section}.*");
+        if immutable_keys.contains(section)
+            || immutable_keys.contains(field)
+            || immutable_keys.contains(&scoped)
+            || immutable_keys.contains(&scoped_wildcard)
+        {
+            return Err(ConfigError::ImmutableField {
+                section: section.to_string(),
+                field: field.to_string(),
+            });
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]

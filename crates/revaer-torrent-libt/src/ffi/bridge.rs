@@ -14,29 +14,57 @@ pub mod ffi {
         sequential_default: bool,
     }
 
-    /// Runtime engine configuration forwarded to the native layer.
+    /// Network-centric options applied to the session.
     #[derive(Debug)]
-    struct EngineOptions {
+    struct EngineNetworkOptions {
         /// Desired listen port for the engine.
         listen_port: i32,
         /// Whether to apply the listen port override.
         set_listen_port: bool,
         /// Whether to enable DHT.
         enable_dht: bool,
+        /// Encryption policy flag.
+        encryption_policy: u8,
+    }
+
+    /// Throughput and concurrency limits for the session.
+    #[derive(Debug)]
+    struct EngineLimitOptions {
         /// Maximum active torrents.
         max_active: i32,
         /// Global download cap in bytes per second.
         download_rate_limit: i64,
         /// Global upload cap in bytes per second.
         upload_rate_limit: i64,
-        /// Default sequential preference for torrents.
-        sequential_default: bool,
-        /// Encryption policy flag.
-        encryption_policy: u8,
+    }
+
+    /// Storage paths and behaviour applied to the session.
+    #[derive(Debug)]
+    struct EngineStorageOptions {
         /// Root path for downloads.
         download_root: String,
         /// Directory for resume data.
         resume_dir: String,
+    }
+
+    /// Behavioural defaults applied to new torrents.
+    #[derive(Debug)]
+    struct EngineBehaviorOptions {
+        /// Default sequential preference for torrents.
+        sequential_default: bool,
+    }
+
+    /// Runtime engine configuration forwarded to the native layer.
+    #[derive(Debug)]
+    struct EngineOptions {
+        /// Network-facing options (listen, DHT, encryption).
+        network: EngineNetworkOptions,
+        /// Throughput and concurrency limits.
+        limits: EngineLimitOptions,
+        /// Storage configuration.
+        storage: EngineStorageOptions,
+        /// Behavioural defaults.
+        behavior: EngineBehaviorOptions,
     }
 
     /// Request payload for adding a torrent to the native session.

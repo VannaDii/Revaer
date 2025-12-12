@@ -12,3 +12,18 @@ unsafe impl Send for bridge::ffi::Session {}
 
 /// Re-export of the generated CXX bindings for consumers within this crate.
 pub use bridge::ffi;
+
+#[cfg(test)]
+mod tests {
+    use super::ffi;
+    use std::mem;
+
+    #[test]
+    fn engine_option_layout_is_stable() {
+        assert_eq!(mem::size_of::<ffi::EngineNetworkOptions>(), 8);
+        assert_eq!(mem::size_of::<ffi::EngineLimitOptions>(), 24);
+        assert_eq!(mem::size_of::<ffi::EngineStorageOptions>(), 48);
+        assert_eq!(mem::size_of::<ffi::EngineBehaviorOptions>(), 1);
+        assert_eq!(mem::size_of::<ffi::EngineOptions>(), 88);
+    }
+}

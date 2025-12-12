@@ -19,10 +19,15 @@
 //! Layout: `model.rs` (typed config models and changesets), `validate.rs`
 //! (validation/parsing helpers), `service.rs` (`ConfigService` + `SettingsFacade`).
 
+pub mod engine_profile;
 pub mod model;
 pub mod service;
 pub(crate) mod validate;
 
+pub use engine_profile::{
+    EngineBehaviorConfig, EngineEncryptionPolicy, EngineLimitsConfig, EngineNetworkConfig,
+    EngineProfileEffective, EngineStorageConfig, MAX_RATE_LIMIT_BPS, normalize_engine_profile,
+};
 pub use model::{
     ApiKeyAuth, ApiKeyPatch, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigSnapshot,
     EngineProfile, FsPolicy, SecretPatch, SettingsChange, SettingsChangeset, SettingsPayload,

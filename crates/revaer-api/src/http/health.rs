@@ -184,7 +184,7 @@ mod tests {
     use chrono::Utc;
     use revaer_config::{
         ApiKeyAuth, AppProfile, AppliedChanges, ConfigSnapshot, EngineProfile, FsPolicy,
-        SettingsChangeset, SetupToken,
+        SettingsChangeset, SetupToken, normalize_engine_profile,
     };
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
@@ -267,6 +267,20 @@ mod tests {
     }
 
     fn sample_snapshot(mode: AppMode) -> ConfigSnapshot {
+        let engine_profile = EngineProfile {
+            id: Uuid::nil(),
+            implementation: "stub".into(),
+            listen_port: None,
+            dht: true,
+            encryption: "prefer".into(),
+            max_active: Some(1),
+            max_download_bps: None,
+            max_upload_bps: None,
+            sequential_default: false,
+            resume_dir: "/tmp".into(),
+            download_root: "/tmp/downloads".into(),
+            tracker: json!([]),
+        };
         ConfigSnapshot {
             revision: 7,
             app_profile: AppProfile {
@@ -280,20 +294,8 @@ mod tests {
                 features: json!({}),
                 immutable_keys: json!([]),
             },
-            engine_profile: EngineProfile {
-                id: Uuid::nil(),
-                implementation: "stub".into(),
-                listen_port: None,
-                dht: true,
-                encryption: "prefer".into(),
-                max_active: Some(1),
-                max_download_bps: None,
-                max_upload_bps: None,
-                sequential_default: false,
-                resume_dir: "/tmp".into(),
-                download_root: "/tmp/downloads".into(),
-                tracker: json!([]),
-            },
+            engine_profile: engine_profile.clone(),
+            engine_profile_effective: normalize_engine_profile(&engine_profile),
             fs_policy: FsPolicy {
                 id: Uuid::nil(),
                 library_root: "/tmp/library".into(),

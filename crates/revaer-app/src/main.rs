@@ -17,10 +17,14 @@
 //! Binary entrypoint that wires the Revaer services together and launches the
 //! async orchestrators.
 
+#[cfg(feature = "libtorrent")]
 pub mod orchestrator;
 
 /// Application bootstrap wiring.
 pub mod bootstrap;
+/// Engine profile normalisation and runtime mapping.
+#[cfg(feature = "libtorrent")]
+pub mod engine_config;
 use anyhow::Result;
 
 /// Bootstraps the Revaer application and blocks until shutdown.

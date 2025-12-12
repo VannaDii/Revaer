@@ -18,7 +18,7 @@ revaer-config = { path = "../revaer-config" }
 revaer-fsops = { path = "../revaer-fsops" }
 revaer-telemetry = { path = "../revaer-telemetry" }
 revaer-torrent-core = { path = "../revaer-torrent-core" }
-revaer-torrent-libt = { path = "../revaer-torrent-libt", optional = true }
+revaer-torrent-libt = { path = "../revaer-torrent-libt", default-features = false }
 revaer-events = { path = "../revaer-events" }
 revaer-runtime = { path = "../revaer-runtime" }
 uuid.workspace = true

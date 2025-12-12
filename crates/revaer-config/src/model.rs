@@ -13,6 +13,8 @@ use std::str::FromStr;
 use std::time::Duration;
 use uuid::Uuid;
 
+use crate::engine_profile::EngineProfileEffective;
+
 /// High-level view of the application profile.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppProfile {
@@ -70,7 +72,7 @@ impl AppMode {
 }
 
 /// Engine configuration surfaced to consumers.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct EngineProfile {
     /// Primary key for the engine profile row.
     pub id: Uuid,
@@ -262,6 +264,8 @@ pub struct ConfigSnapshot {
     pub app_profile: AppProfile,
     /// Torrent engine profile configuration.
     pub engine_profile: EngineProfile,
+    /// Effective engine profile after clamping and normalisation.
+    pub engine_profile_effective: EngineProfileEffective,
     /// Filesystem policy configuration.
     pub fs_policy: FsPolicy,
 }

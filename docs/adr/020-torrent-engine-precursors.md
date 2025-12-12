@@ -1,0 +1,26 @@
+# Torrent engine precursor hardening
+
+- Status: Accepted
+- Date: 2025-12-10
+- Context:
+  - Torrent work in `TORRENT_GAPS.md` needs shared scaffolding before adding tracker/NAT/limit features.
+  - Validation and persistence had drifted across API/runtime/DB; per-field SQL updates risked skew and missing guard rails.
+  - The FFI surface for libtorrent was a flat struct that would become unmanageable as new knobs land.
+  - Native tests were slow to write without a harness to spin a session and apply configs.
+- Decision:
+  - Introduced `engine_profile` module to normalise/validate profile patches, emit effective views with guard-rail warnings, and clamp before storage/runtime use.
+  - Replaced per-field SQL with a unified `update_engine_profile` stored procedure and `EngineProfileUpdate` data shape to keep DB/API parity.
+  - Added `EngineRuntimePlan::from_profile` and orchestrator wiring so runtime config applies the normalised/effective profile and surfaces warnings.
+  - Refactored FFI `EngineOptions` into sub-structs (network/limits/storage/behavior), added layout snapshot/static asserts, and a native session harness for config application tests.
+  - Kept engine encryption/limits mapping centralised; removed ad-hoc guard rails in favour of the shared normaliser.
+  - Alternatives: keep incremental field-specific updates and the flat FFI struct (rejected due to drift/maintainability), or defer effective-view plumbing (rejected—needed for observability and clamp safety).
+- Consequences:
+  - Single source of truth for engine profile validation and clamping; API/CLI now expose stored vs effective values with warnings.
+  - Runtime plan is applied via orchestrator; tests cover clamping, encryption mapping, and FFI layout to catch regressions.
+  - Migration bumps schema via stored proc; older ad-hoc update paths retired.
+  - Risk: FFI layout asserts must stay in sync with native builds; future field additions must update tests/migration/normaliser together.
+  - Rollback: revert to pre-0004 migration and restore previous EngineOptions layout, but would lose parity and guard rails.
+- Follow-up:
+  - Implement tracker/NAT/DHT/connection limit fields end-to-end using the new scaffolding.
+  - Extend native/bridge tests as new fields are added (tracker/proxy, listen interfaces, rate caps).
+  - Keep OpenAPI/CLI samples in sync when exposing additional profile knobs; rerun `just api-export`.

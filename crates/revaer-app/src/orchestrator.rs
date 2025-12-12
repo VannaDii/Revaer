@@ -6,6 +6,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use crate::engine_config::EngineRuntimePlan;
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use chrono::Utc;
@@ -24,80 +25,13 @@ use tokio_stream::StreamExt;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 
-/// Upper bound for rate limits before emitting guard-rail warnings (≈5 Gbps).
-const RATE_LIMIT_GUARD_BPS: u64 = 5_000_000_000;
-
 #[async_trait]
 pub(crate) trait EngineConfigurator: Send + Sync {
-    async fn apply_engine_profile(&self, profile: &EngineProfile) -> Result<()>;
-}
-
-#[cfg(all(test, feature = "libtorrent"))]
-mod libtorrent_mapping_tests {
-    use super::*;
-
-    #[test]
-    fn map_encryption_policy_normalises_inputs() {
-        assert!(matches!(
-            map_encryption_policy("require"),
-            revaer_torrent_libt::EncryptionPolicy::Require
-        ));
-        assert!(matches!(
-            map_encryption_policy("disable"),
-            revaer_torrent_libt::EncryptionPolicy::Disable
-        ));
-        assert!(matches!(
-            map_encryption_policy("prefer"),
-            revaer_torrent_libt::EncryptionPolicy::Prefer
-        ));
-    }
-
-    #[test]
-    fn runtime_config_reflects_profile_fields() {
-        let profile = EngineProfile {
-            id: Uuid::new_v4(),
-            implementation: "libtorrent".into(),
-            listen_port: Some(6_881),
-            dht: true,
-            encryption: "require".into(),
-            max_active: Some(2),
-            max_download_bps: Some(1_000_000),
-            max_upload_bps: Some(500_000),
-            sequential_default: true,
-            resume_dir: "/tmp/resume".into(),
-            download_root: "/downloads".into(),
-            tracker: serde_json::json!([]),
-        };
-        let config = runtime_config_from_profile(&profile);
-        assert_eq!(config.download_root, profile.download_root);
-        assert_eq!(config.resume_dir, profile.resume_dir);
-        assert_eq!(config.listen_port, profile.listen_port);
-        assert_eq!(config.enable_dht, profile.dht);
-        assert_eq!(config.max_active, profile.max_active);
-        assert_eq!(config.download_rate_limit, profile.max_download_bps);
-        assert_eq!(config.upload_rate_limit, profile.max_upload_bps);
-        assert!(matches!(
-            config.encryption,
-            revaer_torrent_libt::EncryptionPolicy::Require
-        ));
-    }
-}
-
-#[cfg(test)]
-mod rate_guardrail_tests {
-    use super::*;
-
-    #[test]
-    fn log_rate_guardrail_covers_branching() {
-        log_rate_guardrail("download", None);
-        log_rate_guardrail("download", Some(0));
-        log_rate_guardrail("download", Some(RATE_LIMIT_GUARD_BPS + 1));
-        log_rate_guardrail("download", Some(1_000));
-    }
+    async fn apply_engine_plan(&self, plan: &EngineRuntimePlan) -> Result<()>;
 }
 
 #[cfg(feature = "libtorrent")]
-use revaer_torrent_libt::{EncryptionPolicy, EngineRuntimeConfig, LibtorrentEngine};
+use revaer_torrent_libt::LibtorrentEngine;
 
 #[cfg(feature = "libtorrent")]
 /// Dependencies required to spawn a libtorrent-backed orchestrator.
@@ -132,38 +66,8 @@ impl LibtorrentOrchestratorDeps {
 #[cfg(feature = "libtorrent")]
 #[async_trait]
 impl EngineConfigurator for LibtorrentEngine {
-    async fn apply_engine_profile(&self, profile: &EngineProfile) -> Result<()> {
-        info!(
-            implementation = %profile.implementation,
-            listen_port = ?profile.listen_port,
-            "applying engine profile update"
-        );
-        let config = runtime_config_from_profile(profile);
-        self.apply_runtime_config(config).await
-    }
-}
-
-#[cfg(feature = "libtorrent")]
-fn runtime_config_from_profile(profile: &EngineProfile) -> EngineRuntimeConfig {
-    EngineRuntimeConfig {
-        download_root: profile.download_root.clone(),
-        resume_dir: profile.resume_dir.clone(),
-        enable_dht: profile.dht,
-        sequential_default: profile.sequential_default,
-        listen_port: profile.listen_port,
-        max_active: profile.max_active,
-        download_rate_limit: profile.max_download_bps,
-        upload_rate_limit: profile.max_upload_bps,
-        encryption: map_encryption_policy(&profile.encryption),
-    }
-}
-
-#[cfg(feature = "libtorrent")]
-fn map_encryption_policy(value: &str) -> EncryptionPolicy {
-    match value.to_ascii_lowercase().as_str() {
-        "require" | "required" => EncryptionPolicy::Require,
-        "disable" | "disabled" => EncryptionPolicy::Disable,
-        _ => EncryptionPolicy::Prefer,
+    async fn apply_engine_plan(&self, plan: &EngineRuntimePlan) -> Result<()> {
+        self.apply_runtime_config(plan.runtime.clone()).await
     }
 }
 
@@ -175,7 +79,6 @@ where
 {
     engine: Arc<E>,
     fsops: FsOpsService,
-    #[cfg_attr(not(feature = "libtorrent"), allow(dead_code))]
     events: EventBus,
     fs_policy: Arc<RwLock<FsPolicy>>,
     engine_profile: Arc<RwLock<EngineProfile>>,
@@ -276,7 +179,6 @@ where
     }
 
     /// Spawn a background task that reacts to completion events and triggers filesystem processing.
-    #[cfg_attr(not(feature = "libtorrent"), allow(dead_code))]
     pub(crate) fn spawn_post_processing(self: &Arc<Self>) -> JoinHandle<()> {
         let orchestrator = Arc::clone(self);
         tokio::spawn(async move {
@@ -293,7 +195,6 @@ where
     }
 
     /// Update the active filesystem policy used for post-processing.
-    #[cfg_attr(not(feature = "libtorrent"), allow(dead_code))]
     pub(crate) async fn update_fs_policy(&self, policy: FsPolicy) {
         let mut guard = self.fs_policy.write().await;
         *guard = policy;
@@ -305,34 +206,23 @@ where
             let mut guard = self.engine_profile.write().await;
             *guard = profile.clone();
         }
-        let download_limit = profile
-            .max_download_bps
-            .and_then(|limit| u64::try_from(limit).ok());
-        let upload_limit = profile
-            .max_upload_bps
-            .and_then(|limit| u64::try_from(limit).ok());
+        let plan = EngineRuntimePlan::from_profile(&profile);
+        for warning in &plan.effective.warnings {
+            warn!(%warning, "engine profile guard rail applied");
+        }
 
         info!(
             implementation = %profile.implementation,
-            listen_port = ?profile.listen_port,
-            max_active = ?profile.max_active,
-            download_bps = ?download_limit,
-            upload_bps = ?upload_limit,
+            listen_port = ?plan.runtime.listen_port,
+            max_active = ?plan.runtime.max_active,
+            download_bps = ?plan.runtime.download_rate_limit,
+            upload_bps = ?plan.runtime.upload_rate_limit,
             "applying engine profile update"
         );
 
-        log_rate_guardrail("download", download_limit);
-        log_rate_guardrail("upload", upload_limit);
-
-        self.engine.apply_engine_profile(&profile).await?;
+        self.engine.apply_engine_plan(&plan).await?;
         self.engine
-            .update_limits(
-                None,
-                TorrentRateLimit {
-                    download_bps: download_limit,
-                    upload_bps: upload_limit,
-                },
-            )
+            .update_limits(None, plan.global_rate_limit())
             .await?;
         Ok(())
     }
@@ -341,43 +231,6 @@ where
     pub(crate) async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> Result<()> {
         self.engine.remove_torrent(id, options).await
     }
-}
-
-fn log_rate_guardrail(direction: &str, limit: Option<u64>) {
-    if let Some(value) = limit {
-        log_rate_value(direction, value);
-    } else {
-        warn!(
-            direction = direction,
-            "global {direction} rate limit disabled; running without throttling"
-        );
-    }
-}
-
-fn log_rate_value(direction: &str, value: u64) {
-    if value == 0 {
-        warn!(
-            direction = direction,
-            "global {direction} rate limit set to 0 bps; transfers will halt"
-        );
-        return;
-    }
-
-    if value >= RATE_LIMIT_GUARD_BPS {
-        warn!(
-            direction = direction,
-            current_bps = value,
-            guard_bps = RATE_LIMIT_GUARD_BPS,
-            "global {direction} rate limit exceeds guard rail"
-        );
-        return;
-    }
-
-    info!(
-        direction = direction,
-        current_bps = value,
-        "applied global {direction} rate limit"
-    );
 }
 
 const fn event_torrent_id(event: &Event) -> Option<Uuid> {
@@ -413,7 +266,6 @@ pub(crate) async fn spawn_libtorrent_orchestrator(
         fsops,
         runtime,
     } = deps;
-    engine.apply_engine_profile(&engine_profile).await?;
     let orchestrator = Arc::new(TorrentOrchestrator::new(
         Arc::clone(&engine),
         fsops,
@@ -422,6 +274,8 @@ pub(crate) async fn spawn_libtorrent_orchestrator(
         engine_profile,
         runtime.clone(),
     ));
+    let initial_profile = orchestrator.engine_profile.read().await.clone();
+    orchestrator.update_engine_profile(initial_profile).await?;
     if let Some(store) = runtime {
         match store.load_statuses().await {
             Ok(statuses) => orchestrator.catalog.seed(statuses).await,
@@ -509,7 +363,6 @@ impl TorrentCatalog {
         }
     }
 
-    #[cfg_attr(not(feature = "libtorrent"), allow(dead_code))]
     async fn seed(&self, statuses: Vec<TorrentStatus>) {
         let mut entries = self.entries.write().await;
         entries.clear();
@@ -770,7 +623,7 @@ mod orchestrator_tests {
 
     #[async_trait]
     impl EngineConfigurator for StubEngine {
-        async fn apply_engine_profile(&self, _profile: &EngineProfile) -> Result<()> {
+        async fn apply_engine_plan(&self, _plan: &EngineRuntimePlan) -> Result<()> {
             Ok(())
         }
     }
@@ -934,7 +787,7 @@ mod engine_refresh_tests {
 
     #[derive(Default)]
     struct RecordingEngine {
-        applied: RwLock<Vec<EngineProfile>>,
+        applied: RwLock<Vec<EngineRuntimePlan>>,
         removed: RwLock<Vec<(Uuid, RemoveTorrent)>>,
         paused: RwLock<Vec<Uuid>>,
         resumed: RwLock<Vec<Uuid>>,
@@ -1002,8 +855,8 @@ mod engine_refresh_tests {
 
     #[async_trait]
     impl EngineConfigurator for RecordingEngine {
-        async fn apply_engine_profile(&self, profile: &EngineProfile) -> Result<()> {
-            self.applied.write().await.push(profile.clone());
+        async fn apply_engine_plan(&self, plan: &EngineRuntimePlan) -> Result<()> {
+            self.applied.write().await.push(plan.clone());
             Ok(())
         }
     }
@@ -1068,13 +921,24 @@ mod engine_refresh_tests {
             .await
             .expect("profile update");
 
-        let applied_profiles = {
+        let applied_plans = {
             let guard = engine.applied.read().await;
             guard.clone()
         };
-        assert_eq!(applied_profiles.len(), 1);
-        assert_eq!(applied_profiles[0].implementation, updated.implementation);
-        assert_eq!(applied_profiles[0].listen_port, updated.listen_port);
+        assert_eq!(applied_plans.len(), 1);
+        assert_eq!(
+            applied_plans[0].effective.implementation,
+            updated.implementation
+        );
+        assert_eq!(applied_plans[0].runtime.listen_port, updated.listen_port);
+        assert_eq!(
+            applied_plans[0].runtime.download_rate_limit,
+            updated.max_download_bps
+        );
+        assert_eq!(
+            applied_plans[0].runtime.upload_rate_limit,
+            updated.max_upload_bps
+        );
 
         let recorded_limits = {
             let guard = engine.limits.read().await;
@@ -1087,6 +951,51 @@ mod engine_refresh_tests {
         );
         assert_eq!(recorded_limits[0].1.download_bps, Some(1_500_000));
         assert_eq!(recorded_limits[0].1.upload_bps, Some(750_000));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_engine_profile_clamps_before_applying() -> Result<()> {
+        let engine = Arc::new(RecordingEngine::default());
+        let bus = EventBus::new();
+        let metrics = Metrics::new()?;
+        let fsops = FsOpsService::new(bus.clone(), metrics);
+        let orchestrator = Arc::new(TorrentOrchestrator::new(
+            Arc::clone(&engine),
+            fsops,
+            bus.clone(),
+            sample_fs_policy(),
+            engine_profile("initial"),
+            None,
+        ));
+
+        let mut updated = engine_profile("guard");
+        updated.max_download_bps = Some(revaer_config::MAX_RATE_LIMIT_BPS + 100);
+        updated.download_root = String::new();
+        updated.resume_dir = "  ".to_string();
+        orchestrator.update_engine_profile(updated).await?;
+
+        let applied_plans = engine.applied.read().await.clone();
+        assert_eq!(
+            applied_plans[0].runtime.download_rate_limit,
+            Some(revaer_config::MAX_RATE_LIMIT_BPS)
+        );
+        assert_eq!(applied_plans[0].runtime.download_root, "/data/staging");
+        assert_eq!(applied_plans[0].runtime.resume_dir, "/var/lib/revaer/state");
+        assert!(
+            applied_plans[0]
+                .effective
+                .warnings
+                .iter()
+                .any(|msg| msg.contains("guard rail")),
+            "guard rail warnings should be propagated to the plan"
+        );
+
+        let recorded_limits = engine.limits.read().await.clone();
+        assert_eq!(
+            recorded_limits[0].1.download_bps,
+            Some(u64::try_from(revaer_config::MAX_RATE_LIMIT_BPS)?)
+        );
         Ok(())
     }
 

@@ -21,6 +21,9 @@ ADR documents capture the rationale behind significant technical decisions.
 - [016](016-libtorrent-restoration.md) – Libtorrent restoration
 - [017](017-sqlx-named-bind.md) – Avoid `sqlx-named-bind`
 - [018](018-retire-testcontainers.md) – Retire testcontainers
+- [019](019-advisory-rustsec-2024-0370.md) – Advisory RUSTSEC-2024-0370 temporary ignore
+- [020](020-torrent-engine-precursors.md) – Torrent engine precursor hardening
+- [021](021-torrent-precursor-enforcement.md) – Torrent precursor enforcement
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

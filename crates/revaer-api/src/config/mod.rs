@@ -78,6 +78,7 @@ mod tests {
     use super::*;
     use anyhow::anyhow;
     use chrono::Utc;
+    use revaer_config::normalize_engine_profile;
     use std::collections::VecDeque;
     use tokio::sync::Mutex;
 
@@ -166,23 +167,25 @@ mod tests {
             features: serde_json::json!([]),
             immutable_keys: serde_json::json!([]),
         };
+        let engine_profile = revaer_config::EngineProfile {
+            id: uuid::Uuid::nil(),
+            implementation: "stub".into(),
+            listen_port: None,
+            dht: false,
+            encryption: "prefer".into(),
+            max_active: None,
+            max_download_bps: None,
+            max_upload_bps: None,
+            sequential_default: false,
+            resume_dir: "/tmp".into(),
+            download_root: "/tmp/downloads".into(),
+            tracker: serde_json::json!([]),
+        };
         let snapshot = ConfigSnapshot {
             revision: 1,
             app_profile: profile.clone(),
-            engine_profile: revaer_config::EngineProfile {
-                id: uuid::Uuid::nil(),
-                implementation: "stub".into(),
-                listen_port: None,
-                dht: false,
-                encryption: "prefer".into(),
-                max_active: None,
-                max_download_bps: None,
-                max_upload_bps: None,
-                sequential_default: false,
-                resume_dir: "/tmp".into(),
-                download_root: "/tmp/downloads".into(),
-                tracker: serde_json::json!([]),
-            },
+            engine_profile: engine_profile.clone(),
+            engine_profile_effective: normalize_engine_profile(&engine_profile),
             fs_policy: revaer_config::FsPolicy {
                 id: uuid::Uuid::nil(),
                 library_root: "/tmp/library".into(),

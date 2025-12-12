@@ -125,6 +125,24 @@ pub(crate) fn render_config_snapshot(
             );
             println!("download root: {}", snapshot.engine_profile.download_root);
             println!("resume dir: {}", snapshot.engine_profile.resume_dir);
+            println!(
+                "effective listen: {:?}, max_active: {:?}, dl: {:?}, ul: {:?}",
+                snapshot.engine_profile_effective.network.listen_port,
+                snapshot.engine_profile_effective.limits.max_active,
+                snapshot.engine_profile_effective.limits.download_rate_limit,
+                snapshot.engine_profile_effective.limits.upload_rate_limit
+            );
+            println!(
+                "effective paths: download {} / resume {}",
+                snapshot.engine_profile_effective.storage.download_root,
+                snapshot.engine_profile_effective.storage.resume_dir
+            );
+            if !snapshot.engine_profile_effective.warnings.is_empty() {
+                println!(
+                    "engine warnings: {}",
+                    snapshot.engine_profile_effective.warnings.join("; ")
+                );
+            }
             println!("library root: {}", snapshot.fs_policy.library_root);
         }
     }

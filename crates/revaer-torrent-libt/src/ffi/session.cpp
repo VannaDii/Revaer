@@ -50,6 +50,12 @@
 
 namespace revaer {
 
+static_assert(sizeof(EngineNetworkOptions) == 8, "EngineNetworkOptions layout changed");
+static_assert(sizeof(EngineLimitOptions) == 24, "EngineLimitOptions layout changed");
+static_assert(sizeof(EngineStorageOptions) == 48, "EngineStorageOptions layout changed");
+static_assert(sizeof(EngineBehaviorOptions) == 1, "EngineBehaviorOptions layout changed");
+static_assert(sizeof(EngineOptions) == 88, "EngineOptions layout changed");
+
 namespace {
 
 constexpr std::array<const char*, 5> kSkipFluffPatterns = {
@@ -183,27 +189,27 @@ public:
     ::rust::String apply_engine_profile(const EngineOptions& options) {
         try {
             lt::settings_pack pack;
-            pack.set_bool(lt::settings_pack::enable_dht, options.enable_dht);
+            pack.set_bool(lt::settings_pack::enable_dht, options.network.enable_dht);
 
-            if (options.set_listen_port && options.listen_port > 0) {
+            if (options.network.set_listen_port && options.network.listen_port > 0) {
                 pack.set_str(lt::settings_pack::listen_interfaces,
-                             "0.0.0.0:" + std::to_string(options.listen_port));
+                             "0.0.0.0:" + std::to_string(options.network.listen_port));
                 pack.set_int(lt::settings_pack::max_retry_port_bind, 0);
             }
 
-            if (options.max_active > 0) {
-                pack.set_int(lt::settings_pack::active_downloads, options.max_active);
-                pack.set_int(lt::settings_pack::active_limit, options.max_active);
+            if (options.limits.max_active > 0) {
+                pack.set_int(lt::settings_pack::active_downloads, options.limits.max_active);
+                pack.set_int(lt::settings_pack::active_limit, options.limits.max_active);
             }
 
-            pack.set_int(lt::settings_pack::out_enc_policy, options.encryption_policy);
-            pack.set_int(lt::settings_pack::in_enc_policy, options.encryption_policy);
+            pack.set_int(lt::settings_pack::out_enc_policy, options.network.encryption_policy);
+            pack.set_int(lt::settings_pack::in_enc_policy, options.network.encryption_policy);
 
-            if (!options.download_root.empty()) {
-                default_download_root_ = to_std_string(options.download_root);
+            if (!options.storage.download_root.empty()) {
+                default_download_root_ = to_std_string(options.storage.download_root);
             }
-            if (!options.resume_dir.empty()) {
-                const auto resume_dir = to_std_string(options.resume_dir);
+            if (!options.storage.resume_dir.empty()) {
+                const auto resume_dir = to_std_string(options.storage.resume_dir);
                 if (resume_dir != resume_dir_) {
                     resume_dir_ = resume_dir;
                     std::error_code ec;
@@ -211,15 +217,16 @@ public:
                 }
             }
 
-            sequential_default_ = options.sequential_default;
+            sequential_default_ = options.behavior.sequential_default;
 
-            pack.set_int(lt::settings_pack::download_rate_limit,
-                         options.download_rate_limit >= 0
-                             ? static_cast<int>(options.download_rate_limit)
-                             : -1);
+            pack.set_int(
+                lt::settings_pack::download_rate_limit,
+                options.limits.download_rate_limit >= 0
+                    ? static_cast<int>(options.limits.download_rate_limit)
+                    : -1);
             pack.set_int(lt::settings_pack::upload_rate_limit,
-                         options.upload_rate_limit >= 0
-                             ? static_cast<int>(options.upload_rate_limit)
+                         options.limits.upload_rate_limit >= 0
+                             ? static_cast<int>(options.limits.upload_rate_limit)
                              : -1);
 
             session_->apply_settings(pack);

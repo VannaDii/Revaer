@@ -20,6 +20,9 @@
 
 /// Application bootstrap and environment loading.
 pub mod bootstrap;
+/// Engine profile normalisation and runtime mapping.
+#[cfg(feature = "libtorrent")]
+pub mod engine_config;
 /// Torrent orchestrator wiring.
 #[cfg(feature = "libtorrent")]
 pub mod orchestrator;

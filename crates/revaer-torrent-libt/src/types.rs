@@ -24,7 +24,7 @@ pub struct EngineRuntimeConfig {
 }
 
 /// Supported encryption policies exposed to the orchestration layer.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EncryptionPolicy {
     /// Enforce encrypted peers exclusively.
     Require,

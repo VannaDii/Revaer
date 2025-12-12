@@ -305,51 +305,6 @@ where
         .context("failed to load secret row by name")
 }
 
-/// Boolean fields within `engine_profile` that can be toggled.
-#[derive(Debug, Clone, Copy)]
-pub enum EngineBooleanField {
-    /// Distributed hash table flag.
-    Dht,
-    /// Whether sequential download is default.
-    SequentialDefault,
-}
-
-impl EngineBooleanField {
-    const fn column(self) -> &'static str {
-        match self {
-            Self::Dht => "dht",
-            Self::SequentialDefault => "sequential_default",
-        }
-    }
-}
-
-/// Text fields within `engine_profile` that store file-system paths.
-#[derive(Debug, Clone, Copy)]
-pub enum EngineTextField {
-    /// Directory storing resume data.
-    ResumeDir,
-    /// Root path for downloads.
-    DownloadRoot,
-}
-
-impl EngineTextField {
-    const fn column(self) -> &'static str {
-        match self {
-            Self::ResumeDir => "resume_dir",
-            Self::DownloadRoot => "download_root",
-        }
-    }
-}
-
-/// Rate-limit fields within `engine_profile`.
-#[derive(Debug, Clone, Copy)]
-pub enum EngineRateField {
-    /// Maximum download throughput column.
-    MaxDownloadBps,
-    /// Maximum upload throughput column.
-    MaxUploadBps,
-}
-
 /// String columns on `fs_policy` that store textual values.
 #[derive(Debug, Clone, Copy)]
 pub enum FsStringField {
@@ -433,15 +388,6 @@ impl FsOptionalStringField {
             Self::Owner => "owner",
             Self::Group => "group",
             Self::Umask => "umask",
-        }
-    }
-}
-
-impl EngineRateField {
-    const fn column(self) -> &'static str {
-        match self {
-            Self::MaxDownloadBps => "max_download_bps",
-            Self::MaxUploadBps => "max_upload_bps",
         }
     }
 }
@@ -947,185 +893,65 @@ where
     Ok(())
 }
 
-/// Update the engine implementation column.
+/// Aggregated engine profile payload used for the unified update path.
+#[derive(Debug, Clone)]
+pub struct EngineProfileUpdate<'a> {
+    /// Primary key for the engine profile row.
+    pub id: Uuid,
+    /// Engine implementation identifier.
+    pub implementation: &'a str,
+    /// Optional listen port override.
+    pub listen_port: Option<i32>,
+    /// DHT enablement flag.
+    pub dht: bool,
+    /// Encryption policy string.
+    pub encryption: &'a str,
+    /// Optional maximum active torrent count.
+    pub max_active: Option<i32>,
+    /// Optional global download cap in bytes per second.
+    pub max_download_bps: Option<i64>,
+    /// Optional global upload cap in bytes per second.
+    pub max_upload_bps: Option<i64>,
+    /// Whether sequential download is the default.
+    pub sequential_default: bool,
+    /// Directory for fast-resume payloads.
+    pub resume_dir: &'a str,
+    /// Root directory for active downloads.
+    pub download_root: &'a str,
+    /// Tracker configuration payload.
+    pub tracker: &'a Value,
+}
+
+/// Update the engine profile in a single stored procedure call.
 ///
 /// # Errors
 ///
 /// Returns an error when the update fails.
-pub async fn update_engine_implementation<'e, E>(
+pub async fn update_engine_profile<'e, E>(
     executor: E,
-    id: Uuid,
-    implementation: &str,
+    profile: &EngineProfileUpdate<'_>,
 ) -> Result<()>
 where
     E: Executor<'e, Database = Postgres>,
 {
     sqlx::query(
-        "SELECT revaer_config.update_engine_implementation(_id => $1, _implementation => $2)",
+        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _sequential_default => $9, _resume_dir => $10, _download_root => $11, _tracker => $12)",
     )
-    .bind(id)
-    .bind(implementation)
+    .bind(profile.id)
+    .bind(profile.implementation)
+    .bind(profile.listen_port)
+    .bind(profile.dht)
+    .bind(profile.encryption)
+    .bind(profile.max_active)
+    .bind(profile.max_download_bps)
+    .bind(profile.max_upload_bps)
+    .bind(profile.sequential_default)
+    .bind(profile.resume_dir)
+    .bind(profile.download_root)
+    .bind(profile.tracker)
     .execute(executor)
     .await
-    .context("failed to update engine_profile.implementation")?;
-    Ok(())
-}
-
-/// Update the engine listen port column.
-///
-/// # Errors
-///
-/// Returns an error when the update fails.
-pub async fn update_engine_listen_port<'e, E>(
-    executor: E,
-    id: Uuid,
-    listen_port: Option<i32>,
-) -> Result<()>
-where
-    E: Executor<'e, Database = Postgres>,
-{
-    sqlx::query("SELECT revaer_config.update_engine_listen_port(_id => $1, _port => $2)")
-        .bind(id)
-        .bind(listen_port)
-        .execute(executor)
-        .await
-        .context("failed to update engine_profile.listen_port")?;
-    Ok(())
-}
-
-/// Update a boolean engine field.
-///
-/// # Errors
-///
-/// Returns an error when the update fails.
-pub async fn update_engine_boolean_field<'e, E>(
-    executor: E,
-    id: Uuid,
-    field: EngineBooleanField,
-    value: bool,
-) -> Result<()>
-where
-    E: Executor<'e, Database = Postgres>,
-{
-    sqlx::query(
-        "SELECT revaer_config.update_engine_boolean_field(_id => $1, _column => $2, _value => $3)",
-    )
-    .bind(id)
-    .bind(field.column())
-    .bind(value)
-    .execute(executor)
-    .await
-    .context("failed to update engine boolean field")?;
-    Ok(())
-}
-
-/// Update the engine encryption column.
-///
-/// # Errors
-///
-/// Returns an error when the update fails.
-pub async fn update_engine_encryption<'e, E>(executor: E, id: Uuid, encryption: &str) -> Result<()>
-where
-    E: Executor<'e, Database = Postgres>,
-{
-    sqlx::query("SELECT revaer_config.update_engine_encryption(_id => $1, _mode => $2)")
-        .bind(id)
-        .bind(encryption)
-        .execute(executor)
-        .await
-        .context("failed to update engine_profile.encryption")?;
-    Ok(())
-}
-
-/// Update the engine `max_active` column.
-///
-/// # Errors
-///
-/// Returns an error when the update fails.
-pub async fn update_engine_max_active<'e, E>(
-    executor: E,
-    id: Uuid,
-    max_active: Option<i32>,
-) -> Result<()>
-where
-    E: Executor<'e, Database = Postgres>,
-{
-    sqlx::query("SELECT revaer_config.update_engine_max_active(_id => $1, _max_active => $2)")
-        .bind(id)
-        .bind(max_active)
-        .execute(executor)
-        .await
-        .context("failed to update engine_profile.max_active")?;
-    Ok(())
-}
-
-/// Update an engine throughput field (`max_download_bps` or `max_upload_bps`).
-///
-/// # Errors
-///
-/// Returns an error when the update fails.
-pub async fn update_engine_rate_field<'e, E>(
-    executor: E,
-    id: Uuid,
-    field: EngineRateField,
-    value: Option<i64>,
-) -> Result<()>
-where
-    E: Executor<'e, Database = Postgres>,
-{
-    sqlx::query(
-        "SELECT revaer_config.update_engine_rate_field(_id => $1, _column => $2, _value => $3)",
-    )
-    .bind(id)
-    .bind(field.column())
-    .bind(value)
-    .execute(executor)
-    .await
-    .context("failed to update engine rate field")?;
-    Ok(())
-}
-
-/// Update a text-based engine field (`resume_dir`, `download_root`).
-///
-/// # Errors
-///
-/// Returns an error when the update fails.
-pub async fn update_engine_text_field<'e, E>(
-    executor: E,
-    id: Uuid,
-    field: EngineTextField,
-    value: &str,
-) -> Result<()>
-where
-    E: Executor<'e, Database = Postgres>,
-{
-    sqlx::query(
-        "SELECT revaer_config.update_engine_text_field(_id => $1, _column => $2, _value => $3)",
-    )
-    .bind(id)
-    .bind(field.column())
-    .bind(value)
-    .execute(executor)
-    .await
-    .context("failed to update engine text field")?;
-    Ok(())
-}
-
-/// Update the engine tracker payload.
-///
-/// # Errors
-///
-/// Returns an error when the update fails.
-pub async fn update_engine_tracker<'e, E>(executor: E, id: Uuid, tracker: &Value) -> Result<()>
-where
-    E: Executor<'e, Database = Postgres>,
-{
-    sqlx::query("SELECT revaer_config.update_engine_tracker(_id => $1, _tracker => $2)")
-        .bind(id)
-        .bind(tracker)
-        .execute(executor)
-        .await
-        .context("failed to update engine_profile.tracker")?;
+    .context("failed to update engine_profile via unified procedure")?;
     Ok(())
 }
 
@@ -1236,19 +1062,6 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn engine_column_mappings_are_stable() {
-        assert_eq!(EngineBooleanField::Dht.column(), "dht");
-        assert_eq!(
-            EngineBooleanField::SequentialDefault.column(),
-            "sequential_default"
-        );
-        assert_eq!(EngineTextField::ResumeDir.column(), "resume_dir");
-        assert_eq!(EngineTextField::DownloadRoot.column(), "download_root");
-        assert_eq!(EngineRateField::MaxDownloadBps.column(), "max_download_bps");
-        assert_eq!(EngineRateField::MaxUploadBps.column(), "max_upload_bps");
-    }
 
     #[test]
     fn fs_column_mappings_are_stable() {

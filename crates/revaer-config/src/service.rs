@@ -16,15 +16,14 @@ use chrono::{Duration as ChronoDuration, Utc};
 use rand::Rng;
 use rand::distr::Alphanumeric;
 use revaer_data::config::{
-    self as data_config, AppProfileRow, EngineBooleanField, EngineProfileRow, EngineRateField,
-    EngineTextField, FsArrayField, FsBooleanField, FsOptionalStringField, FsPolicyRow,
-    FsStringField, HistoryInsert, NewSetupToken, SETTINGS_CHANNEL,
+    self as data_config, AppProfileRow, EngineProfileRow, FsArrayField, FsBooleanField,
+    FsOptionalStringField, FsPolicyRow, FsStringField, HistoryInsert, NewSetupToken,
+    SETTINGS_CHANNEL,
 };
 use serde_json::{Map, Value, json};
 use sqlx::postgres::{PgListener, PgNotification, PgPoolOptions};
 use sqlx::{Executor, Postgres, Transaction};
 use std::collections::HashSet;
-use std::convert::TryFrom;
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::Duration;
@@ -32,14 +31,15 @@ use tokio::time::sleep;
 use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
+use crate::engine_profile::{normalize_engine_profile, validate_engine_profile_patch};
 use crate::model::{
     ApiKeyAuth, ApiKeyPatch, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigSnapshot,
     EngineProfile, FsPolicy, SecretPatch, SettingsChange, SettingsChangeset, SettingsPayload,
     SetupToken,
 };
 use crate::validate::{
-    ConfigError, parse_api_key_rate_limit, parse_api_key_rate_limit_for_config, parse_bind_addr,
-    parse_port, parse_uuid,
+    ConfigError, ensure_array, ensure_mutable, ensure_object, parse_api_key_rate_limit,
+    parse_api_key_rate_limit_for_config, parse_bind_addr, parse_port, parse_uuid,
 };
 
 const APP_PROFILE_ID: &str = "00000000-0000-0000-0000-000000000001";
@@ -169,6 +169,7 @@ impl ConfigService {
     pub async fn snapshot(&self) -> Result<ConfigSnapshot> {
         let app = fetch_app_profile(&self.pool).await?;
         let engine = fetch_engine_profile(&self.pool).await?;
+        let effective_engine = normalize_engine_profile(&engine);
         let fs = fetch_fs_policy(&self.pool).await?;
         let revision = fetch_revision(&self.pool).await?;
 
@@ -176,6 +177,7 @@ impl ConfigService {
             revision,
             app_profile: app,
             engine_profile: engine,
+            engine_profile_effective: effective_engine,
             fs_policy: fs,
         })
     }
@@ -434,9 +436,13 @@ impl SettingsFacade for ConfigService {
 
         if let Some(engine_patch) = changeset.engine_profile {
             let before = fetch_engine_profile_json(tx.as_mut()).await?;
-            if apply_engine_profile_patch(&mut tx, &engine_patch, &immutable_keys).await? {
+            let current_engine = fetch_engine_profile(tx.as_mut()).await?;
+            let mutation =
+                validate_engine_profile_patch(&current_engine, &engine_patch, &immutable_keys)?;
+            if mutation.mutated {
+                persist_engine_profile(&mut tx, &mutation.stored).await?;
                 let after = fetch_engine_profile_json(tx.as_mut()).await?;
-                applied_engine = Some(fetch_engine_profile(tx.as_mut()).await?);
+                applied_engine = Some(mutation.stored.clone());
                 history_entries.push(PendingHistoryEntry {
                     kind: "engine_profile",
                     old: Some(before),
@@ -957,275 +963,29 @@ async fn bump_app_profile_version(tx: &mut Transaction<'_, Postgres>, app_id: Uu
     Ok(())
 }
 
-fn ensure_object(value: &Value, section: &str, field: &str) -> Result<()> {
-    ensure!(
-        value.is_object(),
-        ConfigError::InvalidField {
-            section: section.to_string(),
-            field: field.to_string(),
-            message: "must be an object".to_string(),
-        }
-    );
+async fn persist_engine_profile(
+    tx: &mut Transaction<'_, Postgres>,
+    profile: &EngineProfile,
+) -> Result<()> {
+    data_config::update_engine_profile(
+        tx.as_mut(),
+        &data_config::EngineProfileUpdate {
+            id: profile.id,
+            implementation: &profile.implementation,
+            listen_port: profile.listen_port,
+            dht: profile.dht,
+            encryption: &profile.encryption,
+            max_active: profile.max_active,
+            max_download_bps: profile.max_download_bps,
+            max_upload_bps: profile.max_upload_bps,
+            sequential_default: profile.sequential_default,
+            resume_dir: &profile.resume_dir,
+            download_root: &profile.download_root,
+            tracker: &profile.tracker,
+        },
+    )
+    .await?;
     Ok(())
-}
-
-fn ensure_array(value: &Value, section: &str, field: &str) -> Result<()> {
-    ensure!(
-        value.is_array(),
-        ConfigError::InvalidField {
-            section: section.to_string(),
-            field: field.to_string(),
-            message: "must be an array".to_string(),
-        }
-    );
-    Ok(())
-}
-
-async fn apply_engine_profile_patch(
-    tx: &mut Transaction<'_, Postgres>,
-    patch: &Value,
-    immutable_keys: &HashSet<String>,
-) -> Result<bool> {
-    let Some(map) = patch.as_object() else {
-        return Err(ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: "<root>".to_string(),
-            message: "changeset must be a JSON object".to_string(),
-        }
-        .into());
-    };
-    if map.is_empty() {
-        return Ok(false);
-    }
-
-    let engine_id = parse_uuid(ENGINE_PROFILE_ID)?;
-    let mut mutated = false;
-
-    for (key, value) in map {
-        ensure_mutable(immutable_keys, "engine_profile", key)?;
-        mutated |= apply_engine_profile_field(tx, engine_id, key, value).await?;
-    }
-
-    Ok(mutated)
-}
-
-async fn apply_engine_profile_field(
-    tx: &mut Transaction<'_, Postgres>,
-    engine_id: Uuid,
-    key: &str,
-    value: &Value,
-) -> Result<bool> {
-    match key {
-        "implementation" => set_engine_implementation(tx, engine_id, value).await,
-        "listen_port" => set_engine_listen_port(tx, engine_id, value).await,
-        "dht" => set_engine_boolean_flag(tx, engine_id, value, "dht").await,
-        "encryption" => set_engine_encryption(tx, engine_id, value).await,
-        "max_active" => set_engine_max_active(tx, engine_id, value).await,
-        "max_download_bps" => set_engine_rate_limit(tx, engine_id, value, "max_download_bps").await,
-        "max_upload_bps" => set_engine_rate_limit(tx, engine_id, value, "max_upload_bps").await,
-        "sequential_default" => {
-            set_engine_boolean_flag(tx, engine_id, value, "sequential_default").await
-        }
-        "resume_dir" => set_engine_text_field(tx, engine_id, value, "resume_dir").await,
-        "download_root" => set_engine_text_field(tx, engine_id, value, "download_root").await,
-        "tracker" => set_engine_tracker(tx, engine_id, value).await,
-        other => Err(ConfigError::UnknownField {
-            section: "engine_profile".to_string(),
-            field: other.to_string(),
-        }
-        .into()),
-    }
-}
-
-async fn set_engine_implementation(
-    tx: &mut Transaction<'_, Postgres>,
-    engine_id: Uuid,
-    value: &Value,
-) -> Result<bool> {
-    let Some(name) = value.as_str() else {
-        return Err(ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: "implementation".to_string(),
-            message: "must be a string".to_string(),
-        }
-        .into());
-    };
-    data_config::update_engine_implementation(tx.as_mut(), engine_id, name).await?;
-    Ok(true)
-}
-
-async fn set_engine_listen_port(
-    tx: &mut Transaction<'_, Postgres>,
-    engine_id: Uuid,
-    value: &Value,
-) -> Result<bool> {
-    if value.is_null() {
-        data_config::update_engine_listen_port(tx.as_mut(), engine_id, None).await?;
-        return Ok(true);
-    }
-    let port = parse_port(value, "engine_profile", "listen_port")?;
-    data_config::update_engine_listen_port(tx.as_mut(), engine_id, Some(port)).await?;
-    Ok(true)
-}
-
-async fn set_engine_boolean_flag(
-    tx: &mut Transaction<'_, Postgres>,
-    engine_id: Uuid,
-    value: &Value,
-    field: &str,
-) -> Result<bool> {
-    let Some(flag) = value.as_bool() else {
-        return Err(ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: field.to_string(),
-            message: "must be a boolean".to_string(),
-        }
-        .into());
-    };
-    let column = match field {
-        "dht" => EngineBooleanField::Dht,
-        "sequential_default" => EngineBooleanField::SequentialDefault,
-        _ => {
-            return Err(ConfigError::UnknownField {
-                section: "engine_profile".to_string(),
-                field: field.to_string(),
-            }
-            .into());
-        }
-    };
-    data_config::update_engine_boolean_field(tx.as_mut(), engine_id, column, flag).await?;
-    Ok(true)
-}
-
-async fn set_engine_encryption(
-    tx: &mut Transaction<'_, Postgres>,
-    engine_id: Uuid,
-    value: &Value,
-) -> Result<bool> {
-    let Some(mode) = value.as_str() else {
-        return Err(ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: "encryption".to_string(),
-            message: "must be a string".to_string(),
-        }
-        .into());
-    };
-    data_config::update_engine_encryption(tx.as_mut(), engine_id, mode).await?;
-    Ok(true)
-}
-
-async fn set_engine_max_active(
-    tx: &mut Transaction<'_, Postgres>,
-    engine_id: Uuid,
-    value: &Value,
-) -> Result<bool> {
-    if value.is_null() {
-        data_config::update_engine_max_active(tx.as_mut(), engine_id, None).await?;
-        return Ok(true);
-    }
-    let Some(raw_value) = value.as_i64() else {
-        return Err(ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: "max_active".to_string(),
-            message: "must be an integer".to_string(),
-        }
-        .into());
-    };
-    ensure!(
-        raw_value >= 0 && raw_value <= i64::from(i32::MAX),
-        ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: "max_active".to_string(),
-            message: "must be within 0..=i32::MAX".to_string(),
-        }
-    );
-    let max_active = i32::try_from(raw_value).map_err(|_| ConfigError::InvalidField {
-        section: "engine_profile".to_string(),
-        field: "max_active".to_string(),
-        message: "must fit within 32-bit signed integer range".to_string(),
-    })?;
-    data_config::update_engine_max_active(tx.as_mut(), engine_id, Some(max_active)).await?;
-    Ok(true)
-}
-
-async fn set_engine_rate_limit(
-    tx: &mut Transaction<'_, Postgres>,
-    engine_id: Uuid,
-    value: &Value,
-    field: &str,
-) -> Result<bool> {
-    let column = match field {
-        "max_download_bps" => EngineRateField::MaxDownloadBps,
-        "max_upload_bps" => EngineRateField::MaxUploadBps,
-        _ => {
-            return Err(ConfigError::UnknownField {
-                section: "engine_profile".to_string(),
-                field: field.to_string(),
-            }
-            .into());
-        }
-    };
-    if value.is_null() {
-        data_config::update_engine_rate_field(tx.as_mut(), engine_id, column, None).await?;
-        return Ok(true);
-    }
-    let Some(limit) = value.as_i64() else {
-        return Err(ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: field.to_string(),
-            message: "must be an integer".to_string(),
-        }
-        .into());
-    };
-    ensure!(
-        limit >= 0,
-        ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: field.to_string(),
-            message: "must be non-negative".to_string(),
-        }
-    );
-    data_config::update_engine_rate_field(tx.as_mut(), engine_id, column, Some(limit)).await?;
-    Ok(true)
-}
-
-async fn set_engine_text_field(
-    tx: &mut Transaction<'_, Postgres>,
-    engine_id: Uuid,
-    value: &Value,
-    field: &str,
-) -> Result<bool> {
-    let Some(text) = value.as_str() else {
-        return Err(ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: field.to_string(),
-            message: "must be a string".to_string(),
-        }
-        .into());
-    };
-    let column = match field {
-        "resume_dir" => EngineTextField::ResumeDir,
-        "download_root" => EngineTextField::DownloadRoot,
-        _ => {
-            return Err(ConfigError::UnknownField {
-                section: "engine_profile".to_string(),
-                field: field.to_string(),
-            }
-            .into());
-        }
-    };
-    data_config::update_engine_text_field(tx.as_mut(), engine_id, column, text).await?;
-    Ok(true)
-}
-
-async fn set_engine_tracker(
-    tx: &mut Transaction<'_, Postgres>,
-    engine_id: Uuid,
-    value: &Value,
-) -> Result<bool> {
-    ensure_object(value, "engine_profile", "tracker")?;
-    data_config::update_engine_tracker(tx.as_mut(), engine_id, value).await?;
-    Ok(true)
 }
 
 async fn apply_fs_policy_patch(
@@ -1670,28 +1430,6 @@ fn extract_immutable_keys(doc: &Value) -> Result<HashSet<String>> {
         None => {}
     }
     Ok(keys)
-}
-
-fn ensure_mutable(
-    immutable_keys: &HashSet<String>,
-    section: &str,
-    field: &str,
-) -> Result<(), ConfigError> {
-    if field != "immutable_keys" {
-        let scoped = format!("{section}.{field}");
-        let scoped_wildcard = format!("{section}.*");
-        if immutable_keys.contains(section)
-            || immutable_keys.contains(field)
-            || immutable_keys.contains(&scoped)
-            || immutable_keys.contains(&scoped_wildcard)
-        {
-            return Err(ConfigError::ImmutableField {
-                section: section.to_string(),
-                field: field.to_string(),
-            });
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]
