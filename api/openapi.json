@@ -383,9 +383,6 @@
               "null"
             ]
           },
-          "summary": {
-            "$ref": "#/components/schemas/TorrentSummary"
-          },
           "settings": {
             "anyOf": [
               {
@@ -395,6 +392,9 @@
                 "type": "null"
               }
             ]
+          },
+          "summary": {
+            "$ref": "#/components/schemas/TorrentSummary"
           }
         },
         "required": [
@@ -508,6 +508,25 @@
         ],
         "type": "object"
       },
+      "TorrentRateLimit": {
+        "properties": {
+          "download_bps": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "upload_bps": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "TorrentRatesView": {
         "properties": {
           "download_bps": {
@@ -552,138 +571,6 @@
           },
           "skip_fluff": {
             "type": "boolean"
-          }
-        },
-        "type": "object"
-      },
-      "TorrentStateView": {
-        "properties": {
-          "failure_message": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "kind": {
-            "enum": [
-              "queued",
-              "fetching_metadata",
-              "downloading",
-              "seeding",
-              "completed",
-              "failed",
-              "stopped"
-            ],
-            "type": "string"
-          }
-        },
-        "required": [
-          "kind"
-        ],
-        "type": "object"
-      },
-      "TorrentSummary": {
-        "properties": {
-          "added_at": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "completed_at": {
-            "format": "date-time",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "download_dir": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "id": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "last_updated": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "library_path": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "name": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "progress": {
-            "$ref": "#/components/schemas/TorrentProgressView"
-          },
-          "rates": {
-            "$ref": "#/components/schemas/TorrentRatesView"
-          },
-          "sequential": {
-            "type": "boolean"
-          },
-          "state": {
-            "$ref": "#/components/schemas/TorrentStateView"
-          },
-          "tags": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "trackers": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "rate_limit": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TorrentRateLimit"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "required": [
-          "id",
-          "state",
-          "progress",
-          "rates",
-          "sequential",
-          "tags",
-          "trackers",
-          "added_at",
-          "last_updated"
-        ],
-        "type": "object"
-      },
-      "TorrentRateLimit": {
-        "properties": {
-          "download_bps": {
-            "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
-          },
-          "upload_bps": {
-            "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
           }
         },
         "type": "object"
@@ -767,6 +654,119 @@
           "tags",
           "trackers",
           "sequential"
+        ],
+        "type": "object"
+      },
+      "TorrentStateView": {
+        "properties": {
+          "failure_message": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "kind": {
+            "enum": [
+              "queued",
+              "fetching_metadata",
+              "downloading",
+              "seeding",
+              "completed",
+              "failed",
+              "stopped"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "type": "object"
+      },
+      "TorrentSummary": {
+        "properties": {
+          "added_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "completed_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "download_dir": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "last_updated": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "library_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "progress": {
+            "$ref": "#/components/schemas/TorrentProgressView"
+          },
+          "rate_limit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TorrentRateLimit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rates": {
+            "$ref": "#/components/schemas/TorrentRatesView"
+          },
+          "sequential": {
+            "type": "boolean"
+          },
+          "state": {
+            "$ref": "#/components/schemas/TorrentStateView"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "trackers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "progress",
+          "rates",
+          "sequential",
+          "tags",
+          "trackers",
+          "added_at",
+          "last_updated"
         ],
         "type": "object"
       }

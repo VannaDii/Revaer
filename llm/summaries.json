@@ -223,6 +223,13 @@
     "href": "/adr/022-torrent-settings-parity/"
   },
   {
+    "id": "adr/023-tracker-config-wiring",
+    "title": "Tracker Config Wiring",
+    "summary": "Status: Accepted Date: 2025-12-12 Context: Tracker configuration and per-torrent trackers were only partially wired, creating drift between API, DB, and runtime handling. Client-supplied trackers were not persisted in resume metadata, and tags were ignored by the worker store, risking loss across restarts. AGENT guardrails require validation parity via stored procedures and no dead code as tracker fields expand. Decision: Add typed tracker config with shared normalization plus a stored procedure that clamps lists, proxy fields, and timeouts before persistence. Map tracker config into runtime/FFI/native session (user agent, announce overrides, proxy, default/extra lists, replace flag) and thread per-torrent trackers/replace through the",
+    "tags": [],
+    "href": "/adr/023-tracker-config-wiring/"
+  },
+  {
     "id": "adr/index",
     "title": "Architecture Decision Records",
     "summary": "ADR documents capture the rationale behind significant technical decisions.",

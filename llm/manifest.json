@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2025-12-12T22:28:17.992333101+00:00",
+  "generated": "2025-12-13T17:09:28.032251254+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -224,6 +224,13 @@
       "summary": "Status: Accepted Date: 2025-12-12 Context: TORRENT_GAPS precursor calls for API/runtime parity and observability of the knobs we already support. Torrent details previously lacked a single place to inspect applied settings (rate caps, selection rules, tags/trackers) and metadata drifted after rate/selection updates. Engine profile parity (stored vs effective) is already exposed via the config snapshot, but per-torrent settings needed an equivalent surface. Decision: Expose a TorrentSettingsView on torrent detail responses covering download_dir/sequential status from the inspector plus tags/trackers/rate caps and the latest selection rules captured in API state. Record selection rules and rate limit updates in TorrentMetadata on creation and after",
       "tags": [],
       "href": "/adr/022-torrent-settings-parity/"
+    },
+    {
+      "id": "adr/023-tracker-config-wiring",
+      "title": "Tracker Config Wiring",
+      "summary": "Status: Accepted Date: 2025-12-12 Context: Tracker configuration and per-torrent trackers were only partially wired, creating drift between API, DB, and runtime handling. Client-supplied trackers were not persisted in resume metadata, and tags were ignored by the worker store, risking loss across restarts. AGENT guardrails require validation parity via stored procedures and no dead code as tracker fields expand. Decision: Add typed tracker config with shared normalization plus a stored procedure that clamps lists, proxy fields, and timeouts before persistence. Map tracker config into runtime/FFI/native session (user agent, announce overrides, proxy, default/extra lists, replace flag) and thread per-torrent trackers/replace through the",
+      "tags": [],
+      "href": "/adr/023-tracker-config-wiring/"
     },
     {
       "id": "adr/index",
