@@ -57,6 +57,12 @@ pub struct AddTorrentOptions {
     pub download_dir: Option<String>,
     /// When provided, forces the initial sequential download strategy.
     pub sequential: Option<bool>,
+    #[serde(default)]
+    /// Additional tracker URLs supplied for this torrent.
+    pub trackers: Vec<String>,
+    #[serde(default)]
+    /// Whether the supplied trackers should replace profile defaults.
+    pub replace_trackers: bool,
     /// Pre-configured file selection rules.
     #[serde(default)]
     pub file_rules: FileSelectionRules,

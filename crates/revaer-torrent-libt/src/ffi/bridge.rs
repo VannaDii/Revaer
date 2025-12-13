@@ -54,6 +54,56 @@ pub mod ffi {
         sequential_default: bool,
     }
 
+    /// Proxy configuration for tracker announces.
+    #[derive(Debug)]
+    struct TrackerProxyOptions {
+        /// Proxy host.
+        host: String,
+        /// Secret reference for proxy username when provided.
+        username_secret: String,
+        /// Secret reference for proxy password when provided.
+        password_secret: String,
+        /// Proxy port.
+        port: u16,
+        /// Proxy type (http/https/socks5).
+        kind: u8,
+        /// Whether peer connections should also use the proxy.
+        proxy_peers: bool,
+        /// Flag indicating whether a proxy configuration was supplied.
+        has_proxy: bool,
+    }
+
+    /// Tracker-related options for the session.
+    #[derive(Debug)]
+    struct EngineTrackerOptions {
+        /// Default trackers applied to every torrent.
+        default_trackers: Vec<String>,
+        /// Extra trackers appended to defaults.
+        extra_trackers: Vec<String>,
+        /// Whether request trackers should replace defaults.
+        replace_trackers: bool,
+        /// Custom tracker user-agent.
+        user_agent: String,
+        /// Flag indicating whether user-agent was set.
+        has_user_agent: bool,
+        /// Announce IP override.
+        announce_ip: String,
+        /// Flag indicating whether announce IP was set.
+        has_announce_ip: bool,
+        /// Listen interface override for tracker announces.
+        listen_interface: String,
+        /// Flag indicating whether listen interface was set.
+        has_listen_interface: bool,
+        /// Tracker request timeout in milliseconds.
+        request_timeout_ms: i64,
+        /// Flag indicating whether timeout was set.
+        has_request_timeout: bool,
+        /// Whether to announce to all trackers.
+        announce_to_all: bool,
+        /// Proxy configuration for tracker announces.
+        proxy: TrackerProxyOptions,
+    }
+
     /// Runtime engine configuration forwarded to the native layer.
     #[derive(Debug)]
     struct EngineOptions {
@@ -65,6 +115,8 @@ pub mod ffi {
         storage: EngineStorageOptions,
         /// Behavioural defaults.
         behavior: EngineBehaviorOptions,
+        /// Tracker settings.
+        tracker: EngineTrackerOptions,
     }
 
     /// Request payload for adding a torrent to the native session.
@@ -88,6 +140,10 @@ pub mod ffi {
         has_sequential_override: bool,
         /// Tags associated with the torrent.
         tags: Vec<String>,
+        /// Additional trackers provided for this torrent.
+        trackers: Vec<String>,
+        /// Whether request trackers replace session defaults.
+        replace_trackers: bool,
     }
 
     /// Rate limit update applied globally or for a specific torrent.

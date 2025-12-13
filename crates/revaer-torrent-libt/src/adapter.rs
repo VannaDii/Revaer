@@ -115,7 +115,7 @@ impl TorrentEngine for LibtorrentEngine {
 mod tests {
     use super::*;
     use crate::store::FastResumeStore;
-    use crate::types::{EncryptionPolicy, EngineRuntimeConfig};
+    use crate::types::{EncryptionPolicy, EngineRuntimeConfig, TrackerRuntimeConfig};
     use revaer_torrent_core::{AddTorrentOptions, TorrentSource};
 
     #[tokio::test]
@@ -133,6 +133,7 @@ mod tests {
             download_rate_limit: Some(1_000_000),
             upload_rate_limit: Some(500_000),
             encryption: EncryptionPolicy::Prefer,
+            tracker: TrackerRuntimeConfig::default(),
         };
         engine.apply_runtime_config(runtime).await?;
 
@@ -190,6 +191,7 @@ mod tests {
                 download_rate_limit: None,
                 upload_rate_limit: None,
                 encryption: EncryptionPolicy::Prefer,
+                tracker: TrackerRuntimeConfig::default(),
             })
             .await?;
 

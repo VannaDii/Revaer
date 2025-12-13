@@ -7,7 +7,9 @@ use revaer_test_support::fixtures::docker_available;
 use revaer_torrent_core::{
     AddTorrent, AddTorrentOptions, TorrentEngine, TorrentRateLimit, TorrentSource,
 };
-use revaer_torrent_libt::{EncryptionPolicy, EngineRuntimeConfig, LibtorrentEngine};
+use revaer_torrent_libt::{
+    EncryptionPolicy, EngineRuntimeConfig, LibtorrentEngine, TrackerRuntimeConfig,
+};
 use tempfile::TempDir;
 use tokio::time::timeout;
 use tokio_stream::StreamExt;
@@ -40,6 +42,7 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
         download_rate_limit: Some(128_000),
         upload_rate_limit: Some(64_000),
         encryption: EncryptionPolicy::Prefer,
+        tracker: TrackerRuntimeConfig::default(),
     };
     engine
         .apply_runtime_config(config)

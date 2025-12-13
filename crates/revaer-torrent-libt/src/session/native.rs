@@ -57,7 +57,7 @@ fn initialize_session(options: &ffi::SessionOptions) -> Result<UniquePtr<ffi::Se
 #[cfg(all(test, feature = "libtorrent"))]
 pub(super) mod test_support {
     use super::{NativeSession, create_native_session_for_tests};
-    use crate::types::{EncryptionPolicy, EngineRuntimeConfig};
+    use crate::types::{EncryptionPolicy, EngineRuntimeConfig, TrackerRuntimeConfig};
     use anyhow::Result;
     use tempfile::TempDir;
 
@@ -91,6 +91,7 @@ pub(super) mod test_support {
                 download_rate_limit: None,
                 upload_rate_limit: None,
                 encryption: EncryptionPolicy::Prefer,
+                tracker: TrackerRuntimeConfig::default(),
             }
         }
     }
@@ -119,6 +120,8 @@ impl LibTorrentSession for NativeSession {
             sequential: request.options.sequential.unwrap_or_default(),
             has_sequential_override: request.options.sequential.is_some(),
             tags: request.options.tags.clone(),
+            trackers: request.options.trackers.clone(),
+            replace_trackers: request.options.replace_trackers,
         };
 
         match &request.source {

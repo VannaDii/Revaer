@@ -6,10 +6,14 @@
 //! - Keeps encryption mapping centralised to avoid drift between API/config/runtime layers.
 
 use revaer_config::{
-    EngineEncryptionPolicy, EngineProfile, EngineProfileEffective, normalize_engine_profile,
+    EngineEncryptionPolicy, EngineProfile, EngineProfileEffective, TrackerConfig,
+    TrackerProxyConfig, TrackerProxyType, normalize_engine_profile,
 };
 use revaer_torrent_core::TorrentRateLimit;
-use revaer_torrent_libt::{EncryptionPolicy, EngineRuntimeConfig};
+use revaer_torrent_libt::{
+    EncryptionPolicy, EngineRuntimeConfig, TrackerProxyRuntime,
+    TrackerProxyType as RuntimeProxyType, TrackerRuntimeConfig,
+};
 
 /// Runtime plan derived from the persisted engine profile, including effective values and
 /// guard-rail warnings.
@@ -26,6 +30,9 @@ impl EngineRuntimePlan {
     #[must_use]
     pub(crate) fn from_profile(profile: &EngineProfile) -> Self {
         let effective = normalize_engine_profile(profile);
+        let tracker = map_tracker_config(
+            serde_json::from_value::<TrackerConfig>(effective.tracker.clone()).unwrap_or_default(),
+        );
         let runtime = EngineRuntimeConfig {
             download_root: effective.storage.download_root.clone(),
             resume_dir: effective.storage.resume_dir.clone(),
@@ -36,6 +43,7 @@ impl EngineRuntimePlan {
             download_rate_limit: effective.limits.download_rate_limit,
             upload_rate_limit: effective.limits.upload_rate_limit,
             encryption: map_encryption_policy(effective.network.encryption),
+            tracker,
         };
 
         Self { effective, runtime }
@@ -62,6 +70,39 @@ const fn map_encryption_policy(policy: EngineEncryptionPolicy) -> EncryptionPoli
         EngineEncryptionPolicy::Require => EncryptionPolicy::Require,
         EngineEncryptionPolicy::Prefer => EncryptionPolicy::Prefer,
         EngineEncryptionPolicy::Disable => EncryptionPolicy::Disable,
+    }
+}
+
+fn map_tracker_config(config: TrackerConfig) -> TrackerRuntimeConfig {
+    TrackerRuntimeConfig {
+        default: config.default,
+        extra: config.extra,
+        replace: config.replace,
+        user_agent: config.user_agent,
+        announce_ip: config.announce_ip,
+        listen_interface: config.listen_interface,
+        request_timeout_ms: config.request_timeout_ms,
+        announce_to_all: config.announce_to_all,
+        proxy: config.proxy.map(map_proxy_config),
+    }
+}
+
+fn map_proxy_config(config: TrackerProxyConfig) -> TrackerProxyRuntime {
+    TrackerProxyRuntime {
+        host: config.host,
+        port: config.port,
+        username_secret: config.username_secret,
+        password_secret: config.password_secret,
+        kind: map_proxy_kind(config.kind),
+        proxy_peers: config.proxy_peers,
+    }
+}
+
+const fn map_proxy_kind(kind: TrackerProxyType) -> RuntimeProxyType {
+    match kind {
+        TrackerProxyType::Http => RuntimeProxyType::Http,
+        TrackerProxyType::Https => RuntimeProxyType::Https,
+        TrackerProxyType::Socks5 => RuntimeProxyType::Socks5,
     }
 }
 
@@ -98,6 +139,7 @@ mod tests {
         assert_eq!(plan.runtime.download_root, "/data/staging");
         assert_eq!(plan.runtime.resume_dir, "/var/lib/revaer/state");
         assert_eq!(plan.effective.tracker, json!({}));
+        assert!(plan.runtime.tracker.default.is_empty());
         assert!(
             !plan.effective.warnings.is_empty(),
             "warnings should be surfaced when clamping"

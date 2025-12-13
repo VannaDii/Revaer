@@ -1,0 +1,22 @@
+# Tracker Config Wiring
+
+- Status: Accepted
+- Date: 2025-12-12
+- Context:
+  - Tracker configuration and per-torrent trackers were only partially wired, creating drift between API, DB, and runtime handling.
+  - Client-supplied trackers were not persisted in resume metadata, and tags were ignored by the worker store, risking loss across restarts.
+  - AGENT guardrails require validation parity via stored procedures and no dead code as tracker fields expand.
+- Decision:
+  - Add typed tracker config with shared normalization plus a stored procedure that clamps lists, proxy fields, and timeouts before persistence.
+  - Map tracker config into runtime/FFI/native session (user agent, announce overrides, proxy, default/extra lists, replace flag) and thread per-torrent trackers/replace through the bridge.
+  - Use the existing `url` crate for tracker URL validation instead of bespoke parsing to reduce drift and edge-case bugs.
+  - Persist per-torrent trackers and tags in the resume metadata store, reusing stored trackers when re-adding torrents; normalize tracker inputs at the API boundary.
+  - Export the updated OpenAPI schema to reflect tracker options.
+- Consequences:
+  - Tracker settings are validated once and applied consistently end-to-end; restarts preserve client-supplied trackers/tags.
+  - Resume metadata grows slightly; proxy credentials remain referenced via secrets rather than being stored in plaintext.
+  - Native tracker status/ops are still pending; those will be tackled in later TORRENT_GAPS items.
+- Follow-up:
+  - Extend tracker surfaces with status/ops and authenticated tracker support.
+  - Add native tests around tracker application once the harness covers tracker alerts.
+  - Consider surfacing replace/default tracker semantics in API responses if needed.

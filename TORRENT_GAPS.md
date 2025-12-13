@@ -26,22 +26,22 @@
     -   [x] Expose all knobs via API: profile inspect shows stored + effective (post-clamp) values; torrent details expose current per-torrent settings (caps, limits, queue priority, PEX/super-seeding/seed-mode, storage/category/tag, seed ratio override, etc.).
     -   [x] Tests: assert API-reported effective values match applied runtime/libtorrent state after normalization.
 
--   [ ] Tracker configuration flows end-to-end (profile → runtime → bridge → native)
+-   [x] Tracker configuration flows end-to-end (profile → runtime → bridge → native)
 
-    -   [ ] Config/DB: introduce typed `TrackerConfig` (user_agent, default/extra trackers, replace flag, announce_ip/listen_interface/timeout, proxy refs), validate/normalize in stored proc, keep secrets in `settings_secret`.
-    -   [ ] Runtime/bridge: map `EngineProfile.tracker` into `EngineRuntimeConfig` and `EngineOptions`; include tracker fields in the FFI bridge structs.
-    -   [ ] Native: apply tracker settings in `session.cpp` via `lt::settings_pack` (user_agent, announce_ip, listen_interfaces, proxy host/port/type/creds, proxy_peers, timeouts, announce_to_all_trackers/replace_trackers); maintain default trackers and attach on add.
-    -   [ ] Per-torrent trackers: include trackers on `AddTorrentRequest`; append to `lt::add_torrent_params::trackers`, clearing when replace is set.
-    -   [ ] API/docs: ensure `TorrentCreateRequest.trackers` is validated and propagated; expose tracker profile fields if editable; update OpenAPI/docs.
-    -   [ ] Tests: config validation round-trip; Rust/bridge tests that `EngineOptions` carries tracker fields; native tests that `apply_engine_profile` and `add_torrent` honor user_agent/proxy/trackers.
+    -   [x] Config/DB: introduce typed `TrackerConfig` (user_agent, default/extra trackers, replace flag, announce_ip/listen_interface/timeout, proxy refs), validate/normalize in stored proc, keep secrets in `settings_secret`.
+    -   [x] Runtime/bridge: map `EngineProfile.tracker` into `EngineRuntimeConfig` and `EngineOptions`; include tracker fields in the FFI bridge structs.
+    -   [x] Native: apply tracker settings in `session.cpp` via `lt::settings_pack` (user_agent, announce_ip, listen_interfaces, proxy host/port/type/creds, proxy_peers, timeouts, announce_to_all_trackers/replace_trackers); maintain default trackers and attach on add.
+    -   [x] Per-torrent trackers: include trackers on `AddTorrentRequest`; append to `lt::add_torrent_params::trackers`, clearing when replace is set.
+    -   [x] API/docs: ensure `TorrentCreateRequest.trackers` is validated and propagated; expose tracker profile fields if editable; update OpenAPI/docs.
+    -   [x] Tests: config validation round-trip; Rust/bridge tests that `EngineOptions` carries tracker fields; native tests that `apply_engine_profile` and `add_torrent` honor user_agent/proxy/trackers.
 
--   [ ] Client-supplied trackers reach libtorrent
+-   [x] Client-supplied trackers reach libtorrent
 
-    -   [ ] API: validate/dedupe `TorrentCreateRequest.trackers`, thread through `to_options()` and responses.
-    -   [ ] Persistence: store per-torrent tracker lists with torrent metadata if not already kept.
-    -   [ ] Bridge/native: carry `trackers: Vec<String>` on `AddTorrentRequest`; apply to `lt::add_torrent_params::trackers`; stop discarding tags.
-    -   [ ] Worker: keep tracker lists intact from API → engine → bridge.
-    -   [ ] Tests: API parsing; unit test `AddTorrentRequest` includes trackers; native test that trackers reach `lt::add_torrent_params`.
+    -   [x] API: validate/dedupe `TorrentCreateRequest.trackers`, thread through `to_options()` and responses.
+    -   [x] Persistence: store per-torrent tracker lists with torrent metadata if not already kept.
+    -   [x] Bridge/native: carry `trackers: Vec<String>` on `AddTorrentRequest`; apply to `lt::add_torrent_params::trackers`; stop discarding tags.
+    -   [x] Worker: keep tracker lists intact from API → engine → bridge.
+    -   [x] Tests: API parsing; unit test `AddTorrentRequest` includes trackers; native test that trackers reach `lt::add_torrent_params`.
 
 -   [ ] NAT traversal/local discovery toggles supported
 

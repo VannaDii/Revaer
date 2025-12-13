@@ -15,6 +15,7 @@ pub const SETTINGS_CHANNEL: &str = "revaer_settings_changed";
 ///
 /// Returns an error when migration execution fails.
 pub async fn run_migrations(pool: &PgPool) -> Result<()> {
+    // Migrations cover both configuration and tracker normalization state.
     let migrator = sqlx::migrate!("./migrations");
     migrator
         .run(pool)

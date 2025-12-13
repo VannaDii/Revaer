@@ -8,10 +8,10 @@
 use std::collections::HashSet;
 
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, json};
 
 use crate::model::EngineProfile;
-use crate::validate::{ConfigError, ensure_mutable, ensure_object, parse_port};
+use crate::validate::{ConfigError, ensure_mutable, parse_port};
 
 /// Upper bound guard rail for rate limits (≈5 Gbps).
 pub const MAX_RATE_LIMIT_BPS: i64 = 5_000_000_000;
@@ -109,6 +109,80 @@ pub struct EngineProfileMutation {
     pub effective: EngineProfileEffective,
     /// Whether any fields changed after validation.
     pub mutated: bool,
+}
+
+/// Proxy kinds supported for tracker announces.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TrackerProxyType {
+    /// HTTP proxy.
+    #[default]
+    Http,
+    /// HTTPS proxy.
+    Https,
+    /// SOCKS5 proxy.
+    Socks5,
+}
+
+/// Proxy configuration used when announcing to trackers.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct TrackerProxyConfig {
+    /// Proxy host or IP.
+    pub host: String,
+    /// Proxy port.
+    pub port: u16,
+    /// Optional username secret reference.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username_secret: Option<String>,
+    /// Optional password secret reference.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password_secret: Option<String>,
+    /// Proxy type.
+    #[serde(default)]
+    pub kind: TrackerProxyType,
+    /// Whether peer connections should also use the proxy.
+    #[serde(default)]
+    pub proxy_peers: bool,
+}
+
+/// Normalised tracker configuration derived from the persisted payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct TrackerConfig {
+    /// Default tracker list applied to all torrents.
+    #[serde(default)]
+    pub default: Vec<String>,
+    /// Extra trackers appended to the defaults.
+    #[serde(default)]
+    pub extra: Vec<String>,
+    /// Whether to replace defaults with request-provided trackers.
+    #[serde(default)]
+    pub replace: bool,
+    /// Optional custom user-agent to send to trackers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_agent: Option<String>,
+    /// Optional announce IP override.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub announce_ip: Option<String>,
+    /// Optional listen interface override for tracker announces.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub listen_interface: Option<String>,
+    /// Optional request timeout in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_timeout_ms: Option<i64>,
+    /// Whether to announce to all trackers.
+    #[serde(default)]
+    pub announce_to_all: bool,
+    /// Optional proxy configuration for tracker announces.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub proxy: Option<TrackerProxyConfig>,
+}
+
+impl TrackerConfig {
+    /// Convert the typed config into a JSON object for persistence/effective views.
+    #[must_use]
+    pub fn to_value(&self) -> Value {
+        json!(self)
+    }
 }
 
 /// Validate and normalise an engine profile patch against the current snapshot.
@@ -303,8 +377,8 @@ fn apply_field(
             required_string(value, "download_root")?,
         )),
         "tracker" => {
-            ensure_object(value, "engine_profile", "tracker")?;
-            Ok(assign_if_changed(&mut working.tracker, value.clone()))
+            let normalized = normalize_tracker_payload(value)?;
+            Ok(assign_if_changed(&mut working.tracker, normalized))
         }
         other => Err(ConfigError::UnknownField {
             section: "engine_profile".to_string(),
@@ -367,6 +441,241 @@ fn parse_optional_i32(value: &Value, field: &str) -> Result<Option<i32>, ConfigE
         message: "must fit within 32-bit signed integer range".to_string(),
     })?;
     Ok(Some(value_i32))
+}
+
+fn normalize_tracker_payload(value: &Value) -> Result<Value, ConfigError> {
+    if value.is_null() {
+        return Ok(TrackerConfig::default().to_value());
+    }
+    let map = value.as_object().ok_or_else(|| ConfigError::InvalidField {
+        section: "engine_profile".to_string(),
+        field: "tracker".to_string(),
+        message: "must be an object".to_string(),
+    })?;
+
+    for key in map.keys() {
+        match key.as_str() {
+            "default" | "extra" | "replace" | "user_agent" | "announce_ip" | "listen_interface"
+            | "request_timeout_ms" | "announce_to_all" | "proxy" => {}
+            other => {
+                return Err(ConfigError::UnknownField {
+                    section: "engine_profile".to_string(),
+                    field: format!("tracker.{other}"),
+                });
+            }
+        }
+    }
+
+    let default = parse_tracker_list(map.get("default"), "tracker.default")?;
+    let extra = parse_tracker_list(map.get("extra"), "tracker.extra")?;
+    let replace = parse_optional_bool(map.get("replace"), "tracker.replace")?.unwrap_or(false);
+    let announce_to_all =
+        parse_optional_bool(map.get("announce_to_all"), "tracker.announce_to_all")?
+            .unwrap_or(false);
+    let user_agent = parse_optional_string(map.get("user_agent"), "tracker.user_agent")?;
+    let announce_ip = parse_optional_string(map.get("announce_ip"), "tracker.announce_ip")?;
+    let listen_interface =
+        parse_optional_string(map.get("listen_interface"), "tracker.listen_interface")?;
+    let request_timeout_ms =
+        parse_optional_timeout(map.get("request_timeout_ms"), "tracker.request_timeout_ms")?;
+    let proxy = parse_proxy(map.get("proxy"))?;
+
+    let config = TrackerConfig {
+        default,
+        extra,
+        replace,
+        user_agent,
+        announce_ip,
+        listen_interface,
+        request_timeout_ms,
+        announce_to_all,
+        proxy,
+    };
+
+    Ok(config.to_value())
+}
+
+fn parse_optional_timeout(value: Option<&Value>, field: &str) -> Result<Option<i64>, ConfigError> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    if raw.is_null() {
+        return Ok(None);
+    }
+    let Some(timeout) = raw.as_i64() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be an integer (milliseconds)".to_string(),
+        });
+    };
+    if !(0..=900_000).contains(&timeout) {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be between 0 and 900000 milliseconds".to_string(),
+        });
+    }
+    Ok(Some(timeout))
+}
+
+fn parse_optional_bool(value: Option<&Value>, field: &str) -> Result<Option<bool>, ConfigError> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    if raw.is_null() {
+        return Ok(None);
+    }
+    raw.as_bool()
+        .ok_or_else(|| ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be a boolean".to_string(),
+        })
+        .map(Some)
+}
+
+fn parse_optional_string(
+    value: Option<&Value>,
+    field: &str,
+) -> Result<Option<String>, ConfigError> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    if raw.is_null() {
+        return Ok(None);
+    }
+    let Some(text) = raw.as_str() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be a string".to_string(),
+        });
+    };
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    if trimmed.len() > 255 {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be at most 255 characters".to_string(),
+        });
+    }
+    Ok(Some(trimmed.to_string()))
+}
+
+fn parse_tracker_list(raw: Option<&Value>, field: &str) -> Result<Vec<String>, ConfigError> {
+    let Some(value) = raw else {
+        return Ok(Vec::new());
+    };
+    if value.is_null() {
+        return Ok(Vec::new());
+    }
+    let Some(items) = value.as_array() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be an array of strings".to_string(),
+        });
+    };
+    let mut seen = HashSet::new();
+    let mut trackers = Vec::new();
+    for item in items {
+        let Some(text) = item.as_str() else {
+            return Err(ConfigError::InvalidField {
+                section: "engine_profile".to_string(),
+                field: field.to_string(),
+                message: "entries must be strings".to_string(),
+            });
+        };
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.len() > 512 {
+            return Err(ConfigError::InvalidField {
+                section: "engine_profile".to_string(),
+                field: field.to_string(),
+                message: "entries must be shorter than 512 characters".to_string(),
+            });
+        }
+        if seen.insert(trimmed.to_ascii_lowercase()) {
+            trackers.push(trimmed.to_string());
+        }
+    }
+    Ok(trackers)
+}
+
+fn parse_proxy(value: Option<&Value>) -> Result<Option<TrackerProxyConfig>, ConfigError> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    if raw.is_null() {
+        return Ok(None);
+    }
+    let Some(map) = raw.as_object() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "tracker.proxy".to_string(),
+            message: "must be an object".to_string(),
+        });
+    };
+
+    let host = parse_optional_string(map.get("host"), "tracker.proxy.host")?.ok_or_else(|| {
+        ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "tracker.proxy.host".to_string(),
+            message: "is required when proxy is set".to_string(),
+        }
+    })?;
+    let port =
+        map.get("port")
+            .and_then(Value::as_i64)
+            .ok_or_else(|| ConfigError::InvalidField {
+                section: "engine_profile".to_string(),
+                field: "tracker.proxy.port".to_string(),
+                message: "is required and must be an integer".to_string(),
+            })?;
+    if !(1..=65_535).contains(&port) {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "tracker.proxy.port".to_string(),
+            message: "must be between 1 and 65535".to_string(),
+        });
+    }
+
+    let kind = map
+        .get("kind")
+        .and_then(Value::as_str)
+        .map(|value| match value {
+            "http" => Ok(TrackerProxyType::Http),
+            "https" => Ok(TrackerProxyType::Https),
+            "socks5" => Ok(TrackerProxyType::Socks5),
+            other => Err(ConfigError::InvalidField {
+                section: "engine_profile".to_string(),
+                field: "tracker.proxy.kind".to_string(),
+                message: format!("unsupported proxy kind '{other}'"),
+            }),
+        })
+        .transpose()?
+        .unwrap_or_default();
+    let username_secret =
+        parse_optional_string(map.get("username_secret"), "tracker.proxy.username_secret")?;
+    let password_secret =
+        parse_optional_string(map.get("password_secret"), "tracker.proxy.password_secret")?;
+    let proxy_peers =
+        parse_optional_bool(map.get("proxy_peers"), "tracker.proxy.proxy_peers")?.unwrap_or(false);
+
+    Ok(Some(TrackerProxyConfig {
+        host,
+        port: u16::try_from(port).unwrap_or_default(),
+        username_secret,
+        password_secret,
+        kind,
+        proxy_peers,
+    }))
 }
 
 fn apply_rate_limit_field(
@@ -442,11 +751,14 @@ fn sanitize_path(value: &str, fallback: &str, field: &str, warnings: &mut Vec<St
 }
 
 fn sanitize_tracker(value: &Value, warnings: &mut Vec<String>) -> Value {
-    if value.is_object() {
-        value.clone()
-    } else {
-        warnings.push("tracker payload was not an object; replacing with {}".to_string());
-        Value::Object(Map::new())
+    match normalize_tracker_payload(value) {
+        Ok(normalized) => normalized,
+        Err(err) => {
+            warnings.push(format!(
+                "tracker payload invalid ({err}); replacing with {{}}"
+            ));
+            Value::Object(Map::new())
+        }
     }
 }
 
@@ -523,5 +835,53 @@ mod tests {
                 .any(|msg| msg.contains("guard rail")),
             "clamping should emit guard-rail warnings"
         );
+    }
+
+    #[test]
+    fn tracker_normalisation_rejects_invalid_shapes() {
+        let bad_tracker = json!("not-an-object");
+        let err = normalize_tracker_payload(&bad_tracker).unwrap_err();
+        assert!(err.to_string().contains("must be an object"));
+
+        let missing_port = json!({"proxy": {"host": "proxy"}}); // port missing
+        let err = normalize_tracker_payload(&missing_port).unwrap_err();
+        assert!(err.to_string().contains("port"));
+    }
+
+    #[test]
+    fn tracker_normalisation_dedupes_lists() {
+        let payload = json!({
+            "default": [" https://tracker.example/announce ", "https://tracker.example/announce", "UDP://TRACKER"],
+            "extra": ["", "https://extra/1"],
+            "replace": true,
+            "announce_ip": " 1.2.3.4 ",
+            "listen_interface": " eth0 ",
+            "request_timeout_ms": 5000,
+            "announce_to_all": true,
+            "proxy": {
+                "host": "proxy.local",
+                "port": 8080,
+                "proxy_peers": true,
+                "kind": "socks5"
+            }
+        });
+
+        let normalized = normalize_tracker_payload(&payload).expect("valid tracker payload");
+        let config: TrackerConfig =
+            serde_json::from_value(normalized).expect("config should decode");
+        assert_eq!(config.default.len(), 2);
+        assert_eq!(config.default[0], "https://tracker.example/announce");
+        assert_eq!(config.default[1], "UDP://TRACKER");
+        assert_eq!(config.extra, vec!["https://extra/1".to_string()]);
+        assert!(config.replace);
+        assert_eq!(config.announce_ip.as_deref(), Some("1.2.3.4"));
+        assert_eq!(config.listen_interface.as_deref(), Some("eth0"));
+        assert_eq!(config.request_timeout_ms, Some(5_000));
+        assert!(config.announce_to_all);
+        let proxy = config.proxy.expect("proxy present");
+        assert_eq!(proxy.host, "proxy.local");
+        assert_eq!(proxy.port, 8080);
+        assert!(proxy.proxy_peers);
+        assert_eq!(proxy.kind, TrackerProxyType::Socks5);
     }
 }

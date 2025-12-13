@@ -28,6 +28,15 @@ pub struct StoredTorrentMetadata {
     /// Indicates whether sequential download mode was active.
     pub sequential: bool,
     #[serde(default)]
+    /// Trackers that were supplied when the torrent was added.
+    pub trackers: Vec<String>,
+    #[serde(default)]
+    /// Whether the supplied trackers replaced profile defaults.
+    pub replace_trackers: bool,
+    #[serde(default)]
+    /// Tags provided at admission time.
+    pub tags: Vec<String>,
+    #[serde(default)]
     /// Timestamp of the most recent metadata update.
     pub updated_at: DateTime<Utc>,
 }
@@ -232,6 +241,9 @@ mod tests {
             }],
             download_dir: Some("/data/downloads".into()),
             sequential: true,
+            trackers: vec!["https://tracker.example/announce".into()],
+            replace_trackers: true,
+            tags: vec!["movies".into(), "hd".into()],
             updated_at: Utc::now(),
         }
     }
@@ -282,6 +294,15 @@ mod tests {
         assert_eq!(stored_meta.selection.include.len(), 1);
         assert_eq!(stored_meta.priorities.len(), 1);
         assert!(stored_meta.sequential);
+        assert_eq!(
+            stored_meta.trackers,
+            vec!["https://tracker.example/announce".to_string()]
+        );
+        assert!(stored_meta.replace_trackers);
+        assert_eq!(
+            stored_meta.tags,
+            vec!["movies".to_string(), "hd".to_string()]
+        );
         assert!(stored_meta.updated_at <= Utc::now());
 
         store.remove(torrent_id)?;

@@ -6,7 +6,9 @@
 //! - Keeps the runtime→FFI mapping central to avoid drift as fields grow.
 
 use crate::ffi::ffi;
-use crate::types::EngineRuntimeConfig;
+use crate::types::{
+    EngineRuntimeConfig, TrackerProxyRuntime, TrackerProxyType, TrackerRuntimeConfig,
+};
 
 /// Planned native engine options plus guard-rail warnings.
 #[derive(Debug)]
@@ -83,9 +85,60 @@ impl EngineOptionsPlan {
             behavior: ffi::EngineBehaviorOptions {
                 sequential_default: config.sequential_default,
             },
+            tracker: map_tracker_options(&config.tracker),
         };
 
         Self { options, warnings }
+    }
+}
+
+fn map_tracker_options(config: &TrackerRuntimeConfig) -> ffi::EngineTrackerOptions {
+    let proxy = map_proxy(config.proxy.as_ref());
+    ffi::EngineTrackerOptions {
+        default_trackers: config.default.clone(),
+        extra_trackers: config.extra.clone(),
+        replace_trackers: config.replace,
+        user_agent: config.user_agent.clone().unwrap_or_default(),
+        has_user_agent: config.user_agent.is_some(),
+        announce_ip: config.announce_ip.clone().unwrap_or_default(),
+        has_announce_ip: config.announce_ip.is_some(),
+        listen_interface: config.listen_interface.clone().unwrap_or_default(),
+        has_listen_interface: config.listen_interface.is_some(),
+        request_timeout_ms: config.request_timeout_ms.unwrap_or_default(),
+        has_request_timeout: config.request_timeout_ms.is_some(),
+        announce_to_all: config.announce_to_all,
+        proxy,
+    }
+}
+
+fn map_proxy(proxy: Option<&TrackerProxyRuntime>) -> ffi::TrackerProxyOptions {
+    proxy.map_or_else(
+        || ffi::TrackerProxyOptions {
+            host: String::new(),
+            username_secret: String::new(),
+            password_secret: String::new(),
+            port: 0,
+            kind: 0,
+            proxy_peers: false,
+            has_proxy: false,
+        },
+        |proxy| ffi::TrackerProxyOptions {
+            host: proxy.host.clone(),
+            username_secret: proxy.username_secret.clone().unwrap_or_default(),
+            password_secret: proxy.password_secret.clone().unwrap_or_default(),
+            port: proxy.port,
+            kind: map_proxy_kind(proxy.kind),
+            proxy_peers: proxy.proxy_peers,
+            has_proxy: true,
+        },
+    )
+}
+
+const fn map_proxy_kind(kind: TrackerProxyType) -> u8 {
+    match kind {
+        TrackerProxyType::Http => 0,
+        TrackerProxyType::Https => 1,
+        TrackerProxyType::Socks5 => 2,
     }
 }
 
@@ -105,7 +158,10 @@ fn clamp_rate_limit(field: &str, value: Option<i64>, warnings: &mut Vec<String>)
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{EncryptionPolicy, EngineRuntimeConfig};
+    use crate::types::{
+        EncryptionPolicy, EngineRuntimeConfig, TrackerProxyRuntime, TrackerProxyType,
+        TrackerRuntimeConfig,
+    };
 
     #[test]
     fn plan_clamps_invalid_values() {
@@ -119,6 +175,7 @@ mod tests {
             download_rate_limit: Some(-1),
             upload_rate_limit: None,
             encryption: EncryptionPolicy::Disable,
+            tracker: TrackerRuntimeConfig::default(),
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);
@@ -152,6 +209,7 @@ mod tests {
             download_rate_limit: Some(256_000),
             upload_rate_limit: Some(128_000),
             encryption: EncryptionPolicy::Require,
+            tracker: TrackerRuntimeConfig::default(),
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);
@@ -163,5 +221,66 @@ mod tests {
         assert_eq!(plan.options.limits.upload_rate_limit, 128_000);
         assert!(plan.options.behavior.sequential_default);
         assert_eq!(plan.options.network.encryption_policy, 0);
+    }
+
+    #[test]
+    fn tracker_options_are_mapped() {
+        let config = EngineRuntimeConfig {
+            download_root: "/data".into(),
+            resume_dir: "/state".into(),
+            enable_dht: false,
+            sequential_default: false,
+            listen_port: None,
+            max_active: None,
+            download_rate_limit: None,
+            upload_rate_limit: None,
+            encryption: EncryptionPolicy::Prefer,
+            tracker: TrackerRuntimeConfig {
+                default: vec!["https://tracker.example/announce".into()],
+                extra: vec!["udp://tracker.backup/announce".into()],
+                replace: true,
+                user_agent: Some("revaer/1.0".into()),
+                announce_ip: Some("192.168.1.100".into()),
+                listen_interface: Some("0.0.0.0:9000".into()),
+                request_timeout_ms: Some(5_000),
+                announce_to_all: true,
+                proxy: Some(TrackerProxyRuntime {
+                    host: "proxy.example".into(),
+                    port: 8080,
+                    username_secret: Some("user".into()),
+                    password_secret: Some("pass".into()),
+                    kind: TrackerProxyType::Socks5,
+                    proxy_peers: true,
+                }),
+            },
+        };
+
+        let plan = EngineOptionsPlan::from_runtime_config(&config);
+        let tracker = plan.options.tracker;
+        assert_eq!(
+            tracker.default_trackers,
+            vec!["https://tracker.example/announce"]
+        );
+        assert_eq!(
+            tracker.extra_trackers,
+            vec!["udp://tracker.backup/announce".to_string()]
+        );
+        assert!(tracker.replace_trackers);
+        assert_eq!(tracker.user_agent, "revaer/1.0");
+        assert!(tracker.has_user_agent);
+        assert_eq!(tracker.announce_ip, "192.168.1.100");
+        assert!(tracker.has_announce_ip);
+        assert_eq!(tracker.listen_interface, "0.0.0.0:9000");
+        assert!(tracker.has_listen_interface);
+        assert_eq!(tracker.request_timeout_ms, 5_000);
+        assert!(tracker.has_request_timeout);
+        assert!(tracker.announce_to_all);
+        assert!(tracker.proxy.has_proxy);
+        assert_eq!(tracker.proxy.host, "proxy.example");
+        assert_eq!(tracker.proxy.port, 8080);
+        assert_eq!(tracker.proxy.username_secret, "user");
+        assert_eq!(tracker.proxy.password_secret, "pass");
+        assert!(tracker.proxy.proxy_peers);
+        assert_eq!(tracker.proxy.kind, 2);
     }
 }

@@ -375,6 +375,9 @@ pub struct TorrentCreateRequest {
     /// Additional tracker URLs to register.
     pub trackers: Vec<String>,
     #[serde(default)]
+    /// Whether the supplied trackers should replace profile defaults.
+    pub replace_trackers: bool,
+    #[serde(default)]
     /// Glob patterns that should be selected during the initial download.
     pub include: Vec<String>,
     #[serde(default)]
@@ -409,6 +412,8 @@ impl TorrentCreateRequest {
                 upload_bps: self.max_upload_bps,
             },
             tags: self.tags.clone(),
+            trackers: Vec::new(),
+            replace_trackers: self.replace_trackers,
         }
     }
 

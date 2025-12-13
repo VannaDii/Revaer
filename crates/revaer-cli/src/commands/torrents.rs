@@ -46,6 +46,7 @@ pub(crate) async fn handle_torrent_add(ctx: &AppContext, args: TorrentAddArgs) -
         skip_fluff: false,
         tags: Vec::new(),
         trackers: Vec::new(),
+        replace_trackers: false,
         max_download_bps: None,
         max_upload_bps: None,
     };
@@ -421,6 +422,7 @@ mod tests {
                     "skip_fluff": false,
                     "tags": [],
                     "trackers": [],
+                    "replace_trackers": false,
                     "max_download_bps": null,
                     "max_upload_bps": null
                 }));

@@ -50,12 +50,6 @@
 
 namespace revaer {
 
-static_assert(sizeof(EngineNetworkOptions) == 8, "EngineNetworkOptions layout changed");
-static_assert(sizeof(EngineLimitOptions) == 24, "EngineLimitOptions layout changed");
-static_assert(sizeof(EngineStorageOptions) == 48, "EngineStorageOptions layout changed");
-static_assert(sizeof(EngineBehaviorOptions) == 1, "EngineBehaviorOptions layout changed");
-static_assert(sizeof(EngineOptions) == 88, "EngineOptions layout changed");
-
 namespace {
 
 constexpr std::array<const char*, 5> kSkipFluffPatterns = {
@@ -229,6 +223,66 @@ public:
                              ? static_cast<int>(options.limits.upload_rate_limit)
                              : -1);
 
+            if (options.tracker.has_user_agent) {
+                pack.set_str(lt::settings_pack::user_agent,
+                             to_std_string(options.tracker.user_agent));
+            }
+            if (options.tracker.has_announce_ip) {
+                pack.set_str(lt::settings_pack::announce_ip,
+                             to_std_string(options.tracker.announce_ip));
+            }
+            if (options.tracker.has_listen_interface) {
+                pack.set_str(lt::settings_pack::listen_interfaces,
+                             to_std_string(options.tracker.listen_interface));
+            }
+            if (options.tracker.has_request_timeout) {
+                const auto seconds =
+                    std::max<std::int64_t>(1, options.tracker.request_timeout_ms / 1000);
+                pack.set_int(lt::settings_pack::request_timeout,
+                             static_cast<int>(seconds));
+            }
+            pack.set_bool(lt::settings_pack::announce_to_all_trackers,
+                          options.tracker.announce_to_all);
+
+            announce_to_all_ = options.tracker.announce_to_all;
+            default_trackers_.clear();
+            default_trackers_.reserve(options.tracker.default_trackers.size());
+            for (const auto& tracker : options.tracker.default_trackers) {
+                default_trackers_.push_back(to_std_string(tracker));
+            }
+            extra_trackers_.clear();
+            extra_trackers_.reserve(options.tracker.extra_trackers.size());
+            for (const auto& tracker : options.tracker.extra_trackers) {
+                extra_trackers_.push_back(to_std_string(tracker));
+            }
+            replace_default_trackers_ = options.tracker.replace_trackers;
+
+            if (options.tracker.proxy.has_proxy) {
+                pack.set_str(lt::settings_pack::proxy_hostname,
+                             to_std_string(options.tracker.proxy.host));
+                pack.set_int(lt::settings_pack::proxy_port, options.tracker.proxy.port);
+                pack.set_bool(lt::settings_pack::proxy_peer_connections,
+                              options.tracker.proxy.proxy_peers);
+                int proxy_type = lt::settings_pack::http;
+                switch (options.tracker.proxy.kind) {
+                    case 0:
+                        proxy_type = lt::settings_pack::http;
+                        break;
+                    case 1:
+                        proxy_type = lt::settings_pack::http;
+                        break;
+                    case 2:
+                        proxy_type = lt::settings_pack::socks5;
+                        break;
+                    default:
+                        proxy_type = lt::settings_pack::http;
+                        break;
+                }
+                pack.set_int(lt::settings_pack::proxy_type, proxy_type);
+            } else {
+                pack.set_int(lt::settings_pack::proxy_type, lt::settings_pack::none);
+            }
+
             session_->apply_settings(pack);
         } catch (const std::exception& ex) {
             return ::rust::String(ex.what());
@@ -283,6 +337,26 @@ public:
                 handle.set_flags(lt::torrent_flags::sequential_download);
             } else {
                 handle.unset_flags(lt::torrent_flags::sequential_download);
+            }
+
+            std::vector<std::string> trackers;
+            if (!replace_default_trackers_) {
+                trackers.insert(trackers.end(), default_trackers_.begin(), default_trackers_.end());
+                trackers.insert(trackers.end(), extra_trackers_.begin(), extra_trackers_.end());
+            }
+            if (request.replace_trackers) {
+                trackers.clear();
+                trackers.reserve(request.trackers.size());
+                for (const auto& tracker : request.trackers) {
+                    trackers.push_back(to_std_string(tracker));
+                }
+            } else {
+                for (const auto& tracker : request.trackers) {
+                    trackers.push_back(to_std_string(tracker));
+                }
+            }
+            if (!trackers.empty()) {
+                params.trackers = trackers;
             }
 
             (void)request.tags;
@@ -660,6 +734,10 @@ private:
     std::string default_download_root_;
     std::string resume_dir_;
     bool sequential_default_{false};
+    std::vector<std::string> default_trackers_;
+    std::vector<std::string> extra_trackers_;
+    bool replace_default_trackers_{false};
+    bool announce_to_all_{false};
     std::unordered_map<std::string, lt::torrent_handle> handles_;
     std::unordered_map<std::string, TorrentSnapshot> snapshots_;
     std::unordered_map<std::string, std::vector<char>> pending_resume_;

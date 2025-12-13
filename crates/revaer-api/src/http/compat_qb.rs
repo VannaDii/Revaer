@@ -30,7 +30,7 @@ use revaer_torrent_core::{RemoveTorrent, TorrentRateLimit, TorrentStatus};
 use crate::app::state::{ApiState, COMPAT_SESSION_TTL};
 use crate::http::errors::ApiError;
 use crate::http::torrents::handlers::dispatch_torrent_add;
-use crate::http::torrents::{TorrentHandles, TorrentMetadata};
+use crate::http::torrents::{TorrentHandles, TorrentMetadata, normalize_trackers};
 use crate::models::TorrentCreateRequest;
 
 /// Attach qBittorrent-compatible endpoints to the primary router.
@@ -353,8 +353,12 @@ pub(crate) async fn torrents_add(
             ..TorrentCreateRequest::default()
         };
 
-        dispatch_torrent_add(Some(handles), &request).await?;
-        state.set_metadata(request.id, TorrentMetadata::from_request(&request));
+        let trackers = normalize_trackers(&request.trackers)?;
+        dispatch_torrent_add(Some(handles), &request, trackers.clone()).await?;
+        state.set_metadata(
+            request.id,
+            TorrentMetadata::from_request(&request, trackers),
+        );
         added += 1;
     }
 

@@ -1505,7 +1505,7 @@ mod tests {
             ..TorrentCreateRequest::default()
         };
 
-        let err = dispatch_torrent_add(None, &request)
+        let err = dispatch_torrent_add(None, &request, Vec::new())
             .await
             .expect_err("expected workflow to be unavailable");
         assert_eq!(err.status, StatusCode::SERVICE_UNAVAILABLE);
@@ -1529,7 +1529,7 @@ mod tests {
         let inspector_trait: Arc<dyn TorrentInspector> = workflow.clone();
         let handles = TorrentHandles::new(workflow_trait, inspector_trait);
 
-        dispatch_torrent_add(Some(&handles), &request)
+        dispatch_torrent_add(Some(&handles), &request, Vec::new())
             .await
             .expect("torrent creation should succeed");
         let recorded_entry = {

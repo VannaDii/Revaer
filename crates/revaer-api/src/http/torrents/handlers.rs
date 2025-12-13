@@ -27,7 +27,7 @@ use revaer_torrent_core::{
 use super::{
     CursorToken, StatusEntry, TorrentHandles, TorrentListQuery, TorrentMetadata,
     decode_cursor_token, detail_from_components, encode_cursor_from_entry, normalise_lower,
-    parse_state_filter, split_comma_separated, summary_from_components,
+    normalize_trackers, parse_state_filter, split_comma_separated, summary_from_components,
 };
 
 pub(crate) async fn create_torrent(
@@ -44,8 +44,13 @@ pub(crate) async fn create_torrent(
         }
     }
 
-    dispatch_torrent_add(state.torrent.as_ref(), &request).await?;
-    state.set_metadata(request.id, TorrentMetadata::from_request(&request));
+    let trackers = normalize_trackers(&request.trackers)?;
+
+    dispatch_torrent_add(state.torrent.as_ref(), &request, trackers.clone()).await?;
+    state.set_metadata(
+        request.id,
+        TorrentMetadata::from_request(&request, trackers.clone()),
+    );
     let torrent_name = request.name.as_deref().unwrap_or("<unspecified>");
     info!(torrent_id = %request.id, torrent_name = %torrent_name, "torrent submission requested");
     state.update_torrent_metrics().await;
@@ -415,11 +420,12 @@ fn paginate_entries(
 pub(crate) async fn dispatch_torrent_add(
     handles: Option<&TorrentHandles>,
     request: &TorrentCreateRequest,
+    trackers: Vec<String>,
 ) -> Result<(), ApiError> {
     let handles =
         handles.ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
 
-    let add_request = build_add_torrent(request)?;
+    let add_request = build_add_torrent(request, trackers)?;
 
     handles
         .workflow()
@@ -448,7 +454,10 @@ pub(crate) async fn dispatch_torrent_remove(
         })
 }
 
-pub(crate) fn build_add_torrent(request: &TorrentCreateRequest) -> Result<AddTorrent, ApiError> {
+pub(crate) fn build_add_torrent(
+    request: &TorrentCreateRequest,
+    trackers: Vec<String>,
+) -> Result<AddTorrent, ApiError> {
     let magnet = request
         .magnet
         .as_deref()
@@ -473,7 +482,9 @@ pub(crate) fn build_add_torrent(request: &TorrentCreateRequest) -> Result<AddTor
         ));
     };
 
-    let options = request.to_options();
+    let mut options = request.to_options();
+    options.trackers = trackers;
+    options.replace_trackers = request.replace_trackers;
 
     Ok(AddTorrent {
         id: request.id,

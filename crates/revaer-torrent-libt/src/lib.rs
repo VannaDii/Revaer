@@ -36,4 +36,7 @@ pub mod worker;
 pub use adapter::LibtorrentEngine;
 pub use command::EngineCommand;
 pub use store::{FastResumeStore, StoredTorrentMetadata, StoredTorrentState};
-pub use types::{EncryptionPolicy, EngineRuntimeConfig};
+pub use types::{
+    EncryptionPolicy, EngineRuntimeConfig, TrackerProxyRuntime, TrackerProxyType,
+    TrackerRuntimeConfig,
+};

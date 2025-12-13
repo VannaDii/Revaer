@@ -1,10 +1,12 @@
 //! Torrent HTTP helpers (pagination, metadata composition, filters).
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use base64::{Engine as _, engine::general_purpose};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use url::Url;
 use uuid::Uuid;
 
 use crate::http::errors::ApiError;
@@ -72,7 +74,10 @@ impl TorrentMetadata {
     }
 
     #[must_use]
-    pub(crate) fn from_request(request: &crate::models::TorrentCreateRequest) -> Self {
+    pub(crate) fn from_request(
+        request: &crate::models::TorrentCreateRequest,
+        trackers: Vec<String>,
+    ) -> Self {
         let rate_limit = rate_limit_from_limits(request.max_download_bps, request.max_upload_bps);
         let selection = FileSelectionUpdate {
             include: request.include.clone(),
@@ -80,12 +85,7 @@ impl TorrentMetadata {
             skip_fluff: request.skip_fluff,
             priorities: Vec::new(),
         };
-        Self::new(
-            request.tags.clone(),
-            request.trackers.clone(),
-            rate_limit,
-            selection,
-        )
+        Self::new(request.tags.clone(), trackers, rate_limit, selection)
     }
 
     pub(crate) const fn apply_rate_limit(&mut self, rate_limit: &TorrentRateLimit) {
@@ -205,6 +205,32 @@ pub(crate) fn split_comma_separated(value: &str) -> Vec<String> {
         .collect()
 }
 
+pub(crate) fn normalize_trackers(inputs: &[String]) -> Result<Vec<String>, ApiError> {
+    let mut seen = HashSet::new();
+    let mut trackers = Vec::new();
+    for raw in inputs {
+        let trimmed = raw.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let url =
+            Url::parse(trimmed).map_err(|_| ApiError::bad_request("tracker URL is malformed"))?;
+        match url.scheme() {
+            "http" | "https" | "udp" => {}
+            other => {
+                return Err(ApiError::bad_request(format!(
+                    "tracker scheme '{other}' is not supported (http/https/udp only)"
+                )));
+            }
+        }
+        let key = trimmed.to_ascii_lowercase();
+        if seen.insert(key) {
+            trackers.push(trimmed.to_string());
+        }
+    }
+    Ok(trackers)
+}
+
 #[must_use]
 pub(crate) fn normalise_lower(value: &str) -> String {
     value.trim().to_lowercase()
@@ -316,7 +342,9 @@ mod tests {
             ..Default::default()
         };
 
-        let mut metadata = TorrentMetadata::from_request(&request);
+        let trackers =
+            normalize_trackers(&request.trackers).expect("trackers should normalise for test");
+        let mut metadata = TorrentMetadata::from_request(&request, trackers);
         assert_eq!(metadata.tags, vec!["demo".to_string()]);
         assert_eq!(
             metadata.trackers,
@@ -339,5 +367,32 @@ mod tests {
         };
         metadata.apply_rate_limit(&cleared);
         assert!(metadata.rate_limit.is_none());
+    }
+
+    #[test]
+    fn normalize_trackers_validates_and_deduplicates() {
+        let inputs = vec![
+            " https://Tracker.Example/announce ".to_string(),
+            "udp://tracker.example/announce".to_string(),
+            "https://tracker.example/announce".to_string(),
+        ];
+        let trackers = normalize_trackers(&inputs).expect("normalization should succeed");
+        assert_eq!(
+            trackers,
+            vec![
+                "https://Tracker.Example/announce".to_string(),
+                "udp://tracker.example/announce".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn normalize_trackers_rejects_unknown_schemes() {
+        let inputs = vec!["ftp://tracker.example/announce".to_string()];
+        let err = normalize_trackers(&inputs).expect_err("ftp scheme should be rejected");
+        assert!(
+            format!("{err:?}").contains("ftp"),
+            "expected error to mention unsupported scheme"
+        );
     }
 }

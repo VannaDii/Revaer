@@ -172,6 +172,17 @@ impl Worker {
     }
 
     async fn handle_add(&mut self, request: AddTorrent) -> Result<()> {
+        let mut request = request;
+        if let Some(stored) = self.resume_cache.get(&request.id) {
+            if request.options.trackers.is_empty() && !stored.trackers.is_empty() {
+                request.options.trackers.clone_from(&stored.trackers);
+                request.options.replace_trackers = stored.replace_trackers;
+            }
+            if request.options.tags.is_empty() && !stored.tags.is_empty() {
+                request.options.tags.clone_from(&stored.tags);
+            }
+        }
+
         self.session.add_torrent(&request).await?;
         if let Some(payload) = self.fastresume_payloads.get(&request.id).cloned() {
             if let Err(err) = self.session.load_fastresume(request.id, &payload).await {
@@ -251,11 +262,17 @@ impl Worker {
         let download_dir = effective_download_dir;
         let priorities = effective_priorities;
         let sequential = effective_sequential;
+        let trackers = request.options.trackers.clone();
+        let replace_trackers = request.options.replace_trackers;
+        let tags = request.options.tags.clone();
         self.update_metadata(request.id, move |meta| {
             meta.selection.clone_from(&selection);
             meta.download_dir.clone_from(&download_dir);
             meta.sequential = sequential;
             meta.priorities.clone_from(&priorities);
+            meta.trackers.clone_from(&trackers);
+            meta.replace_trackers = replace_trackers;
+            meta.tags.clone_from(&tags);
         });
         Ok(())
     }
@@ -831,6 +848,9 @@ mod tests {
             }],
             download_dir: Some("/persisted/downloads".into()),
             sequential: true,
+            trackers: vec!["https://tracker.example/announce".into()],
+            replace_trackers: true,
+            tags: vec!["persisted".into()],
             updated_at: Utc::now(),
         };
         store.write_metadata(torrent_id, &seed_metadata)?;
@@ -895,6 +915,12 @@ mod tests {
         assert_eq!(persisted_meta.selection.exclude, update.exclude);
         assert_eq!(persisted_meta.priorities.len(), 1);
         assert!(!persisted_meta.sequential);
+        assert_eq!(
+            persisted_meta.trackers,
+            vec!["https://tracker.example/announce".to_string()]
+        );
+        assert!(persisted_meta.replace_trackers);
+        assert_eq!(persisted_meta.tags, vec!["persisted".to_string()]);
         assert!(
             persisted
                 .fastresume
