@@ -23,6 +23,14 @@ pub mod ffi {
         set_listen_port: bool,
         /// Whether to enable DHT.
         enable_dht: bool,
+        /// Whether to enable local service discovery.
+        enable_lsd: bool,
+        /// Whether to enable `UPnP` port mappings.
+        enable_upnp: bool,
+        /// Whether to enable NAT-PMP port mappings.
+        enable_natpmp: bool,
+        /// Whether to enable peer exchange/uTP.
+        enable_pex: bool,
         /// Encryption policy flag.
         encryption_policy: u8,
     }

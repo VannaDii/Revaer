@@ -163,6 +163,8 @@ public:
         pack.set_bool(lt::settings_pack::enable_lsd, false);
         pack.set_bool(lt::settings_pack::enable_upnp, false);
         pack.set_bool(lt::settings_pack::enable_natpmp, false);
+        pack.set_bool(lt::settings_pack::enable_outgoing_utp, false);
+        pack.set_bool(lt::settings_pack::enable_incoming_utp, false);
         pack.set_bool(lt::settings_pack::anonymous_mode, false);
         pack.set_int(lt::settings_pack::alert_mask,
                      lt::alert_category::status | lt::alert_category::error |
@@ -184,6 +186,11 @@ public:
         try {
             lt::settings_pack pack;
             pack.set_bool(lt::settings_pack::enable_dht, options.network.enable_dht);
+            pack.set_bool(lt::settings_pack::enable_lsd, options.network.enable_lsd);
+            pack.set_bool(lt::settings_pack::enable_upnp, options.network.enable_upnp);
+            pack.set_bool(lt::settings_pack::enable_natpmp, options.network.enable_natpmp);
+            pack.set_bool(lt::settings_pack::enable_outgoing_utp, options.network.enable_pex);
+            pack.set_bool(lt::settings_pack::enable_incoming_utp, options.network.enable_pex);
 
             if (options.network.set_listen_port && options.network.listen_port > 0) {
                 pack.set_str(lt::settings_pack::listen_interfaces,

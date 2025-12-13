@@ -37,6 +37,10 @@ impl EngineRuntimePlan {
             download_root: effective.storage.download_root.clone(),
             resume_dir: effective.storage.resume_dir.clone(),
             enable_dht: effective.network.enable_dht,
+            enable_lsd: bool::from(effective.network.enable_lsd).into(),
+            enable_upnp: bool::from(effective.network.enable_upnp).into(),
+            enable_natpmp: bool::from(effective.network.enable_natpmp).into(),
+            enable_pex: bool::from(effective.network.enable_pex).into(),
             sequential_default: effective.behavior.sequential_default,
             listen_port: effective.network.listen_port,
             max_active: effective.limits.max_active,
@@ -128,6 +132,10 @@ mod tests {
             resume_dir: String::new(),
             download_root: "   ".into(),
             tracker: json!("not-an-object"),
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
         };
         let plan = EngineRuntimePlan::from_profile(&profile);
 
@@ -151,6 +159,10 @@ mod tests {
                 .any(|msg| msg.contains("guard rail")),
             "guard rail clamp should emit a warning"
         );
+        assert!(!plan.runtime.enable_lsd.is_enabled());
+        assert!(!plan.runtime.enable_upnp.is_enabled());
+        assert!(!plan.runtime.enable_natpmp.is_enabled());
+        assert!(!plan.runtime.enable_pex.is_enabled());
     }
 
     #[test]
@@ -168,10 +180,18 @@ mod tests {
             resume_dir: "/var/resume".into(),
             download_root: "/data".into(),
             tracker: json!({}),
+            enable_lsd: true.into(),
+            enable_upnp: true.into(),
+            enable_natpmp: true.into(),
+            enable_pex: true.into(),
         };
 
         let require = EngineRuntimePlan::from_profile(&base);
         assert_eq!(require.runtime.encryption, EncryptionPolicy::Require);
+        assert!(require.runtime.enable_lsd.is_enabled());
+        assert!(require.runtime.enable_upnp.is_enabled());
+        assert!(require.runtime.enable_natpmp.is_enabled());
+        assert!(require.runtime.enable_pex.is_enabled());
 
         let mut prefer_profile = base.clone();
         prefer_profile.encryption = "prefer".into();

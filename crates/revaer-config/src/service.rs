@@ -780,6 +780,10 @@ fn map_engine_profile_row(row: EngineProfileRow) -> EngineProfile {
         resume_dir: row.resume_dir,
         download_root: row.download_root,
         tracker: row.tracker,
+        enable_lsd: row.nat.lsd().into(),
+        enable_upnp: row.nat.upnp().into(),
+        enable_natpmp: row.nat.natpmp().into(),
+        enable_pex: row.nat.pex().into(),
     }
 }
 
@@ -982,6 +986,12 @@ async fn persist_engine_profile(
             resume_dir: &profile.resume_dir,
             download_root: &profile.download_root,
             tracker: &profile.tracker,
+            nat: data_config::NatToggleSet::from_flags([
+                bool::from(profile.enable_lsd),
+                bool::from(profile.enable_upnp),
+                bool::from(profile.enable_natpmp),
+                bool::from(profile.enable_pex),
+            ]),
         },
     )
     .await?;

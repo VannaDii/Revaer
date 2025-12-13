@@ -10,7 +10,7 @@ This guide explains how the Revaer application stitches configuration, orchestra
 ## Runtime updates
 - **Config watcher** – On every settings change the watcher:
   1. Applies the latest filesystem policy (`update_fs_policy`).
-  2. Pushes the engine profile into the orchestration layer (`update_engine_profile`), which propagates DHT, port, and throttling changes through the `EngineConfigurator` trait.
+  2. Pushes the engine profile into the orchestration layer (`update_engine_profile`), which propagates DHT, listen port, throttling, and NAT/PEX discovery toggles (default-off posture for LSD/UPnP/NAT-PMP/PEX) through the `EngineConfigurator` trait.
 - **Event propagation** – The SSE endpoint (`/v1/events`) streams the shared event bus. Tests cover replay semantics and idle keep-alive behaviour to ensure UI consumers remain in sync.
 
 ## Error handling

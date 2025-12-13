@@ -71,6 +71,31 @@ impl AppMode {
     }
 }
 
+/// Transparent wrapper for boolean feature toggles to avoid pedantic lint churn.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(transparent)]
+pub struct Toggle(pub bool);
+
+impl Toggle {
+    #[must_use]
+    /// Whether the toggle is enabled.
+    pub const fn is_enabled(self) -> bool {
+        self.0
+    }
+}
+
+impl From<bool> for Toggle {
+    fn from(value: bool) -> Self {
+        Self(value)
+    }
+}
+
+impl From<Toggle> for bool {
+    fn from(toggle: Toggle) -> Self {
+        toggle.0
+    }
+}
+
 /// Engine configuration surfaced to consumers.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct EngineProfile {
@@ -98,6 +123,14 @@ pub struct EngineProfile {
     pub download_root: String,
     /// Arbitrary tracker configuration payload (JSON object).
     pub tracker: Value,
+    /// Enable local service discovery (mDNS).
+    pub enable_lsd: Toggle,
+    /// Enable `UPnP` port mapping.
+    pub enable_upnp: Toggle,
+    /// Enable NAT-PMP port mapping.
+    pub enable_natpmp: Toggle,
+    /// Enable peer exchange (PEX).
+    pub enable_pex: Toggle,
 }
 
 /// Filesystem policy configuration.

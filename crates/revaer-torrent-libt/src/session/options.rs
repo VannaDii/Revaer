@@ -71,6 +71,10 @@ impl EngineOptionsPlan {
                 listen_port,
                 set_listen_port,
                 enable_dht: config.enable_dht,
+                enable_lsd: bool::from(config.enable_lsd),
+                enable_upnp: bool::from(config.enable_upnp),
+                enable_natpmp: bool::from(config.enable_natpmp),
+                enable_pex: bool::from(config.enable_pex),
                 encryption_policy: config.encryption.as_u8(),
             },
             limits: ffi::EngineLimitOptions {
@@ -169,6 +173,10 @@ mod tests {
             download_root: "   ".into(),
             resume_dir: String::new(),
             enable_dht: true,
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
             sequential_default: false,
             listen_port: Some(70_000),
             max_active: Some(0),
@@ -203,6 +211,10 @@ mod tests {
             download_root: "/data".into(),
             resume_dir: "/state".into(),
             enable_dht: false,
+            enable_lsd: true.into(),
+            enable_upnp: true.into(),
+            enable_natpmp: true.into(),
+            enable_pex: true.into(),
             sequential_default: true,
             listen_port: Some(6_881),
             max_active: Some(16),
@@ -221,6 +233,10 @@ mod tests {
         assert_eq!(plan.options.limits.upload_rate_limit, 128_000);
         assert!(plan.options.behavior.sequential_default);
         assert_eq!(plan.options.network.encryption_policy, 0);
+        assert!(plan.options.network.enable_lsd);
+        assert!(plan.options.network.enable_upnp);
+        assert!(plan.options.network.enable_natpmp);
+        assert!(plan.options.network.enable_pex);
     }
 
     #[test]
@@ -229,6 +245,10 @@ mod tests {
             download_root: "/data".into(),
             resume_dir: "/state".into(),
             enable_dht: false,
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
             sequential_default: false,
             listen_port: None,
             max_active: None,

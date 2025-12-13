@@ -85,6 +85,10 @@ pub(super) mod test_support {
                 download_root: self.download.path().to_string_lossy().into_owned(),
                 resume_dir: self.resume.path().to_string_lossy().into_owned(),
                 enable_dht: false,
+                enable_lsd: false.into(),
+                enable_upnp: false.into(),
+                enable_natpmp: false.into(),
+                enable_pex: false.into(),
                 sequential_default: false,
                 listen_port: None,
                 max_active: None,
@@ -283,6 +287,10 @@ mod tests {
         config.max_active = Some(2);
         config.download_rate_limit = Some(256_000);
         config.upload_rate_limit = Some(128_000);
+        config.enable_lsd = true.into();
+        config.enable_upnp = true.into();
+        config.enable_natpmp = true.into();
+        config.enable_pex = true.into();
 
         harness.session.apply_config(&config).await?;
 

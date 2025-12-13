@@ -245,6 +245,10 @@ mod tests {
             resume_dir: "/var/resume".into(),
             download_root: "/var/downloads".into(),
             tracker: json!({}),
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
         };
         ConfigSnapshot {
             revision: 42,

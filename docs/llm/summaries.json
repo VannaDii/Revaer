@@ -176,10 +176,65 @@
     "href": "/adr/016-libtorrent-restoration/"
   },
   {
+    "id": "adr/017-sqlx-named-bind",
+    "title": "Avoid `sqlx-named-bind`",
+    "summary": "Status: Accepted Date: 2025-11-28",
+    "tags": [
+      "consequences",
+      "context",
+      "decision",
+      "follow-up"
+    ],
+    "href": "/adr/017-sqlx-named-bind/"
+  },
+  {
+    "id": "adr/018-retire-testcontainers",
+    "title": "Retire testcontainers",
+    "summary": "Status: Accepted Date: 2025-12-06 Context: cargo audit flagged rustls-pemfile (RUSTSEC-2025-0134) as unmaintained, pulled via testcontainers → bollard. AGENT.md forbids local patches and prefers minimal dependencies; maintaining a forked TLS stack would violate both. Our Docker-backed integration tests (Postgres + libtorrent) depended on testcontainers; removing the crate requires alternate coverage. Decision: Remove testcontainers and associated patches from the workspace; delete Docker-backed integration tests and replace them with lightweight unit coverage. Keep filesystem orchestration tests in place using in-process fakes instead of containerized services. Drop the .secignore/deny.toml allowances tied to the testcontainers advisory; rely solely on crates.io sources. Alternatives considered: Upgrade to",
+    "tags": [],
+    "href": "/adr/018-retire-testcontainers/"
+  },
+  {
+    "id": "adr/019-advisory-rustsec-2024-0370",
+    "title": "Advisory RUSTSEC-2024-0370 Temporary Ignore",
+    "summary": "Status: Accepted Date: 2025-02-21 Context: The workspace depends on yew for the UI crate, which transitively pulls proc-macro-error, currently flagged by advisory RUSTSEC-2024-0370 (unmaintained). The affected package is used only via the Yew compile-time macro stack; there is no direct runtime exposure, and no maintained alternative in the current Yew release line. cargo-deny and .secignore both require an explicit justification and remediation plan for any ignore. Decision: Keep the advisory ignored in .secignore and deny.toml while remaining on the current Yew release. Monitor Yew’s releases and remove the ignore as soon as Yew drops the proc-macro-error dependency or provides a",
+    "tags": [],
+    "href": "/adr/019-advisory-rustsec-2024-0370/"
+  },
+  {
+    "id": "adr/020-torrent-engine-precursors",
+    "title": "Torrent engine precursor hardening",
+    "summary": "Status: Accepted Date: 2025-12-10 Context: Torrent work in TORRENT_GAPS.md needs shared scaffolding before adding tracker/NAT/limit features. Validation and persistence had drifted across API/runtime/DB; per-field SQL updates risked skew and missing guard rails. The FFI surface for libtorrent was a flat struct that would become unmanageable as new knobs land. Native tests were slow to write without a harness to spin a session and apply configs. Decision: Introduced engine_profile module to normalise/validate profile patches, emit effective views with guard-rail warnings, and clamp before storage/runtime use. Replaced per-field SQL with a unified update_engine_profile stored procedure and EngineProfileUpdate data shape to keep DB/API",
+    "tags": [],
+    "href": "/adr/020-torrent-engine-precursors/"
+  },
+  {
+    "id": "adr/021-torrent-precursor-enforcement",
+    "title": "Torrent precursor enforcement",
+    "summary": "Status: Accepted Date: 2025-12-12 Context: TORRENT_GAPS precursors called for unified engine profile persistence/validation before expanding tracker/NAT features. Legacy per-field stored procedures risked drifting from the shared validator and API/runtime expectations. Runtime → FFI mapping lived inline, making it harder to clamp unsafe values or extend with new options; native tests lacked a reusable harness. Decision: Retired the per-field engine profile update functions/procedures in favour of the single update_engine_profile entry point (migration 0005_engine_profile_cleanup), keeping DB/API validation aligned. Introduced EngineOptionsPlan::from_runtime_config to clamp/disable invalid runtime values before crossing the FFI boundary and surface guard-rail warnings in the native session. Added a reusable NativeSessionHarness",
+    "tags": [],
+    "href": "/adr/021-torrent-precursor-enforcement/"
+  },
+  {
+    "id": "adr/022-torrent-settings-parity",
+    "title": "Torrent settings parity and observability",
+    "summary": "Status: Accepted Date: 2025-12-12 Context: TORRENT_GAPS precursor calls for API/runtime parity and observability of the knobs we already support. Torrent details previously lacked a single place to inspect applied settings (rate caps, selection rules, tags/trackers) and metadata drifted after rate/selection updates. Engine profile parity (stored vs effective) is already exposed via the config snapshot, but per-torrent settings needed an equivalent surface. Decision: Expose a TorrentSettingsView on torrent detail responses covering download_dir/sequential status from the inspector plus tags/trackers/rate caps and the latest selection rules captured in API state. Record selection rules and rate limit updates in TorrentMetadata on creation and after",
+    "tags": [],
+    "href": "/adr/022-torrent-settings-parity/"
+  },
+  {
+    "id": "adr/023-tracker-config-wiring",
+    "title": "Tracker Config Wiring",
+    "summary": "Status: Accepted Date: 2025-12-12 Context: Tracker configuration and per-torrent trackers were only partially wired, creating drift between API, DB, and runtime handling. Client-supplied trackers were not persisted in resume metadata, and tags were ignored by the worker store, risking loss across restarts. AGENT guardrails require validation parity via stored procedures and no dead code as tracker fields expand. Decision: Add typed tracker config with shared normalization plus a stored procedure that clamps lists, proxy fields, and timeouts before persistence. Map tracker config into runtime/FFI/native session (user agent, announce overrides, proxy, default/extra lists, replace flag) and thread per-torrent trackers/replace through the",
+    "tags": [],
+    "href": "/adr/023-tracker-config-wiring/"
+  },
+  {
     "id": "adr/index",
     "title": "Architecture Decision Records",
     "summary": "ADR documents capture the rationale behind significant technical decisions.",
     "tags": [
+      "catalogue",
       "suggested-workflow"
     ],
     "href": "/adr/index/"
@@ -267,13 +322,6 @@
     "href": "/index/"
   },
   {
-    "id": "llm/index",
-    "title": "LLM Integration",
-    "summary": "The documentation site publishes machine-readable JSON manifests to help ChatGPT and other LLMs index and search the content. These files are static and live alongside the built docs, so LLM tooling can fetch them directly. **[manifest.json](manifest.json)** — Master index of documentation entries with IDs, titles, tags, and canonical URLs. Shared so LLMs can discover the page graph without crawling the entire site. **[summaries.json](summaries.json)** — Concise per-entry summaries extracted from the docs. Shared to provide quick context for answers and improve retrieval quality. **[schema.json](schema.json)** — JSON Schema describing the manifest/summaries format. Shared so LLM integrators can validate and evolve their tooling",
-    "tags": [],
-    "href": "/llm/index/"
-  },
-  {
     "id": "phase-one-remaining-spec",
     "title": "Phase One Remaining Engineering Specification",
     "summary": "Deliver a production-ready public interface (HTTP API, SSE, CLI) for torrent orchestration. Ship FsOps-backed artefacts through API, CLI, telemetry, and documentation with demonstrable reliability. Produce release artefacts (containers, binaries, documentation) that satisfy existing security, observability, and quality gates.",
@@ -291,7 +339,7 @@
   {
     "id": "phase-one-roadmap",
     "title": "Phase One Roadmap",
-    "summary": "_Last updated: 2025-10-16_ This document captures the current delta between the Phase One objective and the existing codebase. It should be kept in sync as work progresses across the eight workstreams.",
+    "summary": "_Last updated: 2025-11-27_ This document captures the current delta between the Phase One objective and the existing codebase. It should be kept in sync as work progresses across the eight workstreams.",
     "tags": [
       "next-steps-tracking",
       "remaining-scope-specification",
@@ -339,6 +387,16 @@
     "summary": "These tests are opt-in (gated by REVAER_NATIVE_IT) to keep the default matrix deterministic; include them explicitly in feature-matrix runs. To run the feature-gated native libtorrent integration suite locally: export DOCKER_HOST=${DOCKER_HOST:-unix:///Users/vanna/.colima/default/docker.sock} export REVAER_NATIVE_IT=1 just ci cargo test -p revaer-torrent-libt --all-features CI note: add a matrix job that sets REVAER_NATIVE_IT=1 and points DOCKER_HOST at the runner’s daemon to ensure the native path stays covered.",
     "tags": [],
     "href": "/platform/native-tests/"
+  },
+  {
+    "id": "platform/torrent-flows",
+    "title": "Torrent Flows",
+    "summary": "Operational views for the torrent lifecycle and the torrent authoring path. These diagrams are reference-only; wire changes must follow the stored-procedure, clamp-before-apply, and observability guardrails in AGENT.md.",
+    "tags": [
+      "admission-runtime-fsops",
+      "torrent-creation-authoring-flow"
+    ],
+    "href": "/platform/torrent-flows/"
   },
   {
     "id": "release-checklist",

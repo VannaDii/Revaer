@@ -661,6 +661,10 @@ mod orchestrator_tests {
             resume_dir: "/tmp/resume".to_string(),
             download_root: "/downloads".to_string(),
             tracker: json!([]),
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
         }
     }
 
@@ -895,6 +899,10 @@ mod engine_refresh_tests {
             resume_dir: "/tmp/resume".to_string(),
             download_root: "/downloads".to_string(),
             tracker: json!([]),
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
         }
     }
 

@@ -43,13 +43,13 @@
     -   [x] Worker: keep tracker lists intact from API → engine → bridge.
     -   [x] Tests: API parsing; unit test `AddTorrentRequest` includes trackers; native test that trackers reach `lt::add_torrent_params`.
 
--   [ ] NAT traversal/local discovery toggles supported
+-   [x] NAT traversal/local discovery toggles supported
 
-    -   [ ] Config/DB: add `lsd`/`upnp`/`natpmp` (and optional `peer_exchange`) flags with validation and default-off posture.
-    -   [ ] Runtime/bridge: add flags to `EngineRuntimeConfig`/`EngineOptions`.
-    -   [ ] Native: set `lt::settings_pack::enable_lsd`, `enable_upnp`, `enable_natpmp` (and optional `enable_outgoing_utp`/`enable_incoming_utp` if needed) from options instead of hard-coded false.
-    -   [ ] API/docs: expose/validate if profile edits are public; document security trade-offs.
-    -   [ ] Tests: config parsing; native test that toggles apply and defaults remain disabled.
+    -   [x] Config/DB: add `lsd`/`upnp`/`natpmp` (and optional `peer_exchange`) flags with validation and default-off posture.
+    -   [x] Runtime/bridge: add flags to `EngineRuntimeConfig`/`EngineOptions`.
+    -   [x] Native: set `lt::settings_pack::enable_lsd`, `enable_upnp`, `enable_natpmp` (and optional `enable_outgoing_utp`/`enable_incoming_utp` if needed) from options instead of hard-coded false.
+    -   [x] API/docs: expose/validate if profile edits are public; document security trade-offs.
+    -   [x] Tests: config parsing; native test that toggles apply and defaults remain disabled.
 
 -   [ ] DHT bootstrap and router nodes configurable
 

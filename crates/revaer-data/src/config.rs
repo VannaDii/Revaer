@@ -3,7 +3,8 @@
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use serde_json::Value;
-use sqlx::{Executor, FromRow, PgPool, Postgres};
+use sqlx::postgres::PgRow;
+use sqlx::{Executor, FromRow, PgPool, Postgres, Row};
 use uuid::Uuid;
 
 /// LISTEN/NOTIFY channel for configuration revision broadcasts.
@@ -47,8 +48,64 @@ pub struct AppProfileRow {
     pub immutable_keys: Value,
 }
 
+/// NAT traversal and peer exchange toggles stored for an engine profile.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct NatToggleSet {
+    bits: u8,
+}
+
+impl NatToggleSet {
+    const LSD: u8 = 0b0001;
+    const UPNP: u8 = 0b0010;
+    const NATPMP: u8 = 0b0100;
+    const PEX: u8 = 0b1000;
+
+    /// Construct a new toggle set from `[lsd, upnp, natpmp, pex]` flags.
+    #[must_use]
+    pub const fn from_flags(flags: [bool; 4]) -> Self {
+        let mut bits = 0;
+        if flags[0] {
+            bits |= Self::LSD;
+        }
+        if flags[1] {
+            bits |= Self::UPNP;
+        }
+        if flags[2] {
+            bits |= Self::NATPMP;
+        }
+        if flags[3] {
+            bits |= Self::PEX;
+        }
+        Self { bits }
+    }
+
+    /// Whether local service discovery (LSD) is enabled.
+    #[must_use]
+    pub const fn lsd(self) -> bool {
+        self.bits & Self::LSD != 0
+    }
+
+    /// Whether `UPnP` port mapping is enabled.
+    #[must_use]
+    pub const fn upnp(self) -> bool {
+        self.bits & Self::UPNP != 0
+    }
+
+    /// Whether NAT-PMP port mapping is enabled.
+    #[must_use]
+    pub const fn natpmp(self) -> bool {
+        self.bits & Self::NATPMP != 0
+    }
+
+    /// Whether peer exchange (PEX) is enabled.
+    #[must_use]
+    pub const fn pex(self) -> bool {
+        self.bits & Self::PEX != 0
+    }
+}
+
 /// Raw projection of the `engine_profile` table.
-#[derive(Debug, Clone, FromRow)]
+#[derive(Debug, Clone)]
 pub struct EngineProfileRow {
     /// Primary key for the engine profile.
     pub id: Uuid,
@@ -74,6 +131,33 @@ pub struct EngineProfileRow {
     pub download_root: String,
     /// Tracker configuration payload.
     pub tracker: Value,
+    /// NAT traversal and PEX toggles.
+    pub nat: NatToggleSet,
+}
+
+impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
+    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
+        let enable_lsd: bool = row.try_get("enable_lsd")?;
+        let enable_upnp: bool = row.try_get("enable_upnp")?;
+        let enable_natpmp: bool = row.try_get("enable_natpmp")?;
+        let enable_pex: bool = row.try_get("enable_pex")?;
+
+        Ok(Self {
+            id: row.try_get("id")?,
+            implementation: row.try_get("implementation")?,
+            listen_port: row.try_get("listen_port")?,
+            dht: row.try_get("dht")?,
+            encryption: row.try_get("encryption")?,
+            max_active: row.try_get("max_active")?,
+            max_download_bps: row.try_get("max_download_bps")?,
+            max_upload_bps: row.try_get("max_upload_bps")?,
+            sequential_default: row.try_get("sequential_default")?,
+            resume_dir: row.try_get("resume_dir")?,
+            download_root: row.try_get("download_root")?,
+            tracker: row.try_get("tracker")?,
+            nat: NatToggleSet::from_flags([enable_lsd, enable_upnp, enable_natpmp, enable_pex]),
+        })
+    }
 }
 
 /// Raw projection of the `fs_policy` table.
@@ -921,6 +1005,8 @@ pub struct EngineProfileUpdate<'a> {
     pub download_root: &'a str,
     /// Tracker configuration payload.
     pub tracker: &'a Value,
+    /// NAT traversal and PEX toggles.
+    pub nat: NatToggleSet,
 }
 
 /// Update the engine profile in a single stored procedure call.
@@ -936,7 +1022,7 @@ where
     E: Executor<'e, Database = Postgres>,
 {
     sqlx::query(
-        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _sequential_default => $9, _resume_dir => $10, _download_root => $11, _tracker => $12)",
+        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _sequential_default => $9, _resume_dir => $10, _download_root => $11, _tracker => $12, _lsd => $13, _upnp => $14, _natpmp => $15, _pex => $16)",
     )
     .bind(profile.id)
     .bind(profile.implementation)
@@ -950,6 +1036,10 @@ where
     .bind(profile.resume_dir)
     .bind(profile.download_root)
     .bind(profile.tracker)
+    .bind(profile.nat.lsd())
+    .bind(profile.nat.upnp())
+    .bind(profile.nat.natpmp())
+    .bind(profile.nat.pex())
     .execute(executor)
     .await
     .context("failed to update engine_profile via unified procedure")?;

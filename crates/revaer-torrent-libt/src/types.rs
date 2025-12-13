@@ -1,5 +1,29 @@
 //! Strongly typed inputs and policies exposed by the libtorrent adapter.
 
+/// Wrapper for boolean flags to avoid pedantic lint churn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Toggle(pub bool);
+
+impl Toggle {
+    #[must_use]
+    /// Whether the toggle is enabled.
+    pub const fn is_enabled(self) -> bool {
+        self.0
+    }
+}
+
+impl From<bool> for Toggle {
+    fn from(value: bool) -> Self {
+        Self(value)
+    }
+}
+
+impl From<Toggle> for bool {
+    fn from(toggle: Toggle) -> Self {
+        toggle.0
+    }
+}
+
 /// Runtime parameters applied to the libtorrent session.
 #[derive(Debug, Clone)]
 pub struct EngineRuntimeConfig {
@@ -9,6 +33,14 @@ pub struct EngineRuntimeConfig {
     pub resume_dir: String,
     /// Whether the distributed hash table is enabled for peer discovery.
     pub enable_dht: bool,
+    /// Whether local service discovery is enabled.
+    pub enable_lsd: Toggle,
+    /// Whether `UPnP` port mapping is enabled.
+    pub enable_upnp: Toggle,
+    /// Whether NAT-PMP port mapping is enabled.
+    pub enable_natpmp: Toggle,
+    /// Whether peer exchange (PEX) is enabled.
+    pub enable_pex: Toggle,
     /// Whether torrents default to sequential download order.
     pub sequential_default: bool,
     /// Optional listen port override for the session.

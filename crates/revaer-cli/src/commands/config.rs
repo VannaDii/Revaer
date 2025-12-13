@@ -111,6 +111,10 @@ mod tests {
             resume_dir: "/tmp/resume".into(),
             download_root: "/tmp/downloads".into(),
             tracker: json!({}),
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
         };
         ConfigSnapshot {
             revision: 1,

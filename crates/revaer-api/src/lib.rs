@@ -276,6 +276,10 @@ mod tests {
                 resume_dir: "/tmp/resume".to_string(),
                 download_root: "/tmp/downloads".to_string(),
                 tracker: Value::Null,
+                enable_lsd: false.into(),
+                enable_upnp: false.into(),
+                enable_natpmp: false.into(),
+                enable_pex: false.into(),
             };
             let snapshot = ConfigSnapshot {
                 revision: 1,

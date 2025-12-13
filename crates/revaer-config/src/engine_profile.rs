@@ -10,7 +10,7 @@ use std::collections::HashSet;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
-use crate::model::EngineProfile;
+use crate::model::{EngineProfile, Toggle};
 use crate::validate::{ConfigError, ensure_mutable, parse_port};
 
 /// Upper bound guard rail for rate limits (≈5 Gbps).
@@ -47,6 +47,14 @@ pub struct EngineNetworkConfig {
     pub enable_dht: bool,
     /// Encryption policy applied to inbound/outbound peers.
     pub encryption: EngineEncryptionPolicy,
+    /// Whether local service discovery is enabled.
+    pub enable_lsd: Toggle,
+    /// Whether `UPnP` is enabled.
+    pub enable_upnp: Toggle,
+    /// Whether NAT-PMP is enabled.
+    pub enable_natpmp: Toggle,
+    /// Whether peer exchange (PEX) is enabled.
+    pub enable_pex: Toggle,
 }
 
 /// Throughput and concurrency limits.
@@ -230,6 +238,10 @@ pub(crate) fn validate_engine_profile_patch(
         resume_dir: effective.storage.resume_dir.clone(),
         download_root: effective.storage.download_root.clone(),
         tracker: effective.tracker.clone(),
+        enable_lsd: effective.network.enable_lsd,
+        enable_upnp: effective.network.enable_upnp,
+        enable_natpmp: effective.network.enable_natpmp,
+        enable_pex: effective.network.enable_pex,
     };
     let mutated = touched || stored != *current;
 
@@ -297,6 +309,10 @@ fn normalize_engine_profile_with_warnings(
             listen_port,
             enable_dht: profile.dht,
             encryption,
+            enable_lsd: profile.enable_lsd,
+            enable_upnp: profile.enable_upnp,
+            enable_natpmp: profile.enable_natpmp,
+            enable_pex: profile.enable_pex,
         },
         limits: EngineLimitsConfig {
             max_active,
@@ -375,6 +391,22 @@ fn apply_field(
         "download_root" => Ok(assign_if_changed(
             &mut working.download_root,
             required_string(value, "download_root")?,
+        )),
+        "enable_lsd" => Ok(assign_if_changed(
+            &mut working.enable_lsd,
+            Toggle::from(required_bool(value, "enable_lsd")?),
+        )),
+        "enable_upnp" => Ok(assign_if_changed(
+            &mut working.enable_upnp,
+            Toggle::from(required_bool(value, "enable_upnp")?),
+        )),
+        "enable_natpmp" => Ok(assign_if_changed(
+            &mut working.enable_natpmp,
+            Toggle::from(required_bool(value, "enable_natpmp")?),
+        )),
+        "enable_pex" => Ok(assign_if_changed(
+            &mut working.enable_pex,
+            Toggle::from(required_bool(value, "enable_pex")?),
         )),
         "tracker" => {
             let normalized = normalize_tracker_payload(value)?;
@@ -795,6 +827,10 @@ mod tests {
             resume_dir: "/tmp/resume".into(),
             download_root: "/tmp/downloads".into(),
             tracker: json!({}),
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
         }
     }
 
@@ -835,6 +871,29 @@ mod tests {
                 .any(|msg| msg.contains("guard rail")),
             "clamping should emit guard-rail warnings"
         );
+    }
+
+    #[test]
+    fn patch_updates_nat_toggles() {
+        let profile = sample_profile();
+        let patch = json!({
+            "enable_lsd": true,
+            "enable_upnp": true,
+            "enable_natpmp": true,
+            "enable_pex": true
+        });
+
+        let mutation =
+            validate_engine_profile_patch(&profile, &patch, &HashSet::new()).expect("patch valid");
+        assert!(mutation.mutated);
+        assert!(mutation.stored.enable_lsd.is_enabled());
+        assert!(mutation.stored.enable_upnp.is_enabled());
+        assert!(mutation.stored.enable_natpmp.is_enabled());
+        assert!(mutation.stored.enable_pex.is_enabled());
+        assert!(mutation.effective.network.enable_lsd.is_enabled());
+        assert!(mutation.effective.network.enable_upnp.is_enabled());
+        assert!(mutation.effective.network.enable_natpmp.is_enabled());
+        assert!(mutation.effective.network.enable_pex.is_enabled());
     }
 
     #[test]
