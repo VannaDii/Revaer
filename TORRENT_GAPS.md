@@ -51,21 +51,21 @@
     -   [x] API/docs: expose/validate if profile edits are public; document security trade-offs.
     -   [x] Tests: config parsing; native test that toggles apply and defaults remain disabled.
 
--   [ ] DHT bootstrap and router nodes configurable
+-   [x] DHT bootstrap and router nodes configurable
 
-    -   [ ] Config/DB: add optional DHT bootstrap node list/router endpoints to `EngineProfile` (validated host:port entries); keep `enable_dht` as the gate.
-    -   [ ] Runtime/bridge: carry bootstrap/router lists in `EngineRuntimeConfig`/`EngineOptions`.
-    -   [ ] Native: apply via `lt::session::add_dht_router`/`add_dht_node` (or settings_pack equivalents) during config application; allow updates on profile change.
-    -   [ ] API/docs: expose bootstrap/router configuration if engine profile is editable; document defaults and safe usage.
-    -   [ ] Tests: config validation; native (feature-gated) test that custom bootstrap/router nodes are applied without error and used when DHT is enabled.
+    -   [x] Config/DB: add optional DHT bootstrap node list/router endpoints to `EngineProfile` (validated host:port entries); keep `enable_dht` as the gate.
+    -   [x] Runtime/bridge: carry bootstrap/router lists in `EngineRuntimeConfig`/`EngineOptions`.
+    -   [x] Native: apply via `lt::settings_pack::dht_bootstrap_nodes` during config application; allow updates on profile change.
+    -   [x] API/docs: expose bootstrap/router configuration if engine profile is editable; document defaults and safe usage.
+    -   [x] Tests: config validation; native (feature-gated) test that custom bootstrap/router nodes are applied without error and used when DHT is enabled.
 
--   [ ] IP filtering/blocklists exposed
+-   [x] IP filtering/blocklists exposed
 
-    -   [ ] Config/DB: add optional IP filter/blocklist configuration to `EngineProfile` (inline CIDR list and/or URL to download and cache), with validation and revision bump; store last-updated metadata if remote fetch is supported.
-    -   [ ] Runtime/bridge: include IP filter config in `EngineRuntimeConfig`/`EngineOptions`.
-    -   [ ] Native: apply filters via `lt::ip_filter` / `session::set_ip_filter`; if remote blocklists are allowed, download (outside hot path) and load into the session, handling refresh intervals.
-    -   [ ] API/docs: expose filter settings if editable; document precedence with per-peer bans and security implications.
-    -   [ ] Tests: config validation; native (feature-gated) test that blocked CIDRs prevent peers; unit test filter parsing and application; if remote fetch is supported, add mocked fetch test.
+    -   [x] Config/DB: add optional IP filter/blocklist configuration to `EngineProfile` (inline CIDR list and/or URL to download and cache), with validation and revision bump; store last-updated metadata if remote fetch is supported.
+    -   [x] Runtime/bridge: include IP filter config in `EngineRuntimeConfig`/`EngineOptions`.
+    -   [x] Native: apply filters via `lt::ip_filter` / `session::set_ip_filter`; if remote blocklists are allowed, download (outside hot path) and load into the session, handling refresh intervals.
+    -   [x] API/docs: expose filter settings if editable; document precedence with per-peer bans and security implications.
+    -   [x] Tests: config validation; native (feature-gated) test that blocked CIDRs prevent peers; unit test filter parsing and application; if remote fetch is supported, add mocked fetch test.
 
 -   [ ] Multi-interface / IPv6 clarity
 

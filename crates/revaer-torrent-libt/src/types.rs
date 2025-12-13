@@ -33,6 +33,10 @@ pub struct EngineRuntimeConfig {
     pub resume_dir: String,
     /// Whether the distributed hash table is enabled for peer discovery.
     pub enable_dht: bool,
+    /// DHT bootstrap nodes (host:port).
+    pub dht_bootstrap_nodes: Vec<String>,
+    /// DHT router endpoints (host:port).
+    pub dht_router_nodes: Vec<String>,
     /// Whether local service discovery is enabled.
     pub enable_lsd: Toggle,
     /// Whether `UPnP` port mapping is enabled.
@@ -55,6 +59,8 @@ pub struct EngineRuntimeConfig {
     pub encryption: EncryptionPolicy,
     /// Tracker configuration applied to the session.
     pub tracker: TrackerRuntimeConfig,
+    /// IP filter and optional remote blocklist configuration.
+    pub ip_filter: Option<IpFilterRuntimeConfig>,
 }
 
 /// Supported encryption policies exposed to the orchestration layer.
@@ -130,6 +136,28 @@ pub struct TrackerRuntimeConfig {
     pub announce_to_all: bool,
     /// Optional proxy configuration.
     pub proxy: Option<TrackerProxyRuntime>,
+}
+
+/// Inclusive IP range used for filtering peers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IpFilterRule {
+    /// Start address of the blocked range.
+    pub start: String,
+    /// End address of the blocked range.
+    pub end: String,
+}
+
+/// IP filter configuration carried to the runtime.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct IpFilterRuntimeConfig {
+    /// Aggregated blocked ranges from inline CIDRs and remote blocklists.
+    pub rules: Vec<IpFilterRule>,
+    /// Optional remote blocklist URL (for observability/caching).
+    pub blocklist_url: Option<String>,
+    /// Cached `ETag` from the last successful fetch.
+    pub etag: Option<String>,
+    /// Timestamp of the last successful refresh.
+    pub last_updated_at: Option<String>,
 }
 
 #[cfg(test)]

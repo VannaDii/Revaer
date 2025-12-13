@@ -131,6 +131,12 @@ pub struct EngineProfile {
     pub enable_natpmp: Toggle,
     /// Enable peer exchange (PEX).
     pub enable_pex: Toggle,
+    /// DHT bootstrap node list (host:port).
+    pub dht_bootstrap_nodes: Vec<String>,
+    /// DHT router endpoints (host:port).
+    pub dht_router_nodes: Vec<String>,
+    /// IP filter and blocklist configuration payload.
+    pub ip_filter: Value,
 }
 
 /// Filesystem policy configuration.

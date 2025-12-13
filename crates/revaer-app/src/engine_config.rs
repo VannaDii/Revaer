@@ -6,13 +6,14 @@
 //! - Keeps encryption mapping centralised to avoid drift between API/config/runtime layers.
 
 use revaer_config::{
-    EngineEncryptionPolicy, EngineProfile, EngineProfileEffective, TrackerConfig,
-    TrackerProxyConfig, TrackerProxyType, normalize_engine_profile,
+    EngineEncryptionPolicy, EngineProfile, EngineProfileEffective, IpFilterConfig, IpFilterRule,
+    TrackerConfig, TrackerProxyConfig, TrackerProxyType, normalize_engine_profile,
 };
 use revaer_torrent_core::TorrentRateLimit;
 use revaer_torrent_libt::{
-    EncryptionPolicy, EngineRuntimeConfig, TrackerProxyRuntime,
-    TrackerProxyType as RuntimeProxyType, TrackerRuntimeConfig,
+    EncryptionPolicy, EngineRuntimeConfig, IpFilterRule as RuntimeIpFilterRule,
+    IpFilterRuntimeConfig, TrackerProxyRuntime, TrackerProxyType as RuntimeProxyType,
+    TrackerRuntimeConfig,
 };
 
 /// Runtime plan derived from the persisted engine profile, including effective values and
@@ -33,10 +34,13 @@ impl EngineRuntimePlan {
         let tracker = map_tracker_config(
             serde_json::from_value::<TrackerConfig>(effective.tracker.clone()).unwrap_or_default(),
         );
+        let ip_filter = map_ip_filter_config(&effective.network.ip_filter);
         let runtime = EngineRuntimeConfig {
             download_root: effective.storage.download_root.clone(),
             resume_dir: effective.storage.resume_dir.clone(),
             enable_dht: effective.network.enable_dht,
+            dht_bootstrap_nodes: effective.network.dht_bootstrap_nodes.clone(),
+            dht_router_nodes: effective.network.dht_router_nodes.clone(),
             enable_lsd: bool::from(effective.network.enable_lsd).into(),
             enable_upnp: bool::from(effective.network.enable_upnp).into(),
             enable_natpmp: bool::from(effective.network.enable_natpmp).into(),
@@ -48,6 +52,7 @@ impl EngineRuntimePlan {
             upload_rate_limit: effective.limits.upload_rate_limit,
             encryption: map_encryption_policy(effective.network.encryption),
             tracker,
+            ip_filter,
         };
 
         Self { effective, runtime }
@@ -110,6 +115,31 @@ const fn map_proxy_kind(kind: TrackerProxyType) -> RuntimeProxyType {
     }
 }
 
+fn map_ip_filter_config(config: &IpFilterConfig) -> Option<IpFilterRuntimeConfig> {
+    if config.cidrs.is_empty() && config.blocklist_url.is_none() {
+        return None;
+    }
+
+    let rules = config.rules().unwrap_or_default();
+    let runtime_rules = rules.iter().map(map_ip_filter_rule).collect::<Vec<_>>();
+
+    Some(IpFilterRuntimeConfig {
+        rules: runtime_rules,
+        blocklist_url: config.blocklist_url.clone(),
+        etag: config.etag.clone(),
+        last_updated_at: config
+            .last_updated_at
+            .map(|timestamp| timestamp.to_rfc3339()),
+    })
+}
+
+fn map_ip_filter_rule(rule: &IpFilterRule) -> RuntimeIpFilterRule {
+    RuntimeIpFilterRule {
+        start: rule.start.to_string(),
+        end: rule.end.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,6 +166,9 @@ mod tests {
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
+            ip_filter: json!({}),
         };
         let plan = EngineRuntimePlan::from_profile(&profile);
 
@@ -163,6 +196,8 @@ mod tests {
         assert!(!plan.runtime.enable_upnp.is_enabled());
         assert!(!plan.runtime.enable_natpmp.is_enabled());
         assert!(!plan.runtime.enable_pex.is_enabled());
+        assert!(plan.runtime.dht_bootstrap_nodes.is_empty());
+        assert!(plan.runtime.dht_router_nodes.is_empty());
     }
 
     #[test]
@@ -184,6 +219,9 @@ mod tests {
             enable_upnp: true.into(),
             enable_natpmp: true.into(),
             enable_pex: true.into(),
+            dht_bootstrap_nodes: vec!["router.bittorrent.com:6881".into()],
+            dht_router_nodes: vec!["dht.transmissionbt.com:6881".into()],
+            ip_filter: json!({}),
         };
 
         let require = EngineRuntimePlan::from_profile(&base);
@@ -192,6 +230,14 @@ mod tests {
         assert!(require.runtime.enable_upnp.is_enabled());
         assert!(require.runtime.enable_natpmp.is_enabled());
         assert!(require.runtime.enable_pex.is_enabled());
+        assert_eq!(
+            require.runtime.dht_bootstrap_nodes,
+            vec!["router.bittorrent.com:6881".to_string()]
+        );
+        assert_eq!(
+            require.runtime.dht_router_nodes,
+            vec!["dht.transmissionbt.com:6881".to_string()]
+        );
 
         let mut prefer_profile = base.clone();
         prefer_profile.encryption = "prefer".into();
@@ -202,5 +248,50 @@ mod tests {
         disable_profile.encryption = "disable".into();
         let disable = EngineRuntimePlan::from_profile(&disable_profile);
         assert_eq!(disable.runtime.encryption, EncryptionPolicy::Disable);
+    }
+
+    #[test]
+    fn ip_filter_is_threaded_into_runtime() {
+        let profile = EngineProfile {
+            id: Uuid::new_v4(),
+            implementation: "libtorrent".into(),
+            listen_port: None,
+            dht: false,
+            encryption: "prefer".into(),
+            max_active: None,
+            max_download_bps: None,
+            max_upload_bps: None,
+            sequential_default: false,
+            resume_dir: "/var/resume".into(),
+            download_root: "/data".into(),
+            tracker: json!({}),
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
+            ip_filter: json!({
+                "cidrs": ["10.0.0.0/8"],
+                "blocklist_url": "https://example.com/blocklist",
+                "etag": "etag-1",
+                "last_updated_at": "2024-01-01T00:00:00Z"
+            }),
+        };
+
+        let plan = EngineRuntimePlan::from_profile(&profile);
+        let filter = plan.runtime.ip_filter.expect("ip filter present");
+        assert_eq!(filter.rules.len(), 1);
+        assert_eq!(filter.rules[0].start, "10.0.0.0");
+        assert_eq!(filter.rules[0].end, "10.255.255.255");
+        assert_eq!(
+            filter.blocklist_url.as_deref(),
+            Some("https://example.com/blocklist")
+        );
+        assert_eq!(filter.etag.as_deref(), Some("etag-1"));
+        assert_eq!(
+            filter.last_updated_at.as_deref(),
+            Some("2024-01-01T00:00:00+00:00")
+        );
     }
 }

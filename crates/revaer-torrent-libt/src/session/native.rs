@@ -85,6 +85,8 @@ pub(super) mod test_support {
                 download_root: self.download.path().to_string_lossy().into_owned(),
                 resume_dir: self.resume.path().to_string_lossy().into_owned(),
                 enable_dht: false,
+                dht_bootstrap_nodes: Vec::new(),
+                dht_router_nodes: Vec::new(),
                 enable_lsd: false.into(),
                 enable_upnp: false.into(),
                 enable_natpmp: false.into(),
@@ -96,6 +98,7 @@ pub(super) mod test_support {
                 upload_rate_limit: None,
                 encryption: EncryptionPolicy::Prefer,
                 tracker: TrackerRuntimeConfig::default(),
+                ip_filter: None,
             }
         }
     }
@@ -256,6 +259,7 @@ mod tests {
     use super::test_support::NativeSessionHarness;
     use super::*;
     use crate::ffi::ffi::{NativeEvent, NativeEventKind, NativeTorrentState};
+    use crate::types::{IpFilterRule, IpFilterRuntimeConfig};
     use revaer_torrent_core::{AddTorrent, AddTorrentOptions, EngineEvent, TorrentSource};
     use uuid::Uuid;
 
@@ -287,6 +291,9 @@ mod tests {
         config.max_active = Some(2);
         config.download_rate_limit = Some(256_000);
         config.upload_rate_limit = Some(128_000);
+        config.enable_dht = true;
+        config.dht_bootstrap_nodes = vec!["router.bittorrent.com:6881".into()];
+        config.dht_router_nodes = vec!["dht.transmissionbt.com:6881".into()];
         config.enable_lsd = true.into();
         config.enable_upnp = true.into();
         config.enable_natpmp = true.into();
@@ -326,6 +333,24 @@ mod tests {
             )
             .await?;
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn native_session_applies_ip_filter() -> Result<()> {
+        let mut harness = NativeSessionHarness::new()?;
+        let mut config = harness.runtime_config();
+        config.ip_filter = Some(IpFilterRuntimeConfig {
+            rules: vec![IpFilterRule {
+                start: "203.0.113.1".into(),
+                end: "203.0.113.1".into(),
+            }],
+            blocklist_url: None,
+            etag: None,
+            last_updated_at: None,
+        });
+
+        harness.session.apply_config(&config).await?;
         Ok(())
     }
 

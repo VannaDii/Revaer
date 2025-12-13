@@ -31,8 +31,25 @@ pub mod ffi {
         enable_natpmp: bool,
         /// Whether to enable peer exchange/uTP.
         enable_pex: bool,
+        /// DHT bootstrap nodes (host:port).
+        dht_bootstrap_nodes: Vec<String>,
+        /// DHT router endpoints (host:port).
+        dht_router_nodes: Vec<String>,
         /// Encryption policy flag.
         encryption_policy: u8,
+        /// IP filter rules (inclusive start/end).
+        ip_filter_rules: Vec<IpFilterRule>,
+        /// Whether an IP filter should be applied.
+        has_ip_filter: bool,
+    }
+
+    /// Inclusive IP filter rule.
+    #[derive(Debug)]
+    struct IpFilterRule {
+        /// Start address of the blocked range.
+        start: String,
+        /// End address of the blocked range.
+        end: String,
     }
 
     /// Throughput and concurrency limits for the session.

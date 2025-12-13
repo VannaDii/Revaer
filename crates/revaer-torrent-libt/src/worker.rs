@@ -164,7 +164,7 @@ impl Worker {
                 self.handle_recheck(id).await?;
             }
             EngineCommand::ApplyConfig(config) => {
-                self.handle_apply_config(config).await?;
+                self.handle_apply_config(*config).await?;
             }
         }
 

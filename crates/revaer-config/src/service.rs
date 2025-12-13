@@ -784,6 +784,9 @@ fn map_engine_profile_row(row: EngineProfileRow) -> EngineProfile {
         enable_upnp: row.nat.upnp().into(),
         enable_natpmp: row.nat.natpmp().into(),
         enable_pex: row.nat.pex().into(),
+        dht_bootstrap_nodes: row.dht_bootstrap_nodes,
+        dht_router_nodes: row.dht_router_nodes,
+        ip_filter: row.ip_filter,
     }
 }
 
@@ -992,6 +995,9 @@ async fn persist_engine_profile(
                 bool::from(profile.enable_natpmp),
                 bool::from(profile.enable_pex),
             ]),
+            dht_bootstrap_nodes: &serde_json::to_value(&profile.dht_bootstrap_nodes)?,
+            dht_router_nodes: &serde_json::to_value(&profile.dht_router_nodes)?,
+            ip_filter: &profile.ip_filter,
         },
     )
     .await?;

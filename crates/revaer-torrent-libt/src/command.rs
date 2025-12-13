@@ -57,5 +57,5 @@ pub enum EngineCommand {
         id: Uuid,
     },
     /// Apply a new runtime configuration profile.
-    ApplyConfig(EngineRuntimeConfig),
+    ApplyConfig(Box<EngineRuntimeConfig>),
 }

@@ -7,7 +7,8 @@
 
 use crate::ffi::ffi;
 use crate::types::{
-    EngineRuntimeConfig, TrackerProxyRuntime, TrackerProxyType, TrackerRuntimeConfig,
+    EngineRuntimeConfig, IpFilterRule as RuntimeIpFilterRule, IpFilterRuntimeConfig,
+    TrackerProxyRuntime, TrackerProxyType, TrackerRuntimeConfig,
 };
 
 /// Planned native engine options plus guard-rail warnings.
@@ -66,6 +67,8 @@ impl EngineOptionsPlan {
             );
         }
 
+        let (ip_filter_rules, has_ip_filter) = map_ip_filter(config.ip_filter.as_ref());
+
         let options = ffi::EngineOptions {
             network: ffi::EngineNetworkOptions {
                 listen_port,
@@ -75,7 +78,11 @@ impl EngineOptionsPlan {
                 enable_upnp: bool::from(config.enable_upnp),
                 enable_natpmp: bool::from(config.enable_natpmp),
                 enable_pex: bool::from(config.enable_pex),
+                dht_bootstrap_nodes: config.dht_bootstrap_nodes.clone(),
+                dht_router_nodes: config.dht_router_nodes.clone(),
                 encryption_policy: config.encryption.as_u8(),
+                ip_filter_rules,
+                has_ip_filter,
             },
             limits: ffi::EngineLimitOptions {
                 max_active,
@@ -146,6 +153,24 @@ const fn map_proxy_kind(kind: TrackerProxyType) -> u8 {
     }
 }
 
+fn map_ip_filter(ip_filter: Option<&IpFilterRuntimeConfig>) -> (Vec<ffi::IpFilterRule>, bool) {
+    ip_filter.map_or((Vec::new(), false), |filter| {
+        let rules = filter
+            .rules
+            .iter()
+            .map(map_ip_filter_rule)
+            .collect::<Vec<_>>();
+        (rules, true)
+    })
+}
+
+fn map_ip_filter_rule(rule: &RuntimeIpFilterRule) -> ffi::IpFilterRule {
+    ffi::IpFilterRule {
+        start: rule.start.clone(),
+        end: rule.end.clone(),
+    }
+}
+
 fn clamp_rate_limit(field: &str, value: Option<i64>, warnings: &mut Vec<String>) -> i64 {
     match value {
         Some(limit) if limit > 0 => limit,
@@ -163,8 +188,8 @@ fn clamp_rate_limit(field: &str, value: Option<i64>, warnings: &mut Vec<String>)
 mod tests {
     use super::*;
     use crate::types::{
-        EncryptionPolicy, EngineRuntimeConfig, TrackerProxyRuntime, TrackerProxyType,
-        TrackerRuntimeConfig,
+        EncryptionPolicy, EngineRuntimeConfig, IpFilterRule as RuntimeIpFilterRule,
+        IpFilterRuntimeConfig, TrackerProxyRuntime, TrackerProxyType, TrackerRuntimeConfig,
     };
 
     #[test]
@@ -177,6 +202,8 @@ mod tests {
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
             sequential_default: false,
             listen_port: Some(70_000),
             max_active: Some(0),
@@ -184,6 +211,7 @@ mod tests {
             upload_rate_limit: None,
             encryption: EncryptionPolicy::Disable,
             tracker: TrackerRuntimeConfig::default(),
+            ip_filter: None,
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);
@@ -215,6 +243,8 @@ mod tests {
             enable_upnp: true.into(),
             enable_natpmp: true.into(),
             enable_pex: true.into(),
+            dht_bootstrap_nodes: vec!["router.bittorrent.com:6881".into()],
+            dht_router_nodes: vec!["dht.transmissionbt.com:6881".into()],
             sequential_default: true,
             listen_port: Some(6_881),
             max_active: Some(16),
@@ -222,6 +252,7 @@ mod tests {
             upload_rate_limit: Some(128_000),
             encryption: EncryptionPolicy::Require,
             tracker: TrackerRuntimeConfig::default(),
+            ip_filter: None,
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);
@@ -237,6 +268,14 @@ mod tests {
         assert!(plan.options.network.enable_upnp);
         assert!(plan.options.network.enable_natpmp);
         assert!(plan.options.network.enable_pex);
+        assert_eq!(
+            plan.options.network.dht_bootstrap_nodes,
+            vec!["router.bittorrent.com:6881".to_string()]
+        );
+        assert_eq!(
+            plan.options.network.dht_router_nodes,
+            vec!["dht.transmissionbt.com:6881".to_string()]
+        );
     }
 
     #[test]
@@ -249,6 +288,8 @@ mod tests {
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
             sequential_default: false,
             listen_port: None,
             max_active: None,
@@ -273,6 +314,7 @@ mod tests {
                     proxy_peers: true,
                 }),
             },
+            ip_filter: None,
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);
@@ -302,5 +344,42 @@ mod tests {
         assert_eq!(tracker.proxy.password_secret, "pass");
         assert!(tracker.proxy.proxy_peers);
         assert_eq!(tracker.proxy.kind, 2);
+    }
+
+    #[test]
+    fn ip_filter_rules_are_forwarded() {
+        let config = EngineRuntimeConfig {
+            download_root: "/data".into(),
+            resume_dir: "/state".into(),
+            enable_dht: false,
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
+            sequential_default: false,
+            listen_port: None,
+            max_active: None,
+            download_rate_limit: None,
+            upload_rate_limit: None,
+            encryption: EncryptionPolicy::Prefer,
+            tracker: TrackerRuntimeConfig::default(),
+            ip_filter: Some(IpFilterRuntimeConfig {
+                rules: vec![RuntimeIpFilterRule {
+                    start: "10.0.0.1".into(),
+                    end: "10.0.0.1".into(),
+                }],
+                blocklist_url: Some("https://example.com/list".into()),
+                etag: Some("v1".into()),
+                last_updated_at: Some("2024-01-01T00:00:00Z".into()),
+            }),
+        };
+
+        let plan = EngineOptionsPlan::from_runtime_config(&config);
+        assert!(plan.options.network.has_ip_filter);
+        assert_eq!(plan.options.network.ip_filter_rules.len(), 1);
+        assert_eq!(plan.options.network.ip_filter_rules[0].start, "10.0.0.1");
+        assert_eq!(plan.options.network.ip_filter_rules[0].end, "10.0.0.1");
     }
 }

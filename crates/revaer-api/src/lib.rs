@@ -280,6 +280,9 @@ mod tests {
                 enable_upnp: false.into(),
                 enable_natpmp: false.into(),
                 enable_pex: false.into(),
+                dht_bootstrap_nodes: Vec::new(),
+                dht_router_nodes: Vec::new(),
+                ip_filter: Value::Null,
             };
             let snapshot = ConfigSnapshot {
                 revision: 1,
@@ -514,6 +517,20 @@ mod tests {
         }
         if let Some(download) = patch.get("download_root").and_then(Value::as_str) {
             profile.download_root = download.to_string();
+        }
+        if let Some(nodes) = patch.get("dht_bootstrap_nodes").and_then(Value::as_array) {
+            profile.dht_bootstrap_nodes = nodes
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect();
+        }
+        if let Some(nodes) = patch.get("dht_router_nodes").and_then(Value::as_array) {
+            profile.dht_router_nodes = nodes
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect();
         }
     }
 

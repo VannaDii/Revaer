@@ -9,8 +9,9 @@ This guide explains how the Revaer application stitches configuration, orchestra
 
 ## Runtime updates
 - **Config watcher** – On every settings change the watcher:
-  1. Applies the latest filesystem policy (`update_fs_policy`).
-  2. Pushes the engine profile into the orchestration layer (`update_engine_profile`), which propagates DHT, listen port, throttling, and NAT/PEX discovery toggles (default-off posture for LSD/UPnP/NAT-PMP/PEX) through the `EngineConfigurator` trait.
+1. Applies the latest filesystem policy (`update_fs_policy`).
+2. Pushes the engine profile into the orchestration layer (`update_engine_profile`), which propagates DHT (including optional bootstrap/router nodes), listen port, throttling, and NAT/PEX discovery toggles (default-off posture for LSD/UPnP/NAT-PMP/PEX) through the `EngineConfigurator` trait.
+- **IP filtering** – Engine profiles may specify inline CIDR rules and an optional remote blocklist URL. The orchestrator caches downloads (ETag-aware, 30 minute TTL), persists refresh metadata (`etag`/`last_updated_at`/`last_error`), and applies the merged ranges via libtorrent's `ip_filter`.
 - **Event propagation** – The SSE endpoint (`/v1/events`) streams the shared event bus. Tests cover replay semantics and idle keep-alive behaviour to ensure UI consumers remain in sync.
 
 ## Error handling

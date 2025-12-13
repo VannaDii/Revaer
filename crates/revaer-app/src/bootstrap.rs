@@ -127,6 +127,7 @@ pub(crate) async fn run_app_with(dependencies: BootstrapDependencies) -> Result<
             snapshot.fs_policy.clone(),
             snapshot.engine_profile.clone(),
             libtorrent.expect("libtorrent dependencies must be provided"),
+            Some(config.clone()),
         )
         .await
         .context("failed to initialise torrent orchestrator")?;

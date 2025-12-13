@@ -36,6 +36,8 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
         download_root: download.path().to_string_lossy().into_owned(),
         resume_dir: resume.path().to_string_lossy().into_owned(),
         enable_dht: true,
+        dht_bootstrap_nodes: Vec::new(),
+        dht_router_nodes: Vec::new(),
         enable_lsd: false.into(),
         enable_upnp: false.into(),
         enable_natpmp: false.into(),
@@ -47,6 +49,7 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
         upload_rate_limit: Some(64_000),
         encryption: EncryptionPolicy::Prefer,
         tracker: TrackerRuntimeConfig::default(),
+        ip_filter: None,
     };
     engine
         .apply_runtime_config(config)

@@ -46,7 +46,8 @@ impl LibtorrentEngine {
     ///
     /// Returns an error if the configuration could not be enqueued for the background worker.
     pub async fn apply_runtime_config(&self, config: EngineRuntimeConfig) -> Result<()> {
-        self.send_command(EngineCommand::ApplyConfig(config)).await
+        self.send_command(EngineCommand::ApplyConfig(Box::new(config)))
+            .await
     }
 
     fn build(events: EventBus, store: Option<FastResumeStore>) -> Result<Self> {
@@ -127,6 +128,8 @@ mod tests {
             download_root: "/tmp/revaer-downloads".into(),
             resume_dir: "/tmp/revaer-resume".into(),
             enable_dht: true,
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
             enable_lsd: false.into(),
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
@@ -138,6 +141,7 @@ mod tests {
             upload_rate_limit: Some(500_000),
             encryption: EncryptionPolicy::Prefer,
             tracker: TrackerRuntimeConfig::default(),
+            ip_filter: None,
         };
         engine.apply_runtime_config(runtime).await?;
 
@@ -189,6 +193,8 @@ mod tests {
                 download_root: "/tmp/revaer-downloads".into(),
                 resume_dir: resume_dir.display().to_string(),
                 enable_dht: false,
+                dht_bootstrap_nodes: Vec::new(),
+                dht_router_nodes: Vec::new(),
                 enable_lsd: false.into(),
                 enable_upnp: false.into(),
                 enable_natpmp: false.into(),
@@ -200,6 +206,7 @@ mod tests {
                 upload_rate_limit: None,
                 encryption: EncryptionPolicy::Prefer,
                 tracker: TrackerRuntimeConfig::default(),
+                ip_filter: None,
             })
             .await?;
 

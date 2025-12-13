@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <chrono>
 #include <filesystem>
 #include <optional>
@@ -34,6 +35,8 @@
 #include <libtorrent/alert_types.hpp>
 #include <libtorrent/download_priority.hpp>
 #include <libtorrent/error_code.hpp>
+#include <libtorrent/address.hpp>
+#include <libtorrent/ip_filter.hpp>
 #include <libtorrent/file_storage.hpp>
 #include <libtorrent/info_hash.hpp>
 #include <libtorrent/magnet_uri.hpp>
@@ -198,6 +201,38 @@ public:
                 pack.set_int(lt::settings_pack::max_retry_port_bind, 0);
             }
 
+            std::vector<std::string> dht_nodes;
+            dht_nodes.reserve(options.network.dht_bootstrap_nodes.size() +
+                              options.network.dht_router_nodes.size());
+            std::unordered_set<std::string> seen;
+            auto append_nodes = [&](const ::rust::Vec<::rust::String>& nodes) {
+                for (const auto& node : nodes) {
+                    auto normalized = to_std_string(node);
+                    if (normalized.empty()) {
+                        continue;
+                    }
+                    std::string key = normalized;
+                    std::transform(key.begin(), key.end(), key.begin(), [](unsigned char ch) {
+                        return static_cast<char>(std::tolower(ch));
+                    });
+                    if (seen.insert(key).second) {
+                        dht_nodes.push_back(std::move(normalized));
+                    }
+                }
+            };
+            append_nodes(options.network.dht_bootstrap_nodes);
+            append_nodes(options.network.dht_router_nodes);
+
+            if (!dht_nodes.empty()) {
+                std::string combined = dht_nodes.front();
+                for (std::size_t i = 1; i < dht_nodes.size(); ++i) {
+                    combined.append(",").append(dht_nodes[i]);
+                }
+                pack.set_str(lt::settings_pack::dht_bootstrap_nodes, combined);
+            } else {
+                pack.set_str(lt::settings_pack::dht_bootstrap_nodes, "");
+            }
+
             if (options.limits.max_active > 0) {
                 pack.set_int(lt::settings_pack::active_downloads, options.limits.max_active);
                 pack.set_int(lt::settings_pack::active_limit, options.limits.max_active);
@@ -288,6 +323,25 @@ public:
                 pack.set_int(lt::settings_pack::proxy_type, proxy_type);
             } else {
                 pack.set_int(lt::settings_pack::proxy_type, lt::settings_pack::none);
+            }
+
+            if (options.network.has_ip_filter) {
+                lt::ip_filter filter;
+                for (const auto& rule : options.network.ip_filter_rules) {
+                    lt::error_code ec;
+                    const auto start = lt::make_address(to_std_string(rule.start), ec);
+                    if (ec) {
+                        return ::rust::String(ec.message());
+                    }
+                    const auto end = lt::make_address(to_std_string(rule.end), ec);
+                    if (ec) {
+                        return ::rust::String(ec.message());
+                    }
+                    filter.add_rule(start, end, lt::ip_filter::blocked);
+                }
+                session_->set_ip_filter(filter);
+            } else {
+                session_->set_ip_filter(lt::ip_filter{});
             }
 
             session_->apply_settings(pack);

@@ -249,6 +249,9 @@ mod tests {
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
+            ip_filter: json!({}),
         };
         ConfigSnapshot {
             revision: 42,

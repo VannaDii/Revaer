@@ -252,7 +252,7 @@
     {
       "id": "api/guides/bootstrap",
       "title": "Bootstrap & Workflow Lifecycle",
-      "summary": "This guide explains how the Revaer application stitches configuration, orchestration, and observability components together once the binary starts.",
+      "summary": "Startup and runtime flow for wiring configuration, orchestration, and observability. Covers the config watcher feeding the orchestrator, default-off NAT/PEX discovery toggles (LSD/UPnP/NAT-PMP/PEX), optional DHT bootstrap/router nodes pushed via engine profile updates, and the API/SSE exposure path.",
       "tags": [
         "error-handling",
         "operational-signals",

@@ -2,15 +2,21 @@
 //! post-processing and runtime persistence.
 
 use std::cmp::Ordering;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use crate::engine_config::EngineRuntimePlan;
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use chrono::Utc;
-use revaer_config::{EngineProfile, FsPolicy};
+use chrono::{DateTime, Utc};
+use reqwest::{Client, header::IF_NONE_MATCH};
+use revaer_config::engine_profile::canonicalize_ip_filter_entry;
+use revaer_config::{
+    ConfigService, EngineProfile, FsPolicy, IpFilterConfig, IpFilterRule, SettingsChangeset,
+    SettingsFacade,
+};
 use revaer_events::{DiscoveredFile, Event, EventBus, TorrentState};
 use revaer_fsops::{FsOpsRequest, FsOpsService};
 use revaer_runtime::RuntimeStore;
@@ -20,6 +26,8 @@ use revaer_torrent_core::{
     TorrentInspector, TorrentProgress, TorrentRateLimit, TorrentRates, TorrentStatus,
     TorrentWorkflow,
 };
+use revaer_torrent_libt::{IpFilterRule as RuntimeIpFilterRule, IpFilterRuntimeConfig};
+use serde_json::json;
 use tokio::{sync::RwLock, task::JoinHandle};
 use tokio_stream::StreamExt;
 use tracing::{error, info, warn};
@@ -28,6 +36,18 @@ use uuid::Uuid;
 #[async_trait]
 pub(crate) trait EngineConfigurator: Send + Sync {
     async fn apply_engine_plan(&self, plan: &EngineRuntimePlan) -> Result<()>;
+}
+
+const BLOCKLIST_REFRESH_INTERVAL: Duration = Duration::from_secs(30 * 60);
+const MAX_BLOCKLIST_RULES: usize = 100_000;
+
+#[derive(Clone)]
+struct IpFilterCache {
+    url: String,
+    etag: Option<String>,
+    rules: Vec<RuntimeIpFilterRule>,
+    fetched_at: Instant,
+    last_refreshed: DateTime<Utc>,
 }
 
 #[cfg(feature = "libtorrent")]
@@ -84,6 +104,9 @@ where
     engine_profile: Arc<RwLock<EngineProfile>>,
     catalog: Arc<TorrentCatalog>,
     runtime: Option<RuntimeStore>,
+    config: Option<ConfigService>,
+    http: Client,
+    ip_filter_cache: RwLock<Option<IpFilterCache>>,
 }
 
 #[cfg(any(feature = "libtorrent", test))]
@@ -100,6 +123,7 @@ where
         fs_policy: FsPolicy,
         engine_profile: EngineProfile,
         runtime: Option<RuntimeStore>,
+        config: Option<ConfigService>,
     ) -> Self {
         Self {
             engine,
@@ -109,6 +133,9 @@ where
             engine_profile: Arc::new(RwLock::new(engine_profile)),
             catalog: Arc::new(TorrentCatalog::new()),
             runtime,
+            config,
+            http: Client::new(),
+            ip_filter_cache: RwLock::new(None),
         }
     }
 
@@ -206,7 +233,8 @@ where
             let mut guard = self.engine_profile.write().await;
             *guard = profile.clone();
         }
-        let plan = EngineRuntimePlan::from_profile(&profile);
+        let mut plan = EngineRuntimePlan::from_profile(&profile);
+        self.refresh_ip_filter(&mut plan).await?;
         for warning in &plan.effective.warnings {
             warn!(%warning, "engine profile guard rail applied");
         }
@@ -227,10 +255,293 @@ where
         Ok(())
     }
 
+    async fn refresh_ip_filter(&self, plan: &mut EngineRuntimePlan) -> Result<()> {
+        let previous = plan.effective.network.ip_filter.clone();
+        let mut runtime_filter =
+            plan.runtime
+                .ip_filter
+                .clone()
+                .unwrap_or_else(|| IpFilterRuntimeConfig {
+                    rules: Vec::new(),
+                    blocklist_url: None,
+                    etag: None,
+                    last_updated_at: None,
+                });
+
+        let mut rules = runtime_filter.rules.clone();
+        let mut etag = previous.etag.clone();
+        let mut last_updated_at = previous.last_updated_at;
+        let mut warnings = Vec::new();
+        let mut last_error: Option<String> = None;
+
+        let cached_filter = self.ip_filter_cache.read().await.clone();
+        if let Some(cache) = cached_filter
+            && Some(cache.url.as_str()) != previous.blocklist_url.as_deref()
+        {
+            self.clear_ip_filter_cache().await;
+        }
+
+        runtime_filter
+            .blocklist_url
+            .clone_from(&previous.blocklist_url);
+
+        if let Some(url) = previous.blocklist_url.clone() {
+            match self.load_blocklist(&url, etag.clone()).await {
+                Ok(resolution) => {
+                    merge_rules(&mut rules, resolution.rules);
+                    etag = resolution.etag;
+                    last_updated_at = Some(resolution.last_updated_at);
+                    if resolution.skipped > 0 {
+                        warnings.push(format!(
+                            "skipped {} invalid blocklist entries from {}",
+                            resolution.skipped, url
+                        ));
+                    }
+                    runtime_filter.etag.clone_from(&etag);
+                    runtime_filter.last_updated_at =
+                        last_updated_at.map(|timestamp| timestamp.to_rfc3339());
+                }
+                Err(err) => {
+                    let message = format!("blocklist fetch failed for {url}: {err}");
+                    warnings.push(message.clone());
+                    last_error = Some(message);
+                    runtime_filter.etag.clone_from(&etag);
+                    runtime_filter.last_updated_at =
+                        last_updated_at.map(|timestamp| timestamp.to_rfc3339());
+                }
+            }
+        } else {
+            self.clear_ip_filter_cache().await;
+            runtime_filter.etag = None;
+            runtime_filter.last_updated_at = None;
+        }
+
+        runtime_filter.rules = dedupe_rules(rules);
+        plan.runtime.ip_filter = Some(runtime_filter);
+
+        plan.effective.network.ip_filter.etag.clone_from(&etag);
+        plan.effective.network.ip_filter.last_updated_at = last_updated_at;
+        plan.effective
+            .network
+            .ip_filter
+            .last_error
+            .clone_from(&last_error);
+        plan.effective.warnings.extend(warnings);
+
+        if let Some(config) = &self.config
+            && let Err(err) = self
+                .persist_ip_filter_metadata(config, &previous, &plan.effective.network.ip_filter)
+                .await
+        {
+            warn!(
+                error = %err,
+                "failed to persist ip_filter metadata; continuing with cached state"
+            );
+            plan.effective.warnings.push(
+                "failed to persist ip_filter metadata; continuing with cached state".to_string(),
+            );
+        }
+
+        Ok(())
+    }
+
+    async fn load_blocklist(&self, url: &str, etag: Option<String>) -> Result<BlocklistResolution> {
+        let cached = self.ip_filter_cache.read().await.clone();
+        if let Some(cache) = cached.as_ref()
+            && cache.url == url
+            && cache.fetched_at.elapsed() < BLOCKLIST_REFRESH_INTERVAL
+        {
+            return Ok(BlocklistResolution {
+                rules: cache.rules.clone(),
+                etag: cache.etag.clone(),
+                last_updated_at: cache.last_refreshed,
+                skipped: 0,
+            });
+        }
+
+        let mut request = self.http.get(url);
+        if let Some(tag) = etag
+            .clone()
+            .or_else(|| cached.as_ref().and_then(|c| c.etag.clone()))
+        {
+            request = request.header(IF_NONE_MATCH, tag);
+        }
+
+        let response = request.send().await?;
+        if response.status() == reqwest::StatusCode::NOT_MODIFIED {
+            if let Some(cache) = cached {
+                let now = Utc::now();
+                self.set_ip_filter_cache(IpFilterCache {
+                    url: cache.url,
+                    etag: cache.etag.clone(),
+                    rules: cache.rules.clone(),
+                    fetched_at: Instant::now(),
+                    last_refreshed: now,
+                })
+                .await;
+                return Ok(BlocklistResolution {
+                    rules: cache.rules,
+                    etag: cache.etag,
+                    last_updated_at: now,
+                    skipped: 0,
+                });
+            }
+            return Err(anyhow!("blocklist returned 304 without cached rules"));
+        }
+
+        if !response.status().is_success() {
+            return Err(anyhow!(
+                "blocklist fetch failed with status {}",
+                response.status()
+            ));
+        }
+
+        let etag_header = response
+            .headers()
+            .get(reqwest::header::ETAG)
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_string);
+        let body = response.text().await?;
+        let parsed = parse_blocklist(&body)?;
+        let now = Utc::now();
+        let merged_etag = etag_header.clone().or(etag);
+        self.set_ip_filter_cache(IpFilterCache {
+            url: url.to_string(),
+            etag: merged_etag.clone(),
+            rules: parsed.rules.clone(),
+            fetched_at: Instant::now(),
+            last_refreshed: now,
+        })
+        .await;
+
+        Ok(BlocklistResolution {
+            rules: parsed.rules,
+            etag: merged_etag,
+            last_updated_at: now,
+            skipped: parsed.skipped,
+        })
+    }
+
+    async fn set_ip_filter_cache(&self, cache: IpFilterCache) {
+        let mut guard = self.ip_filter_cache.write().await;
+        *guard = Some(cache);
+    }
+
+    async fn clear_ip_filter_cache(&self) {
+        let mut guard = self.ip_filter_cache.write().await;
+        *guard = None;
+    }
+
+    async fn persist_ip_filter_metadata(
+        &self,
+        config: &ConfigService,
+        previous: &IpFilterConfig,
+        updated: &IpFilterConfig,
+    ) -> Result<()> {
+        if previous.etag == updated.etag
+            && previous.last_updated_at == updated.last_updated_at
+            && previous.last_error == updated.last_error
+        {
+            return Ok(());
+        }
+
+        let patch = json!({
+            "ip_filter": {
+                "cidrs": updated.cidrs,
+                "blocklist_url": updated.blocklist_url,
+                "etag": updated.etag,
+                "last_updated_at": updated.last_updated_at.map(|ts| ts.to_rfc3339()),
+                "last_error": updated.last_error,
+            }
+        });
+        let changeset = SettingsChangeset {
+            engine_profile: Some(patch),
+            ..SettingsChangeset::default()
+        };
+        config
+            .apply_changeset("system", "ip_filter_refresh", changeset)
+            .await?;
+        Ok(())
+    }
+
     /// Remove the torrent from the engine.
     pub(crate) async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> Result<()> {
         self.engine.remove_torrent(id, options).await
     }
+}
+
+struct BlocklistResolution {
+    rules: Vec<RuntimeIpFilterRule>,
+    etag: Option<String>,
+    last_updated_at: DateTime<Utc>,
+    skipped: usize,
+}
+
+struct ParsedBlocklist {
+    rules: Vec<RuntimeIpFilterRule>,
+    skipped: usize,
+}
+
+fn parse_blocklist(body: &str) -> Result<ParsedBlocklist> {
+    let mut rules = Vec::new();
+    let mut seen = HashSet::new();
+    let mut skipped = 0usize;
+
+    for line in body.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty()
+            || trimmed.starts_with('#')
+            || trimmed.starts_with("//")
+            || trimmed.starts_with(';')
+        {
+            continue;
+        }
+
+        match canonicalize_ip_filter_entry(trimmed, "ip_filter.blocklist_url") {
+            Ok((canonical, rule)) => {
+                if seen.insert(canonical.to_ascii_lowercase()) {
+                    rules.push(runtime_rule_from_config(&rule));
+                    if rules.len() > MAX_BLOCKLIST_RULES {
+                        return Err(anyhow!(
+                            "blocklist contains more than {MAX_BLOCKLIST_RULES} entries"
+                        ));
+                    }
+                }
+            }
+            Err(_) => {
+                skipped = skipped.saturating_add(1);
+            }
+        }
+    }
+
+    Ok(ParsedBlocklist { rules, skipped })
+}
+
+fn runtime_rule_from_config(rule: &IpFilterRule) -> RuntimeIpFilterRule {
+    RuntimeIpFilterRule {
+        start: rule.start.to_string(),
+        end: rule.end.to_string(),
+    }
+}
+
+fn merge_rules(base: &mut Vec<RuntimeIpFilterRule>, additions: Vec<RuntimeIpFilterRule>) {
+    let mut seen: HashSet<String> = base
+        .iter()
+        .map(|rule| format!("{}-{}", rule.start, rule.end).to_ascii_lowercase())
+        .collect();
+
+    for rule in additions {
+        let key = format!("{}-{}", rule.start, rule.end).to_ascii_lowercase();
+        if seen.insert(key) {
+            base.push(rule);
+        }
+    }
+}
+
+fn dedupe_rules(rules: Vec<RuntimeIpFilterRule>) -> Vec<RuntimeIpFilterRule> {
+    let mut deduped = Vec::new();
+    merge_rules(&mut deduped, rules);
+    deduped
 }
 
 const fn event_torrent_id(event: &Event) -> Option<Uuid> {
@@ -256,6 +567,7 @@ pub(crate) async fn spawn_libtorrent_orchestrator(
     fs_policy: FsPolicy,
     engine_profile: EngineProfile,
     deps: LibtorrentOrchestratorDeps,
+    config: Option<ConfigService>,
 ) -> Result<(
     Arc<LibtorrentEngine>,
     Arc<TorrentOrchestrator<LibtorrentEngine>>,
@@ -273,6 +585,7 @@ pub(crate) async fn spawn_libtorrent_orchestrator(
         fs_policy,
         engine_profile,
         runtime.clone(),
+        config,
     ));
     let initial_profile = orchestrator.engine_profile.read().await.clone();
     orchestrator.update_engine_profile(initial_profile).await?;
@@ -665,6 +978,9 @@ mod orchestrator_tests {
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
+            ip_filter: json!({}),
         }
     }
 
@@ -681,6 +997,7 @@ mod orchestrator_tests {
             events.clone(),
             policy.clone(),
             sample_engine_profile(),
+            None,
             None,
         ));
 
@@ -743,6 +1060,7 @@ mod orchestrator_tests {
             policy,
             sample_engine_profile(),
             None,
+            None,
         ));
 
         let torrent_id = Uuid::new_v4();
@@ -787,6 +1105,8 @@ mod engine_refresh_tests {
         AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentWorkflow,
     };
     use serde_json::json;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpListener;
     use tokio::sync::RwLock;
 
     #[derive(Default)]
@@ -903,6 +1223,9 @@ mod engine_refresh_tests {
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
+            ip_filter: json!({}),
         }
     }
 
@@ -918,6 +1241,7 @@ mod engine_refresh_tests {
             bus.clone(),
             sample_fs_policy(),
             engine_profile("initial"),
+            None,
             None,
         ));
 
@@ -963,6 +1287,78 @@ mod engine_refresh_tests {
     }
 
     #[tokio::test]
+    async fn blocklist_is_fetched_and_cached() -> Result<()> {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+        let server = tokio::spawn(async move {
+            if let Ok((mut stream, _)) = listener.accept().await {
+                let mut buffer = [0_u8; 1024];
+                let _ = stream.read(&mut buffer).await;
+                let body = "10.0.0.1/32\n";
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nETag: \"v1\"\r\n\r\n{}",
+                    body.len(),
+                    body
+                );
+                let _ = stream.write_all(response.as_bytes()).await;
+            }
+        });
+
+        let engine = Arc::new(RecordingEngine::default());
+        let bus = EventBus::new();
+        let metrics = Metrics::new()?;
+        let fsops = FsOpsService::new(bus.clone(), metrics);
+        let mut profile = engine_profile("blocklist");
+        profile.ip_filter = json!({ "blocklist_url": format!("http://{addr}") });
+        let orchestrator = Arc::new(TorrentOrchestrator::new(
+            Arc::clone(&engine),
+            fsops,
+            bus,
+            sample_fs_policy(),
+            profile.clone(),
+            None,
+            None,
+        ));
+
+        orchestrator
+            .update_engine_profile(profile.clone())
+            .await
+            .expect("blocklist applied");
+        let _ = server.await;
+
+        let first_plan = engine
+            .applied
+            .read()
+            .await
+            .last()
+            .cloned()
+            .expect("runtime config applied");
+        let filter = first_plan
+            .runtime
+            .ip_filter
+            .as_ref()
+            .expect("ip filter present");
+        assert_eq!(filter.rules.len(), 1);
+        assert_eq!(filter.rules[0].start, "10.0.0.1");
+
+        // Subsequent updates reuse the cached rules even if the server is gone.
+        orchestrator
+            .update_engine_profile(profile)
+            .await
+            .expect("cache apply");
+        let cached = engine
+            .applied
+            .read()
+            .await
+            .last()
+            .cloned()
+            .expect("cached runtime config");
+        let cached_filter = cached.runtime.ip_filter.as_ref().expect("cached filter");
+        assert_eq!(cached_filter.rules.len(), 1);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn update_engine_profile_clamps_before_applying() -> Result<()> {
         let engine = Arc::new(RecordingEngine::default());
         let bus = EventBus::new();
@@ -974,6 +1370,7 @@ mod engine_refresh_tests {
             bus.clone(),
             sample_fs_policy(),
             engine_profile("initial"),
+            None,
             None,
         ));
 
@@ -1019,6 +1416,7 @@ mod engine_refresh_tests {
             bus,
             sample_fs_policy(),
             engine_profile("ops"),
+            None,
             None,
         ));
 

@@ -20,12 +20,12 @@ mod tests {
 
     #[test]
     fn engine_option_layout_is_stable() {
-        assert_eq!(mem::size_of::<ffi::EngineNetworkOptions>(), 12);
+        assert_eq!(mem::size_of::<ffi::EngineNetworkOptions>(), 104);
         assert_eq!(mem::size_of::<ffi::EngineLimitOptions>(), 24);
         assert_eq!(mem::size_of::<ffi::EngineStorageOptions>(), 48);
         assert_eq!(mem::size_of::<ffi::EngineBehaviorOptions>(), 1);
         assert_eq!(mem::size_of::<ffi::TrackerProxyOptions>(), 80);
         assert_eq!(mem::size_of::<ffi::EngineTrackerOptions>(), 248);
-        assert_eq!(mem::size_of::<ffi::EngineOptions>(), 344);
+        assert_eq!(mem::size_of::<ffi::EngineOptions>(), 432);
     }
 }

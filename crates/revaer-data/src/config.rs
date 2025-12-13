@@ -5,6 +5,7 @@ use chrono::{DateTime, Utc};
 use serde_json::Value;
 use sqlx::postgres::PgRow;
 use sqlx::{Executor, FromRow, PgPool, Postgres, Row};
+use std::collections::HashSet;
 use uuid::Uuid;
 
 /// LISTEN/NOTIFY channel for configuration revision broadcasts.
@@ -104,6 +105,32 @@ impl NatToggleSet {
     }
 }
 
+fn parse_string_array(value: &Value, field: &str) -> Result<Vec<String>, sqlx::Error> {
+    let array = value.as_array().ok_or_else(|| {
+        sqlx::Error::Decode(Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("{field} must be an array"),
+        )))
+    })?;
+
+    let mut seen = HashSet::new();
+    let mut entries = Vec::new();
+    for entry in array {
+        let Some(text) = entry.as_str() else {
+            return Err(sqlx::Error::Decode(Box::new(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("{field} entries must be strings"),
+            ))));
+        };
+        let trimmed = text.trim();
+        if trimmed.is_empty() || !seen.insert(trimmed.to_ascii_lowercase()) {
+            continue;
+        }
+        entries.push(trimmed.to_string());
+    }
+    Ok(entries)
+}
+
 /// Raw projection of the `engine_profile` table.
 #[derive(Debug, Clone)]
 pub struct EngineProfileRow {
@@ -133,6 +160,12 @@ pub struct EngineProfileRow {
     pub tracker: Value,
     /// NAT traversal and PEX toggles.
     pub nat: NatToggleSet,
+    /// DHT bootstrap nodes.
+    pub dht_bootstrap_nodes: Vec<String>,
+    /// DHT router nodes.
+    pub dht_router_nodes: Vec<String>,
+    /// IP filter configuration payload.
+    pub ip_filter: Value,
 }
 
 impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
@@ -156,6 +189,15 @@ impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
             download_root: row.try_get("download_root")?,
             tracker: row.try_get("tracker")?,
             nat: NatToggleSet::from_flags([enable_lsd, enable_upnp, enable_natpmp, enable_pex]),
+            dht_bootstrap_nodes: parse_string_array(
+                &row.try_get("dht_bootstrap_nodes")?,
+                "dht_bootstrap_nodes",
+            )?,
+            dht_router_nodes: parse_string_array(
+                &row.try_get("dht_router_nodes")?,
+                "dht_router_nodes",
+            )?,
+            ip_filter: row.try_get("ip_filter")?,
         })
     }
 }
@@ -1007,6 +1049,12 @@ pub struct EngineProfileUpdate<'a> {
     pub tracker: &'a Value,
     /// NAT traversal and PEX toggles.
     pub nat: NatToggleSet,
+    /// DHT bootstrap nodes.
+    pub dht_bootstrap_nodes: &'a Value,
+    /// DHT router nodes.
+    pub dht_router_nodes: &'a Value,
+    /// IP filter configuration payload.
+    pub ip_filter: &'a Value,
 }
 
 /// Update the engine profile in a single stored procedure call.
@@ -1022,7 +1070,7 @@ where
     E: Executor<'e, Database = Postgres>,
 {
     sqlx::query(
-        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _sequential_default => $9, _resume_dir => $10, _download_root => $11, _tracker => $12, _lsd => $13, _upnp => $14, _natpmp => $15, _pex => $16)",
+        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _sequential_default => $9, _resume_dir => $10, _download_root => $11, _tracker => $12, _lsd => $13, _upnp => $14, _natpmp => $15, _pex => $16, _dht_bootstrap_nodes => $17, _dht_router_nodes => $18, _ip_filter => $19)",
     )
     .bind(profile.id)
     .bind(profile.implementation)
@@ -1040,6 +1088,9 @@ where
     .bind(profile.nat.upnp())
     .bind(profile.nat.natpmp())
     .bind(profile.nat.pex())
+    .bind(profile.dht_bootstrap_nodes)
+    .bind(profile.dht_router_nodes)
+    .bind(profile.ip_filter)
     .execute(executor)
     .await
     .context("failed to update engine_profile via unified procedure")?;

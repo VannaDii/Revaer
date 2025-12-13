@@ -6,7 +6,10 @@
 //! - Surfaces an "effective" view with clamped values plus guard-rail warnings for observability.
 
 use std::collections::HashSet;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::str::FromStr;
 
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
@@ -17,6 +20,7 @@ use crate::validate::{ConfigError, ensure_mutable, parse_port};
 pub const MAX_RATE_LIMIT_BPS: i64 = 5_000_000_000;
 const DEFAULT_DOWNLOAD_ROOT: &str = "/data/staging";
 const DEFAULT_RESUME_DIR: &str = "/var/lib/revaer/state";
+const MAX_INLINE_IP_FILTER_ENTRIES: usize = 5_000;
 
 /// Effective engine configuration after applying guard rails.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,6 +49,10 @@ pub struct EngineNetworkConfig {
     pub listen_port: Option<i32>,
     /// Whether DHT is enabled for peer discovery.
     pub enable_dht: bool,
+    /// DHT bootstrap nodes (host:port entries).
+    pub dht_bootstrap_nodes: Vec<String>,
+    /// DHT router endpoints (host:port entries).
+    pub dht_router_nodes: Vec<String>,
     /// Encryption policy applied to inbound/outbound peers.
     pub encryption: EngineEncryptionPolicy,
     /// Whether local service discovery is enabled.
@@ -55,6 +63,57 @@ pub struct EngineNetworkConfig {
     pub enable_natpmp: Toggle,
     /// Whether peer exchange (PEX) is enabled.
     pub enable_pex: Toggle,
+    /// IP filter and blocklist configuration.
+    pub ip_filter: IpFilterConfig,
+}
+
+/// Canonical IP filter configuration (inline + optional blocklist URL/metadata).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct IpFilterConfig {
+    /// Canonical CIDR entries to block.
+    #[serde(default)]
+    pub cidrs: Vec<String>,
+    /// Optional remote blocklist URL to download and cache.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub blocklist_url: Option<String>,
+    /// Optional `ETag` returned by the last successful blocklist fetch.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub etag: Option<String>,
+    /// Timestamp of the last successful blocklist refresh.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_updated_at: Option<DateTime<Utc>>,
+    /// Last error encountered when refreshing the blocklist.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_error: Option<String>,
+}
+
+impl IpFilterConfig {
+    /// Convert to a JSON value for persistence.
+    #[must_use]
+    pub fn to_value(&self) -> Value {
+        json!(self)
+    }
+
+    /// Convert canonical CIDR strings into address ranges.
+    ///
+    /// # Errors
+    ///
+    /// Returns `ConfigError` if canonical entries unexpectedly fail to parse.
+    pub fn rules(&self) -> Result<Vec<IpFilterRule>, ConfigError> {
+        self.cidrs
+            .iter()
+            .map(|cidr| canonicalize_ip_filter_entry(cidr, "ip_filter.cidrs").map(|(_, rule)| rule))
+            .collect()
+    }
+}
+
+/// Inclusive IP range used for native session filters.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IpFilterRule {
+    /// Start address of the blocked range.
+    pub start: IpAddr,
+    /// End address of the blocked range.
+    pub end: IpAddr,
 }
 
 /// Throughput and concurrency limits.
@@ -242,6 +301,9 @@ pub(crate) fn validate_engine_profile_patch(
         enable_upnp: effective.network.enable_upnp,
         enable_natpmp: effective.network.enable_natpmp,
         enable_pex: effective.network.enable_pex,
+        dht_bootstrap_nodes: effective.network.dht_bootstrap_nodes.clone(),
+        dht_router_nodes: effective.network.dht_router_nodes.clone(),
+        ip_filter: effective.network.ip_filter.to_value(),
     };
     let mutated = touched || stored != *current;
 
@@ -302,17 +364,28 @@ fn normalize_engine_profile_with_warnings(
         &mut warnings,
     );
     let tracker = sanitize_tracker(&profile.tracker, &mut warnings);
+    let dht_bootstrap_nodes = sanitize_endpoints(
+        &profile.dht_bootstrap_nodes,
+        "dht_bootstrap_nodes",
+        &mut warnings,
+    );
+    let dht_router_nodes =
+        sanitize_endpoints(&profile.dht_router_nodes, "dht_router_nodes", &mut warnings);
+    let ip_filter = sanitize_ip_filter(&profile.ip_filter, &mut warnings);
 
     EngineProfileEffective {
         implementation: profile.implementation.clone(),
         network: EngineNetworkConfig {
             listen_port,
             enable_dht: profile.dht,
+            dht_bootstrap_nodes,
+            dht_router_nodes,
             encryption,
             enable_lsd: profile.enable_lsd,
             enable_upnp: profile.enable_upnp,
             enable_natpmp: profile.enable_natpmp,
             enable_pex: profile.enable_pex,
+            ip_filter,
         },
         limits: EngineLimitsConfig {
             max_active,
@@ -408,6 +481,15 @@ fn apply_field(
             &mut working.enable_pex,
             Toggle::from(required_bool(value, "enable_pex")?),
         )),
+        "dht_bootstrap_nodes" => Ok(assign_if_changed(
+            &mut working.dht_bootstrap_nodes,
+            parse_endpoint_array(value, "dht_bootstrap_nodes")?,
+        )),
+        "dht_router_nodes" => Ok(assign_if_changed(
+            &mut working.dht_router_nodes,
+            parse_endpoint_array(value, "dht_router_nodes")?,
+        )),
+        "ip_filter" => apply_ip_filter_field(working, value),
         "tracker" => {
             let normalized = normalize_tracker_payload(value)?;
             Ok(assign_if_changed(&mut working.tracker, normalized))
@@ -417,6 +499,36 @@ fn apply_field(
             field: other.to_string(),
         }),
     }
+}
+
+fn apply_ip_filter_field(working: &mut EngineProfile, value: &Value) -> Result<bool, ConfigError> {
+    let (updated_at_specified, etag_specified, error_specified) =
+        value.as_object().map_or((false, false, false), |map| {
+            (
+                map.contains_key("last_updated_at"),
+                map.contains_key("etag"),
+                map.contains_key("last_error"),
+            )
+        });
+    let mut next = normalize_ip_filter_payload(value)?;
+    let previous = decode_ip_filter(&working.ip_filter);
+    if next.cidrs != previous.cidrs || next.blocklist_url != previous.blocklist_url {
+        next.last_updated_at = None;
+        next.etag = None;
+        next.last_error = None;
+    } else {
+        if next.last_updated_at.is_none() && !updated_at_specified {
+            next.last_updated_at = previous.last_updated_at;
+        }
+        if next.etag.is_none() && !etag_specified {
+            next.etag = previous.etag;
+        }
+        if next.last_error.is_none() && !error_specified {
+            next.last_error = previous.last_error;
+        }
+    }
+    let normalized = next.to_value();
+    Ok(assign_if_changed(&mut working.ip_filter, normalized))
 }
 
 fn required_string(value: &Value, field: &str) -> Result<String, ConfigError> {
@@ -473,6 +585,388 @@ fn parse_optional_i32(value: &Value, field: &str) -> Result<Option<i32>, ConfigE
         message: "must fit within 32-bit signed integer range".to_string(),
     })?;
     Ok(Some(value_i32))
+}
+
+fn parse_endpoint_array(value: &Value, field: &str) -> Result<Vec<String>, ConfigError> {
+    let Some(array) = value.as_array() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be an array of host:port entries".to_string(),
+        });
+    };
+
+    let mut seen = HashSet::new();
+    let mut endpoints = Vec::new();
+    for entry in array {
+        let Some(text) = entry.as_str() else {
+            return Err(ConfigError::InvalidField {
+                section: "engine_profile".to_string(),
+                field: field.to_string(),
+                message: "entries must be strings".to_string(),
+            });
+        };
+        let normalized =
+            normalize_endpoint(text, field).map_err(|message| ConfigError::InvalidField {
+                section: "engine_profile".to_string(),
+                field: field.to_string(),
+                message,
+            })?;
+        let key = normalized.to_ascii_lowercase();
+        if seen.insert(key) {
+            endpoints.push(normalized);
+        }
+    }
+
+    Ok(endpoints)
+}
+
+fn sanitize_endpoints(values: &[String], field: &str, warnings: &mut Vec<String>) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut endpoints = Vec::new();
+
+    for value in values {
+        match normalize_endpoint(value, field) {
+            Ok(normalized) => {
+                let key = normalized.to_ascii_lowercase();
+                if seen.insert(key) {
+                    endpoints.push(normalized);
+                }
+            }
+            Err(message) => warnings.push(message),
+        }
+    }
+
+    endpoints
+}
+
+fn sanitize_ip_filter(value: &Value, warnings: &mut Vec<String>) -> IpFilterConfig {
+    match normalize_ip_filter_payload(value) {
+        Ok(config) => config,
+        Err(err) => {
+            warnings.push(format!(
+                "ip_filter payload invalid ({err}); replacing with {{}}"
+            ));
+            IpFilterConfig::default()
+        }
+    }
+}
+
+fn decode_ip_filter(value: &Value) -> IpFilterConfig {
+    normalize_ip_filter_payload(value).unwrap_or_default()
+}
+
+fn normalize_ip_filter_payload(value: &Value) -> Result<IpFilterConfig, ConfigError> {
+    if value.is_null() {
+        return Ok(IpFilterConfig::default());
+    }
+    let map = value.as_object().ok_or_else(|| ConfigError::InvalidField {
+        section: "engine_profile".to_string(),
+        field: "ip_filter".to_string(),
+        message: "must be an object".to_string(),
+    })?;
+
+    for key in map.keys() {
+        match key.as_str() {
+            "cidrs" | "blocklist_url" | "etag" | "last_updated_at" | "last_error" => {}
+            other => {
+                return Err(ConfigError::UnknownField {
+                    section: "engine_profile".to_string(),
+                    field: format!("ip_filter.{other}"),
+                });
+            }
+        }
+    }
+
+    let cidrs = parse_ip_filter_cidrs(map.get("cidrs"))?;
+    let blocklist_url = parse_blocklist_url(map.get("blocklist_url"))?;
+    let etag = parse_optional_short_string(map.get("etag"), "ip_filter.etag", 512)?;
+    let last_updated_at =
+        parse_optional_timestamp(map.get("last_updated_at"), "ip_filter.last_updated_at")?;
+    let last_error =
+        parse_optional_short_string(map.get("last_error"), "ip_filter.last_error", 512)?;
+
+    Ok(IpFilterConfig {
+        cidrs,
+        blocklist_url,
+        etag,
+        last_updated_at,
+        last_error,
+    })
+}
+
+fn parse_ip_filter_cidrs(value: Option<&Value>) -> Result<Vec<String>, ConfigError> {
+    let Some(raw) = value else {
+        return Ok(Vec::new());
+    };
+    if raw.is_null() {
+        return Ok(Vec::new());
+    }
+    let entries = raw.as_array().ok_or_else(|| ConfigError::InvalidField {
+        section: "engine_profile".to_string(),
+        field: "ip_filter.cidrs".to_string(),
+        message: "must be an array of CIDR strings".to_string(),
+    })?;
+    if entries.len() > MAX_INLINE_IP_FILTER_ENTRIES {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "ip_filter.cidrs".to_string(),
+            message: format!("must contain at most {MAX_INLINE_IP_FILTER_ENTRIES} entries"),
+        });
+    }
+
+    let mut cidrs = Vec::new();
+    let mut seen = HashSet::new();
+    for entry in entries {
+        let Some(text) = entry.as_str() else {
+            return Err(ConfigError::InvalidField {
+                section: "engine_profile".to_string(),
+                field: "ip_filter.cidrs".to_string(),
+                message: "entries must be strings".to_string(),
+            });
+        };
+        let (canonical, _) = canonicalize_ip_filter_entry(text, "ip_filter.cidrs")?;
+        if seen.insert(canonical.clone()) {
+            cidrs.push(canonical);
+        }
+    }
+    Ok(cidrs)
+}
+
+fn parse_blocklist_url(value: Option<&Value>) -> Result<Option<String>, ConfigError> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    if raw.is_null() {
+        return Ok(None);
+    }
+    let Some(url) = raw.as_str() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "ip_filter.blocklist_url".to_string(),
+            message: "must be a string".to_string(),
+        });
+    };
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    if trimmed.len() > 2_048 {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "ip_filter.blocklist_url".to_string(),
+            message: "must be shorter than 2048 characters".to_string(),
+        });
+    }
+    let lowered = trimmed.to_ascii_lowercase();
+    if !(lowered.starts_with("http://") || lowered.starts_with("https://")) {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "ip_filter.blocklist_url".to_string(),
+            message: "must start with http:// or https://".to_string(),
+        });
+    }
+    Ok(Some(trimmed.to_string()))
+}
+
+fn parse_optional_short_string(
+    value: Option<&Value>,
+    field: &str,
+    max_len: usize,
+) -> Result<Option<String>, ConfigError> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    if raw.is_null() {
+        return Ok(None);
+    }
+    let Some(text) = raw.as_str() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be a string".to_string(),
+        });
+    };
+    let trimmed = text.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    if trimmed.len() > max_len {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: format!("must be at most {max_len} characters"),
+        });
+    }
+    Ok(Some(trimmed.to_string()))
+}
+
+fn parse_optional_timestamp(
+    value: Option<&Value>,
+    field: &str,
+) -> Result<Option<DateTime<Utc>>, ConfigError> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    if raw.is_null() {
+        return Ok(None);
+    }
+    let Some(text) = raw.as_str() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be an RFC3339 timestamp string".to_string(),
+        });
+    };
+    let parsed = DateTime::parse_from_rfc3339(text)
+        .map_err(|_| ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be an RFC3339 timestamp string".to_string(),
+        })?
+        .with_timezone(&Utc);
+    Ok(Some(parsed))
+}
+
+/// Canonicalize a CIDR or IP entry into a normalized string and address range.
+///
+/// # Errors
+///
+/// Returns `ConfigError` when the entry is empty or not a valid IPv4/IPv6
+/// address with an in-bounds prefix length.
+pub fn canonicalize_ip_filter_entry(
+    entry: &str,
+    field: &str,
+) -> Result<(String, IpFilterRule), ConfigError> {
+    let trimmed = entry.trim();
+    if trimmed.is_empty() {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "entries cannot be empty".to_string(),
+        });
+    }
+    let (addr_str, prefix) = match trimmed.split_once('/') {
+        Some((addr, prefix)) => (addr.trim(), Some(prefix.trim())),
+        None => (trimmed, None),
+    };
+    if addr_str.is_empty() {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "address component cannot be empty".to_string(),
+        });
+    }
+    let address = IpAddr::from_str(addr_str).map_err(|_| ConfigError::InvalidField {
+        section: "engine_profile".to_string(),
+        field: field.to_string(),
+        message: "must contain valid IPv4 or IPv6 addresses".to_string(),
+    })?;
+    let max_bits = match address {
+        IpAddr::V4(_) => 32,
+        IpAddr::V6(_) => 128,
+    };
+    let prefix = match prefix {
+        Some("") | None => max_bits,
+        Some(bits) => {
+            let parsed = bits.parse::<u8>().map_err(|_| ConfigError::InvalidField {
+                section: "engine_profile".to_string(),
+                field: field.to_string(),
+                message: format!("invalid prefix length '{bits}'"),
+            })?;
+            if parsed > max_bits {
+                return Err(ConfigError::InvalidField {
+                    section: "engine_profile".to_string(),
+                    field: field.to_string(),
+                    message: format!("prefix must be between 0 and {max_bits}"),
+                });
+            }
+            parsed
+        }
+    };
+
+    let range = canonical_range(address, prefix, field)?;
+    let canonical = format!("{}/{}", range.start, prefix);
+    Ok((canonical, range))
+}
+
+fn canonical_range(address: IpAddr, prefix: u8, field: &str) -> Result<IpFilterRule, ConfigError> {
+    match address {
+        IpAddr::V4(addr) => {
+            if prefix > 32 {
+                return Err(ConfigError::InvalidField {
+                    section: "engine_profile".to_string(),
+                    field: field.to_string(),
+                    message: "IPv4 prefix must be between 0 and 32".to_string(),
+                });
+            }
+            let host_bits = 32 - u32::from(prefix);
+            let mask = if prefix == 0 {
+                0
+            } else {
+                u32::MAX.checked_shl(host_bits).unwrap_or(0)
+            };
+            let start = u32::from(addr) & mask;
+            let end = if prefix == 0 {
+                u32::MAX
+            } else {
+                start | (!mask)
+            };
+            Ok(IpFilterRule {
+                start: IpAddr::V4(Ipv4Addr::from(start)),
+                end: IpAddr::V4(Ipv4Addr::from(end)),
+            })
+        }
+        IpAddr::V6(addr) => {
+            if prefix > 128 {
+                return Err(ConfigError::InvalidField {
+                    section: "engine_profile".to_string(),
+                    field: field.to_string(),
+                    message: "IPv6 prefix must be between 0 and 128".to_string(),
+                });
+            }
+            let host_bits = 128 - u128::from(prefix);
+            let mask = if prefix == 0 {
+                0
+            } else {
+                u128::MAX
+                    .checked_shl(u32::try_from(host_bits).unwrap_or(0))
+                    .unwrap_or(0)
+            };
+            let start = u128::from(addr) & mask;
+            let end = if prefix == 0 {
+                u128::MAX
+            } else {
+                start | (!mask)
+            };
+            Ok(IpFilterRule {
+                start: IpAddr::V6(Ipv6Addr::from(start)),
+                end: IpAddr::V6(Ipv6Addr::from(end)),
+            })
+        }
+    }
+}
+
+fn normalize_endpoint(value: &str, field: &str) -> Result<String, String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(format!("{field} entries cannot be empty"));
+    }
+
+    let Some((host, port_str)) = trimmed.rsplit_once(':') else {
+        return Err(format!("{field} entries must be host:port"));
+    };
+    if host.trim().is_empty() {
+        return Err(format!("{field} host component cannot be empty"));
+    }
+    let port: i64 = port_str
+        .trim()
+        .parse()
+        .map_err(|_| format!("{field} port must be an integer between 1 and 65535"))?;
+    // Reuse the port parser for bounds checking.
+    let _ = parse_port(&json!(port), "engine_profile", field).map_err(|err| err.to_string())?;
+
+    Ok(format!("{}:{}", host.trim(), port))
 }
 
 fn normalize_tracker_payload(value: &Value) -> Result<Value, ConfigError> {
@@ -831,6 +1325,9 @@ mod tests {
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
+            ip_filter: json!({}),
         }
     }
 
@@ -897,6 +1394,34 @@ mod tests {
     }
 
     #[test]
+    fn patch_validates_dht_endpoints() {
+        let profile = sample_profile();
+        let invalid = json!({ "dht_bootstrap_nodes": ["bad-endpoint"] });
+        let err = validate_engine_profile_patch(&profile, &invalid, &HashSet::new()).unwrap_err();
+        assert!(
+            err.to_string().contains("host:port"),
+            "expected host:port validation"
+        );
+
+        let valid = json!({
+            "dht_bootstrap_nodes": ["router.bittorrent.com:6881", "router.bittorrent.com:6881", " 1.2.3.4:15000 "],
+            "dht_router_nodes": ["dht.transmissionbt.com:6881"]
+        });
+        let mutation =
+            validate_engine_profile_patch(&profile, &valid, &HashSet::new()).expect("valid patch");
+        assert_eq!(mutation.stored.dht_bootstrap_nodes.len(), 2);
+        assert_eq!(
+            mutation.stored.dht_bootstrap_nodes[0],
+            "router.bittorrent.com:6881"
+        );
+        assert_eq!(mutation.stored.dht_bootstrap_nodes[1], "1.2.3.4:15000");
+        assert_eq!(
+            mutation.stored.dht_router_nodes,
+            vec!["dht.transmissionbt.com:6881"]
+        );
+    }
+
+    #[test]
     fn tracker_normalisation_rejects_invalid_shapes() {
         let bad_tracker = json!("not-an-object");
         let err = normalize_tracker_payload(&bad_tracker).unwrap_err();
@@ -942,5 +1467,57 @@ mod tests {
         assert_eq!(proxy.port, 8080);
         assert!(proxy.proxy_peers);
         assert_eq!(proxy.kind, TrackerProxyType::Socks5);
+    }
+
+    #[test]
+    fn ip_filter_rejects_invalid_entries() {
+        let profile = sample_profile();
+        let bad_cidr = json!({"ip_filter": {"cidrs": ["not-a-cidr"]}});
+        let err = validate_engine_profile_patch(&profile, &bad_cidr, &HashSet::new()).unwrap_err();
+        assert!(err.to_string().contains("must contain valid IPv4 or IPv6"));
+
+        let bad_url = json!({"ip_filter": {"blocklist_url": "ftp://example.com/list"}});
+        let err = validate_engine_profile_patch(&profile, &bad_url, &HashSet::new()).unwrap_err();
+        assert!(err.to_string().contains("http:// or https://"));
+    }
+
+    #[test]
+    fn ip_filter_canonicalises_and_resets_metadata() {
+        let mut profile = sample_profile();
+        profile.ip_filter = json!({
+            "cidrs": ["10.0.0.0/8"],
+            "blocklist_url": "https://example.com/blocklist.txt",
+            "etag": "v1",
+            "last_updated_at": "2024-01-01T00:00:00Z",
+            "last_error": "stale"
+        });
+
+        // No change should preserve metadata.
+        let noop = json!({"ip_filter": {"cidrs": ["10.0.0.0/8"], "blocklist_url": "https://example.com/blocklist.txt"}});
+        let mutation =
+            validate_engine_profile_patch(&profile, &noop, &HashSet::new()).expect("valid patch");
+        let preserved: IpFilterConfig =
+            serde_json::from_value(mutation.stored.ip_filter).expect("decode ip filter");
+        assert_eq!(preserved.etag.as_deref(), Some("v1"));
+        assert!(preserved.last_updated_at.is_some());
+        assert_eq!(preserved.last_error.as_deref(), Some("stale"));
+
+        // Changing CIDRs clears metadata and canonicalises.
+        let patch = json!({"ip_filter": {"cidrs": ["192.168.1.1", "192.168.1.0/24", "2001:db8::1/64"], "blocklist_url": "https://example.com/blocklist.txt"}});
+        let mutation =
+            validate_engine_profile_patch(&profile, &patch, &HashSet::new()).expect("valid patch");
+        let updated: IpFilterConfig =
+            serde_json::from_value(mutation.stored.ip_filter).expect("decode ip filter");
+        assert_eq!(
+            updated.cidrs,
+            vec![
+                "192.168.1.1/32".to_string(),
+                "192.168.1.0/24".to_string(),
+                "2001:db8::/64".to_string()
+            ]
+        );
+        assert!(updated.etag.is_none());
+        assert!(updated.last_updated_at.is_none());
+        assert!(updated.last_error.is_none());
     }
 }

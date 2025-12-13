@@ -37,6 +37,6 @@ pub use adapter::LibtorrentEngine;
 pub use command::EngineCommand;
 pub use store::{FastResumeStore, StoredTorrentMetadata, StoredTorrentState};
 pub use types::{
-    EncryptionPolicy, EngineRuntimeConfig, Toggle, TrackerProxyRuntime, TrackerProxyType,
-    TrackerRuntimeConfig,
+    EncryptionPolicy, EngineRuntimeConfig, IpFilterRule, IpFilterRuntimeConfig, Toggle,
+    TrackerProxyRuntime, TrackerProxyType, TrackerRuntimeConfig,
 };
