@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use revaer_torrent_core::{FilePriorityOverride, FileSelectionRules};
+use revaer_torrent_core::{FilePriorityOverride, FileSelectionRules, TorrentRateLimit};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -39,6 +39,9 @@ pub struct StoredTorrentMetadata {
     #[serde(default)]
     /// Optional per-torrent peer connection cap recorded at admission.
     pub connections_limit: Option<i32>,
+    #[serde(default)]
+    /// Optional per-torrent rate caps recorded at admission.
+    pub rate_limit: Option<TorrentRateLimit>,
     #[serde(default)]
     /// Timestamp of the most recent metadata update.
     pub updated_at: DateTime<Utc>,
@@ -247,6 +250,10 @@ mod tests {
             trackers: vec!["https://tracker.example/announce".into()],
             replace_trackers: true,
             tags: vec!["movies".into(), "hd".into()],
+            rate_limit: Some(TorrentRateLimit {
+                download_bps: Some(10_000),
+                upload_bps: Some(5_000),
+            }),
             connections_limit: None,
             updated_at: Utc::now(),
         }

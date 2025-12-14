@@ -99,12 +99,12 @@
     -   [x] API/docs: expose optional per-torrent and profile-level connection limits with bounds; document effects on swarm health.
     -   [x] Tests: config validation; worker applies caps after add; native test confirms connection settings take effect without error.
 
--   [ ] Per-torrent rate caps applied on admission
+-   [x] Per-torrent rate caps applied on admission
 
-    -   [ ] API: validate per-torrent `max_*_bps` and keep them in `AddTorrentOptions`; persist caps with torrent metadata if desired.
-    -   [ ] Worker: after successful add, issue `update_limits` for the torrent when caps are present; cache per-torrent caps for verification.
-    -   [ ] Bridge/native: allow per-torrent limits via `AddTorrentRequest` or immediate `update_limits`; ensure `NativeSession::update_limits` tolerates immediate calls.
-    -   [ ] Tests: API parsing; worker ensures immediate cap application; native test confirms per-torrent caps apply without errors.
+    -   [x] API: validate per-torrent `max_*_bps` and keep them in `AddTorrentOptions`; persist caps with torrent metadata if desired.
+    -   [x] Worker: after successful add, issue `update_limits` for the torrent when caps are present; cache per-torrent caps for verification.
+    -   [x] Bridge/native: allow per-torrent limits via `AddTorrentRequest` or immediate `update_limits`; ensure `NativeSession::update_limits` tolerates immediate calls.
+    -   [x] Tests: API parsing; worker ensures immediate cap application; native test confirms per-torrent caps apply without errors.
 
 -   [ ] Alt-speed scheduling (global)
 

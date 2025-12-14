@@ -85,6 +85,7 @@ struct AddMetadata {
     replace_trackers: bool,
     tags: Vec<String>,
     connections_limit: Option<i32>,
+    rate_limit: Option<TorrentRateLimit>,
 }
 
 impl Worker {
@@ -218,8 +219,11 @@ impl Worker {
                 replace_trackers: request.options.replace_trackers,
                 tags: request.options.tags.clone(),
                 connections_limit: request.options.connections_limit,
+                rate_limit: rate_limit_for_metadata(&request.options.rate_limit),
             },
         );
+        self.apply_initial_rate_limit(request.id, &request.options.rate_limit)
+            .await?;
         Ok(())
     }
 
@@ -234,6 +238,11 @@ impl Worker {
             }
             if request.options.connections_limit.is_none() {
                 request.options.connections_limit = stored.connections_limit;
+            }
+            if !has_rate_limit(&request.options.rate_limit)
+                && let Some(limit) = &stored.rate_limit
+            {
+                request.options.rate_limit = limit.clone();
             }
         }
     }
@@ -301,6 +310,27 @@ impl Worker {
         }
     }
 
+    async fn apply_initial_rate_limit(
+        &mut self,
+        torrent_id: Uuid,
+        rate_limit: &TorrentRateLimit,
+    ) -> Result<()> {
+        if !has_rate_limit(rate_limit) {
+            return Ok(());
+        }
+
+        self.session
+            .update_limits(Some(torrent_id), rate_limit)
+            .await?;
+        self.per_torrent_limits
+            .insert(torrent_id, rate_limit.clone());
+        let rate_limit = rate_limit_for_metadata(rate_limit);
+        self.update_metadata(torrent_id, move |meta| {
+            meta.rate_limit = rate_limit;
+        });
+        Ok(())
+    }
+
     fn emit_add_event(&self, request: &AddTorrent) {
         let name = request
             .options
@@ -332,6 +362,7 @@ impl Worker {
             replace_trackers,
             tags,
             connections_limit,
+            rate_limit,
         } = metadata;
         self.update_metadata(torrent_id, move |meta| {
             meta.selection.clone_from(&selection);
@@ -342,6 +373,7 @@ impl Worker {
             meta.replace_trackers = replace_trackers;
             meta.tags.clone_from(&tags);
             meta.connections_limit = connections_limit;
+            meta.rate_limit = rate_limit;
         });
     }
 
@@ -409,6 +441,10 @@ impl Worker {
         );
         if let Some(target) = id {
             self.per_torrent_limits.insert(target, limits.clone());
+            let rate_limit = rate_limit_for_metadata(&limits);
+            self.update_metadata(target, move |meta| {
+                meta.rate_limit = rate_limit;
+            });
         } else {
             self.global_limits = limits.clone();
         }
@@ -751,6 +787,18 @@ fn map_limit(value: Option<i64>) -> Option<u64> {
     })
 }
 
+const fn has_rate_limit(limit: &TorrentRateLimit) -> bool {
+    limit.download_bps.is_some() || limit.upload_bps.is_some()
+}
+
+fn rate_limit_for_metadata(limit: &TorrentRateLimit) -> Option<TorrentRateLimit> {
+    if has_rate_limit(limit) {
+        Some(limit.clone())
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -764,7 +812,8 @@ mod tests {
     use revaer_events::{Event, EventBus};
     use revaer_torrent_core::{
         AddTorrent, AddTorrentOptions, FilePriority, FilePriorityOverride, FileSelectionRules,
-        FileSelectionUpdate, RemoveTorrent, TorrentProgress, TorrentRates, TorrentSource,
+        FileSelectionUpdate, RemoveTorrent, TorrentProgress, TorrentRateLimit, TorrentRates,
+        TorrentSource,
     };
     use tempfile::TempDir;
     use tokio::time::{sleep, timeout};
@@ -816,6 +865,48 @@ mod tests {
             other => panic!("expected queued state change, got {other:?}"),
         }
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn add_command_applies_per_torrent_rate_limit() -> Result<()> {
+        let bus = EventBus::with_capacity(8);
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
+        let mut worker = Worker::new(bus, session, None);
+
+        let torrent_id = Uuid::new_v4();
+        let descriptor = AddTorrent {
+            id: torrent_id,
+            source: TorrentSource::magnet("magnet:?xt=urn:btih:ratelimit"),
+            options: AddTorrentOptions {
+                rate_limit: TorrentRateLimit {
+                    download_bps: Some(12_000),
+                    upload_bps: Some(6_000),
+                },
+                ..AddTorrentOptions::default()
+            },
+        };
+
+        worker
+            .handle(EngineCommand::Add(descriptor))
+            .await
+            .expect("add should succeed");
+
+        let cached = worker
+            .resume_cache
+            .get(&torrent_id)
+            .cloned()
+            .expect("metadata persisted");
+        let limit = cached.rate_limit.expect("rate limit persisted to metadata");
+        assert_eq!(limit.download_bps, Some(12_000));
+        assert_eq!(limit.upload_bps, Some(6_000));
+        assert_eq!(
+            worker
+                .per_torrent_limits
+                .get(&torrent_id)
+                .and_then(|rate| rate.download_bps),
+            Some(12_000)
+        );
         Ok(())
     }
 
@@ -952,6 +1043,10 @@ mod tests {
             trackers: vec!["https://tracker.example/announce".into()],
             replace_trackers: true,
             tags: vec!["persisted".into()],
+            rate_limit: Some(TorrentRateLimit {
+                download_bps: Some(5_000),
+                upload_bps: Some(2_500),
+            }),
             connections_limit: None,
             updated_at: Utc::now(),
         };
