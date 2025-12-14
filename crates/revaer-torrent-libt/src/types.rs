@@ -53,6 +53,14 @@ pub struct EngineRuntimeConfig {
     pub outgoing_ports: Option<OutgoingPortRange>,
     /// Optional DSCP/TOS codepoint (0-63) for peer sockets.
     pub peer_dscp: Option<u8>,
+    /// Optional global peer connection limit.
+    pub connections_limit: Option<i32>,
+    /// Optional per-torrent peer connection limit.
+    pub connections_limit_per_torrent: Option<i32>,
+    /// Optional unchoke slot limit.
+    pub unchoke_slots: Option<i32>,
+    /// Optional half-open connection limit.
+    pub half_open_limit: Option<i32>,
     /// Whether anonymous mode is enabled.
     pub anonymous_mode: Toggle,
     /// Whether peers must be proxied.

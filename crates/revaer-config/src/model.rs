@@ -148,6 +148,14 @@ pub struct EngineProfile {
     pub max_download_bps: Option<i64>,
     /// Global upload cap in bytes per second.
     pub max_upload_bps: Option<i64>,
+    /// Optional global peer connection limit.
+    pub connections_limit: Option<i32>,
+    /// Optional per-torrent peer connection limit.
+    pub connections_limit_per_torrent: Option<i32>,
+    /// Optional unchoke slot limit.
+    pub unchoke_slots: Option<i32>,
+    /// Optional half-open connection limit.
+    pub half_open_limit: Option<i32>,
     /// Whether torrents default to sequential download.
     pub sequential_default: bool,
     /// Filesystem path for storing resume data.

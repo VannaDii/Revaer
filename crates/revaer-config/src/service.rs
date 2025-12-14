@@ -798,6 +798,10 @@ fn map_engine_profile_row(row: EngineProfileRow) -> EngineProfile {
         outgoing_port_min: row.outgoing_port_min,
         outgoing_port_max: row.outgoing_port_max,
         peer_dscp: row.peer_dscp,
+        connections_limit: row.connections_limit,
+        connections_limit_per_torrent: row.connections_limit_per_torrent,
+        unchoke_slots: row.unchoke_slots,
+        half_open_limit: row.half_open_limit,
     }
 }
 
@@ -1022,6 +1026,10 @@ async fn persist_engine_profile(
             outgoing_port_min: profile.outgoing_port_min,
             outgoing_port_max: profile.outgoing_port_max,
             peer_dscp: profile.peer_dscp,
+            connections_limit: profile.connections_limit,
+            connections_limit_per_torrent: profile.connections_limit_per_torrent,
+            unchoke_slots: profile.unchoke_slots,
+            half_open_limit: profile.half_open_limit,
         },
     )
     .await?;

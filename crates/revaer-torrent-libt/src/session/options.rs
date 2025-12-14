@@ -44,16 +44,18 @@ impl EngineOptionsPlan {
             }
         };
 
-        let max_active = match config.max_active {
-            Some(limit) if limit > 0 => limit,
-            Some(limit) => {
-                warnings.push(format!(
-                    "max_active {limit} is non-positive; leaving unlimited"
-                ));
-                -1
-            }
-            None => -1,
-        };
+        let max_active = map_positive_limit("max_active", config.max_active, &mut warnings);
+        let connections_limit =
+            map_positive_limit("connections_limit", config.connections_limit, &mut warnings);
+        let connections_limit_per_torrent = map_positive_limit(
+            "connections_limit_per_torrent",
+            config.connections_limit_per_torrent,
+            &mut warnings,
+        );
+        let unchoke_slots =
+            map_positive_limit("unchoke_slots", config.unchoke_slots, &mut warnings);
+        let half_open_limit =
+            map_positive_limit("half_open_limit", config.half_open_limit, &mut warnings);
 
         let download_rate_limit = clamp_rate_limit(
             "download_rate_limit",
@@ -113,6 +115,10 @@ impl EngineOptionsPlan {
                 max_active,
                 download_rate_limit,
                 upload_rate_limit,
+                connections_limit,
+                connections_limit_per_torrent,
+                unchoke_slots,
+                half_open_limit,
             },
             storage: ffi::EngineStorageOptions {
                 download_root: config.download_root.clone(),
@@ -220,6 +226,19 @@ fn clamp_rate_limit(field: &str, value: Option<i64>, warnings: &mut Vec<String>)
     }
 }
 
+fn map_positive_limit(field: &str, value: Option<i32>, warnings: &mut Vec<String>) -> i32 {
+    match value {
+        Some(limit) if limit > 0 => limit,
+        Some(limit) => {
+            warnings.push(format!(
+                "{field} {limit} is non-positive; leaving unlimited"
+            ));
+            -1
+        }
+        None => -1,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,6 +275,10 @@ mod tests {
             max_active: Some(0),
             download_rate_limit: Some(-1),
             upload_rate_limit: None,
+            connections_limit: None,
+            connections_limit_per_torrent: None,
+            unchoke_slots: None,
+            half_open_limit: None,
             encryption: EncryptionPolicy::Disable,
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
@@ -310,6 +333,10 @@ mod tests {
             max_active: Some(16),
             download_rate_limit: Some(256_000),
             upload_rate_limit: Some(128_000),
+            connections_limit: Some(200),
+            connections_limit_per_torrent: Some(80),
+            unchoke_slots: Some(40),
+            half_open_limit: Some(10),
             encryption: EncryptionPolicy::Require,
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
@@ -322,6 +349,10 @@ mod tests {
         assert_eq!(plan.options.limits.max_active, 16);
         assert_eq!(plan.options.limits.download_rate_limit, 256_000);
         assert_eq!(plan.options.limits.upload_rate_limit, 128_000);
+        assert_eq!(plan.options.limits.connections_limit, 200);
+        assert_eq!(plan.options.limits.connections_limit_per_torrent, 80);
+        assert_eq!(plan.options.limits.unchoke_slots, 40);
+        assert_eq!(plan.options.limits.half_open_limit, 10);
         assert!(plan.options.behavior.sequential_default);
         assert_eq!(plan.options.network.encryption_policy, 0);
         assert!(plan.options.network.enable_lsd);
@@ -370,6 +401,10 @@ mod tests {
             max_active: None,
             download_rate_limit: None,
             upload_rate_limit: None,
+            connections_limit: None,
+            connections_limit_per_torrent: None,
+            unchoke_slots: None,
+            half_open_limit: None,
             encryption: EncryptionPolicy::Prefer,
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
@@ -412,6 +447,10 @@ mod tests {
             max_active: None,
             download_rate_limit: None,
             upload_rate_limit: None,
+            connections_limit: None,
+            connections_limit_per_torrent: None,
+            unchoke_slots: None,
+            half_open_limit: None,
             encryption: EncryptionPolicy::Prefer,
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
@@ -451,6 +490,10 @@ mod tests {
             max_active: None,
             download_rate_limit: None,
             upload_rate_limit: None,
+            connections_limit: None,
+            connections_limit_per_torrent: None,
+            unchoke_slots: None,
+            half_open_limit: None,
             encryption: EncryptionPolicy::Prefer,
             tracker: TrackerRuntimeConfig {
                 default: vec!["https://tracker.example/announce".into()],
@@ -529,6 +572,10 @@ mod tests {
             max_active: None,
             download_rate_limit: None,
             upload_rate_limit: None,
+            connections_limit: None,
+            connections_limit_per_torrent: None,
+            unchoke_slots: None,
+            half_open_limit: None,
             encryption: EncryptionPolicy::Prefer,
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: Some(IpFilterRuntimeConfig {

@@ -285,6 +285,21 @@ public:
                 pack.set_int(lt::settings_pack::active_downloads, options.limits.max_active);
                 pack.set_int(lt::settings_pack::active_limit, options.limits.max_active);
             }
+            if (options.limits.connections_limit >= 0) {
+                pack.set_int(lt::settings_pack::connections_limit,
+                             options.limits.connections_limit);
+            }
+            default_max_connections_per_torrent_ = options.limits.connections_limit_per_torrent;
+            if (options.limits.unchoke_slots >= 0) {
+                pack.set_int(lt::settings_pack::unchoke_slots_limit,
+                             options.limits.unchoke_slots);
+            }
+            if (options.limits.half_open_limit >= 0) {
+                REVAER_SUPPRESS_DEPRECATED_BEGIN
+                pack.set_int(lt::settings_pack::half_open_limit,
+                             options.limits.half_open_limit);
+                REVAER_SUPPRESS_DEPRECATED_END
+            }
 
             pack.set_int(lt::settings_pack::out_enc_policy, options.network.encryption_policy);
             pack.set_int(lt::settings_pack::in_enc_policy, options.network.encryption_policy);
@@ -433,6 +448,9 @@ public:
 
             params.flags |= lt::torrent_flags::auto_managed;
             params.flags &= ~lt::torrent_flags::seed_mode;
+            if (default_max_connections_per_torrent_ > 0) {
+                params.max_connections = default_max_connections_per_torrent_;
+            }
 
             lt::torrent_handle handle = session_->add_torrent(params);
             handles_[request_id] = handle;
@@ -847,6 +865,7 @@ private:
     std::vector<std::string> extra_trackers_;
     bool replace_default_trackers_{false};
     bool announce_to_all_{false};
+    int default_max_connections_per_torrent_{-1};
     std::unordered_map<std::string, lt::torrent_handle> handles_;
     std::unordered_map<std::string, TorrentSnapshot> snapshots_;
     std::unordered_map<std::string, std::vector<char>> pending_resume_;

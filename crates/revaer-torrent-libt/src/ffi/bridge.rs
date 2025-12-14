@@ -87,6 +87,14 @@ pub mod ffi {
         download_rate_limit: i64,
         /// Global upload cap in bytes per second.
         upload_rate_limit: i64,
+        /// Optional global peer connection limit.
+        connections_limit: i32,
+        /// Optional per-torrent peer connection limit.
+        connections_limit_per_torrent: i32,
+        /// Optional unchoke slot limit.
+        unchoke_slots: i32,
+        /// Optional half-open connection limit.
+        half_open_limit: i32,
     }
 
     /// Storage paths and behaviour applied to the session.

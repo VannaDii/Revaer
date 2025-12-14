@@ -167,6 +167,14 @@ pub struct EngineLimitsConfig {
     pub download_rate_limit: Option<i64>,
     /// Optional global upload cap in bytes per second.
     pub upload_rate_limit: Option<i64>,
+    /// Optional global peer connection limit.
+    pub connections_limit: Option<i32>,
+    /// Optional per-torrent peer connection limit.
+    pub connections_limit_per_torrent: Option<i32>,
+    /// Optional unchoke slot limit.
+    pub unchoke_slots: Option<i32>,
+    /// Optional half-open connection limit.
+    pub half_open_limit: Option<i32>,
 }
 
 /// Storage paths for active downloads and resume data.
@@ -337,6 +345,10 @@ pub(crate) fn validate_engine_profile_patch(
         max_active: effective.limits.max_active,
         max_download_bps: effective.limits.download_rate_limit,
         max_upload_bps: effective.limits.upload_rate_limit,
+        connections_limit: effective.limits.connections_limit,
+        connections_limit_per_torrent: effective.limits.connections_limit_per_torrent,
+        unchoke_slots: effective.limits.unchoke_slots,
+        half_open_limit: effective.limits.half_open_limit,
         sequential_default: effective.behavior.sequential_default,
         resume_dir: effective.storage.resume_dir.clone(),
         download_root: effective.storage.download_root.clone(),
@@ -459,15 +471,17 @@ fn sanitize_listen_config(
 }
 
 fn sanitize_limits(profile: &EngineProfile, warnings: &mut Vec<String>) -> EngineLimitsConfig {
-    let max_active = match profile.max_active {
-        Some(value) if value > 0 => Some(value),
-        Some(_) => {
-            warnings.push("max_active <= 0 requested; leaving unlimited".to_string());
-            None
-        }
-        None => None,
-    };
-
+    let max_active = sanitize_positive_limit(profile.max_active, "max_active", warnings);
+    let connections_limit =
+        sanitize_positive_limit(profile.connections_limit, "connections_limit", warnings);
+    let connections_limit_per_torrent = sanitize_positive_limit(
+        profile.connections_limit_per_torrent,
+        "connections_limit_per_torrent",
+        warnings,
+    );
+    let unchoke_slots = sanitize_positive_limit(profile.unchoke_slots, "unchoke_slots", warnings);
+    let half_open_limit =
+        sanitize_positive_limit(profile.half_open_limit, "half_open_limit", warnings);
     let download_rate_limit =
         clamp_rate_limit("max_download_bps", profile.max_download_bps, warnings);
     let upload_rate_limit = clamp_rate_limit("max_upload_bps", profile.max_upload_bps, warnings);
@@ -476,6 +490,25 @@ fn sanitize_limits(profile: &EngineProfile, warnings: &mut Vec<String>) -> Engin
         max_active,
         download_rate_limit,
         upload_rate_limit,
+        connections_limit,
+        connections_limit_per_torrent,
+        unchoke_slots,
+        half_open_limit,
+    }
+}
+
+fn sanitize_positive_limit(
+    value: Option<i32>,
+    label: &str,
+    warnings: &mut Vec<String>,
+) -> Option<i32> {
+    match value {
+        Some(v) if v > 0 => Some(v),
+        Some(v) => {
+            warnings.push(format!("{label} {v} is non-positive; disabling override"));
+            None
+        }
+        None => None,
     }
 }
 
@@ -672,6 +705,22 @@ fn apply_limit_field(
         "max_active" => Some(assign_if_changed(
             &mut working.max_active,
             parse_optional_i32(value, "max_active")?,
+        )),
+        "connections_limit" => Some(assign_if_changed(
+            &mut working.connections_limit,
+            parse_optional_i32(value, "connections_limit")?,
+        )),
+        "connections_limit_per_torrent" => Some(assign_if_changed(
+            &mut working.connections_limit_per_torrent,
+            parse_optional_i32(value, "connections_limit_per_torrent")?,
+        )),
+        "unchoke_slots" => Some(assign_if_changed(
+            &mut working.unchoke_slots,
+            parse_optional_i32(value, "unchoke_slots")?,
+        )),
+        "half_open_limit" => Some(assign_if_changed(
+            &mut working.half_open_limit,
+            parse_optional_i32(value, "half_open_limit")?,
         )),
         "max_download_bps" => Some(apply_rate_limit_field(
             working,
@@ -1817,6 +1866,10 @@ mod tests {
             max_active: Some(4),
             max_download_bps: Some(250_000),
             max_upload_bps: Some(125_000),
+            connections_limit: None,
+            connections_limit_per_torrent: None,
+            unchoke_slots: None,
+            half_open_limit: None,
             sequential_default: false,
             resume_dir: "/tmp/resume".into(),
             download_root: "/tmp/downloads".into(),
@@ -2145,6 +2198,35 @@ mod tests {
         assert!(
             clamped.warnings.iter().any(|msg| msg.contains("peer_dscp")),
             "invalid values should be surfaced"
+        );
+    }
+
+    #[test]
+    fn connection_limits_are_sanitized() {
+        let mut profile = sample_profile();
+        profile.connections_limit = Some(400);
+        profile.connections_limit_per_torrent = Some(80);
+        profile.unchoke_slots = Some(0);
+        profile.half_open_limit = Some(-5);
+
+        let effective = normalize_engine_profile(&profile);
+        assert_eq!(effective.limits.connections_limit, Some(400));
+        assert_eq!(effective.limits.connections_limit_per_torrent, Some(80));
+        assert!(effective.limits.unchoke_slots.is_none());
+        assert!(effective.limits.half_open_limit.is_none());
+        assert!(
+            effective
+                .warnings
+                .iter()
+                .any(|msg| msg.contains("unchoke_slots") && msg.contains("non-positive")),
+            "non-positive unchoke slots should be reported"
+        );
+        assert!(
+            effective
+                .warnings
+                .iter()
+                .any(|msg| msg.contains("half_open_limit")),
+            "non-positive half_open_limit should be reported"
         );
     }
 }

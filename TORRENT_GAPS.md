@@ -92,7 +92,7 @@
 
 -   [ ] Connection/peer limits configurable
 
-    -   [ ] Config/DB: add global/per-torrent connection caps (e.g., `connections_limit`, `connections_per_torrent`, `unchoke_slots`, `half_open_limit`) with validation; set defaults to libtorrent defaults.
+    -   [x] Config/DB: add global/per-torrent connection caps (e.g., `connections_limit`, `connections_per_torrent`, `unchoke_slots`, `half_open_limit`) with validation; set defaults to libtorrent defaults.
     -   [ ] Runtime/bridge: extend `EngineRuntimeConfig`/`EngineOptions` and `AddTorrentOptions`/`AddTorrentRequest` with connection cap fields.
     -   [ ] Native: apply via `lt::settings_pack` (`connections_limit`, `connections_per_torrent`, `unchoke_slots`, `half_open_limit`); per-torrent via `torrent_handle::set_max_connections` where applicable.
     -   [ ] Worker: when per-torrent caps are provided on add, apply immediately; keep them in the per-torrent cache for verification/telemetry.

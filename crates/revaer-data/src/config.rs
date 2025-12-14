@@ -254,6 +254,14 @@ pub struct EngineProfileRow {
     pub outgoing_port_max: Option<i32>,
     /// Optional DSCP/TOS value applied to peer sockets.
     pub peer_dscp: Option<i32>,
+    /// Optional global peer connection limit.
+    pub connections_limit: Option<i32>,
+    /// Optional per-torrent peer connection limit.
+    pub connections_limit_per_torrent: Option<i32>,
+    /// Optional unchoke slot limit.
+    pub unchoke_slots: Option<i32>,
+    /// Optional half-open connection limit.
+    pub half_open_limit: Option<i32>,
 }
 
 impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
@@ -309,6 +317,10 @@ impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
             outgoing_port_min: row.try_get("outgoing_port_min")?,
             outgoing_port_max: row.try_get("outgoing_port_max")?,
             peer_dscp: row.try_get("peer_dscp")?,
+            connections_limit: row.try_get("connections_limit")?,
+            connections_limit_per_torrent: row.try_get("connections_limit_per_torrent")?,
+            unchoke_slots: row.try_get("unchoke_slots")?,
+            half_open_limit: row.try_get("half_open_limit")?,
         })
     }
 }
@@ -1178,6 +1190,14 @@ pub struct EngineProfileUpdate<'a> {
     pub outgoing_port_max: Option<i32>,
     /// Optional DSCP/TOS value applied to peer sockets.
     pub peer_dscp: Option<i32>,
+    /// Optional global peer connection limit.
+    pub connections_limit: Option<i32>,
+    /// Optional per-torrent peer connection limit.
+    pub connections_limit_per_torrent: Option<i32>,
+    /// Optional unchoke slot limit.
+    pub unchoke_slots: Option<i32>,
+    /// Optional half-open connection limit.
+    pub half_open_limit: Option<i32>,
 }
 
 /// Update the engine profile in a single stored procedure call.
@@ -1193,8 +1213,8 @@ where
     E: Executor<'e, Database = Postgres>,
 {
     sqlx::query(
-        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _sequential_default => $9, _resume_dir => $10, _download_root => $11, _tracker => $12, _lsd => $13, _upnp => $14, _natpmp => $15, _pex => $16, _dht_bootstrap_nodes => $17, _dht_router_nodes => $18, _ip_filter => $19, _listen_interfaces => $20, _ipv6_mode => $21, _anonymous_mode => $22, _force_proxy => $23, _prefer_rc4 => $24, _allow_multiple_connections_per_ip => $25, _enable_outgoing_utp => $26, _enable_incoming_utp => $27, _outgoing_port_min => $28, _outgoing_port_max => $29, _peer_dscp => $30)",
-    )
+        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _sequential_default => $9, _resume_dir => $10, _download_root => $11, _tracker => $12, _lsd => $13, _upnp => $14, _natpmp => $15, _pex => $16, _dht_bootstrap_nodes => $17, _dht_router_nodes => $18, _ip_filter => $19, _listen_interfaces => $20, _ipv6_mode => $21, _anonymous_mode => $22, _force_proxy => $23, _prefer_rc4 => $24, _allow_multiple_connections_per_ip => $25, _enable_outgoing_utp => $26, _enable_incoming_utp => $27, _outgoing_port_min => $28, _outgoing_port_max => $29, _peer_dscp => $30, _connections_limit => $31, _connections_limit_per_torrent => $32, _unchoke_slots => $33, _half_open_limit => $34)",
+        )
     .bind(profile.id)
     .bind(profile.implementation)
     .bind(profile.listen_port)
@@ -1225,6 +1245,10 @@ where
     .bind(profile.outgoing_port_min)
     .bind(profile.outgoing_port_max)
     .bind(profile.peer_dscp)
+    .bind(profile.connections_limit)
+    .bind(profile.connections_limit_per_torrent)
+    .bind(profile.unchoke_slots)
+    .bind(profile.half_open_limit)
     .execute(executor)
     .await
     .context("failed to update engine_profile via unified procedure")?;
