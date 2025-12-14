@@ -147,6 +147,8 @@ impl LibTorrentSession for NativeSession {
             has_download_dir: request.options.download_dir.is_some(),
             sequential: request.options.sequential.unwrap_or_default(),
             has_sequential_override: request.options.sequential.is_some(),
+            start_paused: request.options.start_paused.unwrap_or_default(),
+            has_start_paused: request.options.start_paused.is_some(),
             max_connections: 0,
             has_max_connections: false,
             tags: request.options.tags.clone(),

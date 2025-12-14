@@ -128,12 +128,12 @@
     -   [ ] Native: allow `lt::torrent_flags::seed_mode` / `torrent_handle::set_seed_mode` when user opts in.
     -   [ ] Tests: native test that seed-mode admission succeeds and does not recheck; safety tests around hash sample behavior.
 
--   [ ] Add-paused / queued admission supported
+-   [x] Add-paused / queued admission supported
 
-    -   [ ] API: add `paused`/`start_paused` flag to `TorrentCreateRequest`; validate.
-    -   [ ] Worker: honor paused on `EngineCommand::Add`, queuing torrent without starting; emit appropriate state.
-    -   [ ] Bridge/native: set `lt::torrent_flags::paused`/`auto_managed` on add per flag; avoid immediate start when paused.
-    -   [ ] Tests: API parsing; worker leaves torrent paused; native test that add-paused does not start transfers.
+    -   [x] API: add `paused`/`start_paused` flag to `TorrentCreateRequest`; validate.
+    -   [x] Worker: honor paused on `EngineCommand::Add`, queuing torrent without starting; emit appropriate state.
+    -   [x] Bridge/native: set `lt::torrent_flags::paused`/`auto_managed` on add per flag; avoid immediate start when paused.
+    -   [x] Tests: API parsing; worker leaves torrent paused; native test that add-paused does not start transfers.
 
 -   [ ] Torrent queue priorities / auto-managed toggle
 

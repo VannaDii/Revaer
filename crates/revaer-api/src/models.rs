@@ -379,6 +379,9 @@ pub struct TorrentCreateRequest {
     /// Enables sequential download mode on creation when set.
     pub sequential: Option<bool>,
     #[serde(default)]
+    /// Adds the torrent in a paused/queued state when true.
+    pub start_paused: Option<bool>,
+    #[serde(default)]
     /// Tags to associate with the torrent immediately.
     pub tags: Vec<String>,
     #[serde(default)]
@@ -415,6 +418,7 @@ impl TorrentCreateRequest {
             name_hint: self.name.clone(),
             download_dir: self.download_dir.clone(),
             sequential: self.sequential,
+            start_paused: self.start_paused,
             file_rules: FileSelectionRules {
                 include: self.include.clone(),
                 exclude: self.exclude.clone(),
@@ -507,6 +511,7 @@ mod tests {
             max_download_bps: Some(4_096),
             max_upload_bps: Some(2_048),
             max_connections: Some(50),
+            start_paused: Some(true),
             tags: vec!["tag-a".to_string(), "tag-b".to_string()],
             ..TorrentCreateRequest::default()
         };
@@ -521,6 +526,7 @@ mod tests {
         assert_eq!(options.rate_limit.download_bps, Some(4_096));
         assert_eq!(options.rate_limit.upload_bps, Some(2_048));
         assert_eq!(options.connections_limit, Some(50));
+        assert_eq!(options.start_paused, Some(true));
         assert_eq!(options.tags, vec!["tag-a".to_string(), "tag-b".to_string()]);
     }
 

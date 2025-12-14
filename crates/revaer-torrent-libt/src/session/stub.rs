@@ -39,7 +39,11 @@ impl StubTorrent {
             priorities: Vec::new(),
             rate_limit: request.options.rate_limit.clone(),
             sequential: request.options.sequential.unwrap_or(false),
-            state: TorrentState::Queued,
+            state: if request.options.start_paused.unwrap_or(false) {
+                TorrentState::Stopped
+            } else {
+                TorrentState::Queued
+            },
             download_dir: request.options.download_dir.clone(),
             connections_limit: request.options.connections_limit,
             resume_payload: None,
@@ -100,7 +104,12 @@ impl LibTorrentSession for StubSession {
         let torrent = StubTorrent::from_add(request);
         let download_dir = torrent.download_dir.clone();
         self.torrents.insert(request.id, torrent);
-        self.push_state(request.id, TorrentState::Queued);
+        let initial_state = if request.options.start_paused.unwrap_or(false) {
+            TorrentState::Stopped
+        } else {
+            TorrentState::Queued
+        };
+        self.push_state(request.id, initial_state);
         self.pending_events.push(EngineEvent::MetadataUpdated {
             torrent_id: request.id,
             name: request.options.name_hint.clone(),

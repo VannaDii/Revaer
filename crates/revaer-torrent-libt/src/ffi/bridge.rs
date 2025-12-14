@@ -197,6 +197,10 @@ pub mod ffi {
         sequential: bool,
         /// Flag indicating whether sequential override was provided.
         has_sequential_override: bool,
+        /// Whether the torrent should start paused.
+        start_paused: bool,
+        /// Flag indicating whether a paused override was provided.
+        has_start_paused: bool,
         /// Optional per-torrent peer connection limit.
         max_connections: i32,
         /// Flag indicating whether a per-torrent limit was supplied.

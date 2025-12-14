@@ -66,6 +66,8 @@ pub struct AddTorrentOptions {
     /// Pre-configured file selection rules.
     #[serde(default)]
     pub file_rules: FileSelectionRules,
+    /// Whether the torrent should start in a paused/queued state.
+    pub start_paused: Option<bool>,
     /// Per-torrent rate limits applied immediately after the torrent is added.
     #[serde(default)]
     pub rate_limit: TorrentRateLimit,

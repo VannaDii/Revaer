@@ -448,6 +448,9 @@ public:
 
             params.flags |= lt::torrent_flags::auto_managed;
             params.flags &= ~lt::torrent_flags::seed_mode;
+            if (request.has_start_paused && request.start_paused) {
+                params.flags |= lt::torrent_flags::paused;
+            }
             if (request.has_max_connections && request.max_connections > 0) {
                 params.max_connections = request.max_connections;
             } else if (default_max_connections_per_torrent_ > 0) {
