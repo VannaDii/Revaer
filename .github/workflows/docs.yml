@@ -7,7 +7,9 @@ on:
       - "v*.*.*"
   workflow_dispatch:
 
-concurrency: docs-${{ github.ref }}
+concurrency:
+  group: docs-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-deploy:

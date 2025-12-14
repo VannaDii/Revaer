@@ -7,11 +7,13 @@ on:
     tags:
       - "v*.*.*"
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
   packages: write
-
-concurrency: ci-${{ github.ref }}
 
 env:
   CARGO_TERM_COLOR: always
