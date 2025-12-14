@@ -30,7 +30,8 @@ jobs:
 
       - name: Build Docs
         run: |
-          cp -fr
+          mkdir -p docs/scripts
+          cp -fr scripts/*.js docs/scripts/
           just docs-build
 
       - name: Generate LLM manifests
