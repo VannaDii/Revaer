@@ -74,6 +74,23 @@ jobs:
   coverage:
     name: Check Coverage
     runs-on: ubuntu-latest
+    env:
+      REVAER_TEST_DATABASE_URL: postgres://revaer:revaer@localhost:5432/revaer
+      DATABASE_URL: postgres://revaer:revaer@localhost:5432/revaer
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: revaer
+          POSTGRES_PASSWORD: revaer
+          POSTGRES_DB: revaer
+        options: >-
+          --health-cmd="pg_isready -U revaer -d revaer"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 5432:5432
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -84,7 +101,18 @@ jobs:
       - name: Install native libtorrent dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libtorrent-rasterbar-dev pkg-config
+          sudo apt-get install -y libtorrent-rasterbar-dev pkg-config libpq-dev postgresql-client
+
+      - name: Install sqlx-cli
+        run: |
+          if ! command -v sqlx >/dev/null 2>&1; then
+            cargo install sqlx-cli --no-default-features --features postgres
+          fi
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ env.REVAER_TEST_DATABASE_URL }}
+        run: sqlx migrate run --source crates/revaer-data/migrations
 
       - name: Coverage
         run: just cov
@@ -92,6 +120,23 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
+    env:
+      REVAER_TEST_DATABASE_URL: postgres://revaer:revaer@localhost:5432/revaer
+      DATABASE_URL: postgres://revaer:revaer@localhost:5432/revaer
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: revaer
+          POSTGRES_PASSWORD: revaer
+          POSTGRES_DB: revaer
+        options: >-
+          --health-cmd="pg_isready -U revaer -d revaer"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 5432:5432
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -102,7 +147,18 @@ jobs:
       - name: Install native libtorrent dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libtorrent-rasterbar-dev pkg-config
+          sudo apt-get install -y libtorrent-rasterbar-dev pkg-config libpq-dev postgresql-client
+
+      - name: Install sqlx-cli
+        run: |
+          if ! command -v sqlx >/dev/null 2>&1; then
+            cargo install sqlx-cli --no-default-features --features postgres
+          fi
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ env.REVAER_TEST_DATABASE_URL }}
+        run: sqlx migrate run --source crates/revaer-data/migrations
 
       - name: Test
         run: just test
@@ -110,6 +166,23 @@ jobs:
   feature-matrix:
     name: Feature Matrix
     runs-on: ubuntu-latest
+    env:
+      REVAER_TEST_DATABASE_URL: postgres://revaer:revaer@localhost:5432/revaer
+      DATABASE_URL: postgres://revaer:revaer@localhost:5432/revaer
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: revaer
+          POSTGRES_PASSWORD: revaer
+          POSTGRES_DB: revaer
+        options: >-
+          --health-cmd="pg_isready -U revaer -d revaer"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 5432:5432
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -120,7 +193,18 @@ jobs:
       - name: Install native libtorrent dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libtorrent-rasterbar-dev pkg-config
+          sudo apt-get install -y libtorrent-rasterbar-dev pkg-config libpq-dev postgresql-client
+
+      - name: Install sqlx-cli
+        run: |
+          if ! command -v sqlx >/dev/null 2>&1; then
+            cargo install sqlx-cli --no-default-features --features postgres
+          fi
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ env.REVAER_TEST_DATABASE_URL }}
+        run: sqlx migrate run --source crates/revaer-data/migrations
 
       - name: Feature matrix tests (no default features)
         run: just test-features-min
