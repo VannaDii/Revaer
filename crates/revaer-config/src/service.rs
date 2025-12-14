@@ -789,6 +789,12 @@ fn map_engine_profile_row(row: EngineProfileRow) -> EngineProfile {
         dht_bootstrap_nodes: row.dht_bootstrap_nodes,
         dht_router_nodes: row.dht_router_nodes,
         ip_filter: row.ip_filter,
+        anonymous_mode: row.privacy.anonymous_mode().into(),
+        force_proxy: row.privacy.force_proxy().into(),
+        prefer_rc4: row.privacy.prefer_rc4().into(),
+        allow_multiple_connections_per_ip: row.privacy.allow_multiple_connections_per_ip().into(),
+        enable_outgoing_utp: row.privacy.enable_outgoing_utp().into(),
+        enable_incoming_utp: row.privacy.enable_incoming_utp().into(),
     }
 }
 
@@ -982,8 +988,6 @@ async fn persist_engine_profile(
             id: profile.id,
             implementation: &profile.implementation,
             listen_port: profile.listen_port,
-            listen_interfaces: &serde_json::to_value(&profile.listen_interfaces)?,
-            ipv6_mode: &profile.ipv6_mode,
             dht: profile.dht,
             encryption: &profile.encryption,
             max_active: profile.max_active,
@@ -1002,6 +1006,16 @@ async fn persist_engine_profile(
             dht_bootstrap_nodes: &serde_json::to_value(&profile.dht_bootstrap_nodes)?,
             dht_router_nodes: &serde_json::to_value(&profile.dht_router_nodes)?,
             ip_filter: &profile.ip_filter,
+            listen_interfaces: &serde_json::to_value(&profile.listen_interfaces)?,
+            ipv6_mode: &profile.ipv6_mode,
+            privacy: data_config::PrivacyToggleSet::from_flags([
+                bool::from(profile.anonymous_mode),
+                bool::from(profile.force_proxy),
+                bool::from(profile.prefer_rc4),
+                bool::from(profile.allow_multiple_connections_per_ip),
+                bool::from(profile.enable_outgoing_utp),
+                bool::from(profile.enable_incoming_utp),
+            ]),
         },
     )
     .await?;

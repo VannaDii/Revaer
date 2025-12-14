@@ -52,6 +52,18 @@ pub struct EngineNetworkConfig {
     pub listen_interfaces: Vec<String>,
     /// IPv6 preference for listening and outbound behaviour.
     pub ipv6_mode: EngineIpv6Mode,
+    /// Whether anonymous mode is enabled.
+    pub anonymous_mode: Toggle,
+    /// Whether peers must be proxied.
+    pub force_proxy: Toggle,
+    /// Whether RC4 should be preferred for encryption.
+    pub prefer_rc4: Toggle,
+    /// Whether multiple connections per IP are allowed.
+    pub allow_multiple_connections_per_ip: Toggle,
+    /// Whether outgoing uTP is enabled.
+    pub enable_outgoing_utp: Toggle,
+    /// Whether incoming uTP is enabled.
+    pub enable_incoming_utp: Toggle,
     /// Whether DHT is enabled for peer discovery.
     pub enable_dht: bool,
     /// DHT bootstrap nodes (host:port entries).
@@ -323,6 +335,12 @@ pub(crate) fn validate_engine_profile_patch(
         dht_bootstrap_nodes: effective.network.dht_bootstrap_nodes.clone(),
         dht_router_nodes: effective.network.dht_router_nodes.clone(),
         ip_filter: effective.network.ip_filter.to_value(),
+        anonymous_mode: effective.network.anonymous_mode,
+        force_proxy: effective.network.force_proxy,
+        prefer_rc4: effective.network.prefer_rc4,
+        allow_multiple_connections_per_ip: effective.network.allow_multiple_connections_per_ip,
+        enable_outgoing_utp: effective.network.enable_outgoing_utp,
+        enable_incoming_utp: effective.network.enable_incoming_utp,
     };
     let mutated = touched || stored != *current;
 
@@ -397,6 +415,17 @@ fn normalize_engine_profile_with_warnings(
     let dht_router_nodes =
         sanitize_endpoints(&profile.dht_router_nodes, "dht_router_nodes", &mut warnings);
     let ip_filter = sanitize_ip_filter(&profile.ip_filter, &mut warnings);
+    let tracker_proxy_present = serde_json::from_value::<TrackerConfig>(tracker.clone())
+        .ok()
+        .and_then(|cfg| cfg.proxy)
+        .is_some();
+    let anonymous_mode = profile.anonymous_mode;
+    let mut force_proxy = profile.force_proxy;
+    if anonymous_mode.is_enabled() && tracker_proxy_present && !force_proxy.is_enabled() {
+        warnings
+            .push("anonymous_mode requested with a tracker proxy; forcing peer proxy".to_string());
+        force_proxy = Toggle(true);
+    }
 
     EngineProfileEffective {
         implementation: profile.implementation.clone(),
@@ -404,6 +433,12 @@ fn normalize_engine_profile_with_warnings(
             listen_port,
             listen_interfaces,
             ipv6_mode,
+            anonymous_mode,
+            force_proxy,
+            prefer_rc4: profile.prefer_rc4,
+            allow_multiple_connections_per_ip: profile.allow_multiple_connections_per_ip,
+            enable_outgoing_utp: profile.enable_outgoing_utp,
+            enable_incoming_utp: profile.enable_incoming_utp,
             enable_dht: profile.dht,
             dht_bootstrap_nodes,
             dht_router_nodes,
@@ -437,6 +472,9 @@ fn apply_field(
     value: &Value,
     warnings: &mut Vec<String>,
 ) -> Result<bool, ConfigError> {
+    if let Some(applied) = apply_privacy_field(working, key, value)? {
+        return Ok(applied);
+    }
     match key {
         "implementation" => Ok(assign_if_changed(
             &mut working.implementation,
@@ -534,6 +572,41 @@ fn apply_field(
             field: other.to_string(),
         }),
     }
+}
+
+fn apply_privacy_field(
+    working: &mut EngineProfile,
+    key: &str,
+    value: &Value,
+) -> Result<Option<bool>, ConfigError> {
+    let applied = match key {
+        "anonymous_mode" => Some(assign_if_changed(
+            &mut working.anonymous_mode,
+            Toggle::from(required_bool(value, "anonymous_mode")?),
+        )),
+        "force_proxy" => Some(assign_if_changed(
+            &mut working.force_proxy,
+            Toggle::from(required_bool(value, "force_proxy")?),
+        )),
+        "prefer_rc4" => Some(assign_if_changed(
+            &mut working.prefer_rc4,
+            Toggle::from(required_bool(value, "prefer_rc4")?),
+        )),
+        "allow_multiple_connections_per_ip" => Some(assign_if_changed(
+            &mut working.allow_multiple_connections_per_ip,
+            Toggle::from(required_bool(value, "allow_multiple_connections_per_ip")?),
+        )),
+        "enable_outgoing_utp" => Some(assign_if_changed(
+            &mut working.enable_outgoing_utp,
+            Toggle::from(required_bool(value, "enable_outgoing_utp")?),
+        )),
+        "enable_incoming_utp" => Some(assign_if_changed(
+            &mut working.enable_incoming_utp,
+            Toggle::from(required_bool(value, "enable_incoming_utp")?),
+        )),
+        _ => None,
+    };
+    Ok(applied)
 }
 
 fn apply_ip_filter_field(working: &mut EngineProfile, value: &Value) -> Result<bool, ConfigError> {
@@ -1514,6 +1587,12 @@ mod tests {
             listen_port: Some(6_881),
             listen_interfaces: Vec::new(),
             ipv6_mode: "disabled".into(),
+            anonymous_mode: false.into(),
+            force_proxy: false.into(),
+            prefer_rc4: false.into(),
+            allow_multiple_connections_per_ip: false.into(),
+            enable_outgoing_utp: false.into(),
+            enable_incoming_utp: false.into(),
             dht: true,
             encryption: "prefer".into(),
             max_active: Some(4),
@@ -1552,6 +1631,44 @@ mod tests {
             validate_engine_profile_patch(&profile, &invalid, &HashSet::new()),
             Err(ConfigError::InvalidField { field, .. }) if field == "listen_interfaces"
         ));
+    }
+
+    #[test]
+    fn privacy_flags_are_preserved() {
+        let profile = sample_profile();
+        let patch = json!({
+            "anonymous_mode": true,
+            "force_proxy": true,
+            "prefer_rc4": true,
+            "allow_multiple_connections_per_ip": true,
+            "enable_outgoing_utp": true,
+            "enable_incoming_utp": true
+        });
+        let mutation =
+            validate_engine_profile_patch(&profile, &patch, &HashSet::new()).expect("valid patch");
+        assert!(mutation.stored.anonymous_mode.is_enabled());
+        assert!(mutation.stored.force_proxy.is_enabled());
+        assert!(mutation.stored.prefer_rc4.is_enabled());
+        assert!(
+            mutation
+                .stored
+                .allow_multiple_connections_per_ip
+                .is_enabled()
+        );
+        assert!(mutation.stored.enable_outgoing_utp.is_enabled());
+        assert!(mutation.stored.enable_incoming_utp.is_enabled());
+        assert!(mutation.effective.network.anonymous_mode.is_enabled());
+        assert!(mutation.effective.network.force_proxy.is_enabled());
+        assert!(mutation.effective.network.prefer_rc4.is_enabled());
+        assert!(
+            mutation
+                .effective
+                .network
+                .allow_multiple_connections_per_ip
+                .is_enabled()
+        );
+        assert!(mutation.effective.network.enable_outgoing_utp.is_enabled());
+        assert!(mutation.effective.network.enable_incoming_utp.is_enabled());
     }
 
     #[test]

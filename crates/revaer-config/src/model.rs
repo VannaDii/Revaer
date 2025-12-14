@@ -111,6 +111,24 @@ pub struct EngineProfile {
     /// IPv6 preference policy.
     #[serde(default = "EngineProfile::default_ipv6_mode")]
     pub ipv6_mode: String,
+    /// Whether anonymous mode is enabled.
+    #[serde(default)]
+    pub anonymous_mode: Toggle,
+    /// Whether peers must be proxied.
+    #[serde(default)]
+    pub force_proxy: Toggle,
+    /// Whether RC4 encryption should be preferred.
+    #[serde(default)]
+    pub prefer_rc4: Toggle,
+    /// Whether multiple connections per IP are allowed.
+    #[serde(default)]
+    pub allow_multiple_connections_per_ip: Toggle,
+    /// Whether outgoing uTP is enabled.
+    #[serde(default)]
+    pub enable_outgoing_utp: Toggle,
+    /// Whether incoming uTP is enabled.
+    #[serde(default)]
+    pub enable_incoming_utp: Toggle,
     /// Whether the engine enables the DHT subsystem.
     pub dht: bool,
     /// Encryption policy string forwarded to the engine.

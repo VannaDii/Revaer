@@ -35,6 +35,18 @@ pub mod ffi {
         enable_natpmp: bool,
         /// Whether to enable peer exchange/uTP.
         enable_pex: bool,
+        /// Whether anonymous mode is enabled.
+        anonymous_mode: bool,
+        /// Whether peers must be proxied.
+        force_proxy: bool,
+        /// Whether RC4 encryption should be preferred.
+        prefer_rc4: bool,
+        /// Whether multiple connections per IP are allowed.
+        allow_multiple_connections_per_ip: bool,
+        /// Whether outgoing uTP is enabled.
+        enable_outgoing_utp: bool,
+        /// Whether incoming uTP is enabled.
+        enable_incoming_utp: bool,
         /// DHT bootstrap nodes (host:port).
         dht_bootstrap_nodes: Vec<String>,
         /// DHT router endpoints (host:port).

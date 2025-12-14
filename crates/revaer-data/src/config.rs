@@ -105,6 +105,82 @@ impl NatToggleSet {
     }
 }
 
+/// Privacy and transport toggles stored for an engine profile.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PrivacyToggleSet {
+    bits: u8,
+}
+
+impl PrivacyToggleSet {
+    const ANONYMOUS: u8 = 0b00_0001;
+    const FORCE_PROXY: u8 = 0b00_0010;
+    const PREFER_RC4: u8 = 0b00_0100;
+    const MULTIPLE_CONNECTIONS_PER_IP: u8 = 0b00_1000;
+    const OUTGOING_UTP: u8 = 0b01_0000;
+    const INCOMING_UTP: u8 = 0b10_0000;
+
+    /// Construct a new toggle set from `[anonymous, force_proxy, prefer_rc4, multiple_per_ip, outgoing_utp, incoming_utp]`.
+    #[must_use]
+    pub const fn from_flags(flags: [bool; 6]) -> Self {
+        let mut bits = 0;
+        if flags[0] {
+            bits |= Self::ANONYMOUS;
+        }
+        if flags[1] {
+            bits |= Self::FORCE_PROXY;
+        }
+        if flags[2] {
+            bits |= Self::PREFER_RC4;
+        }
+        if flags[3] {
+            bits |= Self::MULTIPLE_CONNECTIONS_PER_IP;
+        }
+        if flags[4] {
+            bits |= Self::OUTGOING_UTP;
+        }
+        if flags[5] {
+            bits |= Self::INCOMING_UTP;
+        }
+        Self { bits }
+    }
+
+    /// Whether anonymous mode is enabled.
+    #[must_use]
+    pub const fn anonymous_mode(self) -> bool {
+        self.bits & Self::ANONYMOUS != 0
+    }
+
+    /// Whether peers must use a proxy.
+    #[must_use]
+    pub const fn force_proxy(self) -> bool {
+        self.bits & Self::FORCE_PROXY != 0
+    }
+
+    /// Whether RC4 encryption is preferred.
+    #[must_use]
+    pub const fn prefer_rc4(self) -> bool {
+        self.bits & Self::PREFER_RC4 != 0
+    }
+
+    /// Whether multiple connections per IP are allowed.
+    #[must_use]
+    pub const fn allow_multiple_connections_per_ip(self) -> bool {
+        self.bits & Self::MULTIPLE_CONNECTIONS_PER_IP != 0
+    }
+
+    /// Whether outgoing uTP is enabled.
+    #[must_use]
+    pub const fn enable_outgoing_utp(self) -> bool {
+        self.bits & Self::OUTGOING_UTP != 0
+    }
+
+    /// Whether incoming uTP is enabled.
+    #[must_use]
+    pub const fn enable_incoming_utp(self) -> bool {
+        self.bits & Self::INCOMING_UTP != 0
+    }
+}
+
 fn parse_string_array(value: &Value, field: &str) -> Result<Vec<String>, sqlx::Error> {
     let array = value.as_array().ok_or_else(|| {
         sqlx::Error::Decode(Box::new(std::io::Error::new(
@@ -170,6 +246,8 @@ pub struct EngineProfileRow {
     pub listen_interfaces: Vec<String>,
     /// IPv6 policy flag.
     pub ipv6_mode: String,
+    /// Privacy and transport toggles.
+    pub privacy: PrivacyToggleSet,
 }
 
 impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
@@ -178,6 +256,13 @@ impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
         let enable_upnp: bool = row.try_get("enable_upnp")?;
         let enable_natpmp: bool = row.try_get("enable_natpmp")?;
         let enable_pex: bool = row.try_get("enable_pex")?;
+        let anonymous_mode: bool = row.try_get("anonymous_mode")?;
+        let force_proxy: bool = row.try_get("force_proxy")?;
+        let prefer_rc4: bool = row.try_get("prefer_rc4")?;
+        let allow_multiple_connections_per_ip: bool =
+            row.try_get("allow_multiple_connections_per_ip")?;
+        let enable_outgoing_utp: bool = row.try_get("enable_outgoing_utp")?;
+        let enable_incoming_utp: bool = row.try_get("enable_incoming_utp")?;
 
         Ok(Self {
             id: row.try_get("id")?,
@@ -207,6 +292,14 @@ impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
                 "listen_interfaces",
             )?,
             ipv6_mode: row.try_get("ipv6_mode")?,
+            privacy: PrivacyToggleSet::from_flags([
+                anonymous_mode,
+                force_proxy,
+                prefer_rc4,
+                allow_multiple_connections_per_ip,
+                enable_outgoing_utp,
+                enable_incoming_utp,
+            ]),
         })
     }
 }
@@ -1068,6 +1161,8 @@ pub struct EngineProfileUpdate<'a> {
     pub listen_interfaces: &'a Value,
     /// IPv6 policy flag.
     pub ipv6_mode: &'a str,
+    /// Privacy and transport toggles.
+    pub privacy: PrivacyToggleSet,
 }
 
 /// Update the engine profile in a single stored procedure call.
@@ -1083,7 +1178,7 @@ where
     E: Executor<'e, Database = Postgres>,
 {
     sqlx::query(
-        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _sequential_default => $9, _resume_dir => $10, _download_root => $11, _tracker => $12, _lsd => $13, _upnp => $14, _natpmp => $15, _pex => $16, _dht_bootstrap_nodes => $17, _dht_router_nodes => $18, _ip_filter => $19, _listen_interfaces => $20, _ipv6_mode => $21)",
+        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _sequential_default => $9, _resume_dir => $10, _download_root => $11, _tracker => $12, _lsd => $13, _upnp => $14, _natpmp => $15, _pex => $16, _dht_bootstrap_nodes => $17, _dht_router_nodes => $18, _ip_filter => $19, _listen_interfaces => $20, _ipv6_mode => $21, _anonymous_mode => $22, _force_proxy => $23, _prefer_rc4 => $24, _allow_multiple_connections_per_ip => $25, _enable_outgoing_utp => $26, _enable_incoming_utp => $27)",
     )
     .bind(profile.id)
     .bind(profile.implementation)
@@ -1106,6 +1201,12 @@ where
     .bind(profile.ip_filter)
     .bind(profile.listen_interfaces)
     .bind(profile.ipv6_mode)
+    .bind(profile.privacy.anonymous_mode())
+    .bind(profile.privacy.force_proxy())
+    .bind(profile.privacy.prefer_rc4())
+    .bind(profile.privacy.allow_multiple_connections_per_ip())
+    .bind(profile.privacy.enable_outgoing_utp())
+    .bind(profile.privacy.enable_incoming_utp())
     .execute(executor)
     .await
     .context("failed to update engine_profile via unified procedure")?;

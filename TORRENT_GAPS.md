@@ -74,13 +74,13 @@
     -   [x] Native: set `lt::settings_pack::listen_interfaces` with multiple entries; apply IPv6 prefs; ensure tracker/peer behavior matches policy.
     -   [x] Tests: config validation; native test that multiple interfaces and IPv6 policies apply without error.
 
--   [ ] Privacy/anonymous mode and transport toggles
+-   [x] Privacy/anonymous mode and transport toggles
 
-    -   [ ] Config/DB: add privacy flags to `EngineProfile` (e.g., `anonymous_mode`, `force_proxy`, `prefer_rc4`, `allow_multiple_connections_per_ip`, explicit `utp_enabled` toggles) with validation and conservative defaults.
-    -   [ ] Runtime/bridge: include these flags in `EngineRuntimeConfig`/`EngineOptions`; validate combinations (e.g., anonymous_mode implies force_proxy when proxy is configured).
-    -   [ ] Native: apply via `lt::settings_pack` (`anonymous_mode`, `force_proxy`, `prefer_rc4`, `allow_multiple_connections_per_ip`, `enable_outgoing_utp`, `enable_incoming_utp`) and related privacy knobs.
-    -   [ ] API/docs: expose flags if profile edits are allowed; document trade-offs (reduced telemetry, tracker behaviors).
-    -   [ ] Tests: config validation; native (feature-gated) tests that toggles apply and defaults remain safe.
+    -   [x] Config/DB: add privacy flags to `EngineProfile` (e.g., `anonymous_mode`, `force_proxy`, `prefer_rc4`, `allow_multiple_connections_per_ip`, explicit `utp_enabled` toggles) with validation and conservative defaults.
+    -   [x] Runtime/bridge: include these flags in `EngineRuntimeConfig`/`EngineOptions`; validate combinations (e.g., anonymous_mode implies force_proxy when proxy is configured).
+    -   [x] Native: apply via `lt::settings_pack` (`anonymous_mode`, `force_proxy`, `prefer_rc4`, `allow_multiple_connections_per_ip`, `enable_outgoing_utp`, `enable_incoming_utp`) and related privacy knobs.
+    -   [x] API/docs: expose flags if profile edits are allowed; document trade-offs (reduced telemetry, tracker behaviors).
+    -   [x] Tests: config validation; native (feature-gated) tests that toggles apply and defaults remain safe.
 
 -   [ ] Outgoing port range and DSCP/TOS markings configurable
 

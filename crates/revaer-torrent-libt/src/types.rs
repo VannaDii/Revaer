@@ -49,6 +49,18 @@ pub struct EngineRuntimeConfig {
     pub enable_natpmp: Toggle,
     /// Whether peer exchange (PEX) is enabled.
     pub enable_pex: Toggle,
+    /// Whether anonymous mode is enabled.
+    pub anonymous_mode: Toggle,
+    /// Whether peers must be proxied.
+    pub force_proxy: Toggle,
+    /// Whether RC4 encryption should be preferred.
+    pub prefer_rc4: Toggle,
+    /// Whether multiple connections per IP are allowed.
+    pub allow_multiple_connections_per_ip: Toggle,
+    /// Whether outgoing uTP connections are enabled.
+    pub enable_outgoing_utp: Toggle,
+    /// Whether incoming uTP connections are enabled.
+    pub enable_incoming_utp: Toggle,
     /// Whether torrents default to sequential download order.
     pub sequential_default: bool,
     /// Optional listen port override for the session.

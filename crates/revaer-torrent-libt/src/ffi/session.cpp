@@ -169,6 +169,11 @@ public:
         pack.set_bool(lt::settings_pack::enable_outgoing_utp, false);
         pack.set_bool(lt::settings_pack::enable_incoming_utp, false);
         pack.set_bool(lt::settings_pack::anonymous_mode, false);
+        REVAER_SUPPRESS_DEPRECATED_BEGIN
+        pack.set_bool(lt::settings_pack::force_proxy, false);
+        REVAER_SUPPRESS_DEPRECATED_END
+        pack.set_bool(lt::settings_pack::prefer_rc4, false);
+        pack.set_bool(lt::settings_pack::allow_multiple_connections_per_ip, false);
         pack.set_int(lt::settings_pack::alert_mask,
                      lt::alert_category::status | lt::alert_category::error |
                          lt::alert_category::storage | lt::alert_category::file_progress);
@@ -192,8 +197,17 @@ public:
             pack.set_bool(lt::settings_pack::enable_lsd, options.network.enable_lsd);
             pack.set_bool(lt::settings_pack::enable_upnp, options.network.enable_upnp);
             pack.set_bool(lt::settings_pack::enable_natpmp, options.network.enable_natpmp);
-            pack.set_bool(lt::settings_pack::enable_outgoing_utp, options.network.enable_pex);
-            pack.set_bool(lt::settings_pack::enable_incoming_utp, options.network.enable_pex);
+            pack.set_bool(lt::settings_pack::enable_outgoing_utp,
+                          options.network.enable_outgoing_utp);
+            pack.set_bool(lt::settings_pack::enable_incoming_utp,
+                          options.network.enable_incoming_utp);
+            pack.set_bool(lt::settings_pack::anonymous_mode, options.network.anonymous_mode);
+            REVAER_SUPPRESS_DEPRECATED_BEGIN
+            pack.set_bool(lt::settings_pack::force_proxy, options.network.force_proxy);
+            REVAER_SUPPRESS_DEPRECATED_END
+            pack.set_bool(lt::settings_pack::prefer_rc4, options.network.prefer_rc4);
+            pack.set_bool(lt::settings_pack::allow_multiple_connections_per_ip,
+                          options.network.allow_multiple_connections_per_ip);
 
             if (options.network.has_listen_interfaces &&
                 !options.network.listen_interfaces.empty()) {

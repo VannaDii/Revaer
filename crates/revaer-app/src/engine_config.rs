@@ -48,6 +48,15 @@ impl EngineRuntimePlan {
             enable_upnp: bool::from(effective.network.enable_upnp).into(),
             enable_natpmp: bool::from(effective.network.enable_natpmp).into(),
             enable_pex: bool::from(effective.network.enable_pex).into(),
+            anonymous_mode: bool::from(effective.network.anonymous_mode).into(),
+            force_proxy: bool::from(effective.network.force_proxy).into(),
+            prefer_rc4: bool::from(effective.network.prefer_rc4).into(),
+            allow_multiple_connections_per_ip: bool::from(
+                effective.network.allow_multiple_connections_per_ip,
+            )
+            .into(),
+            enable_outgoing_utp: bool::from(effective.network.enable_outgoing_utp).into(),
+            enable_incoming_utp: bool::from(effective.network.enable_incoming_utp).into(),
             sequential_default: effective.behavior.sequential_default,
             listen_interfaces,
             ipv6_mode: runtime_ipv6_mode,
@@ -188,6 +197,12 @@ mod tests {
             listen_port: Some(70_000),
             listen_interfaces: Vec::new(),
             ipv6_mode: "disabled".into(),
+            anonymous_mode: false.into(),
+            force_proxy: false.into(),
+            prefer_rc4: false.into(),
+            allow_multiple_connections_per_ip: false.into(),
+            enable_outgoing_utp: false.into(),
+            enable_incoming_utp: false.into(),
             dht: true,
             encryption: "unknown".into(),
             max_active: Some(0),
@@ -243,6 +258,12 @@ mod tests {
             listen_port: None,
             listen_interfaces: Vec::new(),
             ipv6_mode: "disabled".into(),
+            anonymous_mode: false.into(),
+            force_proxy: false.into(),
+            prefer_rc4: false.into(),
+            allow_multiple_connections_per_ip: false.into(),
+            enable_outgoing_utp: false.into(),
+            enable_incoming_utp: false.into(),
             dht: false,
             encryption: "require".into(),
             max_active: None,
@@ -295,6 +316,12 @@ mod tests {
             listen_port: None,
             listen_interfaces: Vec::new(),
             ipv6_mode: "disabled".into(),
+            anonymous_mode: false.into(),
+            force_proxy: false.into(),
+            prefer_rc4: false.into(),
+            allow_multiple_connections_per_ip: false.into(),
+            enable_outgoing_utp: false.into(),
+            enable_incoming_utp: false.into(),
             dht: false,
             encryption: "prefer".into(),
             max_active: None,
@@ -335,6 +362,56 @@ mod tests {
     }
 
     #[test]
+    fn anonymous_mode_enforces_proxy_when_available() {
+        let profile = EngineProfile {
+            id: Uuid::new_v4(),
+            implementation: "libtorrent".into(),
+            listen_port: None,
+            listen_interfaces: Vec::new(),
+            ipv6_mode: "disabled".into(),
+            anonymous_mode: true.into(),
+            force_proxy: false.into(),
+            prefer_rc4: false.into(),
+            allow_multiple_connections_per_ip: false.into(),
+            enable_outgoing_utp: false.into(),
+            enable_incoming_utp: false.into(),
+            dht: false,
+            encryption: "prefer".into(),
+            max_active: None,
+            max_download_bps: None,
+            max_upload_bps: None,
+            sequential_default: false,
+            resume_dir: "/var/resume".into(),
+            download_root: "/data".into(),
+            tracker: json!({
+                "proxy": {
+                    "host": "proxy.example",
+                    "port": 8080,
+                    "proxy_peers": true
+                }
+            }),
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
+            ip_filter: json!({}),
+        };
+
+        let plan = EngineRuntimePlan::from_profile(&profile);
+        assert!(bool::from(plan.effective.network.force_proxy));
+        assert!(bool::from(plan.runtime.force_proxy));
+        assert!(
+            plan.effective
+                .warnings
+                .iter()
+                .any(|msg| msg.contains("anonymous_mode")),
+            "warning should note proxy enforcement"
+        );
+    }
+
+    #[test]
     fn prefer_v6_enables_dual_stack_listeners() {
         let profile = EngineProfile {
             id: Uuid::new_v4(),
@@ -342,6 +419,12 @@ mod tests {
             listen_port: Some(6_881),
             listen_interfaces: Vec::new(),
             ipv6_mode: "prefer_v6".into(),
+            anonymous_mode: false.into(),
+            force_proxy: false.into(),
+            prefer_rc4: false.into(),
+            allow_multiple_connections_per_ip: false.into(),
+            enable_outgoing_utp: false.into(),
+            enable_incoming_utp: false.into(),
             dht: false,
             encryption: "prefer".into(),
             max_active: None,

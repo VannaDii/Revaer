@@ -87,6 +87,14 @@ impl EngineOptionsPlan {
                 enable_upnp: bool::from(config.enable_upnp),
                 enable_natpmp: bool::from(config.enable_natpmp),
                 enable_pex: bool::from(config.enable_pex),
+                anonymous_mode: bool::from(config.anonymous_mode),
+                force_proxy: bool::from(config.force_proxy),
+                prefer_rc4: bool::from(config.prefer_rc4),
+                allow_multiple_connections_per_ip: bool::from(
+                    config.allow_multiple_connections_per_ip,
+                ),
+                enable_outgoing_utp: bool::from(config.enable_outgoing_utp),
+                enable_incoming_utp: bool::from(config.enable_incoming_utp),
                 dht_bootstrap_nodes: config.dht_bootstrap_nodes.clone(),
                 dht_router_nodes: config.dht_router_nodes.clone(),
                 encryption_policy: config.encryption.as_u8(),
@@ -214,6 +222,12 @@ mod tests {
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
+            anonymous_mode: false.into(),
+            force_proxy: false.into(),
+            prefer_rc4: false.into(),
+            allow_multiple_connections_per_ip: false.into(),
+            enable_outgoing_utp: false.into(),
+            enable_incoming_utp: false.into(),
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             sequential_default: false,
@@ -257,6 +271,12 @@ mod tests {
             enable_upnp: true.into(),
             enable_natpmp: true.into(),
             enable_pex: true.into(),
+            anonymous_mode: false.into(),
+            force_proxy: false.into(),
+            prefer_rc4: false.into(),
+            allow_multiple_connections_per_ip: false.into(),
+            enable_outgoing_utp: false.into(),
+            enable_incoming_utp: false.into(),
             dht_bootstrap_nodes: vec!["router.bittorrent.com:6881".into()],
             dht_router_nodes: vec!["dht.transmissionbt.com:6881".into()],
             sequential_default: true,
@@ -293,6 +313,46 @@ mod tests {
     }
 
     #[test]
+    fn privacy_toggles_are_forwarded() {
+        let config = EngineRuntimeConfig {
+            download_root: "/data".into(),
+            resume_dir: "/state".into(),
+            listen_interfaces: Vec::new(),
+            ipv6_mode: Ipv6Mode::Disabled,
+            enable_dht: false,
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
+            anonymous_mode: true.into(),
+            force_proxy: true.into(),
+            prefer_rc4: true.into(),
+            allow_multiple_connections_per_ip: true.into(),
+            enable_outgoing_utp: true.into(),
+            enable_incoming_utp: true.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
+            sequential_default: false,
+            listen_port: None,
+            max_active: None,
+            download_rate_limit: None,
+            upload_rate_limit: None,
+            encryption: EncryptionPolicy::Prefer,
+            tracker: TrackerRuntimeConfig::default(),
+            ip_filter: None,
+        };
+
+        let plan = EngineOptionsPlan::from_runtime_config(&config);
+        let network = plan.options.network;
+        assert!(network.anonymous_mode);
+        assert!(network.force_proxy);
+        assert!(network.prefer_rc4);
+        assert!(network.allow_multiple_connections_per_ip);
+        assert!(network.enable_outgoing_utp);
+        assert!(network.enable_incoming_utp);
+    }
+
+    #[test]
     fn listen_interfaces_override_port_binding() {
         let config = EngineRuntimeConfig {
             download_root: "/data".into(),
@@ -304,6 +364,12 @@ mod tests {
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
+            anonymous_mode: false.into(),
+            force_proxy: false.into(),
+            prefer_rc4: false.into(),
+            allow_multiple_connections_per_ip: false.into(),
+            enable_outgoing_utp: false.into(),
+            enable_incoming_utp: false.into(),
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             sequential_default: false,
@@ -335,6 +401,12 @@ mod tests {
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
+            anonymous_mode: false.into(),
+            force_proxy: false.into(),
+            prefer_rc4: false.into(),
+            allow_multiple_connections_per_ip: false.into(),
+            enable_outgoing_utp: false.into(),
+            enable_incoming_utp: false.into(),
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             sequential_default: false,
@@ -405,6 +477,12 @@ mod tests {
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
+            anonymous_mode: false.into(),
+            force_proxy: false.into(),
+            prefer_rc4: false.into(),
+            allow_multiple_connections_per_ip: false.into(),
+            enable_outgoing_utp: false.into(),
+            enable_incoming_utp: false.into(),
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             sequential_default: false,
