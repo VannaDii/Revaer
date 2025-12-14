@@ -10,7 +10,6 @@ preferred-dark-theme = "coal"
 no-section-label = true
 git-repository-url = "https://github.com/VannaDii/revaer"
 additional-js = ["mermaid.min.js", "mermaid-init.js"]
-copy-files = ["llms.txt"]
 
 [output.html.search]
 enable = true
