@@ -8,7 +8,7 @@ use revaer_torrent_core::{
     AddTorrent, AddTorrentOptions, TorrentEngine, TorrentRateLimit, TorrentSource,
 };
 use revaer_torrent_libt::{
-    EncryptionPolicy, EngineRuntimeConfig, LibtorrentEngine, TrackerRuntimeConfig,
+    EncryptionPolicy, EngineRuntimeConfig, Ipv6Mode, LibtorrentEngine, TrackerRuntimeConfig,
 };
 use tempfile::TempDir;
 use tokio::time::timeout;
@@ -35,6 +35,8 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
     let config = EngineRuntimeConfig {
         download_root: download.path().to_string_lossy().into_owned(),
         resume_dir: resume.path().to_string_lossy().into_owned(),
+        listen_interfaces: Vec::new(),
+        ipv6_mode: Ipv6Mode::Disabled,
         enable_dht: true,
         dht_bootstrap_nodes: Vec::new(),
         dht_router_nodes: Vec::new(),

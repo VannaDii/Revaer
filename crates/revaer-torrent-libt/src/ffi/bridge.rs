@@ -21,6 +21,10 @@ pub mod ffi {
         listen_port: i32,
         /// Whether to apply the listen port override.
         set_listen_port: bool,
+        /// Explicit listen interfaces (host/device/IP + port).
+        listen_interfaces: Vec<String>,
+        /// Whether explicit listen interfaces were provided.
+        has_listen_interfaces: bool,
         /// Whether to enable DHT.
         enable_dht: bool,
         /// Whether to enable local service discovery.

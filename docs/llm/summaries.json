@@ -249,7 +249,7 @@
   {
     "id": "api/guides/bootstrap",
     "title": "Bootstrap & Workflow Lifecycle",
-    "summary": "Startup and runtime flow for wiring configuration, orchestration, and observability. Covers the config watcher feeding the orchestrator, default-off NAT/PEX discovery toggles (LSD/UPnP/NAT-PMP/PEX), optional DHT bootstrap/router nodes pushed via engine profile updates, IP filtering with inline CIDRs plus cached/ETagged remote blocklists, and the API/SSE exposure path.",
+    "summary": "Startup and runtime flow for wiring configuration, orchestration, and observability. Covers the config watcher feeding the orchestrator, default-off NAT/PEX discovery toggles (LSD/UPnP/NAT-PMP/PEX), optional DHT bootstrap/router nodes pushed via engine profile updates, listen port vs explicit listen_interfaces with IPv6 preference, IP filtering with inline CIDRs plus cached/ETagged remote blocklists, and the API/SSE exposure path.",
     "tags": [
       "error-handling",
       "operational-signals",

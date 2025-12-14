@@ -195,10 +195,25 @@ public:
             pack.set_bool(lt::settings_pack::enable_outgoing_utp, options.network.enable_pex);
             pack.set_bool(lt::settings_pack::enable_incoming_utp, options.network.enable_pex);
 
-            if (options.network.set_listen_port && options.network.listen_port > 0) {
+            if (options.network.has_listen_interfaces &&
+                !options.network.listen_interfaces.empty()) {
+                std::string combined;
+                for (std::size_t i = 0; i < options.network.listen_interfaces.size(); ++i) {
+                    if (i > 0) {
+                        combined.push_back(',');
+                    }
+                    combined.append(to_std_string(options.network.listen_interfaces[i]));
+                }
+                pack.set_str(lt::settings_pack::listen_interfaces, combined);
+                pack.set_int(lt::settings_pack::max_retry_port_bind, 0);
+            } else if (options.network.set_listen_port && options.network.listen_port > 0) {
                 pack.set_str(lt::settings_pack::listen_interfaces,
                              "0.0.0.0:" + std::to_string(options.network.listen_port));
                 pack.set_int(lt::settings_pack::max_retry_port_bind, 0);
+            } else if (options.tracker.has_listen_interface) {
+                pack.set_int(lt::settings_pack::max_retry_port_bind, 0);
+                pack.set_str(lt::settings_pack::listen_interfaces,
+                             to_std_string(options.tracker.listen_interface));
             }
 
             std::vector<std::string> dht_nodes;

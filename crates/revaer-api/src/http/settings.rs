@@ -158,6 +158,8 @@ mod tests {
             id: Uuid::nil(),
             implementation: "stub".into(),
             listen_port: None,
+            listen_interfaces: Vec::new(),
+            ipv6_mode: "disabled".into(),
             dht: true,
             encryption: "prefer".into(),
             max_active: Some(1),

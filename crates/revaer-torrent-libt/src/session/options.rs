@@ -26,15 +26,22 @@ impl EngineOptionsPlan {
     pub(super) fn from_runtime_config(config: &EngineRuntimeConfig) -> Self {
         let mut warnings = Vec::new();
 
-        let (listen_port, set_listen_port) = match config.listen_port {
-            Some(port) if (1..=65_535).contains(&port) => (port, true),
-            Some(port) => {
-                warnings.push(format!(
-                    "listen_port {port} is out of range; skipping listen override"
-                ));
-                (0, false)
+        let listen_interfaces = config.listen_interfaces.clone();
+        let has_listen_interfaces = !listen_interfaces.is_empty();
+
+        let (listen_port, set_listen_port) = if has_listen_interfaces {
+            (0, false)
+        } else {
+            match config.listen_port {
+                Some(port) if (1..=65_535).contains(&port) => (port, true),
+                Some(port) => {
+                    warnings.push(format!(
+                        "listen_port {port} is out of range; skipping listen override"
+                    ));
+                    (0, false)
+                }
+                None => (0, false),
             }
-            None => (0, false),
         };
 
         let max_active = match config.max_active {
@@ -73,6 +80,8 @@ impl EngineOptionsPlan {
             network: ffi::EngineNetworkOptions {
                 listen_port,
                 set_listen_port,
+                listen_interfaces,
+                has_listen_interfaces,
                 enable_dht: config.enable_dht,
                 enable_lsd: bool::from(config.enable_lsd),
                 enable_upnp: bool::from(config.enable_upnp),
@@ -189,7 +198,8 @@ mod tests {
     use super::*;
     use crate::types::{
         EncryptionPolicy, EngineRuntimeConfig, IpFilterRule as RuntimeIpFilterRule,
-        IpFilterRuntimeConfig, TrackerProxyRuntime, TrackerProxyType, TrackerRuntimeConfig,
+        IpFilterRuntimeConfig, Ipv6Mode, TrackerProxyRuntime, TrackerProxyType,
+        TrackerRuntimeConfig,
     };
 
     #[test]
@@ -197,6 +207,8 @@ mod tests {
         let config = EngineRuntimeConfig {
             download_root: "   ".into(),
             resume_dir: String::new(),
+            listen_interfaces: Vec::new(),
+            ipv6_mode: Ipv6Mode::Disabled,
             enable_dht: true,
             enable_lsd: false.into(),
             enable_upnp: false.into(),
@@ -238,6 +250,8 @@ mod tests {
         let config = EngineRuntimeConfig {
             download_root: "/data".into(),
             resume_dir: "/state".into(),
+            listen_interfaces: Vec::new(),
+            ipv6_mode: Ipv6Mode::Disabled,
             enable_dht: false,
             enable_lsd: true.into(),
             enable_upnp: true.into(),
@@ -279,10 +293,43 @@ mod tests {
     }
 
     #[test]
+    fn listen_interfaces_override_port_binding() {
+        let config = EngineRuntimeConfig {
+            download_root: "/data".into(),
+            resume_dir: "/state".into(),
+            listen_interfaces: vec!["eth0:7000".into(), "[::]:7000".into()],
+            ipv6_mode: Ipv6Mode::Enabled,
+            enable_dht: false,
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
+            sequential_default: false,
+            listen_port: Some(6_881),
+            max_active: None,
+            download_rate_limit: None,
+            upload_rate_limit: None,
+            encryption: EncryptionPolicy::Prefer,
+            tracker: TrackerRuntimeConfig::default(),
+            ip_filter: None,
+        };
+
+        let plan = EngineOptionsPlan::from_runtime_config(&config);
+        assert!(plan.options.network.has_listen_interfaces);
+        assert_eq!(plan.options.network.listen_interfaces.len(), 2);
+        assert!(!plan.options.network.set_listen_port);
+        assert_eq!(plan.options.network.listen_port, 0);
+    }
+
+    #[test]
     fn tracker_options_are_mapped() {
         let config = EngineRuntimeConfig {
             download_root: "/data".into(),
             resume_dir: "/state".into(),
+            listen_interfaces: Vec::new(),
+            ipv6_mode: Ipv6Mode::Disabled,
             enable_dht: false,
             enable_lsd: false.into(),
             enable_upnp: false.into(),
@@ -351,6 +398,8 @@ mod tests {
         let config = EngineRuntimeConfig {
             download_root: "/data".into(),
             resume_dir: "/state".into(),
+            listen_interfaces: Vec::new(),
+            ipv6_mode: Ipv6Mode::Disabled,
             enable_dht: false,
             enable_lsd: false.into(),
             enable_upnp: false.into(),

@@ -67,12 +67,12 @@
     -   [x] API/docs: expose filter settings if editable; document precedence with per-peer bans and security implications.
     -   [x] Tests: config validation; native (feature-gated) test that blocked CIDRs prevent peers; unit test filter parsing and application; if remote fetch is supported, add mocked fetch test.
 
--   [ ] Multi-interface / IPv6 clarity
+-   [x] Multi-interface / IPv6 clarity
 
-    -   [ ] Config/DB: support multiple listen interfaces (`listen_interfaces: Vec<String>`) and IPv6 policy flags (enable/disable/prefer_v6).
-    -   [ ] Runtime/bridge: carry multi-interface and IPv6 prefs through `EngineRuntimeConfig`/`EngineOptions`.
-    -   [ ] Native: set `lt::settings_pack::listen_interfaces` with multiple entries; apply IPv6 prefs; ensure tracker/peer behavior matches policy.
-    -   [ ] Tests: config validation; native test that multiple interfaces and IPv6 policies apply without error.
+    -   [x] Config/DB: support multiple listen interfaces (`listen_interfaces: Vec<String>`) and IPv6 policy flags (enable/disable/prefer_v6).
+    -   [x] Runtime/bridge: carry multi-interface and IPv6 prefs through `EngineRuntimeConfig`/`EngineOptions`.
+    -   [x] Native: set `lt::settings_pack::listen_interfaces` with multiple entries; apply IPv6 prefs; ensure tracker/peer behavior matches policy.
+    -   [x] Tests: config validation; native test that multiple interfaces and IPv6 policies apply without error.
 
 -   [ ] Privacy/anonymous mode and transport toggles
 

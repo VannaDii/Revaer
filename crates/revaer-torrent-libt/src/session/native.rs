@@ -57,7 +57,7 @@ fn initialize_session(options: &ffi::SessionOptions) -> Result<UniquePtr<ffi::Se
 #[cfg(all(test, feature = "libtorrent"))]
 pub(super) mod test_support {
     use super::{NativeSession, create_native_session_for_tests};
-    use crate::types::{EncryptionPolicy, EngineRuntimeConfig, TrackerRuntimeConfig};
+    use crate::types::{EncryptionPolicy, EngineRuntimeConfig, Ipv6Mode, TrackerRuntimeConfig};
     use anyhow::Result;
     use tempfile::TempDir;
 
@@ -84,6 +84,8 @@ pub(super) mod test_support {
             EngineRuntimeConfig {
                 download_root: self.download.path().to_string_lossy().into_owned(),
                 resume_dir: self.resume.path().to_string_lossy().into_owned(),
+                listen_interfaces: Vec::new(),
+                ipv6_mode: Ipv6Mode::Disabled,
                 enable_dht: false,
                 dht_bootstrap_nodes: Vec::new(),
                 dht_router_nodes: Vec::new(),
@@ -259,7 +261,7 @@ mod tests {
     use super::test_support::NativeSessionHarness;
     use super::*;
     use crate::ffi::ffi::{NativeEvent, NativeEventKind, NativeTorrentState};
-    use crate::types::{IpFilterRule, IpFilterRuntimeConfig};
+    use crate::types::{IpFilterRule, IpFilterRuntimeConfig, Ipv6Mode};
     use revaer_torrent_core::{AddTorrent, AddTorrentOptions, EngineEvent, TorrentSource};
     use uuid::Uuid;
 
@@ -333,6 +335,18 @@ mod tests {
             )
             .await?;
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn native_session_accepts_explicit_listen_interfaces() -> Result<()> {
+        let mut harness = NativeSessionHarness::new()?;
+        let mut config = harness.runtime_config();
+        config.listen_interfaces = vec!["0.0.0.0:7000".into(), "[::]:7000".into()];
+        config.ipv6_mode = Ipv6Mode::Enabled;
+        config.listen_port = Some(7_000);
+
+        harness.session.apply_config(&config).await?;
         Ok(())
     }
 

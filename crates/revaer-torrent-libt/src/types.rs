@@ -31,6 +31,10 @@ pub struct EngineRuntimeConfig {
     pub download_root: String,
     /// Directory where fast-resume payloads are stored.
     pub resume_dir: String,
+    /// Explicit listen interfaces (host/device/IP + port).
+    pub listen_interfaces: Vec<String>,
+    /// IPv6 preference for listening and outbound behaviour.
+    pub ipv6_mode: Ipv6Mode,
     /// Whether the distributed hash table is enabled for peer discovery.
     pub enable_dht: bool,
     /// DHT bootstrap nodes (host:port).
@@ -61,6 +65,30 @@ pub struct EngineRuntimeConfig {
     pub tracker: TrackerRuntimeConfig,
     /// IP filter and optional remote blocklist configuration.
     pub ip_filter: Option<IpFilterRuntimeConfig>,
+}
+
+/// IPv6 preference policy applied at runtime.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Ipv6Mode {
+    /// Disable IPv6 listeners and prefer IPv4.
+    #[default]
+    Disabled,
+    /// Enable IPv6 alongside IPv4.
+    Enabled,
+    /// Prefer IPv6 addresses while keeping IPv4 listeners.
+    PreferV6,
+}
+
+impl Ipv6Mode {
+    #[must_use]
+    /// Convert the policy to a compact numeric representation.
+    pub const fn as_u8(self) -> u8 {
+        match self {
+            Self::Disabled => 0,
+            Self::Enabled => 1,
+            Self::PreferV6 => 2,
+        }
+    }
 }
 
 /// Supported encryption policies exposed to the orchestration layer.

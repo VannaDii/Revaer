@@ -6,14 +6,15 @@
 //! - Keeps encryption mapping centralised to avoid drift between API/config/runtime layers.
 
 use revaer_config::{
-    EngineEncryptionPolicy, EngineProfile, EngineProfileEffective, IpFilterConfig, IpFilterRule,
-    TrackerConfig, TrackerProxyConfig, TrackerProxyType, normalize_engine_profile,
+    EngineEncryptionPolicy, EngineIpv6Mode, EngineNetworkConfig, EngineProfile,
+    EngineProfileEffective, IpFilterConfig, IpFilterRule, TrackerConfig, TrackerProxyConfig,
+    TrackerProxyType, normalize_engine_profile,
 };
 use revaer_torrent_core::TorrentRateLimit;
 use revaer_torrent_libt::{
     EncryptionPolicy, EngineRuntimeConfig, IpFilterRule as RuntimeIpFilterRule,
-    IpFilterRuntimeConfig, TrackerProxyRuntime, TrackerProxyType as RuntimeProxyType,
-    TrackerRuntimeConfig,
+    IpFilterRuntimeConfig, Ipv6Mode as RuntimeIpv6Mode, TrackerProxyRuntime,
+    TrackerProxyType as RuntimeProxyType, TrackerRuntimeConfig,
 };
 
 /// Runtime plan derived from the persisted engine profile, including effective values and
@@ -34,6 +35,8 @@ impl EngineRuntimePlan {
         let tracker = map_tracker_config(
             serde_json::from_value::<TrackerConfig>(effective.tracker.clone()).unwrap_or_default(),
         );
+        let runtime_ipv6_mode = map_ipv6_mode(effective.network.ipv6_mode);
+        let (listen_interfaces, listen_port) = derive_listen_config(&effective.network);
         let ip_filter = map_ip_filter_config(&effective.network.ip_filter);
         let runtime = EngineRuntimeConfig {
             download_root: effective.storage.download_root.clone(),
@@ -46,7 +49,9 @@ impl EngineRuntimePlan {
             enable_natpmp: bool::from(effective.network.enable_natpmp).into(),
             enable_pex: bool::from(effective.network.enable_pex).into(),
             sequential_default: effective.behavior.sequential_default,
-            listen_port: effective.network.listen_port,
+            listen_interfaces,
+            ipv6_mode: runtime_ipv6_mode,
+            listen_port,
             max_active: effective.limits.max_active,
             download_rate_limit: effective.limits.download_rate_limit,
             upload_rate_limit: effective.limits.upload_rate_limit,
@@ -115,6 +120,34 @@ const fn map_proxy_kind(kind: TrackerProxyType) -> RuntimeProxyType {
     }
 }
 
+const fn map_ipv6_mode(mode: EngineIpv6Mode) -> RuntimeIpv6Mode {
+    match mode {
+        EngineIpv6Mode::Disabled => RuntimeIpv6Mode::Disabled,
+        EngineIpv6Mode::Enabled => RuntimeIpv6Mode::Enabled,
+        EngineIpv6Mode::PreferV6 => RuntimeIpv6Mode::PreferV6,
+    }
+}
+
+fn derive_listen_config(network: &EngineNetworkConfig) -> (Vec<String>, Option<i32>) {
+    if !network.listen_interfaces.is_empty() {
+        return (network.listen_interfaces.clone(), None);
+    }
+    network.listen_port.map_or_else(
+        || (Vec::new(), None),
+        |port| match network.ipv6_mode {
+            EngineIpv6Mode::Disabled => (Vec::new(), Some(port)),
+            EngineIpv6Mode::Enabled => (
+                vec![format!("0.0.0.0:{port}"), format!("[::]:{port}")],
+                None,
+            ),
+            EngineIpv6Mode::PreferV6 => (
+                vec![format!("[::]:{port}"), format!("0.0.0.0:{port}")],
+                None,
+            ),
+        },
+    )
+}
+
 fn map_ip_filter_config(config: &IpFilterConfig) -> Option<IpFilterRuntimeConfig> {
     if config.cidrs.is_empty() && config.blocklist_url.is_none() {
         return None;
@@ -153,6 +186,8 @@ mod tests {
             id: Uuid::new_v4(),
             implementation: "libtorrent".into(),
             listen_port: Some(70_000),
+            listen_interfaces: Vec::new(),
+            ipv6_mode: "disabled".into(),
             dht: true,
             encryption: "unknown".into(),
             max_active: Some(0),
@@ -206,6 +241,8 @@ mod tests {
             id: Uuid::new_v4(),
             implementation: "libtorrent".into(),
             listen_port: None,
+            listen_interfaces: Vec::new(),
+            ipv6_mode: "disabled".into(),
             dht: false,
             encryption: "require".into(),
             max_active: None,
@@ -256,6 +293,8 @@ mod tests {
             id: Uuid::new_v4(),
             implementation: "libtorrent".into(),
             listen_port: None,
+            listen_interfaces: Vec::new(),
+            ipv6_mode: "disabled".into(),
             dht: false,
             encryption: "prefer".into(),
             max_active: None,
@@ -293,5 +332,43 @@ mod tests {
             filter.last_updated_at.as_deref(),
             Some("2024-01-01T00:00:00+00:00")
         );
+    }
+
+    #[test]
+    fn prefer_v6_enables_dual_stack_listeners() {
+        let profile = EngineProfile {
+            id: Uuid::new_v4(),
+            implementation: "libtorrent".into(),
+            listen_port: Some(6_881),
+            listen_interfaces: Vec::new(),
+            ipv6_mode: "prefer_v6".into(),
+            dht: false,
+            encryption: "prefer".into(),
+            max_active: None,
+            max_download_bps: None,
+            max_upload_bps: None,
+            sequential_default: false,
+            resume_dir: "/var/resume".into(),
+            download_root: "/data".into(),
+            tracker: json!({}),
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
+            ip_filter: json!({}),
+        };
+
+        let plan = EngineRuntimePlan::from_profile(&profile);
+        assert!(
+            plan.runtime.listen_port.is_none(),
+            "port is encoded into interfaces"
+        );
+        assert_eq!(
+            plan.runtime.listen_interfaces,
+            vec!["[::]:6881".to_string(), "0.0.0.0:6881".to_string()]
+        );
+        assert_eq!(plan.runtime.ipv6_mode, RuntimeIpv6Mode::PreferV6);
     }
 }

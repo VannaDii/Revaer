@@ -47,6 +47,11 @@ pub struct EngineProfileEffective {
 pub struct EngineNetworkConfig {
     /// Optional listen port override (None when clamped/disabled).
     pub listen_port: Option<i32>,
+    /// Explicit listen interfaces (host/device/IP + port).
+    #[serde(default)]
+    pub listen_interfaces: Vec<String>,
+    /// IPv6 preference for listening and outbound behaviour.
+    pub ipv6_mode: EngineIpv6Mode,
     /// Whether DHT is enabled for peer discovery.
     pub enable_dht: bool,
     /// DHT bootstrap nodes (host:port entries).
@@ -65,6 +70,18 @@ pub struct EngineNetworkConfig {
     pub enable_pex: Toggle,
     /// IP filter and blocklist configuration.
     pub ip_filter: IpFilterConfig,
+}
+
+/// IPv6 preference policy applied to engine networking.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub enum EngineIpv6Mode {
+    /// Disable IPv6 listeners and prefer IPv4.
+    #[default]
+    Disabled,
+    /// Enable IPv6 alongside IPv4.
+    Enabled,
+    /// Prefer IPv6 addresses while keeping IPv4 listeners.
+    PreferV6,
 }
 
 /// Canonical IP filter configuration (inline + optional blocklist URL/metadata).
@@ -288,6 +305,8 @@ pub(crate) fn validate_engine_profile_patch(
         id: working.id,
         implementation: working.implementation,
         listen_port: effective.network.listen_port,
+        listen_interfaces: effective.network.listen_interfaces.clone(),
+        ipv6_mode: ipv6_mode_label(effective.network.ipv6_mode).to_string(),
         dht: effective.network.enable_dht,
         encryption: effective.network.encryption.as_str().to_string(),
         max_active: effective.limits.max_active,
@@ -334,6 +353,12 @@ fn normalize_engine_profile_with_warnings(
         }
         None => None,
     };
+    let listen_interfaces = sanitize_listen_interfaces(
+        &profile.listen_interfaces,
+        "listen_interfaces",
+        &mut warnings,
+    );
+    let ipv6_mode = canonicalize_ipv6_mode(&profile.ipv6_mode, &mut warnings);
 
     let max_active = match profile.max_active {
         Some(value) if value > 0 => Some(value),
@@ -377,6 +402,8 @@ fn normalize_engine_profile_with_warnings(
         implementation: profile.implementation.clone(),
         network: EngineNetworkConfig {
             listen_port,
+            listen_interfaces,
+            ipv6_mode,
             enable_dht: profile.dht,
             dht_bootstrap_nodes,
             dht_router_nodes,
@@ -418,6 +445,14 @@ fn apply_field(
         "listen_port" => Ok(assign_if_changed(
             &mut working.listen_port,
             parse_optional_port(value)?,
+        )),
+        "listen_interfaces" => Ok(assign_if_changed(
+            &mut working.listen_interfaces,
+            parse_listen_interfaces(value)?,
+        )),
+        "ipv6_mode" => Ok(assign_if_changed(
+            &mut working.ipv6_mode,
+            parse_ipv6_mode(value)?,
         )),
         "dht" => Ok(assign_if_changed(
             &mut working.dht,
@@ -621,6 +656,148 @@ fn parse_endpoint_array(value: &Value, field: &str) -> Result<Vec<String>, Confi
     Ok(endpoints)
 }
 
+fn parse_listen_interfaces(value: &Value) -> Result<Vec<String>, ConfigError> {
+    let Some(array) = value.as_array() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "listen_interfaces".to_string(),
+            message: "must be an array of host:port entries".to_string(),
+        });
+    };
+
+    let mut seen = HashSet::new();
+    let mut interfaces = Vec::new();
+    for entry in array {
+        let Some(text) = entry.as_str() else {
+            return Err(ConfigError::InvalidField {
+                section: "engine_profile".to_string(),
+                field: "listen_interfaces".to_string(),
+                message: "entries must be strings".to_string(),
+            });
+        };
+        let normalized = canonicalize_listen_interface(text, "listen_interfaces")?;
+        let key = normalized.to_ascii_lowercase();
+        if seen.insert(key) {
+            interfaces.push(normalized);
+        }
+    }
+    Ok(interfaces)
+}
+
+fn canonicalize_listen_interface(entry: &str, field: &str) -> Result<String, ConfigError> {
+    let trimmed = entry.trim();
+    if trimmed.is_empty() {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "entries cannot be empty".to_string(),
+        });
+    }
+    if trimmed.contains(char::is_whitespace) {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "entries cannot contain whitespace".to_string(),
+        });
+    }
+
+    if let Some(stripped) = trimmed.strip_prefix('[') {
+        let Some(closing) = stripped.find(']') else {
+            return Err(ConfigError::InvalidField {
+                section: "engine_profile".to_string(),
+                field: field.to_string(),
+                message: "IPv6 entries must be bracketed like [::1]:6881".to_string(),
+            });
+        };
+        let host = stripped[..closing].trim();
+        let remainder = stripped.get(closing + 1..).unwrap_or("").trim();
+        if host.is_empty() || !remainder.starts_with(':') {
+            return Err(ConfigError::InvalidField {
+                section: "engine_profile".to_string(),
+                field: field.to_string(),
+                message: "IPv6 entries must be formatted as [addr]:port".to_string(),
+            });
+        }
+        let port_text = remainder.trim_start_matches(':').trim();
+        let port = port_text
+            .parse::<i64>()
+            .map_err(|_| ConfigError::InvalidField {
+                section: "engine_profile".to_string(),
+                field: field.to_string(),
+                message: "port must be an integer between 1 and 65535".to_string(),
+            })?;
+        let _ = parse_port(&json!(port), "engine_profile", field)?;
+        return Ok(format!("[{host}]:{port}"));
+    }
+
+    let Some((host, port_text)) = trimmed.rsplit_once(':') else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "entries must be host:port or [ipv6]:port".to_string(),
+        });
+    };
+    let host = host.trim();
+    if host.is_empty() {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "host component cannot be empty".to_string(),
+        });
+    }
+    let port = port_text
+        .parse::<i64>()
+        .map_err(|_| ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "port must be an integer between 1 and 65535".to_string(),
+        })?;
+    let _ = parse_port(&json!(port), "engine_profile", field)?;
+    Ok(format!("{host}:{port}"))
+}
+
+fn parse_ipv6_mode(value: &Value) -> Result<String, ConfigError> {
+    let Some(text) = value.as_str() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "ipv6_mode".to_string(),
+            message: "must be a string".to_string(),
+        });
+    };
+    let normalized = text.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "" | "disabled" | "disable" | "off" => Ok("disabled".to_string()),
+        "enabled" | "enable" | "on" | "v6" | "ipv6" => Ok("enabled".to_string()),
+        "prefer_v6" | "prefer-v6" | "prefer6" | "prefer" => Ok("prefer_v6".to_string()),
+        other => Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "ipv6_mode".to_string(),
+            message: format!("must be one of disabled, enabled, or prefer_v6 (got {other})"),
+        }),
+    }
+}
+
+fn canonicalize_ipv6_mode(value: &str, warnings: &mut Vec<String>) -> EngineIpv6Mode {
+    match value.trim().to_ascii_lowercase().as_str() {
+        "" | "disabled" | "disable" | "off" => EngineIpv6Mode::Disabled,
+        "enabled" | "enable" | "on" | "v6" | "ipv6" => EngineIpv6Mode::Enabled,
+        "prefer_v6" | "prefer-v6" | "prefer6" | "prefer" => EngineIpv6Mode::PreferV6,
+        other => {
+            warnings.push(format!(
+                "ipv6_mode '{other}' is invalid; defaulting to disabled"
+            ));
+            EngineIpv6Mode::Disabled
+        }
+    }
+}
+
+const fn ipv6_mode_label(mode: EngineIpv6Mode) -> &'static str {
+    match mode {
+        EngineIpv6Mode::Disabled => "disabled",
+        EngineIpv6Mode::Enabled => "enabled",
+        EngineIpv6Mode::PreferV6 => "prefer_v6",
+    }
+}
 fn sanitize_endpoints(values: &[String], field: &str, warnings: &mut Vec<String>) -> Vec<String> {
     let mut seen = HashSet::new();
     let mut endpoints = Vec::new();
@@ -638,6 +815,29 @@ fn sanitize_endpoints(values: &[String], field: &str, warnings: &mut Vec<String>
     }
 
     endpoints
+}
+
+fn sanitize_listen_interfaces(
+    values: &[String],
+    field: &str,
+    warnings: &mut Vec<String>,
+) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut interfaces = Vec::new();
+
+    for value in values {
+        match canonicalize_listen_interface(value, field) {
+            Ok(normalized) => {
+                let key = normalized.to_ascii_lowercase();
+                if seen.insert(key) {
+                    interfaces.push(normalized);
+                }
+            }
+            Err(err) => warnings.push(err.to_string()),
+        }
+    }
+
+    interfaces
 }
 
 fn sanitize_ip_filter(value: &Value, warnings: &mut Vec<String>) -> IpFilterConfig {
@@ -1312,6 +1512,8 @@ mod tests {
             id: Uuid::new_v4(),
             implementation: "libtorrent".into(),
             listen_port: Some(6_881),
+            listen_interfaces: Vec::new(),
+            ipv6_mode: "disabled".into(),
             dht: true,
             encryption: "prefer".into(),
             max_active: Some(4),
@@ -1329,6 +1531,46 @@ mod tests {
             dht_router_nodes: Vec::new(),
             ip_filter: json!({}),
         }
+    }
+
+    #[test]
+    fn listen_interfaces_are_canonicalized_and_deduped() {
+        let profile = sample_profile();
+        let patch = json!({
+            "listen_interfaces": ["0.0.0.0:7000", " [::]:7000 ", "0.0.0.0:7000"]
+        });
+        let mutation =
+            validate_engine_profile_patch(&profile, &patch, &HashSet::new()).expect("valid patch");
+        assert_eq!(
+            mutation.stored.listen_interfaces,
+            vec!["0.0.0.0:7000".to_string(), "[::]:7000".to_string()]
+        );
+        assert!(mutation.effective.warnings.is_empty());
+
+        let invalid = json!({ "listen_interfaces": ["invalid-entry"] });
+        assert!(matches!(
+            validate_engine_profile_patch(&profile, &invalid, &HashSet::new()),
+            Err(ConfigError::InvalidField { field, .. }) if field == "listen_interfaces"
+        ));
+    }
+
+    #[test]
+    fn ipv6_mode_is_parsed() {
+        let profile = sample_profile();
+        let patch = json!({ "ipv6_mode": "prefer_v6" });
+        let mutation =
+            validate_engine_profile_patch(&profile, &patch, &HashSet::new()).expect("valid patch");
+        assert_eq!(mutation.stored.ipv6_mode, "prefer_v6");
+        assert_eq!(
+            mutation.effective.network.ipv6_mode,
+            EngineIpv6Mode::PreferV6
+        );
+
+        let invalid = json!({ "ipv6_mode": "bogus" });
+        assert!(matches!(
+            validate_engine_profile_patch(&profile, &invalid, &HashSet::new()),
+            Err(ConfigError::InvalidField { field, .. }) if field == "ipv6_mode"
+        ));
     }
 
     #[test]

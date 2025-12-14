@@ -116,7 +116,7 @@ impl TorrentEngine for LibtorrentEngine {
 mod tests {
     use super::*;
     use crate::store::FastResumeStore;
-    use crate::types::{EncryptionPolicy, EngineRuntimeConfig, TrackerRuntimeConfig};
+    use crate::types::{EncryptionPolicy, EngineRuntimeConfig, Ipv6Mode, TrackerRuntimeConfig};
     use revaer_torrent_core::{AddTorrentOptions, TorrentSource};
 
     #[tokio::test]
@@ -127,6 +127,8 @@ mod tests {
         let runtime = EngineRuntimeConfig {
             download_root: "/tmp/revaer-downloads".into(),
             resume_dir: "/tmp/revaer-resume".into(),
+            listen_interfaces: Vec::new(),
+            ipv6_mode: Ipv6Mode::Disabled,
             enable_dht: true,
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
@@ -192,6 +194,8 @@ mod tests {
             .apply_runtime_config(EngineRuntimeConfig {
                 download_root: "/tmp/revaer-downloads".into(),
                 resume_dir: resume_dir.display().to_string(),
+                listen_interfaces: Vec::new(),
+                ipv6_mode: Ipv6Mode::Disabled,
                 enable_dht: false,
                 dht_bootstrap_nodes: Vec::new(),
                 dht_router_nodes: Vec::new(),

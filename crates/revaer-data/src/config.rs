@@ -166,6 +166,10 @@ pub struct EngineProfileRow {
     pub dht_router_nodes: Vec<String>,
     /// IP filter configuration payload.
     pub ip_filter: Value,
+    /// Listen interface overrides.
+    pub listen_interfaces: Vec<String>,
+    /// IPv6 policy flag.
+    pub ipv6_mode: String,
 }
 
 impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
@@ -198,6 +202,11 @@ impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
                 "dht_router_nodes",
             )?,
             ip_filter: row.try_get("ip_filter")?,
+            listen_interfaces: parse_string_array(
+                &row.try_get("listen_interfaces")?,
+                "listen_interfaces",
+            )?,
+            ipv6_mode: row.try_get("ipv6_mode")?,
         })
     }
 }
@@ -1055,6 +1064,10 @@ pub struct EngineProfileUpdate<'a> {
     pub dht_router_nodes: &'a Value,
     /// IP filter configuration payload.
     pub ip_filter: &'a Value,
+    /// Listen interface overrides.
+    pub listen_interfaces: &'a Value,
+    /// IPv6 policy flag.
+    pub ipv6_mode: &'a str,
 }
 
 /// Update the engine profile in a single stored procedure call.
@@ -1070,7 +1083,7 @@ where
     E: Executor<'e, Database = Postgres>,
 {
     sqlx::query(
-        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _sequential_default => $9, _resume_dir => $10, _download_root => $11, _tracker => $12, _lsd => $13, _upnp => $14, _natpmp => $15, _pex => $16, _dht_bootstrap_nodes => $17, _dht_router_nodes => $18, _ip_filter => $19)",
+        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _sequential_default => $9, _resume_dir => $10, _download_root => $11, _tracker => $12, _lsd => $13, _upnp => $14, _natpmp => $15, _pex => $16, _dht_bootstrap_nodes => $17, _dht_router_nodes => $18, _ip_filter => $19, _listen_interfaces => $20, _ipv6_mode => $21)",
     )
     .bind(profile.id)
     .bind(profile.implementation)
@@ -1091,6 +1104,8 @@ where
     .bind(profile.dht_bootstrap_nodes)
     .bind(profile.dht_router_nodes)
     .bind(profile.ip_filter)
+    .bind(profile.listen_interfaces)
+    .bind(profile.ipv6_mode)
     .execute(executor)
     .await
     .context("failed to update engine_profile via unified procedure")?;

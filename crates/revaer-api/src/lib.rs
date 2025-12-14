@@ -267,6 +267,8 @@ mod tests {
                 id: Uuid::new_v4(),
                 implementation: "stub".to_string(),
                 listen_port: Some(6881),
+                listen_interfaces: Vec::new(),
+                ipv6_mode: "disabled".to_string(),
                 dht: true,
                 encryption: "preferred".to_string(),
                 max_active: Some(10),

@@ -105,6 +105,12 @@ pub struct EngineProfile {
     pub implementation: String,
     /// Optional TCP port the engine should listen on.
     pub listen_port: Option<i32>,
+    /// Explicit listen interfaces (host/device/IP + port).
+    #[serde(default)]
+    pub listen_interfaces: Vec<String>,
+    /// IPv6 preference policy.
+    #[serde(default = "EngineProfile::default_ipv6_mode")]
+    pub ipv6_mode: String,
     /// Whether the engine enables the DHT subsystem.
     pub dht: bool,
     /// Encryption policy string forwarded to the engine.
@@ -137,6 +143,14 @@ pub struct EngineProfile {
     pub dht_router_nodes: Vec<String>,
     /// IP filter and blocklist configuration payload.
     pub ip_filter: Value,
+}
+
+impl EngineProfile {
+    /// Canonical default IPv6 policy when not specified.
+    #[must_use]
+    pub fn default_ipv6_mode() -> String {
+        "disabled".to_string()
+    }
 }
 
 /// Filesystem policy configuration.
