@@ -8,7 +8,7 @@
 use crate::ffi::ffi;
 use crate::types::{
     EngineRuntimeConfig, IpFilterRule as RuntimeIpFilterRule, IpFilterRuntimeConfig,
-    TrackerProxyRuntime, TrackerProxyType, TrackerRuntimeConfig,
+    OutgoingPortRange, TrackerProxyRuntime, TrackerProxyType, TrackerRuntimeConfig,
 };
 
 /// Planned native engine options plus guard-rail warnings.
@@ -75,6 +75,9 @@ impl EngineOptionsPlan {
         }
 
         let (ip_filter_rules, has_ip_filter) = map_ip_filter(config.ip_filter.as_ref());
+        let (outgoing_port_min, outgoing_port_max, has_outgoing_port_range) =
+            map_outgoing_ports(config.outgoing_ports);
+        let (peer_dscp, has_peer_dscp) = map_peer_dscp(config.peer_dscp);
 
         let options = ffi::EngineOptions {
             network: ffi::EngineNetworkOptions {
@@ -87,6 +90,11 @@ impl EngineOptionsPlan {
                 enable_upnp: bool::from(config.enable_upnp),
                 enable_natpmp: bool::from(config.enable_natpmp),
                 enable_pex: bool::from(config.enable_pex),
+                outgoing_port_min,
+                outgoing_port_max,
+                has_outgoing_port_range,
+                peer_dscp,
+                has_peer_dscp,
                 anonymous_mode: bool::from(config.anonymous_mode),
                 force_proxy: bool::from(config.force_proxy),
                 prefer_rc4: bool::from(config.prefer_rc4),
@@ -188,6 +196,17 @@ fn map_ip_filter_rule(rule: &RuntimeIpFilterRule) -> ffi::IpFilterRule {
     }
 }
 
+fn map_outgoing_ports(range: Option<OutgoingPortRange>) -> (i32, i32, bool) {
+    range.map_or((0, 0, false), |ports| {
+        (i32::from(ports.start), i32::from(ports.end), true)
+    })
+}
+
+fn map_peer_dscp(value: Option<u8>) -> (i32, bool) {
+    // DSCP occupies the upper 6 bits of the TOS byte; libtorrent expects the full byte value.
+    value.map_or((0, false), |mark| (i32::from(mark) << 2, true))
+}
+
 fn clamp_rate_limit(field: &str, value: Option<i64>, warnings: &mut Vec<String>) -> i64 {
     match value {
         Some(limit) if limit > 0 => limit,
@@ -222,6 +241,8 @@ mod tests {
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
+            outgoing_ports: None,
+            peer_dscp: None,
             anonymous_mode: false.into(),
             force_proxy: false.into(),
             prefer_rc4: false.into(),
@@ -271,6 +292,11 @@ mod tests {
             enable_upnp: true.into(),
             enable_natpmp: true.into(),
             enable_pex: true.into(),
+            outgoing_ports: Some(OutgoingPortRange {
+                start: 6_000,
+                end: 6_100,
+            }),
+            peer_dscp: Some(8),
             anonymous_mode: false.into(),
             force_proxy: false.into(),
             prefer_rc4: false.into(),
@@ -302,6 +328,11 @@ mod tests {
         assert!(plan.options.network.enable_upnp);
         assert!(plan.options.network.enable_natpmp);
         assert!(plan.options.network.enable_pex);
+        assert!(plan.options.network.has_outgoing_port_range);
+        assert_eq!(plan.options.network.outgoing_port_min, 6_000);
+        assert_eq!(plan.options.network.outgoing_port_max, 6_100);
+        assert!(plan.options.network.has_peer_dscp);
+        assert_eq!(plan.options.network.peer_dscp, 32);
         assert_eq!(
             plan.options.network.dht_bootstrap_nodes,
             vec!["router.bittorrent.com:6881".to_string()]
@@ -324,6 +355,8 @@ mod tests {
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
+            outgoing_ports: None,
+            peer_dscp: None,
             anonymous_mode: true.into(),
             force_proxy: true.into(),
             prefer_rc4: true.into(),
@@ -364,6 +397,8 @@ mod tests {
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
+            outgoing_ports: None,
+            peer_dscp: None,
             anonymous_mode: false.into(),
             force_proxy: false.into(),
             prefer_rc4: false.into(),
@@ -401,6 +436,8 @@ mod tests {
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
+            outgoing_ports: None,
+            peer_dscp: None,
             anonymous_mode: false.into(),
             force_proxy: false.into(),
             prefer_rc4: false.into(),
@@ -477,6 +514,8 @@ mod tests {
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
+            outgoing_ports: None,
+            peer_dscp: None,
             anonymous_mode: false.into(),
             force_proxy: false.into(),
             prefer_rc4: false.into(),

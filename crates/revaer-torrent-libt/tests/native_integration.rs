@@ -44,6 +44,8 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
         enable_upnp: false.into(),
         enable_natpmp: false.into(),
         enable_pex: false.into(),
+        outgoing_ports: None,
+        peer_dscp: None,
         anonymous_mode: false.into(),
         force_proxy: false.into(),
         prefer_rc4: false.into(),

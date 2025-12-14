@@ -795,6 +795,9 @@ fn map_engine_profile_row(row: EngineProfileRow) -> EngineProfile {
         allow_multiple_connections_per_ip: row.privacy.allow_multiple_connections_per_ip().into(),
         enable_outgoing_utp: row.privacy.enable_outgoing_utp().into(),
         enable_incoming_utp: row.privacy.enable_incoming_utp().into(),
+        outgoing_port_min: row.outgoing_port_min,
+        outgoing_port_max: row.outgoing_port_max,
+        peer_dscp: row.peer_dscp,
     }
 }
 
@@ -1016,6 +1019,9 @@ async fn persist_engine_profile(
                 bool::from(profile.enable_outgoing_utp),
                 bool::from(profile.enable_incoming_utp),
             ]),
+            outgoing_port_min: profile.outgoing_port_min,
+            outgoing_port_max: profile.outgoing_port_max,
+            peer_dscp: profile.peer_dscp,
         },
     )
     .await?;

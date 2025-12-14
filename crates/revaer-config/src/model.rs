@@ -129,6 +129,15 @@ pub struct EngineProfile {
     /// Whether incoming uTP is enabled.
     #[serde(default)]
     pub enable_incoming_utp: Toggle,
+    /// Optional starting port for outgoing connections.
+    #[serde(default)]
+    pub outgoing_port_min: Option<i32>,
+    /// Optional ending port for outgoing connections.
+    #[serde(default)]
+    pub outgoing_port_max: Option<i32>,
+    /// Optional DSCP/TOS codepoint (0-63) applied to peer sockets.
+    #[serde(default)]
+    pub peer_dscp: Option<i32>,
     /// Whether the engine enables the DHT subsystem.
     pub dht: bool,
     /// Encryption policy string forwarded to the engine.

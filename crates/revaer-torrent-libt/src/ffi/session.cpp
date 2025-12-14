@@ -230,6 +230,25 @@ public:
                              to_std_string(options.tracker.listen_interface));
             }
 
+            if (options.network.has_outgoing_port_range &&
+                options.network.outgoing_port_min > 0 &&
+                options.network.outgoing_port_max >= options.network.outgoing_port_min) {
+                const int min_port = options.network.outgoing_port_min;
+                const int max_port = options.network.outgoing_port_max;
+                const int range = std::max(0, max_port - min_port + 1);
+                pack.set_int(lt::settings_pack::outgoing_port, min_port);
+                pack.set_int(lt::settings_pack::num_outgoing_ports, range);
+            } else {
+                pack.set_int(lt::settings_pack::outgoing_port, 0);
+                pack.set_int(lt::settings_pack::num_outgoing_ports, 0);
+            }
+
+            if (options.network.has_peer_dscp) {
+                pack.set_int(lt::settings_pack::peer_dscp, options.network.peer_dscp);
+            } else {
+                pack.set_int(lt::settings_pack::peer_dscp, 0);
+            }
+
             std::vector<std::string> dht_nodes;
             dht_nodes.reserve(options.network.dht_bootstrap_nodes.size() +
                               options.network.dht_router_nodes.size());

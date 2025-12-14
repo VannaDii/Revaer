@@ -35,6 +35,16 @@ pub mod ffi {
         enable_natpmp: bool,
         /// Whether to enable peer exchange/uTP.
         enable_pex: bool,
+        /// Optional starting port for outgoing connections.
+        outgoing_port_min: i32,
+        /// Optional ending port for outgoing connections.
+        outgoing_port_max: i32,
+        /// Whether a port range override is present.
+        has_outgoing_port_range: bool,
+        /// Optional DSCP/TOS value for peer sockets.
+        peer_dscp: i32,
+        /// Whether a DSCP/TOS value was provided.
+        has_peer_dscp: bool,
         /// Whether anonymous mode is enabled.
         anonymous_mode: bool,
         /// Whether peers must be proxied.

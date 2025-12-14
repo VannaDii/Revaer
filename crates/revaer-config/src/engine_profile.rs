@@ -52,6 +52,10 @@ pub struct EngineNetworkConfig {
     pub listen_interfaces: Vec<String>,
     /// IPv6 preference for listening and outbound behaviour.
     pub ipv6_mode: EngineIpv6Mode,
+    /// Optional outgoing port range for peer connections.
+    pub outgoing_ports: Option<OutgoingPortRange>,
+    /// Optional DSCP/TOS codepoint (0-63) applied to peer sockets.
+    pub peer_dscp: Option<u8>,
     /// Whether anonymous mode is enabled.
     pub anonymous_mode: Toggle,
     /// Whether peers must be proxied.
@@ -82,6 +86,15 @@ pub struct EngineNetworkConfig {
     pub enable_pex: Toggle,
     /// IP filter and blocklist configuration.
     pub ip_filter: IpFilterConfig,
+}
+
+/// Outgoing port range used for peer connections.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OutgoingPortRange {
+    /// Start of the port range (inclusive).
+    pub start: u16,
+    /// End of the port range (inclusive).
+    pub end: u16,
 }
 
 /// IPv6 preference policy applied to engine networking.
@@ -341,6 +354,15 @@ pub(crate) fn validate_engine_profile_patch(
         allow_multiple_connections_per_ip: effective.network.allow_multiple_connections_per_ip,
         enable_outgoing_utp: effective.network.enable_outgoing_utp,
         enable_incoming_utp: effective.network.enable_incoming_utp,
+        outgoing_port_min: effective
+            .network
+            .outgoing_ports
+            .map(|range| i32::from(range.start)),
+        outgoing_port_max: effective
+            .network
+            .outgoing_ports
+            .map(|range| i32::from(range.end)),
+        peer_dscp: effective.network.peer_dscp.map(i32::from),
     };
     let mutated = touched || stored != *current;
 
@@ -361,71 +383,26 @@ fn normalize_engine_profile_with_warnings(
     profile: &EngineProfile,
     mut warnings: Vec<String>,
 ) -> EngineProfileEffective {
-    let listen_port = match profile.listen_port {
-        Some(port) if (1..=65_535).contains(&port) => Some(port),
-        Some(port) => {
-            warnings.push(format!(
-                "listen_port {port} is out of range; disabling listen override"
-            ));
-            None
-        }
-        None => None,
-    };
-    let listen_interfaces = sanitize_listen_interfaces(
-        &profile.listen_interfaces,
-        "listen_interfaces",
-        &mut warnings,
-    );
-    let ipv6_mode = canonicalize_ipv6_mode(&profile.ipv6_mode, &mut warnings);
-
-    let max_active = match profile.max_active {
-        Some(value) if value > 0 => Some(value),
-        Some(_) => {
-            warnings.push("max_active <= 0 requested; leaving unlimited".to_string());
-            None
-        }
-        None => None,
-    };
-
-    let download_rate_limit =
-        clamp_rate_limit("max_download_bps", profile.max_download_bps, &mut warnings);
-    let upload_rate_limit =
-        clamp_rate_limit("max_upload_bps", profile.max_upload_bps, &mut warnings);
-
-    let encryption = canonical_encryption(&profile.encryption, &mut warnings);
-
-    let download_root = sanitize_path(
-        &profile.download_root,
-        DEFAULT_DOWNLOAD_ROOT,
-        "download_root",
-        &mut warnings,
-    );
-    let resume_dir = sanitize_path(
-        &profile.resume_dir,
-        DEFAULT_RESUME_DIR,
-        "resume_dir",
-        &mut warnings,
-    );
+    let (listen_port, listen_interfaces, ipv6_mode) =
+        sanitize_listen_config(profile, &mut warnings);
+    let limits = sanitize_limits(profile, &mut warnings);
+    let storage = sanitize_storage_paths(profile, &mut warnings);
     let tracker = sanitize_tracker(&profile.tracker, &mut warnings);
-    let dht_bootstrap_nodes = sanitize_endpoints(
-        &profile.dht_bootstrap_nodes,
-        "dht_bootstrap_nodes",
-        &mut warnings,
-    );
-    let dht_router_nodes =
-        sanitize_endpoints(&profile.dht_router_nodes, "dht_router_nodes", &mut warnings);
+    let (dht_bootstrap_nodes, dht_router_nodes) = sanitize_dht_endpoints(profile, &mut warnings);
     let ip_filter = sanitize_ip_filter(&profile.ip_filter, &mut warnings);
+    let (outgoing_ports, peer_dscp) = sanitize_network_overrides(profile, &mut warnings);
+    let encryption = canonical_encryption(&profile.encryption, &mut warnings);
     let tracker_proxy_present = serde_json::from_value::<TrackerConfig>(tracker.clone())
         .ok()
         .and_then(|cfg| cfg.proxy)
         .is_some();
     let anonymous_mode = profile.anonymous_mode;
-    let mut force_proxy = profile.force_proxy;
-    if anonymous_mode.is_enabled() && tracker_proxy_present && !force_proxy.is_enabled() {
-        warnings
-            .push("anonymous_mode requested with a tracker proxy; forcing peer proxy".to_string());
-        force_proxy = Toggle(true);
-    }
+    let force_proxy = enforce_proxy_requirements(
+        anonymous_mode,
+        profile.force_proxy,
+        tracker_proxy_present,
+        &mut warnings,
+    );
 
     EngineProfileEffective {
         implementation: profile.implementation.clone(),
@@ -433,6 +410,8 @@ fn normalize_engine_profile_with_warnings(
             listen_port,
             listen_interfaces,
             ipv6_mode,
+            outgoing_ports,
+            peer_dscp,
             anonymous_mode,
             force_proxy,
             prefer_rc4: profile.prefer_rc4,
@@ -449,21 +428,119 @@ fn normalize_engine_profile_with_warnings(
             enable_pex: profile.enable_pex,
             ip_filter,
         },
-        limits: EngineLimitsConfig {
-            max_active,
-            download_rate_limit,
-            upload_rate_limit,
-        },
-        storage: EngineStorageConfig {
-            download_root,
-            resume_dir,
-        },
+        limits,
+        storage,
         behavior: EngineBehaviorConfig {
             sequential_default: profile.sequential_default,
         },
         tracker,
         warnings,
     }
+}
+
+fn sanitize_listen_config(
+    profile: &EngineProfile,
+    warnings: &mut Vec<String>,
+) -> (Option<i32>, Vec<String>, EngineIpv6Mode) {
+    let listen_port = match profile.listen_port {
+        Some(port) if (1..=65_535).contains(&port) => Some(port),
+        Some(port) => {
+            warnings.push(format!(
+                "listen_port {port} is out of range; disabling listen override"
+            ));
+            None
+        }
+        None => None,
+    };
+    let listen_interfaces =
+        sanitize_listen_interfaces(&profile.listen_interfaces, "listen_interfaces", warnings);
+    let ipv6_mode = canonicalize_ipv6_mode(&profile.ipv6_mode, warnings);
+    (listen_port, listen_interfaces, ipv6_mode)
+}
+
+fn sanitize_limits(profile: &EngineProfile, warnings: &mut Vec<String>) -> EngineLimitsConfig {
+    let max_active = match profile.max_active {
+        Some(value) if value > 0 => Some(value),
+        Some(_) => {
+            warnings.push("max_active <= 0 requested; leaving unlimited".to_string());
+            None
+        }
+        None => None,
+    };
+
+    let download_rate_limit =
+        clamp_rate_limit("max_download_bps", profile.max_download_bps, warnings);
+    let upload_rate_limit = clamp_rate_limit("max_upload_bps", profile.max_upload_bps, warnings);
+
+    EngineLimitsConfig {
+        max_active,
+        download_rate_limit,
+        upload_rate_limit,
+    }
+}
+
+fn sanitize_storage_paths(
+    profile: &EngineProfile,
+    warnings: &mut Vec<String>,
+) -> EngineStorageConfig {
+    let download_root = sanitize_path(
+        &profile.download_root,
+        DEFAULT_DOWNLOAD_ROOT,
+        "download_root",
+        warnings,
+    );
+    let resume_dir = sanitize_path(
+        &profile.resume_dir,
+        DEFAULT_RESUME_DIR,
+        "resume_dir",
+        warnings,
+    );
+
+    EngineStorageConfig {
+        download_root,
+        resume_dir,
+    }
+}
+
+fn sanitize_dht_endpoints(
+    profile: &EngineProfile,
+    warnings: &mut Vec<String>,
+) -> (Vec<String>, Vec<String>) {
+    let dht_bootstrap_nodes = sanitize_endpoints(
+        &profile.dht_bootstrap_nodes,
+        "dht_bootstrap_nodes",
+        warnings,
+    );
+    let dht_router_nodes =
+        sanitize_endpoints(&profile.dht_router_nodes, "dht_router_nodes", warnings);
+    (dht_bootstrap_nodes, dht_router_nodes)
+}
+
+fn sanitize_network_overrides(
+    profile: &EngineProfile,
+    warnings: &mut Vec<String>,
+) -> (Option<OutgoingPortRange>, Option<u8>) {
+    let outgoing_ports = sanitize_outgoing_ports(
+        profile.outgoing_port_min,
+        profile.outgoing_port_max,
+        warnings,
+    );
+    let peer_dscp = sanitize_peer_dscp(profile.peer_dscp, warnings);
+    (outgoing_ports, peer_dscp)
+}
+
+fn enforce_proxy_requirements(
+    anonymous_mode: Toggle,
+    mut force_proxy: Toggle,
+    tracker_proxy_present: bool,
+    warnings: &mut Vec<String>,
+) -> Toggle {
+    if anonymous_mode.is_enabled() && tracker_proxy_present && !force_proxy.is_enabled() {
+        warnings
+            .push("anonymous_mode requested with a tracker proxy; forcing peer proxy".to_string());
+        force_proxy = Toggle(true);
+    }
+    force_proxy
 }
 
 fn apply_field(
@@ -475,103 +552,28 @@ fn apply_field(
     if let Some(applied) = apply_privacy_field(working, key, value)? {
         return Ok(applied);
     }
-    match key {
-        "implementation" => Ok(assign_if_changed(
-            &mut working.implementation,
-            required_string(value, "implementation")?,
-        )),
-        "listen_port" => Ok(assign_if_changed(
-            &mut working.listen_port,
-            parse_optional_port(value)?,
-        )),
-        "listen_interfaces" => Ok(assign_if_changed(
-            &mut working.listen_interfaces,
-            parse_listen_interfaces(value)?,
-        )),
-        "ipv6_mode" => Ok(assign_if_changed(
-            &mut working.ipv6_mode,
-            parse_ipv6_mode(value)?,
-        )),
-        "dht" => Ok(assign_if_changed(
-            &mut working.dht,
-            required_bool(value, "dht")?,
-        )),
-        "encryption" => {
-            let raw = required_string(value, "encryption")?;
-            let policy = canonical_encryption(&raw, warnings);
-            Ok(assign_if_changed(
-                &mut working.encryption,
-                policy.as_str().to_string(),
-            ))
-        }
-        "max_active" => Ok(assign_if_changed(
-            &mut working.max_active,
-            parse_optional_i32(value, "max_active")?,
-        )),
-        "max_download_bps" => apply_rate_limit_field(
-            working,
-            value,
-            "max_download_bps",
-            |profile| profile.max_download_bps,
-            |profile, limit| {
-                profile.max_download_bps = limit;
-            },
-        ),
-        "max_upload_bps" => apply_rate_limit_field(
-            working,
-            value,
-            "max_upload_bps",
-            |profile| profile.max_upload_bps,
-            |profile, limit| {
-                profile.max_upload_bps = limit;
-            },
-        ),
-        "sequential_default" => Ok(assign_if_changed(
-            &mut working.sequential_default,
-            required_bool(value, "sequential_default")?,
-        )),
-        "resume_dir" => Ok(assign_if_changed(
-            &mut working.resume_dir,
-            required_string(value, "resume_dir")?,
-        )),
-        "download_root" => Ok(assign_if_changed(
-            &mut working.download_root,
-            required_string(value, "download_root")?,
-        )),
-        "enable_lsd" => Ok(assign_if_changed(
-            &mut working.enable_lsd,
-            Toggle::from(required_bool(value, "enable_lsd")?),
-        )),
-        "enable_upnp" => Ok(assign_if_changed(
-            &mut working.enable_upnp,
-            Toggle::from(required_bool(value, "enable_upnp")?),
-        )),
-        "enable_natpmp" => Ok(assign_if_changed(
-            &mut working.enable_natpmp,
-            Toggle::from(required_bool(value, "enable_natpmp")?),
-        )),
-        "enable_pex" => Ok(assign_if_changed(
-            &mut working.enable_pex,
-            Toggle::from(required_bool(value, "enable_pex")?),
-        )),
-        "dht_bootstrap_nodes" => Ok(assign_if_changed(
-            &mut working.dht_bootstrap_nodes,
-            parse_endpoint_array(value, "dht_bootstrap_nodes")?,
-        )),
-        "dht_router_nodes" => Ok(assign_if_changed(
-            &mut working.dht_router_nodes,
-            parse_endpoint_array(value, "dht_router_nodes")?,
-        )),
-        "ip_filter" => apply_ip_filter_field(working, value),
-        "tracker" => {
-            let normalized = normalize_tracker_payload(value)?;
-            Ok(assign_if_changed(&mut working.tracker, normalized))
-        }
-        other => Err(ConfigError::UnknownField {
-            section: "engine_profile".to_string(),
-            field: other.to_string(),
-        }),
+    if let Some(applied) = apply_network_field(working, key, value, warnings)? {
+        return Ok(applied);
     }
+    if let Some(applied) = apply_limit_field(working, key, value)? {
+        return Ok(applied);
+    }
+    if let Some(applied) = apply_behavior_field(working, key, value)? {
+        return Ok(applied);
+    }
+    if let Some(applied) = apply_toggle_field(working, key, value)? {
+        return Ok(applied);
+    }
+    if let Some(applied) = apply_dht_field(working, key, value)? {
+        return Ok(applied);
+    }
+    if let Some(applied) = apply_tracker_field(working, key, value)? {
+        return Ok(applied);
+    }
+    Err(ConfigError::UnknownField {
+        section: "engine_profile".to_string(),
+        field: key.to_string(),
+    })
 }
 
 fn apply_privacy_field(
@@ -604,6 +606,176 @@ fn apply_privacy_field(
             &mut working.enable_incoming_utp,
             Toggle::from(required_bool(value, "enable_incoming_utp")?),
         )),
+        _ => None,
+    };
+    Ok(applied)
+}
+
+fn apply_network_field(
+    working: &mut EngineProfile,
+    key: &str,
+    value: &Value,
+    warnings: &mut Vec<String>,
+) -> Result<Option<bool>, ConfigError> {
+    let applied = match key {
+        "implementation" => Some(assign_if_changed(
+            &mut working.implementation,
+            required_string(value, "implementation")?,
+        )),
+        "listen_port" => Some(assign_if_changed(
+            &mut working.listen_port,
+            parse_optional_port(value)?,
+        )),
+        "listen_interfaces" => Some(assign_if_changed(
+            &mut working.listen_interfaces,
+            parse_listen_interfaces(value)?,
+        )),
+        "ipv6_mode" => Some(assign_if_changed(
+            &mut working.ipv6_mode,
+            parse_ipv6_mode(value)?,
+        )),
+        "dht" => Some(assign_if_changed(
+            &mut working.dht,
+            required_bool(value, "dht")?,
+        )),
+        "outgoing_port_min" => Some(assign_if_changed(
+            &mut working.outgoing_port_min,
+            parse_optional_i32(value, "outgoing_port_min")?,
+        )),
+        "outgoing_port_max" => Some(assign_if_changed(
+            &mut working.outgoing_port_max,
+            parse_optional_i32(value, "outgoing_port_max")?,
+        )),
+        "peer_dscp" => Some(assign_if_changed(
+            &mut working.peer_dscp,
+            parse_optional_i32(value, "peer_dscp")?,
+        )),
+        "encryption" => {
+            let raw = required_string(value, "encryption")?;
+            let policy = canonical_encryption(&raw, warnings);
+            Some(assign_if_changed(
+                &mut working.encryption,
+                policy.as_str().to_string(),
+            ))
+        }
+        _ => None,
+    };
+    Ok(applied)
+}
+
+fn apply_limit_field(
+    working: &mut EngineProfile,
+    key: &str,
+    value: &Value,
+) -> Result<Option<bool>, ConfigError> {
+    let applied = match key {
+        "max_active" => Some(assign_if_changed(
+            &mut working.max_active,
+            parse_optional_i32(value, "max_active")?,
+        )),
+        "max_download_bps" => Some(apply_rate_limit_field(
+            working,
+            value,
+            "max_download_bps",
+            |profile| profile.max_download_bps,
+            |profile, limit| {
+                profile.max_download_bps = limit;
+            },
+        )?),
+        "max_upload_bps" => Some(apply_rate_limit_field(
+            working,
+            value,
+            "max_upload_bps",
+            |profile| profile.max_upload_bps,
+            |profile, limit| {
+                profile.max_upload_bps = limit;
+            },
+        )?),
+        _ => None,
+    };
+    Ok(applied)
+}
+
+fn apply_behavior_field(
+    working: &mut EngineProfile,
+    key: &str,
+    value: &Value,
+) -> Result<Option<bool>, ConfigError> {
+    let applied = match key {
+        "sequential_default" => Some(assign_if_changed(
+            &mut working.sequential_default,
+            required_bool(value, "sequential_default")?,
+        )),
+        "resume_dir" => Some(assign_if_changed(
+            &mut working.resume_dir,
+            required_string(value, "resume_dir")?,
+        )),
+        "download_root" => Some(assign_if_changed(
+            &mut working.download_root,
+            required_string(value, "download_root")?,
+        )),
+        _ => None,
+    };
+    Ok(applied)
+}
+
+fn apply_toggle_field(
+    working: &mut EngineProfile,
+    key: &str,
+    value: &Value,
+) -> Result<Option<bool>, ConfigError> {
+    let applied = match key {
+        "enable_lsd" => Some(assign_if_changed(
+            &mut working.enable_lsd,
+            Toggle::from(required_bool(value, "enable_lsd")?),
+        )),
+        "enable_upnp" => Some(assign_if_changed(
+            &mut working.enable_upnp,
+            Toggle::from(required_bool(value, "enable_upnp")?),
+        )),
+        "enable_natpmp" => Some(assign_if_changed(
+            &mut working.enable_natpmp,
+            Toggle::from(required_bool(value, "enable_natpmp")?),
+        )),
+        "enable_pex" => Some(assign_if_changed(
+            &mut working.enable_pex,
+            Toggle::from(required_bool(value, "enable_pex")?),
+        )),
+        _ => None,
+    };
+    Ok(applied)
+}
+
+fn apply_dht_field(
+    working: &mut EngineProfile,
+    key: &str,
+    value: &Value,
+) -> Result<Option<bool>, ConfigError> {
+    let applied = match key {
+        "dht_bootstrap_nodes" => Some(assign_if_changed(
+            &mut working.dht_bootstrap_nodes,
+            parse_endpoint_array(value, "dht_bootstrap_nodes")?,
+        )),
+        "dht_router_nodes" => Some(assign_if_changed(
+            &mut working.dht_router_nodes,
+            parse_endpoint_array(value, "dht_router_nodes")?,
+        )),
+        _ => None,
+    };
+    Ok(applied)
+}
+
+fn apply_tracker_field(
+    working: &mut EngineProfile,
+    key: &str,
+    value: &Value,
+) -> Result<Option<bool>, ConfigError> {
+    let applied = match key {
+        "ip_filter" => Some(apply_ip_filter_field(working, value)?),
+        "tracker" => {
+            let normalized = normalize_tracker_payload(value)?;
+            Some(assign_if_changed(&mut working.tracker, normalized))
+        }
         _ => None,
     };
     Ok(applied)
@@ -727,6 +899,50 @@ fn parse_endpoint_array(value: &Value, field: &str) -> Result<Vec<String>, Confi
     }
 
     Ok(endpoints)
+}
+
+fn sanitize_outgoing_ports(
+    start: Option<i32>,
+    end: Option<i32>,
+    warnings: &mut Vec<String>,
+) -> Option<OutgoingPortRange> {
+    match (start, end) {
+        (None, None) => None,
+        (Some(_), None) | (None, Some(_)) => {
+            warnings.push(
+                "outgoing_port_min/outgoing_port_max must both be set; ignoring range".to_string(),
+            );
+            None
+        }
+        (Some(min), Some(max)) => {
+            if !(1..=65_535).contains(&min) || !(1..=65_535).contains(&max) || min > max {
+                warnings.push(format!(
+                    "invalid outgoing port range {min}..={max}; disabling override"
+                ));
+                None
+            } else if let (Ok(start), Ok(end)) = (u16::try_from(min), u16::try_from(max)) {
+                Some(OutgoingPortRange { start, end })
+            } else {
+                warnings.push(
+                    "outgoing port range could not be normalized; disabling override".to_string(),
+                );
+                None
+            }
+        }
+    }
+}
+
+fn sanitize_peer_dscp(value: Option<i32>, warnings: &mut Vec<String>) -> Option<u8> {
+    value.and_then(|raw| {
+        if (0..=63).contains(&raw) {
+            u8::try_from(raw).ok()
+        } else {
+            warnings.push(format!(
+                "peer_dscp {raw} is out of range 0-63; disabling marking"
+            ));
+            None
+        }
+    })
 }
 
 fn parse_listen_interfaces(value: &Value) -> Result<Vec<String>, ConfigError> {
@@ -1593,6 +1809,9 @@ mod tests {
             allow_multiple_connections_per_ip: false.into(),
             enable_outgoing_utp: false.into(),
             enable_incoming_utp: false.into(),
+            outgoing_port_min: None,
+            outgoing_port_max: None,
+            peer_dscp: None,
             dht: true,
             encryption: "prefer".into(),
             max_active: Some(4),
@@ -1878,5 +2097,54 @@ mod tests {
         assert!(updated.etag.is_none());
         assert!(updated.last_updated_at.is_none());
         assert!(updated.last_error.is_none());
+    }
+
+    #[test]
+    fn outgoing_ports_are_normalised_and_warn_on_invalid_ranges() {
+        let mut profile = sample_profile();
+        profile.outgoing_port_min = Some(6_000);
+        profile.outgoing_port_max = Some(6_100);
+
+        let effective = normalize_engine_profile(&profile);
+        assert_eq!(
+            effective.network.outgoing_ports,
+            Some(OutgoingPortRange {
+                start: 6_000,
+                end: 6_100
+            })
+        );
+        assert!(
+            effective.warnings.is_empty(),
+            "valid ranges should not emit warnings"
+        );
+
+        profile.outgoing_port_min = Some(70_000);
+        profile.outgoing_port_max = Some(6_000);
+        let clamped = normalize_engine_profile(&profile);
+        assert!(clamped.network.outgoing_ports.is_none());
+        assert!(
+            clamped
+                .warnings
+                .iter()
+                .any(|msg| msg.contains("outgoing port range")),
+            "invalid ranges should be reported"
+        );
+    }
+
+    #[test]
+    fn peer_dscp_is_clamped_to_supported_values() {
+        let mut profile = sample_profile();
+        profile.peer_dscp = Some(8);
+
+        let effective = normalize_engine_profile(&profile);
+        assert_eq!(effective.network.peer_dscp, Some(8));
+
+        profile.peer_dscp = Some(70);
+        let clamped = normalize_engine_profile(&profile);
+        assert!(clamped.network.peer_dscp.is_none());
+        assert!(
+            clamped.warnings.iter().any(|msg| msg.contains("peer_dscp")),
+            "invalid values should be surfaced"
+        );
     }
 }

@@ -15,6 +15,7 @@ use revaer_torrent_libt::{
     EncryptionPolicy, EngineRuntimeConfig, IpFilterRule as RuntimeIpFilterRule,
     IpFilterRuntimeConfig, Ipv6Mode as RuntimeIpv6Mode, TrackerProxyRuntime,
     TrackerProxyType as RuntimeProxyType, TrackerRuntimeConfig,
+    types::OutgoingPortRange as RuntimeOutgoingPortRange,
 };
 
 /// Runtime plan derived from the persisted engine profile, including effective values and
@@ -38,6 +39,14 @@ impl EngineRuntimePlan {
         let runtime_ipv6_mode = map_ipv6_mode(effective.network.ipv6_mode);
         let (listen_interfaces, listen_port) = derive_listen_config(&effective.network);
         let ip_filter = map_ip_filter_config(&effective.network.ip_filter);
+        let outgoing_ports =
+            effective
+                .network
+                .outgoing_ports
+                .map(|range| RuntimeOutgoingPortRange {
+                    start: range.start,
+                    end: range.end,
+                });
         let runtime = EngineRuntimeConfig {
             download_root: effective.storage.download_root.clone(),
             resume_dir: effective.storage.resume_dir.clone(),
@@ -48,6 +57,8 @@ impl EngineRuntimePlan {
             enable_upnp: bool::from(effective.network.enable_upnp).into(),
             enable_natpmp: bool::from(effective.network.enable_natpmp).into(),
             enable_pex: bool::from(effective.network.enable_pex).into(),
+            outgoing_ports,
+            peer_dscp: effective.network.peer_dscp,
             anonymous_mode: bool::from(effective.network.anonymous_mode).into(),
             force_proxy: bool::from(effective.network.force_proxy).into(),
             prefer_rc4: bool::from(effective.network.prefer_rc4).into(),
@@ -203,6 +214,9 @@ mod tests {
             allow_multiple_connections_per_ip: false.into(),
             enable_outgoing_utp: false.into(),
             enable_incoming_utp: false.into(),
+            outgoing_port_min: None,
+            outgoing_port_max: None,
+            peer_dscp: None,
             dht: true,
             encryption: "unknown".into(),
             max_active: Some(0),
@@ -264,6 +278,9 @@ mod tests {
             allow_multiple_connections_per_ip: false.into(),
             enable_outgoing_utp: false.into(),
             enable_incoming_utp: false.into(),
+            outgoing_port_min: None,
+            outgoing_port_max: None,
+            peer_dscp: None,
             dht: false,
             encryption: "require".into(),
             max_active: None,
@@ -322,6 +339,9 @@ mod tests {
             allow_multiple_connections_per_ip: false.into(),
             enable_outgoing_utp: false.into(),
             enable_incoming_utp: false.into(),
+            outgoing_port_min: None,
+            outgoing_port_max: None,
+            peer_dscp: None,
             dht: false,
             encryption: "prefer".into(),
             max_active: None,
@@ -375,6 +395,9 @@ mod tests {
             allow_multiple_connections_per_ip: false.into(),
             enable_outgoing_utp: false.into(),
             enable_incoming_utp: false.into(),
+            outgoing_port_min: None,
+            outgoing_port_max: None,
+            peer_dscp: None,
             dht: false,
             encryption: "prefer".into(),
             max_active: None,
@@ -425,6 +448,9 @@ mod tests {
             allow_multiple_connections_per_ip: false.into(),
             enable_outgoing_utp: false.into(),
             enable_incoming_utp: false.into(),
+            outgoing_port_min: None,
+            outgoing_port_max: None,
+            peer_dscp: None,
             dht: false,
             encryption: "prefer".into(),
             max_active: None,

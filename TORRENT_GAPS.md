@@ -82,13 +82,13 @@
     -   [x] API/docs: expose flags if profile edits are allowed; document trade-offs (reduced telemetry, tracker behaviors).
     -   [x] Tests: config validation; native (feature-gated) tests that toggles apply and defaults remain safe.
 
--   [ ] Outgoing port range and DSCP/TOS markings configurable
+-   [x] Outgoing port range and DSCP/TOS markings configurable
 
-    -   [ ] Config/DB: add optional outgoing port range and DSCP/TOS fields to `EngineProfile`; validate ranges and DSCP values in stored procs.
-    -   [ ] Runtime/bridge: include these fields in `EngineRuntimeConfig`/`EngineOptions`.
-    -   [ ] Native: apply via `lt::settings_pack::outgoing_ports`, `peer_tos`, and `peer_socket_send_buffer_size`/`receive_buffer_size` if needed.
-    -   [ ] API/docs: expose with bounds; document network implications.
-    -   [ ] Tests: config validation; native test that settings apply without error.
+    -   [x] Config/DB: add optional outgoing port range and DSCP/TOS fields to `EngineProfile`; validate ranges and DSCP values in stored procs.
+    -   [x] Runtime/bridge: include these fields in `EngineRuntimeConfig`/`EngineOptions`.
+    -   [x] Native: apply via `lt::settings_pack::outgoing_ports`, `peer_tos`, and `peer_socket_send_buffer_size`/`receive_buffer_size` if needed.
+    -   [x] API/docs: expose with bounds; document network implications.
+    -   [x] Tests: config validation; native test that settings apply without error.
 
 -   [ ] Connection/peer limits configurable
 

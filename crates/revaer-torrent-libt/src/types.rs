@@ -49,6 +49,10 @@ pub struct EngineRuntimeConfig {
     pub enable_natpmp: Toggle,
     /// Whether peer exchange (PEX) is enabled.
     pub enable_pex: Toggle,
+    /// Optional outgoing port range for peer connections.
+    pub outgoing_ports: Option<OutgoingPortRange>,
+    /// Optional DSCP/TOS codepoint (0-63) for peer sockets.
+    pub peer_dscp: Option<u8>,
     /// Whether anonymous mode is enabled.
     pub anonymous_mode: Toggle,
     /// Whether peers must be proxied.
@@ -198,6 +202,15 @@ pub struct IpFilterRuntimeConfig {
     pub etag: Option<String>,
     /// Timestamp of the last successful refresh.
     pub last_updated_at: Option<String>,
+}
+
+/// Outgoing port range applied to peer connections.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct OutgoingPortRange {
+    /// Start port, inclusive.
+    pub start: u16,
+    /// End port, inclusive.
+    pub end: u16,
 }
 
 #[cfg(test)]
