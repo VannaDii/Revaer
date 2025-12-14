@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-bcb98fd3.js";
+            window.path_to_searchindex_js = "searchindex-03fed577.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-34420336.js"></script>
@@ -1038,30 +1038,30 @@ Live sync: SSE streams torrent progress/rates/state plus added/removed events to
 <h2 id="admission--runtime--fsops"><a class="header" href="#admission--runtime--fsops">Admission → Runtime → FsOps</a></h2>
 <pre class="mermaid">flowchart TB
     subgraph API["API/CLI"]
-        Req["POST /v1/torrents\n+ CLI add\n- validate payload\n- clamp per profile\n- hydrate metadata (tags/category/storage)\n- normalize selection + limits"]
+        Req["POST /v1/torrents&lt;br/&gt;+ CLI add&lt;br/&gt;- validate payload&lt;br/&gt;- clamp per profile&lt;br/&gt;- hydrate metadata (tags/category/storage)&lt;br/&gt;- normalize selection + limits"]
     end
 
     subgraph Worker["Worker / Orchestrator"]
-        Cmd["EngineCommand::Add\n- attach profile snapshot\n- derive AddTorrentOptions\n- stash selection + metadata for FsOps"]
-        Persist["RuntimeStore\n- persist metadata/selection\n- checkpoint admission state"]
+        Cmd["EngineCommand::Add&lt;br/&gt;- attach profile snapshot&lt;br/&gt;- derive AddTorrentOptions&lt;br/&gt;- stash selection + metadata for FsOps"]
+        Persist["RuntimeStore&lt;br/&gt;- persist metadata/selection&lt;br/&gt;- checkpoint admission state"]
     end
 
     subgraph Bridge["Bridge / FFI"]
-        Opts["EngineOptions/AddTorrentRequest\n- listen/download dirs\n- per-torrent rate caps\n- queue priority / paused\n- trackers (profile + request)\n- encryption, DHT, LSD flags\n- seed mode / add paused"]
-        Session["libtorrent session\n- apply settings_pack\n- add_torrent_params\n- start/resume handles"]
+        Opts["EngineOptions/AddTorrentRequest&lt;br/&gt;- listen/download dirs&lt;br/&gt;- per-torrent rate caps&lt;br/&gt;- queue priority / paused&lt;br/&gt;- trackers (profile + request)&lt;br/&gt;- encryption, DHT, LSD flags&lt;br/&gt;- seed mode / add paused"]
+        Session["libtorrent session&lt;br/&gt;- apply settings_pack&lt;br/&gt;- add_torrent_params&lt;br/&gt;- start/resume handles"]
     end
 
     subgraph Engine["Engine Loop"]
-        Progress["Native events → EngineEvent\n- progress/state\n- alert mapping\n- tracker status\n- errors (listen/storage/peer)"]
-        Cache["Per-torrent cache\n- rate caps\n- trackers\n- limits\n- tags/category"]
+        Progress["Native events → EngineEvent&lt;br/&gt;- progress/state&lt;br/&gt;- alert mapping&lt;br/&gt;- tracker status&lt;br/&gt;- errors (listen/storage/peer)"]
+        Cache["Per-torrent cache&lt;br/&gt;- rate caps&lt;br/&gt;- trackers&lt;br/&gt;- limits&lt;br/&gt;- tags/category"]
     end
 
     subgraph FsOps["FsOps Pipeline"]
-        Select["Selection reconcile\n- honor request selection\n- drop unselected paths"]
-        Extract["Extract archives (zip/rar/7z/tar.gz)\n- optional; skip when not configured\n- guardrail missing tools"]
-        Flatten["Flatten/move per policy\n- copy/move/hardlink\n- partfile handling"]
-        Perms["chmod/chown/umask\n- library root enforcement"]
-        Cleanup["Cleanup\n- drop patterns\n- keep filters\n- metadata writeback (.revaer.meta)"]
+        Select["Selection reconcile&lt;br/&gt;- honor request selection&lt;br/&gt;- drop unselected paths"]
+        Extract["Extract archives (zip/rar/7z/tar.gz)&lt;br/&gt;- optional; skip when not configured&lt;br/&gt;- guardrail missing tools"]
+        Flatten["Flatten/move per policy&lt;br/&gt;- copy/move/hardlink&lt;br/&gt;- partfile handling"]
+        Perms["chmod/chown/umask&lt;br/&gt;- library root enforcement"]
+        Cleanup["Cleanup&lt;br/&gt;- drop patterns&lt;br/&gt;- keep filters&lt;br/&gt;- metadata writeback (.revaer.meta)"]
     end
 
     Req --&gt; Cmd
@@ -1083,12 +1083,12 @@ Live sync: SSE streams torrent progress/rates/state plus added/removed events to
 </ul>
 <h2 id="torrent-creation-authoring-flow"><a class="header" href="#torrent-creation-authoring-flow">Torrent Creation (Authoring) Flow</a></h2>
 <pre class="mermaid">flowchart LR
-    Input["Input\n- file/dir path\n- trackers/web seeds\n- piece size (auto/manual)\n- private flag\n- comment/source\n- alignment rules"]
-    Stage["Stage &amp; Hash\n- walk files with allowlist\n- apply size filters\n- align pieces\n- hash with deterministic order"]
-    Meta["Build metainfo\n- info dictionary\n- tracker tiers\n- web seeds\n- creation date\n- optional dht nodes"]
-    Validate["Validate\n- size/limit guards\n- path length\n- private flag vs trackers\n- duplicate file detection"]
-    PersistMeta["Persist\n- .torrent file\n- magnet link\n- optional signed manifest"]
-    Return["Return to caller\n- paths + hashes\n- effective options\n- warnings (skipped files, clamped piece size)"]
+    Input["Input&lt;br/&gt;- file/dir path&lt;br/&gt;- trackers/web seeds&lt;br/&gt;- piece size (auto/manual)&lt;br/&gt;- private flag&lt;br/&gt;- comment/source&lt;br/&gt;- alignment rules"]
+    Stage["Stage &amp; Hash&lt;br/&gt;- walk files with allowlist&lt;br/&gt;- apply size filters&lt;br/&gt;- align pieces&lt;br/&gt;- hash with deterministic order"]
+    Meta["Build metainfo&lt;br/&gt;- info dictionary&lt;br/&gt;- tracker tiers&lt;br/&gt;- web seeds&lt;br/&gt;- creation date&lt;br/&gt;- optional dht nodes"]
+    Validate["Validate&lt;br/&gt;- size/limit guards&lt;br/&gt;- path length&lt;br/&gt;- private flag vs trackers&lt;br/&gt;- duplicate file detection"]
+    PersistMeta["Persist&lt;br/&gt;- .torrent file&lt;br/&gt;- magnet link&lt;br/&gt;- optional signed manifest"]
+    Return["Return to caller&lt;br/&gt;- paths + hashes&lt;br/&gt;- effective options&lt;br/&gt;- warnings (skipped files, clamped piece size)"]
 
     Input --&gt; Stage --&gt; Meta --&gt; Validate --&gt; PersistMeta --&gt; Return
 </pre>
