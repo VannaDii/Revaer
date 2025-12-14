@@ -164,22 +164,20 @@ dev:
     trap 'kill -0 $api_pid 2>/dev/null && kill $api_pid; kill -0 $ui_pid 2>/dev/null && kill $ui_pid' EXIT; \
     wait $api_pid $ui_pid
 
-install-docs:
+docs-install:
     if ! command -v mdbook >/dev/null 2>&1; then \
         cargo install --locked mdbook; \
     fi
     if ! command -v mdbook-mermaid >/dev/null 2>&1; then \
         cargo install --locked mdbook-mermaid; \
     fi
-    mdbook-mermaid install .
-    mkdir -p scripts
-    mv -f mermaid*.js scripts/ 2>/dev/null || true
+    mdbook-mermaid install ./docs
 
 docs-build:
-    mdbook build
+    cd docs && mdbook build
 
 docs-serve:
-    mdbook serve --open
+    cd docs && mdbook serve --open
 
 docs-index:
     cargo run -p revaer-doc-indexer --release

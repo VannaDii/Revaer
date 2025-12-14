@@ -2,14 +2,14 @@
 title = "Revaer Documentation"
 authors = ["Revaer Contributors"]
 language = "en"
-src = "docs"
+src = "."
 
 [output.html]
 default-theme = "rust"
 preferred-dark-theme = "coal"
 no-section-label = true
 git-repository-url = "https://github.com/VannaDii/revaer"
-additional-js = ["docs/scripts/mermaid.min.js", "docs/scripts/mermaid-init.js"]
+additional-js = ["mermaid.min.js", "mermaid-init.js"]
 copy-files = ["llms.txt"]
 
 [output.html.search]

@@ -28,13 +28,10 @@ jobs:
         uses: extractions/setup-just@v2
 
       - name: Install Doc Tools
-        run: just install-docs
+        run: just docs-install
 
       - name: Build Docs
-        run: |
-          mkdir -p docs/scripts
-          cp -fr scripts/*.js docs/scripts/
-          just docs-build
+        run: just docs-build
 
       - name: Generate LLM manifests
         run: just docs-index
@@ -51,7 +48,7 @@ jobs:
       - name: Prepare Deployment
         run: |
           mkdir -p deploy
-          rsync -a book/ deploy/
+          rsync -a docs/book/ deploy/
           mkdir -p deploy/llm
           rsync -a docs/llm/ deploy/llm/
           if [ -f docs/CNAME ]; then cp docs/CNAME deploy/CNAME; fi
