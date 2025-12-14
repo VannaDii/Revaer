@@ -54,7 +54,7 @@ Configuration highlights
 - Engine profile controls libtorrent settings (listen port or explicit `listen_interfaces`, IPv6 preference, DHT, limits) plus IP filtering: inline CIDRs and an optional remote blocklist URL cached with ETags (30m TTL) with refresh metadata (`etag`/`last_updated_at`/`last_error`).
 - Privacy/transport toggles: `anonymous_mode`, `force_proxy`, `prefer_rc4`, per-IP connection allowances, and explicit uTP inbound/outbound switches (all default safe/off).
 - Network shapers: optional outgoing port range (min/max required together) and DSCP codepoint (0-63) for peer traffic; validated and applied to libtorrent.
-- Connection caps: optional global/per-torrent connection limits, unchoke slot caps, and half-open connection limits; all clamped to positive values and applied at runtime.
+- Connection caps: optional global/per-torrent connection limits, unchoke slot caps, and half-open connection limits; all clamped to positive values and applied at runtime. Per-torrent admissions may set `max_connections` on `POST /v1/torrents`; the value is stored with metadata and forwarded to libtorrent immediately.
 
 Useful endpoints
 - `GET /v1/health` / `/v1/health/full` – readiness + metrics snapshot.

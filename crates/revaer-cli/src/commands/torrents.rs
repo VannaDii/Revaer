@@ -49,6 +49,7 @@ pub(crate) async fn handle_torrent_add(ctx: &AppContext, args: TorrentAddArgs) -
         replace_trackers: false,
         max_download_bps: None,
         max_upload_bps: None,
+        max_connections: None,
     };
 
     if source.starts_with("magnet:") {
@@ -393,6 +394,7 @@ mod tests {
             tags: vec!["tag1".into()],
             trackers: vec!["https://tracker.example/announce".into()],
             rate_limit: None,
+            connections_limit: None,
             added_at: now,
             completed_at: None,
             last_updated: now,
@@ -424,7 +426,8 @@ mod tests {
                     "trackers": [],
                     "replace_trackers": false,
                     "max_download_bps": null,
-                    "max_upload_bps": null
+                    "max_upload_bps": null,
+                    "max_connections": null
                 }));
             then.status(202);
         });

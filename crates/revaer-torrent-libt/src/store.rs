@@ -37,6 +37,9 @@ pub struct StoredTorrentMetadata {
     /// Tags provided at admission time.
     pub tags: Vec<String>,
     #[serde(default)]
+    /// Optional per-torrent peer connection cap recorded at admission.
+    pub connections_limit: Option<i32>,
+    #[serde(default)]
     /// Timestamp of the most recent metadata update.
     pub updated_at: DateTime<Utc>,
 }
@@ -244,6 +247,7 @@ mod tests {
             trackers: vec!["https://tracker.example/announce".into()],
             replace_trackers: true,
             tags: vec!["movies".into(), "hd".into()],
+            connections_limit: None,
             updated_at: Utc::now(),
         }
     }

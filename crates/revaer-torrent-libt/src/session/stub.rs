@@ -28,6 +28,7 @@ struct StubTorrent {
     sequential: bool,
     state: TorrentState,
     download_dir: Option<String>,
+    connections_limit: Option<i32>,
     resume_payload: Option<Vec<u8>>,
 }
 
@@ -40,6 +41,7 @@ impl StubTorrent {
             sequential: request.options.sequential.unwrap_or(false),
             state: TorrentState::Queued,
             download_dir: request.options.download_dir.clone(),
+            connections_limit: request.options.connections_limit,
             resume_payload: None,
         }
     }
@@ -78,6 +80,7 @@ impl StubSession {
                     "upload_bps": torrent.rate_limit.upload_bps,
                 },
                 "sequential": torrent.sequential,
+                "connections_limit": torrent.connections_limit,
                 "download_dir": torrent.download_dir,
             })
             .to_string()

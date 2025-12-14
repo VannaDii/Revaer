@@ -90,14 +90,14 @@
     -   [x] API/docs: expose with bounds; document network implications.
     -   [x] Tests: config validation; native test that settings apply without error.
 
--   [ ] Connection/peer limits configurable
+-   [x] Connection/peer limits configurable
 
     -   [x] Config/DB: add global/per-torrent connection caps (e.g., `connections_limit`, `connections_per_torrent`, `unchoke_slots`, `half_open_limit`) with validation; set defaults to libtorrent defaults.
-    -   [ ] Runtime/bridge: extend `EngineRuntimeConfig`/`EngineOptions` and `AddTorrentOptions`/`AddTorrentRequest` with connection cap fields.
-    -   [ ] Native: apply via `lt::settings_pack` (`connections_limit`, `connections_per_torrent`, `unchoke_slots`, `half_open_limit`); per-torrent via `torrent_handle::set_max_connections` where applicable.
-    -   [ ] Worker: when per-torrent caps are provided on add, apply immediately; keep them in the per-torrent cache for verification/telemetry.
-    -   [ ] API/docs: expose optional per-torrent and profile-level connection limits with bounds; document effects on swarm health.
-    -   [ ] Tests: config validation; worker applies caps after add; native test confirms connection settings take effect without error.
+    -   [x] Runtime/bridge: extend `EngineRuntimeConfig`/`EngineOptions` and `AddTorrentOptions`/`AddTorrentRequest` with connection cap fields.
+    -   [x] Native: apply via `lt::settings_pack` (`connections_limit`, `connections_per_torrent`, `unchoke_slots`, `half_open_limit`); per-torrent via `torrent_handle::set_max_connections` where applicable.
+    -   [x] Worker: when per-torrent caps are provided on add, apply immediately; keep them in the per-torrent cache for verification/telemetry.
+    -   [x] API/docs: expose optional per-torrent and profile-level connection limits with bounds; document effects on swarm health.
+    -   [x] Tests: config validation; worker applies caps after add; native test confirms connection settings take effect without error.
 
 -   [ ] Per-torrent rate caps applied on admission
 

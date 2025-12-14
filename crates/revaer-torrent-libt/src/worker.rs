@@ -75,6 +75,18 @@ struct Worker {
     per_torrent_limits: HashMap<Uuid, TorrentRateLimit>,
 }
 
+#[derive(Clone)]
+struct AddMetadata {
+    selection: FileSelectionRules,
+    download_dir: Option<String>,
+    priorities: Vec<FilePriorityOverride>,
+    sequential: bool,
+    trackers: Vec<String>,
+    replace_trackers: bool,
+    tags: Vec<String>,
+    connections_limit: Option<i32>,
+}
+
 impl Worker {
     fn new(
         events: EventBus,
@@ -173,6 +185,45 @@ impl Worker {
 
     async fn handle_add(&mut self, request: AddTorrent) -> Result<()> {
         let mut request = request;
+        self.backfill_request_from_resume(&mut request);
+
+        self.session.add_torrent(&request).await?;
+        self.apply_fastresume_if_present(request.id).await;
+
+        let mut effective_selection = request.options.file_rules.clone();
+        let mut effective_download_dir = request.options.download_dir.clone();
+        let mut effective_priorities: Vec<FilePriorityOverride> = Vec::new();
+        let mut effective_sequential = request.options.sequential.unwrap_or(false);
+        let reconciliation_reasons = self
+            .reconcile_from_resume(
+                request.id,
+                &mut effective_selection,
+                &mut effective_download_dir,
+                &mut effective_priorities,
+                &mut effective_sequential,
+            )
+            .await?;
+
+        self.publish_reconciliations(request.id, reconciliation_reasons);
+        self.emit_add_event(&request);
+
+        self.persist_add_metadata(
+            request.id,
+            AddMetadata {
+                selection: effective_selection,
+                download_dir: effective_download_dir,
+                priorities: effective_priorities,
+                sequential: effective_sequential,
+                trackers: request.options.trackers.clone(),
+                replace_trackers: request.options.replace_trackers,
+                tags: request.options.tags.clone(),
+                connections_limit: request.options.connections_limit,
+            },
+        );
+        Ok(())
+    }
+
+    fn backfill_request_from_resume(&self, request: &mut AddTorrent) {
         if let Some(stored) = self.resume_cache.get(&request.id) {
             if request.options.trackers.is_empty() && !stored.trackers.is_empty() {
                 request.options.trackers.clone_from(&stored.trackers);
@@ -181,28 +232,36 @@ impl Worker {
             if request.options.tags.is_empty() && !stored.tags.is_empty() {
                 request.options.tags.clone_from(&stored.tags);
             }
+            if request.options.connections_limit.is_none() {
+                request.options.connections_limit = stored.connections_limit;
+            }
         }
+    }
 
-        self.session.add_torrent(&request).await?;
-        if let Some(payload) = self.fastresume_payloads.get(&request.id).cloned() {
-            if let Err(err) = self.session.load_fastresume(request.id, &payload).await {
+    async fn apply_fastresume_if_present(&mut self, id: Uuid) {
+        if let Some(payload) = self.fastresume_payloads.get(&id).cloned() {
+            if let Err(err) = self.session.load_fastresume(id, &payload).await {
                 let detail = err.to_string();
                 self.mark_degraded("resume_store", Some(&detail));
             } else {
                 self.mark_recovered("resume_store");
             }
         }
+    }
 
-        let mut effective_selection = request.options.file_rules.clone();
-        let mut effective_download_dir = request.options.download_dir.clone();
-        let mut effective_priorities: Vec<FilePriorityOverride> = Vec::new();
-        let mut effective_sequential = request.options.sequential.unwrap_or(false);
-        let mut reconciliation_reasons = Vec::new();
-
-        if let Some(stored) = self.resume_cache.get(&request.id).cloned() {
-            let selection_differs = stored.selection.include != effective_selection.include
-                || stored.selection.exclude != effective_selection.exclude
-                || stored.selection.skip_fluff != effective_selection.skip_fluff
+    async fn reconcile_from_resume(
+        &mut self,
+        torrent_id: Uuid,
+        selection: &mut FileSelectionRules,
+        download_dir: &mut Option<String>,
+        priorities: &mut Vec<FilePriorityOverride>,
+        sequential: &mut bool,
+    ) -> Result<Vec<String>> {
+        let mut reasons = Vec::new();
+        if let Some(stored) = self.resume_cache.get(&torrent_id).cloned() {
+            let selection_differs = stored.selection.include != selection.include
+                || stored.selection.exclude != selection.exclude
+                || stored.selection.skip_fluff != selection.skip_fluff
                 || !stored.priorities.is_empty();
             if selection_differs {
                 let update = FileSelectionUpdate {
@@ -211,35 +270,38 @@ impl Worker {
                     skip_fluff: stored.selection.skip_fluff,
                     priorities: stored.priorities.clone(),
                 };
-                self.session.update_selection(request.id, &update).await?;
-                effective_selection = stored.selection.clone();
-                effective_priorities.clear();
-                effective_priorities.extend(stored.priorities.iter().cloned());
-                reconciliation_reasons.push("restored persisted file selection".to_string());
+                self.session.update_selection(torrent_id, &update).await?;
+                *selection = stored.selection.clone();
+                priorities.clear();
+                priorities.extend(stored.priorities.iter().cloned());
+                reasons.push("restored persisted file selection".to_string());
             }
 
-            if stored.sequential != effective_sequential {
+            if stored.sequential != *sequential {
                 self.session
-                    .set_sequential(request.id, stored.sequential)
+                    .set_sequential(torrent_id, stored.sequential)
                     .await?;
-                effective_sequential = stored.sequential;
-                reconciliation_reasons
-                    .push("restored sequential flag from resume metadata".to_string());
+                *sequential = stored.sequential;
+                reasons.push("restored sequential flag from resume metadata".to_string());
             }
 
             if let Some(stored_dir) = stored.download_dir.clone()
-                && effective_download_dir.as_deref() != Some(stored_dir.as_str())
+                && download_dir.as_deref() != Some(stored_dir.as_str())
             {
-                effective_download_dir = Some(stored_dir);
-                reconciliation_reasons
-                    .push("restored download directory from resume metadata".to_string());
+                *download_dir = Some(stored_dir);
+                reasons.push("restored download directory from resume metadata".to_string());
             }
         }
+        Ok(reasons)
+    }
 
-        for reason in reconciliation_reasons {
-            self.publish_selection_reconciled(request.id, reason);
+    fn publish_reconciliations(&self, torrent_id: Uuid, reasons: Vec<String>) {
+        for reason in reasons {
+            self.publish_selection_reconciled(torrent_id, reason);
         }
+    }
 
+    fn emit_add_event(&self, request: &AddTorrent) {
         let name = request
             .options
             .name_hint
@@ -257,15 +319,21 @@ impl Worker {
             source = %source_desc,
             "torrent add command processed"
         );
-        self.publish_torrent_added(&request);
-        let selection = effective_selection;
-        let download_dir = effective_download_dir;
-        let priorities = effective_priorities;
-        let sequential = effective_sequential;
-        let trackers = request.options.trackers.clone();
-        let replace_trackers = request.options.replace_trackers;
-        let tags = request.options.tags.clone();
-        self.update_metadata(request.id, move |meta| {
+        self.publish_torrent_added(request);
+    }
+
+    fn persist_add_metadata(&mut self, torrent_id: Uuid, metadata: AddMetadata) {
+        let AddMetadata {
+            selection,
+            download_dir,
+            priorities,
+            sequential,
+            trackers,
+            replace_trackers,
+            tags,
+            connections_limit,
+        } = metadata;
+        self.update_metadata(torrent_id, move |meta| {
             meta.selection.clone_from(&selection);
             meta.download_dir.clone_from(&download_dir);
             meta.sequential = sequential;
@@ -273,8 +341,8 @@ impl Worker {
             meta.trackers.clone_from(&trackers);
             meta.replace_trackers = replace_trackers;
             meta.tags.clone_from(&tags);
+            meta.connections_limit = connections_limit;
         });
-        Ok(())
     }
 
     async fn handle_remove(&mut self, id: Uuid, options: RemoveTorrent) -> Result<()> {
@@ -752,6 +820,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn add_command_persists_connection_limit_metadata() -> Result<()> {
+        let bus = EventBus::with_capacity(4);
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
+        let mut worker = Worker::new(bus, session, None);
+
+        let torrent_id = Uuid::new_v4();
+        let descriptor = AddTorrent {
+            id: torrent_id,
+            source: TorrentSource::magnet("magnet:?xt=urn:btih:limit"),
+            options: AddTorrentOptions {
+                connections_limit: Some(24),
+                ..AddTorrentOptions::default()
+            },
+        };
+
+        worker
+            .handle(EngineCommand::Add(descriptor))
+            .await
+            .expect("add should succeed");
+
+        let persisted = worker
+            .resume_cache
+            .get(&torrent_id)
+            .and_then(|meta| meta.connections_limit);
+        assert_eq!(persisted, Some(24));
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn remove_command_emits_stopped_event() -> Result<()> {
         let bus = EventBus::with_capacity(16);
         let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
@@ -855,6 +952,7 @@ mod tests {
             trackers: vec!["https://tracker.example/announce".into()],
             replace_trackers: true,
             tags: vec!["persisted".into()],
+            connections_limit: None,
             updated_at: Utc::now(),
         };
         store.write_metadata(torrent_id, &seed_metadata)?;

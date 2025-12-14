@@ -69,6 +69,8 @@ pub struct AddTorrentOptions {
     /// Per-torrent rate limits applied immediately after the torrent is added.
     #[serde(default)]
     pub rate_limit: TorrentRateLimit,
+    /// Optional per-torrent peer connection cap applied on admission.
+    pub connections_limit: Option<i32>,
     /// Arbitrary labels propagated to downstream consumers.
     #[serde(default)]
     pub tags: Vec<String>,

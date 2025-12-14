@@ -53,6 +53,13 @@ fn initialize_session(options: &ffi::SessionOptions) -> Result<UniquePtr<ffi::Se
     }
 }
 
+const fn map_max_connections(limit: Option<i32>) -> (i32, bool) {
+    match limit {
+        Some(value) if value > 0 => (value, true),
+        _ => (-1, false),
+    }
+}
+
 /// Test harness helpers for exercising the native session.
 #[cfg(all(test, feature = "libtorrent"))]
 pub(super) mod test_support {
@@ -140,10 +147,14 @@ impl LibTorrentSession for NativeSession {
             has_download_dir: request.options.download_dir.is_some(),
             sequential: request.options.sequential.unwrap_or_default(),
             has_sequential_override: request.options.sequential.is_some(),
+            max_connections: 0,
+            has_max_connections: false,
             tags: request.options.tags.clone(),
             trackers: request.options.trackers.clone(),
             replace_trackers: request.options.replace_trackers,
         };
+        (add_request.max_connections, add_request.has_max_connections) =
+            map_max_connections(request.options.connections_limit);
 
         match &request.source {
             TorrentSource::Magnet { uri } => add_request.magnet_uri.clone_from(uri),
@@ -288,7 +299,10 @@ mod tests {
             source: TorrentSource::magnet(
                 "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567",
             ),
-            options: AddTorrentOptions::default(),
+            options: AddTorrentOptions {
+                connections_limit: Some(32),
+                ..AddTorrentOptions::default()
+            },
         };
 
         harness.session.add_torrent(&descriptor).await?;

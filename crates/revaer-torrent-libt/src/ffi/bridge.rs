@@ -197,6 +197,10 @@ pub mod ffi {
         sequential: bool,
         /// Flag indicating whether sequential override was provided.
         has_sequential_override: bool,
+        /// Optional per-torrent peer connection limit.
+        max_connections: i32,
+        /// Flag indicating whether a per-torrent limit was supplied.
+        has_max_connections: bool,
         /// Tags associated with the torrent.
         tags: Vec<String>,
         /// Additional trackers provided for this torrent.

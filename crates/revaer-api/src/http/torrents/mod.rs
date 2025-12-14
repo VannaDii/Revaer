@@ -54,6 +54,7 @@ pub(crate) struct TorrentMetadata {
     pub(crate) tags: Vec<String>,
     pub(crate) trackers: Vec<String>,
     pub(crate) rate_limit: Option<TorrentRateLimit>,
+    pub(crate) connections_limit: Option<i32>,
     pub(crate) selection: FileSelectionUpdate,
 }
 
@@ -63,12 +64,14 @@ impl TorrentMetadata {
         tags: Vec<String>,
         trackers: Vec<String>,
         rate_limit: Option<TorrentRateLimit>,
+        connections_limit: Option<i32>,
         selection: FileSelectionUpdate,
     ) -> Self {
         Self {
             tags,
             trackers,
             rate_limit,
+            connections_limit,
             selection,
         }
     }
@@ -79,13 +82,20 @@ impl TorrentMetadata {
         trackers: Vec<String>,
     ) -> Self {
         let rate_limit = rate_limit_from_limits(request.max_download_bps, request.max_upload_bps);
+        let connections_limit = request.max_connections.filter(|value| *value > 0);
         let selection = FileSelectionUpdate {
             include: request.include.clone(),
             exclude: request.exclude.clone(),
             skip_fluff: request.skip_fluff,
             priorities: Vec::new(),
         };
-        Self::new(request.tags.clone(), trackers, rate_limit, selection)
+        Self::new(
+            request.tags.clone(),
+            trackers,
+            rate_limit,
+            connections_limit,
+            selection,
+        )
     }
 
     pub(crate) const fn apply_rate_limit(&mut self, rate_limit: &TorrentRateLimit) {
@@ -135,6 +145,7 @@ pub(crate) fn summary_from_components(
         metadata.tags,
         metadata.trackers,
         metadata.rate_limit,
+        metadata.connections_limit,
     )
 }
 
@@ -148,16 +159,20 @@ pub(crate) fn detail_from_components(
         tags,
         trackers,
         rate_limit,
+        connections_limit,
         selection,
     } = metadata;
-    detail.summary =
-        detail
-            .summary
-            .with_metadata(tags.clone(), trackers.clone(), rate_limit.clone());
+    detail.summary = detail.summary.with_metadata(
+        tags.clone(),
+        trackers.clone(),
+        rate_limit.clone(),
+        connections_limit,
+    );
     if let Some(settings) = detail.settings.as_mut() {
         settings.tags = tags;
         settings.trackers = trackers;
         settings.rate_limit = rate_limit;
+        settings.connections_limit = connections_limit;
         settings.selection = Some(TorrentSelectionView::from(&selection));
     }
     detail
@@ -288,6 +303,7 @@ mod tests {
                 download_bps: Some(1_024),
                 upload_bps: None,
             }),
+            None,
             FileSelectionUpdate {
                 include: vec!["**/*.mkv".to_string()],
                 exclude: Vec::new(),

@@ -216,6 +216,9 @@ pub struct TorrentSettingsView {
     /// Per-torrent bandwidth limits when present.
     pub rate_limit: Option<TorrentRateLimit>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Per-torrent peer connection cap when configured.
+    pub connections_limit: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     /// Download directory applied at admission time.
     pub download_dir: Option<String>,
     /// Whether sequential mode is currently active.
@@ -255,6 +258,9 @@ pub struct TorrentSummary {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Per-torrent rate cap overrides applied on admission.
     pub rate_limit: Option<revaer_torrent_core::TorrentRateLimit>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Per-torrent peer connection cap applied on admission.
+    pub connections_limit: Option<i32>,
     /// Timestamp when the torrent was registered with the engine.
     pub added_at: DateTime<Utc>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -278,6 +284,7 @@ impl From<TorrentStatus> for TorrentSummary {
             tags: Vec::new(),
             trackers: Vec::new(),
             rate_limit: None,
+            connections_limit: None,
             added_at: status.added_at,
             completed_at: status.completed_at,
             last_updated: status.last_updated,
@@ -293,10 +300,12 @@ impl TorrentSummary {
         tags: Vec<String>,
         trackers: Vec<String>,
         rate_limit: Option<revaer_torrent_core::TorrentRateLimit>,
+        connections_limit: Option<i32>,
     ) -> Self {
         self.tags = tags;
         self.trackers = trackers;
         self.rate_limit = rate_limit;
+        self.connections_limit = connections_limit;
         self
     }
 }
@@ -325,6 +334,7 @@ impl From<TorrentStatus> for TorrentDetail {
             tags: Vec::new(),
             trackers: Vec::new(),
             rate_limit: None,
+            connections_limit: None,
             download_dir: status.download_dir.clone(),
             sequential: status.sequential,
             selection: None,
@@ -392,6 +402,9 @@ pub struct TorrentCreateRequest {
     #[serde(default)]
     /// Optional upload bandwidth cap in bytes per second.
     pub max_upload_bps: Option<u64>,
+    #[serde(default)]
+    /// Optional per-torrent peer connection limit.
+    pub max_connections: Option<i32>,
 }
 
 impl TorrentCreateRequest {
@@ -411,6 +424,9 @@ impl TorrentCreateRequest {
                 download_bps: self.max_download_bps,
                 upload_bps: self.max_upload_bps,
             },
+            connections_limit: self
+                .max_connections
+                .and_then(|value| if value > 0 { Some(value) } else { None }),
             tags: self.tags.clone(),
             trackers: Vec::new(),
             replace_trackers: self.replace_trackers,
@@ -490,6 +506,7 @@ mod tests {
             skip_fluff: true,
             max_download_bps: Some(4_096),
             max_upload_bps: Some(2_048),
+            max_connections: Some(50),
             tags: vec!["tag-a".to_string(), "tag-b".to_string()],
             ..TorrentCreateRequest::default()
         };
@@ -503,6 +520,7 @@ mod tests {
         assert!(options.file_rules.skip_fluff);
         assert_eq!(options.rate_limit.download_bps, Some(4_096));
         assert_eq!(options.rate_limit.upload_bps, Some(2_048));
+        assert_eq!(options.connections_limit, Some(50));
         assert_eq!(options.tags, vec!["tag-a".to_string(), "tag-b".to_string()]);
     }
 
@@ -534,6 +552,17 @@ mod tests {
             TorrentSource::Metainfo { bytes } => assert_eq!(bytes, b"payload-bytes"),
             TorrentSource::Magnet { .. } => panic!("unexpected magnet source"),
         }
+    }
+
+    #[test]
+    fn torrent_create_request_ignores_non_positive_connection_limit() {
+        let request = TorrentCreateRequest {
+            max_connections: Some(0),
+            ..TorrentCreateRequest::default()
+        };
+
+        let options = request.to_options();
+        assert!(options.connections_limit.is_none());
     }
 
     #[test]
@@ -576,6 +605,7 @@ mod tests {
                 download_bps: Some(5_000),
                 upload_bps: None,
             }),
+            Some(80),
         );
         assert_eq!(summary.id, torrent_id);
         assert_eq!(summary.state.kind, TorrentStateKind::Completed);
@@ -585,6 +615,7 @@ mod tests {
             summary.rate_limit.and_then(|limit| limit.download_bps),
             Some(5_000)
         );
+        assert_eq!(summary.connections_limit, Some(80));
 
         let detail = TorrentDetail::from(status);
         assert_eq!(detail.summary.id, torrent_id);

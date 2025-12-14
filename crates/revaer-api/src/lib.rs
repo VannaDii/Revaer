@@ -1623,6 +1623,7 @@ mod tests {
                 download_bps: Some(1_000),
                 upload_bps: None,
             }),
+            None,
             revaer_torrent_core::FileSelectionUpdate::default(),
         );
         let summary = summary_from_components(status, metadata);
@@ -1685,6 +1686,7 @@ mod tests {
             metadata: TorrentMetadata::new(
                 vec![],
                 vec![],
+                None,
                 None,
                 revaer_torrent_core::FileSelectionUpdate::default(),
             ),
@@ -2078,6 +2080,7 @@ mod tests {
                 download_bps: Some(10),
                 upload_bps: None,
             }),
+            None,
             revaer_torrent_core::FileSelectionUpdate::default(),
         );
 

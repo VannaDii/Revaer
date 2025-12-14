@@ -448,13 +448,19 @@ public:
 
             params.flags |= lt::torrent_flags::auto_managed;
             params.flags &= ~lt::torrent_flags::seed_mode;
-            if (default_max_connections_per_torrent_ > 0) {
+            if (request.has_max_connections && request.max_connections > 0) {
+                params.max_connections = request.max_connections;
+            } else if (default_max_connections_per_torrent_ > 0) {
                 params.max_connections = default_max_connections_per_torrent_;
             }
 
             lt::torrent_handle handle = session_->add_torrent(params);
             handles_[request_id] = handle;
             snapshots_[request_id] = TorrentSnapshot{};
+
+            if (request.has_max_connections && request.max_connections > 0) {
+                handle.set_max_connections(request.max_connections);
+            }
 
             bool sequential = sequential_default_;
             if (request.has_sequential_override) {
