@@ -4,16 +4,20 @@ use std::fs;
 use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
+use std::str::FromStr;
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, bail};
+use postgres::NoTls;
+use url::Url;
 
 /// Handle to a disposable Postgres instance used in tests.
 pub struct TestDatabase {
     connection_string: String,
     process: Option<Child>,
     data_dir: Option<PathBuf>,
+    cleanup: Option<DbCleanup>,
 }
 
 impl TestDatabase {
@@ -26,6 +30,9 @@ impl TestDatabase {
 
 impl Drop for TestDatabase {
     fn drop(&mut self) {
+        if let Some(cleanup) = &self.cleanup {
+            let _ = drop_database(cleanup);
+        }
         if let Some(process) = &mut self.process {
             let _ = process.kill();
             let _ = process.wait();
@@ -34,6 +41,11 @@ impl Drop for TestDatabase {
             let _ = fs::remove_dir_all(dir);
         }
     }
+}
+
+struct DbCleanup {
+    admin_url: String,
+    database: String,
 }
 
 /// Start a disposable Postgres instance.
@@ -50,10 +62,15 @@ impl Drop for TestDatabase {
 /// unavailable or fail to start.
 pub fn start_postgres() -> Result<TestDatabase> {
     if let Ok(url) = std::env::var("REVAER_TEST_DATABASE_URL") {
+        let created = create_unique_database(&url)?;
         return Ok(TestDatabase {
-            connection_string: url,
+            connection_string: created.connection_string,
             process: None,
             data_dir: None,
+            cleanup: Some(DbCleanup {
+                admin_url: created.admin_url,
+                database: created.database,
+            }),
         });
     }
 
@@ -101,10 +118,17 @@ fn start_local_postgres() -> Result<TestDatabase> {
 
     wait_for_ready(&binaries.pg_isready, port)?;
 
+    let base_url = format!("postgres://postgres@127.0.0.1:{port}/postgres");
+    let created = create_unique_database(&base_url)?;
+
     Ok(TestDatabase {
-        connection_string: format!("postgres://postgres@127.0.0.1:{port}/postgres"),
+        connection_string: created.connection_string,
         process: Some(process),
         data_dir: Some(data_dir),
+        cleanup: Some(DbCleanup {
+            admin_url: created.admin_url,
+            database: created.database,
+        }),
     })
 }
 
@@ -192,4 +216,88 @@ fn wait_for_ready(pg_isready: &PathBuf, port: u16) -> Result<()> {
     }
 
     bail!("postgres process did not become ready in time")
+}
+
+struct CreatedDatabase {
+    connection_string: String,
+    admin_url: String,
+    database: String,
+}
+
+fn create_unique_database(base_url: &str) -> Result<CreatedDatabase> {
+    let parsed = Url::parse(base_url).context("invalid postgres connection url")?;
+    let db_name = unique_database_name();
+
+    let mut database_url = parsed.clone();
+    database_url.set_path(&format!("/{db_name}"));
+
+    let admin_candidates = admin_urls(&parsed);
+    let mut last_error: Option<anyhow::Error> = None;
+    for admin_url in admin_candidates {
+        match create_database(&admin_url, &db_name) {
+            Ok(()) => {
+                return Ok(CreatedDatabase {
+                    connection_string: database_url.to_string(),
+                    admin_url,
+                    database: db_name,
+                });
+            }
+            Err(err) => last_error = Some(err),
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| anyhow::anyhow!("failed to create database")))
+}
+
+fn admin_urls(base: &Url) -> Vec<String> {
+    let mut urls = Vec::new();
+    let mut admin = base.clone();
+    admin.set_path("/postgres");
+    urls.push(admin.to_string());
+    // Try the provided database as a fallback if connecting to `postgres` fails.
+    if admin.path() != base.path() {
+        urls.push(base.to_string());
+    }
+    urls
+}
+
+fn create_database(admin_url: &str, db_name: &str) -> Result<()> {
+    let admin = admin_url.to_string();
+    let name = db_name.to_string();
+    std::thread::spawn(move || -> Result<()> {
+        let config = postgres::Config::from_str(&admin)?;
+        let mut client = config.connect(NoTls)?;
+        client
+            .simple_query(&format!("CREATE DATABASE \"{name}\""))
+            .map(|_| ())
+            .context("failed to issue CREATE DATABASE")
+    })
+    .join()
+    .unwrap_or_else(|_| Err(anyhow::anyhow!("create database thread panicked")))?;
+    Ok(())
+}
+
+fn drop_database(cleanup: &DbCleanup) -> Result<()> {
+    let admin = cleanup.admin_url.clone();
+    let name = cleanup.database.clone();
+    std::thread::spawn(move || -> Result<()> {
+        let config = postgres::Config::from_str(&admin)?;
+        let mut client = config.connect(NoTls)?;
+        client
+            .simple_query(&format!("DROP DATABASE IF EXISTS \"{name}\""))
+            .map(|_| ())
+            .context("failed to drop test database")
+    })
+    .join()
+    .unwrap_or_else(|_| Err(anyhow::anyhow!("drop database thread panicked")))?;
+    Ok(())
+}
+
+fn unique_database_name() -> String {
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let pid = std::process::id();
+    format!("revaer_test_{pid}_{nanos}")
 }

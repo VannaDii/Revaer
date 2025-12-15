@@ -11,3 +11,5 @@ authors.workspace = true
 
 [dependencies]
 anyhow.workspace = true
+postgres = { version = "0.19", default-features = true }
+url = "2.5"
