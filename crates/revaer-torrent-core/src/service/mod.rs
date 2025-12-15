@@ -50,6 +50,16 @@ pub trait TorrentEngine: Send + Sync {
         bail!("file selection updates not supported by this engine");
     }
 
+    /// Update per-torrent options after admission.
+    async fn update_options(
+        &self,
+        id: Uuid,
+        options: crate::model::TorrentOptionsUpdate,
+    ) -> anyhow::Result<()> {
+        let _ = (id, options);
+        bail!("option updates not supported by this engine");
+    }
+
     /// Re-announce to trackers; default implementation reports lack of support.
     async fn reannounce(&self, id: Uuid) -> anyhow::Result<()> {
         let _ = id;
@@ -105,6 +115,16 @@ pub trait TorrentWorkflow: Send + Sync {
     async fn update_selection(&self, id: Uuid, rules: FileSelectionUpdate) -> anyhow::Result<()> {
         let _ = (id, rules);
         bail!("file selection updates not supported");
+    }
+
+    /// Update per-torrent options via the workflow façade.
+    async fn update_options(
+        &self,
+        id: Uuid,
+        options: crate::model::TorrentOptionsUpdate,
+    ) -> anyhow::Result<()> {
+        let _ = (id, options);
+        bail!("option updates not supported");
     }
 
     /// Re-announce to trackers; default implementation reports lack of support.

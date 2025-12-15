@@ -12,7 +12,7 @@ use uuid::Uuid;
 use revaer_events::TorrentState;
 use revaer_torrent_core::{
     AddTorrentOptions, FilePriority, FilePriorityOverride, FileSelectionRules, FileSelectionUpdate,
-    TorrentRateLimit, TorrentSource, TorrentStatus,
+    TorrentRateLimit, TorrentSource, TorrentStatus, model::TorrentOptionsUpdate,
 };
 
 /// RFC9457-compatible problem document surfaced on validation/runtime errors.
@@ -204,7 +204,7 @@ impl From<&FileSelectionUpdate> for TorrentSelectionView {
 }
 
 /// Snapshot of the configurable settings applied to a torrent.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct TorrentSettingsView {
     #[serde(default)]
     /// Tags associated with the torrent.
@@ -226,6 +226,27 @@ pub struct TorrentSettingsView {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// File selection rules most recently requested.
     pub selection: Option<TorrentSelectionView>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Whether super-seeding is enabled for the torrent.
+    pub super_seeding: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Whether the torrent was admitted in seed mode.
+    pub seed_mode: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Optional share ratio stop threshold.
+    pub seed_ratio_limit: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Optional seeding time stop threshold in seconds.
+    pub seed_time_limit: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Whether the torrent is auto-managed by the queue.
+    pub auto_managed: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Optional queue position when auto-managed is disabled.
+    pub queue_position: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Whether peer exchange is enabled for the torrent.
+    pub pex_enabled: Option<bool>,
 }
 
 /// High-level view returned when listing torrents.
@@ -338,6 +359,13 @@ impl From<TorrentStatus> for TorrentDetail {
             download_dir: status.download_dir.clone(),
             sequential: status.sequential,
             selection: None,
+            super_seeding: None,
+            seed_mode: None,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
+            auto_managed: None,
+            queue_position: None,
+            pex_enabled: None,
         };
         Self {
             summary,
@@ -519,6 +547,62 @@ impl From<TorrentSelectionRequest> for FileSelectionUpdate {
             skip_fluff: request.skip_fluff.unwrap_or(false),
             priorities: request.priorities,
         }
+    }
+}
+
+/// Body accepted by `PATCH /v1/torrents/{id}/options`.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct TorrentOptionsRequest {
+    #[serde(default)]
+    /// Optional per-torrent peer connection cap.
+    pub connections_limit: Option<i32>,
+    #[serde(default)]
+    /// Optional override for peer exchange behaviour.
+    pub pex_enabled: Option<bool>,
+    #[serde(default)]
+    /// Optional toggle for super-seeding.
+    pub super_seeding: Option<bool>,
+    #[serde(default)]
+    /// Optional override for auto-managed queueing.
+    pub auto_managed: Option<bool>,
+    #[serde(default)]
+    /// Optional queue position when auto-managed is disabled.
+    pub queue_position: Option<i32>,
+    #[serde(default)]
+    /// Optional share ratio stop threshold.
+    pub seed_ratio_limit: Option<f64>,
+    #[serde(default)]
+    /// Optional seeding time stop threshold in seconds.
+    pub seed_time_limit: Option<u64>,
+}
+
+impl TorrentOptionsRequest {
+    /// Translate the request payload into a domain update.
+    #[must_use]
+    pub fn to_update(&self) -> TorrentOptionsUpdate {
+        TorrentOptionsUpdate {
+            connections_limit: self
+                .connections_limit
+                .and_then(|value| if value > 0 { Some(value) } else { None }),
+            pex_enabled: self.pex_enabled,
+            super_seeding: self.super_seeding,
+            auto_managed: self.auto_managed,
+            queue_position: self.queue_position,
+            seed_ratio_limit: self.seed_ratio_limit,
+            seed_time_limit: self.seed_time_limit,
+        }
+    }
+
+    /// Returns true when no options were provided.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.connections_limit.is_none()
+            && self.pex_enabled.is_none()
+            && self.super_seeding.is_none()
+            && self.auto_managed.is_none()
+            && self.queue_position.is_none()
+            && self.seed_ratio_limit.is_none()
+            && self.seed_time_limit.is_none()
     }
 }
 
@@ -704,6 +788,29 @@ mod tests {
         assert_eq!(update.priorities.len(), 1);
         assert_eq!(update.priorities[0].index, 1);
         assert_eq!(update.priorities[0].priority, FilePriority::Low);
+    }
+
+    #[test]
+    fn torrent_options_request_to_update_filters_values() {
+        let request = TorrentOptionsRequest {
+            connections_limit: Some(0),
+            pex_enabled: Some(false),
+            super_seeding: Some(true),
+            auto_managed: Some(false),
+            queue_position: Some(3),
+            seed_ratio_limit: Some(2.0),
+            seed_time_limit: Some(3_600),
+        };
+
+        let update = request.to_update();
+        assert!(update.connections_limit.is_none());
+        assert_eq!(update.pex_enabled, Some(false));
+        assert_eq!(update.super_seeding, Some(true));
+        assert_eq!(update.auto_managed, Some(false));
+        assert_eq!(update.queue_position, Some(3));
+        assert_eq!(update.seed_ratio_limit, Some(2.0));
+        assert_eq!(update.seed_time_limit, Some(3_600));
+        assert!(!request.is_empty());
     }
 }
 

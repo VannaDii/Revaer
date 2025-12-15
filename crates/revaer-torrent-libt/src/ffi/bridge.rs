@@ -280,6 +280,33 @@ pub mod ffi {
         upload_bps: i64,
     }
 
+    /// Per-torrent option updates applied after admission.
+    #[derive(Debug)]
+    struct UpdateOptionsRequest {
+        /// Torrent identifier.
+        id: String,
+        /// Optional per-torrent peer connection limit.
+        max_connections: i32,
+        /// Whether a per-torrent limit override was supplied.
+        has_max_connections: bool,
+        /// Whether peer exchange should be enabled.
+        pex_enabled: bool,
+        /// Flag indicating whether the PEX override was provided.
+        has_pex_enabled: bool,
+        /// Whether super-seeding is enabled for this torrent.
+        super_seeding: bool,
+        /// Flag indicating whether super-seeding was explicitly overridden.
+        has_super_seeding: bool,
+        /// Whether the torrent should be auto-managed by the session.
+        auto_managed: bool,
+        /// Flag indicating whether auto-managed was explicitly provided.
+        has_auto_managed: bool,
+        /// Desired queue position when auto-managed is disabled.
+        queue_position: i32,
+        /// Flag indicating whether queue position was provided.
+        has_queue_position: bool,
+    }
+
     /// Per-file priority override entry.
     #[derive(Debug)]
     struct FilePriorityOverride {
@@ -431,6 +458,9 @@ pub mod ffi {
         /// Update selection rules for a torrent.
         #[must_use]
         fn update_selection(self: Pin<&mut Session>, request: &SelectionRules) -> String;
+        /// Update per-torrent options after admission.
+        #[must_use]
+        fn update_options(self: Pin<&mut Session>, request: &UpdateOptionsRequest) -> String;
         /// Trigger tracker reannounce.
         #[must_use]
         fn reannounce(self: Pin<&mut Session>, id: &str) -> String;

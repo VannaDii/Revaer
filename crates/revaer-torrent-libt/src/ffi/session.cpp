@@ -848,6 +848,39 @@ public:
         return ::rust::String();
     }
 
+    ::rust::String update_options(const UpdateOptionsRequest& request) {
+        const auto key = to_std_string(request.id);
+        return mutate_handle(key, [&](lt::torrent_handle& handle) {
+            if (request.has_max_connections) {
+                handle.set_max_connections(request.max_connections);
+            }
+            if (request.has_pex_enabled) {
+                if (request.pex_enabled) {
+                    handle.unset_flags(lt::torrent_flags::disable_pex);
+                } else {
+                    handle.set_flags(lt::torrent_flags::disable_pex);
+                }
+            }
+            if (request.has_super_seeding) {
+                if (request.super_seeding) {
+                    handle.set_flags(lt::torrent_flags::super_seeding);
+                } else {
+                    handle.unset_flags(lt::torrent_flags::super_seeding);
+                }
+            }
+            if (request.has_auto_managed) {
+                if (request.auto_managed) {
+                    handle.set_flags(lt::torrent_flags::auto_managed);
+                } else {
+                    handle.unset_flags(lt::torrent_flags::auto_managed);
+                }
+            }
+            if (request.has_queue_position) {
+                handle.queue_position_set(lt::queue_position_t{request.queue_position});
+            }
+        });
+    }
+
     ::rust::String reannounce(::rust::Str id) {
         return mutate_handle(to_std_string(id), [](lt::torrent_handle& handle) {
             handle.force_reannounce();
@@ -1170,6 +1203,10 @@ Session::~Session() = default;
 
 ::rust::String Session::update_selection(const SelectionRules& request) {
     return impl_->update_selection(request);
+}
+
+::rust::String Session::update_options(const UpdateOptionsRequest& request) {
+    return impl_->update_options(request);
 }
 
 ::rust::String Session::reannounce(::rust::Str id) {

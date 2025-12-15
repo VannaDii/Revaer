@@ -71,6 +71,16 @@ pub trait LibTorrentSession: Send {
     ///
     /// Returns an error if the rules cannot be applied.
     async fn update_selection(&mut self, id: Uuid, rules: &FileSelectionUpdate) -> Result<()>;
+    /// Update per-torrent options after admission.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the options cannot be applied.
+    async fn update_options(
+        &mut self,
+        id: Uuid,
+        options: &revaer_torrent_core::model::TorrentOptionsUpdate,
+    ) -> Result<()>;
     /// Trigger tracker reannounce for a torrent.
     ///
     /// # Errors

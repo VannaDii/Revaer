@@ -40,6 +40,7 @@ use crate::http::sse::stream_events;
 use crate::http::telemetry::HttpMetricsLayer;
 use crate::http::torrents::handlers::{
     action_torrent, create_torrent, delete_torrent, get_torrent, list_torrents, select_torrent,
+    update_torrent_options,
 };
 use crate::openapi::OpenApiDependencies;
 
@@ -236,6 +237,10 @@ impl ApiServer {
             .route(
                 "/v1/torrents/{id}/action",
                 post(action_torrent).route_layer(require_api.clone()),
+            )
+            .route(
+                "/v1/torrents/{id}/options",
+                patch(update_torrent_options).route_layer(require_api.clone()),
             )
             .route(
                 "/v1/events",

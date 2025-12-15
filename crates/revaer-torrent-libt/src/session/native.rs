@@ -273,6 +273,53 @@ impl LibTorrentSession for NativeSession {
         Self::map_error(result)
     }
 
+    async fn update_options(
+        &mut self,
+        id: Uuid,
+        options: &revaer_torrent_core::model::TorrentOptionsUpdate,
+    ) -> Result<()> {
+        let mut request = ffi::UpdateOptionsRequest {
+            id: id.to_string(),
+            max_connections: 0,
+            has_max_connections: false,
+            pex_enabled: false,
+            has_pex_enabled: false,
+            super_seeding: false,
+            has_super_seeding: false,
+            auto_managed: false,
+            has_auto_managed: false,
+            queue_position: 0,
+            has_queue_position: false,
+        };
+
+        if let Some(limit) = options.connections_limit
+            && limit > 0
+        {
+            request.max_connections = limit;
+            request.has_max_connections = true;
+        }
+        if let Some(pex_enabled) = options.pex_enabled {
+            request.pex_enabled = pex_enabled;
+            request.has_pex_enabled = true;
+        }
+        if let Some(super_seeding) = options.super_seeding {
+            request.super_seeding = super_seeding;
+            request.has_super_seeding = true;
+        }
+        if let Some(auto_managed) = options.auto_managed {
+            request.auto_managed = auto_managed;
+            request.has_auto_managed = true;
+        }
+        if let Some(queue_position) = options.queue_position {
+            request.queue_position = queue_position;
+            request.has_queue_position = true;
+        }
+
+        let session = self.inner.pin_mut();
+        let result = session.update_options(&request);
+        Self::map_error(result)
+    }
+
     async fn reannounce(&mut self, id: Uuid) -> Result<()> {
         let key = id.to_string();
         let session = self.inner.pin_mut();

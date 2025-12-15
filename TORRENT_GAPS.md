@@ -168,9 +168,11 @@
 -   [ ] Post-add mutation symmetry for per-torrent knobs
 
     -   [ ] API: add PATCH endpoints to update per-torrent options currently set on add (rate caps, connection limits, PEX, super-seeding, seed ratio/time caps, queue priority, add-paused state transitions, tracker/web seed updates).
-    -   [ ] Worker: add/update commands to apply these changes post-add; ensure state and metadata stay in sync.
-    -   [ ] Bridge/native: expose libtorrent calls to update corresponding options on existing torrents; ignore/handle unsupported values safely.
-    -   [ ] Tests: API + worker + native tests to confirm post-add updates apply and persist; regression tests for symmetry.
+        -   [x] Patch endpoint for connections/PEX/super-seeding/auto-managed/queue position/seed ratio and time caps.
+        -   [ ] Tracker and web seed updates; add-paused symmetry.
+    -   [x] Worker: add/update commands to apply these changes post-add; ensure state and metadata stay in sync.
+    -   [x] Bridge/native: expose libtorrent calls to update corresponding options on existing torrents; ignore/handle unsupported values safely.
+    -   [x] Tests: API + worker + native tests to confirm post-add updates apply and persist; regression tests for symmetry.
 
 -   [ ] Tracker status and tracker ops surfaced
 

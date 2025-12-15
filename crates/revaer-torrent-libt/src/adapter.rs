@@ -11,6 +11,7 @@ use crate::worker;
 use revaer_events::EventBus;
 use revaer_torrent_core::{
     AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentEngine, TorrentRateLimit,
+    model::TorrentOptionsUpdate,
 };
 
 const COMMAND_BUFFER: usize = 128;
@@ -103,6 +104,11 @@ impl TorrentEngine for LibtorrentEngine {
             .await
     }
 
+    async fn update_options(&self, id: Uuid, options: TorrentOptionsUpdate) -> Result<()> {
+        self.send_command(EngineCommand::UpdateOptions { id, options })
+            .await
+    }
+
     async fn reannounce(&self, id: Uuid) -> Result<()> {
         self.send_command(EngineCommand::Reannounce { id }).await
     }
@@ -120,7 +126,7 @@ mod tests {
         ChokingAlgorithm, EncryptionPolicy, EngineRuntimeConfig, Ipv6Mode, SeedChokingAlgorithm,
         TrackerRuntimeConfig,
     };
-    use revaer_torrent_core::{AddTorrentOptions, TorrentSource};
+    use revaer_torrent_core::{AddTorrentOptions, TorrentSource, model::TorrentOptionsUpdate};
 
     #[tokio::test]
     async fn libtorrent_engine_accepts_command_flow() -> Result<()> {
@@ -199,6 +205,15 @@ mod tests {
             .await?;
         engine
             .update_selection(torrent_id, FileSelectionUpdate::default())
+            .await?;
+        engine
+            .update_options(
+                torrent_id,
+                TorrentOptionsUpdate {
+                    connections_limit: Some(4),
+                    ..TorrentOptionsUpdate::default()
+                },
+            )
             .await?;
         engine.reannounce(torrent_id).await?;
         engine.recheck(torrent_id).await?;

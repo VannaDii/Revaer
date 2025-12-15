@@ -11,7 +11,7 @@ use chrono::{DateTime, Datelike, Timelike, Utc};
 use revaer_events::{DiscoveredFile, Event, EventBus, TorrentState};
 use revaer_torrent_core::{
     AddTorrent, EngineEvent, FilePriorityOverride, FileSelectionRules, FileSelectionUpdate,
-    RemoveTorrent, TorrentRateLimit, TorrentRates, TorrentSource,
+    RemoveTorrent, TorrentRateLimit, TorrentRates, TorrentSource, model::TorrentOptionsUpdate,
 };
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::convert::TryFrom;
@@ -217,6 +217,9 @@ impl Worker {
             }
             EngineCommand::UpdateSelection { id, rules } => {
                 self.handle_update_selection(id, rules).await?;
+            }
+            EngineCommand::UpdateOptions { id, options } => {
+                self.handle_update_options(id, options).await?;
             }
             EngineCommand::Reannounce { id } => {
                 self.handle_reannounce(id).await?;
@@ -545,7 +548,7 @@ impl Worker {
     async fn handle_set_sequential(&mut self, id: Uuid, sequential: bool) -> Result<()> {
         self.session.set_sequential(id, sequential).await?;
         debug!(torrent_id = %id, sequential, "updated sequential flag");
-        self.update_metadata(id, move |meta| {
+        self.update_metadata(id, |meta| {
             meta.sequential = sequential;
         });
         Ok(())
@@ -600,10 +603,57 @@ impl Worker {
             skip_fluff: rules.skip_fluff,
         };
         let priorities: Vec<FilePriorityOverride> = rules.priorities.clone();
-        self.update_metadata(id, move |meta| {
+        self.update_metadata(id, |meta| {
             meta.selection.clone_from(&selection);
             meta.priorities.clone_from(&priorities);
         });
+        Ok(())
+    }
+
+    async fn handle_update_options(
+        &mut self,
+        id: Uuid,
+        options: TorrentOptionsUpdate,
+    ) -> Result<()> {
+        self.session.update_options(id, &options).await?;
+        self.update_metadata(id, |meta| {
+            if let Some(limit) = options.connections_limit {
+                meta.connections_limit = (limit > 0).then_some(limit);
+            }
+            if let Some(pex_enabled) = options.pex_enabled {
+                meta.pex_enabled = Some(pex_enabled);
+            }
+            if let Some(super_seeding) = options.super_seeding {
+                meta.super_seeding = Some(super_seeding);
+            }
+            if let Some(auto_managed) = options.auto_managed {
+                meta.auto_managed = Some(auto_managed);
+            }
+            if let Some(queue_position) = options.queue_position {
+                meta.queue_position = Some(queue_position);
+            }
+            if let Some(seed_ratio_limit) = options.seed_ratio_limit {
+                meta.seed_ratio_limit = Some(seed_ratio_limit);
+            }
+            if let Some(seed_time_limit) = options.seed_time_limit {
+                meta.seed_time_limit = Some(seed_time_limit);
+            }
+        });
+        let (ratio_limit, time_limit) = self.resume_cache.get(&id).map_or((None, None), |meta| {
+            (meta.seed_ratio_limit, meta.seed_time_limit)
+        });
+        self.register_seeding_goal(id, ratio_limit, time_limit.map(Duration::from_secs));
+        debug!(
+            torrent_id = %id,
+            connections_limit = ?options.connections_limit,
+            pex_enabled = ?options.pex_enabled,
+            super_seeding = ?options.super_seeding,
+            auto_managed = ?options.auto_managed,
+            queue_position = ?options.queue_position,
+            seed_ratio_limit = ?options.seed_ratio_limit,
+            seed_time_limit = ?options.seed_time_limit,
+            "updated per-torrent options"
+        );
         Ok(())
     }
 
@@ -1120,8 +1170,9 @@ mod tests {
     use revaer_torrent_core::{
         AddTorrent, AddTorrentOptions, FilePriority, FilePriorityOverride, FileSelectionRules,
         FileSelectionUpdate, RemoveTorrent, TorrentProgress, TorrentRateLimit, TorrentRates,
-        TorrentSource,
+        TorrentSource, model::TorrentOptionsUpdate,
     };
+    use std::time::Duration;
     use tempfile::TempDir;
     use tokio::time::{sleep, timeout};
     use tokio_stream::StreamExt;
@@ -1269,6 +1320,62 @@ mod tests {
             .get(&torrent_id)
             .and_then(|meta| meta.connections_limit);
         assert_eq!(persisted, Some(24));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_options_adjusts_metadata_and_goals() -> Result<()> {
+        let bus = EventBus::with_capacity(8);
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
+        let mut worker = Worker::new(bus, session, None);
+
+        let torrent_id = Uuid::new_v4();
+        let descriptor = AddTorrent {
+            id: torrent_id,
+            source: TorrentSource::magnet("magnet:?xt=urn:btih:update-options"),
+            options: AddTorrentOptions::default(),
+        };
+
+        worker
+            .handle(EngineCommand::Add(descriptor))
+            .await
+            .expect("add should succeed");
+
+        let update = TorrentOptionsUpdate {
+            connections_limit: Some(16),
+            pex_enabled: Some(false),
+            super_seeding: Some(true),
+            auto_managed: Some(false),
+            queue_position: Some(3),
+            seed_ratio_limit: Some(1.5),
+            seed_time_limit: Some(900),
+        };
+        worker
+            .handle(EngineCommand::UpdateOptions {
+                id: torrent_id,
+                options: update,
+            })
+            .await?;
+
+        let metadata = worker
+            .resume_cache
+            .get(&torrent_id)
+            .cloned()
+            .expect("metadata persisted");
+        assert_eq!(metadata.connections_limit, Some(16));
+        assert_eq!(metadata.pex_enabled, Some(false));
+        assert_eq!(metadata.super_seeding, Some(true));
+        assert_eq!(metadata.auto_managed, Some(false));
+        assert_eq!(metadata.queue_position, Some(3));
+        assert_eq!(metadata.seed_ratio_limit, Some(1.5));
+        assert_eq!(metadata.seed_time_limit, Some(900));
+
+        let goal = worker
+            .seeding_goals
+            .get(&torrent_id)
+            .expect("goal recorded");
+        assert_eq!(goal.ratio_limit, Some(1.5));
+        assert_eq!(goal.time_limit, Some(Duration::from_secs(900)));
         Ok(())
     }
 
@@ -1873,6 +1980,14 @@ mod tests {
         }
 
         async fn load_fastresume(&mut self, _id: Uuid, _payload: &[u8]) -> Result<()> {
+            Ok(())
+        }
+
+        async fn update_options(
+            &mut self,
+            _id: Uuid,
+            _options: &revaer_torrent_core::model::TorrentOptionsUpdate,
+        ) -> Result<()> {
             Ok(())
         }
 

@@ -94,6 +94,25 @@ pub struct AddTorrentOptions {
     pub tags: Vec<String>,
 }
 
+/// Patch payload for adjusting per-torrent options after admission.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TorrentOptionsUpdate {
+    /// Optional per-torrent peer connection cap.
+    pub connections_limit: Option<i32>,
+    /// Optional override for peer exchange enablement.
+    pub pex_enabled: Option<bool>,
+    /// Optional toggle for super-seeding.
+    pub super_seeding: Option<bool>,
+    /// Optional override for auto-managed queueing.
+    pub auto_managed: Option<bool>,
+    /// Optional queue position when auto-managed is disabled.
+    pub queue_position: Option<i32>,
+    /// Optional override for share ratio stop criteria.
+    pub seed_ratio_limit: Option<f64>,
+    /// Optional override for seeding time stop criteria (seconds).
+    pub seed_time_limit: Option<u64>,
+}
+
 /// Per-torrent rate limiting knobs.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct TorrentRateLimit {

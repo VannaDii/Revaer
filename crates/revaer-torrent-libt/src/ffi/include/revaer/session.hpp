@@ -14,6 +14,7 @@ struct SessionOptions;
 struct EngineOptions;
 struct AddTorrentRequest;
 struct LimitRequest;
+struct UpdateOptionsRequest;
 struct SelectionRules;
 struct NativeEvent;
 
@@ -31,6 +32,7 @@ public:
     ::rust::String load_fastresume(::rust::Str id, rust::Slice<const std::uint8_t> data);
     ::rust::String update_limits(const LimitRequest& request);
     ::rust::String update_selection(const SelectionRules& request);
+    ::rust::String update_options(const UpdateOptionsRequest& request);
     ::rust::String reannounce(::rust::Str id);
     ::rust::String recheck(::rust::Str id);
     rust::Vec<NativeEvent> poll_events();

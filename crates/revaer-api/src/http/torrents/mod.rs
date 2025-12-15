@@ -56,6 +56,13 @@ pub(crate) struct TorrentMetadata {
     pub(crate) rate_limit: Option<TorrentRateLimit>,
     pub(crate) connections_limit: Option<i32>,
     pub(crate) selection: FileSelectionUpdate,
+    pub(crate) super_seeding: Option<bool>,
+    pub(crate) seed_mode: Option<bool>,
+    pub(crate) seed_ratio_limit: Option<f64>,
+    pub(crate) seed_time_limit: Option<u64>,
+    pub(crate) auto_managed: Option<bool>,
+    pub(crate) queue_position: Option<i32>,
+    pub(crate) pex_enabled: Option<bool>,
 }
 
 impl TorrentMetadata {
@@ -73,6 +80,13 @@ impl TorrentMetadata {
             rate_limit,
             connections_limit,
             selection,
+            super_seeding: None,
+            seed_mode: None,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
+            auto_managed: None,
+            queue_position: None,
+            pex_enabled: None,
         }
     }
 
@@ -96,6 +110,21 @@ impl TorrentMetadata {
             connections_limit,
             selection,
         )
+        .with_additional_flags(request)
+    }
+
+    const fn with_additional_flags(
+        mut self,
+        request: &crate::models::TorrentCreateRequest,
+    ) -> Self {
+        self.super_seeding = request.super_seeding;
+        self.seed_mode = request.seed_mode;
+        self.seed_ratio_limit = request.seed_ratio_limit;
+        self.seed_time_limit = request.seed_time_limit;
+        self.auto_managed = request.auto_managed;
+        self.queue_position = request.queue_position;
+        self.pex_enabled = request.pex_enabled;
+        self
     }
 
     pub(crate) const fn apply_rate_limit(&mut self, rate_limit: &TorrentRateLimit) {
@@ -161,6 +190,13 @@ pub(crate) fn detail_from_components(
         rate_limit,
         connections_limit,
         selection,
+        super_seeding,
+        seed_mode,
+        seed_ratio_limit,
+        seed_time_limit,
+        auto_managed,
+        queue_position,
+        pex_enabled,
     } = metadata;
     detail.summary = detail.summary.with_metadata(
         tags.clone(),
@@ -174,6 +210,13 @@ pub(crate) fn detail_from_components(
         settings.rate_limit = rate_limit;
         settings.connections_limit = connections_limit;
         settings.selection = Some(TorrentSelectionView::from(&selection));
+        settings.super_seeding = super_seeding;
+        settings.seed_mode = seed_mode;
+        settings.seed_ratio_limit = seed_ratio_limit;
+        settings.seed_time_limit = seed_time_limit;
+        settings.auto_managed = auto_managed;
+        settings.queue_position = queue_position;
+        settings.pex_enabled = pex_enabled;
     }
     detail
 }

@@ -16,7 +16,7 @@ use crate::app::state::ApiState;
 use crate::http::constants::{DEFAULT_PAGE_SIZE, MAX_METAINFO_BYTES, MAX_PAGE_SIZE};
 use crate::http::errors::ApiError;
 use crate::models::{
-    TorrentAction, TorrentCreateRequest, TorrentDetail, TorrentListResponse,
+    TorrentAction, TorrentCreateRequest, TorrentDetail, TorrentListResponse, TorrentOptionsRequest,
     TorrentSelectionRequest, TorrentStateKind, TorrentSummary,
 };
 use revaer_events::Event as CoreEvent;
@@ -115,6 +115,65 @@ pub(crate) async fn select_torrent(
     state.update_metadata(&id, |metadata| {
         metadata.selection = metadata_selection;
     });
+    Ok(StatusCode::ACCEPTED)
+}
+
+pub(crate) async fn update_torrent_options(
+    State(state): State<Arc<ApiState>>,
+    Extension(context): Extension<crate::http::auth::AuthContext>,
+    AxumPath(id): AxumPath<Uuid>,
+    Json(request): Json<TorrentOptionsRequest>,
+) -> Result<StatusCode, ApiError> {
+    match context {
+        crate::http::auth::AuthContext::ApiKey { .. } => {}
+        crate::http::auth::AuthContext::SetupToken(_) => {
+            return Err(ApiError::unauthorized(
+                "setup authentication context cannot manage torrents",
+            ));
+        }
+    }
+
+    if request.is_empty() {
+        return Err(ApiError::bad_request("no torrent options provided"));
+    }
+
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+    let update = request.to_update();
+    handles
+        .workflow()
+        .update_options(id, update.clone())
+        .await
+        .map_err(|err| {
+            error!(error = %err, torrent_id = %id, "failed to update torrent options");
+            ApiError::internal("failed to update torrent options")
+        })?;
+    state.update_metadata(&id, |metadata| {
+        if let Some(limit) = update.connections_limit {
+            metadata.connections_limit = Some(limit);
+        }
+        if let Some(pex_enabled) = update.pex_enabled {
+            metadata.pex_enabled = Some(pex_enabled);
+        }
+        if let Some(super_seeding) = update.super_seeding {
+            metadata.super_seeding = Some(super_seeding);
+        }
+        if let Some(auto_managed) = update.auto_managed {
+            metadata.auto_managed = Some(auto_managed);
+        }
+        if let Some(queue_position) = update.queue_position {
+            metadata.queue_position = Some(queue_position);
+        }
+        if let Some(seed_ratio_limit) = update.seed_ratio_limit {
+            metadata.seed_ratio_limit = Some(seed_ratio_limit);
+        }
+        if let Some(seed_time_limit) = update.seed_time_limit {
+            metadata.seed_time_limit = Some(seed_time_limit);
+        }
+    });
+    info!(torrent_id = %id, "torrent options update requested");
     Ok(StatusCode::ACCEPTED)
 }
 

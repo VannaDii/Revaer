@@ -37,6 +37,7 @@ struct StubTorrent {
     auto_managed: Option<bool>,
     queue_position: Option<i32>,
     pex_enabled: Option<bool>,
+    super_seeding: Option<bool>,
 }
 
 impl StubTorrent {
@@ -65,6 +66,7 @@ impl StubTorrent {
             auto_managed: request.options.auto_managed,
             queue_position: request.options.queue_position,
             pex_enabled: request.options.pex_enabled,
+            super_seeding: request.options.super_seeding,
         }
     }
 }
@@ -111,6 +113,7 @@ impl StubSession {
                 "auto_managed": torrent.auto_managed,
                 "queue_position": torrent.queue_position,
                 "pex_enabled": torrent.pex_enabled,
+                "super_seeding": torrent.super_seeding,
             })
             .to_string()
             .into_bytes();
@@ -204,6 +207,42 @@ impl LibTorrentSession for StubSession {
         torrent.selection.exclude.clone_from(&rules.exclude);
         torrent.selection.skip_fluff = rules.skip_fluff;
         torrent.priorities.clone_from(&rules.priorities);
+        self.refresh_resume(id);
+        Ok(())
+    }
+
+    async fn update_options(
+        &mut self,
+        id: Uuid,
+        options: &revaer_torrent_core::model::TorrentOptionsUpdate,
+    ) -> Result<()> {
+        let torrent = self.torrent_mut(id)?;
+        if options.connections_limit.is_some() {
+            torrent.connections_limit = options.connections_limit.filter(|value| *value > 0);
+        }
+        if let Some(pex_enabled) = options.pex_enabled {
+            torrent.pex_enabled = Some(pex_enabled);
+        }
+        if let Some(super_seeding) = options.super_seeding {
+            torrent.super_seeding = Some(super_seeding);
+        }
+        if options.seed_ratio_limit.is_some() {
+            torrent.seed_ratio_limit = options.seed_ratio_limit;
+        }
+        if options.seed_time_limit.is_some() {
+            torrent.seed_time_limit = options.seed_time_limit;
+        }
+        if let Some(auto_managed) = options.auto_managed {
+            torrent.auto_managed = Some(auto_managed);
+            torrent.state = if auto_managed {
+                revaer_events::TorrentState::Queued
+            } else {
+                torrent.state.clone()
+            };
+        }
+        if options.queue_position.is_some() {
+            torrent.queue_position = options.queue_position;
+        }
         self.refresh_resume(id);
         Ok(())
     }

@@ -1,5 +1,7 @@
 use crate::types::EngineRuntimeConfig;
-use revaer_torrent_core::{AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit};
+use revaer_torrent_core::{
+    AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, model::TorrentOptionsUpdate,
+};
 use uuid::Uuid;
 
 /// Command definitions and runtime configuration inputs for the libtorrent worker.
@@ -45,6 +47,13 @@ pub enum EngineCommand {
         id: Uuid,
         /// Inclusion, exclusion, and priority rules to apply.
         rules: FileSelectionUpdate,
+    },
+    /// Update per-torrent options after admission.
+    UpdateOptions {
+        /// Unique torrent identifier.
+        id: Uuid,
+        /// New options to apply.
+        options: TorrentOptionsUpdate,
     },
     /// Force tracker reannounce for a torrent.
     Reannounce {
