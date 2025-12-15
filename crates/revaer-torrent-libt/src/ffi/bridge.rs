@@ -103,6 +103,20 @@ pub mod ffi {
         unchoke_slots: i32,
         /// Optional half-open connection limit.
         half_open_limit: i32,
+        /// Choking strategy used while downloading.
+        choking_algorithm: i32,
+        /// Choking strategy used while seeding.
+        seed_choking_algorithm: i32,
+        /// Whether strict super-seeding is enforced.
+        strict_super_seeding: bool,
+        /// Optional optimistic unchoke slot override.
+        optimistic_unchoke_slots: i32,
+        /// Whether an optimistic unchoke override was provided.
+        has_optimistic_unchoke_slots: bool,
+        /// Optional maximum queued disk bytes override.
+        max_queued_disk_bytes: i32,
+        /// Whether a queued disk byte limit was provided.
+        has_max_queued_disk_bytes: bool,
     }
 
     /// Storage paths and behaviour applied to the session.
@@ -119,6 +133,14 @@ pub mod ffi {
     struct EngineBehaviorOptions {
         /// Default sequential preference for torrents.
         sequential_default: bool,
+        /// Whether torrents should start as auto-managed by default.
+        auto_managed: bool,
+        /// Whether queueing should prefer seeds when allocating slots.
+        auto_manage_prefer_seeds: bool,
+        /// Whether idle torrents are excluded from active slot accounting.
+        dont_count_slow_torrents: bool,
+        /// Whether torrents should default to super-seeding.
+        super_seeding: bool,
     }
 
     /// Proxy configuration for tracker announces.
@@ -209,6 +231,14 @@ pub mod ffi {
         start_paused: bool,
         /// Flag indicating whether a paused override was provided.
         has_start_paused: bool,
+        /// Whether the torrent should be auto-managed by the session.
+        auto_managed: bool,
+        /// Flag indicating whether auto-managed was explicitly provided.
+        has_auto_managed: bool,
+        /// Desired queue position when auto-managed is disabled.
+        queue_position: i32,
+        /// Flag indicating whether queue position was provided.
+        has_queue_position: bool,
         /// Whether the torrent should start in seed mode.
         seed_mode: bool,
         /// Flag indicating whether seed mode was explicitly requested.
@@ -217,6 +247,14 @@ pub mod ffi {
         hash_check_sample_pct: u8,
         /// Flag indicating whether a hash sample was requested.
         has_hash_check_sample: bool,
+        /// Whether peer exchange is enabled for this torrent.
+        pex_enabled: bool,
+        /// Flag indicating whether PEX was explicitly overridden.
+        has_pex_enabled: bool,
+        /// Whether super-seeding is enabled for this torrent.
+        super_seeding: bool,
+        /// Flag indicating whether super-seeding was explicitly overridden.
+        has_super_seeding: bool,
         /// Optional per-torrent peer connection limit.
         max_connections: i32,
         /// Flag indicating whether a per-torrent limit was supplied.

@@ -18,7 +18,7 @@ use rand::distr::Alphanumeric;
 use revaer_data::config::{
     self as data_config, AppProfileRow, EngineProfileRow, FsArrayField, FsBooleanField,
     FsOptionalStringField, FsPolicyRow, FsStringField, HistoryInsert, NewSetupToken,
-    SETTINGS_CHANNEL,
+    SETTINGS_CHANNEL, SeedingToggleSet,
 };
 use serde_json::{Map, Value, json};
 use sqlx::postgres::{PgListener, PgNotification, PgPoolOptions};
@@ -699,7 +699,9 @@ async fn handle_notification(
 
     let payload = match table.as_str() {
         "app_profile" => SettingsPayload::AppProfile(fetch_app_profile(pool).await?),
-        "engine_profile" => SettingsPayload::EngineProfile(fetch_engine_profile(pool).await?),
+        "engine_profile" => {
+            SettingsPayload::EngineProfile(Box::new(fetch_engine_profile(pool).await?))
+        }
         "fs_policy" => SettingsPayload::FsPolicy(fetch_fs_policy(pool).await?),
         _ => SettingsPayload::None,
     };
@@ -780,7 +782,16 @@ fn map_engine_profile_row(row: EngineProfileRow) -> EngineProfile {
         max_upload_bps: row.max_upload_bps,
         seed_ratio_limit: row.seed_ratio_limit,
         seed_time_limit: row.seed_time_limit,
-        sequential_default: row.sequential_default,
+        sequential_default: row.seeding.sequential_default(),
+        auto_managed: row.queue.auto_managed().into(),
+        auto_manage_prefer_seeds: row.queue.prefer_seeds().into(),
+        dont_count_slow_torrents: row.queue.dont_count_slow().into(),
+        super_seeding: row.seeding.super_seeding().into(),
+        choking_algorithm: row.choking_algorithm,
+        seed_choking_algorithm: row.seed_choking_algorithm,
+        strict_super_seeding: row.seeding.strict_super_seeding().into(),
+        optimistic_unchoke_slots: row.optimistic_unchoke_slots,
+        max_queued_disk_bytes: row.max_queued_disk_bytes,
         resume_dir: row.resume_dir,
         download_root: row.download_root,
         tracker: row.tracker,
@@ -1005,7 +1016,20 @@ async fn persist_engine_profile(
             max_upload_bps: profile.max_upload_bps,
             seed_ratio_limit: profile.seed_ratio_limit,
             seed_time_limit: profile.seed_time_limit,
-            sequential_default: profile.sequential_default,
+            seeding: SeedingToggleSet::from_flags([
+                profile.sequential_default,
+                bool::from(profile.super_seeding),
+                bool::from(profile.strict_super_seeding),
+            ]),
+            queue: data_config::QueuePolicySet::from_flags([
+                bool::from(profile.auto_managed),
+                bool::from(profile.auto_manage_prefer_seeds),
+                bool::from(profile.dont_count_slow_torrents),
+            ]),
+            choking_algorithm: &profile.choking_algorithm,
+            seed_choking_algorithm: &profile.seed_choking_algorithm,
+            optimistic_unchoke_slots: profile.optimistic_unchoke_slots,
+            max_queued_disk_bytes: profile.max_queued_disk_bytes,
             resume_dir: &profile.resume_dir,
             download_root: &profile.download_root,
             tracker: &profile.tracker,

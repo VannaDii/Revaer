@@ -8,7 +8,8 @@ use revaer_torrent_core::{
     AddTorrent, AddTorrentOptions, TorrentEngine, TorrentRateLimit, TorrentSource,
 };
 use revaer_torrent_libt::{
-    EncryptionPolicy, EngineRuntimeConfig, Ipv6Mode, LibtorrentEngine, TrackerRuntimeConfig,
+    ChokingAlgorithm, EncryptionPolicy, EngineRuntimeConfig, Ipv6Mode, LibtorrentEngine,
+    SeedChokingAlgorithm, TrackerRuntimeConfig,
 };
 use tempfile::TempDir;
 use tokio::time::timeout;
@@ -53,6 +54,9 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
         enable_outgoing_utp: false.into(),
         enable_incoming_utp: false.into(),
         sequential_default: false,
+        auto_managed: true.into(),
+        auto_manage_prefer_seeds: false.into(),
+        dont_count_slow_torrents: true.into(),
         listen_port: Some(68_81),
         max_active: Some(2),
         download_rate_limit: Some(128_000),
@@ -64,9 +68,15 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
         connections_limit_per_torrent: None,
         unchoke_slots: None,
         half_open_limit: None,
+        choking_algorithm: ChokingAlgorithm::FixedSlots,
+        seed_choking_algorithm: SeedChokingAlgorithm::RoundRobin,
+        strict_super_seeding: false.into(),
+        optimistic_unchoke_slots: None,
+        max_queued_disk_bytes: None,
         encryption: EncryptionPolicy::Prefer,
         tracker: TrackerRuntimeConfig::default(),
         ip_filter: None,
+        super_seeding: false.into(),
     };
     engine
         .apply_runtime_config(config)

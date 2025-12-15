@@ -7,13 +7,13 @@ use gloo::storage::{LocalStorage, Storage};
 use gloo::utils::window;
 use web_sys::Url;
 
-pub const THEME_KEY: &str = "revaer.theme";
-pub const MODE_KEY: &str = "revaer.mode";
-pub const LOCALE_KEY: &str = "revaer.locale";
-pub const DENSITY_KEY: &str = "revaer.density";
-pub const API_KEY_KEY: &str = "revaer.api_key";
+pub(crate) const THEME_KEY: &str = "revaer.theme";
+pub(crate) const MODE_KEY: &str = "revaer.mode";
+pub(crate) const LOCALE_KEY: &str = "revaer.locale";
+pub(crate) const DENSITY_KEY: &str = "revaer.density";
+pub(crate) const API_KEY_KEY: &str = "revaer.api_key";
 
-pub fn load_theme() -> ThemeMode {
+pub(crate) fn load_theme() -> ThemeMode {
     if let Ok(value) = LocalStorage::get::<String>(THEME_KEY) {
         return match value.as_str() {
             "dark" => ThemeMode::Dark,
@@ -26,7 +26,7 @@ pub fn load_theme() -> ThemeMode {
         .unwrap_or(ThemeMode::Light)
 }
 
-pub fn load_mode() -> UiMode {
+pub(crate) fn load_mode() -> UiMode {
     if let Ok(value) = LocalStorage::get::<String>(MODE_KEY) {
         return match value.as_str() {
             "advanced" => UiMode::Advanced,
@@ -36,7 +36,7 @@ pub fn load_mode() -> UiMode {
     UiMode::Simple
 }
 
-pub fn load_density() -> Density {
+pub(crate) fn load_density() -> Density {
     if let Ok(value) = LocalStorage::get::<String>(DENSITY_KEY) {
         return match value.as_str() {
             "compact" => Density::Compact,
@@ -47,7 +47,7 @@ pub fn load_density() -> Density {
     Density::Normal
 }
 
-pub fn load_locale() -> LocaleCode {
+pub(crate) fn load_locale() -> LocaleCode {
     if let Ok(value) = LocalStorage::get::<String>(LOCALE_KEY) {
         if let Some(locale) = LocaleCode::from_lang_tag(&value) {
             return locale;
@@ -61,7 +61,7 @@ pub fn load_locale() -> LocaleCode {
     DEFAULT_LOCALE
 }
 
-pub fn load_api_key(allow_anon: bool) -> Option<String> {
+pub(crate) fn load_api_key(allow_anon: bool) -> Option<String> {
     if let Ok(value) = LocalStorage::get::<String>(API_KEY_KEY) {
         if !value.trim().is_empty() {
             return Some(value);
@@ -74,7 +74,7 @@ pub fn load_api_key(allow_anon: bool) -> Option<String> {
     }
 }
 
-pub fn allow_anonymous() -> bool {
+pub(crate) fn allow_anonymous() -> bool {
     is_local_host()
 }
 
@@ -104,7 +104,7 @@ fn is_local_host() -> bool {
     false
 }
 
-pub fn api_base_url() -> String {
+pub(crate) fn api_base_url() -> String {
     let href = window()
         .location()
         .href()
@@ -131,7 +131,7 @@ pub fn api_base_url() -> String {
     "http://localhost:7070".to_string()
 }
 
-pub fn prefers_dark() -> Option<bool> {
+pub(crate) fn prefers_dark() -> Option<bool> {
     let media: web_sys::MediaQueryList = window()
         .match_media("(prefers-color-scheme: dark)")
         .ok()

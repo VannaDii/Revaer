@@ -20,21 +20,6 @@
 #include <vector>
 #include <iterator>
 
-#if defined(__clang__)
-#define REVAER_SUPPRESS_DEPRECATED_BEGIN \
-    _Pragma("clang diagnostic push") \
-    _Pragma("clang diagnostic ignored \"-Wdeprecated-declarations\"")
-#define REVAER_SUPPRESS_DEPRECATED_END _Pragma("clang diagnostic pop")
-#elif defined(__GNUC__)
-#define REVAER_SUPPRESS_DEPRECATED_BEGIN \
-    _Pragma("GCC diagnostic push") \
-    _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
-#define REVAER_SUPPRESS_DEPRECATED_END _Pragma("GCC diagnostic pop")
-#else
-#define REVAER_SUPPRESS_DEPRECATED_BEGIN
-#define REVAER_SUPPRESS_DEPRECATED_END
-#endif
-
 #include <libtorrent/add_torrent_params.hpp>
 #include <libtorrent/alert.hpp>
 #include <libtorrent/alert_types.hpp>
@@ -46,6 +31,7 @@
 #include <libtorrent/info_hash.hpp>
 #include <libtorrent/magnet_uri.hpp>
 #include <libtorrent/bencode.hpp>
+#include <libtorrent/read_resume_data.hpp>
 #include <libtorrent/session.hpp>
 #include <libtorrent/session_params.hpp>
 #include <libtorrent/settings_pack.hpp>
@@ -267,9 +253,35 @@ struct TorrentSnapshot {
     bool metadata_applied{false};
     bool metadata_emitted{false};
     bool completed_emitted{false};
+    bool resume_requested{false};
     std::string last_name;
     std::string last_download_dir;
 };
+
+bool set_bool_setting(lt::settings_pack& pack, const char* name, bool value) {
+    const int index = lt::setting_by_name(name);
+    if (index < 0) {
+        return false;
+    }
+    pack.set_bool(index, value);
+    return true;
+}
+
+bool set_int_setting(lt::settings_pack& pack, const char* name, int value) {
+    const int index = lt::setting_by_name(name);
+    if (index < 0) {
+        return false;
+    }
+    pack.set_int(index, value);
+    return true;
+}
+
+void set_strict_super_seeding(lt::settings_pack& pack, bool value) {
+    if (set_bool_setting(pack, "strict_super_seeding", value)) {
+        return;
+    }
+    set_bool_setting(pack, "deprecated_strict_super_seeding", value);
+}
 }  // namespace
 
 class Session::Impl {
@@ -283,9 +295,7 @@ public:
         pack.set_bool(lt::settings_pack::enable_outgoing_utp, false);
         pack.set_bool(lt::settings_pack::enable_incoming_utp, false);
         pack.set_bool(lt::settings_pack::anonymous_mode, false);
-        REVAER_SUPPRESS_DEPRECATED_BEGIN
-        pack.set_bool(lt::settings_pack::force_proxy, false);
-        REVAER_SUPPRESS_DEPRECATED_END
+        set_bool_setting(pack, "force_proxy", false);
         pack.set_bool(lt::settings_pack::prefer_rc4, false);
         pack.set_bool(lt::settings_pack::allow_multiple_connections_per_ip, false);
         pack.set_int(lt::settings_pack::alert_mask,
@@ -316,12 +326,14 @@ public:
             pack.set_bool(lt::settings_pack::enable_incoming_utp,
                           options.network.enable_incoming_utp);
             pack.set_bool(lt::settings_pack::anonymous_mode, options.network.anonymous_mode);
-            REVAER_SUPPRESS_DEPRECATED_BEGIN
-            pack.set_bool(lt::settings_pack::force_proxy, options.network.force_proxy);
-            REVAER_SUPPRESS_DEPRECATED_END
+            set_bool_setting(pack, "force_proxy", options.network.force_proxy);
             pack.set_bool(lt::settings_pack::prefer_rc4, options.network.prefer_rc4);
             pack.set_bool(lt::settings_pack::allow_multiple_connections_per_ip,
                           options.network.allow_multiple_connections_per_ip);
+            pack.set_bool(lt::settings_pack::auto_manage_prefer_seeds,
+                          options.behavior.auto_manage_prefer_seeds);
+            pack.set_bool(lt::settings_pack::dont_count_slow_torrents,
+                          options.behavior.dont_count_slow_torrents);
 
             if (options.network.has_listen_interfaces &&
                 !options.network.listen_interfaces.empty()) {
@@ -409,10 +421,23 @@ public:
                              options.limits.unchoke_slots);
             }
             if (options.limits.half_open_limit >= 0) {
-                REVAER_SUPPRESS_DEPRECATED_BEGIN
-                pack.set_int(lt::settings_pack::half_open_limit,
-                             options.limits.half_open_limit);
-                REVAER_SUPPRESS_DEPRECATED_END
+                set_int_setting(pack, "half_open_limit", options.limits.half_open_limit);
+            }
+
+            pack.set_int(lt::settings_pack::choking_algorithm,
+                         options.limits.choking_algorithm);
+            pack.set_int(lt::settings_pack::seed_choking_algorithm,
+                         options.limits.seed_choking_algorithm);
+            set_strict_super_seeding(pack, options.limits.strict_super_seeding);
+
+            if (options.limits.has_optimistic_unchoke_slots) {
+                pack.set_int(lt::settings_pack::num_optimistic_unchoke_slots,
+                             options.limits.optimistic_unchoke_slots);
+            }
+
+            if (options.limits.has_max_queued_disk_bytes) {
+                pack.set_int(lt::settings_pack::max_queued_disk_bytes,
+                             options.limits.max_queued_disk_bytes);
             }
 
             pack.set_int(lt::settings_pack::out_enc_policy, options.network.encryption_policy);
@@ -431,6 +456,9 @@ public:
             }
 
             sequential_default_ = options.behavior.sequential_default;
+            auto_managed_default_ = options.behavior.auto_managed;
+            pex_enabled_ = options.network.enable_pex;
+            super_seeding_default_ = options.behavior.super_seeding;
 
             pack.set_int(
                 lt::settings_pack::download_rate_limit,
@@ -553,40 +581,51 @@ public:
             lt::add_torrent_params params;
             const auto request_id = to_std_string(request.id);
             const auto download_dir = to_std_string(request.download_dir);
-            params.save_path = request.has_download_dir ? download_dir : default_download_root_;
-            if (params.save_path.empty()) {
-                return "download directory not configured";
-            }
-
-            if (request.source_kind == SourceKind::Magnet) {
-                params = lt::parse_magnet_uri(to_std_string(request.magnet_uri));
-                params.save_path =
-                    request.has_download_dir ? download_dir : default_download_root_;
-            } else {
-                if (request.metainfo.empty()) {
-                    return "metainfo payload empty";
-                }
-                lt::span<const char> buffer(
-                    reinterpret_cast<const char*>(request.metainfo.data()),
-                    static_cast<long>(request.metainfo.size()));
-                lt::error_code parse_ec;
-                params.ti = std::make_shared<lt::torrent_info>(
-                    buffer,
-                    parse_ec,
-                    lt::from_span);
-                if (parse_ec) {
-                    return ::rust::String(
-                        "metainfo parse failed (bytes=" + std::to_string(request.metainfo.size())
-                        + "): " + parse_ec.message());
-                }
-            }
-
             auto resume_it = pending_resume_.find(request_id);
             if (resume_it != pending_resume_.end()) {
-                REVAER_SUPPRESS_DEPRECATED_BEGIN
-                params.resume_data = resume_it->second;
-                REVAER_SUPPRESS_DEPRECATED_END
+                lt::error_code resume_ec;
+                auto resume_params = lt::read_resume_data(resume_it->second, resume_ec);
                 pending_resume_.erase(resume_it);
+                if (resume_ec) {
+                    return ::rust::String(
+                        "resume data parse failed: " + resume_ec.message());
+                }
+                params = std::move(resume_params);
+                if (params.save_path.empty()) {
+                    params.save_path =
+                        request.has_download_dir ? download_dir : default_download_root_;
+                } else if (request.has_download_dir) {
+                    params.save_path = download_dir;
+                }
+            } else {
+                params.save_path = request.has_download_dir ? download_dir : default_download_root_;
+                if (params.save_path.empty()) {
+                    return "download directory not configured";
+                }
+
+                if (request.source_kind == SourceKind::Magnet) {
+                    auto parsed = lt::parse_magnet_uri(to_std_string(request.magnet_uri));
+                    parsed.save_path =
+                        request.has_download_dir ? download_dir : default_download_root_;
+                    params = std::move(parsed);
+                } else {
+                    if (request.metainfo.empty()) {
+                        return "metainfo payload empty";
+                    }
+                    lt::span<const char> buffer(
+                        reinterpret_cast<const char*>(request.metainfo.data()),
+                        static_cast<long>(request.metainfo.size()));
+                    lt::error_code parse_ec;
+                    params.ti = std::make_shared<lt::torrent_info>(
+                        buffer,
+                        parse_ec,
+                        lt::from_span);
+                    if (parse_ec) {
+                        return ::rust::String(
+                            "metainfo parse failed (bytes=" + std::to_string(request.metainfo.size())
+                            + "): " + parse_ec.message());
+                    }
+                }
             }
 
             const bool seed_mode_requested = request.has_seed_mode && request.seed_mode;
@@ -608,11 +647,33 @@ public:
                 }
             }
 
-            params.flags |= lt::torrent_flags::auto_managed;
+            const bool auto_managed = request.has_auto_managed
+                ? request.auto_managed
+                : (request.has_queue_position ? false : auto_managed_default_);
+            const bool pex_enabled =
+                request.has_pex_enabled ? request.pex_enabled : pex_enabled_;
+            const bool super_seeding = request.has_super_seeding
+                ? request.super_seeding
+                : super_seeding_default_;
+            if (auto_managed) {
+                params.flags |= lt::torrent_flags::auto_managed;
+            } else {
+                params.flags &= ~lt::torrent_flags::auto_managed;
+            }
+            if (pex_enabled) {
+                params.flags &= ~lt::torrent_flags::disable_pex;
+            } else {
+                params.flags |= lt::torrent_flags::disable_pex;
+            }
             if (seed_mode_requested) {
                 params.flags |= lt::torrent_flags::seed_mode;
             } else {
                 params.flags &= ~lt::torrent_flags::seed_mode;
+            }
+            if (super_seeding) {
+                params.flags |= lt::torrent_flags::super_seeding;
+            } else {
+                params.flags &= ~lt::torrent_flags::super_seeding;
             }
             if (request.has_start_paused && request.start_paused) {
                 params.flags |= lt::torrent_flags::paused;
@@ -626,6 +687,10 @@ public:
             lt::torrent_handle handle = session_->add_torrent(params);
             handles_[request_id] = handle;
             snapshots_[request_id] = TorrentSnapshot{};
+
+            if (request.has_queue_position && request.queue_position >= 0) {
+                handle.queue_position_set(lt::queue_position_t{request.queue_position});
+            }
 
             if (request.has_max_connections && request.max_connections > 0) {
                 handle.set_max_connections(request.max_connections);
@@ -812,6 +877,37 @@ public:
                     events.push_back(evt);
                 }
             }
+            if (auto* resume = lt::alert_cast<lt::save_resume_data_alert>(alert)) {
+                auto id = find_torrent_id(resume->handle);
+                auto snapshot = snapshots_.find(id);
+                if (!id.empty() && snapshot != snapshots_.end()) {
+                    auto buffer = lt::write_resume_data_buf(resume->params);
+                    NativeEvent evt{};
+                    evt.id = id;
+                    evt.kind = NativeEventKind::ResumeData;
+                    evt.state = snapshot->second.state;
+                    evt.resume_data = rust::Vec<std::uint8_t>();
+                    evt.resume_data.reserve(buffer.size());
+                    for (auto byte : buffer) {
+                        evt.resume_data.push_back(static_cast<std::uint8_t>(byte));
+                    }
+                    events.push_back(evt);
+                    snapshot->second.resume_requested = false;
+                }
+            }
+            if (auto* resume_failed = lt::alert_cast<lt::save_resume_data_failed_alert>(alert)) {
+                auto id = find_torrent_id(resume_failed->handle);
+                auto snapshot = snapshots_.find(id);
+                if (!id.empty() && snapshot != snapshots_.end()) {
+                    NativeEvent evt{};
+                    evt.id = id;
+                    evt.kind = NativeEventKind::Error;
+                    evt.state = snapshot->second.state;
+                    evt.message = resume_failed->message();
+                    events.push_back(evt);
+                    snapshot->second.resume_requested = false;
+                }
+            }
         }
 
         for (auto& [id, handle] : handles_) {
@@ -920,24 +1016,9 @@ public:
             }
 
             if (status.need_save_resume) {
-                try {
-                    REVAER_SUPPRESS_DEPRECATED_BEGIN
-                    auto resume_entry = handle.write_resume_data();
-                    REVAER_SUPPRESS_DEPRECATED_END
-                    std::vector<char> buffer;
-                    lt::bencode(std::back_inserter(buffer), resume_entry);
-                    NativeEvent resume{};
-                    resume.id = id;
-                    resume.kind = NativeEventKind::ResumeData;
-                    resume.state = current_state;
-                    resume.resume_data = rust::Vec<std::uint8_t>();
-                    resume.resume_data.reserve(static_cast<std::size_t>(buffer.size()));
-                    for (auto byte : buffer) {
-                        resume.resume_data.push_back(static_cast<std::uint8_t>(byte));
-                    }
-                    events.push_back(resume);
-                } catch (const std::exception&) {
-                    // ignore failures
+                if (!snapshot.resume_requested) {
+                    handle.save_resume_data(lt::torrent_handle::save_resume_flags_t{});
+                    snapshot.resume_requested = true;
                 }
             }
         }
@@ -1040,6 +1121,9 @@ private:
     std::vector<std::string> extra_trackers_;
     bool replace_default_trackers_{false};
     bool announce_to_all_{false};
+    bool auto_managed_default_{true};
+    bool super_seeding_default_{false};
+    bool pex_enabled_{true};
     int default_max_connections_per_torrent_{-1};
     std::unordered_map<std::string, lt::torrent_handle> handles_;
     std::unordered_map<std::string, TorrentSnapshot> snapshots_;

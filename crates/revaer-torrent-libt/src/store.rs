@@ -34,6 +34,9 @@ pub struct StoredTorrentMetadata {
     /// Percentage of pieces hashed before honoring seed mode.
     pub hash_check_sample_pct: Option<u8>,
     #[serde(default)]
+    /// Whether the torrent was added with super-seeding enabled.
+    pub super_seeding: Option<bool>,
+    #[serde(default)]
     /// Trackers that were supplied when the torrent was added.
     pub trackers: Vec<String>,
     #[serde(default)]
@@ -54,6 +57,15 @@ pub struct StoredTorrentMetadata {
     #[serde(default)]
     /// Optional seeding time limit recorded at admission (seconds).
     pub seed_time_limit: Option<u64>,
+    #[serde(default)]
+    /// Whether the torrent was auto-managed at admission.
+    pub auto_managed: Option<bool>,
+    #[serde(default)]
+    /// Optional queue position recorded when auto-managed was disabled.
+    pub queue_position: Option<i32>,
+    #[serde(default)]
+    /// Whether peer exchange was enabled for the torrent.
+    pub pex_enabled: Option<bool>,
     #[serde(default)]
     /// Timestamp of the most recent metadata update.
     pub updated_at: DateTime<Utc>,
@@ -261,6 +273,7 @@ mod tests {
             sequential: true,
             seed_mode: Some(true),
             hash_check_sample_pct: Some(10),
+            super_seeding: Some(false),
             trackers: vec!["https://tracker.example/announce".into()],
             replace_trackers: true,
             tags: vec!["movies".into(), "hd".into()],
@@ -271,6 +284,9 @@ mod tests {
             connections_limit: None,
             seed_ratio_limit: Some(1.0),
             seed_time_limit: Some(3_600),
+            auto_managed: Some(true),
+            queue_position: Some(5),
+            pex_enabled: Some(true),
             updated_at: Utc::now(),
         }
     }
@@ -330,6 +346,9 @@ mod tests {
             stored_meta.tags,
             vec!["movies".to_string(), "hd".to_string()]
         );
+        assert_eq!(stored_meta.auto_managed, Some(true));
+        assert_eq!(stored_meta.queue_position, Some(5));
+        assert_eq!(stored_meta.pex_enabled, Some(true));
         assert_eq!(stored_meta.seed_mode, Some(true));
         assert_eq!(stored_meta.hash_check_sample_pct, Some(10));
         assert_eq!(stored_meta.seed_ratio_limit, Some(1.0));

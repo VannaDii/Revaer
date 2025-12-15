@@ -135,35 +135,35 @@
     -   [x] Bridge/native: set `lt::torrent_flags::paused`/`auto_managed` on add per flag; avoid immediate start when paused.
     -   [x] Tests: API parsing; worker leaves torrent paused; native test that add-paused does not start transfers.
 
--   [ ] Torrent queue priorities / auto-managed toggle
+-   [x] Torrent queue priorities / auto-managed toggle
 
-    -   [ ] Config/DB: add defaults for auto-managed behavior and queue priority policy to `EngineProfile`; validate booleans/priority bounds.
-    -   [ ] Runtime/bridge: include flags in `EngineRuntimeConfig`/`EngineOptions`; allow per-torrent overrides in `AddTorrentOptions`.
-    -   [ ] Native: control `lt::torrent_flags::auto_managed` on add based on config; expose queue priority settings via `settings_pack` (e.g., `auto_manage_prefer_seeds`, `dont_count_slow_torrents`).
-    -   [ ] Worker: honor per-torrent auto-managed override when enqueuing adds.
-    -   [ ] API/docs/tests: expose per-torrent auto-managed flag if needed; add tests for managed vs manual admission.
+    -   [x] Config/DB: add defaults for auto-managed behavior and queue priority policy to `EngineProfile`; validate booleans/priority bounds.
+    -   [x] Runtime/bridge: include flags in `EngineRuntimeConfig`/`EngineOptions`; allow per-torrent overrides in `AddTorrentOptions`.
+    -   [x] Native: control `lt::torrent_flags::auto_managed` on add based on config; expose queue priority settings via `settings_pack` (e.g., `auto_manage_prefer_seeds`, `dont_count_slow_torrents`).
+    -   [x] Worker: honor per-torrent auto-managed override when enqueuing adds.
+    -   [x] API/docs/tests: expose per-torrent auto-managed flag if needed; add tests for managed vs manual admission.
 
--   [ ] Choke/unchoke strategy configurable
+-   [x] Choke/unchoke strategy configurable
 
-    -   [ ] Config/DB: add choke/unchoke strategy fields (e.g., `unchoke_algorithm`, `seed_choking_algorithm`, `strict_super_seeding`, `optimistic_unchoke_slots`) with validated enums/bounds.
-    -   [ ] Runtime/bridge: include these in `EngineRuntimeConfig`/`EngineOptions`.
-    -   [ ] Native: set `lt::settings_pack` equivalents (`unchoke_algorithm`, `seed_choking_algorithm`, `strict_super_seeding`, `num_optimistic_unchoke_slots`, `max_queued_disk_bytes`) accordingly.
-    -   [ ] API/docs/tests: expose only sane presets; document behavior; native tests verifying settings apply.
+    -   [x] Config/DB: add choke/unchoke strategy fields (e.g., `unchoke_algorithm`, `seed_choking_algorithm`, `strict_super_seeding`, `optimistic_unchoke_slots`) with validated enums/bounds.
+    -   [x] Runtime/bridge: include these in `EngineRuntimeConfig`/`EngineOptions`.
+    -   [x] Native: set `lt::settings_pack` equivalents (`unchoke_algorithm`, `seed_choking_algorithm`, `strict_super_seeding`, `num_optimistic_unchoke_slots`, `max_queued_disk_bytes`) accordingly.
+    -   [x] API/docs/tests: expose only sane presets; document behavior; native tests verifying settings apply.
 
--   [ ] Super-seeding (initial seeding) supported
+-   [x] Super-seeding (initial seeding) supported
 
-    -   [ ] Config/DB: add `super_seeding` default flag to `EngineProfile` and optional per-torrent override; validate booleans.
-    -   [ ] Runtime/bridge: carry flags in `EngineRuntimeConfig`/`EngineOptions` and `AddTorrentOptions`.
-    -   [ ] Native: toggle `torrent_handle::super_seeding` / `lt::torrent_flags::super_seeding` based on defaults/overrides on add.
-    -   [ ] API/docs/tests: expose per-torrent super-seeding where appropriate; add native test that super-seeding applies on add.
+    -   [x] Config/DB: add `super_seeding` default flag to `EngineProfile` and optional per-torrent override; validate booleans.
+    -   [x] Runtime/bridge: carry flags in `EngineRuntimeConfig`/`EngineOptions` and `AddTorrentOptions`.
+    -   [x] Native: toggle `torrent_handle::super_seeding` / `lt::torrent_flags::super_seeding` based on defaults/overrides on add.
+    -   [x] API/docs/tests: expose per-torrent super-seeding where appropriate; add native test that super-seeding applies on add.
 
--   [ ] Peer exchange (PEX) wired through
+-   [x] Peer exchange (PEX) wired through
 
-    -   [ ] Config/DB: add a `pex_enabled` flag to `EngineProfile` with default-off and validation.
-    -   [ ] Runtime/bridge: include PEX toggle in `EngineRuntimeConfig`/`EngineOptions`.
-    -   [ ] Native: set `lt::settings_pack::enable_outgoing_utp`/`enable_incoming_utp` as needed and explicitly enable/disable PEX (extensions) on the session/torrent handles.
-    -   [ ] Worker: ensure per-torrent PEX behavior follows the profile flag; allow per-torrent override if required.
-    -   [ ] API/docs/tests: expose flag if profile edits are public; document swarm/priv tracker implications; native test that PEX toggling applies without errors.
+    -   [x] Config/DB: add a `pex_enabled` flag to `EngineProfile` with default-off and validation.
+    -   [x] Runtime/bridge: include PEX toggle in `EngineRuntimeConfig`/`EngineOptions`.
+    -   [x] Native: set `lt::settings_pack::enable_outgoing_utp`/`enable_incoming_utp` as needed and explicitly enable/disable PEX (extensions) on the session/torrent handles.
+    -   [x] Worker: ensure per-torrent PEX behavior follows the profile flag; allow per-torrent override if required.
+    -   [x] API/docs/tests: expose flag if profile edits are public; document swarm/priv tracker implications; native test that PEX toggling applies without errors.
 
 -   [ ] Post-add mutation symmetry for per-torrent knobs
 

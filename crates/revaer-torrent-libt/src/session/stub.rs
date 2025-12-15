@@ -34,6 +34,9 @@ struct StubTorrent {
     seed_ratio_limit: Option<f64>,
     seed_time_limit: Option<u64>,
     resume_payload: Option<Vec<u8>>,
+    auto_managed: Option<bool>,
+    queue_position: Option<i32>,
+    pex_enabled: Option<bool>,
 }
 
 impl StubTorrent {
@@ -59,6 +62,9 @@ impl StubTorrent {
             seed_ratio_limit: request.options.seed_ratio_limit,
             seed_time_limit: request.options.seed_time_limit,
             resume_payload: None,
+            auto_managed: request.options.auto_managed,
+            queue_position: request.options.queue_position,
+            pex_enabled: request.options.pex_enabled,
         }
     }
 }
@@ -102,6 +108,9 @@ impl StubSession {
                 "download_dir": torrent.download_dir,
                 "seed_ratio_limit": torrent.seed_ratio_limit,
                 "seed_time_limit": torrent.seed_time_limit,
+                "auto_managed": torrent.auto_managed,
+                "queue_position": torrent.queue_position,
+                "pex_enabled": torrent.pex_enabled,
             })
             .to_string()
             .into_bytes();

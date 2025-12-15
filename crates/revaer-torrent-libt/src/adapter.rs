@@ -116,7 +116,10 @@ impl TorrentEngine for LibtorrentEngine {
 mod tests {
     use super::*;
     use crate::store::FastResumeStore;
-    use crate::types::{EncryptionPolicy, EngineRuntimeConfig, Ipv6Mode, TrackerRuntimeConfig};
+    use crate::types::{
+        ChokingAlgorithm, EncryptionPolicy, EngineRuntimeConfig, Ipv6Mode, SeedChokingAlgorithm,
+        TrackerRuntimeConfig,
+    };
     use revaer_torrent_core::{AddTorrentOptions, TorrentSource};
 
     #[tokio::test]
@@ -145,6 +148,9 @@ mod tests {
             enable_outgoing_utp: false.into(),
             enable_incoming_utp: false.into(),
             sequential_default: false,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
             listen_port: Some(6_881),
             max_active: Some(4),
             download_rate_limit: Some(1_000_000),
@@ -156,9 +162,15 @@ mod tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            choking_algorithm: ChokingAlgorithm::FixedSlots,
+            seed_choking_algorithm: SeedChokingAlgorithm::RoundRobin,
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
             encryption: EncryptionPolicy::Prefer,
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
+            super_seeding: false.into(),
         };
         engine.apply_runtime_config(runtime).await?;
 
@@ -227,6 +239,9 @@ mod tests {
                 enable_outgoing_utp: false.into(),
                 enable_incoming_utp: false.into(),
                 sequential_default: true,
+                auto_managed: true.into(),
+                auto_manage_prefer_seeds: false.into(),
+                dont_count_slow_torrents: true.into(),
                 listen_port: None,
                 max_active: None,
                 download_rate_limit: None,
@@ -238,9 +253,15 @@ mod tests {
                 connections_limit_per_torrent: None,
                 unchoke_slots: None,
                 half_open_limit: None,
+                choking_algorithm: ChokingAlgorithm::FixedSlots,
+                seed_choking_algorithm: SeedChokingAlgorithm::RoundRobin,
+                strict_super_seeding: false.into(),
+                optimistic_unchoke_slots: None,
+                max_queued_disk_bytes: None,
                 encryption: EncryptionPolicy::Prefer,
                 tracker: TrackerRuntimeConfig::default(),
                 ip_filter: None,
+                super_seeding: false.into(),
             })
             .await?;
 

@@ -167,6 +167,33 @@ pub struct EngineProfile {
     pub alt_speed: Value,
     /// Whether torrents default to sequential download.
     pub sequential_default: bool,
+    /// Whether torrents should be auto-managed by default.
+    #[serde(default = "EngineProfile::default_auto_managed")]
+    pub auto_managed: Toggle,
+    /// Whether the queue manager should prefer seeds when assigning slots.
+    #[serde(default)]
+    pub auto_manage_prefer_seeds: Toggle,
+    /// Whether slow torrents are exempt from active slot limits.
+    #[serde(default = "EngineProfile::default_dont_count_slow_torrents")]
+    pub dont_count_slow_torrents: Toggle,
+    /// Whether torrents should default to super-seeding.
+    #[serde(default)]
+    pub super_seeding: Toggle,
+    /// Choking algorithm to use for downloading torrents.
+    #[serde(default = "EngineProfile::default_choking_algorithm")]
+    pub choking_algorithm: String,
+    /// Choking algorithm to use for seeding torrents.
+    #[serde(default = "EngineProfile::default_seed_choking_algorithm")]
+    pub seed_choking_algorithm: String,
+    /// Whether strict super-seeding is enforced.
+    #[serde(default)]
+    pub strict_super_seeding: Toggle,
+    /// Optional optimistic unchoke slot override.
+    #[serde(default)]
+    pub optimistic_unchoke_slots: Option<i32>,
+    /// Optional maximum queued disk bytes override.
+    #[serde(default)]
+    pub max_queued_disk_bytes: Option<i64>,
     /// Filesystem path for storing resume data.
     pub resume_dir: String,
     /// Root directory for active downloads.
@@ -194,6 +221,30 @@ impl EngineProfile {
     #[must_use]
     pub fn default_ipv6_mode() -> String {
         "disabled".to_string()
+    }
+
+    /// Canonical default for auto-managed behaviour.
+    #[must_use]
+    pub const fn default_auto_managed() -> Toggle {
+        Toggle(true)
+    }
+
+    /// Canonical default for slow-torrent slot handling.
+    #[must_use]
+    pub const fn default_dont_count_slow_torrents() -> Toggle {
+        Toggle(true)
+    }
+
+    /// Canonical default choking algorithm.
+    #[must_use]
+    pub fn default_choking_algorithm() -> String {
+        "fixed_slots".to_string()
+    }
+
+    /// Canonical default seed choking algorithm.
+    #[must_use]
+    pub fn default_seed_choking_algorithm() -> String {
+        "round_robin".to_string()
     }
 }
 
@@ -304,7 +355,7 @@ pub enum SettingsPayload {
     /// Application profile document that changed.
     AppProfile(AppProfile),
     /// Engine profile document that changed.
-    EngineProfile(EngineProfile),
+    EngineProfile(Box<EngineProfile>),
     /// Filesystem policy document that changed.
     FsPolicy(FsPolicy),
     /// Notification that did not include a payload.

@@ -104,6 +104,99 @@ mod tests {
         }
     }
 
+    fn sample_app_profile() -> AppProfile {
+        AppProfile {
+            id: uuid::Uuid::nil(),
+            instance_name: "test".into(),
+            mode: revaer_config::AppMode::Active,
+            version: 1,
+            http_port: 3000,
+            bind_addr: "127.0.0.1".parse().expect("bind addr"),
+            telemetry: serde_json::json!({}),
+            features: serde_json::json!([]),
+            immutable_keys: serde_json::json!([]),
+        }
+    }
+
+    fn sample_engine_profile() -> revaer_config::EngineProfile {
+        revaer_config::EngineProfile {
+            id: uuid::Uuid::nil(),
+            implementation: "stub".into(),
+            listen_port: None,
+            listen_interfaces: Vec::new(),
+            ipv6_mode: "disabled".into(),
+            anonymous_mode: false.into(),
+            force_proxy: false.into(),
+            prefer_rc4: false.into(),
+            allow_multiple_connections_per_ip: false.into(),
+            enable_outgoing_utp: false.into(),
+            enable_incoming_utp: false.into(),
+            dht: false,
+            encryption: "prefer".into(),
+            max_active: None,
+            max_download_bps: None,
+            max_upload_bps: None,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
+            connections_limit: None,
+            connections_limit_per_torrent: None,
+            unchoke_slots: None,
+            half_open_limit: None,
+            alt_speed: serde_json::json!({}),
+            sequential_default: false,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
+            super_seeding: false.into(),
+            choking_algorithm: revaer_config::EngineProfile::default_choking_algorithm(),
+            seed_choking_algorithm: revaer_config::EngineProfile::default_seed_choking_algorithm(),
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
+            resume_dir: "/tmp".into(),
+            download_root: "/tmp/downloads".into(),
+            tracker: serde_json::json!([]),
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
+            ip_filter: serde_json::json!({}),
+            outgoing_port_min: None,
+            outgoing_port_max: None,
+            peer_dscp: None,
+        }
+    }
+
+    fn sample_snapshot(
+        profile: &AppProfile,
+        engine_profile: &revaer_config::EngineProfile,
+    ) -> ConfigSnapshot {
+        ConfigSnapshot {
+            revision: 1,
+            app_profile: profile.clone(),
+            engine_profile: engine_profile.clone(),
+            engine_profile_effective: normalize_engine_profile(engine_profile),
+            fs_policy: revaer_config::FsPolicy {
+                id: uuid::Uuid::nil(),
+                library_root: "/tmp/library".into(),
+                extract: false,
+                par2: "disabled".into(),
+                flatten: false,
+                move_mode: "copy".into(),
+                cleanup_keep: serde_json::json!([]),
+                cleanup_drop: serde_json::json!([]),
+                chmod_file: None,
+                chmod_dir: None,
+                owner: None,
+                group: None,
+                umask: None,
+                allow_paths: serde_json::json!([]),
+            },
+        }
+    }
+
     #[async_trait]
     impl ConfigFacade for RecordingConfig {
         async fn get_app_profile(&self) -> Result<AppProfile> {
@@ -156,78 +249,9 @@ mod tests {
 
     #[tokio::test]
     async fn shared_config_trait_invokes_expected_methods() {
-        let profile = AppProfile {
-            id: uuid::Uuid::nil(),
-            instance_name: "test".into(),
-            mode: revaer_config::AppMode::Active,
-            version: 1,
-            http_port: 3000,
-            bind_addr: "127.0.0.1".parse().expect("bind addr"),
-            telemetry: serde_json::json!({}),
-            features: serde_json::json!([]),
-            immutable_keys: serde_json::json!([]),
-        };
-        let engine_profile = revaer_config::EngineProfile {
-            id: uuid::Uuid::nil(),
-            implementation: "stub".into(),
-            listen_port: None,
-            listen_interfaces: Vec::new(),
-            ipv6_mode: "disabled".into(),
-            anonymous_mode: false.into(),
-            force_proxy: false.into(),
-            prefer_rc4: false.into(),
-            allow_multiple_connections_per_ip: false.into(),
-            enable_outgoing_utp: false.into(),
-            enable_incoming_utp: false.into(),
-            dht: false,
-            encryption: "prefer".into(),
-            max_active: None,
-            max_download_bps: None,
-            max_upload_bps: None,
-            seed_ratio_limit: None,
-            seed_time_limit: None,
-            connections_limit: None,
-            connections_limit_per_torrent: None,
-            unchoke_slots: None,
-            half_open_limit: None,
-            alt_speed: serde_json::json!({}),
-            sequential_default: false,
-            resume_dir: "/tmp".into(),
-            download_root: "/tmp/downloads".into(),
-            tracker: serde_json::json!([]),
-            enable_lsd: false.into(),
-            enable_upnp: false.into(),
-            enable_natpmp: false.into(),
-            enable_pex: false.into(),
-            dht_bootstrap_nodes: Vec::new(),
-            dht_router_nodes: Vec::new(),
-            ip_filter: serde_json::json!({}),
-            outgoing_port_min: None,
-            outgoing_port_max: None,
-            peer_dscp: None,
-        };
-        let snapshot = ConfigSnapshot {
-            revision: 1,
-            app_profile: profile.clone(),
-            engine_profile: engine_profile.clone(),
-            engine_profile_effective: normalize_engine_profile(&engine_profile),
-            fs_policy: revaer_config::FsPolicy {
-                id: uuid::Uuid::nil(),
-                library_root: "/tmp/library".into(),
-                extract: false,
-                par2: "disabled".into(),
-                flatten: false,
-                move_mode: "copy".into(),
-                cleanup_keep: serde_json::json!([]),
-                cleanup_drop: serde_json::json!([]),
-                chmod_file: None,
-                chmod_dir: None,
-                owner: None,
-                group: None,
-                umask: None,
-                allow_paths: serde_json::json!([]),
-            },
-        };
+        let profile = sample_app_profile();
+        let engine_profile = sample_engine_profile();
+        let snapshot = sample_snapshot(&profile, &engine_profile);
         let config = RecordingConfig::new(profile.clone(), snapshot.clone());
         let shared: SharedConfig = Arc::new(config.clone());
 

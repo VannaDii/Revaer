@@ -28,6 +28,8 @@ ADR documents capture the rationale behind significant technical decisions.
 - [023](023-tracker-config-wiring.md) – Tracker config wiring and persistence
 - [024](024-seeding-stop-criteria.md) – Seeding stop criteria and overrides
 - [025](025-seed-mode-add-as-complete.md) – Seed mode admission with optional hash sampling
+- [026](026-queue-auto-managed-and-pex.md) – Queue auto-managed defaults and PEX threading
+- [027](027-choking-and-super-seeding.md) – Choking strategy and super-seeding configuration
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

@@ -22,10 +22,14 @@ pub mod i18n;
 pub mod models;
 
 #[cfg(target_arch = "wasm32")]
+/// UI components and Atomic Design building blocks.
+pub mod components;
+
+#[cfg(target_arch = "wasm32")]
 pub mod services;
 
 #[cfg(target_arch = "wasm32")]
-mod app;
+pub(crate) mod app;
 
 #[cfg(target_arch = "wasm32")]
 pub use app::run_app;

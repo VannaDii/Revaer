@@ -64,7 +64,10 @@ const fn map_max_connections(limit: Option<i32>) -> (i32, bool) {
 #[cfg(all(test, feature = "libtorrent"))]
 pub(super) mod test_support {
     use super::{NativeSession, create_native_session_for_tests};
-    use crate::types::{EncryptionPolicy, EngineRuntimeConfig, Ipv6Mode, TrackerRuntimeConfig};
+    use crate::types::{
+        ChokingAlgorithm, EncryptionPolicy, EngineRuntimeConfig, Ipv6Mode, SeedChokingAlgorithm,
+        TrackerRuntimeConfig,
+    };
     use anyhow::Result;
     use std::path::Path;
     use tempfile::TempDir;
@@ -110,6 +113,9 @@ pub(super) mod test_support {
                 enable_outgoing_utp: false.into(),
                 enable_incoming_utp: false.into(),
                 sequential_default: false,
+                auto_managed: true.into(),
+                auto_manage_prefer_seeds: false.into(),
+                dont_count_slow_torrents: true.into(),
                 listen_port: None,
                 max_active: None,
                 download_rate_limit: None,
@@ -121,9 +127,15 @@ pub(super) mod test_support {
                 connections_limit_per_torrent: None,
                 unchoke_slots: None,
                 half_open_limit: None,
+                choking_algorithm: ChokingAlgorithm::FixedSlots,
+                seed_choking_algorithm: SeedChokingAlgorithm::RoundRobin,
+                strict_super_seeding: false.into(),
+                optimistic_unchoke_slots: None,
+                max_queued_disk_bytes: None,
                 encryption: EncryptionPolicy::Prefer,
                 tracker: TrackerRuntimeConfig::default(),
                 ip_filter: None,
+                super_seeding: false.into(),
             }
         }
 
@@ -157,10 +169,18 @@ impl LibTorrentSession for NativeSession {
             has_sequential_override: request.options.sequential.is_some(),
             start_paused: request.options.start_paused.unwrap_or_default(),
             has_start_paused: request.options.start_paused.is_some(),
+            auto_managed: request.options.auto_managed.unwrap_or_default(),
+            has_auto_managed: request.options.auto_managed.is_some(),
+            queue_position: request.options.queue_position.unwrap_or_default(),
+            has_queue_position: request.options.queue_position.is_some(),
             seed_mode: request.options.seed_mode.unwrap_or(false),
             has_seed_mode: request.options.seed_mode.is_some(),
             hash_check_sample_pct: request.options.hash_check_sample_pct.unwrap_or(0),
             has_hash_check_sample: request.options.hash_check_sample_pct.is_some(),
+            pex_enabled: request.options.pex_enabled.unwrap_or(true),
+            has_pex_enabled: request.options.pex_enabled.is_some(),
+            super_seeding: request.options.super_seeding.unwrap_or(false),
+            has_super_seeding: request.options.super_seeding.is_some(),
             max_connections: 0,
             has_max_connections: false,
             tags: request.options.tags.clone(),

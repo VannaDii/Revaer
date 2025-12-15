@@ -388,6 +388,9 @@ pub struct TorrentCreateRequest {
     /// Percentage of pieces to hash-check before honoring seed mode.
     pub hash_check_sample_pct: Option<u8>,
     #[serde(default)]
+    /// Enables super-seeding on admission when set.
+    pub super_seeding: Option<bool>,
+    #[serde(default)]
     /// Tags to associate with the torrent immediately.
     pub tags: Vec<String>,
     #[serde(default)]
@@ -420,6 +423,15 @@ pub struct TorrentCreateRequest {
     #[serde(default)]
     /// Optional seeding time limit in seconds.
     pub seed_time_limit: Option<u64>,
+    #[serde(default)]
+    /// Optional override for auto-managed queueing.
+    pub auto_managed: Option<bool>,
+    #[serde(default)]
+    /// Optional queue position when auto-managed is disabled.
+    pub queue_position: Option<i32>,
+    #[serde(default)]
+    /// Optional override for peer exchange behaviour.
+    pub pex_enabled: Option<bool>,
 }
 
 impl TorrentCreateRequest {
@@ -435,6 +447,7 @@ impl TorrentCreateRequest {
             hash_check_sample_pct: self
                 .hash_check_sample_pct
                 .and_then(|value| if value > 0 { Some(value) } else { None }),
+            super_seeding: self.super_seeding,
             file_rules: FileSelectionRules {
                 include: self.include.clone(),
                 exclude: self.exclude.clone(),
@@ -449,6 +462,9 @@ impl TorrentCreateRequest {
                 .and_then(|value| if value > 0 { Some(value) } else { None }),
             seed_ratio_limit: self.seed_ratio_limit,
             seed_time_limit: self.seed_time_limit,
+            auto_managed: self.auto_managed,
+            queue_position: self.queue_position,
+            pex_enabled: self.pex_enabled,
             tags: self.tags.clone(),
             trackers: Vec::new(),
             replace_trackers: self.replace_trackers,
@@ -534,7 +550,11 @@ mod tests {
             start_paused: Some(true),
             seed_mode: Some(true),
             hash_check_sample_pct: Some(25),
+            super_seeding: Some(true),
             tags: vec!["tag-a".to_string(), "tag-b".to_string()],
+            auto_managed: Some(false),
+            queue_position: Some(2),
+            pex_enabled: Some(false),
             ..TorrentCreateRequest::default()
         };
 
@@ -553,7 +573,11 @@ mod tests {
         assert_eq!(options.start_paused, Some(true));
         assert_eq!(options.seed_mode, Some(true));
         assert_eq!(options.hash_check_sample_pct, Some(25));
+        assert_eq!(options.super_seeding, Some(true));
         assert_eq!(options.tags, vec!["tag-a".to_string(), "tag-b".to_string()]);
+        assert_eq!(options.auto_managed, Some(false));
+        assert_eq!(options.queue_position, Some(2));
+        assert_eq!(options.pex_enabled, Some(false));
     }
 
     #[test]

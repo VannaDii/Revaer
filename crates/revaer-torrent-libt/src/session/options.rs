@@ -32,6 +32,10 @@ impl EngineOptionsPlan {
             storage: build_storage_options(config, &mut warnings),
             behavior: ffi::EngineBehaviorOptions {
                 sequential_default: config.sequential_default,
+                auto_managed: bool::from(config.auto_managed),
+                auto_manage_prefer_seeds: bool::from(config.auto_manage_prefer_seeds),
+                dont_count_slow_torrents: bool::from(config.dont_count_slow_torrents),
+                super_seeding: bool::from(config.super_seeding),
             },
             tracker: map_tracker_options(&config.tracker),
         };
@@ -119,6 +123,11 @@ fn build_limit_options(
         map_seed_ratio_limit(config.seed_ratio_limit, warnings);
     let (seed_time_limit, has_seed_time_limit) =
         map_seed_time_limit(config.seed_time_limit, warnings);
+    let optimistic_unchoke_slots = config.optimistic_unchoke_slots.unwrap_or_default();
+    let max_queued_disk_bytes = config
+        .max_queued_disk_bytes
+        .map(|value| value.min(i64::from(i32::MAX)))
+        .unwrap_or_default();
 
     ffi::EngineLimitOptions {
         max_active,
@@ -132,6 +141,13 @@ fn build_limit_options(
         connections_limit_per_torrent,
         unchoke_slots,
         half_open_limit,
+        choking_algorithm: config.choking_algorithm.as_i32(),
+        seed_choking_algorithm: config.seed_choking_algorithm.as_i32(),
+        strict_super_seeding: bool::from(config.strict_super_seeding),
+        optimistic_unchoke_slots,
+        has_optimistic_unchoke_slots: config.optimistic_unchoke_slots.is_some(),
+        max_queued_disk_bytes: i32::try_from(max_queued_disk_bytes).unwrap_or(i32::MAX),
+        has_max_queued_disk_bytes: config.max_queued_disk_bytes.is_some(),
     }
 }
 
@@ -300,9 +316,9 @@ fn map_positive_limit(field: &str, value: Option<i32>, warnings: &mut Vec<String
 mod tests {
     use super::*;
     use crate::types::{
-        EncryptionPolicy, EngineRuntimeConfig, IpFilterRule as RuntimeIpFilterRule,
-        IpFilterRuntimeConfig, Ipv6Mode, TrackerProxyRuntime, TrackerProxyType,
-        TrackerRuntimeConfig,
+        ChokingAlgorithm, EncryptionPolicy, EngineRuntimeConfig,
+        IpFilterRule as RuntimeIpFilterRule, IpFilterRuntimeConfig, Ipv6Mode, SeedChokingAlgorithm,
+        TrackerProxyRuntime, TrackerProxyType, TrackerRuntimeConfig,
     };
 
     #[test]
@@ -328,6 +344,9 @@ mod tests {
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             sequential_default: false,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
             listen_port: Some(70_000),
             max_active: Some(0),
             download_rate_limit: Some(-1),
@@ -339,9 +358,15 @@ mod tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            choking_algorithm: ChokingAlgorithm::FixedSlots,
+            seed_choking_algorithm: SeedChokingAlgorithm::RoundRobin,
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
             encryption: EncryptionPolicy::Disable,
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
+            super_seeding: false.into(),
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);
@@ -389,6 +414,9 @@ mod tests {
             dht_bootstrap_nodes: vec!["router.bittorrent.com:6881".into()],
             dht_router_nodes: vec!["dht.transmissionbt.com:6881".into()],
             sequential_default: true,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: true.into(),
+            dont_count_slow_torrents: true.into(),
             listen_port: Some(6_881),
             max_active: Some(16),
             download_rate_limit: Some(256_000),
@@ -400,9 +428,15 @@ mod tests {
             connections_limit_per_torrent: Some(80),
             unchoke_slots: Some(40),
             half_open_limit: Some(10),
+            choking_algorithm: ChokingAlgorithm::RateBased,
+            seed_choking_algorithm: SeedChokingAlgorithm::FastestUpload,
+            strict_super_seeding: true.into(),
+            optimistic_unchoke_slots: Some(3),
+            max_queued_disk_bytes: Some(5_000_000),
             encryption: EncryptionPolicy::Require,
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
+            super_seeding: true.into(),
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);
@@ -416,7 +450,15 @@ mod tests {
         assert_eq!(plan.options.limits.connections_limit_per_torrent, 80);
         assert_eq!(plan.options.limits.unchoke_slots, 40);
         assert_eq!(plan.options.limits.half_open_limit, 10);
+        assert_eq!(plan.options.limits.choking_algorithm, 2);
+        assert_eq!(plan.options.limits.seed_choking_algorithm, 1);
+        assert!(plan.options.limits.strict_super_seeding);
+        assert!(plan.options.limits.has_optimistic_unchoke_slots);
+        assert_eq!(plan.options.limits.optimistic_unchoke_slots, 3);
+        assert!(plan.options.limits.has_max_queued_disk_bytes);
+        assert_eq!(plan.options.limits.max_queued_disk_bytes, 5_000_000);
         assert!(plan.options.behavior.sequential_default);
+        assert!(plan.options.behavior.super_seeding);
         assert_eq!(plan.options.network.encryption_policy, 0);
         assert!(plan.options.network.enable_lsd);
         assert!(plan.options.network.enable_upnp);
@@ -460,6 +502,9 @@ mod tests {
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             sequential_default: false,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
             listen_port: None,
             max_active: None,
             download_rate_limit: None,
@@ -471,9 +516,15 @@ mod tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            choking_algorithm: ChokingAlgorithm::FixedSlots,
+            seed_choking_algorithm: SeedChokingAlgorithm::RoundRobin,
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
             encryption: EncryptionPolicy::Prefer,
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
+            super_seeding: false.into(),
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);
@@ -515,6 +566,9 @@ mod tests {
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             sequential_default: false,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
             listen_port: None,
             max_active: None,
             download_rate_limit: None,
@@ -526,9 +580,15 @@ mod tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            choking_algorithm: ChokingAlgorithm::FixedSlots,
+            seed_choking_algorithm: SeedChokingAlgorithm::RoundRobin,
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
             encryption: EncryptionPolicy::Prefer,
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
+            super_seeding: false.into(),
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);
@@ -564,6 +624,9 @@ mod tests {
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             sequential_default: false,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
             listen_port: Some(6_881),
             max_active: None,
             download_rate_limit: None,
@@ -575,9 +638,15 @@ mod tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            choking_algorithm: ChokingAlgorithm::FixedSlots,
+            seed_choking_algorithm: SeedChokingAlgorithm::RoundRobin,
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
             encryption: EncryptionPolicy::Prefer,
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
+            super_seeding: false.into(),
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);
@@ -610,6 +679,9 @@ mod tests {
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             sequential_default: false,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
             listen_port: None,
             max_active: None,
             download_rate_limit: None,
@@ -621,6 +693,11 @@ mod tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            choking_algorithm: ChokingAlgorithm::FixedSlots,
+            seed_choking_algorithm: SeedChokingAlgorithm::RoundRobin,
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
             encryption: EncryptionPolicy::Prefer,
             tracker: TrackerRuntimeConfig {
                 default: vec!["https://tracker.example/announce".into()],
@@ -641,6 +718,7 @@ mod tests {
                 }),
             },
             ip_filter: None,
+            super_seeding: false.into(),
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);
@@ -695,6 +773,9 @@ mod tests {
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             sequential_default: false,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
             listen_port: None,
             max_active: None,
             download_rate_limit: None,
@@ -706,6 +787,11 @@ mod tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            choking_algorithm: ChokingAlgorithm::FixedSlots,
+            seed_choking_algorithm: SeedChokingAlgorithm::RoundRobin,
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
             encryption: EncryptionPolicy::Prefer,
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: Some(IpFilterRuntimeConfig {
@@ -717,6 +803,7 @@ mod tests {
                 etag: Some("v1".into()),
                 last_updated_at: Some("2024-01-01T00:00:00Z".into()),
             }),
+            super_seeding: false.into(),
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);

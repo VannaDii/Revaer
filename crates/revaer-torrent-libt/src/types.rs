@@ -63,6 +63,16 @@ pub struct EngineRuntimeConfig {
     pub unchoke_slots: Option<i32>,
     /// Optional half-open connection limit.
     pub half_open_limit: Option<i32>,
+    /// Choking strategy applied while downloading.
+    pub choking_algorithm: ChokingAlgorithm,
+    /// Choking strategy applied while seeding.
+    pub seed_choking_algorithm: SeedChokingAlgorithm,
+    /// Whether strict super-seeding is enforced.
+    pub strict_super_seeding: Toggle,
+    /// Optional optimistic unchoke slot override.
+    pub optimistic_unchoke_slots: Option<i32>,
+    /// Optional maximum queued disk bytes override.
+    pub max_queued_disk_bytes: Option<i64>,
     /// Whether anonymous mode is enabled.
     pub anonymous_mode: Toggle,
     /// Whether peers must be proxied.
@@ -77,6 +87,14 @@ pub struct EngineRuntimeConfig {
     pub enable_incoming_utp: Toggle,
     /// Whether torrents default to sequential download order.
     pub sequential_default: bool,
+    /// Whether torrents should be auto-managed by default.
+    pub auto_managed: Toggle,
+    /// Whether queue management should prefer seeds when allocating slots.
+    pub auto_manage_prefer_seeds: Toggle,
+    /// Whether idle torrents are excluded from active slot accounting.
+    pub dont_count_slow_torrents: Toggle,
+    /// Whether torrents default to super-seeding.
+    pub super_seeding: Toggle,
     /// Optional listen port override for the session.
     pub listen_port: Option<i32>,
     /// Optional limit for the number of active torrents.
@@ -142,6 +160,49 @@ impl EncryptionPolicy {
             Self::Require => 0,
             Self::Prefer => 1,
             Self::Disable => 2,
+        }
+    }
+}
+
+/// Choking strategy used while downloading.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ChokingAlgorithm {
+    /// Fixed unchoke slots.
+    FixedSlots,
+    /// Rate-based choking with dynamic slot count.
+    RateBased,
+}
+
+impl ChokingAlgorithm {
+    #[must_use]
+    /// Numeric representation expected by libtorrent.
+    pub const fn as_i32(self) -> i32 {
+        match self {
+            Self::FixedSlots => 0,
+            Self::RateBased => 2,
+        }
+    }
+}
+
+/// Choking strategy used while seeding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SeedChokingAlgorithm {
+    /// Rotate peers evenly.
+    RoundRobin,
+    /// Prefer peers with the fastest upload path.
+    FastestUpload,
+    /// Prefer peers near start or completion.
+    AntiLeech,
+}
+
+impl SeedChokingAlgorithm {
+    #[must_use]
+    /// Numeric representation expected by libtorrent.
+    pub const fn as_i32(self) -> i32 {
+        match self {
+            Self::RoundRobin => 0,
+            Self::FastestUpload => 1,
+            Self::AntiLeech => 2,
         }
     }
 }

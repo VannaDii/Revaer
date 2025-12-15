@@ -18,7 +18,7 @@ pub(crate) struct ApiClient {
 }
 
 impl ApiClient {
-    pub fn new(base_url: impl Into<String>, api_key: Option<String>) -> Self {
+    pub(crate) fn new(base_url: impl Into<String>, api_key: Option<String>) -> Self {
         Self {
             base_url: base_url.into(),
             api_key,
@@ -42,7 +42,11 @@ impl ApiClient {
         Ok(())
     }
 
-    pub async fn perform_action(&self, id: &str, action: TorrentAction) -> anyhow::Result<()> {
+    pub(crate) async fn perform_action(
+        &self,
+        id: &str,
+        action: TorrentAction,
+    ) -> anyhow::Result<()> {
         match action {
             TorrentAction::Pause => self.post_empty(&format!("/v1/torrents/{id}/pause")).await,
             TorrentAction::Resume => self.post_empty(&format!("/v1/torrents/{id}/resume")).await,
@@ -63,7 +67,7 @@ impl ApiClient {
         }
     }
 
-    pub async fn fetch_torrents(
+    pub(crate) async fn fetch_torrents(
         &self,
         search: Option<String>,
         regex: bool,
@@ -72,7 +76,7 @@ impl ApiClient {
         Ok(data.into_iter().map(TorrentRow::from).collect())
     }
 
-    pub async fn fetch_dashboard(&self) -> anyhow::Result<DashboardSnapshot> {
+    pub(crate) async fn fetch_dashboard(&self) -> anyhow::Result<DashboardSnapshot> {
         #[derive(serde::Deserialize)]
         struct DashboardDto {
             download_bps: u64,
@@ -113,7 +117,7 @@ impl ApiClient {
         })
     }
 
-    pub async fn add_torrent(&self, input: AddTorrentInput) -> anyhow::Result<TorrentRow> {
+    pub(crate) async fn add_torrent(&self, input: AddTorrentInput) -> anyhow::Result<TorrentRow> {
         if let Some(file) = input.file {
             self.add_torrent_file(file, input.category, input.tags, input.save_path)
                 .await
@@ -125,7 +129,7 @@ impl ApiClient {
         }
     }
 
-    pub async fn fetch_torrent_detail(&self, id: &str) -> anyhow::Result<DetailData> {
+    pub(crate) async fn fetch_torrent_detail(&self, id: &str) -> anyhow::Result<DetailData> {
         let detail: TorrentDetail = self.get_json(&format!("/v1/torrents/{id}")).await?;
         Ok(DetailData::from(detail))
     }

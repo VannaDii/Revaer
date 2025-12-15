@@ -72,6 +72,8 @@ pub struct AddTorrentOptions {
     pub seed_mode: Option<bool>,
     /// Optional percentage of pieces to hash-check before honoring seed mode.
     pub hash_check_sample_pct: Option<u8>,
+    /// Whether the torrent should use super-seeding.
+    pub super_seeding: Option<bool>,
     /// Per-torrent rate limits applied immediately after the torrent is added.
     #[serde(default)]
     pub rate_limit: TorrentRateLimit,
@@ -81,6 +83,12 @@ pub struct AddTorrentOptions {
     pub seed_ratio_limit: Option<f64>,
     /// Optional seeding time limit in seconds.
     pub seed_time_limit: Option<u64>,
+    /// Optional override for auto-managed behaviour on admission.
+    pub auto_managed: Option<bool>,
+    /// Optional queue position when auto-managed is disabled.
+    pub queue_position: Option<i32>,
+    /// Optional override for peer exchange enablement on this torrent.
+    pub pex_enabled: Option<bool>,
     /// Arbitrary labels propagated to downstream consumers.
     #[serde(default)]
     pub tags: Vec<String>,

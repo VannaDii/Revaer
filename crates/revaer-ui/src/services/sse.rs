@@ -7,7 +7,7 @@ use wasm_bindgen::closure::Closure;
 use web_sys::{EventSource, EventSourceInit, MessageEvent};
 
 /// Handle SSE events pushed from the backend using `EventSource`.
-pub fn connect_sse(
+pub(crate) fn connect_sse(
     base_url: &str,
     api_key: Option<String>,
     on_event: impl Fn(SseEvent) + 'static,

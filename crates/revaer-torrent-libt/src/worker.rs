@@ -98,6 +98,7 @@ struct AddMetadata {
     sequential: bool,
     seed_mode: Option<bool>,
     hash_check_sample_pct: Option<u8>,
+    super_seeding: Option<bool>,
     trackers: Vec<String>,
     replace_trackers: bool,
     tags: Vec<String>,
@@ -105,6 +106,9 @@ struct AddMetadata {
     rate_limit: Option<TorrentRateLimit>,
     seed_ratio_limit: Option<f64>,
     seed_time_limit: Option<u64>,
+    auto_managed: Option<bool>,
+    queue_position: Option<i32>,
+    pex_enabled: Option<bool>,
 }
 
 #[derive(Clone)]
@@ -287,6 +291,7 @@ impl Worker {
                 sequential: effective_sequential,
                 seed_mode: request.options.seed_mode,
                 hash_check_sample_pct: request.options.hash_check_sample_pct,
+                super_seeding: request.options.super_seeding,
                 trackers: request.options.trackers.clone(),
                 replace_trackers: request.options.replace_trackers,
                 tags: request.options.tags.clone(),
@@ -294,6 +299,9 @@ impl Worker {
                 rate_limit: rate_limit_for_metadata(&request.options.rate_limit),
                 seed_ratio_limit,
                 seed_time_limit: seed_time_limit.map(|value| value.as_secs()),
+                auto_managed: request.options.auto_managed,
+                queue_position: request.options.queue_position,
+                pex_enabled: request.options.pex_enabled,
             },
         );
         self.apply_initial_rate_limit(request.id, &request.options.rate_limit)
@@ -330,6 +338,18 @@ impl Worker {
             }
             if request.options.hash_check_sample_pct.is_none() {
                 request.options.hash_check_sample_pct = stored.hash_check_sample_pct;
+            }
+            if request.options.super_seeding.is_none() {
+                request.options.super_seeding = stored.super_seeding;
+            }
+            if request.options.auto_managed.is_none() {
+                request.options.auto_managed = stored.auto_managed;
+            }
+            if request.options.queue_position.is_none() {
+                request.options.queue_position = stored.queue_position;
+            }
+            if request.options.pex_enabled.is_none() {
+                request.options.pex_enabled = stored.pex_enabled;
             }
         }
     }
@@ -447,6 +467,7 @@ impl Worker {
             sequential,
             seed_mode,
             hash_check_sample_pct,
+            super_seeding,
             trackers,
             replace_trackers,
             tags,
@@ -454,6 +475,9 @@ impl Worker {
             rate_limit,
             seed_ratio_limit,
             seed_time_limit,
+            auto_managed,
+            queue_position,
+            pex_enabled,
         } = metadata;
         self.update_metadata(torrent_id, move |meta| {
             meta.selection.clone_from(&selection);
@@ -467,8 +491,12 @@ impl Worker {
             meta.rate_limit = rate_limit;
             meta.seed_mode = seed_mode;
             meta.hash_check_sample_pct = hash_check_sample_pct;
+            meta.super_seeding = super_seeding;
             meta.seed_ratio_limit = seed_ratio_limit;
             meta.seed_time_limit = seed_time_limit;
+            meta.auto_managed = auto_managed;
+            meta.queue_position = queue_position;
+            meta.pex_enabled = pex_enabled;
         });
     }
 
@@ -1081,7 +1109,7 @@ fn rate_limit_for_metadata(limit: &TorrentRateLimit) -> Option<TorrentRateLimit>
 mod tests {
     use super::*;
     use crate::{
-        EncryptionPolicy, Ipv6Mode, TrackerRuntimeConfig,
+        ChokingAlgorithm, EncryptionPolicy, Ipv6Mode, SeedChokingAlgorithm, TrackerRuntimeConfig,
         command::EngineCommand,
         session::StubSession,
         store::{FastResumeStore, StoredTorrentMetadata},
@@ -1135,6 +1163,9 @@ mod tests {
             source: TorrentSource::magnet("magnet:?xt=urn:btih:stub"),
             options: AddTorrentOptions {
                 name_hint: Some("example.torrent".into()),
+                auto_managed: Some(false),
+                queue_position: Some(3),
+                pex_enabled: Some(false),
                 ..AddTorrentOptions::default()
             },
         };
@@ -1158,6 +1189,14 @@ mod tests {
             }
             other => panic!("expected queued state change, got {other:?}"),
         }
+
+        let metadata = worker
+            .resume_cache
+            .get(&descriptor.id)
+            .expect("metadata stored");
+        assert_eq!(metadata.auto_managed, Some(false));
+        assert_eq!(metadata.queue_position, Some(3));
+        assert_eq!(metadata.pex_enabled, Some(false));
 
         Ok(())
     }
@@ -1392,8 +1431,12 @@ mod tests {
             connections_limit: None,
             seed_mode: None,
             hash_check_sample_pct: None,
+            super_seeding: None,
             seed_ratio_limit: None,
             seed_time_limit: None,
+            auto_managed: Some(true),
+            queue_position: Some(1),
+            pex_enabled: Some(true),
             updated_at: Utc::now(),
         };
         store.write_metadata(torrent_id, &seed_metadata)?;
@@ -1680,6 +1723,9 @@ mod tests {
             enable_outgoing_utp: false.into(),
             enable_incoming_utp: false.into(),
             sequential_default: false,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
             listen_port: None,
             max_active: None,
             download_rate_limit: Some(100_000),
@@ -1695,9 +1741,15 @@ mod tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            choking_algorithm: ChokingAlgorithm::FixedSlots,
+            seed_choking_algorithm: SeedChokingAlgorithm::RoundRobin,
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
             encryption: EncryptionPolicy::Prefer,
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
+            super_seeding: false.into(),
         };
 
         worker

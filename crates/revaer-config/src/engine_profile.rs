@@ -182,6 +182,16 @@ pub struct EngineLimitsConfig {
     pub unchoke_slots: Option<i32>,
     /// Optional half-open connection limit.
     pub half_open_limit: Option<i32>,
+    /// Choking strategy used for downloads.
+    pub choking_algorithm: ChokingAlgorithm,
+    /// Choking strategy used while seeding.
+    pub seed_choking_algorithm: SeedChokingAlgorithm,
+    /// Whether strict super-seeding is enforced.
+    pub strict_super_seeding: Toggle,
+    /// Optional optimistic unchoke slot override.
+    pub optimistic_unchoke_slots: Option<i32>,
+    /// Optional maximum queued disk bytes override.
+    pub max_queued_disk_bytes: Option<i64>,
 }
 
 /// Alternate speed caps and optional schedule.
@@ -262,6 +272,59 @@ pub struct EngineStorageConfig {
 pub struct EngineBehaviorConfig {
     /// Whether sequential mode is the default.
     pub sequential_default: bool,
+    /// Whether torrents are auto-managed by default.
+    pub auto_managed: Toggle,
+    /// Whether to prefer seeds when allocating queue slots.
+    pub auto_manage_prefer_seeds: Toggle,
+    /// Whether idle torrents should be excluded from slot accounting.
+    pub dont_count_slow_torrents: Toggle,
+    /// Whether torrents default to super-seeding.
+    pub super_seeding: Toggle,
+}
+
+/// Choking strategy applied to downloading torrents.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ChokingAlgorithm {
+    /// Fixed number of unchoke slots.
+    FixedSlots,
+    /// Rate-based choking with dynamic slot count.
+    RateBased,
+}
+
+impl ChokingAlgorithm {
+    #[must_use]
+    /// Render the algorithm as its canonical string representation.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::FixedSlots => "fixed_slots",
+            Self::RateBased => "rate_based",
+        }
+    }
+}
+
+/// Choking strategy applied while seeding.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SeedChokingAlgorithm {
+    /// Rotate unchoked peers evenly.
+    RoundRobin,
+    /// Prioritise peers we can upload to the fastest.
+    FastestUpload,
+    /// Bias toward peers starting or finishing a download.
+    AntiLeech,
+}
+
+impl SeedChokingAlgorithm {
+    #[must_use]
+    /// Render the algorithm as its canonical string representation.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::RoundRobin => "round_robin",
+            Self::FastestUpload => "fastest_upload",
+            Self::AntiLeech => "anti_leech",
+        }
+    }
 }
 
 /// Canonical encryption policies accepted by the engine.
@@ -424,6 +487,15 @@ pub(crate) fn validate_engine_profile_patch(
         half_open_limit: effective.limits.half_open_limit,
         alt_speed: effective.alt_speed.to_value(),
         sequential_default: effective.behavior.sequential_default,
+        auto_managed: effective.behavior.auto_managed,
+        auto_manage_prefer_seeds: effective.behavior.auto_manage_prefer_seeds,
+        dont_count_slow_torrents: effective.behavior.dont_count_slow_torrents,
+        super_seeding: effective.behavior.super_seeding,
+        choking_algorithm: effective.limits.choking_algorithm.as_str().to_string(),
+        seed_choking_algorithm: effective.limits.seed_choking_algorithm.as_str().to_string(),
+        strict_super_seeding: effective.limits.strict_super_seeding,
+        optimistic_unchoke_slots: effective.limits.optimistic_unchoke_slots,
+        max_queued_disk_bytes: effective.limits.max_queued_disk_bytes,
         resume_dir: effective.storage.resume_dir.clone(),
         download_root: effective.storage.download_root.clone(),
         tracker: effective.tracker.clone(),
@@ -519,6 +591,10 @@ fn normalize_engine_profile_with_warnings(
         storage,
         behavior: EngineBehaviorConfig {
             sequential_default: profile.sequential_default,
+            auto_managed: profile.auto_managed,
+            auto_manage_prefer_seeds: profile.auto_manage_prefer_seeds,
+            dont_count_slow_torrents: profile.dont_count_slow_torrents,
+            super_seeding: profile.super_seeding,
         },
         alt_speed,
         tracker,
@@ -563,6 +639,13 @@ fn sanitize_limits(profile: &EngineProfile, warnings: &mut Vec<String>) -> Engin
     let upload_rate_limit = clamp_rate_limit("max_upload_bps", profile.max_upload_bps, warnings);
     let seed_ratio_limit = sanitize_seed_ratio_limit(profile.seed_ratio_limit, warnings);
     let seed_time_limit = sanitize_seed_time_limit(profile.seed_time_limit, warnings);
+    let choking_algorithm = canonical_choking_algorithm(&profile.choking_algorithm, warnings);
+    let seed_choking_algorithm =
+        canonical_seed_choking_algorithm(&profile.seed_choking_algorithm, warnings);
+    let optimistic_unchoke_slots =
+        sanitize_optimistic_unchoke_slots(profile.optimistic_unchoke_slots, warnings);
+    let max_queued_disk_bytes =
+        sanitize_max_queued_disk_bytes(profile.max_queued_disk_bytes, warnings);
 
     EngineLimitsConfig {
         max_active,
@@ -574,6 +657,11 @@ fn sanitize_limits(profile: &EngineProfile, warnings: &mut Vec<String>) -> Engin
         connections_limit_per_torrent,
         unchoke_slots,
         half_open_limit,
+        choking_algorithm,
+        seed_choking_algorithm,
+        strict_super_seeding: profile.strict_super_seeding,
+        optimistic_unchoke_slots,
+        max_queued_disk_bytes,
     }
 }
 
@@ -649,6 +737,68 @@ fn sanitize_seed_time_limit(value: Option<i64>, warnings: &mut Vec<String>) -> O
             None
         } else {
             Some(seconds)
+        }
+    })
+}
+
+fn canonical_choking_algorithm(raw: &str, warnings: &mut Vec<String>) -> ChokingAlgorithm {
+    match raw.to_ascii_lowercase().as_str() {
+        "fixed" | "fixed_slots" => ChokingAlgorithm::FixedSlots,
+        "rate_based" | "rate-based" | "rate" => ChokingAlgorithm::RateBased,
+        other => {
+            warnings.push(format!(
+                "unknown choking_algorithm '{other}'; defaulting to 'fixed_slots'"
+            ));
+            ChokingAlgorithm::FixedSlots
+        }
+    }
+}
+
+fn canonical_seed_choking_algorithm(raw: &str, warnings: &mut Vec<String>) -> SeedChokingAlgorithm {
+    match raw.to_ascii_lowercase().as_str() {
+        "round_robin" | "round-robin" | "roundrobin" => SeedChokingAlgorithm::RoundRobin,
+        "fastest_upload" | "fastest-upload" | "fastest" => SeedChokingAlgorithm::FastestUpload,
+        "anti_leech" | "anti-leech" | "antileech" => SeedChokingAlgorithm::AntiLeech,
+        other => {
+            warnings.push(format!(
+                "unknown seed_choking_algorithm '{other}'; defaulting to 'round_robin'"
+            ));
+            SeedChokingAlgorithm::RoundRobin
+        }
+    }
+}
+
+fn sanitize_optimistic_unchoke_slots(
+    value: Option<i32>,
+    warnings: &mut Vec<String>,
+) -> Option<i32> {
+    value.and_then(|slots| {
+        if slots <= 0 {
+            warnings.push(format!(
+                "optimistic_unchoke_slots {slots} is non-positive; disabling override"
+            ));
+            None
+        } else {
+            Some(slots)
+        }
+    })
+}
+
+fn sanitize_max_queued_disk_bytes(value: Option<i64>, warnings: &mut Vec<String>) -> Option<i64> {
+    value.and_then(|limit| {
+        if limit <= 0 {
+            warnings.push(format!(
+                "max_queued_disk_bytes {limit} is non-positive; disabling override"
+            ));
+            None
+        } else if limit > i64::from(i32::MAX) {
+            warnings.push(format!(
+                "max_queued_disk_bytes {limit} exceeds i32::MAX; clamping to {}",
+                i32::MAX
+            ));
+            Some(i64::from(i32::MAX))
+        } else {
+            Some(limit)
         }
     })
 }
@@ -866,6 +1016,26 @@ fn apply_limit_field(
             &mut working.half_open_limit,
             parse_optional_i32(value, "half_open_limit")?,
         )),
+        "choking_algorithm" => Some(assign_if_changed(
+            &mut working.choking_algorithm,
+            required_string(value, "choking_algorithm")?,
+        )),
+        "seed_choking_algorithm" => Some(assign_if_changed(
+            &mut working.seed_choking_algorithm,
+            required_string(value, "seed_choking_algorithm")?,
+        )),
+        "strict_super_seeding" => Some(assign_if_changed(
+            &mut working.strict_super_seeding,
+            Toggle::from(required_bool(value, "strict_super_seeding")?),
+        )),
+        "optimistic_unchoke_slots" => Some(assign_if_changed(
+            &mut working.optimistic_unchoke_slots,
+            parse_optional_i32(value, "optimistic_unchoke_slots")?,
+        )),
+        "max_queued_disk_bytes" => Some(assign_if_changed(
+            &mut working.max_queued_disk_bytes,
+            parse_optional_non_negative_i64(value, "max_queued_disk_bytes")?,
+        )),
         "max_download_bps" => Some(apply_rate_limit_field(
             working,
             value,
@@ -921,6 +1091,22 @@ fn apply_behavior_field(
         "sequential_default" => Some(assign_if_changed(
             &mut working.sequential_default,
             required_bool(value, "sequential_default")?,
+        )),
+        "auto_managed" => Some(assign_if_changed(
+            &mut working.auto_managed,
+            Toggle::from(required_bool(value, "auto_managed")?),
+        )),
+        "auto_manage_prefer_seeds" => Some(assign_if_changed(
+            &mut working.auto_manage_prefer_seeds,
+            Toggle::from(required_bool(value, "auto_manage_prefer_seeds")?),
+        )),
+        "dont_count_slow_torrents" => Some(assign_if_changed(
+            &mut working.dont_count_slow_torrents,
+            Toggle::from(required_bool(value, "dont_count_slow_torrents")?),
+        )),
+        "super_seeding" => Some(assign_if_changed(
+            &mut working.super_seeding,
+            Toggle::from(required_bool(value, "super_seeding")?),
         )),
         "resume_dir" => Some(assign_if_changed(
             &mut working.resume_dir,
@@ -2297,6 +2483,15 @@ mod tests {
             half_open_limit: None,
             alt_speed: json!({}),
             sequential_default: false,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
+            super_seeding: false.into(),
+            choking_algorithm: EngineProfile::default_choking_algorithm(),
+            seed_choking_algorithm: EngineProfile::default_seed_choking_algorithm(),
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
             resume_dir: "/tmp/resume".into(),
             download_root: "/tmp/downloads".into(),
             tracker: json!({}),
@@ -2448,6 +2643,37 @@ mod tests {
         assert!(mutation.effective.network.enable_upnp.is_enabled());
         assert!(mutation.effective.network.enable_natpmp.is_enabled());
         assert!(mutation.effective.network.enable_pex.is_enabled());
+    }
+
+    #[test]
+    fn queue_settings_are_honored() {
+        let profile = sample_profile();
+        let patch = json!({
+            "auto_managed": false,
+            "auto_manage_prefer_seeds": true,
+            "dont_count_slow_torrents": false
+        });
+
+        let mutation =
+            validate_engine_profile_patch(&profile, &patch, &HashSet::new()).expect("patch valid");
+        assert!(!mutation.stored.auto_managed.is_enabled());
+        assert!(mutation.stored.auto_manage_prefer_seeds.is_enabled());
+        assert!(!mutation.stored.dont_count_slow_torrents.is_enabled());
+        assert!(!mutation.effective.behavior.auto_managed.is_enabled());
+        assert!(
+            mutation
+                .effective
+                .behavior
+                .auto_manage_prefer_seeds
+                .is_enabled()
+        );
+        assert!(
+            !mutation
+                .effective
+                .behavior
+                .dont_count_slow_torrents
+                .is_enabled()
+        );
     }
 
     #[test]
@@ -2827,5 +3053,83 @@ mod tests {
         let err = validate_engine_profile_patch(&profile, &patch_bad_day, &HashSet::new())
             .expect_err("unsupported weekday should fail");
         assert!(err.to_string().contains("weekday"));
+    }
+
+    #[test]
+    fn choking_fields_are_canonicalized() {
+        let profile = sample_profile();
+        let patch = json!({
+            "choking_algorithm": "rate-based",
+            "seed_choking_algorithm": "anti-leech",
+            "strict_super_seeding": true,
+            "optimistic_unchoke_slots": 7,
+            "max_queued_disk_bytes": 123_456,
+            "super_seeding": true
+        });
+
+        let mutation =
+            validate_engine_profile_patch(&profile, &patch, &HashSet::new()).expect("patch valid");
+        assert_eq!(mutation.stored.choking_algorithm, "rate_based");
+        assert_eq!(mutation.stored.seed_choking_algorithm, "anti_leech");
+        assert_eq!(mutation.stored.optimistic_unchoke_slots, Some(7));
+        assert_eq!(mutation.stored.max_queued_disk_bytes, Some(123_456));
+        assert!(bool::from(mutation.stored.strict_super_seeding));
+        assert!(bool::from(mutation.stored.super_seeding));
+        assert!(mutation.effective.warnings.is_empty());
+    }
+
+    #[test]
+    fn choking_limits_clamp_and_warn() {
+        let profile = sample_profile();
+        let patch = json!({
+            "choking_algorithm": "unknown",
+            "seed_choking_algorithm": "unexpected",
+            "optimistic_unchoke_slots": 0,
+            "max_queued_disk_bytes": i64::from(i32::MAX) + 1000
+        });
+
+        let mutation =
+            validate_engine_profile_patch(&profile, &patch, &HashSet::new()).expect("patch valid");
+        assert_eq!(
+            mutation.stored.choking_algorithm,
+            EngineProfile::default_choking_algorithm()
+        );
+        assert_eq!(
+            mutation.stored.seed_choking_algorithm,
+            EngineProfile::default_seed_choking_algorithm()
+        );
+        assert_eq!(mutation.stored.optimistic_unchoke_slots, None);
+        assert_eq!(
+            mutation.stored.max_queued_disk_bytes,
+            Some(i64::from(i32::MAX))
+        );
+        assert!(
+            mutation
+                .effective
+                .warnings
+                .iter()
+                .any(|msg| msg.contains("choking_algorithm"))
+        );
+        assert!(
+            mutation
+                .effective
+                .warnings
+                .iter()
+                .any(|msg| msg.contains("seed_choking_algorithm"))
+        );
+        assert!(
+            mutation
+                .effective
+                .warnings
+                .iter()
+                .any(|msg| msg.contains("optimistic_unchoke_slots"))
+        );
+        assert!(
+            mutation
+                .effective
+                .warnings
+                .iter()
+                .any(|msg| msg.contains("max_queued_disk_bytes"))
+        );
     }
 }

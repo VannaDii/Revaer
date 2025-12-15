@@ -44,6 +44,7 @@ pub(crate) async fn handle_torrent_add(ctx: &AppContext, args: TorrentAddArgs) -
         start_paused: None,
         seed_mode: None,
         hash_check_sample_pct: None,
+        super_seeding: None,
         include: Vec::new(),
         exclude: Vec::new(),
         skip_fluff: false,
@@ -55,6 +56,9 @@ pub(crate) async fn handle_torrent_add(ctx: &AppContext, args: TorrentAddArgs) -
         max_connections: None,
         seed_ratio_limit: None,
         seed_time_limit: None,
+        auto_managed: None,
+        queue_position: None,
+        pex_enabled: None,
     };
 
     if source.starts_with("magnet:") {
@@ -427,6 +431,7 @@ mod tests {
                     "start_paused": null,
                     "seed_mode": null,
                     "hash_check_sample_pct": null,
+                    "super_seeding": null,
                     "include": [],
                     "exclude": [],
                     "skip_fluff": false,
@@ -437,7 +442,10 @@ mod tests {
                     "max_upload_bps": null,
                     "max_connections": null,
                     "seed_ratio_limit": null,
-                    "seed_time_limit": null
+                    "seed_time_limit": null,
+                    "auto_managed": null,
+                    "queue_position": null,
+                    "pex_enabled": null
                 }));
             then.status(202);
         });

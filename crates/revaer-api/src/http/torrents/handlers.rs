@@ -499,6 +499,14 @@ pub(crate) fn build_add_torrent(
         }
     }
 
+    if let Some(position) = request.queue_position
+        && position < 0
+    {
+        return Err(ApiError::bad_request(
+            "queue_position must be zero or a positive integer",
+        ));
+    }
+
     let prefer_metainfo =
         matches!(request.seed_mode, Some(true)) || request.hash_check_sample_pct.unwrap_or(0) > 0;
 
@@ -581,6 +589,22 @@ mod tests {
         };
 
         let err = build_add_torrent(&request, Vec::new()).expect_err("sample over 100 is rejected");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn build_add_torrent_rejects_negative_queue_position() {
+        let request = TorrentCreateRequest {
+            id: Uuid::new_v4(),
+            magnet: Some(
+                "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567".to_string(),
+            ),
+            queue_position: Some(-1),
+            ..TorrentCreateRequest::default()
+        };
+
+        let err =
+            build_add_torrent(&request, Vec::new()).expect_err("negative queue position rejected");
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
     }
 }

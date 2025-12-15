@@ -181,6 +181,98 @@ impl PrivacyToggleSet {
     }
 }
 
+/// Queue policy toggles stored for an engine profile.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct QueuePolicySet {
+    bits: u8,
+}
+
+impl QueuePolicySet {
+    const AUTO_MANAGED: u8 = 0b001;
+    const PREFER_SEEDS: u8 = 0b010;
+    const DONT_COUNT_SLOW: u8 = 0b100;
+
+    /// Construct a new set from `[auto_managed, prefer_seeds, dont_count_slow]` flags.
+    #[must_use]
+    pub const fn from_flags(flags: [bool; 3]) -> Self {
+        let mut bits = 0;
+        if flags[0] {
+            bits |= Self::AUTO_MANAGED;
+        }
+        if flags[1] {
+            bits |= Self::PREFER_SEEDS;
+        }
+        if flags[2] {
+            bits |= Self::DONT_COUNT_SLOW;
+        }
+        Self { bits }
+    }
+
+    /// Whether torrents are auto-managed by default.
+    #[must_use]
+    pub const fn auto_managed(self) -> bool {
+        self.bits & Self::AUTO_MANAGED != 0
+    }
+
+    /// Whether queue management prefers seeds.
+    #[must_use]
+    pub const fn prefer_seeds(self) -> bool {
+        self.bits & Self::PREFER_SEEDS != 0
+    }
+
+    /// Whether slow torrents are excluded from active slot accounting.
+    #[must_use]
+    pub const fn dont_count_slow(self) -> bool {
+        self.bits & Self::DONT_COUNT_SLOW != 0
+    }
+}
+
+/// Seeding-related toggles stored for an engine profile.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SeedingToggleSet {
+    bits: u8,
+}
+
+impl SeedingToggleSet {
+    const SEQUENTIAL: u8 = 0b001;
+    const SUPER_SEEDING: u8 = 0b010;
+    const STRICT_SUPER_SEEDING: u8 = 0b100;
+
+    /// Construct a new set from `[sequential_default, super_seeding, strict_super_seeding]` flags.
+    #[must_use]
+    pub const fn from_flags(flags: [bool; 3]) -> Self {
+        let mut bits = 0;
+        if flags[0] {
+            bits |= Self::SEQUENTIAL;
+        }
+        if flags[1] {
+            bits |= Self::SUPER_SEEDING;
+        }
+        if flags[2] {
+            bits |= Self::STRICT_SUPER_SEEDING;
+        }
+        Self { bits }
+    }
+
+    /// Whether sequential mode is the default.
+    #[must_use]
+    pub const fn sequential_default(self) -> bool {
+        self.bits & Self::SEQUENTIAL != 0
+    }
+
+    /// Whether torrents default to super-seeding.
+    #[must_use]
+    pub const fn super_seeding(self) -> bool {
+        self.bits & Self::SUPER_SEEDING != 0
+    }
+
+    /// Whether strict super-seeding is enabled.
+    #[must_use]
+    pub const fn strict_super_seeding(self) -> bool {
+        self.bits & Self::STRICT_SUPER_SEEDING != 0
+    }
+}
+
 fn parse_string_array(value: &Value, field: &str) -> Result<Vec<String>, sqlx::Error> {
     let array = value.as_array().ok_or_else(|| {
         sqlx::Error::Decode(Box::new(std::io::Error::new(
@@ -230,8 +322,18 @@ pub struct EngineProfileRow {
     pub seed_ratio_limit: Option<f64>,
     /// Optional seeding time limit in seconds.
     pub seed_time_limit: Option<i64>,
-    /// Default sequential flag.
-    pub sequential_default: bool,
+    /// Queue policy toggles.
+    pub queue: QueuePolicySet,
+    /// Seeding behaviour toggles.
+    pub seeding: SeedingToggleSet,
+    /// Choking algorithm selection.
+    pub choking_algorithm: String,
+    /// Seed choking algorithm selection.
+    pub seed_choking_algorithm: String,
+    /// Optional optimistic unchoke slot override.
+    pub optimistic_unchoke_slots: Option<i32>,
+    /// Optional disk queue limit override.
+    pub max_queued_disk_bytes: Option<i64>,
     /// Resume data directory.
     pub resume_dir: String,
     /// Download root directory.
@@ -283,6 +385,12 @@ impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
             row.try_get("allow_multiple_connections_per_ip")?;
         let enable_outgoing_utp: bool = row.try_get("enable_outgoing_utp")?;
         let enable_incoming_utp: bool = row.try_get("enable_incoming_utp")?;
+        let auto_managed: bool = row.try_get("auto_managed")?;
+        let auto_manage_prefer_seeds: bool = row.try_get("auto_manage_prefer_seeds")?;
+        let dont_count_slow_torrents: bool = row.try_get("dont_count_slow_torrents")?;
+        let sequential_default: bool = row.try_get("sequential_default")?;
+        let super_seeding: bool = row.try_get("super_seeding")?;
+        let strict_super_seeding: bool = row.try_get("strict_super_seeding")?;
 
         Ok(Self {
             id: row.try_get("id")?,
@@ -295,7 +403,20 @@ impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
             max_upload_bps: row.try_get("max_upload_bps")?,
             seed_ratio_limit: row.try_get("seed_ratio_limit")?,
             seed_time_limit: row.try_get("seed_time_limit")?,
-            sequential_default: row.try_get("sequential_default")?,
+            queue: QueuePolicySet::from_flags([
+                auto_managed,
+                auto_manage_prefer_seeds,
+                dont_count_slow_torrents,
+            ]),
+            seeding: SeedingToggleSet::from_flags([
+                sequential_default,
+                super_seeding,
+                strict_super_seeding,
+            ]),
+            choking_algorithm: row.try_get("choking_algorithm")?,
+            seed_choking_algorithm: row.try_get("seed_choking_algorithm")?,
+            optimistic_unchoke_slots: row.try_get("optimistic_unchoke_slots")?,
+            max_queued_disk_bytes: row.try_get("max_queued_disk_bytes")?,
             resume_dir: row.try_get("resume_dir")?,
             download_root: row.try_get("download_root")?,
             tracker: row.try_get("tracker")?,
@@ -1175,8 +1296,18 @@ pub struct EngineProfileUpdate<'a> {
     pub seed_ratio_limit: Option<f64>,
     /// Optional seeding time limit in seconds.
     pub seed_time_limit: Option<i64>,
-    /// Whether sequential download is the default.
-    pub sequential_default: bool,
+    /// Queue policy toggles.
+    pub queue: QueuePolicySet,
+    /// Seeding behaviour toggles.
+    pub seeding: SeedingToggleSet,
+    /// Choking algorithm selection.
+    pub choking_algorithm: &'a str,
+    /// Seed choking algorithm selection.
+    pub seed_choking_algorithm: &'a str,
+    /// Optional optimistic unchoke slot override.
+    pub optimistic_unchoke_slots: Option<i32>,
+    /// Optional disk queue limit override.
+    pub max_queued_disk_bytes: Option<i64>,
     /// Directory for fast-resume payloads.
     pub resume_dir: &'a str,
     /// Root directory for active downloads.
@@ -1228,7 +1359,7 @@ where
     E: Executor<'e, Database = Postgres>,
 {
     sqlx::query(
-        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _seed_ratio_limit => $9, _seed_time_limit => $10, _sequential_default => $11, _resume_dir => $12, _download_root => $13, _tracker => $14, _lsd => $15, _upnp => $16, _natpmp => $17, _pex => $18, _dht_bootstrap_nodes => $19, _dht_router_nodes => $20, _ip_filter => $21, _listen_interfaces => $22, _ipv6_mode => $23, _anonymous_mode => $24, _force_proxy => $25, _prefer_rc4 => $26, _allow_multiple_connections_per_ip => $27, _enable_outgoing_utp => $28, _enable_incoming_utp => $29, _outgoing_port_min => $30, _outgoing_port_max => $31, _peer_dscp => $32, _connections_limit => $33, _connections_limit_per_torrent => $34, _unchoke_slots => $35, _half_open_limit => $36, _alt_speed => $37)",
+        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _seed_ratio_limit => $9, _seed_time_limit => $10, _sequential_default => $11, _auto_managed => $12, _auto_manage_prefer_seeds => $13, _dont_count_slow_torrents => $14, _super_seeding => $15, _choking_algorithm => $16, _seed_choking_algorithm => $17, _strict_super_seeding => $18, _optimistic_unchoke_slots => $19, _max_queued_disk_bytes => $20, _resume_dir => $21, _download_root => $22, _tracker => $23, _lsd => $24, _upnp => $25, _natpmp => $26, _pex => $27, _dht_bootstrap_nodes => $28, _dht_router_nodes => $29, _ip_filter => $30, _listen_interfaces => $31, _ipv6_mode => $32, _anonymous_mode => $33, _force_proxy => $34, _prefer_rc4 => $35, _allow_multiple_connections_per_ip => $36, _enable_outgoing_utp => $37, _enable_incoming_utp => $38, _outgoing_port_min => $39, _outgoing_port_max => $40, _peer_dscp => $41, _connections_limit => $42, _connections_limit_per_torrent => $43, _unchoke_slots => $44, _half_open_limit => $45, _alt_speed => $46)",
         )
     .bind(profile.id)
     .bind(profile.implementation)
@@ -1240,7 +1371,16 @@ where
     .bind(profile.max_upload_bps)
     .bind(profile.seed_ratio_limit)
     .bind(profile.seed_time_limit)
-    .bind(profile.sequential_default)
+    .bind(profile.seeding.sequential_default())
+    .bind(profile.queue.auto_managed())
+    .bind(profile.queue.prefer_seeds())
+    .bind(profile.queue.dont_count_slow())
+    .bind(profile.seeding.super_seeding())
+    .bind(profile.choking_algorithm)
+    .bind(profile.seed_choking_algorithm)
+    .bind(profile.seeding.strict_super_seeding())
+    .bind(profile.optimistic_unchoke_slots)
+    .bind(profile.max_queued_disk_bytes)
     .bind(profile.resume_dir)
     .bind(profile.download_root)
     .bind(profile.tracker)

@@ -5,10 +5,11 @@
 //! - Carries the effective profile (including warnings) for observability and API responses.
 //! - Keeps encryption mapping centralised to avoid drift between API/config/runtime layers.
 
+use revaer_config::engine_profile::{AltSpeedConfig, ChokingAlgorithm, SeedChokingAlgorithm};
 use revaer_config::{
     EngineEncryptionPolicy, EngineIpv6Mode, EngineNetworkConfig, EngineProfile,
     EngineProfileEffective, IpFilterConfig, IpFilterRule, TrackerConfig, TrackerProxyConfig,
-    TrackerProxyType, engine_profile::AltSpeedConfig, normalize_engine_profile,
+    TrackerProxyType, normalize_engine_profile,
 };
 use revaer_torrent_core::TorrentRateLimit;
 use revaer_torrent_libt::{
@@ -17,7 +18,9 @@ use revaer_torrent_libt::{
     TrackerProxyType as RuntimeProxyType, TrackerRuntimeConfig,
     types::{
         AltSpeedRuntimeConfig as RuntimeAltSpeedConfig,
-        AltSpeedSchedule as RuntimeAltSpeedSchedule, OutgoingPortRange as RuntimeOutgoingPortRange,
+        AltSpeedSchedule as RuntimeAltSpeedSchedule, ChokingAlgorithm as RuntimeChokingAlgorithm,
+        OutgoingPortRange as RuntimeOutgoingPortRange,
+        SeedChokingAlgorithm as RuntimeSeedChokingAlgorithm,
     },
 };
 
@@ -73,6 +76,11 @@ impl EngineRuntimePlan {
             enable_outgoing_utp: bool::from(effective.network.enable_outgoing_utp).into(),
             enable_incoming_utp: bool::from(effective.network.enable_incoming_utp).into(),
             sequential_default: effective.behavior.sequential_default,
+            auto_managed: bool::from(effective.behavior.auto_managed).into(),
+            auto_manage_prefer_seeds: bool::from(effective.behavior.auto_manage_prefer_seeds)
+                .into(),
+            dont_count_slow_torrents: bool::from(effective.behavior.dont_count_slow_torrents)
+                .into(),
             listen_interfaces,
             ipv6_mode: runtime_ipv6_mode,
             listen_port,
@@ -86,9 +94,17 @@ impl EngineRuntimePlan {
             connections_limit_per_torrent: effective.limits.connections_limit_per_torrent,
             unchoke_slots: effective.limits.unchoke_slots,
             half_open_limit: effective.limits.half_open_limit,
+            choking_algorithm: map_choking_algorithm(effective.limits.choking_algorithm),
+            seed_choking_algorithm: map_seed_choking_algorithm(
+                effective.limits.seed_choking_algorithm,
+            ),
+            strict_super_seeding: bool::from(effective.limits.strict_super_seeding).into(),
+            optimistic_unchoke_slots: effective.limits.optimistic_unchoke_slots,
+            max_queued_disk_bytes: effective.limits.max_queued_disk_bytes,
             encryption: map_encryption_policy(effective.network.encryption),
             tracker,
             ip_filter,
+            super_seeding: bool::from(effective.behavior.super_seeding).into(),
         };
 
         Self { effective, runtime }
@@ -115,6 +131,23 @@ const fn map_encryption_policy(policy: EngineEncryptionPolicy) -> EncryptionPoli
         EngineEncryptionPolicy::Require => EncryptionPolicy::Require,
         EngineEncryptionPolicy::Prefer => EncryptionPolicy::Prefer,
         EngineEncryptionPolicy::Disable => EncryptionPolicy::Disable,
+    }
+}
+
+const fn map_choking_algorithm(algorithm: ChokingAlgorithm) -> RuntimeChokingAlgorithm {
+    match algorithm {
+        ChokingAlgorithm::FixedSlots => RuntimeChokingAlgorithm::FixedSlots,
+        ChokingAlgorithm::RateBased => RuntimeChokingAlgorithm::RateBased,
+    }
+}
+
+const fn map_seed_choking_algorithm(
+    algorithm: SeedChokingAlgorithm,
+) -> RuntimeSeedChokingAlgorithm {
+    match algorithm {
+        SeedChokingAlgorithm::RoundRobin => RuntimeSeedChokingAlgorithm::RoundRobin,
+        SeedChokingAlgorithm::FastestUpload => RuntimeSeedChokingAlgorithm::FastestUpload,
+        SeedChokingAlgorithm::AntiLeech => RuntimeSeedChokingAlgorithm::AntiLeech,
     }
 }
 
@@ -258,6 +291,15 @@ mod tests {
             half_open_limit: None,
             alt_speed: json!({}),
             sequential_default: true,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
+            super_seeding: false.into(),
+            choking_algorithm: EngineProfile::default_choking_algorithm(),
+            seed_choking_algorithm: EngineProfile::default_seed_choking_algorithm(),
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
             resume_dir: String::new(),
             download_root: "   ".into(),
             tracker: json!("not-an-object"),
@@ -329,6 +371,15 @@ mod tests {
             half_open_limit: None,
             alt_speed: json!({}),
             sequential_default: false,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
+            super_seeding: false.into(),
+            choking_algorithm: EngineProfile::default_choking_algorithm(),
+            seed_choking_algorithm: EngineProfile::default_seed_choking_algorithm(),
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
             resume_dir: "/var/resume".into(),
             download_root: "/data".into(),
             tracker: json!({}),
@@ -397,6 +448,15 @@ mod tests {
             half_open_limit: None,
             alt_speed: json!({}),
             sequential_default: false,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
+            super_seeding: false.into(),
+            choking_algorithm: EngineProfile::default_choking_algorithm(),
+            seed_choking_algorithm: EngineProfile::default_seed_choking_algorithm(),
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
             resume_dir: "/var/resume".into(),
             download_root: "/data".into(),
             tracker: json!({}),
@@ -460,6 +520,15 @@ mod tests {
             half_open_limit: None,
             alt_speed: json!({}),
             sequential_default: false,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
+            super_seeding: false.into(),
+            choking_algorithm: EngineProfile::default_choking_algorithm(),
+            seed_choking_algorithm: EngineProfile::default_seed_choking_algorithm(),
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
             resume_dir: "/var/resume".into(),
             download_root: "/data".into(),
             tracker: json!({
@@ -520,6 +589,15 @@ mod tests {
             half_open_limit: None,
             alt_speed: json!({}),
             sequential_default: false,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
+            super_seeding: false.into(),
+            choking_algorithm: EngineProfile::default_choking_algorithm(),
+            seed_choking_algorithm: EngineProfile::default_seed_choking_algorithm(),
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
             resume_dir: "/var/resume".into(),
             download_root: "/data".into(),
             tracker: json!({}),

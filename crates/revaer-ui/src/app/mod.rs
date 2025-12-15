@@ -11,7 +11,6 @@ use crate::core::ui::{Density, UiMode};
 use crate::features::torrents::actions::{TorrentAction, success_message};
 use crate::features::torrents::state::{apply_progress, apply_rates, apply_remove, apply_status};
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode, TranslationBundle};
-use crate::models::SseEvent;
 use crate::services::api::ApiClient;
 use crate::services::sse::connect_sse;
 use gloo::events::EventListener;
@@ -22,7 +21,7 @@ use preferences::{
     API_KEY_KEY, DENSITY_KEY, LOCALE_KEY, MODE_KEY, THEME_KEY, allow_anonymous, api_base_url,
     load_api_key, load_density, load_locale, load_mode, load_theme,
 };
-use routes::Route;
+pub(crate) use routes::Route;
 use wasm_bindgen::JsCast;
 use web_sys::EventSource;
 use yew::prelude::*;

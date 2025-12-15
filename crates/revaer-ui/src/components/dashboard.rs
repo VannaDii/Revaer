@@ -32,6 +32,7 @@ pub(crate) struct DashboardEvent {
     pub kind: EventKind,
 }
 
+#[allow(dead_code)]
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum EventKind {
     Info,
@@ -224,6 +225,11 @@ pub(crate) fn demo_snapshot() -> DashboardSnapshot {
                 label: "Filesystem move",
                 detail: "Moved The.Expanse.S01E05 → /media/tv/The Expanse/Season 1",
                 kind: EventKind::Info,
+            },
+            DashboardEvent {
+                label: "Tracker failure",
+                detail: "http://tracker.down: failed with 502 after retries",
+                kind: EventKind::Error,
             },
             DashboardEvent {
                 label: "VPN reconnection",
