@@ -66,6 +66,7 @@ pub(super) mod test_support {
     use super::{NativeSession, create_native_session_for_tests};
     use crate::types::{EncryptionPolicy, EngineRuntimeConfig, Ipv6Mode, TrackerRuntimeConfig};
     use anyhow::Result;
+    use std::path::Path;
     use tempfile::TempDir;
 
     /// Convenience harness for exercising native config application in tests.
@@ -113,6 +114,9 @@ pub(super) mod test_support {
                 max_active: None,
                 download_rate_limit: None,
                 upload_rate_limit: None,
+                seed_ratio_limit: None,
+                seed_time_limit: None,
+                alt_speed: None,
                 connections_limit: None,
                 connections_limit_per_torrent: None,
                 unchoke_slots: None,
@@ -121,6 +125,10 @@ pub(super) mod test_support {
                 tracker: TrackerRuntimeConfig::default(),
                 ip_filter: None,
             }
+        }
+
+        pub(super) fn download_path(&self) -> &Path {
+            self.download.path()
         }
     }
 }
@@ -149,6 +157,10 @@ impl LibTorrentSession for NativeSession {
             has_sequential_override: request.options.sequential.is_some(),
             start_paused: request.options.start_paused.unwrap_or_default(),
             has_start_paused: request.options.start_paused.is_some(),
+            seed_mode: request.options.seed_mode.unwrap_or(false),
+            has_seed_mode: request.options.seed_mode.is_some(),
+            hash_check_sample_pct: request.options.hash_check_sample_pct.unwrap_or(0),
+            has_hash_check_sample: request.options.hash_check_sample_pct.is_some(),
             max_connections: 0,
             has_max_connections: false,
             tags: request.options.tags.clone(),
@@ -288,7 +300,31 @@ mod tests {
     use crate::ffi::ffi::{NativeEvent, NativeEventKind, NativeTorrentState};
     use crate::types::{IpFilterRule, IpFilterRuntimeConfig, Ipv6Mode};
     use revaer_torrent_core::{AddTorrent, AddTorrentOptions, EngineEvent, TorrentSource};
+    use std::{convert::TryFrom, fs, path::Path};
     use uuid::Uuid;
+
+    const SEED_PIECE_LENGTH: i64 = 16_384;
+    const VALID_PIECE_HASH: [u8; 20] = [
+        137, 114, 86, 182, 112, 158, 26, 77, 169, 218, 186, 146, 182, 189, 227, 156, 207, 204, 216,
+        193,
+    ];
+    const MISMATCH_PIECE_HASH: [u8; 20] = [0_u8; 20];
+
+    fn seed_mode_metainfo(hash: &[u8; 20]) -> Vec<u8> {
+        let mut encoded = Vec::new();
+        encoded.extend_from_slice(
+            b"d8:announce30:http://localhost:6969/announce4:infod6:lengthi16384e4:name6:sample12:piece lengthi16384e6:pieces20:",
+        );
+        encoded.extend_from_slice(hash);
+        encoded.extend_from_slice(b"ee");
+        encoded
+    }
+
+    fn write_seed_payload(root: &Path) -> std::io::Result<()> {
+        let piece_len =
+            usize::try_from(SEED_PIECE_LENGTH).expect("seed piece length must fit in usize");
+        fs::write(root.join("sample"), vec![0_u8; piece_len])
+    }
 
     #[tokio::test]
     async fn native_session_accepts_configuration_and_add() -> Result<()> {
@@ -310,6 +346,84 @@ mod tests {
         harness.session.add_torrent(&descriptor).await?;
         // Polling immediately should succeed even if no events are queued yet.
         let _ = harness.session.poll_events().await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn native_session_accepts_seed_mode_with_metainfo() -> Result<()> {
+        let mut harness = NativeSessionHarness::new()?;
+        let config = harness.runtime_config();
+        harness.session.apply_config(&config).await?;
+        write_seed_payload(harness.download_path())?;
+
+        let descriptor = AddTorrent {
+            id: Uuid::new_v4(),
+            source: TorrentSource::metainfo(seed_mode_metainfo(&VALID_PIECE_HASH)),
+            options: AddTorrentOptions {
+                seed_mode: Some(true),
+                ..AddTorrentOptions::default()
+            },
+        };
+
+        harness.session.add_torrent(&descriptor).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn native_session_rejects_hash_sample_on_mismatch() -> Result<()> {
+        let mut harness = NativeSessionHarness::new()?;
+        let config = harness.runtime_config();
+        harness.session.apply_config(&config).await?;
+        write_seed_payload(harness.download_path())?;
+
+        let descriptor = AddTorrent {
+            id: Uuid::new_v4(),
+            source: TorrentSource::metainfo(seed_mode_metainfo(&MISMATCH_PIECE_HASH)),
+            options: AddTorrentOptions {
+                seed_mode: Some(true),
+                hash_check_sample_pct: Some(100),
+                ..AddTorrentOptions::default()
+            },
+        };
+
+        let err = harness
+            .session
+            .add_torrent(&descriptor)
+            .await
+            .expect_err("hash sample should fail for mismatched data");
+        assert!(
+            err.to_string().contains("seed-mode sample failed")
+                || err.to_string().contains("hash mismatch")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn native_session_rejects_seed_mode_for_magnets() -> Result<()> {
+        let mut harness = NativeSessionHarness::new()?;
+        let config = harness.runtime_config();
+        harness.session.apply_config(&config).await?;
+
+        let descriptor = AddTorrent {
+            id: Uuid::new_v4(),
+            source: TorrentSource::magnet(
+                "magnet:?xt=urn:btih:fedcba98765432100123456789abcdef01234567",
+            ),
+            options: AddTorrentOptions {
+                seed_mode: Some(true),
+                ..AddTorrentOptions::default()
+            },
+        };
+
+        let err = harness
+            .session
+            .add_torrent(&descriptor)
+            .await
+            .expect_err("seed mode without metainfo should be rejected");
+        assert!(
+            err.to_string()
+                .contains("seed_mode requires metainfo payload")
+        );
         Ok(())
     }
 

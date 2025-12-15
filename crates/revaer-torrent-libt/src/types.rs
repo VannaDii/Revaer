@@ -1,5 +1,7 @@
 //! Strongly typed inputs and policies exposed by the libtorrent adapter.
 
+use chrono::Weekday;
+
 /// Wrapper for boolean flags to avoid pedantic lint churn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct Toggle(pub bool);
@@ -83,6 +85,12 @@ pub struct EngineRuntimeConfig {
     pub download_rate_limit: Option<i64>,
     /// Optional global upload rate limit in bytes per second.
     pub upload_rate_limit: Option<i64>,
+    /// Optional share ratio threshold before stopping seeding.
+    pub seed_ratio_limit: Option<f64>,
+    /// Optional seeding time limit in seconds.
+    pub seed_time_limit: Option<i64>,
+    /// Optional alternate speed limits and schedule.
+    pub alt_speed: Option<AltSpeedRuntimeConfig>,
     /// Peer encryption requirements enforced by the engine.
     pub encryption: EncryptionPolicy,
     /// Tracker configuration applied to the session.
@@ -219,6 +227,28 @@ pub struct OutgoingPortRange {
     pub start: u16,
     /// End port, inclusive.
     pub end: u16,
+}
+
+/// Alternate speed limits and their schedule.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AltSpeedRuntimeConfig {
+    /// Alternate download cap in bytes per second.
+    pub download_bps: Option<i64>,
+    /// Alternate upload cap in bytes per second.
+    pub upload_bps: Option<i64>,
+    /// Schedule describing when the alternate caps apply (UTC).
+    pub schedule: AltSpeedSchedule,
+}
+
+/// Recurring schedule window (UTC).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AltSpeedSchedule {
+    /// Days of the week when the window applies (UTC).
+    pub days: Vec<Weekday>,
+    /// Start time expressed as minutes from midnight UTC.
+    pub start_minutes: u16,
+    /// End time expressed as minutes from midnight UTC.
+    pub end_minutes: u16,
 }
 
 #[cfg(test)]

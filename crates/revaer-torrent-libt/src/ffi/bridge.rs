@@ -87,6 +87,14 @@ pub mod ffi {
         download_rate_limit: i64,
         /// Global upload cap in bytes per second.
         upload_rate_limit: i64,
+        /// Share ratio threshold before stopping seeding.
+        seed_ratio_limit: f64,
+        /// Whether a ratio limit was provided.
+        has_seed_ratio_limit: bool,
+        /// Seeding time limit in seconds.
+        seed_time_limit: i64,
+        /// Whether a time limit was provided.
+        has_seed_time_limit: bool,
         /// Optional global peer connection limit.
         connections_limit: i32,
         /// Optional per-torrent peer connection limit.
@@ -201,6 +209,14 @@ pub mod ffi {
         start_paused: bool,
         /// Flag indicating whether a paused override was provided.
         has_start_paused: bool,
+        /// Whether the torrent should start in seed mode.
+        seed_mode: bool,
+        /// Flag indicating whether seed mode was explicitly requested.
+        has_seed_mode: bool,
+        /// Percentage of pieces to hash before honoring seed mode.
+        hash_check_sample_pct: u8,
+        /// Flag indicating whether a hash sample was requested.
+        has_hash_check_sample: bool,
         /// Optional per-torrent peer connection limit.
         max_connections: i32,
         /// Flag indicating whether a per-torrent limit was supplied.

@@ -778,6 +778,8 @@ fn map_engine_profile_row(row: EngineProfileRow) -> EngineProfile {
         max_active: row.max_active,
         max_download_bps: row.max_download_bps,
         max_upload_bps: row.max_upload_bps,
+        seed_ratio_limit: row.seed_ratio_limit,
+        seed_time_limit: row.seed_time_limit,
         sequential_default: row.sequential_default,
         resume_dir: row.resume_dir,
         download_root: row.download_root,
@@ -802,6 +804,7 @@ fn map_engine_profile_row(row: EngineProfileRow) -> EngineProfile {
         connections_limit_per_torrent: row.connections_limit_per_torrent,
         unchoke_slots: row.unchoke_slots,
         half_open_limit: row.half_open_limit,
+        alt_speed: row.alt_speed,
     }
 }
 
@@ -1000,6 +1003,8 @@ async fn persist_engine_profile(
             max_active: profile.max_active,
             max_download_bps: profile.max_download_bps,
             max_upload_bps: profile.max_upload_bps,
+            seed_ratio_limit: profile.seed_ratio_limit,
+            seed_time_limit: profile.seed_time_limit,
             sequential_default: profile.sequential_default,
             resume_dir: &profile.resume_dir,
             download_root: &profile.download_root,
@@ -1030,6 +1035,7 @@ async fn persist_engine_profile(
             connections_limit_per_torrent: profile.connections_limit_per_torrent,
             unchoke_slots: profile.unchoke_slots,
             half_open_limit: profile.half_open_limit,
+            alt_speed: &profile.alt_speed,
         },
     )
     .await?;

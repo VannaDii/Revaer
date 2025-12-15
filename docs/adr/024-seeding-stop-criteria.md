@@ -1,0 +1,24 @@
+# Seeding stop criteria and per-torrent overrides
+
+- Status: Accepted
+- Date: 2025-12-14
+- Context:
+  - TORRENT_GAPS calls for seed ratio/time stop knobs at both profile and per-torrent scope.
+  - We must keep config/DB/runtime/API in lock-step via stored procedures and shared validators (AGENT).
+  - Libtorrent exposes global `share_ratio_limit` / `seed_time_limit`, but per-torrent setters are limited; we still need per-torrent overrides.
+  - No new dependencies allowed; coverage, lint, and `just ci` gates must stay green.
+- Decision:
+  - Added `seed_ratio_limit` (f64) and `seed_time_limit` (seconds, i64) to engine profiles with normalization/validation (non-negative, finite) and a migration updating the unified stored procs.
+  - Threaded the limits through runtime plans/options; apply_config now sets libtorrent’s global `share_ratio_limit`/`seed_time_limit` (ratio scaled ×1000).
+  - Worker records profile defaults and per-torrent overrides, persists them alongside resume metadata, and enforces them by pausing torrents when ratio or seeding time thresholds are reached (time-window checked on the poll cadence).
+  - API accepts optional per-torrent seed ratio/time on create; validation rejects invalid ratios before admission.
+  - Tests cover config normalization, runtime option mapping/clamping, worker enforcement, and API validation.
+- Consequences:
+  - Operators can set global seed stop defaults and per-torrent overrides; enforcement happens safely in the worker even without native per-torrent hooks.
+  - Stored profile snapshots and inspector views surface the new limits; persisted metadata carries overrides across restarts.
+  - Risks: enforcement is pause-based and depends on event cadence; libtorrent-native per-torrent stop hooks remain unavailable.
+  - Rollback: drop the migration columns and remove the new fields/wiring; worker enforcement can be disabled by clearing defaults.
+- Follow-up:
+  - Update OpenAPI/docs/examples to surface the new knobs.
+  - Consider native per-torrent hooks if libtorrent exposes them in future releases.
+  - Add telemetry around seeding goal triggers if operational signals are needed.

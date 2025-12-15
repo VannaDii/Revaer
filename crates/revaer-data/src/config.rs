@@ -226,6 +226,10 @@ pub struct EngineProfileRow {
     pub max_download_bps: Option<i64>,
     /// Optional global upload cap.
     pub max_upload_bps: Option<i64>,
+    /// Optional share ratio stop threshold.
+    pub seed_ratio_limit: Option<f64>,
+    /// Optional seeding time limit in seconds.
+    pub seed_time_limit: Option<i64>,
     /// Default sequential flag.
     pub sequential_default: bool,
     /// Resume data directory.
@@ -262,6 +266,8 @@ pub struct EngineProfileRow {
     pub unchoke_slots: Option<i32>,
     /// Optional half-open connection limit.
     pub half_open_limit: Option<i32>,
+    /// Alternate speed caps and schedule payload.
+    pub alt_speed: Value,
 }
 
 impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
@@ -287,6 +293,8 @@ impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
             max_active: row.try_get("max_active")?,
             max_download_bps: row.try_get("max_download_bps")?,
             max_upload_bps: row.try_get("max_upload_bps")?,
+            seed_ratio_limit: row.try_get("seed_ratio_limit")?,
+            seed_time_limit: row.try_get("seed_time_limit")?,
             sequential_default: row.try_get("sequential_default")?,
             resume_dir: row.try_get("resume_dir")?,
             download_root: row.try_get("download_root")?,
@@ -321,6 +329,7 @@ impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
             connections_limit_per_torrent: row.try_get("connections_limit_per_torrent")?,
             unchoke_slots: row.try_get("unchoke_slots")?,
             half_open_limit: row.try_get("half_open_limit")?,
+            alt_speed: row.try_get("alt_speed")?,
         })
     }
 }
@@ -1162,6 +1171,10 @@ pub struct EngineProfileUpdate<'a> {
     pub max_download_bps: Option<i64>,
     /// Optional global upload cap in bytes per second.
     pub max_upload_bps: Option<i64>,
+    /// Optional share ratio stop threshold.
+    pub seed_ratio_limit: Option<f64>,
+    /// Optional seeding time limit in seconds.
+    pub seed_time_limit: Option<i64>,
     /// Whether sequential download is the default.
     pub sequential_default: bool,
     /// Directory for fast-resume payloads.
@@ -1198,6 +1211,8 @@ pub struct EngineProfileUpdate<'a> {
     pub unchoke_slots: Option<i32>,
     /// Optional half-open connection limit.
     pub half_open_limit: Option<i32>,
+    /// Alternate speed caps and schedule payload.
+    pub alt_speed: &'a Value,
 }
 
 /// Update the engine profile in a single stored procedure call.
@@ -1213,7 +1228,7 @@ where
     E: Executor<'e, Database = Postgres>,
 {
     sqlx::query(
-        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _sequential_default => $9, _resume_dir => $10, _download_root => $11, _tracker => $12, _lsd => $13, _upnp => $14, _natpmp => $15, _pex => $16, _dht_bootstrap_nodes => $17, _dht_router_nodes => $18, _ip_filter => $19, _listen_interfaces => $20, _ipv6_mode => $21, _anonymous_mode => $22, _force_proxy => $23, _prefer_rc4 => $24, _allow_multiple_connections_per_ip => $25, _enable_outgoing_utp => $26, _enable_incoming_utp => $27, _outgoing_port_min => $28, _outgoing_port_max => $29, _peer_dscp => $30, _connections_limit => $31, _connections_limit_per_torrent => $32, _unchoke_slots => $33, _half_open_limit => $34)",
+        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _seed_ratio_limit => $9, _seed_time_limit => $10, _sequential_default => $11, _resume_dir => $12, _download_root => $13, _tracker => $14, _lsd => $15, _upnp => $16, _natpmp => $17, _pex => $18, _dht_bootstrap_nodes => $19, _dht_router_nodes => $20, _ip_filter => $21, _listen_interfaces => $22, _ipv6_mode => $23, _anonymous_mode => $24, _force_proxy => $25, _prefer_rc4 => $26, _allow_multiple_connections_per_ip => $27, _enable_outgoing_utp => $28, _enable_incoming_utp => $29, _outgoing_port_min => $30, _outgoing_port_max => $31, _peer_dscp => $32, _connections_limit => $33, _connections_limit_per_torrent => $34, _unchoke_slots => $35, _half_open_limit => $36, _alt_speed => $37)",
         )
     .bind(profile.id)
     .bind(profile.implementation)
@@ -1223,6 +1238,8 @@ where
     .bind(profile.max_active)
     .bind(profile.max_download_bps)
     .bind(profile.max_upload_bps)
+    .bind(profile.seed_ratio_limit)
+    .bind(profile.seed_time_limit)
     .bind(profile.sequential_default)
     .bind(profile.resume_dir)
     .bind(profile.download_root)
@@ -1249,6 +1266,7 @@ where
     .bind(profile.connections_limit_per_torrent)
     .bind(profile.unchoke_slots)
     .bind(profile.half_open_limit)
+    .bind(profile.alt_speed)
     .execute(executor)
     .await
     .context("failed to update engine_profile via unified procedure")?;

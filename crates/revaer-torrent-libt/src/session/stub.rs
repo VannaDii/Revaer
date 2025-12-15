@@ -29,23 +29,35 @@ struct StubTorrent {
     state: TorrentState,
     download_dir: Option<String>,
     connections_limit: Option<i32>,
+    seed_mode: Option<bool>,
+    hash_check_sample_pct: Option<u8>,
+    seed_ratio_limit: Option<f64>,
+    seed_time_limit: Option<u64>,
     resume_payload: Option<Vec<u8>>,
 }
 
 impl StubTorrent {
     fn from_add(request: &AddTorrent) -> Self {
+        let seed_mode = request.options.seed_mode.unwrap_or(false);
+        let initial_state = if request.options.start_paused.unwrap_or(false) {
+            TorrentState::Stopped
+        } else if seed_mode {
+            TorrentState::Seeding
+        } else {
+            TorrentState::Queued
+        };
         Self {
             selection: request.options.file_rules.clone(),
             priorities: Vec::new(),
             rate_limit: request.options.rate_limit.clone(),
             sequential: request.options.sequential.unwrap_or(false),
-            state: if request.options.start_paused.unwrap_or(false) {
-                TorrentState::Stopped
-            } else {
-                TorrentState::Queued
-            },
+            state: initial_state,
             download_dir: request.options.download_dir.clone(),
             connections_limit: request.options.connections_limit,
+            seed_mode: request.options.seed_mode,
+            hash_check_sample_pct: request.options.hash_check_sample_pct,
+            seed_ratio_limit: request.options.seed_ratio_limit,
+            seed_time_limit: request.options.seed_time_limit,
             resume_payload: None,
         }
     }
@@ -84,8 +96,12 @@ impl StubSession {
                     "upload_bps": torrent.rate_limit.upload_bps,
                 },
                 "sequential": torrent.sequential,
+                "seed_mode": torrent.seed_mode,
+                "hash_check_sample_pct": torrent.hash_check_sample_pct,
                 "connections_limit": torrent.connections_limit,
                 "download_dir": torrent.download_dir,
+                "seed_ratio_limit": torrent.seed_ratio_limit,
+                "seed_time_limit": torrent.seed_time_limit,
             })
             .to_string()
             .into_bytes();
@@ -104,11 +120,10 @@ impl LibTorrentSession for StubSession {
         let torrent = StubTorrent::from_add(request);
         let download_dir = torrent.download_dir.clone();
         self.torrents.insert(request.id, torrent);
-        let initial_state = if request.options.start_paused.unwrap_or(false) {
-            TorrentState::Stopped
-        } else {
-            TorrentState::Queued
-        };
+        let initial_state = self
+            .torrents
+            .get(&request.id)
+            .map_or(TorrentState::Queued, |entry| entry.state.clone());
         self.push_state(request.id, initial_state);
         self.pending_events.push(EngineEvent::MetadataUpdated {
             torrent_id: request.id,

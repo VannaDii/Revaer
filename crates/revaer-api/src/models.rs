@@ -359,7 +359,7 @@ pub struct TorrentListResponse {
 
 /// JSON body accepted by `POST /v1/torrents` when carrying a magnet URI or
 /// base64-encoded `.torrent` metainfo payload.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct TorrentCreateRequest {
     /// Client-provided identifier for idempotent operations.
     pub id: Uuid,
@@ -381,6 +381,12 @@ pub struct TorrentCreateRequest {
     #[serde(default)]
     /// Adds the torrent in a paused/queued state when true.
     pub start_paused: Option<bool>,
+    #[serde(default)]
+    /// Adds the torrent in seed mode (assumes data is complete).
+    pub seed_mode: Option<bool>,
+    #[serde(default)]
+    /// Percentage of pieces to hash-check before honoring seed mode.
+    pub hash_check_sample_pct: Option<u8>,
     #[serde(default)]
     /// Tags to associate with the torrent immediately.
     pub tags: Vec<String>,
@@ -408,6 +414,12 @@ pub struct TorrentCreateRequest {
     #[serde(default)]
     /// Optional per-torrent peer connection limit.
     pub max_connections: Option<i32>,
+    #[serde(default)]
+    /// Optional share ratio threshold before stopping seeding.
+    pub seed_ratio_limit: Option<f64>,
+    #[serde(default)]
+    /// Optional seeding time limit in seconds.
+    pub seed_time_limit: Option<u64>,
 }
 
 impl TorrentCreateRequest {
@@ -419,6 +431,10 @@ impl TorrentCreateRequest {
             download_dir: self.download_dir.clone(),
             sequential: self.sequential,
             start_paused: self.start_paused,
+            seed_mode: self.seed_mode,
+            hash_check_sample_pct: self
+                .hash_check_sample_pct
+                .and_then(|value| if value > 0 { Some(value) } else { None }),
             file_rules: FileSelectionRules {
                 include: self.include.clone(),
                 exclude: self.exclude.clone(),
@@ -431,6 +447,8 @@ impl TorrentCreateRequest {
             connections_limit: self
                 .max_connections
                 .and_then(|value| if value > 0 { Some(value) } else { None }),
+            seed_ratio_limit: self.seed_ratio_limit,
+            seed_time_limit: self.seed_time_limit,
             tags: self.tags.clone(),
             trackers: Vec::new(),
             replace_trackers: self.replace_trackers,
@@ -511,7 +529,11 @@ mod tests {
             max_download_bps: Some(4_096),
             max_upload_bps: Some(2_048),
             max_connections: Some(50),
+            seed_ratio_limit: Some(1.5),
+            seed_time_limit: Some(7_200),
             start_paused: Some(true),
+            seed_mode: Some(true),
+            hash_check_sample_pct: Some(25),
             tags: vec!["tag-a".to_string(), "tag-b".to_string()],
             ..TorrentCreateRequest::default()
         };
@@ -526,7 +548,11 @@ mod tests {
         assert_eq!(options.rate_limit.download_bps, Some(4_096));
         assert_eq!(options.rate_limit.upload_bps, Some(2_048));
         assert_eq!(options.connections_limit, Some(50));
+        assert_eq!(options.seed_ratio_limit, Some(1.5));
+        assert_eq!(options.seed_time_limit, Some(7_200));
         assert_eq!(options.start_paused, Some(true));
+        assert_eq!(options.seed_mode, Some(true));
+        assert_eq!(options.hash_check_sample_pct, Some(25));
         assert_eq!(options.tags, vec!["tag-a".to_string(), "tag-b".to_string()]);
     }
 

@@ -28,6 +28,12 @@ pub struct StoredTorrentMetadata {
     /// Indicates whether sequential download mode was active.
     pub sequential: bool,
     #[serde(default)]
+    /// Whether the torrent was added in seed mode.
+    pub seed_mode: Option<bool>,
+    #[serde(default)]
+    /// Percentage of pieces hashed before honoring seed mode.
+    pub hash_check_sample_pct: Option<u8>,
+    #[serde(default)]
     /// Trackers that were supplied when the torrent was added.
     pub trackers: Vec<String>,
     #[serde(default)]
@@ -42,6 +48,12 @@ pub struct StoredTorrentMetadata {
     #[serde(default)]
     /// Optional per-torrent rate caps recorded at admission.
     pub rate_limit: Option<TorrentRateLimit>,
+    #[serde(default)]
+    /// Optional share ratio threshold recorded at admission.
+    pub seed_ratio_limit: Option<f64>,
+    #[serde(default)]
+    /// Optional seeding time limit recorded at admission (seconds).
+    pub seed_time_limit: Option<u64>,
     #[serde(default)]
     /// Timestamp of the most recent metadata update.
     pub updated_at: DateTime<Utc>,
@@ -247,6 +259,8 @@ mod tests {
             }],
             download_dir: Some("/data/downloads".into()),
             sequential: true,
+            seed_mode: Some(true),
+            hash_check_sample_pct: Some(10),
             trackers: vec!["https://tracker.example/announce".into()],
             replace_trackers: true,
             tags: vec!["movies".into(), "hd".into()],
@@ -255,6 +269,8 @@ mod tests {
                 upload_bps: Some(5_000),
             }),
             connections_limit: None,
+            seed_ratio_limit: Some(1.0),
+            seed_time_limit: Some(3_600),
             updated_at: Utc::now(),
         }
     }
@@ -314,6 +330,10 @@ mod tests {
             stored_meta.tags,
             vec!["movies".to_string(), "hd".to_string()]
         );
+        assert_eq!(stored_meta.seed_mode, Some(true));
+        assert_eq!(stored_meta.hash_check_sample_pct, Some(10));
+        assert_eq!(stored_meta.seed_ratio_limit, Some(1.0));
+        assert_eq!(stored_meta.seed_time_limit, Some(3_600));
         assert!(stored_meta.updated_at <= Utc::now());
 
         store.remove(torrent_id)?;

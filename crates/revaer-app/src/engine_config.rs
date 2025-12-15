@@ -8,14 +8,17 @@
 use revaer_config::{
     EngineEncryptionPolicy, EngineIpv6Mode, EngineNetworkConfig, EngineProfile,
     EngineProfileEffective, IpFilterConfig, IpFilterRule, TrackerConfig, TrackerProxyConfig,
-    TrackerProxyType, normalize_engine_profile,
+    TrackerProxyType, engine_profile::AltSpeedConfig, normalize_engine_profile,
 };
 use revaer_torrent_core::TorrentRateLimit;
 use revaer_torrent_libt::{
     EncryptionPolicy, EngineRuntimeConfig, IpFilterRule as RuntimeIpFilterRule,
     IpFilterRuntimeConfig, Ipv6Mode as RuntimeIpv6Mode, TrackerProxyRuntime,
     TrackerProxyType as RuntimeProxyType, TrackerRuntimeConfig,
-    types::OutgoingPortRange as RuntimeOutgoingPortRange,
+    types::{
+        AltSpeedRuntimeConfig as RuntimeAltSpeedConfig,
+        AltSpeedSchedule as RuntimeAltSpeedSchedule, OutgoingPortRange as RuntimeOutgoingPortRange,
+    },
 };
 
 /// Runtime plan derived from the persisted engine profile, including effective values and
@@ -47,6 +50,7 @@ impl EngineRuntimePlan {
                     start: range.start,
                     end: range.end,
                 });
+        let alt_speed = map_alt_speed(&effective.alt_speed);
         let runtime = EngineRuntimeConfig {
             download_root: effective.storage.download_root.clone(),
             resume_dir: effective.storage.resume_dir.clone(),
@@ -75,6 +79,9 @@ impl EngineRuntimePlan {
             max_active: effective.limits.max_active,
             download_rate_limit: effective.limits.download_rate_limit,
             upload_rate_limit: effective.limits.upload_rate_limit,
+            seed_ratio_limit: effective.limits.seed_ratio_limit,
+            seed_time_limit: effective.limits.seed_time_limit,
+            alt_speed,
             connections_limit: effective.limits.connections_limit,
             connections_limit_per_torrent: effective.limits.connections_limit_per_torrent,
             unchoke_slots: effective.limits.unchoke_slots,
@@ -109,6 +116,23 @@ const fn map_encryption_policy(policy: EngineEncryptionPolicy) -> EncryptionPoli
         EngineEncryptionPolicy::Prefer => EncryptionPolicy::Prefer,
         EngineEncryptionPolicy::Disable => EncryptionPolicy::Disable,
     }
+}
+
+fn map_alt_speed(config: &AltSpeedConfig) -> Option<RuntimeAltSpeedConfig> {
+    let schedule = config.schedule.as_ref()?;
+    if config.download_bps.is_none() && config.upload_bps.is_none() {
+        return None;
+    }
+
+    Some(RuntimeAltSpeedConfig {
+        download_bps: config.download_bps,
+        upload_bps: config.upload_bps,
+        schedule: RuntimeAltSpeedSchedule {
+            days: schedule.days.clone(),
+            start_minutes: schedule.start_minutes,
+            end_minutes: schedule.end_minutes,
+        },
+    })
 }
 
 fn map_tracker_config(config: TrackerConfig) -> TrackerRuntimeConfig {
@@ -226,10 +250,13 @@ mod tests {
             max_active: Some(0),
             max_download_bps: Some(MAX_RATE_LIMIT_BPS + 10),
             max_upload_bps: Some(0),
+            seed_ratio_limit: None,
+            seed_time_limit: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            alt_speed: json!({}),
             sequential_default: true,
             resume_dir: String::new(),
             download_root: "   ".into(),
@@ -294,10 +321,13 @@ mod tests {
             max_active: None,
             max_download_bps: None,
             max_upload_bps: None,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            alt_speed: json!({}),
             sequential_default: false,
             resume_dir: "/var/resume".into(),
             download_root: "/data".into(),
@@ -359,10 +389,13 @@ mod tests {
             max_active: None,
             max_download_bps: None,
             max_upload_bps: None,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            alt_speed: json!({}),
             sequential_default: false,
             resume_dir: "/var/resume".into(),
             download_root: "/data".into(),
@@ -419,10 +452,13 @@ mod tests {
             max_active: None,
             max_download_bps: None,
             max_upload_bps: None,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            alt_speed: json!({}),
             sequential_default: false,
             resume_dir: "/var/resume".into(),
             download_root: "/data".into(),
@@ -476,10 +512,13 @@ mod tests {
             max_active: None,
             max_download_bps: None,
             max_upload_bps: None,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            alt_speed: json!({}),
             sequential_default: false,
             resume_dir: "/var/resume".into(),
             download_root: "/data".into(),

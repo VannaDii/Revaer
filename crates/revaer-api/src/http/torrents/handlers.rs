@@ -464,9 +464,7 @@ pub(crate) fn build_add_torrent(
         .map(str::trim)
         .filter(|value| !value.is_empty());
 
-    let source = if let Some(magnet) = magnet {
-        TorrentSource::magnet(magnet.to_string())
-    } else if let Some(encoded) = &request.metainfo {
+    let metainfo_bytes = if let Some(encoded) = &request.metainfo {
         let bytes = general_purpose::STANDARD
             .decode(encoded)
             .map_err(|_| ApiError::bad_request("metainfo payload must be base64 encoded"))?;
@@ -475,6 +473,47 @@ pub(crate) fn build_add_torrent(
                 "metainfo payload exceeds the 5 MiB limit",
             ));
         }
+        Some(bytes)
+    } else {
+        None
+    };
+
+    if let Some(ratio) = request.seed_ratio_limit
+        && (ratio < 0.0 || !ratio.is_finite())
+    {
+        return Err(ApiError::bad_request(
+            "seed_ratio_limit must be a non-negative number",
+        ));
+    }
+
+    if let Some(sample_pct) = request.hash_check_sample_pct {
+        if sample_pct > 100 {
+            return Err(ApiError::bad_request(
+                "hash_check_sample_pct must be between 0 and 100",
+            ));
+        }
+        if sample_pct > 0 && !matches!(request.seed_mode, Some(true)) {
+            return Err(ApiError::bad_request(
+                "hash_check_sample_pct requires seed_mode to be enabled",
+            ));
+        }
+    }
+
+    let prefer_metainfo =
+        matches!(request.seed_mode, Some(true)) || request.hash_check_sample_pct.unwrap_or(0) > 0;
+
+    let source = if prefer_metainfo {
+        match metainfo_bytes.clone() {
+            Some(bytes) => TorrentSource::metainfo(bytes),
+            None => {
+                return Err(ApiError::bad_request(
+                    "seed_mode/hash_check_sample_pct requires a metainfo payload",
+                ));
+            }
+        }
+    } else if let Some(magnet) = magnet {
+        TorrentSource::magnet(magnet.to_string())
+    } else if let Some(bytes) = metainfo_bytes {
         TorrentSource::metainfo(bytes)
     } else {
         return Err(ApiError::bad_request(
@@ -491,4 +530,57 @@ pub(crate) fn build_add_torrent(
         source,
         options,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::http::StatusCode;
+
+    #[test]
+    fn build_add_torrent_rejects_negative_seed_ratio() {
+        let request = TorrentCreateRequest {
+            id: Uuid::new_v4(),
+            magnet: Some(
+                "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567".to_string(),
+            ),
+            seed_ratio_limit: Some(-1.0),
+            ..TorrentCreateRequest::default()
+        };
+
+        let err = build_add_torrent(&request, Vec::new()).expect_err("negative ratio rejected");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn build_add_torrent_rejects_sample_without_seed_mode() {
+        let request = TorrentCreateRequest {
+            id: Uuid::new_v4(),
+            magnet: Some(
+                "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567".to_string(),
+            ),
+            hash_check_sample_pct: Some(10),
+            seed_mode: Some(false),
+            ..TorrentCreateRequest::default()
+        };
+
+        let err = build_add_torrent(&request, Vec::new()).expect_err("sample requires seed mode");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn build_add_torrent_rejects_sample_above_bounds() {
+        let request = TorrentCreateRequest {
+            id: Uuid::new_v4(),
+            magnet: Some(
+                "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567".to_string(),
+            ),
+            hash_check_sample_pct: Some(101),
+            seed_mode: Some(true),
+            ..TorrentCreateRequest::default()
+        };
+
+        let err = build_add_torrent(&request, Vec::new()).expect_err("sample over 100 is rejected");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+    }
 }

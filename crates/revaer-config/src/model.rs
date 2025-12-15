@@ -97,7 +97,7 @@ impl From<Toggle> for bool {
 }
 
 /// Engine configuration surfaced to consumers.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct EngineProfile {
     /// Primary key for the engine profile row.
     pub id: Uuid,
@@ -148,6 +148,12 @@ pub struct EngineProfile {
     pub max_download_bps: Option<i64>,
     /// Global upload cap in bytes per second.
     pub max_upload_bps: Option<i64>,
+    /// Optional share ratio threshold before stopping seeding.
+    #[serde(default)]
+    pub seed_ratio_limit: Option<f64>,
+    /// Optional seeding time limit in seconds.
+    #[serde(default)]
+    pub seed_time_limit: Option<i64>,
     /// Optional global peer connection limit.
     pub connections_limit: Option<i32>,
     /// Optional per-torrent peer connection limit.
@@ -156,6 +162,9 @@ pub struct EngineProfile {
     pub unchoke_slots: Option<i32>,
     /// Optional half-open connection limit.
     pub half_open_limit: Option<i32>,
+    /// Alternate speed caps and optional schedule payload.
+    #[serde(default)]
+    pub alt_speed: Value,
     /// Whether torrents default to sequential download.
     pub sequential_default: bool,
     /// Filesystem path for storing resume data.

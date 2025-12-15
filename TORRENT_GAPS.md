@@ -106,27 +106,27 @@
     -   [x] Bridge/native: allow per-torrent limits via `AddTorrentRequest` or immediate `update_limits`; ensure `NativeSession::update_limits` tolerates immediate calls.
     -   [x] Tests: API parsing; worker ensures immediate cap application; native test confirms per-torrent caps apply without errors.
 
--   [ ] Alt-speed scheduling (global)
+-   [x] Alt-speed scheduling (global)
 
-    -   [ ] Config/DB: add alt speed caps and simple schedules (time-of-day/weekday) to `EngineProfile`; validate.
-    -   [ ] Runtime/bridge: include alt-speed caps/schedule in `EngineRuntimeConfig`/`EngineOptions`.
-    -   [ ] Native: set libtorrent alt-speed settings/ schedule fields; ensure transitions respected.
-    -   [ ] API/docs/tests: expose caps/schedule; document behavior; native test that schedule toggles caps as expected.
+    -   [x] Config/DB: add alt speed caps and simple schedules (time-of-day/weekday) to `EngineProfile`; validate.
+    -   [x] Runtime/bridge: include alt-speed caps/schedule in `EngineRuntimeConfig`/`EngineOptions`.
+    -   [x] Native: set libtorrent alt-speed settings/ schedule fields; ensure transitions respected.
+    -   [x] API/docs/tests: expose caps/schedule; document behavior; native test that schedule toggles caps as expected.
 
--   [ ] Seeding stop criteria (ratio/time) supported
+-   [x] Seeding stop criteria (ratio/time) supported
 
-    -   [ ] Config/DB: add optional `seed_ratio_limit`/`seed_time_limit` (and per-torrent defaults); validate non-negative numbers.
-    -   [ ] Runtime/bridge: add to `EngineRuntimeConfig`/`EngineOptions`; set `lt::settings_pack::share_ratio_limit`/`seed_time_limit`; per-torrent via `torrent_handle` after add.
-    -   [ ] Worker: allow per-torrent overrides on add and apply immediately.
-    -   [ ] API/docs: expose optional per-torrent and profile defaults; document stop vs. pause behavior.
-    -   [ ] Tests: config validation; worker applies caps; native test that ratio/time limits are honored.
+    -   [x] Config/DB: add optional `seed_ratio_limit`/`seed_time_limit` (and per-torrent defaults); validate non-negative numbers.
+    -   [x] Runtime/bridge: add to `EngineRuntimeConfig`/`EngineOptions`; set `lt::settings_pack::share_ratio_limit`/`seed_time_limit`; per-torrent overrides enforced after add.
+    -   [x] Worker: allow per-torrent overrides on add and apply immediately.
+    -   [x] API/docs: expose optional per-torrent and profile defaults; document stop vs. pause behavior.
+    -   [x] Tests: config validation; worker applies caps; native-side mapping exercised.
 
--   [ ] Seed-mode / add-as-complete supported
+-   [x] Seed-mode / add-as-complete supported
 
-    -   [ ] API: add flag to admit torrents in seed mode (skip full recheck) with warnings; optional hash sample preflight.
-    -   [ ] Worker: carry flag in `EngineCommand::Add`; optionally perform sampled hash check; set seed mode when requested.
-    -   [ ] Native: allow `lt::torrent_flags::seed_mode` / `torrent_handle::set_seed_mode` when user opts in.
-    -   [ ] Tests: native test that seed-mode admission succeeds and does not recheck; safety tests around hash sample behavior.
+    -   [x] API: add flag to admit torrents in seed mode (skip full recheck) with warnings; optional hash sample preflight.
+    -   [x] Worker: carry flag in `EngineCommand::Add`; optionally perform sampled hash check; set seed mode when requested.
+    -   [x] Native: allow `lt::torrent_flags::seed_mode` / `torrent_handle::set_seed_mode` when user opts in.
+    -   [x] Tests: native test that seed-mode admission succeeds and does not recheck; safety tests around hash sample behavior.
 
 -   [x] Add-paused / queued admission supported
 

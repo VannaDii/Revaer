@@ -68,11 +68,19 @@ pub struct AddTorrentOptions {
     pub file_rules: FileSelectionRules,
     /// Whether the torrent should start in a paused/queued state.
     pub start_paused: Option<bool>,
+    /// Whether the torrent should be admitted in seed mode (assume complete).
+    pub seed_mode: Option<bool>,
+    /// Optional percentage of pieces to hash-check before honoring seed mode.
+    pub hash_check_sample_pct: Option<u8>,
     /// Per-torrent rate limits applied immediately after the torrent is added.
     #[serde(default)]
     pub rate_limit: TorrentRateLimit,
     /// Optional per-torrent peer connection cap applied on admission.
     pub connections_limit: Option<i32>,
+    /// Optional share ratio threshold before stopping seeding.
+    pub seed_ratio_limit: Option<f64>,
+    /// Optional seeding time limit in seconds.
+    pub seed_time_limit: Option<u64>,
     /// Arbitrary labels propagated to downstream consumers.
     #[serde(default)]
     pub tags: Vec<String>,

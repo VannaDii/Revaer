@@ -16,7 +16,7 @@
     -   Stored procedures in the `revaer_config` schema that wrap every CRUD/query operation (history, revision bumps, setup tokens, secrets, API keys, config profiles, fs/engine/app mutations).
     -   Rust helpers (`crates/revaer-data/src/config.rs` and `runtime.rs`) that only ever call those stored procedures using named bind notation.
 -   Consumers (config service, fsops tests, orchestrator runtime store, etc.) depend on `revaer-data` instead of embedding SQL. Integration tests that previously queried tables directly now call the DAL API.
--   Migrations are renamed with crate prefixes (`0001_config_init.sql`, `0101_runtime_init.sql`, `0102_runtime_procedures.sql`, `0003_config_procedures.sql`) so that the execution order is obvious without per-crate folders.
+-   Migrations are consolidated into categorized init scripts (`0001_db_init.sql`, `0002_addons_and_plugins.sql`, `0003_schema_and_tables.sql`, `0004_stored_procs_and_functions.sql`) so that the execution order is obvious without per-crate folders.
 
 ## Consequences
 

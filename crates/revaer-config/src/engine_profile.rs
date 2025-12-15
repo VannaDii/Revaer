@@ -9,7 +9,7 @@ use std::collections::HashSet;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveTime, Timelike, Utc, Weekday};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
@@ -21,6 +21,7 @@ pub const MAX_RATE_LIMIT_BPS: i64 = 5_000_000_000;
 const DEFAULT_DOWNLOAD_ROOT: &str = "/data/staging";
 const DEFAULT_RESUME_DIR: &str = "/var/lib/revaer/state";
 const MAX_INLINE_IP_FILTER_ENTRIES: usize = 5_000;
+const MINUTES_PER_DAY: u16 = 24 * 60;
 
 /// Effective engine configuration after applying guard rails.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,6 +36,8 @@ pub struct EngineProfileEffective {
     pub storage: EngineStorageConfig,
     /// Behavioural toggles that affect per-torrent defaults.
     pub behavior: EngineBehaviorConfig,
+    /// Alternate speed configuration and schedule.
+    pub alt_speed: AltSpeedConfig,
     /// Tracker configuration payload (validated to an object).
     pub tracker: Value,
     /// Guard-rail or normalisation warnings applied to the profile.
@@ -167,6 +170,10 @@ pub struct EngineLimitsConfig {
     pub download_rate_limit: Option<i64>,
     /// Optional global upload cap in bytes per second.
     pub upload_rate_limit: Option<i64>,
+    /// Optional share ratio threshold before stopping seeding.
+    pub seed_ratio_limit: Option<f64>,
+    /// Optional seeding time limit in seconds.
+    pub seed_time_limit: Option<i64>,
     /// Optional global peer connection limit.
     pub connections_limit: Option<i32>,
     /// Optional per-torrent peer connection limit.
@@ -175,6 +182,70 @@ pub struct EngineLimitsConfig {
     pub unchoke_slots: Option<i32>,
     /// Optional half-open connection limit.
     pub half_open_limit: Option<i32>,
+}
+
+/// Alternate speed caps and optional schedule.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct AltSpeedConfig {
+    /// Alternate download cap in bytes per second.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub download_bps: Option<i64>,
+    /// Alternate upload cap in bytes per second.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upload_bps: Option<i64>,
+    /// Optional recurring schedule when the alternate caps should apply.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schedule: Option<AltSpeedSchedule>,
+}
+
+impl AltSpeedConfig {
+    /// Convert to a JSON object for persistence and API responses.
+    #[must_use]
+    pub fn to_value(&self) -> Value {
+        let mut map = Map::new();
+        if let Some(download) = self.download_bps {
+            map.insert("download_bps".to_string(), json!(download));
+        }
+        if let Some(upload) = self.upload_bps {
+            map.insert("upload_bps".to_string(), json!(upload));
+        }
+        if let Some(schedule) = &self.schedule {
+            map.insert("schedule".to_string(), schedule.to_value());
+        }
+        Value::Object(map)
+    }
+
+    const fn has_caps(&self) -> bool {
+        self.download_bps.is_some() || self.upload_bps.is_some()
+    }
+}
+
+/// Recurring schedule describing when alternate speeds should take effect.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AltSpeedSchedule {
+    /// Days of the week the schedule applies to (UTC).
+    pub days: Vec<Weekday>,
+    /// Start time expressed as minutes from midnight UTC.
+    pub start_minutes: u16,
+    /// End time expressed as minutes from midnight UTC.
+    pub end_minutes: u16,
+}
+
+impl AltSpeedSchedule {
+    /// Convert the schedule into a JSON object.
+    #[must_use]
+    pub fn to_value(&self) -> Value {
+        let days = self
+            .days
+            .iter()
+            .map(|day| weekday_label(*day).to_string())
+            .collect::<Vec<_>>();
+        json!({
+            "days": days,
+            "start": format_minutes(self.start_minutes),
+            "end": format_minutes(self.end_minutes),
+        })
+    }
 }
 
 /// Storage paths for active downloads and resume data.
@@ -345,10 +416,13 @@ pub(crate) fn validate_engine_profile_patch(
         max_active: effective.limits.max_active,
         max_download_bps: effective.limits.download_rate_limit,
         max_upload_bps: effective.limits.upload_rate_limit,
+        seed_ratio_limit: effective.limits.seed_ratio_limit,
+        seed_time_limit: effective.limits.seed_time_limit,
         connections_limit: effective.limits.connections_limit,
         connections_limit_per_torrent: effective.limits.connections_limit_per_torrent,
         unchoke_slots: effective.limits.unchoke_slots,
         half_open_limit: effective.limits.half_open_limit,
+        alt_speed: effective.alt_speed.to_value(),
         sequential_default: effective.behavior.sequential_default,
         resume_dir: effective.storage.resume_dir.clone(),
         download_root: effective.storage.download_root.clone(),
@@ -398,6 +472,7 @@ fn normalize_engine_profile_with_warnings(
     let (listen_port, listen_interfaces, ipv6_mode) =
         sanitize_listen_config(profile, &mut warnings);
     let limits = sanitize_limits(profile, &mut warnings);
+    let alt_speed = sanitize_alt_speed(&profile.alt_speed, &mut warnings);
     let storage = sanitize_storage_paths(profile, &mut warnings);
     let tracker = sanitize_tracker(&profile.tracker, &mut warnings);
     let (dht_bootstrap_nodes, dht_router_nodes) = sanitize_dht_endpoints(profile, &mut warnings);
@@ -445,6 +520,7 @@ fn normalize_engine_profile_with_warnings(
         behavior: EngineBehaviorConfig {
             sequential_default: profile.sequential_default,
         },
+        alt_speed,
         tracker,
         warnings,
     }
@@ -485,15 +561,54 @@ fn sanitize_limits(profile: &EngineProfile, warnings: &mut Vec<String>) -> Engin
     let download_rate_limit =
         clamp_rate_limit("max_download_bps", profile.max_download_bps, warnings);
     let upload_rate_limit = clamp_rate_limit("max_upload_bps", profile.max_upload_bps, warnings);
+    let seed_ratio_limit = sanitize_seed_ratio_limit(profile.seed_ratio_limit, warnings);
+    let seed_time_limit = sanitize_seed_time_limit(profile.seed_time_limit, warnings);
 
     EngineLimitsConfig {
         max_active,
         download_rate_limit,
         upload_rate_limit,
+        seed_ratio_limit,
+        seed_time_limit,
         connections_limit,
         connections_limit_per_torrent,
         unchoke_slots,
         half_open_limit,
+    }
+}
+
+fn sanitize_alt_speed(value: &Value, warnings: &mut Vec<String>) -> AltSpeedConfig {
+    match normalize_alt_speed_payload(value) {
+        Ok(mut config) => {
+            config.download_bps =
+                clamp_rate_limit("alt_speed.download_bps", config.download_bps, warnings);
+            config.upload_bps =
+                clamp_rate_limit("alt_speed.upload_bps", config.upload_bps, warnings);
+
+            if config.schedule.is_none() {
+                if config.has_caps() {
+                    warnings.push(
+                        "alt_speed.schedule missing; alternate caps will not be applied"
+                            .to_string(),
+                    );
+                }
+                AltSpeedConfig::default()
+            } else if !config.has_caps() {
+                warnings.push(
+                    "alt_speed requires download_bps or upload_bps; disabling alternate speeds"
+                        .to_string(),
+                );
+                AltSpeedConfig::default()
+            } else {
+                config
+            }
+        }
+        Err(err) => {
+            warnings.push(format!(
+                "alt_speed payload invalid ({err}); disabling alternate speeds"
+            ));
+            AltSpeedConfig::default()
+        }
     }
 }
 
@@ -510,6 +625,32 @@ fn sanitize_positive_limit(
         }
         None => None,
     }
+}
+
+fn sanitize_seed_ratio_limit(value: Option<f64>, warnings: &mut Vec<String>) -> Option<f64> {
+    value.and_then(|ratio| {
+        if !ratio.is_finite() || ratio < 0.0 {
+            warnings.push(format!(
+                "seed_ratio_limit {ratio} is invalid; disabling ratio stop"
+            ));
+            None
+        } else {
+            Some(ratio)
+        }
+    })
+}
+
+fn sanitize_seed_time_limit(value: Option<i64>, warnings: &mut Vec<String>) -> Option<i64> {
+    value.and_then(|seconds| {
+        if seconds < 0 {
+            warnings.push(format!(
+                "seed_time_limit {seconds} is negative; disabling seeding timeout"
+            ));
+            None
+        } else {
+            Some(seconds)
+        }
+    })
 }
 
 fn sanitize_storage_paths(
@@ -589,6 +730,9 @@ fn apply_field(
         return Ok(applied);
     }
     if let Some(applied) = apply_limit_field(working, key, value)? {
+        return Ok(applied);
+    }
+    if let Some(applied) = apply_alt_speed_field(working, key, value)? {
         return Ok(applied);
     }
     if let Some(applied) = apply_behavior_field(working, key, value)? {
@@ -740,6 +884,29 @@ fn apply_limit_field(
                 profile.max_upload_bps = limit;
             },
         )?),
+        "seed_ratio_limit" => Some(assign_if_changed(
+            &mut working.seed_ratio_limit,
+            parse_optional_non_negative_f64(value, "seed_ratio_limit")?,
+        )),
+        "seed_time_limit" => Some(assign_if_changed(
+            &mut working.seed_time_limit,
+            parse_optional_non_negative_i64(value, "seed_time_limit")?,
+        )),
+        _ => None,
+    };
+    Ok(applied)
+}
+
+fn apply_alt_speed_field(
+    working: &mut EngineProfile,
+    key: &str,
+    value: &Value,
+) -> Result<Option<bool>, ConfigError> {
+    let applied = match key {
+        "alt_speed" => {
+            let config = normalize_alt_speed_payload(value)?;
+            Some(assign_if_changed(&mut working.alt_speed, config.to_value()))
+        }
         _ => None,
     };
     Ok(applied)
@@ -914,6 +1081,48 @@ fn parse_optional_i32(value: &Value, field: &str) -> Result<Option<i32>, ConfigE
         message: "must fit within 32-bit signed integer range".to_string(),
     })?;
     Ok(Some(value_i32))
+}
+
+fn parse_optional_non_negative_i64(value: &Value, field: &str) -> Result<Option<i64>, ConfigError> {
+    if value.is_null() {
+        return Ok(None);
+    }
+    let Some(raw_value) = value.as_i64() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be an integer".to_string(),
+        });
+    };
+    if raw_value < 0 {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be non-negative".to_string(),
+        });
+    }
+    Ok(Some(raw_value))
+}
+
+fn parse_optional_non_negative_f64(value: &Value, field: &str) -> Result<Option<f64>, ConfigError> {
+    if value.is_null() {
+        return Ok(None);
+    }
+    let Some(raw_value) = value.as_f64() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be a number".to_string(),
+        });
+    };
+    if !raw_value.is_finite() || raw_value < 0.0 {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be a non-negative finite number".to_string(),
+        });
+    }
+    Ok(Some(raw_value))
 }
 
 fn parse_endpoint_array(value: &Value, field: &str) -> Result<Vec<String>, ConfigError> {
@@ -1773,6 +1982,220 @@ fn apply_rate_limit_field(
     Ok(before != Some(limit))
 }
 
+fn normalize_alt_speed_payload(value: &Value) -> Result<AltSpeedConfig, ConfigError> {
+    if value.is_null() {
+        return Ok(AltSpeedConfig::default());
+    }
+    let map = value.as_object().ok_or_else(|| ConfigError::InvalidField {
+        section: "engine_profile".to_string(),
+        field: "alt_speed".to_string(),
+        message: "must be an object".to_string(),
+    })?;
+
+    for key in map.keys() {
+        match key.as_str() {
+            "download_bps" | "upload_bps" | "schedule" => {}
+            other => {
+                return Err(ConfigError::UnknownField {
+                    section: "engine_profile".to_string(),
+                    field: format!("alt_speed.{other}"),
+                });
+            }
+        }
+    }
+
+    let download_bps = parse_optional_alt_rate(map.get("download_bps"), "alt_speed.download_bps")?;
+    let upload_bps = parse_optional_alt_rate(map.get("upload_bps"), "alt_speed.upload_bps")?;
+    let schedule = parse_alt_speed_schedule(map.get("schedule"))?;
+
+    Ok(AltSpeedConfig {
+        download_bps,
+        upload_bps,
+        schedule,
+    })
+}
+
+fn parse_optional_alt_rate(value: Option<&Value>, field: &str) -> Result<Option<i64>, ConfigError> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    if raw.is_null() {
+        return Ok(None);
+    }
+    raw.as_i64()
+        .ok_or_else(|| ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be an integer".to_string(),
+        })
+        .map(Some)
+}
+
+fn parse_alt_speed_schedule(
+    value: Option<&Value>,
+) -> Result<Option<AltSpeedSchedule>, ConfigError> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    if raw.is_null() {
+        return Ok(None);
+    }
+
+    let map = raw.as_object().ok_or_else(|| ConfigError::InvalidField {
+        section: "engine_profile".to_string(),
+        field: "alt_speed.schedule".to_string(),
+        message: "must be an object with days/start/end".to_string(),
+    })?;
+
+    for key in map.keys() {
+        match key.as_str() {
+            "days" | "start" | "end" => {}
+            other => {
+                return Err(ConfigError::UnknownField {
+                    section: "engine_profile".to_string(),
+                    field: format!("alt_speed.schedule.{other}"),
+                });
+            }
+        }
+    }
+
+    let days_value = map.get("days").ok_or_else(|| ConfigError::InvalidField {
+        section: "engine_profile".to_string(),
+        field: "alt_speed.schedule.days".to_string(),
+        message: "is required and must list weekdays".to_string(),
+    })?;
+    let mut days = parse_weekday_array(days_value, "alt_speed.schedule.days")?;
+    if days.is_empty() {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "alt_speed.schedule.days".to_string(),
+            message: "must contain at least one weekday".to_string(),
+        });
+    }
+    sort_weekdays(&mut days);
+
+    let start_minutes = parse_time_minutes(map.get("start"), "alt_speed.schedule.start", "HH:MM")?;
+    let end_minutes = parse_time_minutes(map.get("end"), "alt_speed.schedule.end", "HH:MM")?;
+
+    if start_minutes == end_minutes {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "alt_speed.schedule".to_string(),
+            message: "start and end times cannot be identical".to_string(),
+        });
+    }
+
+    Ok(Some(AltSpeedSchedule {
+        days,
+        start_minutes,
+        end_minutes,
+    }))
+}
+
+fn parse_time_minutes(
+    value: Option<&Value>,
+    field: &str,
+    expected: &str,
+) -> Result<u16, ConfigError> {
+    let Some(raw) = value else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "is required".to_string(),
+        });
+    };
+    let Some(text) = raw.as_str() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be a string".to_string(),
+        });
+    };
+    let trimmed = text.trim();
+    let parsed =
+        NaiveTime::parse_from_str(trimmed, "%H:%M").map_err(|_| ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: format!("must be formatted as {expected} (00:00-23:59)"),
+        })?;
+    let minutes = u16::try_from(parsed.hour() * 60 + parsed.minute())
+        .unwrap_or(MINUTES_PER_DAY.saturating_sub(1));
+    Ok(minutes)
+}
+
+fn parse_weekday_array(value: &Value, field: &str) -> Result<Vec<Weekday>, ConfigError> {
+    let Some(array) = value.as_array() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: field.to_string(),
+            message: "must be an array of weekday strings".to_string(),
+        });
+    };
+
+    let mut seen = HashSet::new();
+    let mut days = Vec::new();
+    for entry in array {
+        let Some(text) = entry.as_str() else {
+            return Err(ConfigError::InvalidField {
+                section: "engine_profile".to_string(),
+                field: field.to_string(),
+                message: "entries must be strings".to_string(),
+            });
+        };
+        let trimmed = text.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let Some(day) = parse_weekday(trimmed) else {
+            return Err(ConfigError::InvalidField {
+                section: "engine_profile".to_string(),
+                field: field.to_string(),
+                message: format!("unsupported weekday '{trimmed}'"),
+            });
+        };
+        let key = weekday_label(day).to_string();
+        if seen.insert(key) {
+            days.push(day);
+        }
+    }
+    Ok(days)
+}
+
+fn parse_weekday(label: &str) -> Option<Weekday> {
+    match label.to_ascii_lowercase().as_str() {
+        "mon" | "monday" => Some(Weekday::Mon),
+        "tue" | "tues" | "tuesday" => Some(Weekday::Tue),
+        "wed" | "wednesday" => Some(Weekday::Wed),
+        "thu" | "thur" | "thurs" | "thursday" => Some(Weekday::Thu),
+        "fri" | "friday" => Some(Weekday::Fri),
+        "sat" | "saturday" => Some(Weekday::Sat),
+        "sun" | "sunday" => Some(Weekday::Sun),
+        _ => None,
+    }
+}
+
+fn sort_weekdays(days: &mut [Weekday]) {
+    days.sort_by_key(Weekday::number_from_monday);
+}
+
+const fn weekday_label(day: Weekday) -> &'static str {
+    match day {
+        Weekday::Mon => "mon",
+        Weekday::Tue => "tue",
+        Weekday::Wed => "wed",
+        Weekday::Thu => "thu",
+        Weekday::Fri => "fri",
+        Weekday::Sat => "sat",
+        Weekday::Sun => "sun",
+    }
+}
+
+fn format_minutes(minutes: u16) -> String {
+    let hours = minutes / 60;
+    let mins = minutes % 60;
+    format!("{hours:02}:{mins:02}")
+}
+
 fn clamp_rate_limit(field: &str, value: Option<i64>, warnings: &mut Vec<String>) -> Option<i64> {
     match value {
         Some(limit) if limit <= 0 => {
@@ -1841,7 +2264,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
+    use serde_json::{Value, json};
     use std::collections::HashSet;
     use uuid::Uuid;
 
@@ -1866,10 +2289,13 @@ mod tests {
             max_active: Some(4),
             max_download_bps: Some(250_000),
             max_upload_bps: Some(125_000),
+            seed_ratio_limit: None,
+            seed_time_limit: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            alt_speed: json!({}),
             sequential_default: false,
             resume_dir: "/tmp/resume".into(),
             download_root: "/tmp/downloads".into(),
@@ -2208,12 +2634,16 @@ mod tests {
         profile.connections_limit_per_torrent = Some(80);
         profile.unchoke_slots = Some(0);
         profile.half_open_limit = Some(-5);
+        profile.seed_ratio_limit = Some(-1.0);
+        profile.seed_time_limit = Some(-10);
 
         let effective = normalize_engine_profile(&profile);
         assert_eq!(effective.limits.connections_limit, Some(400));
         assert_eq!(effective.limits.connections_limit_per_torrent, Some(80));
         assert!(effective.limits.unchoke_slots.is_none());
         assert!(effective.limits.half_open_limit.is_none());
+        assert!(effective.limits.seed_ratio_limit.is_none());
+        assert!(effective.limits.seed_time_limit.is_none());
         assert!(
             effective
                 .warnings
@@ -2228,5 +2658,174 @@ mod tests {
                 .any(|msg| msg.contains("half_open_limit")),
             "non-positive half_open_limit should be reported"
         );
+        assert!(
+            effective
+                .warnings
+                .iter()
+                .any(|msg| msg.contains("seed_ratio_limit")),
+            "invalid seed_ratio_limit should be reported"
+        );
+        assert!(
+            effective
+                .warnings
+                .iter()
+                .any(|msg| msg.contains("seed_time_limit")),
+            "invalid seed_time_limit should be reported"
+        );
+    }
+
+    #[test]
+    fn seed_limits_validate_and_preserve_positive_values() {
+        let profile = sample_profile();
+        let patch = json!({
+            "seed_ratio_limit": 1.5,
+            "seed_time_limit": 3600
+        });
+        let mutation =
+            validate_engine_profile_patch(&profile, &patch, &HashSet::new()).expect("valid patch");
+        assert_eq!(mutation.stored.seed_ratio_limit, Some(1.5));
+        assert_eq!(mutation.stored.seed_time_limit, Some(3_600));
+        assert_eq!(mutation.effective.limits.seed_ratio_limit, Some(1.5));
+        assert_eq!(mutation.effective.limits.seed_time_limit, Some(3_600));
+        assert!(mutation.effective.warnings.is_empty());
+    }
+
+    #[test]
+    fn seed_limits_reject_negative_values() {
+        let profile = sample_profile();
+        let patch = json!({
+            "seed_ratio_limit": -0.1,
+            "seed_time_limit": -5
+        });
+        let err = validate_engine_profile_patch(&profile, &patch, &HashSet::new()).unwrap_err();
+        assert!(
+            err.to_string().contains("seed_ratio_limit")
+                || err.to_string().contains("seed_time_limit")
+        );
+    }
+
+    #[test]
+    fn alt_speed_schedule_is_normalised() {
+        let profile = sample_profile();
+        let patch = json!({
+            "alt_speed": {
+                "download_bps": 1000,
+                "upload_bps": 2000,
+                "schedule": {
+                    "days": ["sun", "Mon", "mon"],
+                    "start": "22:15",
+                    "end": "06:45"
+                }
+            }
+        });
+
+        let mutation =
+            validate_engine_profile_patch(&profile, &patch, &HashSet::new()).expect("valid patch");
+        assert!(mutation.mutated);
+        let alt = mutation.effective.alt_speed;
+        assert_eq!(alt.download_bps, Some(1_000));
+        assert_eq!(alt.upload_bps, Some(2_000));
+        let schedule = alt.schedule.expect("schedule present");
+        assert_eq!(schedule.days, vec![Weekday::Mon, Weekday::Sun]);
+        assert_eq!(schedule.start_minutes, 22 * 60 + 15);
+        assert_eq!(schedule.end_minutes, 6 * 60 + 45);
+        assert!(mutation.effective.warnings.is_empty());
+
+        let stored_schedule = mutation
+            .stored
+            .alt_speed
+            .get("schedule")
+            .and_then(Value::as_object)
+            .expect("schedule stored");
+        assert_eq!(
+            stored_schedule.get("start").and_then(Value::as_str),
+            Some("22:15")
+        );
+        assert_eq!(
+            stored_schedule.get("end").and_then(Value::as_str),
+            Some("06:45")
+        );
+    }
+
+    #[test]
+    fn alt_speed_requires_schedule_and_caps() {
+        let profile = sample_profile();
+        let patch_missing_schedule = json!({
+            "alt_speed": {
+                "download_bps": 1000
+            }
+        });
+        let mutation =
+            validate_engine_profile_patch(&profile, &patch_missing_schedule, &HashSet::new())
+                .expect("patch should validate");
+        assert!(
+            mutation.effective.alt_speed.schedule.is_none(),
+            "missing schedule disables alt speed"
+        );
+        assert!(
+            mutation
+                .effective
+                .warnings
+                .iter()
+                .any(|msg| msg.contains("alt_speed.schedule missing")),
+            "missing schedule should warn"
+        );
+
+        let patch_missing_caps = json!({
+            "alt_speed": {
+                "schedule": {
+                    "days": ["mon"],
+                    "start": "10:00",
+                    "end": "12:00"
+                }
+            }
+        });
+        let mutation =
+            validate_engine_profile_patch(&profile, &patch_missing_caps, &HashSet::new())
+                .expect("patch should validate");
+        assert!(
+            mutation.effective.alt_speed.schedule.is_none(),
+            "missing caps should disable alt speed"
+        );
+        assert!(
+            mutation
+                .effective
+                .warnings
+                .iter()
+                .any(|msg| msg.contains("alt_speed requires")),
+            "missing caps should warn"
+        );
+    }
+
+    #[test]
+    fn alt_speed_rejects_invalid_schedule_shapes() {
+        let profile = sample_profile();
+        let patch = json!({
+            "alt_speed": {
+                "download_bps": 1000,
+                "schedule": {
+                    "days": ["tuesday"],
+                    "start": "not-time",
+                    "end": "10:00"
+                }
+            }
+        });
+        let err = validate_engine_profile_patch(&profile, &patch, &HashSet::new())
+            .expect_err("invalid schedule should be rejected");
+        assert!(err.to_string().contains("HH:MM"));
+
+        let patch_bad_day = json!({
+            "alt_speed": {
+                "download_bps": 1000,
+                "schedule": {
+                    "days": ["funday"],
+                    "start": "08:00",
+                    "end": "12:00"
+                }
+            }
+        });
+        let err = validate_engine_profile_patch(&profile, &patch_bad_day, &HashSet::new())
+            .expect_err("unsupported weekday should fail");
+        assert!(err.to_string().contains("weekday"));
     }
 }

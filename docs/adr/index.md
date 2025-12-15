@@ -26,6 +26,8 @@ ADR documents capture the rationale behind significant technical decisions.
 - [021](021-torrent-precursor-enforcement.md) – Torrent precursor enforcement
 - [022](022-torrent-settings-parity.md) – Torrent settings parity and observability
 - [023](023-tracker-config-wiring.md) – Tracker config wiring and persistence
+- [024](024-seeding-stop-criteria.md) – Seeding stop criteria and overrides
+- [025](025-seed-mode-add-as-complete.md) – Seed mode admission with optional hash sampling
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

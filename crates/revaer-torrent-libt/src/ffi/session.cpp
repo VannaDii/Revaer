@@ -6,12 +6,17 @@
 #include <array>
 #include <cctype>
 #include <chrono>
+#include <cmath>
 #include <filesystem>
+#include <fstream>
+#include <cstring>
+#include <memory>
 #include <optional>
 #include <regex>
 #include <string>
 #include <unordered_set>
 #include <utility>
+#include <limits>
 #include <vector>
 #include <iterator>
 
@@ -50,6 +55,7 @@
 #include <libtorrent/torrent_flags.hpp>
 #include <libtorrent/torrent_status.hpp>
 #include <libtorrent/write_resume_data.hpp>
+#include <openssl/evp.h>
 
 namespace revaer {
 
@@ -105,6 +111,114 @@ std::string glob_to_regex(const std::string& pattern) {
     }
     regex.push_back('$');
     return regex;
+}
+
+std::vector<int> pick_sample_pieces(int total_pieces, int sample_count) {
+    std::vector<int> pieces;
+    pieces.reserve(sample_count);
+    const int step = std::max(1, total_pieces / sample_count);
+    std::unordered_set<int> seen;
+
+    for (int piece = 0;
+         static_cast<int>(pieces.size()) < sample_count && piece < total_pieces;
+         piece += step) {
+        if (seen.insert(piece).second) {
+            pieces.push_back(piece);
+        }
+    }
+
+    if (!pieces.empty() && pieces.back() != total_pieces - 1
+        && static_cast<int>(pieces.size()) < sample_count) {
+        if (seen.insert(total_pieces - 1).second) {
+            pieces.push_back(total_pieces - 1);
+        }
+    }
+
+    for (int candidate = 0;
+         static_cast<int>(pieces.size()) < sample_count && candidate < total_pieces;
+         ++candidate) {
+        if (seen.insert(candidate).second) {
+            pieces.push_back(candidate);
+        }
+    }
+
+    return pieces;
+}
+
+std::optional<std::string> hash_sample(
+    const lt::torrent_info& info,
+    const std::string& save_path,
+    std::uint8_t sample_pct) {
+    if (sample_pct == 0) {
+        return std::nullopt;
+    }
+
+    const int total_pieces = info.num_pieces();
+    if (total_pieces <= 0) {
+        return std::nullopt;
+    }
+
+    const auto sample_count = std::max(
+        1,
+        static_cast<int>(std::ceil(
+            static_cast<double>(total_pieces) * static_cast<double>(sample_pct) / 100.0)));
+    const auto pieces = pick_sample_pieces(total_pieces, sample_count);
+    const auto& files = info.files();
+    const std::filesystem::path root(save_path);
+
+    for (int piece : pieces) {
+        const int piece_size = info.piece_size(piece);
+        std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> sha_ctx(
+            EVP_MD_CTX_new(),
+            &EVP_MD_CTX_free);
+        if (!sha_ctx) {
+            return std::string("seed-mode sample failed: unable to allocate sha1 ctx");
+        }
+        if (EVP_DigestInit_ex(sha_ctx.get(), EVP_sha1(), nullptr) != 1) {
+            return std::string("seed-mode sample failed: unable to init sha1 digest");
+        }
+        const auto slices = files.map_block(piece, 0, piece_size);
+        for (const auto& slice : slices) {
+            const auto path = root / files.file_path(slice.file_index);
+            std::ifstream file(path, std::ios::binary);
+            if (!file) {
+                return std::string("seed-mode sample failed: missing file ")
+                    + path.string();
+            }
+            file.seekg(static_cast<std::streamoff>(slice.offset), std::ios::beg);
+            std::vector<char> buffer;
+            buffer.resize(static_cast<std::size_t>(slice.size));
+            file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+            if (file.gcount() != static_cast<std::streamsize>(buffer.size())) {
+                return std::string("seed-mode sample failed: truncated file ")
+                    + path.string();
+            }
+            if (EVP_DigestUpdate(
+                    sha_ctx.get(),
+                    reinterpret_cast<const unsigned char*>(buffer.data()),
+                    buffer.size()) != 1) {
+                return std::string("seed-mode sample failed: digest update error for file ")
+                    + path.string();
+            }
+        }
+
+        std::array<unsigned char, lt::sha1_hash::size()> digest{};
+        unsigned int digest_len = 0;
+        if (EVP_DigestFinal_ex(sha_ctx.get(), digest.data(), &digest_len) != 1) {
+            return std::string("seed-mode sample failed: unable to finalize digest");
+        }
+        if (digest_len != lt::sha1_hash::size()) {
+            return std::string("seed-mode sample failed: digest length mismatch");
+        }
+
+        const auto expected = info.hash_for_piece(piece);
+        if (std::memcmp(expected.data(), digest.data(), lt::sha1_hash::size()) != 0) {
+            return std::string("seed-mode sample failed: hash mismatch for piece ")
+                + std::to_string(piece);
+        }
+    }
+
+    return std::nullopt;
 }
 
 NativeTorrentState map_state(lt::torrent_status::state_t state) {
@@ -327,6 +441,26 @@ public:
                          options.limits.upload_rate_limit >= 0
                              ? static_cast<int>(options.limits.upload_rate_limit)
                              : -1);
+            if (options.limits.has_seed_ratio_limit) {
+                // libtorrent expects share ratio limit scaled by 1000.
+                const double scaled = std::clamp(
+                    options.limits.seed_ratio_limit * 1000.0,
+                    0.0,
+                    static_cast<double>(std::numeric_limits<int>::max()));
+                pack.set_int(lt::settings_pack::share_ratio_limit,
+                             static_cast<int>(scaled));
+            } else {
+                pack.set_int(lt::settings_pack::share_ratio_limit, -1);
+            }
+            if (options.limits.has_seed_time_limit) {
+                const auto clamped = static_cast<int>(std::clamp(
+                    options.limits.seed_time_limit,
+                    static_cast<std::int64_t>(0),
+                    static_cast<std::int64_t>(std::numeric_limits<int>::max())));
+                pack.set_int(lt::settings_pack::seed_time_limit, clamped);
+            } else {
+                pack.set_int(lt::settings_pack::seed_time_limit, -1);
+            }
 
             if (options.tracker.has_user_agent) {
                 pack.set_str(lt::settings_pack::user_agent,
@@ -435,7 +569,16 @@ public:
                 lt::span<const char> buffer(
                     reinterpret_cast<const char*>(request.metainfo.data()),
                     static_cast<long>(request.metainfo.size()));
-                params.ti = std::make_shared<lt::torrent_info>(buffer);
+                lt::error_code parse_ec;
+                params.ti = std::make_shared<lt::torrent_info>(
+                    buffer,
+                    parse_ec,
+                    lt::from_span);
+                if (parse_ec) {
+                    return ::rust::String(
+                        "metainfo parse failed (bytes=" + std::to_string(request.metainfo.size())
+                        + "): " + parse_ec.message());
+                }
             }
 
             auto resume_it = pending_resume_.find(request_id);
@@ -446,8 +589,31 @@ public:
                 pending_resume_.erase(resume_it);
             }
 
+            const bool seed_mode_requested = request.has_seed_mode && request.seed_mode;
+            const bool hash_sample_requested =
+                request.has_hash_check_sample && request.hash_check_sample_pct > 0;
+
+            if (seed_mode_requested && !params.ti) {
+                return "seed_mode requires metainfo payload";
+            }
+
+            if (hash_sample_requested) {
+                if (!params.ti) {
+                    return "hash sample requires metainfo payload";
+                }
+                const auto sample_result =
+                    hash_sample(*params.ti, params.save_path, request.hash_check_sample_pct);
+                if (sample_result.has_value()) {
+                    return ::rust::String(*sample_result);
+                }
+            }
+
             params.flags |= lt::torrent_flags::auto_managed;
-            params.flags &= ~lt::torrent_flags::seed_mode;
+            if (seed_mode_requested) {
+                params.flags |= lt::torrent_flags::seed_mode;
+            } else {
+                params.flags &= ~lt::torrent_flags::seed_mode;
+            }
             if (request.has_start_paused && request.start_paused) {
                 params.flags |= lt::torrent_flags::paused;
             }

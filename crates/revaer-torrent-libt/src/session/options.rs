@@ -26,104 +26,10 @@ impl EngineOptionsPlan {
     pub(super) fn from_runtime_config(config: &EngineRuntimeConfig) -> Self {
         let mut warnings = Vec::new();
 
-        let listen_interfaces = config.listen_interfaces.clone();
-        let has_listen_interfaces = !listen_interfaces.is_empty();
-
-        let (listen_port, set_listen_port) = if has_listen_interfaces {
-            (0, false)
-        } else {
-            match config.listen_port {
-                Some(port) if (1..=65_535).contains(&port) => (port, true),
-                Some(port) => {
-                    warnings.push(format!(
-                        "listen_port {port} is out of range; skipping listen override"
-                    ));
-                    (0, false)
-                }
-                None => (0, false),
-            }
-        };
-
-        let max_active = map_positive_limit("max_active", config.max_active, &mut warnings);
-        let connections_limit =
-            map_positive_limit("connections_limit", config.connections_limit, &mut warnings);
-        let connections_limit_per_torrent = map_positive_limit(
-            "connections_limit_per_torrent",
-            config.connections_limit_per_torrent,
-            &mut warnings,
-        );
-        let unchoke_slots =
-            map_positive_limit("unchoke_slots", config.unchoke_slots, &mut warnings);
-        let half_open_limit =
-            map_positive_limit("half_open_limit", config.half_open_limit, &mut warnings);
-
-        let download_rate_limit = clamp_rate_limit(
-            "download_rate_limit",
-            config.download_rate_limit,
-            &mut warnings,
-        );
-        let upload_rate_limit =
-            clamp_rate_limit("upload_rate_limit", config.upload_rate_limit, &mut warnings);
-
-        if config.download_root.trim().is_empty() {
-            warnings.push(
-                "download_root is empty; native session will fall back to its defaults".to_string(),
-            );
-        }
-        if config.resume_dir.trim().is_empty() {
-            warnings.push(
-                "resume_dir is empty; native session will fall back to its defaults".to_string(),
-            );
-        }
-
-        let (ip_filter_rules, has_ip_filter) = map_ip_filter(config.ip_filter.as_ref());
-        let (outgoing_port_min, outgoing_port_max, has_outgoing_port_range) =
-            map_outgoing_ports(config.outgoing_ports);
-        let (peer_dscp, has_peer_dscp) = map_peer_dscp(config.peer_dscp);
-
         let options = ffi::EngineOptions {
-            network: ffi::EngineNetworkOptions {
-                listen_port,
-                set_listen_port,
-                listen_interfaces,
-                has_listen_interfaces,
-                enable_dht: config.enable_dht,
-                enable_lsd: bool::from(config.enable_lsd),
-                enable_upnp: bool::from(config.enable_upnp),
-                enable_natpmp: bool::from(config.enable_natpmp),
-                enable_pex: bool::from(config.enable_pex),
-                outgoing_port_min,
-                outgoing_port_max,
-                has_outgoing_port_range,
-                peer_dscp,
-                has_peer_dscp,
-                anonymous_mode: bool::from(config.anonymous_mode),
-                force_proxy: bool::from(config.force_proxy),
-                prefer_rc4: bool::from(config.prefer_rc4),
-                allow_multiple_connections_per_ip: bool::from(
-                    config.allow_multiple_connections_per_ip,
-                ),
-                enable_outgoing_utp: bool::from(config.enable_outgoing_utp),
-                enable_incoming_utp: bool::from(config.enable_incoming_utp),
-                dht_bootstrap_nodes: config.dht_bootstrap_nodes.clone(),
-                dht_router_nodes: config.dht_router_nodes.clone(),
-                encryption_policy: config.encryption.as_u8(),
-                ip_filter_rules,
-                has_ip_filter,
-            },
-            limits: ffi::EngineLimitOptions {
-                max_active,
-                download_rate_limit,
-                upload_rate_limit,
-                connections_limit,
-                connections_limit_per_torrent,
-                unchoke_slots,
-                half_open_limit,
-            },
-            storage: ffi::EngineStorageOptions {
-                download_root: config.download_root.clone(),
-                resume_dir: config.resume_dir.clone(),
-            },
+            network: build_network_options(config, &mut warnings),
+            limits: build_limit_options(config, &mut warnings),
+            storage: build_storage_options(config, &mut warnings),
             behavior: ffi::EngineBehaviorOptions {
                 sequential_default: config.sequential_default,
             },
@@ -131,6 +37,121 @@ impl EngineOptionsPlan {
         };
 
         Self { options, warnings }
+    }
+}
+
+fn build_network_options(
+    config: &EngineRuntimeConfig,
+    warnings: &mut Vec<String>,
+) -> ffi::EngineNetworkOptions {
+    let listen_interfaces = config.listen_interfaces.clone();
+    let has_listen_interfaces = !listen_interfaces.is_empty();
+
+    let (listen_port, set_listen_port) = if has_listen_interfaces {
+        (0, false)
+    } else {
+        match config.listen_port {
+            Some(port) if (1..=65_535).contains(&port) => (port, true),
+            Some(port) => {
+                warnings.push(format!(
+                    "listen_port {port} is out of range; skipping listen override"
+                ));
+                (0, false)
+            }
+            None => (0, false),
+        }
+    };
+
+    let (ip_filter_rules, has_ip_filter) = map_ip_filter(config.ip_filter.as_ref());
+    let (outgoing_port_min, outgoing_port_max, has_outgoing_port_range) =
+        map_outgoing_ports(config.outgoing_ports);
+    let (peer_dscp, has_peer_dscp) = map_peer_dscp(config.peer_dscp);
+
+    ffi::EngineNetworkOptions {
+        listen_port,
+        set_listen_port,
+        listen_interfaces,
+        has_listen_interfaces,
+        enable_dht: config.enable_dht,
+        enable_lsd: bool::from(config.enable_lsd),
+        enable_upnp: bool::from(config.enable_upnp),
+        enable_natpmp: bool::from(config.enable_natpmp),
+        enable_pex: bool::from(config.enable_pex),
+        outgoing_port_min,
+        outgoing_port_max,
+        has_outgoing_port_range,
+        peer_dscp,
+        has_peer_dscp,
+        anonymous_mode: bool::from(config.anonymous_mode),
+        force_proxy: bool::from(config.force_proxy),
+        prefer_rc4: bool::from(config.prefer_rc4),
+        allow_multiple_connections_per_ip: bool::from(config.allow_multiple_connections_per_ip),
+        enable_outgoing_utp: bool::from(config.enable_outgoing_utp),
+        enable_incoming_utp: bool::from(config.enable_incoming_utp),
+        dht_bootstrap_nodes: config.dht_bootstrap_nodes.clone(),
+        dht_router_nodes: config.dht_router_nodes.clone(),
+        encryption_policy: config.encryption.as_u8(),
+        ip_filter_rules,
+        has_ip_filter,
+    }
+}
+
+fn build_limit_options(
+    config: &EngineRuntimeConfig,
+    warnings: &mut Vec<String>,
+) -> ffi::EngineLimitOptions {
+    let max_active = map_positive_limit("max_active", config.max_active, warnings);
+    let connections_limit =
+        map_positive_limit("connections_limit", config.connections_limit, warnings);
+    let connections_limit_per_torrent = map_positive_limit(
+        "connections_limit_per_torrent",
+        config.connections_limit_per_torrent,
+        warnings,
+    );
+    let unchoke_slots = map_positive_limit("unchoke_slots", config.unchoke_slots, warnings);
+    let half_open_limit = map_positive_limit("half_open_limit", config.half_open_limit, warnings);
+
+    let download_rate_limit =
+        clamp_rate_limit("download_rate_limit", config.download_rate_limit, warnings);
+    let upload_rate_limit =
+        clamp_rate_limit("upload_rate_limit", config.upload_rate_limit, warnings);
+    let (seed_ratio_limit, has_seed_ratio_limit) =
+        map_seed_ratio_limit(config.seed_ratio_limit, warnings);
+    let (seed_time_limit, has_seed_time_limit) =
+        map_seed_time_limit(config.seed_time_limit, warnings);
+
+    ffi::EngineLimitOptions {
+        max_active,
+        download_rate_limit,
+        upload_rate_limit,
+        seed_ratio_limit,
+        has_seed_ratio_limit,
+        seed_time_limit,
+        has_seed_time_limit,
+        connections_limit,
+        connections_limit_per_torrent,
+        unchoke_slots,
+        half_open_limit,
+    }
+}
+
+fn build_storage_options(
+    config: &EngineRuntimeConfig,
+    warnings: &mut Vec<String>,
+) -> ffi::EngineStorageOptions {
+    if config.download_root.trim().is_empty() {
+        warnings.push(
+            "download_root is empty; native session will fall back to its defaults".to_string(),
+        );
+    }
+    if config.resume_dir.trim().is_empty() {
+        warnings
+            .push("resume_dir is empty; native session will fall back to its defaults".to_string());
+    }
+
+    ffi::EngineStorageOptions {
+        download_root: config.download_root.clone(),
+        resume_dir: config.resume_dir.clone(),
     }
 }
 
@@ -213,6 +234,42 @@ fn map_peer_dscp(value: Option<u8>) -> (i32, bool) {
     value.map_or((0, false), |mark| (i32::from(mark) << 2, true))
 }
 
+fn map_seed_ratio_limit(value: Option<f64>, warnings: &mut Vec<String>) -> (f64, bool) {
+    match value {
+        Some(ratio) if ratio.is_finite() && ratio >= 0.0 => (ratio, true),
+        Some(ratio) => {
+            warnings.push(format!(
+                "seed_ratio_limit {ratio} is invalid; disabling ratio stop"
+            ));
+            (-1.0, false)
+        }
+        None => (-1.0, false),
+    }
+}
+
+fn map_seed_time_limit(value: Option<i64>, warnings: &mut Vec<String>) -> (i64, bool) {
+    match value {
+        Some(limit) if limit >= 0 => {
+            if limit > i64::from(i32::MAX) {
+                warnings.push(format!(
+                    "seed_time_limit {limit} exceeds native bounds; clamping to {}",
+                    i32::MAX
+                ));
+                (i64::from(i32::MAX), true)
+            } else {
+                (limit, true)
+            }
+        }
+        Some(limit) => {
+            warnings.push(format!(
+                "seed_time_limit {limit} is negative; disabling seeding timeout"
+            ));
+            (-1, false)
+        }
+        None => (-1, false),
+    }
+}
+
 fn clamp_rate_limit(field: &str, value: Option<i64>, warnings: &mut Vec<String>) -> i64 {
     match value {
         Some(limit) if limit > 0 => limit,
@@ -275,6 +332,9 @@ mod tests {
             max_active: Some(0),
             download_rate_limit: Some(-1),
             upload_rate_limit: None,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
+            alt_speed: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
@@ -333,6 +393,9 @@ mod tests {
             max_active: Some(16),
             download_rate_limit: Some(256_000),
             upload_rate_limit: Some(128_000),
+            seed_ratio_limit: None,
+            seed_time_limit: None,
+            alt_speed: None,
             connections_limit: Some(200),
             connections_limit_per_torrent: Some(80),
             unchoke_slots: Some(40),
@@ -375,6 +438,61 @@ mod tests {
     }
 
     #[test]
+    fn seed_limits_are_forwarded_and_clamped() {
+        let config = EngineRuntimeConfig {
+            download_root: "/data".into(),
+            resume_dir: "/state".into(),
+            listen_interfaces: Vec::new(),
+            ipv6_mode: Ipv6Mode::Disabled,
+            enable_dht: false,
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
+            outgoing_ports: None,
+            peer_dscp: None,
+            anonymous_mode: false.into(),
+            force_proxy: false.into(),
+            prefer_rc4: false.into(),
+            allow_multiple_connections_per_ip: false.into(),
+            enable_outgoing_utp: false.into(),
+            enable_incoming_utp: false.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
+            sequential_default: false,
+            listen_port: None,
+            max_active: None,
+            download_rate_limit: None,
+            upload_rate_limit: None,
+            seed_ratio_limit: Some(1.5),
+            seed_time_limit: Some(i64::from(i32::MAX) + 10),
+            alt_speed: None,
+            connections_limit: None,
+            connections_limit_per_torrent: None,
+            unchoke_slots: None,
+            half_open_limit: None,
+            encryption: EncryptionPolicy::Prefer,
+            tracker: TrackerRuntimeConfig::default(),
+            ip_filter: None,
+        };
+
+        let plan = EngineOptionsPlan::from_runtime_config(&config);
+        assert!(plan.options.limits.has_seed_ratio_limit);
+        assert!(
+            (plan.options.limits.seed_ratio_limit - 1.5).abs() < f64::EPSILON,
+            "unexpected clamped ratio: {}",
+            plan.options.limits.seed_ratio_limit
+        );
+        assert!(plan.options.limits.has_seed_time_limit);
+        assert_eq!(plan.options.limits.seed_time_limit, i64::from(i32::MAX));
+        assert!(
+            plan.warnings
+                .iter()
+                .any(|msg| msg.contains("seed_time_limit") && msg.contains("clamping"))
+        );
+    }
+
+    #[test]
     fn privacy_toggles_are_forwarded() {
         let config = EngineRuntimeConfig {
             download_root: "/data".into(),
@@ -401,6 +519,9 @@ mod tests {
             max_active: None,
             download_rate_limit: None,
             upload_rate_limit: None,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
+            alt_speed: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
@@ -447,6 +568,9 @@ mod tests {
             max_active: None,
             download_rate_limit: None,
             upload_rate_limit: None,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
+            alt_speed: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
@@ -490,6 +614,9 @@ mod tests {
             max_active: None,
             download_rate_limit: None,
             upload_rate_limit: None,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
+            alt_speed: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
@@ -572,6 +699,9 @@ mod tests {
             max_active: None,
             download_rate_limit: None,
             upload_rate_limit: None,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
+            alt_speed: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
