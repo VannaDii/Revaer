@@ -175,11 +175,11 @@
     -   [x] Bridge/native: expose libtorrent calls to update corresponding options on existing torrents; ignore/handle unsupported values safely.
     -   [x] Tests: API + worker + native tests to confirm post-add updates apply and persist; regression tests for symmetry.
 
--   [ ] Tracker status and tracker ops surfaced
+-   [x] Tracker status and tracker ops surfaced
 
     -   [x] Domain/API: persist tracker list/status per torrent; add endpoints to list/add/remove trackers and show per-tracker messages.
-    -   [ ] Native: map tracker alerts into per-tracker status; support add/remove tracker operations via session/torrent handle.
-    -   [ ] Tests: API + native tests for tracker add/remove and status propagation.
+    -   [x] Native: map tracker alerts into per-tracker status; support add/remove tracker operations via session/torrent handle.
+    -   [x] Tests: API + native tests for tracker add/remove and status propagation.
 
 -   [ ] Tracker HTTP auth/cookies supported
 

@@ -176,6 +176,11 @@ pub(crate) async fn update_torrent_trackers(
         }
         metadata.trackers = merged;
         metadata.replace_trackers = request.replace;
+        if request.replace {
+            metadata
+                .tracker_messages
+                .retain(|tracker, _| metadata.trackers.contains(tracker));
+        }
     });
     info!(torrent_id = %id, "torrent tracker update requested");
     Ok(StatusCode::ACCEPTED)
@@ -192,7 +197,7 @@ pub(crate) async fn list_torrent_trackers(
         .map(|url| TrackerView {
             url: url.clone(),
             status: None,
-            message: None,
+            message: metadata.tracker_messages.get(url).cloned(),
         })
         .collect();
     Ok(Json(TorrentTrackersResponse { trackers }))
@@ -248,6 +253,9 @@ pub(crate) async fn remove_torrent_trackers(
     state.update_metadata(&id, |metadata| {
         metadata.trackers.clone_from(&retained);
         metadata.replace_trackers = true;
+        metadata
+            .tracker_messages
+            .retain(|tracker, _| retained.contains(tracker));
     });
     info!(torrent_id = %id, removed = removal_set.len(), "torrent trackers removed");
     Ok(StatusCode::ACCEPTED)

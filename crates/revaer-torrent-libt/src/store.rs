@@ -43,6 +43,9 @@ pub struct StoredTorrentMetadata {
     /// Whether the supplied trackers replaced profile defaults.
     pub replace_trackers: bool,
     #[serde(default)]
+    /// Per-tracker status messages (when available).
+    pub tracker_messages: std::collections::HashMap<String, String>,
+    #[serde(default)]
     /// Web seeds associated with the torrent.
     pub web_seeds: Vec<String>,
     #[serde(default)]
@@ -282,6 +285,7 @@ mod tests {
             super_seeding: Some(false),
             trackers: vec!["https://tracker.example/announce".into()],
             replace_trackers: true,
+            tracker_messages: std::collections::HashMap::new(),
             web_seeds: vec!["https://seed.example/file".into()],
             replace_web_seeds: false,
             tags: vec!["movies".into(), "hd".into()],

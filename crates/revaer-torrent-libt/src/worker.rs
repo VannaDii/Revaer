@@ -11,8 +11,8 @@ use chrono::{DateTime, Datelike, Timelike, Utc};
 use revaer_events::{DiscoveredFile, Event, EventBus, TorrentState};
 use revaer_torrent_core::{
     AddTorrent, EngineEvent, FilePriorityOverride, FileSelectionRules, FileSelectionUpdate,
-    RemoveTorrent, TorrentRateLimit, TorrentRates, TorrentSource,
-    model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
+    RemoveTorrent, TorrentFile, TorrentProgress, TorrentRateLimit, TorrentRates, TorrentSource,
+    model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate, TrackerStatus},
 };
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::convert::TryFrom;
@@ -850,97 +850,153 @@ impl Worker {
     fn publish_engine_event(&mut self, event: EngineEvent, actions: &mut Vec<PendingAction>) {
         match event {
             EngineEvent::FilesDiscovered { torrent_id, files } => {
-                if files.is_empty() {
-                    return;
-                }
-                let discovered: Vec<DiscoveredFile> = files
-                    .into_iter()
-                    .map(|file| DiscoveredFile {
-                        path: file.path,
-                        size_bytes: file.size_bytes,
-                    })
-                    .collect();
-                let _ = self.events.publish(Event::FilesDiscovered {
-                    torrent_id,
-                    files: discovered,
-                });
-                self.mark_recovered("session");
+                self.handle_files_discovered(torrent_id, files);
             }
             EngineEvent::Progress {
                 torrent_id,
                 progress,
                 rates,
             } => {
-                self.evaluate_seeding_goal(torrent_id, rates.ratio, actions);
-                self.verify_rate_limits(torrent_id, &rates);
-                if !self.should_emit_progress(torrent_id) {
-                    debug!(
-                        torrent_id = %torrent_id,
-                        "suppressing progress update to honour coalescing budget"
-                    );
-                    return;
-                }
-                let _ = self.events.publish(Event::Progress {
-                    torrent_id,
-                    bytes_downloaded: progress.bytes_downloaded,
-                    bytes_total: progress.bytes_total,
-                });
-                self.mark_recovered("session");
+                self.handle_progress_event(torrent_id, &progress, &rates, actions);
             }
             EngineEvent::StateChanged { torrent_id, state } => {
-                self.update_seeding_state(torrent_id, &state);
-                let failed = matches!(&state, TorrentState::Failed { .. });
-                let _ = self
-                    .events
-                    .publish(Event::StateChanged { torrent_id, state });
-                if !failed {
-                    self.mark_recovered("session");
-                }
+                self.handle_state_changed(torrent_id, state);
             }
             EngineEvent::Completed {
                 torrent_id,
                 library_path,
             } => {
-                self.update_seeding_state(torrent_id, &TorrentState::Completed);
-                self.evaluate_seeding_goal(torrent_id, 0.0, actions);
-                let _ = self.events.publish(Event::StateChanged {
-                    torrent_id,
-                    state: TorrentState::Completed,
-                });
-                let _ = self.events.publish(Event::Completed {
-                    torrent_id,
-                    library_path,
-                });
-                self.mark_recovered("session");
+                self.handle_completed(torrent_id, library_path, actions);
             }
             EngineEvent::MetadataUpdated {
                 torrent_id,
-                mut download_dir,
+                download_dir,
                 ..
             } => {
-                self.update_metadata(torrent_id, move |meta| {
-                    if let Some(dir) = download_dir.take() {
-                        meta.download_dir = Some(dir);
-                    }
-                });
+                self.handle_metadata_updated(torrent_id, download_dir);
             }
             EngineEvent::ResumeData {
                 torrent_id,
                 payload,
             } => {
-                self.persist_fastresume(torrent_id, payload);
+                self.handle_resume_data(torrent_id, payload);
             }
             EngineEvent::Error {
                 torrent_id,
                 message,
             } => {
-                let _ = self.events.publish(Event::StateChanged {
-                    torrent_id,
-                    state: TorrentState::Failed { message },
-                });
-                self.mark_degraded("session", None);
+                self.handle_error(torrent_id, message);
+            }
+            EngineEvent::TrackerStatus {
+                torrent_id,
+                trackers,
+            } => {
+                self.handle_tracker_status(torrent_id, trackers);
             }
         }
+    }
+
+    fn handle_files_discovered(&mut self, torrent_id: Uuid, files: Vec<TorrentFile>) {
+        if files.is_empty() {
+            return;
+        }
+        let discovered: Vec<DiscoveredFile> = files
+            .into_iter()
+            .map(|file| DiscoveredFile {
+                path: file.path,
+                size_bytes: file.size_bytes,
+            })
+            .collect();
+        let _ = self.events.publish(Event::FilesDiscovered {
+            torrent_id,
+            files: discovered,
+        });
+        self.mark_recovered("session");
+    }
+
+    fn handle_progress_event(
+        &mut self,
+        torrent_id: Uuid,
+        progress: &TorrentProgress,
+        rates: &TorrentRates,
+        actions: &mut Vec<PendingAction>,
+    ) {
+        self.evaluate_seeding_goal(torrent_id, rates.ratio, actions);
+        self.verify_rate_limits(torrent_id, rates);
+        if !self.should_emit_progress(torrent_id) {
+            debug!(
+                torrent_id = %torrent_id,
+                "suppressing progress update to honour coalescing budget"
+            );
+            return;
+        }
+        let _ = self.events.publish(Event::Progress {
+            torrent_id,
+            bytes_downloaded: progress.bytes_downloaded,
+            bytes_total: progress.bytes_total,
+        });
+        self.mark_recovered("session");
+    }
+
+    fn handle_state_changed(&mut self, torrent_id: Uuid, state: TorrentState) {
+        self.update_seeding_state(torrent_id, &state);
+        let failed = matches!(&state, TorrentState::Failed { .. });
+        let _ = self
+            .events
+            .publish(Event::StateChanged { torrent_id, state });
+        if !failed {
+            self.mark_recovered("session");
+        }
+    }
+
+    fn handle_completed(
+        &mut self,
+        torrent_id: Uuid,
+        library_path: String,
+        actions: &mut Vec<PendingAction>,
+    ) {
+        self.update_seeding_state(torrent_id, &TorrentState::Completed);
+        self.evaluate_seeding_goal(torrent_id, 0.0, actions);
+        let _ = self.events.publish(Event::StateChanged {
+            torrent_id,
+            state: TorrentState::Completed,
+        });
+        let _ = self.events.publish(Event::Completed {
+            torrent_id,
+            library_path,
+        });
+        self.mark_recovered("session");
+    }
+
+    fn handle_metadata_updated(&mut self, torrent_id: Uuid, mut download_dir: Option<String>) {
+        self.update_metadata(torrent_id, move |meta| {
+            if let Some(dir) = download_dir.take() {
+                meta.download_dir = Some(dir);
+            }
+        });
+    }
+
+    fn handle_resume_data(&mut self, torrent_id: Uuid, payload: Vec<u8>) {
+        self.persist_fastresume(torrent_id, payload);
+    }
+
+    fn handle_error(&mut self, torrent_id: Uuid, message: String) {
+        let _ = self.events.publish(Event::StateChanged {
+            torrent_id,
+            state: TorrentState::Failed { message },
+        });
+        self.mark_degraded("session", None);
+    }
+
+    fn handle_tracker_status(&mut self, torrent_id: Uuid, trackers: Vec<TrackerStatus>) {
+        self.update_metadata(torrent_id, move |meta| {
+            for status in trackers {
+                let Some(message) = status.message else {
+                    continue;
+                };
+                meta.tracker_messages.insert(status.url, message);
+            }
+        });
     }
 
     fn register_seeding_goal(
@@ -1745,6 +1801,7 @@ mod tests {
             sequential: true,
             trackers: vec!["https://tracker.example/announce".into()],
             replace_trackers: true,
+            tracker_messages: HashMap::new(),
             web_seeds: vec!["https://seed.example/file".into()],
             replace_web_seeds: false,
             tags: vec!["persisted".into()],

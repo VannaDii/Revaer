@@ -53,6 +53,7 @@ impl TorrentHandles {
 pub(crate) struct TorrentMetadata {
     pub(crate) tags: Vec<String>,
     pub(crate) trackers: Vec<String>,
+    pub(crate) tracker_messages: std::collections::HashMap<String, String>,
     pub(crate) web_seeds: Vec<String>,
     pub(crate) rate_limit: Option<TorrentRateLimit>,
     pub(crate) connections_limit: Option<i32>,
@@ -70,7 +71,7 @@ pub(crate) struct TorrentMetadata {
 
 impl TorrentMetadata {
     #[must_use]
-    pub(crate) const fn new(
+    pub(crate) fn new(
         tags: Vec<String>,
         trackers: Vec<String>,
         web_seeds: Vec<String>,
@@ -81,6 +82,7 @@ impl TorrentMetadata {
         Self {
             tags,
             trackers,
+            tracker_messages: std::collections::HashMap::new(),
             web_seeds,
             rate_limit,
             connections_limit,
@@ -211,6 +213,7 @@ pub(crate) fn detail_from_components(
         pex_enabled,
         replace_trackers: _,
         replace_web_seeds: _,
+        ..
     } = metadata;
     detail.summary = detail.summary.with_metadata(
         tags.clone(),

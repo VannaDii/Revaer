@@ -399,6 +399,8 @@ pub mod ffi {
         resume_data: Vec<u8>,
         /// Human-readable message, when present.
         message: String,
+        /// Tracker status entries (if any).
+        tracker_statuses: Vec<NativeTrackerStatus>,
     }
 
     /// Event kinds surfaced by the native bridge.
@@ -418,6 +420,8 @@ pub mod ffi {
         ResumeData,
         /// Error encountered.
         Error,
+        /// Tracker status update.
+        TrackerUpdate,
     }
 
     /// Torrent lifecycle states emitted by libtorrent.
@@ -446,6 +450,17 @@ pub mod ffi {
         Magnet,
         /// Metainfo bytes source.
         Metainfo,
+    }
+
+    /// Tracker status reported by libtorrent alerts.
+    #[derive(Debug)]
+    struct NativeTrackerStatus {
+        /// Tracker URL.
+        url: String,
+        /// Status string (e.g., error/warning).
+        status: String,
+        /// Optional message content.
+        message: String,
     }
 
     unsafe extern "C++" {

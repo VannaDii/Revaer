@@ -301,7 +301,8 @@ public:
         pack.set_bool(lt::settings_pack::allow_multiple_connections_per_ip, false);
         pack.set_int(lt::settings_pack::alert_mask,
                      lt::alert_category::status | lt::alert_category::error |
-                         lt::alert_category::storage | lt::alert_category::file_progress);
+                         lt::alert_category::storage | lt::alert_category::file_progress |
+                         lt::alert_category::tracker);
 
         lt::session_params params(pack);
         session_ = std::make_unique<lt::session>(params);
@@ -985,6 +986,38 @@ public:
                     evt.kind = NativeEventKind::Error;
                     evt.state = NativeTorrentState::Failed;
                     evt.message = err->error.message();
+                    events.push_back(evt);
+                }
+            }
+            if (auto* tracker_err = lt::alert_cast<lt::tracker_error_alert>(alert)) {
+                auto id = find_torrent_id(tracker_err->handle);
+                if (!id.empty()) {
+                    NativeEvent evt{};
+                    evt.id = id;
+                    evt.kind = NativeEventKind::TrackerUpdate;
+                    evt.state = NativeTorrentState::Downloading;
+                    evt.tracker_statuses = rust::Vec<NativeTrackerStatus>();
+                    NativeTrackerStatus status{};
+                    status.url = tracker_err->tracker_url();
+                    status.status = "error";
+                    status.message = tracker_err->error.message();
+                    evt.tracker_statuses.push_back(std::move(status));
+                    events.push_back(evt);
+                }
+            }
+            if (auto* tracker_warn = lt::alert_cast<lt::tracker_warning_alert>(alert)) {
+                auto id = find_torrent_id(tracker_warn->handle);
+                if (!id.empty()) {
+                    NativeEvent evt{};
+                    evt.id = id;
+                    evt.kind = NativeEventKind::TrackerUpdate;
+                    evt.state = NativeTorrentState::Downloading;
+                    evt.tracker_statuses = rust::Vec<NativeTrackerStatus>();
+                    NativeTrackerStatus status{};
+                    status.url = tracker_warn->tracker_url();
+                    status.status = "warning";
+                    status.message = tracker_warn->message();
+                    evt.tracker_statuses.push_back(std::move(status));
                     events.push_back(evt);
                 }
             }

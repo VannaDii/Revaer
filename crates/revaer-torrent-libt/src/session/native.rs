@@ -629,6 +629,7 @@ mod tests {
                 files: Vec::new(),
                 resume_data: Vec::new(),
                 message: String::new(),
+                tracker_statuses: Vec::new(),
             },
         );
 
@@ -663,6 +664,7 @@ mod tests {
                 files: Vec::new(),
                 resume_data: vec![1, 2, 3, 4],
                 message: String::new(),
+                tracker_statuses: Vec::new(),
             },
         );
 

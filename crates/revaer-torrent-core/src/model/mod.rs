@@ -143,6 +143,19 @@ pub struct TorrentWebSeedsUpdate {
     pub replace: bool,
 }
 
+/// Status reported by a tracker.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TrackerStatus {
+    /// Tracker URL.
+    pub url: String,
+    /// Optional status string (e.g., error/warning).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// Optional message from the tracker.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub message: Option<String>,
+}
+
 /// Per-torrent rate limiting knobs.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct TorrentRateLimit {
@@ -384,6 +397,13 @@ pub enum EngineEvent {
         torrent_id: Uuid,
         /// Human-readable failure description.
         message: String,
+    },
+    /// Tracker status update reported by the engine.
+    TrackerStatus {
+        /// Torrent identifier.
+        torrent_id: Uuid,
+        /// Status entries keyed by tracker.
+        trackers: Vec<TrackerStatus>,
     },
 }
 

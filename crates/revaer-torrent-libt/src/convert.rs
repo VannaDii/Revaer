@@ -1,7 +1,7 @@
 //! Conversions between native libtorrent types and domain events.
 
 use revaer_events::TorrentState as EventState;
-use revaer_torrent_core::{EngineEvent, FilePriority};
+use revaer_torrent_core::{EngineEvent, FilePriority, model::TrackerStatus};
 use tracing::debug;
 use uuid::Uuid;
 
@@ -23,6 +23,7 @@ pub(crate) fn map_native_event(id: Uuid, event: NativeEvent) -> Vec<EngineEvent>
         files,
         resume_data,
         message,
+        tracker_statuses,
         ..
     } = event;
 
@@ -90,6 +91,20 @@ pub(crate) fn map_native_event(id: Uuid, event: NativeEvent) -> Vec<EngineEvent>
             torrent_id: id,
             message,
         }],
+        NativeEventKind::TrackerUpdate => {
+            let trackers = tracker_statuses
+                .into_iter()
+                .map(|status| TrackerStatus {
+                    url: status.url,
+                    status: (!status.status.is_empty()).then_some(status.status),
+                    message: (!status.message.is_empty()).then_some(status.message),
+                })
+                .collect();
+            vec![EngineEvent::TrackerStatus {
+                torrent_id: id,
+                trackers,
+            }]
+        }
         other => {
             debug!(?other, torrent_id = %id, "ignored unsupported libtorrent event");
             Vec::new()
@@ -126,5 +141,48 @@ pub(crate) const fn map_priority(priority: FilePriority) -> u8 {
         FilePriority::Low => 1,
         FilePriority::Normal => 4,
         FilePriority::High => 7,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ffi::ffi::{NativeEvent, NativeEventKind, NativeTorrentState, NativeTrackerStatus};
+
+    #[test]
+    fn tracker_update_is_mapped() {
+        let native = NativeEvent {
+            id: uuid::Uuid::nil().to_string(),
+            kind: NativeEventKind::TrackerUpdate,
+            state: NativeTorrentState::Downloading,
+            name: String::new(),
+            download_dir: String::new(),
+            library_path: String::new(),
+            bytes_downloaded: 0,
+            bytes_total: 0,
+            download_bps: 0,
+            upload_bps: 0,
+            ratio: 0.0,
+            files: Vec::new(),
+            resume_data: Vec::new(),
+            message: String::new(),
+            tracker_statuses: vec![NativeTrackerStatus {
+                url: "https://tracker.example/announce".to_string(),
+                status: "error".to_string(),
+                message: "failed to resolve".to_string(),
+            }],
+        };
+
+        let events = map_native_event(uuid::Uuid::nil(), native);
+        assert_eq!(events.len(), 1);
+        match &events[0] {
+            EngineEvent::TrackerStatus { trackers, .. } => {
+                assert_eq!(trackers.len(), 1);
+                assert_eq!(trackers[0].url, "https://tracker.example/announce");
+                assert_eq!(trackers[0].status.as_deref(), Some("error"));
+                assert_eq!(trackers[0].message.as_deref(), Some("failed to resolve"));
+            }
+            other => panic!("unexpected event: {other:?}"),
+        }
     }
 }
