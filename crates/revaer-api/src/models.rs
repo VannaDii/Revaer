@@ -573,6 +573,9 @@ pub struct TorrentOptionsRequest {
     /// Optional override for peer exchange behaviour.
     pub pex_enabled: Option<bool>,
     #[serde(default)]
+    /// Optional toggle to pause or resume the torrent.
+    pub paused: Option<bool>,
+    #[serde(default)]
     /// Optional toggle for super-seeding.
     pub super_seeding: Option<bool>,
     #[serde(default)]
@@ -598,6 +601,7 @@ impl TorrentOptionsRequest {
                 .connections_limit
                 .and_then(|value| if value > 0 { Some(value) } else { None }),
             pex_enabled: self.pex_enabled,
+            paused: self.paused,
             super_seeding: self.super_seeding,
             auto_managed: self.auto_managed,
             queue_position: self.queue_position,
@@ -611,12 +615,41 @@ impl TorrentOptionsRequest {
     pub const fn is_empty(&self) -> bool {
         self.connections_limit.is_none()
             && self.pex_enabled.is_none()
+            && self.paused.is_none()
             && self.super_seeding.is_none()
             && self.auto_managed.is_none()
             && self.queue_position.is_none()
             && self.seed_ratio_limit.is_none()
             && self.seed_time_limit.is_none()
     }
+}
+
+/// Describes a single tracker associated with a torrent.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TrackerView {
+    /// Tracker URL.
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Optional human-readable status (if available from the engine).
+    pub status: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Optional last message reported by the tracker.
+    pub message: Option<String>,
+}
+
+/// Response returned by `GET /v1/torrents/{id}/trackers`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TorrentTrackersResponse {
+    /// Trackers currently attached to the torrent.
+    pub trackers: Vec<TrackerView>,
+}
+
+/// Body accepted by `DELETE /v1/torrents/{id}/trackers`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct TorrentTrackersRemoveRequest {
+    #[serde(default)]
+    /// Trackers that should be removed from the torrent.
+    pub trackers: Vec<String>,
 }
 
 /// Body accepted by `PATCH /v1/torrents/{id}/trackers`.
@@ -871,6 +904,7 @@ mod tests {
         let request = TorrentOptionsRequest {
             connections_limit: Some(0),
             pex_enabled: Some(false),
+            paused: Some(true),
             super_seeding: Some(true),
             auto_managed: Some(false),
             queue_position: Some(3),
@@ -881,6 +915,7 @@ mod tests {
         let update = request.to_update();
         assert!(update.connections_limit.is_none());
         assert_eq!(update.pex_enabled, Some(false));
+        assert_eq!(update.paused, Some(true));
         assert_eq!(update.super_seeding, Some(true));
         assert_eq!(update.auto_managed, Some(false));
         assert_eq!(update.queue_position, Some(3));

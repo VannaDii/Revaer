@@ -634,6 +634,7 @@ impl Worker {
         id: Uuid,
         options: TorrentOptionsUpdate,
     ) -> Result<()> {
+        let paused = options.paused;
         self.session.update_options(id, &options).await?;
         self.update_metadata(id, |meta| {
             if let Some(limit) = options.connections_limit {
@@ -661,10 +662,20 @@ impl Worker {
         let (ratio_limit, time_limit) = self.resume_cache.get(&id).map_or((None, None), |meta| {
             (meta.seed_ratio_limit, meta.seed_time_limit)
         });
+        if let Some(paused_flag) = paused {
+            if paused_flag {
+                self.handle_pause(id).await?;
+                info!(torrent_id = %id, "torrent paused via options update");
+            } else {
+                self.handle_resume(id).await?;
+                info!(torrent_id = %id, "torrent resumed via options update");
+            }
+        }
         self.register_seeding_goal(id, ratio_limit, time_limit.map(Duration::from_secs));
         debug!(
             torrent_id = %id,
             connections_limit = ?options.connections_limit,
+            paused = ?paused,
             pex_enabled = ?options.pex_enabled,
             super_seeding = ?options.super_seeding,
             auto_managed = ?options.auto_managed,
@@ -1425,6 +1436,7 @@ mod tests {
         let update = TorrentOptionsUpdate {
             connections_limit: Some(16),
             pex_enabled: Some(false),
+            paused: None,
             super_seeding: Some(true),
             auto_managed: Some(false),
             queue_position: Some(3),
@@ -1457,6 +1469,72 @@ mod tests {
             .expect("goal recorded");
         assert_eq!(goal.ratio_limit, Some(1.5));
         assert_eq!(goal.time_limit, Some(Duration::from_secs(900)));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_options_can_toggle_paused_state() -> Result<()> {
+        let bus = EventBus::with_capacity(8);
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
+        let mut worker = Worker::new(bus.clone(), session, None);
+        let mut stream = bus.subscribe(None);
+
+        let torrent_id = Uuid::new_v4();
+        let descriptor = AddTorrent {
+            id: torrent_id,
+            source: TorrentSource::magnet("magnet:?xt=urn:btih:options-pause"),
+            options: AddTorrentOptions::default(),
+        };
+
+        worker
+            .handle(EngineCommand::Add(Box::new(descriptor)))
+            .await
+            .expect("add should succeed");
+        let _ = next_event_with_timeout(&mut stream, 50).await;
+        let _ = next_event_with_timeout(&mut stream, 50).await;
+
+        worker
+            .handle(EngineCommand::UpdateOptions {
+                id: torrent_id,
+                options: TorrentOptionsUpdate {
+                    paused: Some(true),
+                    ..TorrentOptionsUpdate::default()
+                },
+            })
+            .await?;
+
+        match next_event_with_timeout(&mut stream, 50).await {
+            Some(Event::StateChanged {
+                torrent_id: event_id,
+                state,
+            }) => {
+                assert_eq!(event_id, torrent_id);
+                assert!(matches!(state, TorrentState::Stopped));
+            }
+            other => panic!("expected paused state change, got {other:?}"),
+        }
+
+        worker
+            .handle(EngineCommand::UpdateOptions {
+                id: torrent_id,
+                options: TorrentOptionsUpdate {
+                    paused: Some(false),
+                    ..TorrentOptionsUpdate::default()
+                },
+            })
+            .await?;
+
+        match next_event_with_timeout(&mut stream, 50).await {
+            Some(Event::StateChanged {
+                torrent_id: event_id,
+                state,
+            }) => {
+                assert_eq!(event_id, torrent_id);
+                assert!(matches!(state, TorrentState::Downloading));
+            }
+            other => panic!("expected resumed state change, got {other:?}"),
+        }
+
         Ok(())
     }
 

@@ -107,6 +107,8 @@ pub struct TorrentOptionsUpdate {
     pub connections_limit: Option<i32>,
     /// Optional override for peer exchange enablement.
     pub pex_enabled: Option<bool>,
+    /// Optional pause toggle applied post-admission.
+    pub paused: Option<bool>,
     /// Optional toggle for super-seeding.
     pub super_seeding: Option<bool>,
     /// Optional override for auto-managed queueing.

@@ -17,10 +17,11 @@ use crate::http::constants::{DEFAULT_PAGE_SIZE, MAX_METAINFO_BYTES, MAX_PAGE_SIZ
 use crate::http::errors::ApiError;
 use crate::models::{
     TorrentAction, TorrentCreateRequest, TorrentDetail, TorrentListResponse, TorrentOptionsRequest,
-    TorrentSelectionRequest, TorrentStateKind, TorrentSummary, TorrentTrackersRequest,
-    TorrentWebSeedsRequest,
+    TorrentSelectionRequest, TorrentStateKind, TorrentSummary, TorrentTrackersRemoveRequest,
+    TorrentTrackersRequest, TorrentTrackersResponse, TorrentWebSeedsRequest, TrackerView,
 };
 use revaer_events::Event as CoreEvent;
+use revaer_torrent_core::model::TorrentTrackersUpdate;
 use revaer_torrent_core::{
     AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentSource, TorrentStatus,
 };
@@ -177,6 +178,78 @@ pub(crate) async fn update_torrent_trackers(
         metadata.replace_trackers = request.replace;
     });
     info!(torrent_id = %id, "torrent tracker update requested");
+    Ok(StatusCode::ACCEPTED)
+}
+
+pub(crate) async fn list_torrent_trackers(
+    State(state): State<Arc<ApiState>>,
+    AxumPath(id): AxumPath<Uuid>,
+) -> Result<Json<TorrentTrackersResponse>, ApiError> {
+    let metadata = state.get_metadata(&id);
+    let trackers = metadata
+        .trackers
+        .iter()
+        .map(|url| TrackerView {
+            url: url.clone(),
+            status: None,
+            message: None,
+        })
+        .collect();
+    Ok(Json(TorrentTrackersResponse { trackers }))
+}
+
+pub(crate) async fn remove_torrent_trackers(
+    State(state): State<Arc<ApiState>>,
+    Extension(context): Extension<crate::http::auth::AuthContext>,
+    AxumPath(id): AxumPath<Uuid>,
+    Json(request): Json<TorrentTrackersRemoveRequest>,
+) -> Result<StatusCode, ApiError> {
+    match context {
+        crate::http::auth::AuthContext::ApiKey { .. } => {}
+        crate::http::auth::AuthContext::SetupToken(_) => {
+            return Err(ApiError::unauthorized(
+                "setup authentication context cannot manage torrents",
+            ));
+        }
+    }
+
+    if request.trackers.is_empty() {
+        return Err(ApiError::bad_request("no trackers provided for removal"));
+    }
+
+    let removal = normalize_trackers(&request.trackers)?;
+    let removal_set: HashSet<String> = removal.into_iter().collect();
+    let metadata = state.get_metadata(&id);
+    let retained = metadata
+        .trackers
+        .iter()
+        .filter(|url| !removal_set.contains(*url))
+        .cloned()
+        .collect::<Vec<_>>();
+
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+    handles
+        .workflow()
+        .update_trackers(
+            id,
+            TorrentTrackersUpdate {
+                trackers: retained.clone(),
+                replace: true,
+            },
+        )
+        .await
+        .map_err(|err| {
+            error!(error = %err, torrent_id = %id, "failed to remove trackers");
+            ApiError::internal("failed to remove trackers")
+        })?;
+    state.update_metadata(&id, |metadata| {
+        metadata.trackers.clone_from(&retained);
+        metadata.replace_trackers = true;
+    });
+    info!(torrent_id = %id, removed = removal_set.len(), "torrent trackers removed");
     Ok(StatusCode::ACCEPTED)
 }
 
@@ -722,6 +795,16 @@ pub(crate) fn build_add_torrent(
 mod tests {
     use super::*;
     use axum::http::StatusCode;
+    use revaer_config::{ApiKeyAuth, AppMode, AppProfile, SettingsChangeset};
+    use revaer_events::EventBus;
+    use revaer_telemetry::Metrics;
+    use revaer_torrent_core::{
+        AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentStatus,
+        model::TorrentTrackersUpdate,
+    };
+    use serde_json::json;
+    use std::time::Duration;
+    use tokio::sync::Mutex as AsyncMutex;
 
     #[test]
     fn build_add_torrent_rejects_negative_seed_ratio() {
@@ -787,5 +870,232 @@ mod tests {
         let err = build_add_torrent(&request, Vec::new(), Vec::new())
             .expect_err("negative queue position rejected");
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
+    }
+
+    #[tokio::test]
+    async fn list_torrent_trackers_returns_metadata() {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow);
+        let state = Arc::new(ApiState::new(
+            Arc::new(DummyConfig),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            Some(handles),
+        ));
+        let torrent_id = Uuid::new_v4();
+        state.set_metadata(
+            torrent_id,
+            TorrentMetadata {
+                trackers: vec![
+                    "https://tracker.example/announce".to_string(),
+                    "udp://backup/announce".to_string(),
+                ],
+                ..TorrentMetadata::default()
+            },
+        );
+
+        let Json(response) = list_torrent_trackers(State(state.clone()), AxumPath(torrent_id))
+            .await
+            .expect("list should succeed");
+        assert_eq!(response.trackers.len(), 2);
+        assert!(response.trackers.iter().all(|entry| entry.status.is_none()));
+    }
+
+    #[tokio::test]
+    async fn remove_torrent_trackers_filters_and_replaces() {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = Arc::new(ApiState::new(
+            Arc::new(DummyConfig),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            Some(handles),
+        ));
+        let torrent_id = Uuid::new_v4();
+        state.set_metadata(
+            torrent_id,
+            TorrentMetadata {
+                trackers: vec![
+                    "https://tracker.example/announce".to_string(),
+                    "udp://backup/announce".to_string(),
+                ],
+                ..TorrentMetadata::default()
+            },
+        );
+
+        remove_torrent_trackers(
+            State(state.clone()),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(torrent_id),
+            Json(TorrentTrackersRemoveRequest {
+                trackers: vec!["https://tracker.example/announce".to_string()],
+            }),
+        )
+        .await
+        .expect("removal should succeed");
+
+        let updates = workflow.take_tracker_updates().await;
+        assert_eq!(updates.len(), 1);
+        assert_eq!(
+            updates[0].trackers,
+            vec!["udp://backup/announce".to_string()]
+        );
+        assert!(updates[0].replace);
+
+        let metadata = state.get_metadata(&torrent_id);
+        assert_eq!(metadata.trackers, vec!["udp://backup/announce".to_string()]);
+    }
+
+    #[derive(Default)]
+    struct RecordingWorkflow {
+        tracker_updates: AsyncMutex<Vec<TorrentTrackersUpdate>>,
+    }
+
+    #[async_trait::async_trait]
+    impl revaer_torrent_core::TorrentWorkflow for RecordingWorkflow {
+        async fn add_torrent(&self, _: AddTorrent) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn remove_torrent(&self, _: Uuid, _: RemoveTorrent) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn pause_torrent(&self, _: Uuid) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn resume_torrent(&self, _: Uuid) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn set_sequential(&self, _: Uuid, _: bool) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn update_limits(&self, _: Option<Uuid>, _: TorrentRateLimit) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn update_selection(&self, _: Uuid, _: FileSelectionUpdate) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn update_options(
+            &self,
+            _: Uuid,
+            _: revaer_torrent_core::model::TorrentOptionsUpdate,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn update_trackers(
+            &self,
+            _: Uuid,
+            trackers: revaer_torrent_core::model::TorrentTrackersUpdate,
+        ) -> anyhow::Result<()> {
+            self.tracker_updates.lock().await.push(trackers);
+            Ok(())
+        }
+
+        async fn update_web_seeds(
+            &self,
+            _: Uuid,
+            _: revaer_torrent_core::model::TorrentWebSeedsUpdate,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn reannounce(&self, _: Uuid) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn recheck(&self, _: Uuid) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl revaer_torrent_core::TorrentInspector for RecordingWorkflow {
+        async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+            Ok(Vec::new())
+        }
+
+        async fn get(&self, _: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+            Ok(None)
+        }
+    }
+
+    impl RecordingWorkflow {
+        async fn take_tracker_updates(&self) -> Vec<TorrentTrackersUpdate> {
+            let mut guard = self.tracker_updates.lock().await;
+            let updates = guard.clone();
+            guard.clear();
+            updates
+        }
+    }
+
+    struct DummyConfig;
+
+    #[async_trait::async_trait]
+    impl crate::config::ConfigFacade for DummyConfig {
+        async fn get_app_profile(&self) -> anyhow::Result<AppProfile> {
+            Ok(AppProfile {
+                id: Uuid::new_v4(),
+                instance_name: "test".to_string(),
+                mode: AppMode::Active,
+                version: 1,
+                http_port: 8080,
+                bind_addr: std::net::IpAddr::from([127, 0, 0, 1]),
+                telemetry: json!({}),
+                features: json!({}),
+                immutable_keys: json!([]),
+            })
+        }
+
+        async fn issue_setup_token(
+            &self,
+            _: Duration,
+            _: &str,
+        ) -> anyhow::Result<revaer_config::SetupToken> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
+
+        async fn validate_setup_token(&self, _: &str) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn consume_setup_token(&self, _: &str) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn apply_changeset(
+            &self,
+            _: &str,
+            _: &str,
+            _: SettingsChangeset,
+        ) -> anyhow::Result<revaer_config::AppliedChanges> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
+
+        async fn snapshot(&self) -> anyhow::Result<revaer_config::ConfigSnapshot> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
+
+        async fn authenticate_api_key(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> anyhow::Result<Option<ApiKeyAuth>> {
+            Ok(Some(ApiKeyAuth {
+                key_id: "key".to_string(),
+                label: Some("label".to_string()),
+                rate_limit: None,
+            }))
+        }
     }
 }

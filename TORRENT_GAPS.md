@@ -165,19 +165,19 @@
     -   [x] Worker: ensure per-torrent PEX behavior follows the profile flag; allow per-torrent override if required.
     -   [x] API/docs/tests: expose flag if profile edits are public; document swarm/priv tracker implications; native test that PEX toggling applies without errors.
 
--   [ ] Post-add mutation symmetry for per-torrent knobs
+-   [x] Post-add mutation symmetry for per-torrent knobs
 
     -   [ ] API: add PATCH endpoints to update per-torrent options currently set on add (rate caps, connection limits, PEX, super-seeding, seed ratio/time caps, queue priority, add-paused state transitions, tracker/web seed updates).
         -   [x] Patch endpoint for connections/PEX/super-seeding/auto-managed/queue position/seed ratio and time caps.
         -   [x] Tracker and web seed updates.
-        -   [ ] Add-paused symmetry.
+        -   [x] Add-paused symmetry.
     -   [x] Worker: add/update commands to apply these changes post-add; ensure state and metadata stay in sync.
     -   [x] Bridge/native: expose libtorrent calls to update corresponding options on existing torrents; ignore/handle unsupported values safely.
     -   [x] Tests: API + worker + native tests to confirm post-add updates apply and persist; regression tests for symmetry.
 
 -   [ ] Tracker status and tracker ops surfaced
 
-    -   [ ] Domain/API: persist tracker list/status per torrent; add endpoints to list/add/remove trackers and show per-tracker messages.
+    -   [x] Domain/API: persist tracker list/status per torrent; add endpoints to list/add/remove trackers and show per-tracker messages.
     -   [ ] Native: map tracker alerts into per-tracker status; support add/remove tracker operations via session/torrent handle.
     -   [ ] Tests: API + native tests for tracker add/remove and status propagation.
 
