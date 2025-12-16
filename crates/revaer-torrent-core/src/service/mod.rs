@@ -1,7 +1,10 @@
 //! Engine and workflow traits implemented by torrent adapters.
 
 use crate::model::TorrentStatus;
-use crate::model::{AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit};
+use crate::model::{
+    AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentTrackersUpdate,
+    TorrentWebSeedsUpdate,
+};
 use anyhow::bail;
 use async_trait::async_trait;
 use uuid::Uuid;
@@ -58,6 +61,26 @@ pub trait TorrentEngine: Send + Sync {
     ) -> anyhow::Result<()> {
         let _ = (id, options);
         bail!("option updates not supported by this engine");
+    }
+
+    /// Update tracker configuration for a torrent.
+    async fn update_trackers(
+        &self,
+        id: Uuid,
+        trackers: TorrentTrackersUpdate,
+    ) -> anyhow::Result<()> {
+        let _ = (id, trackers);
+        bail!("tracker updates not supported by this engine");
+    }
+
+    /// Update web seeds associated with a torrent.
+    async fn update_web_seeds(
+        &self,
+        id: Uuid,
+        web_seeds: TorrentWebSeedsUpdate,
+    ) -> anyhow::Result<()> {
+        let _ = (id, web_seeds);
+        bail!("web seed updates not supported by this engine");
     }
 
     /// Re-announce to trackers; default implementation reports lack of support.
@@ -125,6 +148,26 @@ pub trait TorrentWorkflow: Send + Sync {
     ) -> anyhow::Result<()> {
         let _ = (id, options);
         bail!("option updates not supported");
+    }
+
+    /// Update tracker configuration for a torrent via the workflow façade.
+    async fn update_trackers(
+        &self,
+        id: Uuid,
+        trackers: TorrentTrackersUpdate,
+    ) -> anyhow::Result<()> {
+        let _ = (id, trackers);
+        bail!("tracker updates not supported");
+    }
+
+    /// Update web seeds for a torrent via the workflow façade.
+    async fn update_web_seeds(
+        &self,
+        id: Uuid,
+        web_seeds: TorrentWebSeedsUpdate,
+    ) -> anyhow::Result<()> {
+        let _ = (id, web_seeds);
+        bail!("web seed updates not supported");
     }
 
     /// Re-announce to trackers; default implementation reports lack of support.

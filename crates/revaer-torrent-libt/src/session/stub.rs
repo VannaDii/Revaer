@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
@@ -38,6 +38,10 @@ struct StubTorrent {
     queue_position: Option<i32>,
     pex_enabled: Option<bool>,
     super_seeding: Option<bool>,
+    trackers: Vec<String>,
+    replace_trackers: bool,
+    web_seeds: Vec<String>,
+    replace_web_seeds: bool,
 }
 
 impl StubTorrent {
@@ -67,6 +71,10 @@ impl StubTorrent {
             queue_position: request.options.queue_position,
             pex_enabled: request.options.pex_enabled,
             super_seeding: request.options.super_seeding,
+            trackers: request.options.trackers.clone(),
+            replace_trackers: request.options.replace_trackers,
+            web_seeds: request.options.web_seeds.clone(),
+            replace_web_seeds: request.options.replace_web_seeds,
         }
     }
 }
@@ -114,6 +122,10 @@ impl StubSession {
                 "queue_position": torrent.queue_position,
                 "pex_enabled": torrent.pex_enabled,
                 "super_seeding": torrent.super_seeding,
+                "trackers": torrent.trackers,
+                "replace_trackers": torrent.replace_trackers,
+                "web_seeds": torrent.web_seeds,
+                "replace_web_seeds": torrent.replace_web_seeds,
             })
             .to_string()
             .into_bytes();
@@ -243,6 +255,53 @@ impl LibTorrentSession for StubSession {
         if options.queue_position.is_some() {
             torrent.queue_position = options.queue_position;
         }
+        self.refresh_resume(id);
+        Ok(())
+    }
+
+    async fn update_trackers(
+        &mut self,
+        id: Uuid,
+        trackers: &revaer_torrent_core::model::TorrentTrackersUpdate,
+    ) -> Result<()> {
+        let torrent = self.torrent_mut(id)?;
+        let mut seen: HashSet<String> = if trackers.replace {
+            HashSet::new()
+        } else {
+            torrent.trackers.iter().cloned().collect()
+        };
+        if trackers.replace {
+            torrent.trackers.clear();
+        }
+        for tracker in &trackers.trackers {
+            if seen.insert(tracker.clone()) {
+                torrent.trackers.push(tracker.clone());
+            }
+        }
+        torrent.replace_trackers = trackers.replace;
+        self.refresh_resume(id);
+        Ok(())
+    }
+
+    async fn update_web_seeds(
+        &mut self,
+        id: Uuid,
+        web_seeds: &revaer_torrent_core::model::TorrentWebSeedsUpdate,
+    ) -> Result<()> {
+        let torrent = self.torrent_mut(id)?;
+        let mut seeds = if web_seeds.replace {
+            Vec::new()
+        } else {
+            torrent.web_seeds.clone()
+        };
+        let mut seen: HashSet<String> = seeds.iter().cloned().collect();
+        for seed in &web_seeds.web_seeds {
+            if seen.insert(seed.clone()) {
+                seeds.push(seed.clone());
+            }
+        }
+        torrent.web_seeds = seeds;
+        torrent.replace_web_seeds = web_seeds.replace;
         self.refresh_resume(id);
         Ok(())
     }

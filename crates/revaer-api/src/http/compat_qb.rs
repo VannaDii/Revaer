@@ -354,10 +354,10 @@ pub(crate) async fn torrents_add(
         };
 
         let trackers = normalize_trackers(&request.trackers)?;
-        dispatch_torrent_add(Some(handles), &request, trackers.clone()).await?;
+        dispatch_torrent_add(Some(handles), &request, trackers.clone(), Vec::new()).await?;
         state.set_metadata(
             request.id,
-            TorrentMetadata::from_request(&request, trackers),
+            TorrentMetadata::from_request(&request, trackers, Vec::new()),
         );
         added += 1;
     }

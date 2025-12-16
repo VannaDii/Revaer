@@ -24,7 +24,8 @@ use revaer_telemetry::Metrics;
 use revaer_torrent_core::{
     AddTorrent, FilePriority, FileSelectionUpdate, RemoveTorrent, TorrentEngine, TorrentFile,
     TorrentInspector, TorrentProgress, TorrentRateLimit, TorrentRates, TorrentStatus,
-    TorrentWorkflow, model::TorrentOptionsUpdate,
+    TorrentWorkflow,
+    model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
 };
 use revaer_torrent_libt::{IpFilterRule as RuntimeIpFilterRule, IpFilterRuntimeConfig};
 use serde_json::json;
@@ -642,6 +643,22 @@ where
 
     async fn update_options(&self, id: Uuid, options: TorrentOptionsUpdate) -> anyhow::Result<()> {
         self.engine.update_options(id, options).await
+    }
+
+    async fn update_trackers(
+        &self,
+        id: Uuid,
+        trackers: TorrentTrackersUpdate,
+    ) -> anyhow::Result<()> {
+        self.engine.update_trackers(id, trackers).await
+    }
+
+    async fn update_web_seeds(
+        &self,
+        id: Uuid,
+        web_seeds: TorrentWebSeedsUpdate,
+    ) -> anyhow::Result<()> {
+        self.engine.update_web_seeds(id, web_seeds).await
     }
 
     async fn reannounce(&self, id: Uuid) -> anyhow::Result<()> {

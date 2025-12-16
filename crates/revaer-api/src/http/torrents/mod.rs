@@ -53,6 +53,7 @@ impl TorrentHandles {
 pub(crate) struct TorrentMetadata {
     pub(crate) tags: Vec<String>,
     pub(crate) trackers: Vec<String>,
+    pub(crate) web_seeds: Vec<String>,
     pub(crate) rate_limit: Option<TorrentRateLimit>,
     pub(crate) connections_limit: Option<i32>,
     pub(crate) selection: FileSelectionUpdate,
@@ -63,6 +64,8 @@ pub(crate) struct TorrentMetadata {
     pub(crate) auto_managed: Option<bool>,
     pub(crate) queue_position: Option<i32>,
     pub(crate) pex_enabled: Option<bool>,
+    pub(crate) replace_trackers: bool,
+    pub(crate) replace_web_seeds: bool,
 }
 
 impl TorrentMetadata {
@@ -70,6 +73,7 @@ impl TorrentMetadata {
     pub(crate) const fn new(
         tags: Vec<String>,
         trackers: Vec<String>,
+        web_seeds: Vec<String>,
         rate_limit: Option<TorrentRateLimit>,
         connections_limit: Option<i32>,
         selection: FileSelectionUpdate,
@@ -77,6 +81,7 @@ impl TorrentMetadata {
         Self {
             tags,
             trackers,
+            web_seeds,
             rate_limit,
             connections_limit,
             selection,
@@ -87,6 +92,8 @@ impl TorrentMetadata {
             auto_managed: None,
             queue_position: None,
             pex_enabled: None,
+            replace_trackers: false,
+            replace_web_seeds: false,
         }
     }
 
@@ -94,6 +101,7 @@ impl TorrentMetadata {
     pub(crate) fn from_request(
         request: &crate::models::TorrentCreateRequest,
         trackers: Vec<String>,
+        web_seeds: Vec<String>,
     ) -> Self {
         let rate_limit = rate_limit_from_limits(request.max_download_bps, request.max_upload_bps);
         let connections_limit = request.max_connections.filter(|value| *value > 0);
@@ -106,6 +114,7 @@ impl TorrentMetadata {
         Self::new(
             request.tags.clone(),
             trackers,
+            web_seeds,
             rate_limit,
             connections_limit,
             selection,
@@ -124,6 +133,8 @@ impl TorrentMetadata {
         self.auto_managed = request.auto_managed;
         self.queue_position = request.queue_position;
         self.pex_enabled = request.pex_enabled;
+        self.replace_trackers = request.replace_trackers;
+        self.replace_web_seeds = request.replace_web_seeds;
         self
     }
 
@@ -187,6 +198,7 @@ pub(crate) fn detail_from_components(
     let TorrentMetadata {
         tags,
         trackers,
+        web_seeds,
         rate_limit,
         connections_limit,
         selection,
@@ -197,6 +209,8 @@ pub(crate) fn detail_from_components(
         auto_managed,
         queue_position,
         pex_enabled,
+        replace_trackers: _,
+        replace_web_seeds: _,
     } = metadata;
     detail.summary = detail.summary.with_metadata(
         tags.clone(),
@@ -217,6 +231,7 @@ pub(crate) fn detail_from_components(
         settings.auto_managed = auto_managed;
         settings.queue_position = queue_position;
         settings.pex_enabled = pex_enabled;
+        settings.web_seeds = web_seeds;
     }
     detail
 }
@@ -289,6 +304,35 @@ pub(crate) fn normalize_trackers(inputs: &[String]) -> Result<Vec<String>, ApiEr
     Ok(trackers)
 }
 
+/// Validate and normalise web seed URLs.
+pub(crate) fn normalize_web_seeds(inputs: &[String]) -> Result<Vec<String>, ApiError> {
+    let mut seen = HashSet::new();
+    let mut seeds = Vec::new();
+    for seed in inputs {
+        let trimmed = seed.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        let parsed =
+            Url::parse(trimmed).map_err(|_| ApiError::bad_request("web seed URL is not valid"))?;
+        if parsed.scheme() != "http" && parsed.scheme() != "https" {
+            return Err(ApiError::bad_request(
+                "web seed URLs must use http or https",
+            ));
+        }
+        let normalized = parsed.to_string();
+        let key = normalized
+            .strip_prefix("http://")
+            .or_else(|| normalized.strip_prefix("https://"))
+            .unwrap_or(&normalized)
+            .to_lowercase();
+        if seen.insert(key) {
+            seeds.push(normalized);
+        }
+    }
+    Ok(seeds)
+}
+
 #[must_use]
 pub(crate) fn normalise_lower(value: &str) -> String {
     value.trim().to_lowercase()
@@ -342,6 +386,7 @@ mod tests {
         let metadata = TorrentMetadata::new(
             vec!["tagA".to_string()],
             vec!["https://tracker.example/announce".to_string()],
+            Vec::new(),
             Some(TorrentRateLimit {
                 download_bps: Some(1_024),
                 upload_bps: None,
@@ -403,7 +448,8 @@ mod tests {
 
         let trackers =
             normalize_trackers(&request.trackers).expect("trackers should normalise for test");
-        let mut metadata = TorrentMetadata::from_request(&request, trackers);
+        let mut metadata =
+            TorrentMetadata::from_request(&request, trackers, request.web_seeds.clone());
         assert_eq!(metadata.tags, vec!["demo".to_string()]);
         assert_eq!(
             metadata.trackers,
@@ -453,5 +499,22 @@ mod tests {
             format!("{err:?}").contains("ftp"),
             "expected error to mention unsupported scheme"
         );
+    }
+
+    #[test]
+    fn normalize_web_seeds_validates_and_deduplicates() {
+        let inputs = vec![
+            " http://seed.example/path ".to_string(),
+            "https://seed.example/path".to_string(),
+        ];
+        let seeds = normalize_web_seeds(&inputs).expect("web seed normalisation should succeed");
+        assert_eq!(seeds, vec!["http://seed.example/path".to_string()]);
+    }
+
+    #[test]
+    fn normalize_web_seeds_rejects_unknown_scheme() {
+        let inputs = vec!["ftp://seed.example/file".to_string()];
+        let err = normalize_web_seeds(&inputs).expect_err("ftp should be rejected");
+        assert!(format!("{err:?}").contains("http or https"));
     }
 }

@@ -169,7 +169,8 @@
 
     -   [ ] API: add PATCH endpoints to update per-torrent options currently set on add (rate caps, connection limits, PEX, super-seeding, seed ratio/time caps, queue priority, add-paused state transitions, tracker/web seed updates).
         -   [x] Patch endpoint for connections/PEX/super-seeding/auto-managed/queue position/seed ratio and time caps.
-        -   [ ] Tracker and web seed updates; add-paused symmetry.
+        -   [x] Tracker and web seed updates.
+        -   [ ] Add-paused symmetry.
     -   [x] Worker: add/update commands to apply these changes post-add; ensure state and metadata stay in sync.
     -   [x] Bridge/native: expose libtorrent calls to update corresponding options on existing torrents; ignore/handle unsupported values safely.
     -   [x] Tests: API + worker + native tests to confirm post-add updates apply and persist; regression tests for symmetry.
@@ -187,12 +188,12 @@
     -   [ ] Native: set per-tracker auth/cookies via libtorrent settings/`add_torrent_params` fields; handle updates.
     -   [ ] API/docs/tests: expose tracker auth configuration; native test that authenticated trackers connect successfully.
 
--   [ ] Web seeds (HTTP/URL seeds) supported
+-   [x] Web seeds (HTTP/URL seeds) supported
 
-    -   [ ] API: accept web seed URLs on torrent create/update with validation (scheme/length).
-    -   [ ] Worker: carry web seeds through `EngineCommand::Add` and update commands when needed.
-    -   [ ] Bridge/native: include web seeds on `AddTorrentRequest` and apply via `add_torrent_params::url_seeds`; allow add/remove web seeds post-add.
-    -   [ ] Tests: API parsing; native test that web seeds are attached and used without error.
+    -   [x] API: accept web seed URLs on torrent create/update with validation (scheme/length).
+    -   [x] Worker: carry web seeds through `EngineCommand::Add` and update commands when needed.
+    -   [x] Bridge/native: include web seeds on `AddTorrentRequest` and apply via `add_torrent_params::url_seeds`; allow add/remove web seeds post-add.
+    -   [x] Tests: API parsing; native test that web seeds are attached and used without error.
 
 -   [ ] Mid-download move/relocate supported
 

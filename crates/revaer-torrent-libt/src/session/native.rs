@@ -186,6 +186,8 @@ impl LibTorrentSession for NativeSession {
             tags: request.options.tags.clone(),
             trackers: request.options.trackers.clone(),
             replace_trackers: request.options.replace_trackers,
+            web_seeds: request.options.web_seeds.clone(),
+            replace_web_seeds: request.options.replace_web_seeds,
         };
         (add_request.max_connections, add_request.has_max_connections) =
             map_max_connections(request.options.connections_limit);
@@ -331,6 +333,36 @@ impl LibTorrentSession for NativeSession {
         let key = id.to_string();
         let session = self.inner.pin_mut();
         let result = session.recheck(&key);
+        Self::map_error(result)
+    }
+
+    async fn update_trackers(
+        &mut self,
+        id: Uuid,
+        trackers: &revaer_torrent_core::model::TorrentTrackersUpdate,
+    ) -> Result<()> {
+        let request = ffi::UpdateTrackersRequest {
+            id: id.to_string(),
+            trackers: trackers.trackers.clone(),
+            replace: trackers.replace,
+        };
+        let session = self.inner.pin_mut();
+        let result = session.update_trackers(&request);
+        Self::map_error(result)
+    }
+
+    async fn update_web_seeds(
+        &mut self,
+        id: Uuid,
+        web_seeds: &revaer_torrent_core::model::TorrentWebSeedsUpdate,
+    ) -> Result<()> {
+        let request = ffi::UpdateWebSeedsRequest {
+            id: id.to_string(),
+            web_seeds: web_seeds.web_seeds.clone(),
+            replace: web_seeds.replace,
+        };
+        let session = self.inner.pin_mut();
+        let result = session.update_web_seeds(&request);
         Self::map_error(result)
     }
 

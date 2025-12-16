@@ -81,6 +81,26 @@ pub trait LibTorrentSession: Send {
         id: Uuid,
         options: &revaer_torrent_core::model::TorrentOptionsUpdate,
     ) -> Result<()>;
+    /// Replace or append trackers for a torrent.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if tracker updates cannot be applied.
+    async fn update_trackers(
+        &mut self,
+        id: Uuid,
+        trackers: &revaer_torrent_core::model::TorrentTrackersUpdate,
+    ) -> Result<()>;
+    /// Replace or append web seeds for a torrent.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if web seed updates cannot be applied.
+    async fn update_web_seeds(
+        &mut self,
+        id: Uuid,
+        web_seeds: &revaer_torrent_core::model::TorrentWebSeedsUpdate,
+    ) -> Result<()>;
     /// Trigger tracker reannounce for a torrent.
     ///
     /// # Errors

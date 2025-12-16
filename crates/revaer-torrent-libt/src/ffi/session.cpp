@@ -15,6 +15,7 @@
 #include <regex>
 #include <string>
 #include <unordered_set>
+#include <set>
 #include <utility>
 #include <limits>
 #include <vector>
@@ -726,6 +727,29 @@ public:
                 params.trackers = trackers;
             }
 
+            if (!request.web_seeds.empty()) {
+                std::vector<std::string> seeds;
+                seeds.reserve(request.web_seeds.size());
+                for (const auto& seed : request.web_seeds) {
+                    seeds.push_back(to_std_string(seed));
+                }
+                if (request.replace_web_seeds) {
+                    params.url_seeds = std::move(seeds);
+                } else if (!params.url_seeds.empty()) {
+                    std::unordered_set<std::string> seen;
+                    for (const auto& existing : params.url_seeds) {
+                        seen.insert(existing);
+                    }
+                    for (const auto& seed : seeds) {
+                        if (seen.insert(seed).second) {
+                            params.url_seeds.push_back(seed);
+                        }
+                    }
+                } else {
+                    params.url_seeds = std::move(seeds);
+                }
+            }
+
             (void)request.tags;
         } catch (const std::exception& ex) {
             return ::rust::String(ex.what());
@@ -877,6 +901,60 @@ public:
             }
             if (request.has_queue_position) {
                 handle.queue_position_set(lt::queue_position_t{request.queue_position});
+            }
+        });
+    }
+
+    ::rust::String update_trackers(const UpdateTrackersRequest& request) {
+        const auto key = to_std_string(request.id);
+        return mutate_handle(key, [&](lt::torrent_handle& handle) {
+            std::vector<lt::announce_entry> trackers;
+            if (!request.replace) {
+                trackers = handle.trackers();
+            }
+            std::unordered_set<std::string> seen;
+            for (const auto& entry : trackers) {
+                seen.insert(entry.url);
+            }
+            for (const auto& tracker : request.trackers) {
+                auto url = to_std_string(tracker);
+                if (url.empty()) {
+                    continue;
+                }
+                if (seen.insert(url).second) {
+                    trackers.emplace_back(url);
+                }
+            }
+            if (!trackers.empty()) {
+                handle.replace_trackers(trackers);
+            }
+        });
+    }
+
+    ::rust::String update_web_seeds(const UpdateWebSeedsRequest& request) {
+        const auto key = to_std_string(request.id);
+        return mutate_handle(key, [&](lt::torrent_handle& handle) {
+            std::unordered_set<std::string> seeds;
+            if (!request.replace) {
+                for (const auto& seed : handle.url_seeds()) {
+                    seeds.insert(seed);
+                }
+            }
+            for (const auto& seed : request.web_seeds) {
+                auto value = to_std_string(seed);
+                if (!value.empty()) {
+                    seeds.insert(std::move(value));
+                }
+            }
+            if (request.replace) {
+                for (const auto& existing : handle.url_seeds()) {
+                    if (seeds.find(existing) == seeds.end()) {
+                        handle.remove_url_seed(existing);
+                    }
+                }
+            }
+            for (const auto& seed : seeds) {
+                handle.add_url_seed(seed);
             }
         });
     }
@@ -1207,6 +1285,14 @@ Session::~Session() = default;
 
 ::rust::String Session::update_options(const UpdateOptionsRequest& request) {
     return impl_->update_options(request);
+}
+
+::rust::String Session::update_trackers(const UpdateTrackersRequest& request) {
+    return impl_->update_trackers(request);
+}
+
+::rust::String Session::update_web_seeds(const UpdateWebSeedsRequest& request) {
+    return impl_->update_web_seeds(request);
 }
 
 ::rust::String Session::reannounce(::rust::Str id) {

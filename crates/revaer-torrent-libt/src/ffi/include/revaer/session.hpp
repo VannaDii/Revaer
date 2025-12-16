@@ -15,6 +15,8 @@ struct EngineOptions;
 struct AddTorrentRequest;
 struct LimitRequest;
 struct UpdateOptionsRequest;
+struct UpdateTrackersRequest;
+struct UpdateWebSeedsRequest;
 struct SelectionRules;
 struct NativeEvent;
 
@@ -33,6 +35,8 @@ public:
     ::rust::String update_limits(const LimitRequest& request);
     ::rust::String update_selection(const SelectionRules& request);
     ::rust::String update_options(const UpdateOptionsRequest& request);
+    ::rust::String update_trackers(const UpdateTrackersRequest& request);
+    ::rust::String update_web_seeds(const UpdateWebSeedsRequest& request);
     ::rust::String reannounce(::rust::Str id);
     ::rust::String recheck(::rust::Str id);
     rust::Vec<NativeEvent> poll_events();

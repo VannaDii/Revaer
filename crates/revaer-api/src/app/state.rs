@@ -132,6 +132,22 @@ mod tests {
             Ok(())
         }
 
+        async fn update_trackers(
+            &self,
+            _: Uuid,
+            _: revaer_torrent_core::model::TorrentTrackersUpdate,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn update_web_seeds(
+            &self,
+            _: Uuid,
+            _: revaer_torrent_core::model::TorrentWebSeedsUpdate,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
         async fn reannounce(&self, _: Uuid) -> anyhow::Result<()> {
             Ok(())
         }

@@ -11,7 +11,7 @@ use crate::worker;
 use revaer_events::EventBus;
 use revaer_torrent_core::{
     AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentEngine, TorrentRateLimit,
-    model::TorrentOptionsUpdate,
+    model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
 };
 
 const COMMAND_BUFFER: usize = 128;
@@ -73,7 +73,8 @@ impl LibtorrentEngine {
 #[async_trait::async_trait]
 impl TorrentEngine for LibtorrentEngine {
     async fn add_torrent(&self, request: AddTorrent) -> Result<()> {
-        self.send_command(EngineCommand::Add(request)).await
+        self.send_command(EngineCommand::Add(Box::new(request)))
+            .await
     }
 
     async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> Result<()> {
@@ -109,6 +110,16 @@ impl TorrentEngine for LibtorrentEngine {
             .await
     }
 
+    async fn update_trackers(&self, id: Uuid, trackers: TorrentTrackersUpdate) -> Result<()> {
+        self.send_command(EngineCommand::UpdateTrackers { id, trackers })
+            .await
+    }
+
+    async fn update_web_seeds(&self, id: Uuid, web_seeds: TorrentWebSeedsUpdate) -> Result<()> {
+        self.send_command(EngineCommand::UpdateWebSeeds { id, web_seeds })
+            .await
+    }
+
     async fn reannounce(&self, id: Uuid) -> Result<()> {
         self.send_command(EngineCommand::Reannounce { id }).await
     }
@@ -126,19 +137,21 @@ mod tests {
         ChokingAlgorithm, EncryptionPolicy, EngineRuntimeConfig, Ipv6Mode, SeedChokingAlgorithm,
         TrackerRuntimeConfig,
     };
-    use revaer_torrent_core::{AddTorrentOptions, TorrentSource, model::TorrentOptionsUpdate};
+    use revaer_torrent_core::{
+        AddTorrentOptions, TorrentSource,
+        model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
+    };
 
-    #[tokio::test]
-    async fn libtorrent_engine_accepts_command_flow() -> Result<()> {
-        let events = EventBus::new();
-        let engine = LibtorrentEngine::new(events)?;
-
-        let runtime = EngineRuntimeConfig {
-            download_root: "/tmp/revaer-downloads".into(),
-            resume_dir: "/tmp/revaer-resume".into(),
+    fn runtime_config_template(
+        download_root: impl Into<String>,
+        resume_dir: impl Into<String>,
+    ) -> EngineRuntimeConfig {
+        EngineRuntimeConfig {
+            download_root: download_root.into(),
+            resume_dir: resume_dir.into(),
             listen_interfaces: Vec::new(),
             ipv6_mode: Ipv6Mode::Disabled,
-            enable_dht: true,
+            enable_dht: false,
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             enable_lsd: false.into(),
@@ -147,23 +160,6 @@ mod tests {
             enable_pex: false.into(),
             outgoing_ports: None,
             peer_dscp: None,
-            anonymous_mode: false.into(),
-            force_proxy: false.into(),
-            prefer_rc4: false.into(),
-            allow_multiple_connections_per_ip: false.into(),
-            enable_outgoing_utp: false.into(),
-            enable_incoming_utp: false.into(),
-            sequential_default: false,
-            auto_managed: true.into(),
-            auto_manage_prefer_seeds: false.into(),
-            dont_count_slow_torrents: true.into(),
-            listen_port: Some(6_881),
-            max_active: Some(4),
-            download_rate_limit: Some(1_000_000),
-            upload_rate_limit: Some(500_000),
-            seed_ratio_limit: None,
-            seed_time_limit: None,
-            alt_speed: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
@@ -173,11 +169,42 @@ mod tests {
             strict_super_seeding: false.into(),
             optimistic_unchoke_slots: None,
             max_queued_disk_bytes: None,
+            anonymous_mode: false.into(),
+            force_proxy: false.into(),
+            prefer_rc4: false.into(),
+            allow_multiple_connections_per_ip: false.into(),
+            enable_outgoing_utp: false.into(),
+            enable_incoming_utp: false.into(),
+            sequential_default: true,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
+            super_seeding: false.into(),
+            listen_port: None,
+            max_active: None,
+            download_rate_limit: None,
+            upload_rate_limit: None,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
+            alt_speed: None,
             encryption: EncryptionPolicy::Prefer,
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
-            super_seeding: false.into(),
-        };
+        }
+    }
+
+    #[tokio::test]
+    async fn libtorrent_engine_accepts_command_flow() -> Result<()> {
+        let events = EventBus::new();
+        let engine = LibtorrentEngine::new(events)?;
+
+        let mut runtime = runtime_config_template("/tmp/revaer-downloads", "/tmp/revaer-resume");
+        runtime.enable_dht = true;
+        runtime.sequential_default = false;
+        runtime.listen_port = Some(6_881);
+        runtime.max_active = Some(4);
+        runtime.download_rate_limit = Some(1_000_000);
+        runtime.upload_rate_limit = Some(500_000);
         engine.apply_runtime_config(runtime).await?;
 
         let torrent_id = Uuid::new_v4();
@@ -207,6 +234,24 @@ mod tests {
             .update_selection(torrent_id, FileSelectionUpdate::default())
             .await?;
         engine
+            .update_trackers(
+                torrent_id,
+                TorrentTrackersUpdate {
+                    trackers: vec!["http://tracker.example".into()],
+                    replace: true,
+                },
+            )
+            .await?;
+        engine
+            .update_web_seeds(
+                torrent_id,
+                TorrentWebSeedsUpdate {
+                    web_seeds: vec!["http://seed.example/file".into()],
+                    replace: true,
+                },
+            )
+            .await?;
+        engine
             .update_options(
                 torrent_id,
                 TorrentOptionsUpdate {
@@ -233,51 +278,10 @@ mod tests {
         let events = EventBus::with_capacity(8);
         let engine = LibtorrentEngine::with_resume_store(events, store)?;
         engine
-            .apply_runtime_config(EngineRuntimeConfig {
-                download_root: "/tmp/revaer-downloads".into(),
-                resume_dir: resume_dir.display().to_string(),
-                listen_interfaces: Vec::new(),
-                ipv6_mode: Ipv6Mode::Disabled,
-                enable_dht: false,
-                dht_bootstrap_nodes: Vec::new(),
-                dht_router_nodes: Vec::new(),
-                enable_lsd: false.into(),
-                enable_upnp: false.into(),
-                enable_natpmp: false.into(),
-                enable_pex: false.into(),
-                outgoing_ports: None,
-                peer_dscp: None,
-                anonymous_mode: false.into(),
-                force_proxy: false.into(),
-                prefer_rc4: false.into(),
-                allow_multiple_connections_per_ip: false.into(),
-                enable_outgoing_utp: false.into(),
-                enable_incoming_utp: false.into(),
-                sequential_default: true,
-                auto_managed: true.into(),
-                auto_manage_prefer_seeds: false.into(),
-                dont_count_slow_torrents: true.into(),
-                listen_port: None,
-                max_active: None,
-                download_rate_limit: None,
-                upload_rate_limit: None,
-                seed_ratio_limit: None,
-                seed_time_limit: None,
-                alt_speed: None,
-                connections_limit: None,
-                connections_limit_per_torrent: None,
-                unchoke_slots: None,
-                half_open_limit: None,
-                choking_algorithm: ChokingAlgorithm::FixedSlots,
-                seed_choking_algorithm: SeedChokingAlgorithm::RoundRobin,
-                strict_super_seeding: false.into(),
-                optimistic_unchoke_slots: None,
-                max_queued_disk_bytes: None,
-                encryption: EncryptionPolicy::Prefer,
-                tracker: TrackerRuntimeConfig::default(),
-                ip_filter: None,
-                super_seeding: false.into(),
-            })
+            .apply_runtime_config(runtime_config_template(
+                "/tmp/revaer-downloads",
+                resume_dir.display().to_string(),
+            ))
             .await?;
 
         assert!(

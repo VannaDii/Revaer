@@ -265,6 +265,10 @@ pub mod ffi {
         trackers: Vec<String>,
         /// Whether request trackers replace session defaults.
         replace_trackers: bool,
+        /// Web seeds attached to the torrent.
+        web_seeds: Vec<String>,
+        /// Whether web seeds should replace existing entries.
+        replace_web_seeds: bool,
     }
 
     /// Rate limit update applied globally or for a specific torrent.
@@ -305,6 +309,28 @@ pub mod ffi {
         queue_position: i32,
         /// Flag indicating whether queue position was provided.
         has_queue_position: bool,
+    }
+
+    /// Tracker list update for an existing torrent.
+    #[derive(Debug)]
+    struct UpdateTrackersRequest {
+        /// Torrent identifier.
+        id: String,
+        /// Trackers to apply.
+        trackers: Vec<String>,
+        /// Whether to replace existing trackers.
+        replace: bool,
+    }
+
+    /// Web seed update for an existing torrent.
+    #[derive(Debug)]
+    struct UpdateWebSeedsRequest {
+        /// Torrent identifier.
+        id: String,
+        /// Web seeds to apply.
+        web_seeds: Vec<String>,
+        /// Whether to replace existing web seeds.
+        replace: bool,
     }
 
     /// Per-file priority override entry.
@@ -461,6 +487,12 @@ pub mod ffi {
         /// Update per-torrent options after admission.
         #[must_use]
         fn update_options(self: Pin<&mut Session>, request: &UpdateOptionsRequest) -> String;
+        /// Update trackers for a torrent.
+        #[must_use]
+        fn update_trackers(self: Pin<&mut Session>, request: &UpdateTrackersRequest) -> String;
+        /// Update web seeds for a torrent.
+        #[must_use]
+        fn update_web_seeds(self: Pin<&mut Session>, request: &UpdateWebSeedsRequest) -> String;
         /// Trigger tracker reannounce.
         #[must_use]
         fn reannounce(self: Pin<&mut Session>, id: &str) -> String;

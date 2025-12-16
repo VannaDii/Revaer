@@ -43,6 +43,12 @@ pub struct StoredTorrentMetadata {
     /// Whether the supplied trackers replaced profile defaults.
     pub replace_trackers: bool,
     #[serde(default)]
+    /// Web seeds associated with the torrent.
+    pub web_seeds: Vec<String>,
+    #[serde(default)]
+    /// Whether supplied web seeds replaced existing seeds.
+    pub replace_web_seeds: bool,
+    #[serde(default)]
     /// Tags provided at admission time.
     pub tags: Vec<String>,
     #[serde(default)]
@@ -276,6 +282,8 @@ mod tests {
             super_seeding: Some(false),
             trackers: vec!["https://tracker.example/announce".into()],
             replace_trackers: true,
+            web_seeds: vec!["https://seed.example/file".into()],
+            replace_web_seeds: false,
             tags: vec!["movies".into(), "hd".into()],
             rate_limit: Some(TorrentRateLimit {
                 download_bps: Some(10_000),
@@ -342,6 +350,11 @@ mod tests {
             vec!["https://tracker.example/announce".to_string()]
         );
         assert!(stored_meta.replace_trackers);
+        assert_eq!(
+            stored_meta.web_seeds,
+            vec!["https://seed.example/file".to_string()]
+        );
+        assert!(!stored_meta.replace_web_seeds);
         assert_eq!(
             stored_meta.tags,
             vec!["movies".to_string(), "hd".to_string()]

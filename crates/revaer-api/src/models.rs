@@ -12,7 +12,8 @@ use uuid::Uuid;
 use revaer_events::TorrentState;
 use revaer_torrent_core::{
     AddTorrentOptions, FilePriority, FilePriorityOverride, FileSelectionRules, FileSelectionUpdate,
-    TorrentRateLimit, TorrentSource, TorrentStatus, model::TorrentOptionsUpdate,
+    TorrentRateLimit, TorrentSource, TorrentStatus,
+    model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
 };
 
 /// RFC9457-compatible problem document surfaced on validation/runtime errors.
@@ -247,6 +248,9 @@ pub struct TorrentSettingsView {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Whether peer exchange is enabled for the torrent.
     pub pex_enabled: Option<bool>,
+    #[serde(skip_serializing_if = "Vec::is_empty", default)]
+    /// Web seeds attached to the torrent.
+    pub web_seeds: Vec<String>,
 }
 
 /// High-level view returned when listing torrents.
@@ -366,6 +370,7 @@ impl From<TorrentStatus> for TorrentDetail {
             auto_managed: None,
             queue_position: None,
             pex_enabled: None,
+            web_seeds: Vec::new(),
         };
         Self {
             summary,
@@ -460,6 +465,12 @@ pub struct TorrentCreateRequest {
     #[serde(default)]
     /// Optional override for peer exchange behaviour.
     pub pex_enabled: Option<bool>,
+    #[serde(default)]
+    /// Optional list of web seeds to attach on admission.
+    pub web_seeds: Vec<String>,
+    #[serde(default)]
+    /// Whether supplied web seeds should replace existing seeds.
+    pub replace_web_seeds: bool,
 }
 
 impl TorrentCreateRequest {
@@ -493,6 +504,8 @@ impl TorrentCreateRequest {
             auto_managed: self.auto_managed,
             queue_position: self.queue_position,
             pex_enabled: self.pex_enabled,
+            web_seeds: self.web_seeds.clone(),
+            replace_web_seeds: self.replace_web_seeds,
             tags: self.tags.clone(),
             trackers: Vec::new(),
             replace_trackers: self.replace_trackers,
@@ -606,6 +619,62 @@ impl TorrentOptionsRequest {
     }
 }
 
+/// Body accepted by `PATCH /v1/torrents/{id}/trackers`.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct TorrentTrackersRequest {
+    #[serde(default)]
+    /// Trackers to apply.
+    pub trackers: Vec<String>,
+    #[serde(default)]
+    /// Whether to replace all trackers with the supplied set.
+    pub replace: bool,
+}
+
+impl TorrentTrackersRequest {
+    /// Translate into the domain update.
+    #[must_use]
+    pub const fn to_update(&self, trackers: Vec<String>) -> TorrentTrackersUpdate {
+        TorrentTrackersUpdate {
+            trackers,
+            replace: self.replace,
+        }
+    }
+
+    /// Returns true when no tracker changes were supplied.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.trackers.is_empty()
+    }
+}
+
+/// Body accepted by `PATCH /v1/torrents/{id}/web_seeds`.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct TorrentWebSeedsRequest {
+    #[serde(default)]
+    /// Web seeds to apply.
+    pub web_seeds: Vec<String>,
+    #[serde(default)]
+    /// Whether to replace existing web seeds.
+    pub replace: bool,
+}
+
+impl TorrentWebSeedsRequest {
+    /// Translate into the domain update.
+    #[must_use]
+    pub const fn to_update(&self, web_seeds: Vec<String>) -> TorrentWebSeedsUpdate {
+        TorrentWebSeedsUpdate {
+            web_seeds,
+            replace: self.replace,
+        }
+    }
+
+    /// Returns true when no web seeds were supplied.
+    #[must_use]
+    pub const fn is_empty(&self) -> bool {
+        self.web_seeds.is_empty()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -639,6 +708,8 @@ mod tests {
             auto_managed: Some(false),
             queue_position: Some(2),
             pex_enabled: Some(false),
+            web_seeds: vec!["http://seed.example/file".to_string()],
+            replace_web_seeds: true,
             ..TorrentCreateRequest::default()
         };
 
@@ -662,6 +733,11 @@ mod tests {
         assert_eq!(options.auto_managed, Some(false));
         assert_eq!(options.queue_position, Some(2));
         assert_eq!(options.pex_enabled, Some(false));
+        assert_eq!(
+            options.web_seeds,
+            vec!["http://seed.example/file".to_string()]
+        );
+        assert!(options.replace_web_seeds);
     }
 
     #[test]
@@ -810,6 +886,38 @@ mod tests {
         assert_eq!(update.queue_position, Some(3));
         assert_eq!(update.seed_ratio_limit, Some(2.0));
         assert_eq!(update.seed_time_limit, Some(3_600));
+        assert!(!request.is_empty());
+    }
+
+    #[test]
+    fn torrent_trackers_request_to_update_applies_replace_flag() {
+        let request = TorrentTrackersRequest {
+            trackers: vec!["https://tracker.example/announce".to_string()],
+            replace: true,
+        };
+
+        let update = request.to_update(request.trackers.clone());
+        assert_eq!(
+            update.trackers,
+            vec!["https://tracker.example/announce".to_string()]
+        );
+        assert!(update.replace);
+        assert!(!request.is_empty());
+    }
+
+    #[test]
+    fn torrent_web_seeds_request_to_update_applies_replace_flag() {
+        let request = TorrentWebSeedsRequest {
+            web_seeds: vec!["http://seed.example/file".to_string()],
+            replace: false,
+        };
+
+        let update = request.to_update(request.web_seeds.clone());
+        assert_eq!(
+            update.web_seeds,
+            vec!["http://seed.example/file".to_string()]
+        );
+        assert!(!update.replace);
         assert!(!request.is_empty());
     }
 }

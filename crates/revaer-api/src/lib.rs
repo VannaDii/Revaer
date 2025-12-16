@@ -1553,7 +1553,7 @@ mod tests {
             ..TorrentCreateRequest::default()
         };
 
-        let err = dispatch_torrent_add(None, &request, Vec::new())
+        let err = dispatch_torrent_add(None, &request, Vec::new(), Vec::new())
             .await
             .expect_err("expected workflow to be unavailable");
         assert_eq!(err.status, StatusCode::SERVICE_UNAVAILABLE);
@@ -1577,7 +1577,7 @@ mod tests {
         let inspector_trait: Arc<dyn TorrentInspector> = workflow.clone();
         let handles = TorrentHandles::new(workflow_trait, inspector_trait);
 
-        dispatch_torrent_add(Some(&handles), &request, Vec::new())
+        dispatch_torrent_add(Some(&handles), &request, Vec::new(), Vec::new())
             .await
             .expect("torrent creation should succeed");
         let recorded_entry = {
@@ -1631,6 +1631,7 @@ mod tests {
         let metadata = TorrentMetadata::new(
             vec!["tagA".to_string(), "tagB".to_string()],
             vec!["http://tracker".to_string()],
+            Vec::new(),
             Some(revaer_torrent_core::TorrentRateLimit {
                 download_bps: Some(1_000),
                 upload_bps: None,
@@ -1698,6 +1699,7 @@ mod tests {
             metadata: TorrentMetadata::new(
                 vec![],
                 vec![],
+                Vec::new(),
                 None,
                 None,
                 revaer_torrent_core::FileSelectionUpdate::default(),
@@ -2088,6 +2090,7 @@ mod tests {
         let metadata = TorrentMetadata::new(
             vec!["tag".to_string()],
             vec!["http://tracker".to_string()],
+            Vec::new(),
             Some(revaer_torrent_core::TorrentRateLimit {
                 download_bps: Some(10),
                 upload_bps: None,

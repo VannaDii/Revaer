@@ -17,7 +17,8 @@ use crate::http::constants::{DEFAULT_PAGE_SIZE, MAX_METAINFO_BYTES, MAX_PAGE_SIZ
 use crate::http::errors::ApiError;
 use crate::models::{
     TorrentAction, TorrentCreateRequest, TorrentDetail, TorrentListResponse, TorrentOptionsRequest,
-    TorrentSelectionRequest, TorrentStateKind, TorrentSummary,
+    TorrentSelectionRequest, TorrentStateKind, TorrentSummary, TorrentTrackersRequest,
+    TorrentWebSeedsRequest,
 };
 use revaer_events::Event as CoreEvent;
 use revaer_torrent_core::{
@@ -27,7 +28,8 @@ use revaer_torrent_core::{
 use super::{
     CursorToken, StatusEntry, TorrentHandles, TorrentListQuery, TorrentMetadata,
     decode_cursor_token, detail_from_components, encode_cursor_from_entry, normalise_lower,
-    normalize_trackers, parse_state_filter, split_comma_separated, summary_from_components,
+    normalize_trackers, normalize_web_seeds, parse_state_filter, split_comma_separated,
+    summary_from_components,
 };
 
 pub(crate) async fn create_torrent(
@@ -45,11 +47,18 @@ pub(crate) async fn create_torrent(
     }
 
     let trackers = normalize_trackers(&request.trackers)?;
+    let web_seeds = normalize_web_seeds(&request.web_seeds)?;
 
-    dispatch_torrent_add(state.torrent.as_ref(), &request, trackers.clone()).await?;
+    dispatch_torrent_add(
+        state.torrent.as_ref(),
+        &request,
+        trackers.clone(),
+        web_seeds.clone(),
+    )
+    .await?;
     state.set_metadata(
         request.id,
-        TorrentMetadata::from_request(&request, trackers.clone()),
+        TorrentMetadata::from_request(&request, trackers.clone(), web_seeds),
     );
     let torrent_name = request.name.as_deref().unwrap_or("<unspecified>");
     info!(torrent_id = %request.id, torrent_name = %torrent_name, "torrent submission requested");
@@ -115,6 +124,112 @@ pub(crate) async fn select_torrent(
     state.update_metadata(&id, |metadata| {
         metadata.selection = metadata_selection;
     });
+    Ok(StatusCode::ACCEPTED)
+}
+
+pub(crate) async fn update_torrent_trackers(
+    State(state): State<Arc<ApiState>>,
+    Extension(context): Extension<crate::http::auth::AuthContext>,
+    AxumPath(id): AxumPath<Uuid>,
+    Json(request): Json<TorrentTrackersRequest>,
+) -> Result<StatusCode, ApiError> {
+    match context {
+        crate::http::auth::AuthContext::ApiKey { .. } => {}
+        crate::http::auth::AuthContext::SetupToken(_) => {
+            return Err(ApiError::unauthorized(
+                "setup authentication context cannot manage torrents",
+            ));
+        }
+    }
+
+    if request.is_empty() {
+        return Err(ApiError::bad_request("no trackers supplied"));
+    }
+
+    let trackers = normalize_trackers(&request.trackers)?;
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+    let update = request.to_update(trackers.clone());
+    handles
+        .workflow()
+        .update_trackers(id, update)
+        .await
+        .map_err(|err| {
+            error!(error = %err, torrent_id = %id, "failed to update trackers");
+            ApiError::internal("failed to update trackers")
+        })?;
+
+    state.update_metadata(&id, |metadata| {
+        let mut merged = if request.replace {
+            Vec::new()
+        } else {
+            metadata.trackers.clone()
+        };
+        let mut seen: HashSet<String> = merged.iter().cloned().collect();
+        for tracker in trackers {
+            if seen.insert(tracker.clone()) {
+                merged.push(tracker);
+            }
+        }
+        metadata.trackers = merged;
+        metadata.replace_trackers = request.replace;
+    });
+    info!(torrent_id = %id, "torrent tracker update requested");
+    Ok(StatusCode::ACCEPTED)
+}
+
+pub(crate) async fn update_torrent_web_seeds(
+    State(state): State<Arc<ApiState>>,
+    Extension(context): Extension<crate::http::auth::AuthContext>,
+    AxumPath(id): AxumPath<Uuid>,
+    Json(request): Json<TorrentWebSeedsRequest>,
+) -> Result<StatusCode, ApiError> {
+    match context {
+        crate::http::auth::AuthContext::ApiKey { .. } => {}
+        crate::http::auth::AuthContext::SetupToken(_) => {
+            return Err(ApiError::unauthorized(
+                "setup authentication context cannot manage torrents",
+            ));
+        }
+    }
+
+    if request.is_empty() {
+        return Err(ApiError::bad_request("no web seeds supplied"));
+    }
+
+    let web_seeds = normalize_web_seeds(&request.web_seeds)?;
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+    let update = request.to_update(web_seeds.clone());
+    handles
+        .workflow()
+        .update_web_seeds(id, update)
+        .await
+        .map_err(|err| {
+            error!(error = %err, torrent_id = %id, "failed to update web seeds");
+            ApiError::internal("failed to update web seeds")
+        })?;
+
+    state.update_metadata(&id, |metadata| {
+        let mut merged = if request.replace {
+            Vec::new()
+        } else {
+            metadata.web_seeds.clone()
+        };
+        let mut seen: HashSet<String> = merged.iter().cloned().collect();
+        for seed in web_seeds {
+            if seen.insert(seed.clone()) {
+                merged.push(seed);
+            }
+        }
+        metadata.web_seeds = merged;
+        metadata.replace_web_seeds = request.replace;
+    });
+    info!(torrent_id = %id, "torrent web seed update requested");
     Ok(StatusCode::ACCEPTED)
 }
 
@@ -480,11 +595,12 @@ pub(crate) async fn dispatch_torrent_add(
     handles: Option<&TorrentHandles>,
     request: &TorrentCreateRequest,
     trackers: Vec<String>,
+    web_seeds: Vec<String>,
 ) -> Result<(), ApiError> {
     let handles =
         handles.ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
 
-    let add_request = build_add_torrent(request, trackers)?;
+    let add_request = build_add_torrent(request, trackers, web_seeds)?;
 
     handles
         .workflow()
@@ -516,6 +632,7 @@ pub(crate) async fn dispatch_torrent_remove(
 pub(crate) fn build_add_torrent(
     request: &TorrentCreateRequest,
     trackers: Vec<String>,
+    web_seeds: Vec<String>,
 ) -> Result<AddTorrent, ApiError> {
     let magnet = request
         .magnet
@@ -591,6 +708,8 @@ pub(crate) fn build_add_torrent(
     let mut options = request.to_options();
     options.trackers = trackers;
     options.replace_trackers = request.replace_trackers;
+    options.web_seeds = web_seeds;
+    options.replace_web_seeds = request.replace_web_seeds;
 
     Ok(AddTorrent {
         id: request.id,
@@ -615,7 +734,8 @@ mod tests {
             ..TorrentCreateRequest::default()
         };
 
-        let err = build_add_torrent(&request, Vec::new()).expect_err("negative ratio rejected");
+        let err = build_add_torrent(&request, Vec::new(), Vec::new())
+            .expect_err("negative ratio rejected");
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
     }
 
@@ -631,7 +751,8 @@ mod tests {
             ..TorrentCreateRequest::default()
         };
 
-        let err = build_add_torrent(&request, Vec::new()).expect_err("sample requires seed mode");
+        let err = build_add_torrent(&request, Vec::new(), Vec::new())
+            .expect_err("sample requires seed mode");
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
     }
 
@@ -647,7 +768,8 @@ mod tests {
             ..TorrentCreateRequest::default()
         };
 
-        let err = build_add_torrent(&request, Vec::new()).expect_err("sample over 100 is rejected");
+        let err = build_add_torrent(&request, Vec::new(), Vec::new())
+            .expect_err("sample over 100 is rejected");
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
     }
 
@@ -662,8 +784,8 @@ mod tests {
             ..TorrentCreateRequest::default()
         };
 
-        let err =
-            build_add_torrent(&request, Vec::new()).expect_err("negative queue position rejected");
+        let err = build_add_torrent(&request, Vec::new(), Vec::new())
+            .expect_err("negative queue position rejected");
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
     }
 }

@@ -63,6 +63,12 @@ pub struct AddTorrentOptions {
     #[serde(default)]
     /// Whether the supplied trackers should replace profile defaults.
     pub replace_trackers: bool,
+    #[serde(default)]
+    /// Optional web seed URLs attached to the torrent.
+    pub web_seeds: Vec<String>,
+    #[serde(default)]
+    /// Whether supplied web seeds should replace any existing seeds.
+    pub replace_web_seeds: bool,
     /// Pre-configured file selection rules.
     #[serde(default)]
     pub file_rules: FileSelectionRules,
@@ -111,6 +117,28 @@ pub struct TorrentOptionsUpdate {
     pub seed_ratio_limit: Option<f64>,
     /// Optional override for seeding time stop criteria (seconds).
     pub seed_time_limit: Option<u64>,
+}
+
+/// Tracker update payload applied after admission.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TorrentTrackersUpdate {
+    /// Tracker URLs to apply.
+    #[serde(default)]
+    pub trackers: Vec<String>,
+    /// Whether to replace all existing trackers with the supplied set.
+    #[serde(default)]
+    pub replace: bool,
+}
+
+/// Web seed update payload applied after admission.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TorrentWebSeedsUpdate {
+    /// Web seed URLs to apply.
+    #[serde(default)]
+    pub web_seeds: Vec<String>,
+    /// Whether to replace all existing web seeds with the supplied set.
+    #[serde(default)]
+    pub replace: bool,
 }
 
 /// Per-torrent rate limiting knobs.

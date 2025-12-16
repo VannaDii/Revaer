@@ -11,7 +11,8 @@ use chrono::{DateTime, Datelike, Timelike, Utc};
 use revaer_events::{DiscoveredFile, Event, EventBus, TorrentState};
 use revaer_torrent_core::{
     AddTorrent, EngineEvent, FilePriorityOverride, FileSelectionRules, FileSelectionUpdate,
-    RemoveTorrent, TorrentRateLimit, TorrentRates, TorrentSource, model::TorrentOptionsUpdate,
+    RemoveTorrent, TorrentRateLimit, TorrentRates, TorrentSource,
+    model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
 };
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::convert::TryFrom;
@@ -101,6 +102,8 @@ struct AddMetadata {
     super_seeding: Option<bool>,
     trackers: Vec<String>,
     replace_trackers: bool,
+    web_seeds: Vec<String>,
+    replace_web_seeds: bool,
     tags: Vec<String>,
     connections_limit: Option<i32>,
     rate_limit: Option<TorrentRateLimit>,
@@ -205,7 +208,7 @@ impl Worker {
 
     async fn handle(&mut self, command: EngineCommand) -> Result<()> {
         match command {
-            EngineCommand::Add(request) => self.handle_add(request).await?,
+            EngineCommand::Add(request) => self.handle_add(*request).await?,
             EngineCommand::Remove { id, options } => self.handle_remove(id, options).await?,
             EngineCommand::Pause { id } => self.handle_pause(id).await?,
             EngineCommand::Resume { id } => self.handle_resume(id).await?,
@@ -220,6 +223,12 @@ impl Worker {
             }
             EngineCommand::UpdateOptions { id, options } => {
                 self.handle_update_options(id, options).await?;
+            }
+            EngineCommand::UpdateTrackers { id, trackers } => {
+                self.handle_update_trackers(id, trackers).await?;
+            }
+            EngineCommand::UpdateWebSeeds { id, web_seeds } => {
+                self.handle_update_web_seeds(id, web_seeds).await?;
             }
             EngineCommand::Reannounce { id } => {
                 self.handle_reannounce(id).await?;
@@ -297,6 +306,8 @@ impl Worker {
                 super_seeding: request.options.super_seeding,
                 trackers: request.options.trackers.clone(),
                 replace_trackers: request.options.replace_trackers,
+                web_seeds: request.options.web_seeds.clone(),
+                replace_web_seeds: request.options.replace_web_seeds,
                 tags: request.options.tags.clone(),
                 connections_limit: request.options.connections_limit,
                 rate_limit: rate_limit_for_metadata(&request.options.rate_limit),
@@ -318,6 +329,10 @@ impl Worker {
             if request.options.trackers.is_empty() && !stored.trackers.is_empty() {
                 request.options.trackers.clone_from(&stored.trackers);
                 request.options.replace_trackers = stored.replace_trackers;
+            }
+            if request.options.web_seeds.is_empty() && !stored.web_seeds.is_empty() {
+                request.options.web_seeds.clone_from(&stored.web_seeds);
+                request.options.replace_web_seeds = stored.replace_web_seeds;
             }
             if request.options.tags.is_empty() && !stored.tags.is_empty() {
                 request.options.tags.clone_from(&stored.tags);
@@ -473,6 +488,8 @@ impl Worker {
             super_seeding,
             trackers,
             replace_trackers,
+            web_seeds,
+            replace_web_seeds,
             tags,
             connections_limit,
             rate_limit,
@@ -489,6 +506,8 @@ impl Worker {
             meta.priorities.clone_from(&priorities);
             meta.trackers.clone_from(&trackers);
             meta.replace_trackers = replace_trackers;
+            meta.web_seeds.clone_from(&web_seeds);
+            meta.replace_web_seeds = replace_web_seeds;
             meta.tags.clone_from(&tags);
             meta.connections_limit = connections_limit;
             meta.rate_limit = rate_limit;
@@ -654,6 +673,68 @@ impl Worker {
             seed_time_limit = ?options.seed_time_limit,
             "updated per-torrent options"
         );
+        Ok(())
+    }
+
+    async fn handle_update_trackers(
+        &mut self,
+        id: Uuid,
+        trackers: TorrentTrackersUpdate,
+    ) -> Result<()> {
+        self.session.update_trackers(id, &trackers).await?;
+        let mut deduped = Vec::new();
+        let mut seen = HashSet::new();
+        for tracker in trackers.trackers {
+            if seen.insert(tracker.clone()) {
+                deduped.push(tracker);
+            }
+        }
+        self.update_metadata(id, move |meta| {
+            if trackers.replace {
+                meta.trackers.clone_from(&deduped);
+            } else {
+                let mut merged = meta.trackers.clone();
+                let mut merged_seen: HashSet<String> = merged.iter().cloned().collect();
+                for tracker in deduped {
+                    if merged_seen.insert(tracker.clone()) {
+                        merged.push(tracker);
+                    }
+                }
+                meta.trackers = merged;
+            }
+            meta.replace_trackers = trackers.replace;
+        });
+        Ok(())
+    }
+
+    async fn handle_update_web_seeds(
+        &mut self,
+        id: Uuid,
+        web_seeds: TorrentWebSeedsUpdate,
+    ) -> Result<()> {
+        self.session.update_web_seeds(id, &web_seeds).await?;
+        let mut deduped = Vec::new();
+        let mut seen = HashSet::new();
+        for seed in web_seeds.web_seeds {
+            if seen.insert(seed.clone()) {
+                deduped.push(seed);
+            }
+        }
+        self.update_metadata(id, move |meta| {
+            if web_seeds.replace {
+                meta.web_seeds.clone_from(&deduped);
+            } else {
+                let mut merged = meta.web_seeds.clone();
+                let mut merged_seen: HashSet<String> = merged.iter().cloned().collect();
+                for seed in deduped {
+                    if merged_seen.insert(seed.clone()) {
+                        merged.push(seed);
+                    }
+                }
+                meta.web_seeds = merged;
+            }
+            meta.replace_web_seeds = web_seeds.replace;
+        });
         Ok(())
     }
 
@@ -1222,7 +1303,7 @@ mod tests {
         };
 
         worker
-            .handle(EngineCommand::Add(descriptor.clone()))
+            .handle(EngineCommand::Add(Box::new(descriptor.clone())))
             .await?;
 
         match next_event_with_timeout(&mut stream, 50).await {
@@ -1272,7 +1353,7 @@ mod tests {
         };
 
         worker
-            .handle(EngineCommand::Add(descriptor))
+            .handle(EngineCommand::Add(Box::new(descriptor)))
             .await
             .expect("add should succeed");
 
@@ -1311,7 +1392,7 @@ mod tests {
         };
 
         worker
-            .handle(EngineCommand::Add(descriptor))
+            .handle(EngineCommand::Add(Box::new(descriptor)))
             .await
             .expect("add should succeed");
 
@@ -1337,7 +1418,7 @@ mod tests {
         };
 
         worker
-            .handle(EngineCommand::Add(descriptor))
+            .handle(EngineCommand::Add(Box::new(descriptor)))
             .await
             .expect("add should succeed");
 
@@ -1380,6 +1461,62 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn update_trackers_and_web_seeds_persist_metadata() -> Result<()> {
+        let bus = EventBus::with_capacity(8);
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
+        let mut worker = Worker::new(bus, session, None);
+
+        let torrent_id = Uuid::new_v4();
+        let descriptor = AddTorrent {
+            id: torrent_id,
+            source: TorrentSource::magnet("magnet:?xt=urn:btih:update-trackers"),
+            options: AddTorrentOptions::default(),
+        };
+
+        worker
+            .handle(EngineCommand::Add(Box::new(descriptor)))
+            .await
+            .expect("add should succeed");
+
+        worker
+            .handle(EngineCommand::UpdateTrackers {
+                id: torrent_id,
+                trackers: TorrentTrackersUpdate {
+                    trackers: vec!["https://tracker.example/announce".to_string()],
+                    replace: true,
+                },
+            })
+            .await?;
+
+        worker
+            .handle(EngineCommand::UpdateWebSeeds {
+                id: torrent_id,
+                web_seeds: TorrentWebSeedsUpdate {
+                    web_seeds: vec!["http://seed.example/file".to_string()],
+                    replace: false,
+                },
+            })
+            .await?;
+
+        let metadata = worker
+            .resume_cache
+            .get(&torrent_id)
+            .cloned()
+            .expect("metadata persisted");
+        assert_eq!(
+            metadata.trackers,
+            vec!["https://tracker.example/announce".to_string()]
+        );
+        assert!(metadata.replace_trackers);
+        assert_eq!(
+            metadata.web_seeds,
+            vec!["http://seed.example/file".to_string()]
+        );
+        assert!(!metadata.replace_web_seeds);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn add_command_records_seed_mode_and_sample() -> Result<()> {
         let bus = EventBus::with_capacity(8);
         let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
@@ -1398,7 +1535,7 @@ mod tests {
         };
 
         worker
-            .handle(EngineCommand::Add(descriptor))
+            .handle(EngineCommand::Add(Box::new(descriptor)))
             .await
             .expect("add should succeed");
 
@@ -1441,7 +1578,7 @@ mod tests {
         };
 
         worker
-            .handle(EngineCommand::Add(descriptor.clone()))
+            .handle(EngineCommand::Add(Box::new(descriptor.clone())))
             .await?;
         // Drain initial torrent added + state events.
         let _ = next_event_with_timeout(&mut stream, 50).await;
@@ -1479,7 +1616,7 @@ mod tests {
         };
 
         worker
-            .handle(EngineCommand::Add(descriptor.clone()))
+            .handle(EngineCommand::Add(Box::new(descriptor.clone())))
             .await?;
         let _ = next_event_with_timeout(&mut stream, 50).await;
         let _ = next_event_with_timeout(&mut stream, 50).await;
@@ -1530,6 +1667,8 @@ mod tests {
             sequential: true,
             trackers: vec!["https://tracker.example/announce".into()],
             replace_trackers: true,
+            web_seeds: vec!["https://seed.example/file".into()],
+            replace_web_seeds: false,
             tags: vec!["persisted".into()],
             rate_limit: Some(TorrentRateLimit {
                 download_bps: Some(5_000),
@@ -1561,7 +1700,7 @@ mod tests {
         };
 
         worker
-            .handle(EngineCommand::Add(descriptor.clone()))
+            .handle(EngineCommand::Add(Box::new(descriptor.clone())))
             .await?;
 
         // Drain torrent added and initial state change events.
@@ -1613,6 +1752,11 @@ mod tests {
             vec!["https://tracker.example/announce".to_string()]
         );
         assert!(persisted_meta.replace_trackers);
+        assert_eq!(
+            persisted_meta.web_seeds,
+            vec!["https://seed.example/file".to_string()]
+        );
+        assert!(!persisted_meta.replace_web_seeds);
         assert_eq!(persisted_meta.tags, vec!["persisted".to_string()]);
         assert!(
             persisted
@@ -1987,6 +2131,22 @@ mod tests {
             &mut self,
             _id: Uuid,
             _options: &revaer_torrent_core::model::TorrentOptionsUpdate,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn update_trackers(
+            &mut self,
+            _id: Uuid,
+            _trackers: &revaer_torrent_core::model::TorrentTrackersUpdate,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn update_web_seeds(
+            &mut self,
+            _id: Uuid,
+            _web_seeds: &revaer_torrent_core::model::TorrentWebSeedsUpdate,
         ) -> Result<()> {
             Ok(())
         }

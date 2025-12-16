@@ -1,6 +1,7 @@
 use crate::types::EngineRuntimeConfig;
 use revaer_torrent_core::{
-    AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, model::TorrentOptionsUpdate,
+    AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit,
+    model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
 };
 use uuid::Uuid;
 
@@ -9,7 +10,7 @@ use uuid::Uuid;
 #[derive(Debug)]
 pub enum EngineCommand {
     /// Add a torrent to the session.
-    Add(AddTorrent),
+    Add(Box<AddTorrent>),
     /// Remove a torrent from the session, optionally deleting its data.
     Remove {
         /// Unique torrent identifier.
@@ -54,6 +55,20 @@ pub enum EngineCommand {
         id: Uuid,
         /// New options to apply.
         options: TorrentOptionsUpdate,
+    },
+    /// Update trackers for a torrent.
+    UpdateTrackers {
+        /// Unique torrent identifier.
+        id: Uuid,
+        /// Trackers to apply.
+        trackers: TorrentTrackersUpdate,
+    },
+    /// Update web seeds for a torrent.
+    UpdateWebSeeds {
+        /// Unique torrent identifier.
+        id: Uuid,
+        /// Web seeds to apply.
+        web_seeds: TorrentWebSeedsUpdate,
     },
     /// Force tracker reannounce for a torrent.
     Reannounce {
