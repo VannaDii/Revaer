@@ -184,7 +184,7 @@ mod tests {
     fn dummy_payload_covers_all_kinds() {
         let tid = Uuid::nil();
         let tid_other = Uuid::from_u128(1);
-        let kinds = (0..9)
+        let kinds = (0..10)
             .map(|tick| {
                 dummy_payload(tick, tid, tid_other)["kind"]
                     .as_str()
@@ -204,6 +204,7 @@ mod tests {
                 "torrent_removed",
                 "fsops_started",
                 "fsops_progress",
+                "metadata_updated",
                 "fsops_failed"
             ]
         );
@@ -233,7 +234,11 @@ mod tests {
         assert_eq!(state["kind"], "state_changed");
         assert_eq!(state["data"]["state"], "seeding");
 
-        let jobs = dummy_payload(8, tid, tid_other);
+        let metadata = dummy_payload(8, tid, tid_other);
+        assert_eq!(metadata["kind"], "metadata_updated");
+        assert_eq!(metadata["data"]["download_dir"], "/downloads/relocated-8");
+
+        let jobs = dummy_payload(9, tid, tid_other);
         assert_eq!(jobs["kind"], "fsops_failed");
         assert_eq!(
             jobs["data"]["torrent_id"]
@@ -300,6 +305,8 @@ mod tests {
                 max_queued_disk_bytes: None,
                 resume_dir: "/tmp/resume".to_string(),
                 download_root: "/tmp/downloads".to_string(),
+                storage_mode: EngineProfile::default_storage_mode(),
+                use_partfile: EngineProfile::default_use_partfile(),
                 tracker: Value::Null,
                 enable_lsd: false.into(),
                 enable_upnp: false.into(),
@@ -1639,6 +1646,7 @@ mod tests {
             }),
             None,
             revaer_torrent_core::FileSelectionUpdate::default(),
+            status.download_dir.clone(),
         );
         let summary = summary_from_components(status, metadata);
         assert_eq!(summary.tags, vec!["tagA".to_string(), "tagB".to_string()]);
@@ -1704,6 +1712,7 @@ mod tests {
                 None,
                 None,
                 revaer_torrent_core::FileSelectionUpdate::default(),
+                status.download_dir.clone(),
             ),
         };
 
@@ -2098,6 +2107,7 @@ mod tests {
             }),
             None,
             revaer_torrent_core::FileSelectionUpdate::default(),
+            status.download_dir.clone(),
         );
 
         let detail = detail_from_components(status, metadata);

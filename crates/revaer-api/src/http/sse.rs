@@ -114,6 +114,7 @@ pub(crate) fn matches_sse_filter(envelope: &EventEnvelope, filter: &SseFilter) -
             | CoreEvent::Progress { torrent_id, .. }
             | CoreEvent::StateChanged { torrent_id, .. }
             | CoreEvent::Completed { torrent_id, .. }
+            | CoreEvent::MetadataUpdated { torrent_id, .. }
             | CoreEvent::TorrentRemoved { torrent_id }
             | CoreEvent::FsopsStarted { torrent_id, .. }
             | CoreEvent::FsopsProgress { torrent_id, .. }
@@ -181,7 +182,7 @@ fn build_dummy_sse_stream()
 }
 
 pub(crate) fn dummy_payload(tick: u64, tid: Uuid, tid_other: Uuid) -> Value {
-    match tick % 9 {
+    match tick % 10 {
         0 => json!({
             "kind": "system_rates",
             "data": {
@@ -251,6 +252,14 @@ pub(crate) fn dummy_payload(tick: u64, tid: Uuid, tid_other: Uuid) -> Value {
                 "torrent_id": tid,
                 "status": "moving",
                 "percent_complete": 42.0
+            }
+        }),
+        8 => json!({
+            "kind": "metadata_updated",
+            "data": {
+                "torrent_id": tid,
+                "download_dir": format!("/downloads/relocated-{tick}"),
+                "name": format!("demo-{tick}")
             }
         }),
         _ => json!({
@@ -362,7 +371,7 @@ mod tests {
     fn dummy_payload_covers_all_kinds() {
         let tid = Uuid::nil();
         let tid_other = Uuid::from_u128(1);
-        for tick in 0..9 {
+        for tick in 0..10 {
             assert!(
                 dummy_payload(tick, tid, tid_other)["kind"]
                     .as_str()
@@ -383,7 +392,9 @@ mod tests {
         );
         let state = dummy_payload(7, tid, tid_other);
         assert_eq!(state["data"]["status"], "moving");
-        let jobs = dummy_payload(8, tid, tid_other);
+        let metadata = dummy_payload(8, tid, tid_other);
+        assert_eq!(metadata["data"]["download_dir"], "/downloads/relocated-8");
+        let jobs = dummy_payload(9, tid, tid_other);
         assert_eq!(jobs["data"]["message"], "disk full");
     }
 

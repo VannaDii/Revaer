@@ -420,6 +420,15 @@ pub(crate) async fn action_torrent(
                 )
                 .await
         }
+        TorrentAction::Move { download_dir } => {
+            let trimmed = download_dir.trim();
+            if trimmed.is_empty() {
+                return Err(ApiError::bad_request(
+                    "download_dir must be provided for move action",
+                ));
+            }
+            workflow.move_torrent(id, trimmed.to_string()).await
+        }
     };
 
     result.map_err(|err| {
@@ -438,6 +447,13 @@ pub(crate) async fn action_torrent(
         };
         state.update_metadata(&id, |metadata| {
             metadata.apply_rate_limit(&limits);
+        });
+    } else if let TorrentAction::Move {
+        download_dir: ref dir,
+    } = action
+    {
+        state.update_metadata(&id, |metadata| {
+            metadata.download_dir = Some(dir.clone());
         });
     }
 
@@ -958,9 +974,45 @@ mod tests {
         assert_eq!(metadata.trackers, vec!["udp://backup/announce".to_string()]);
     }
 
+    #[tokio::test]
+    async fn move_action_updates_metadata_and_dispatches() {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = Arc::new(ApiState::new(
+            Arc::new(DummyConfig),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            Some(handles),
+        ));
+        let torrent_id = Uuid::new_v4();
+
+        let response = action_torrent(
+            State(state.clone()),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(torrent_id),
+            Json(TorrentAction::Move {
+                download_dir: "/downloads/new".to_string(),
+            }),
+        )
+        .await
+        .expect("action should succeed");
+
+        assert_eq!(response, StatusCode::ACCEPTED);
+        let moves = workflow.take_moves().await;
+        assert_eq!(moves.len(), 1);
+        assert_eq!(moves[0], (torrent_id, "/downloads/new".to_string()));
+
+        let metadata = state.get_metadata(&torrent_id);
+        assert_eq!(metadata.download_dir.as_deref(), Some("/downloads/new"));
+    }
+
     #[derive(Default)]
     struct RecordingWorkflow {
         tracker_updates: AsyncMutex<Vec<TorrentTrackersUpdate>>,
+        moves: AsyncMutex<Vec<(Uuid, String)>>,
     }
 
     #[async_trait::async_trait]
@@ -1022,6 +1074,11 @@ mod tests {
             Ok(())
         }
 
+        async fn move_torrent(&self, id: Uuid, download_dir: String) -> anyhow::Result<()> {
+            self.moves.lock().await.push((id, download_dir));
+            Ok(())
+        }
+
         async fn recheck(&self, _: Uuid) -> anyhow::Result<()> {
             Ok(())
         }
@@ -1044,6 +1101,13 @@ mod tests {
             let updates = guard.clone();
             guard.clear();
             updates
+        }
+
+        async fn take_moves(&self) -> Vec<(Uuid, String)> {
+            let mut guard = self.moves.lock().await;
+            let moves = guard.clone();
+            guard.clear();
+            moves
         }
     }
 

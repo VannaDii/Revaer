@@ -50,6 +50,15 @@ pub enum Event {
         /// Absolute path to the final library artifact.
         library_path: String,
     },
+    /// Torrent metadata changed (name or download directory).
+    MetadataUpdated {
+        /// Identifier for the torrent whose metadata changed.
+        torrent_id: Uuid,
+        /// Optional updated display name.
+        name: Option<String>,
+        /// Optional updated download directory.
+        download_dir: Option<String>,
+    },
     /// Torrent was removed from the catalog.
     TorrentRemoved {
         /// Identifier for the torrent that was removed.
@@ -108,6 +117,7 @@ impl Event {
             Self::Progress { .. } => "progress",
             Self::StateChanged { .. } => "state_changed",
             Self::Completed { .. } => "completed",
+            Self::MetadataUpdated { .. } => "metadata_updated",
             Self::TorrentRemoved { .. } => "torrent_removed",
             Self::FsopsStarted { .. } => "fsops_started",
             Self::FsopsProgress { .. } => "fsops_progress",
@@ -173,6 +183,14 @@ mod tests {
                     library_path: "/tmp".into(),
                 },
                 "completed",
+            ),
+            (
+                Event::MetadataUpdated {
+                    torrent_id: Uuid::nil(),
+                    name: Some("demo".into()),
+                    download_dir: Some("/downloads/demo".into()),
+                },
+                "metadata_updated",
             ),
             (
                 Event::TorrentRemoved {

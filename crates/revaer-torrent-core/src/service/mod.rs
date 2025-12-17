@@ -89,6 +89,12 @@ pub trait TorrentEngine: Send + Sync {
         bail!("reannounce not supported by this engine");
     }
 
+    /// Move torrent storage to a new download directory.
+    async fn move_torrent(&self, id: Uuid, download_dir: String) -> anyhow::Result<()> {
+        let _ = (id, download_dir);
+        bail!("move not supported by this engine");
+    }
+
     /// Force a recheck of on-disk data; default implementation reports lack of support.
     async fn recheck(&self, id: Uuid) -> anyhow::Result<()> {
         let _ = id;
@@ -176,6 +182,13 @@ pub trait TorrentWorkflow: Send + Sync {
         bail!("reannounce not supported");
     }
 
+    /// Move torrent storage to a new download directory; default implementation reports lack of
+    /// support.
+    async fn move_torrent(&self, id: Uuid, download_dir: String) -> anyhow::Result<()> {
+        let _ = (id, download_dir);
+        bail!("move not supported");
+    }
+
     /// Force a recheck of on-disk data; default implementation reports lack of support.
     async fn recheck(&self, id: Uuid) -> anyhow::Result<()> {
         let _ = id;
@@ -219,6 +232,12 @@ mod tests {
         assert!(engine.resume_torrent(id).await.is_err());
         assert!(engine.reannounce(id).await.is_err());
         assert!(engine.recheck(id).await.is_err());
+        assert!(
+            engine
+                .move_torrent(id, "/tmp/downloads".into())
+                .await
+                .is_err()
+        );
         assert!(
             engine
                 .set_sequential(id, true)

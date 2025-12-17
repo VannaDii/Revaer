@@ -22,7 +22,7 @@ pub mod service;
 
 pub use model::{
     AddTorrent, AddTorrentOptions, EngineEvent, FilePriority, FilePriorityOverride,
-    FileSelectionRules, FileSelectionUpdate, RemoveTorrent, TorrentFile, TorrentProgress,
-    TorrentRateLimit, TorrentRates, TorrentSource, TorrentStatus,
+    FileSelectionRules, FileSelectionUpdate, RemoveTorrent, StorageMode, TorrentFile,
+    TorrentProgress, TorrentRateLimit, TorrentRates, TorrentSource, TorrentStatus,
 };
 pub use service::{TorrentEngine, TorrentInspector, TorrentWorkflow};

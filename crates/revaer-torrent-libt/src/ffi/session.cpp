@@ -39,6 +39,7 @@
 #include <libtorrent/session_params.hpp>
 #include <libtorrent/settings_pack.hpp>
 #include <libtorrent/session_types.hpp>
+#include <libtorrent/storage_defs.hpp>
 #include <libtorrent/torrent_handle.hpp>
 #include <libtorrent/torrent_info.hpp>
 #include <libtorrent/torrent_flags.hpp>
@@ -132,6 +133,13 @@ std::vector<int> pick_sample_pieces(int total_pieces, int sample_count) {
     }
 
     return pieces;
+}
+
+lt::storage_mode_t to_storage_mode(int mode) {
+    if (mode == 1) {
+        return lt::storage_mode_allocate;
+    }
+    return lt::storage_mode_sparse;
 }
 
 std::optional<std::string> hash_sample(
@@ -458,6 +466,8 @@ public:
                     std::filesystem::create_directories(resume_dir_, ec);
                 }
             }
+            default_storage_mode_ = to_storage_mode(options.storage.storage_mode);
+            set_bool_setting(pack, "use_partfile", options.storage.use_partfile);
 
             sequential_default_ = options.behavior.sequential_default;
             auto_managed_default_ = options.behavior.auto_managed;
@@ -759,6 +769,12 @@ public:
                 }
             }
 
+            if (request.has_storage_mode) {
+                params.storage_mode = to_storage_mode(request.storage_mode);
+            } else {
+                params.storage_mode = default_storage_mode_;
+            }
+
             lt::torrent_handle handle = session_->add_torrent(params);
             handles_[request_id] = handle;
             snapshots_[request_id] = TorrentSnapshot{};
@@ -997,6 +1013,14 @@ public:
         });
     }
 
+    ::rust::String move_torrent(const MoveTorrentRequest& request) {
+        const auto key = to_std_string(request.id);
+        const auto target = to_std_string(request.download_dir);
+        return mutate_handle(key, [&](lt::torrent_handle& handle) {
+            handle.move_storage(target, lt::move_flags_t::dont_replace);
+        });
+    }
+
     ::rust::String reannounce(::rust::Str id) {
         return mutate_handle(to_std_string(id), [](lt::torrent_handle& handle) {
             handle.force_reannounce();
@@ -1055,6 +1079,32 @@ public:
                     status.status = "warning";
                     status.message = tracker_warn->message();
                     evt.tracker_statuses.push_back(std::move(status));
+                    events.push_back(evt);
+                }
+            }
+            if (auto* moved = lt::alert_cast<lt::storage_moved_alert>(alert)) {
+                auto id = find_torrent_id(moved->handle);
+                auto snapshot = snapshots_.find(id);
+                if (!id.empty() && snapshot != snapshots_.end()) {
+                    NativeEvent evt{};
+                    evt.id = id;
+                    evt.kind = NativeEventKind::MetadataUpdated;
+                    evt.state = snapshot->second.state;
+                    evt.name = snapshot->second.last_name;
+                    evt.download_dir = moved->storage_path();
+                    events.push_back(evt);
+                    snapshot->second.last_download_dir = moved->storage_path();
+                }
+            }
+            if (auto* move_failed = lt::alert_cast<lt::storage_moved_failed_alert>(alert)) {
+                auto id = find_torrent_id(move_failed->handle);
+                auto snapshot = snapshots_.find(id);
+                if (!id.empty() && snapshot != snapshots_.end()) {
+                    NativeEvent evt{};
+                    evt.id = id;
+                    evt.kind = NativeEventKind::Error;
+                    evt.state = snapshot->second.state;
+                    evt.message = move_failed->error.message();
                     events.push_back(evt);
                 }
             }
@@ -1373,6 +1423,7 @@ private:
     std::unique_ptr<lt::session> session_;
     std::string default_download_root_;
     std::string resume_dir_;
+    lt::storage_mode_t default_storage_mode_{lt::storage_mode_sparse};
     bool sequential_default_{false};
     std::vector<std::string> default_trackers_;
     std::vector<std::string> extra_trackers_;
@@ -1445,6 +1496,10 @@ Session::~Session() = default;
 
 ::rust::String Session::update_web_seeds(const UpdateWebSeedsRequest& request) {
     return impl_->update_web_seeds(request);
+}
+
+::rust::String Session::move_torrent(const MoveTorrentRequest& request) {
+    return impl_->move_torrent(request);
 }
 
 ::rust::String Session::reannounce(::rust::Str id) {

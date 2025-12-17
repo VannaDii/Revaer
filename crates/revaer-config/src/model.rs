@@ -201,6 +201,12 @@ pub struct EngineProfile {
     pub resume_dir: String,
     /// Root directory for active downloads.
     pub download_root: String,
+    /// Allocation mode for torrent storage.
+    #[serde(default = "EngineProfile::default_storage_mode")]
+    pub storage_mode: String,
+    /// Whether partfiles should be used for incomplete pieces.
+    #[serde(default = "EngineProfile::default_use_partfile")]
+    pub use_partfile: Toggle,
     /// Arbitrary tracker configuration payload (JSON object).
     pub tracker: Value,
     /// Enable local service discovery (mDNS).
@@ -248,6 +254,18 @@ impl EngineProfile {
     #[must_use]
     pub fn default_seed_choking_algorithm() -> String {
         "round_robin".to_string()
+    }
+
+    /// Canonical default storage allocation mode.
+    #[must_use]
+    pub fn default_storage_mode() -> String {
+        "sparse".to_string()
+    }
+
+    /// Canonical default for partfile usage.
+    #[must_use]
+    pub const fn default_use_partfile() -> Toggle {
+        Toggle(true)
     }
 }
 

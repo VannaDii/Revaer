@@ -112,6 +112,8 @@ mod tests {
             max_queued_disk_bytes: None,
             resume_dir: "/tmp".into(),
             download_root: "/tmp/downloads".into(),
+            storage_mode: EngineProfile::default_storage_mode(),
+            use_partfile: EngineProfile::default_use_partfile(),
             tracker: json!([]),
             enable_lsd: false.into(),
             enable_upnp: false.into(),

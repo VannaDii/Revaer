@@ -124,6 +124,8 @@ pub(super) mod test_support {
             EngineRuntimeConfig {
                 download_root: self.download.path().to_string_lossy().into_owned(),
                 resume_dir: self.resume.path().to_string_lossy().into_owned(),
+                storage_mode: crate::types::StorageMode::Sparse,
+                use_partfile: true,
                 listen_interfaces: Vec::new(),
                 ipv6_mode: Ipv6Mode::Disabled,
                 enable_dht: false,
@@ -195,6 +197,8 @@ impl LibTorrentSession for NativeSession {
             metainfo: Vec::new(),
             download_dir: request.options.download_dir.clone().unwrap_or_default(),
             has_download_dir: request.options.download_dir.is_some(),
+            storage_mode: 0,
+            has_storage_mode: request.options.storage_mode.is_some(),
             sequential: request.options.sequential.unwrap_or_default(),
             has_sequential_override: request.options.sequential.is_some(),
             start_paused: request.options.start_paused.unwrap_or_default(),
@@ -226,6 +230,10 @@ impl LibTorrentSession for NativeSession {
         match &request.source {
             TorrentSource::Magnet { uri } => add_request.magnet_uri.clone_from(uri),
             TorrentSource::Metainfo { bytes } => add_request.metainfo.clone_from(bytes),
+        }
+
+        if let Some(mode) = request.options.storage_mode {
+            add_request.storage_mode = crate::types::StorageMode::from(mode).as_i32();
         }
 
         let session = self.inner.pin_mut();
@@ -360,6 +368,16 @@ impl LibTorrentSession for NativeSession {
         Self::map_error(result)
     }
 
+    async fn move_torrent(&mut self, id: Uuid, download_dir: &str) -> Result<()> {
+        let request = ffi::MoveTorrentRequest {
+            id: id.to_string(),
+            download_dir: download_dir.to_string(),
+        };
+        let session = self.inner.pin_mut();
+        let result = session.move_torrent(&request);
+        Self::map_error(result)
+    }
+
     async fn recheck(&mut self, id: Uuid) -> Result<()> {
         let key = id.to_string();
         let session = self.inner.pin_mut();
@@ -430,7 +448,8 @@ mod tests {
     use crate::ffi::ffi::{NativeEvent, NativeEventKind, NativeTorrentState};
     use crate::types::{IpFilterRule, IpFilterRuntimeConfig, Ipv6Mode};
     use revaer_torrent_core::{AddTorrent, AddTorrentOptions, EngineEvent, TorrentSource};
-    use std::{convert::TryFrom, fs, path::Path};
+    use std::{convert::TryFrom, fs, path::Path, time::Duration};
+    use tokio::time::sleep;
     use uuid::Uuid;
 
     const SEED_PIECE_LENGTH: i64 = 16_384;
@@ -496,6 +515,49 @@ mod tests {
         };
 
         harness.session.add_torrent(&descriptor).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn native_session_moves_storage_and_reports_metadata() -> Result<()> {
+        let mut harness = NativeSessionHarness::new()?;
+        let config = harness.runtime_config();
+        harness.session.apply_config(&config).await?;
+        write_seed_payload(harness.download_path())?;
+
+        let descriptor = AddTorrent {
+            id: Uuid::new_v4(),
+            source: TorrentSource::metainfo(seed_mode_metainfo(&VALID_PIECE_HASH)),
+            options: AddTorrentOptions::default(),
+        };
+
+        harness.session.add_torrent(&descriptor).await?;
+        let target = harness.download_path().join("relocated");
+        fs::create_dir_all(&target)?;
+        harness
+            .session
+            .move_torrent(descriptor.id, target.to_string_lossy().as_ref())
+            .await?;
+        sleep(Duration::from_millis(200)).await;
+
+        let events = harness.session.poll_events().await?;
+        let mut saw_metadata = false;
+        for event in events {
+            if let EngineEvent::MetadataUpdated {
+                torrent_id,
+                download_dir,
+                ..
+            } = event
+                && torrent_id == descriptor.id
+            {
+                assert_eq!(
+                    download_dir.as_deref(),
+                    Some(target.to_string_lossy().as_ref())
+                );
+                saw_metadata = true;
+            }
+        }
+        assert!(saw_metadata, "expected metadata update after move");
         Ok(())
     }
 

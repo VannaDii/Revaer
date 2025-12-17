@@ -55,6 +55,8 @@ pub struct AddTorrentOptions {
     pub name_hint: Option<String>,
     /// Optional override for the download root within the engine profile.
     pub download_dir: Option<String>,
+    /// Optional storage allocation mode override.
+    pub storage_mode: Option<StorageMode>,
     /// When provided, forces the initial sequential download strategy.
     pub sequential: Option<bool>,
     #[serde(default)]
@@ -100,6 +102,16 @@ pub struct AddTorrentOptions {
     /// Arbitrary labels propagated to downstream consumers.
     #[serde(default)]
     pub tags: Vec<String>,
+}
+
+/// Storage allocation strategies supported by the engine.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StorageMode {
+    /// Sparse allocation (default).
+    Sparse,
+    /// Pre-allocate full files.
+    Allocate,
 }
 
 /// Authentication material used when talking to trackers.

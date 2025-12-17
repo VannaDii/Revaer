@@ -20,6 +20,7 @@ use crate::validate::{ConfigError, ensure_mutable, parse_port};
 pub const MAX_RATE_LIMIT_BPS: i64 = 5_000_000_000;
 const DEFAULT_DOWNLOAD_ROOT: &str = "/data/staging";
 const DEFAULT_RESUME_DIR: &str = "/var/lib/revaer/state";
+const DEFAULT_STORAGE_MODE: StorageMode = StorageMode::Sparse;
 const MAX_INLINE_IP_FILTER_ENTRIES: usize = 5_000;
 const MINUTES_PER_DAY: u16 = 24 * 60;
 
@@ -261,13 +262,27 @@ impl AltSpeedSchedule {
     }
 }
 
-/// Storage paths for active downloads and resume data.
+/// Storage behaviour and paths for active downloads and resume data.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EngineStorageConfig {
     /// Root directory for active downloads.
     pub download_root: String,
     /// Directory for fast-resume payloads.
     pub resume_dir: String,
+    /// Allocation strategy for new torrents.
+    pub storage_mode: StorageMode,
+    /// Whether partfiles should be used for incomplete pieces.
+    pub use_partfile: Toggle,
+}
+
+/// Allocation modes supported by the engine.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StorageMode {
+    /// Sparse file allocation (default).
+    Sparse,
+    /// Pre-allocate full files.
+    Allocate,
 }
 
 /// Behavioural defaults applied when admitting torrents.
@@ -519,6 +534,8 @@ pub(crate) fn validate_engine_profile_patch(
         max_queued_disk_bytes: effective.limits.max_queued_disk_bytes,
         resume_dir: effective.storage.resume_dir.clone(),
         download_root: effective.storage.download_root.clone(),
+        storage_mode: storage_mode_label(effective.storage.storage_mode).to_string(),
+        use_partfile: effective.storage.use_partfile,
         tracker: effective.tracker.clone(),
         enable_lsd: effective.network.enable_lsd,
         enable_upnp: effective.network.enable_upnp,
@@ -566,7 +583,7 @@ fn normalize_engine_profile_with_warnings(
         sanitize_listen_config(profile, &mut warnings);
     let limits = sanitize_limits(profile, &mut warnings);
     let alt_speed = sanitize_alt_speed(&profile.alt_speed, &mut warnings);
-    let storage = sanitize_storage_paths(profile, &mut warnings);
+    let storage = sanitize_storage(profile, &mut warnings);
     let tracker = sanitize_tracker(&profile.tracker, &mut warnings);
     let (dht_bootstrap_nodes, dht_router_nodes) = sanitize_dht_endpoints(profile, &mut warnings);
     let ip_filter = sanitize_ip_filter(&profile.ip_filter, &mut warnings);
@@ -844,10 +861,7 @@ fn sanitize_max_queued_disk_bytes(value: Option<i64>, warnings: &mut Vec<String>
     })
 }
 
-fn sanitize_storage_paths(
-    profile: &EngineProfile,
-    warnings: &mut Vec<String>,
-) -> EngineStorageConfig {
+fn sanitize_storage(profile: &EngineProfile, warnings: &mut Vec<String>) -> EngineStorageConfig {
     let download_root = sanitize_path(
         &profile.download_root,
         DEFAULT_DOWNLOAD_ROOT,
@@ -860,10 +874,41 @@ fn sanitize_storage_paths(
         "resume_dir",
         warnings,
     );
+    let storage_mode = sanitize_storage_mode(&profile.storage_mode, warnings);
+    let use_partfile = profile.use_partfile;
 
     EngineStorageConfig {
         download_root,
         resume_dir,
+        storage_mode,
+        use_partfile,
+    }
+}
+
+fn sanitize_storage_mode(value: &str, warnings: &mut Vec<String>) -> StorageMode {
+    let normalized = value.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "" => DEFAULT_STORAGE_MODE,
+        "sparse" => StorageMode::Sparse,
+        "allocate" => StorageMode::Allocate,
+        other => {
+            warnings.push(format!(
+                "storage_mode '{other}' is not supported; defaulting to sparse allocation"
+            ));
+            DEFAULT_STORAGE_MODE
+        }
+    }
+}
+
+fn validate_storage_mode(mode: &str) -> Result<(), ConfigError> {
+    let normalized = mode.trim().to_ascii_lowercase();
+    match normalized.as_str() {
+        "sparse" | "allocate" => Ok(()),
+        other => Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "storage_mode".to_string(),
+            message: format!("must be sparse or allocate (got {other})"),
+        }),
     }
 }
 
@@ -1160,6 +1205,15 @@ fn apply_behavior_field(
         "download_root" => Some(assign_if_changed(
             &mut working.download_root,
             required_string(value, "download_root")?,
+        )),
+        "storage_mode" => {
+            let mode = required_string(value, "storage_mode")?;
+            validate_storage_mode(&mode)?;
+            Some(assign_if_changed(&mut working.storage_mode, mode))
+        }
+        "use_partfile" => Some(assign_if_changed(
+            &mut working.use_partfile,
+            Toggle::from(required_bool(value, "use_partfile")?),
         )),
         _ => None,
     };
@@ -1576,6 +1630,14 @@ const fn ipv6_mode_label(mode: EngineIpv6Mode) -> &'static str {
         EngineIpv6Mode::PreferV6 => "prefer_v6",
     }
 }
+
+const fn storage_mode_label(mode: StorageMode) -> &'static str {
+    match mode {
+        StorageMode::Sparse => "sparse",
+        StorageMode::Allocate => "allocate",
+    }
+}
+
 fn sanitize_endpoints(values: &[String], field: &str, warnings: &mut Vec<String>) -> Vec<String> {
     let mut seen = HashSet::new();
     let mut endpoints = Vec::new();
@@ -2579,6 +2641,8 @@ mod tests {
             max_queued_disk_bytes: None,
             resume_dir: "/tmp/resume".into(),
             download_root: "/tmp/downloads".into(),
+            storage_mode: EngineProfile::default_storage_mode(),
+            use_partfile: EngineProfile::default_use_partfile(),
             tracker: json!({}),
             enable_lsd: false.into(),
             enable_upnp: false.into(),

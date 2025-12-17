@@ -7,7 +7,7 @@ use reqwest::Url;
 use uuid::Uuid;
 
 use crate::client::{AppContext, CliDependencies, CliResult, parse_api_key, parse_url};
-use crate::commands::torrents::FilePriorityOverrideArg;
+use crate::commands::torrents::{FilePriorityOverrideArg, StorageModeArg};
 use crate::commands::{config, setup, tail, torrents};
 
 /// Parses CLI arguments, executes the requested command, and handles
@@ -110,6 +110,7 @@ const fn command_label(command: &Command) -> &'static str {
             ActionType::Recheck => "action_recheck",
             ActionType::Sequential => "action_sequential",
             ActionType::Rate => "action_rate",
+            ActionType::Move => "action_move",
         },
         Command::Tail(_) => "tail",
     }
@@ -267,6 +268,12 @@ pub(crate) struct TorrentAddArgs {
     pub name: Option<String>,
     #[arg(long, help = "Optional torrent ID override")]
     pub id: Option<Uuid>,
+    #[arg(
+        long,
+        value_enum,
+        help = "Storage allocation mode (sparse or allocate)"
+    )]
+    pub storage_mode: Option<StorageModeArg>,
 }
 
 #[derive(Args)]
@@ -311,6 +318,7 @@ pub(crate) enum ActionType {
     Recheck,
     Sequential,
     Rate,
+    Move,
 }
 
 #[derive(Args)]
@@ -327,6 +335,8 @@ pub(crate) struct TorrentActionArgs {
     pub download: Option<u64>,
     #[arg(long, help = "Per-torrent upload cap (bps) when action=rate")]
     pub upload: Option<u64>,
+    #[arg(long, help = "Target download directory when action=move")]
+    pub download_dir: Option<String>,
 }
 
 #[derive(Args, Default, Clone)]
@@ -399,6 +409,7 @@ mod tests {
                 source: "magnet:?xt=urn:btih:demo".to_string(),
                 name: None,
                 id: None,
+                storage_mode: None,
             }))),
             "torrent_add"
         );
@@ -410,6 +421,7 @@ mod tests {
                 delete_data: false,
                 download: None,
                 upload: None,
+                download_dir: None,
             })),
             "action_pause"
         );

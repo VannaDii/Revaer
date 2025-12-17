@@ -4,7 +4,7 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use revaer_events::TorrentState;
 use revaer_torrent_core::{
-    AddTorrent, EngineEvent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit,
+    AddTorrent, EngineEvent, FileSelectionUpdate, RemoveTorrent, StorageMode, TorrentRateLimit,
 };
 use serde_json::json;
 use uuid::Uuid;
@@ -28,6 +28,8 @@ struct StubTorrent {
     sequential: bool,
     state: TorrentState,
     download_dir: Option<String>,
+    storage_mode: Option<StorageMode>,
+    use_partfile: Option<bool>,
     connections_limit: Option<i32>,
     seed_mode: Option<bool>,
     hash_check_sample_pct: Option<u8>,
@@ -61,6 +63,8 @@ impl StubTorrent {
             sequential: request.options.sequential.unwrap_or(false),
             state: initial_state,
             download_dir: request.options.download_dir.clone(),
+            storage_mode: request.options.storage_mode,
+            use_partfile: None,
             connections_limit: request.options.connections_limit,
             seed_mode: request.options.seed_mode,
             hash_check_sample_pct: request.options.hash_check_sample_pct,
@@ -116,6 +120,11 @@ impl StubSession {
                 "hash_check_sample_pct": torrent.hash_check_sample_pct,
                 "connections_limit": torrent.connections_limit,
                 "download_dir": torrent.download_dir,
+                "storage_mode": torrent
+                    .storage_mode
+                    .as_ref()
+                    .map(|mode| format!("{mode:?}")),
+                "use_partfile": torrent.use_partfile,
                 "seed_ratio_limit": torrent.seed_ratio_limit,
                 "seed_time_limit": torrent.seed_time_limit,
                 "auto_managed": torrent.auto_managed,
@@ -322,6 +331,18 @@ impl LibTorrentSession for StubSession {
         } else {
             Err(anyhow!("unknown torrent {id} for reannounce"))
         }
+    }
+
+    async fn move_torrent(&mut self, id: Uuid, download_dir: &str) -> Result<()> {
+        let torrent = self.torrent_mut(id)?;
+        torrent.download_dir = Some(download_dir.to_string());
+        self.pending_events.push(EngineEvent::MetadataUpdated {
+            torrent_id: id,
+            name: None,
+            download_dir: Some(download_dir.to_string()),
+        });
+        self.refresh_resume(id);
+        Ok(())
     }
 
     async fn recheck(&mut self, id: Uuid) -> Result<()> {

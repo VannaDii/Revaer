@@ -175,6 +175,8 @@ fn build_storage_options(
     ffi::EngineStorageOptions {
         download_root: config.download_root.clone(),
         resume_dir: config.resume_dir.clone(),
+        storage_mode: config.storage_mode.as_i32(),
+        use_partfile: config.use_partfile,
     }
 }
 
@@ -354,7 +356,7 @@ mod tests {
     use crate::types::{
         ChokingAlgorithm, EncryptionPolicy, EngineRuntimeConfig,
         IpFilterRule as RuntimeIpFilterRule, IpFilterRuntimeConfig, Ipv6Mode, SeedChokingAlgorithm,
-        TrackerProxyRuntime, TrackerProxyType, TrackerRuntimeConfig,
+        StorageMode, TrackerProxyRuntime, TrackerProxyType, TrackerRuntimeConfig,
     };
 
     #[test]
@@ -362,6 +364,8 @@ mod tests {
         let config = EngineRuntimeConfig {
             download_root: "   ".into(),
             resume_dir: String::new(),
+            storage_mode: StorageMode::Sparse,
+            use_partfile: true,
             listen_interfaces: Vec::new(),
             ipv6_mode: Ipv6Mode::Disabled,
             enable_dht: true,
@@ -430,6 +434,8 @@ mod tests {
         let config = EngineRuntimeConfig {
             download_root: "/data".into(),
             resume_dir: "/state".into(),
+            storage_mode: StorageMode::Sparse,
+            use_partfile: true,
             listen_interfaces: Vec::new(),
             ipv6_mode: Ipv6Mode::Disabled,
             enable_dht: false,
@@ -524,6 +530,8 @@ mod tests {
         let config = EngineRuntimeConfig {
             download_root: "/data".into(),
             resume_dir: "/state".into(),
+            storage_mode: StorageMode::Sparse,
+            use_partfile: true,
             listen_interfaces: Vec::new(),
             ipv6_mode: Ipv6Mode::Disabled,
             enable_dht: false,
@@ -589,6 +597,8 @@ mod tests {
         let config = EngineRuntimeConfig {
             download_root: "/data".into(),
             resume_dir: "/state".into(),
+            storage_mode: StorageMode::Sparse,
+            use_partfile: true,
             listen_interfaces: Vec::new(),
             ipv6_mode: Ipv6Mode::Disabled,
             enable_dht: false,
@@ -648,6 +658,8 @@ mod tests {
         let config = EngineRuntimeConfig {
             download_root: "/data".into(),
             resume_dir: "/state".into(),
+            storage_mode: StorageMode::Sparse,
+            use_partfile: true,
             listen_interfaces: vec!["eth0:7000".into(), "[::]:7000".into()],
             ipv6_mode: Ipv6Mode::Enabled,
             enable_dht: false,
@@ -703,6 +715,8 @@ mod tests {
         EngineRuntimeConfig {
             download_root: "/data".into(),
             resume_dir: "/state".into(),
+            storage_mode: StorageMode::Sparse,
+            use_partfile: true,
             listen_interfaces: Vec::new(),
             ipv6_mode: Ipv6Mode::Disabled,
             enable_dht: false,
@@ -821,6 +835,8 @@ mod tests {
         let config = EngineRuntimeConfig {
             download_root: "/data".into(),
             resume_dir: "/state".into(),
+            storage_mode: StorageMode::Sparse,
+            use_partfile: true,
             listen_interfaces: Vec::new(),
             ipv6_mode: Ipv6Mode::Disabled,
             enable_dht: false,

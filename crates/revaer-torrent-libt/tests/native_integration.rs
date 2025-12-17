@@ -7,6 +7,7 @@ use revaer_test_support::fixtures::docker_available;
 use revaer_torrent_core::{
     AddTorrent, AddTorrentOptions, TorrentEngine, TorrentRateLimit, TorrentSource,
 };
+use revaer_torrent_libt::types::StorageMode;
 use revaer_torrent_libt::{
     ChokingAlgorithm, EncryptionPolicy, EngineRuntimeConfig, Ipv6Mode, LibtorrentEngine,
     SeedChokingAlgorithm, TrackerRuntimeConfig,
@@ -36,6 +37,8 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
     let config = EngineRuntimeConfig {
         download_root: download.path().to_string_lossy().into_owned(),
         resume_dir: resume.path().to_string_lossy().into_owned(),
+        storage_mode: StorageMode::Sparse,
+        use_partfile: true,
         listen_interfaces: Vec::new(),
         ipv6_mode: Ipv6Mode::Disabled,
         enable_dht: true,

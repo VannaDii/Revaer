@@ -5,7 +5,9 @@
 //! - Carries the effective profile (including warnings) for observability and API responses.
 //! - Keeps encryption mapping centralised to avoid drift between API/config/runtime layers.
 
-use revaer_config::engine_profile::{AltSpeedConfig, ChokingAlgorithm, SeedChokingAlgorithm};
+use revaer_config::engine_profile::{
+    AltSpeedConfig, ChokingAlgorithm, SeedChokingAlgorithm, StorageMode as ConfigStorageMode,
+};
 use revaer_config::{
     EngineEncryptionPolicy, EngineIpv6Mode, EngineNetworkConfig, EngineProfile,
     EngineProfileEffective, IpFilterConfig, IpFilterRule, TrackerAuthConfig, TrackerConfig,
@@ -20,7 +22,7 @@ use revaer_torrent_libt::{
         AltSpeedRuntimeConfig as RuntimeAltSpeedConfig,
         AltSpeedSchedule as RuntimeAltSpeedSchedule, ChokingAlgorithm as RuntimeChokingAlgorithm,
         OutgoingPortRange as RuntimeOutgoingPortRange,
-        SeedChokingAlgorithm as RuntimeSeedChokingAlgorithm,
+        SeedChokingAlgorithm as RuntimeSeedChokingAlgorithm, StorageMode as RuntimeStorageMode,
     },
 };
 
@@ -57,6 +59,8 @@ impl EngineRuntimePlan {
         let runtime = EngineRuntimeConfig {
             download_root: effective.storage.download_root.clone(),
             resume_dir: effective.storage.resume_dir.clone(),
+            storage_mode: map_storage_mode(effective.storage.storage_mode),
+            use_partfile: bool::from(effective.storage.use_partfile),
             enable_dht: effective.network.enable_dht,
             dht_bootstrap_nodes: effective.network.dht_bootstrap_nodes.clone(),
             dht_router_nodes: effective.network.dht_router_nodes.clone(),
@@ -149,6 +153,13 @@ const fn map_seed_choking_algorithm(
         SeedChokingAlgorithm::RoundRobin => RuntimeSeedChokingAlgorithm::RoundRobin,
         SeedChokingAlgorithm::FastestUpload => RuntimeSeedChokingAlgorithm::FastestUpload,
         SeedChokingAlgorithm::AntiLeech => RuntimeSeedChokingAlgorithm::AntiLeech,
+    }
+}
+
+const fn map_storage_mode(mode: ConfigStorageMode) -> RuntimeStorageMode {
+    match mode {
+        ConfigStorageMode::Sparse => RuntimeStorageMode::Sparse,
+        ConfigStorageMode::Allocate => RuntimeStorageMode::Allocate,
     }
 }
 
@@ -314,6 +325,8 @@ mod tests {
             max_queued_disk_bytes: None,
             resume_dir: String::new(),
             download_root: "   ".into(),
+            storage_mode: EngineProfile::default_storage_mode(),
+            use_partfile: EngineProfile::default_use_partfile(),
             tracker: json!("not-an-object"),
             enable_lsd: false.into(),
             enable_upnp: false.into(),
@@ -395,6 +408,8 @@ mod tests {
             max_queued_disk_bytes: None,
             resume_dir: "/var/resume".into(),
             download_root: "/data".into(),
+            storage_mode: EngineProfile::default_storage_mode(),
+            use_partfile: EngineProfile::default_use_partfile(),
             tracker: json!({}),
             enable_lsd: true.into(),
             enable_upnp: true.into(),
@@ -473,6 +488,8 @@ mod tests {
             max_queued_disk_bytes: None,
             resume_dir: "/var/resume".into(),
             download_root: "/data".into(),
+            storage_mode: EngineProfile::default_storage_mode(),
+            use_partfile: EngineProfile::default_use_partfile(),
             tracker: json!({}),
             enable_lsd: false.into(),
             enable_upnp: false.into(),
@@ -546,6 +563,8 @@ mod tests {
             max_queued_disk_bytes: None,
             resume_dir: "/var/resume".into(),
             download_root: "/data".into(),
+            storage_mode: EngineProfile::default_storage_mode(),
+            use_partfile: EngineProfile::default_use_partfile(),
             tracker: json!({
                 "proxy": {
                     "host": "proxy.example",
@@ -616,6 +635,8 @@ mod tests {
             max_queued_disk_bytes: None,
             resume_dir: "/var/resume".into(),
             download_root: "/data".into(),
+            storage_mode: EngineProfile::default_storage_mode(),
+            use_partfile: EngineProfile::default_use_partfile(),
             tracker: json!({}),
             enable_lsd: false.into(),
             enable_upnp: false.into(),

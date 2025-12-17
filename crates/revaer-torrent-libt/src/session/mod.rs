@@ -107,6 +107,12 @@ pub trait LibTorrentSession: Send {
     ///
     /// Returns an error if the request cannot be queued.
     async fn reannounce(&mut self, id: Uuid) -> Result<()>;
+    /// Move torrent storage to a new download directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the move cannot be scheduled.
+    async fn move_torrent(&mut self, id: Uuid, download_dir: &str) -> Result<()>;
     /// Verify on-disk data for a torrent.
     ///
     /// # Errors

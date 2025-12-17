@@ -599,6 +599,7 @@ const fn event_torrent_id(event: &Event) -> Option<Uuid> {
         | Event::Progress { torrent_id, .. }
         | Event::StateChanged { torrent_id, .. }
         | Event::Completed { torrent_id, .. }
+        | Event::MetadataUpdated { torrent_id, .. }
         | Event::TorrentRemoved { torrent_id }
         | Event::FsopsStarted { torrent_id }
         | Event::FsopsProgress { torrent_id, .. }
@@ -710,6 +711,10 @@ where
 
     async fn reannounce(&self, id: Uuid) -> anyhow::Result<()> {
         self.engine.reannounce(id).await
+    }
+
+    async fn move_torrent(&self, id: Uuid, download_dir: String) -> anyhow::Result<()> {
+        self.engine.move_torrent(id, download_dir).await
     }
 
     async fn recheck(&self, id: Uuid) -> anyhow::Result<()> {
@@ -832,6 +837,18 @@ impl TorrentCatalog {
             } => {
                 Self::record_completion(entries, *torrent_id, library_path);
             }
+            Event::MetadataUpdated {
+                torrent_id,
+                name,
+                download_dir,
+            } => {
+                Self::record_metadata(
+                    entries,
+                    *torrent_id,
+                    name.as_deref(),
+                    download_dir.as_deref(),
+                );
+            }
             Event::TorrentRemoved { torrent_id } => {
                 entries.remove(torrent_id);
             }
@@ -866,6 +883,22 @@ impl TorrentCatalog {
         entry.rates = TorrentRates::default();
         entry.added_at = now;
         entry.last_updated = now;
+    }
+
+    fn record_metadata(
+        entries: &mut HashMap<Uuid, TorrentStatus>,
+        torrent_id: Uuid,
+        name: Option<&str>,
+        download_dir: Option<&str>,
+    ) {
+        let entry = Self::ensure_entry(entries, torrent_id);
+        if let Some(name) = name {
+            entry.name = Some(name.to_owned());
+        }
+        if let Some(download_dir) = download_dir {
+            entry.download_dir = Some(download_dir.to_owned());
+        }
+        entry.last_updated = Utc::now();
     }
 
     fn record_files_discovered(
@@ -1066,6 +1099,8 @@ mod orchestrator_tests {
             max_queued_disk_bytes: None,
             resume_dir: "/tmp/resume".to_string(),
             download_root: "/downloads".to_string(),
+            storage_mode: EngineProfile::default_storage_mode(),
+            use_partfile: EngineProfile::default_use_partfile(),
             tracker: json!([]),
             enable_lsd: false.into(),
             enable_upnp: false.into(),
@@ -1339,6 +1374,8 @@ mod engine_refresh_tests {
             max_queued_disk_bytes: None,
             resume_dir: "/tmp/resume".to_string(),
             download_root: "/downloads".to_string(),
+            storage_mode: EngineProfile::default_storage_mode(),
+            use_partfile: EngineProfile::default_use_partfile(),
             tracker: json!([]),
             enable_lsd: false.into(),
             enable_upnp: false.into(),
@@ -1596,6 +1633,14 @@ mod engine_refresh_tests {
             event_torrent_id(&Event::SelectionReconciled {
                 torrent_id: id,
                 reason: "policy".into()
+            }),
+            Some(id)
+        );
+        assert_eq!(
+            event_torrent_id(&Event::MetadataUpdated {
+                torrent_id: id,
+                name: None,
+                download_dir: Some("/downloads/demo".into())
             }),
             Some(id)
         );

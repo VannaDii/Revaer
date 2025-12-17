@@ -130,6 +130,10 @@ pub mod ffi {
         download_root: String,
         /// Directory for resume data.
         resume_dir: String,
+        /// Storage allocation mode (sparse/allocate).
+        storage_mode: i32,
+        /// Whether partfiles should be used.
+        use_partfile: bool,
     }
 
     /// Behavioural defaults applied to new torrents.
@@ -252,6 +256,10 @@ pub mod ffi {
         download_dir: String,
         /// Flag indicating whether a download dir override was provided.
         has_download_dir: bool,
+        /// Requested storage allocation mode.
+        storage_mode: i32,
+        /// Flag indicating whether storage mode override was provided.
+        has_storage_mode: bool,
         /// Sequential preference override.
         sequential: bool,
         /// Flag indicating whether sequential override was provided.
@@ -313,6 +321,15 @@ pub mod ffi {
         download_bps: i64,
         /// Upload cap in bytes per second.
         upload_bps: i64,
+    }
+
+    /// Request to move torrent storage to a new path.
+    #[derive(Debug)]
+    struct MoveTorrentRequest {
+        /// Torrent identifier.
+        id: String,
+        /// Destination download directory.
+        download_dir: String,
     }
 
     /// Per-torrent option updates applied after admission.
@@ -539,6 +556,9 @@ pub mod ffi {
         /// Update web seeds for a torrent.
         #[must_use]
         fn update_web_seeds(self: Pin<&mut Session>, request: &UpdateWebSeedsRequest) -> String;
+        /// Move torrent storage to a new download directory.
+        #[must_use]
+        fn move_torrent(self: Pin<&mut Session>, request: &MoveTorrentRequest) -> String;
         /// Trigger tracker reannounce.
         #[must_use]
         fn reannounce(self: Pin<&mut Session>, id: &str) -> String;

@@ -338,6 +338,10 @@ pub struct EngineProfileRow {
     pub resume_dir: String,
     /// Download root directory.
     pub download_root: String,
+    /// Storage allocation mode.
+    pub storage_mode: String,
+    /// Whether partfiles should be used.
+    pub use_partfile: bool,
     /// Tracker configuration payload.
     pub tracker: Value,
     /// NAT traversal and PEX toggles.
@@ -421,6 +425,8 @@ impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
             max_queued_disk_bytes: row.try_get("max_queued_disk_bytes")?,
             resume_dir: row.try_get("resume_dir")?,
             download_root: row.try_get("download_root")?,
+            storage_mode: row.try_get("storage_mode")?,
+            use_partfile: row.try_get("use_partfile")?,
             tracker: row.try_get("tracker")?,
             nat: NatToggleSet::from_flags([enable_lsd, enable_upnp, enable_natpmp, enable_pex]),
             dht_bootstrap_nodes: parse_string_array(
@@ -1315,6 +1321,10 @@ pub struct EngineProfileUpdate<'a> {
     pub resume_dir: &'a str,
     /// Root directory for active downloads.
     pub download_root: &'a str,
+    /// Storage allocation mode.
+    pub storage_mode: &'a str,
+    /// Whether partfiles should be used.
+    pub use_partfile: bool,
     /// Tracker configuration payload.
     pub tracker: &'a Value,
     /// NAT traversal and PEX toggles.
@@ -1364,7 +1374,7 @@ where
     E: Executor<'e, Database = Postgres>,
 {
     sqlx::query(
-        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _seed_ratio_limit => $9, _seed_time_limit => $10, _sequential_default => $11, _auto_managed => $12, _auto_manage_prefer_seeds => $13, _dont_count_slow_torrents => $14, _super_seeding => $15, _choking_algorithm => $16, _seed_choking_algorithm => $17, _strict_super_seeding => $18, _optimistic_unchoke_slots => $19, _max_queued_disk_bytes => $20, _resume_dir => $21, _download_root => $22, _tracker => $23, _lsd => $24, _upnp => $25, _natpmp => $26, _pex => $27, _dht_bootstrap_nodes => $28, _dht_router_nodes => $29, _ip_filter => $30, _listen_interfaces => $31, _ipv6_mode => $32, _anonymous_mode => $33, _force_proxy => $34, _prefer_rc4 => $35, _allow_multiple_connections_per_ip => $36, _enable_outgoing_utp => $37, _enable_incoming_utp => $38, _outgoing_port_min => $39, _outgoing_port_max => $40, _peer_dscp => $41, _connections_limit => $42, _connections_limit_per_torrent => $43, _unchoke_slots => $44, _half_open_limit => $45, _alt_speed => $46, _stats_interval_ms => $47)",
+        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _seed_ratio_limit => $9, _seed_time_limit => $10, _sequential_default => $11, _auto_managed => $12, _auto_manage_prefer_seeds => $13, _dont_count_slow_torrents => $14, _super_seeding => $15, _choking_algorithm => $16, _seed_choking_algorithm => $17, _strict_super_seeding => $18, _optimistic_unchoke_slots => $19, _max_queued_disk_bytes => $20, _resume_dir => $21, _download_root => $22, _storage_mode => $23, _use_partfile => $24, _tracker => $25, _lsd => $26, _upnp => $27, _natpmp => $28, _pex => $29, _dht_bootstrap_nodes => $30, _dht_router_nodes => $31, _ip_filter => $32, _listen_interfaces => $33, _ipv6_mode => $34, _anonymous_mode => $35, _force_proxy => $36, _prefer_rc4 => $37, _allow_multiple_connections_per_ip => $38, _enable_outgoing_utp => $39, _enable_incoming_utp => $40, _outgoing_port_min => $41, _outgoing_port_max => $42, _peer_dscp => $43, _connections_limit => $44, _connections_limit_per_torrent => $45, _unchoke_slots => $46, _half_open_limit => $47, _alt_speed => $48, _stats_interval_ms => $49)",
         )
     .bind(profile.id)
     .bind(profile.implementation)
@@ -1388,6 +1398,8 @@ where
     .bind(profile.max_queued_disk_bytes)
     .bind(profile.resume_dir)
     .bind(profile.download_root)
+    .bind(profile.storage_mode)
+    .bind(profile.use_partfile)
     .bind(profile.tracker)
     .bind(profile.nat.lsd())
     .bind(profile.nat.upnp())

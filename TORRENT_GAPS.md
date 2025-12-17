@@ -195,20 +195,20 @@
     -   [x] Bridge/native: include web seeds on `AddTorrentRequest` and apply via `add_torrent_params::url_seeds`; allow add/remove web seeds post-add.
     -   [x] Tests: API parsing; native test that web seeds are attached and used without error.
 
--   [ ] Mid-download move/relocate supported
+-   [x] Mid-download move/relocate supported
 
-    -   [ ] API: add move/relocate endpoint and request payload (new path).
-    -   [ ] Worker: introduce `EngineCommand::Move` to invoke storage relocation; integrate with FsOps expectations.
-    -   [ ] Bridge/native: expose `move_storage` (or equivalent) in FFI and call `torrent_handle::move_storage` with proper flags.
-    -   [ ] Tests: worker/native tests that move completes and events reflect new path; FsOps compatibility.
+    -   [x] API: add move/relocate endpoint and request payload (new path).
+    -   [x] Worker: introduce `EngineCommand::Move` to invoke storage relocation; integrate with FsOps expectations.
+    -   [x] Bridge/native: expose `move_storage` (or equivalent) in FFI and call `torrent_handle::move_storage` with proper flags.
+    -   [x] Tests: worker/native tests that move completes and events reflect new path; FsOps compatibility.
 
--   [ ] Advanced storage options integrated with FsOps
+-   [x] Advanced storage options integrated with FsOps
 
-    -   [ ] Config/DB: add storage policy fields (e.g., sparse/allocation mode, partfile use, storage paths) to `EngineProfile`; validate choices.
-    -   [ ] Runtime/bridge: carry storage policy in `EngineRuntimeConfig`/`EngineOptions` and per-torrent overrides in `AddTorrentOptions`.
-    -   [ ] Native: apply storage options via `add_torrent_params` (e.g., `storage_mode_sparse`, partfile toggles) and coordinate storage location choices with FsOps expectations (paths, partfiles).
-    -   [ ] FsOps integration: ensure storage layout (partfiles/temp paths) is compatible with post-processing/moves; document expectations.
-    -   [ ] API/docs/tests: expose safe storage choices; tests to ensure storage options are honored and FsOps can operate on outputs.
+    -   [x] Config/DB: add storage policy fields (e.g., sparse/allocation mode, partfile use, storage paths) to `EngineProfile`; validate choices.
+    -   [x] Runtime/bridge: carry storage policy in `EngineRuntimeConfig`/`EngineOptions` and per-torrent overrides in `AddTorrentOptions`.
+    -   [x] Native: apply storage options via `add_torrent_params` (e.g., `storage_mode_sparse`, partfile toggles) and coordinate storage location choices with FsOps expectations (paths, partfiles).
+    -   [x] FsOps integration: ensure storage layout (partfiles/temp paths) is compatible with post-processing/moves; document expectations.
+    -   [x] API/docs/tests: expose safe storage choices; tests to ensure storage options are honored and FsOps can operate on outputs.
 
 -   [ ] Peer class/priority tagging supported
 

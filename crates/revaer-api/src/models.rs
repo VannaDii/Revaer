@@ -12,7 +12,7 @@ use uuid::Uuid;
 use revaer_events::TorrentState;
 use revaer_torrent_core::{
     AddTorrentOptions, FilePriority, FilePriorityOverride, FileSelectionRules, FileSelectionUpdate,
-    TorrentRateLimit, TorrentSource, TorrentStatus,
+    StorageMode, TorrentRateLimit, TorrentSource, TorrentStatus,
     model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
 };
 
@@ -222,6 +222,12 @@ pub struct TorrentSettingsView {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Download directory applied at admission time.
     pub download_dir: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Storage allocation mode applied to the torrent.
+    pub storage_mode: Option<StorageMode>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Whether partfiles are enabled for this torrent.
+    pub use_partfile: Option<bool>,
     /// Whether sequential mode is currently active.
     pub sequential: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -361,6 +367,8 @@ impl From<TorrentStatus> for TorrentDetail {
             rate_limit: None,
             connections_limit: None,
             download_dir: status.download_dir.clone(),
+            storage_mode: None,
+            use_partfile: None,
             sequential: status.sequential,
             selection: None,
             super_seeding: None,
@@ -408,6 +416,9 @@ pub struct TorrentCreateRequest {
     #[serde(default)]
     /// Optional download directory to stage content.
     pub download_dir: Option<String>,
+    #[serde(default)]
+    /// Optional storage allocation mode override.
+    pub storage_mode: Option<StorageMode>,
     #[serde(default)]
     /// Enables sequential download mode on creation when set.
     pub sequential: Option<bool>,
@@ -480,6 +491,7 @@ impl TorrentCreateRequest {
         AddTorrentOptions {
             name_hint: self.name.clone(),
             download_dir: self.download_dir.clone(),
+            storage_mode: self.storage_mode,
             sequential: self.sequential,
             start_paused: self.start_paused,
             seed_mode: self.seed_mode,
@@ -716,8 +728,8 @@ mod tests {
     use chrono::{TimeZone, Utc};
     use revaer_events::TorrentState;
     use revaer_torrent_core::{
-        FilePriority, FilePriorityOverride, TorrentFile, TorrentProgress, TorrentRates,
-        TorrentStatus,
+        FilePriority, FilePriorityOverride, StorageMode, TorrentFile, TorrentProgress,
+        TorrentRates, TorrentStatus,
     };
 
     #[test]
@@ -744,6 +756,7 @@ mod tests {
             pex_enabled: Some(false),
             web_seeds: vec!["http://seed.example/file".to_string()],
             replace_web_seeds: true,
+            storage_mode: Some(StorageMode::Allocate),
             ..TorrentCreateRequest::default()
         };
 
@@ -767,6 +780,7 @@ mod tests {
         assert_eq!(options.auto_managed, Some(false));
         assert_eq!(options.queue_position, Some(2));
         assert_eq!(options.pex_enabled, Some(false));
+        assert_eq!(options.storage_mode, Some(StorageMode::Allocate));
         assert_eq!(
             options.web_seeds,
             vec!["http://seed.example/file".to_string()]
@@ -989,6 +1003,11 @@ pub enum TorrentAction {
         #[serde(default)]
         /// Upload cap in bytes per second.
         upload_bps: Option<u64>,
+    },
+    /// Relocate torrent storage to a new download directory.
+    Move {
+        /// Destination path for in-progress data.
+        download_dir: String,
     },
 }
 

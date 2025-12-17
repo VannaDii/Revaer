@@ -75,6 +75,13 @@ pub enum EngineCommand {
         /// Unique torrent identifier.
         id: Uuid,
     },
+    /// Move torrent storage to a new directory.
+    MoveStorage {
+        /// Unique torrent identifier.
+        id: Uuid,
+        /// Destination download directory.
+        download_dir: String,
+    },
     /// Recheck torrent data integrity.
     Recheck {
         /// Unique torrent identifier.

@@ -6,12 +6,13 @@ use crate::{
     store::{FastResumeStore, StoredTorrentMetadata},
     types::{AltSpeedRuntimeConfig, AltSpeedSchedule, EngineRuntimeConfig},
 };
-use anyhow::Result;
+use anyhow::{Result, bail};
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use revaer_events::{DiscoveredFile, Event, EventBus, TorrentState};
 use revaer_torrent_core::{
     AddTorrent, EngineEvent, FilePriorityOverride, FileSelectionRules, FileSelectionUpdate,
-    RemoveTorrent, TorrentFile, TorrentProgress, TorrentRateLimit, TorrentRates, TorrentSource,
+    RemoveTorrent, StorageMode, TorrentFile, TorrentProgress, TorrentRateLimit, TorrentRates,
+    TorrentSource,
     model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate, TrackerStatus},
 };
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -84,11 +85,19 @@ struct Worker {
     progress_last_emit: HashMap<Uuid, Instant>,
     base_limits: TorrentRateLimit,
     global_limits: TorrentRateLimit,
+    storage_mode: StorageMode,
+    use_partfile: bool,
     per_torrent_limits: HashMap<Uuid, TorrentRateLimit>,
     seed_ratio_default: Option<f64>,
     seed_time_limit_default: Option<Duration>,
     seeding_goals: HashMap<Uuid, SeedingGoal>,
     alt_speed: Option<AltSpeedPlan>,
+}
+
+#[derive(Clone)]
+struct MetadataReplaceFlags {
+    replace_trackers: bool,
+    replace_web_seeds: bool,
 }
 
 #[derive(Clone)]
@@ -101,9 +110,8 @@ struct AddMetadata {
     hash_check_sample_pct: Option<u8>,
     super_seeding: Option<bool>,
     trackers: Vec<String>,
-    replace_trackers: bool,
     web_seeds: Vec<String>,
-    replace_web_seeds: bool,
+    replace: MetadataReplaceFlags,
     tags: Vec<String>,
     connections_limit: Option<i32>,
     rate_limit: Option<TorrentRateLimit>,
@@ -112,6 +120,8 @@ struct AddMetadata {
     auto_managed: Option<bool>,
     queue_position: Option<i32>,
     pex_enabled: Option<bool>,
+    storage_mode: StorageMode,
+    use_partfile: bool,
 }
 
 #[derive(Clone)]
@@ -184,6 +194,8 @@ impl Worker {
             progress_last_emit: HashMap::new(),
             base_limits: TorrentRateLimit::default(),
             global_limits: TorrentRateLimit::default(),
+            storage_mode: StorageMode::Sparse,
+            use_partfile: true,
             per_torrent_limits: HashMap::new(),
             seed_ratio_default: None,
             seed_time_limit_default: None,
@@ -232,6 +244,9 @@ impl Worker {
             }
             EngineCommand::Reannounce { id } => {
                 self.handle_reannounce(id).await?;
+            }
+            EngineCommand::MoveStorage { id, download_dir } => {
+                self.handle_move(id, download_dir).await?;
             }
             EngineCommand::Recheck { id } => {
                 self.handle_recheck(id).await?;
@@ -293,21 +308,26 @@ impl Worker {
             .seed_time_limit
             .map(Duration::from_secs)
             .or(self.seed_time_limit_default);
+        let storage_mode = request.options.storage_mode.unwrap_or(self.storage_mode);
 
         self.persist_add_metadata(
             request.id,
             AddMetadata {
                 selection: effective_selection,
                 download_dir: effective_download_dir,
+                storage_mode,
+                use_partfile: self.use_partfile,
                 priorities: effective_priorities,
                 sequential: effective_sequential,
                 seed_mode: request.options.seed_mode,
                 hash_check_sample_pct: request.options.hash_check_sample_pct,
                 super_seeding: request.options.super_seeding,
                 trackers: request.options.trackers.clone(),
-                replace_trackers: request.options.replace_trackers,
                 web_seeds: request.options.web_seeds.clone(),
-                replace_web_seeds: request.options.replace_web_seeds,
+                replace: MetadataReplaceFlags {
+                    replace_trackers: request.options.replace_trackers,
+                    replace_web_seeds: request.options.replace_web_seeds,
+                },
                 tags: request.options.tags.clone(),
                 connections_limit: request.options.connections_limit,
                 rate_limit: rate_limit_for_metadata(&request.options.rate_limit),
@@ -368,6 +388,15 @@ impl Worker {
             }
             if request.options.pex_enabled.is_none() {
                 request.options.pex_enabled = stored.pex_enabled;
+            }
+            if request.options.storage_mode.is_none() {
+                request.options.storage_mode = stored.storage_mode;
+            }
+            if request.options.download_dir.is_none() && stored.download_dir.is_some() {
+                request
+                    .options
+                    .download_dir
+                    .clone_from(&stored.download_dir);
             }
         }
     }
@@ -481,15 +510,16 @@ impl Worker {
         let AddMetadata {
             selection,
             download_dir,
+            storage_mode,
+            use_partfile,
             priorities,
             sequential,
             seed_mode,
             hash_check_sample_pct,
             super_seeding,
             trackers,
-            replace_trackers,
             web_seeds,
-            replace_web_seeds,
+            replace,
             tags,
             connections_limit,
             rate_limit,
@@ -502,12 +532,14 @@ impl Worker {
         self.update_metadata(torrent_id, move |meta| {
             meta.selection.clone_from(&selection);
             meta.download_dir.clone_from(&download_dir);
+            meta.storage_mode = Some(storage_mode);
+            meta.use_partfile = Some(use_partfile);
             meta.sequential = sequential;
             meta.priorities.clone_from(&priorities);
             meta.trackers.clone_from(&trackers);
-            meta.replace_trackers = replace_trackers;
+            meta.replace_trackers = replace.replace_trackers;
             meta.web_seeds.clone_from(&web_seeds);
-            meta.replace_web_seeds = replace_web_seeds;
+            meta.replace_web_seeds = replace.replace_web_seeds;
             meta.tags.clone_from(&tags);
             meta.connections_limit = connections_limit;
             meta.rate_limit = rate_limit;
@@ -755,6 +787,16 @@ impl Worker {
         Ok(())
     }
 
+    async fn handle_move(&mut self, id: Uuid, download_dir: String) -> Result<()> {
+        let target = download_dir.trim();
+        if target.is_empty() {
+            bail!("download directory is required for move");
+        }
+        self.session.move_torrent(id, target).await?;
+        info!(torrent_id = %id, download_dir = %target, "move requested");
+        Ok(())
+    }
+
     async fn handle_recheck(&mut self, id: Uuid) -> Result<()> {
         self.session.recheck(id).await?;
         info!(torrent_id = %id, "recheck requested");
@@ -768,6 +810,8 @@ impl Worker {
             upload_bps: map_limit(config.upload_rate_limit),
         };
         self.global_limits = self.base_limits.clone();
+        self.storage_mode = config.storage_mode.into();
+        self.use_partfile = config.use_partfile;
         self.alt_speed = config.alt_speed.clone().and_then(alt_speed_plan);
         self.seed_ratio_default = config.seed_ratio_limit;
         self.seed_time_limit_default = config
@@ -870,10 +914,11 @@ impl Worker {
             }
             EngineEvent::MetadataUpdated {
                 torrent_id,
+                name,
                 download_dir,
                 ..
             } => {
-                self.handle_metadata_updated(torrent_id, download_dir);
+                self.handle_metadata_updated(torrent_id, name, download_dir);
             }
             EngineEvent::ResumeData {
                 torrent_id,
@@ -968,11 +1013,23 @@ impl Worker {
         self.mark_recovered("session");
     }
 
-    fn handle_metadata_updated(&mut self, torrent_id: Uuid, mut download_dir: Option<String>) {
+    fn handle_metadata_updated(
+        &mut self,
+        torrent_id: Uuid,
+        name: Option<String>,
+        download_dir: Option<String>,
+    ) {
+        let download_dir_clone = download_dir.clone();
         self.update_metadata(torrent_id, move |meta| {
-            if let Some(dir) = download_dir.take() {
-                meta.download_dir = Some(dir);
+            meta.updated_at = Utc::now();
+            if let Some(dir) = download_dir_clone.as_deref() {
+                meta.download_dir = Some(dir.to_string());
             }
+        });
+        let _ = self.events.publish(Event::MetadataUpdated {
+            torrent_id,
+            name,
+            download_dir,
         });
     }
 
@@ -1559,16 +1616,25 @@ mod tests {
             })
             .await?;
 
-        match next_event_with_timeout(&mut stream, 50).await {
-            Some(Event::StateChanged {
-                torrent_id: event_id,
-                state,
-            }) => {
-                assert_eq!(event_id, torrent_id);
-                assert!(matches!(state, TorrentState::Stopped));
+        let mut paused_event = None;
+        for _ in 0..5 {
+            match next_event_with_timeout(&mut stream, 50).await {
+                Some(Event::StateChanged {
+                    torrent_id: event_id,
+                    state,
+                }) => {
+                    paused_event = Some((event_id, state));
+                    break;
+                }
+                Some(Event::MetadataUpdated { .. }) => {}
+                other => panic!("expected paused state change, got {other:?}"),
             }
-            other => panic!("expected paused state change, got {other:?}"),
         }
+        let Some((event_id, state)) = paused_event else {
+            panic!("state change not observed after pause");
+        };
+        assert_eq!(event_id, torrent_id);
+        assert!(matches!(state, TorrentState::Stopped));
 
         worker
             .handle(EngineCommand::UpdateOptions {
@@ -1580,16 +1646,25 @@ mod tests {
             })
             .await?;
 
-        match next_event_with_timeout(&mut stream, 50).await {
-            Some(Event::StateChanged {
-                torrent_id: event_id,
-                state,
-            }) => {
-                assert_eq!(event_id, torrent_id);
-                assert!(matches!(state, TorrentState::Downloading));
+        let mut resumed_event = None;
+        for _ in 0..5 {
+            match next_event_with_timeout(&mut stream, 50).await {
+                Some(Event::StateChanged {
+                    torrent_id: event_id,
+                    state,
+                }) => {
+                    resumed_event = Some((event_id, state));
+                    break;
+                }
+                Some(Event::MetadataUpdated { .. }) => {}
+                other => panic!("expected resumed state change, got {other:?}"),
             }
-            other => panic!("expected resumed state change, got {other:?}"),
         }
+        let Some((event_id, state)) = resumed_event else {
+            panic!("state change not observed after resume");
+        };
+        assert_eq!(event_id, torrent_id);
+        assert!(matches!(state, TorrentState::Downloading));
 
         Ok(())
     }
@@ -1647,6 +1722,60 @@ mod tests {
             vec!["http://seed.example/file".to_string()]
         );
         assert!(!metadata.replace_web_seeds);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn move_command_updates_metadata_and_emits_event() -> Result<()> {
+        let bus = EventBus::with_capacity(16);
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
+        let mut worker = Worker::new(bus.clone(), session, None);
+        let mut stream = bus.subscribe(None);
+
+        let descriptor = AddTorrent {
+            id: Uuid::new_v4(),
+            source: TorrentSource::magnet("magnet:?xt=urn:btih:move"),
+            options: AddTorrentOptions {
+                download_dir: Some("/downloads/original".into()),
+                ..AddTorrentOptions::default()
+            },
+        };
+
+        worker
+            .handle(EngineCommand::Add(Box::new(descriptor.clone())))
+            .await?;
+        while next_event_with_timeout(&mut stream, 10).await.is_some() {}
+
+        worker
+            .handle(EngineCommand::MoveStorage {
+                id: descriptor.id,
+                download_dir: "/downloads/relocated".into(),
+            })
+            .await?;
+
+        let mut metadata_event_seen = false;
+        for _ in 0..3 {
+            if let Some(Event::MetadataUpdated {
+                torrent_id,
+                download_dir,
+                ..
+            }) = next_event_with_timeout(&mut stream, 50).await
+            {
+                assert_eq!(torrent_id, descriptor.id);
+                assert_eq!(download_dir.as_deref(), Some("/downloads/relocated"));
+                metadata_event_seen = true;
+                break;
+            }
+        }
+
+        assert!(metadata_event_seen, "metadata update should be emitted");
+
+        let cached_dir = worker
+            .resume_cache
+            .get(&descriptor.id)
+            .and_then(|meta| meta.download_dir.clone());
+        assert_eq!(cached_dir.as_deref(), Some("/downloads/relocated"));
+
         Ok(())
     }
 
@@ -1725,13 +1854,22 @@ mod tests {
             })
             .await?;
 
-        match next_event_with_timeout(&mut stream, 50).await {
-            Some(Event::StateChanged { torrent_id, state }) => {
-                assert_eq!(torrent_id, descriptor.id);
-                assert!(matches!(state, TorrentState::Stopped));
+        let mut observed = None;
+        for _ in 0..5 {
+            match next_event_with_timeout(&mut stream, 50).await {
+                Some(Event::StateChanged { torrent_id, state }) => {
+                    observed = Some((torrent_id, state));
+                    break;
+                }
+                Some(Event::MetadataUpdated { .. }) => {}
+                other => panic!("expected stopped state change, got {other:?}"),
             }
-            other => panic!("expected stopped state change, got {other:?}"),
         }
+        let Some((torrent_id, state)) = observed else {
+            panic!("state change not observed after remove");
+        };
+        assert_eq!(torrent_id, descriptor.id);
+        assert!(matches!(state, TorrentState::Stopped));
 
         Ok(())
     }
@@ -1758,24 +1896,42 @@ mod tests {
         worker
             .handle(EngineCommand::Pause { id: descriptor.id })
             .await?;
-        match next_event_with_timeout(&mut stream, 50).await {
-            Some(Event::StateChanged { torrent_id, state }) => {
-                assert_eq!(torrent_id, descriptor.id);
-                assert!(matches!(state, TorrentState::Stopped));
+        let mut paused_event = None;
+        for _ in 0..5 {
+            match next_event_with_timeout(&mut stream, 50).await {
+                Some(Event::StateChanged { torrent_id, state }) => {
+                    paused_event = Some((torrent_id, state));
+                    break;
+                }
+                Some(Event::MetadataUpdated { .. }) => {}
+                other => panic!("expected stopped state, got {other:?}"),
             }
-            other => panic!("expected stopped state, got {other:?}"),
         }
+        let Some((torrent_id, state)) = paused_event else {
+            panic!("state change not observed after pause");
+        };
+        assert_eq!(torrent_id, descriptor.id);
+        assert!(matches!(state, TorrentState::Stopped));
 
         worker
             .handle(EngineCommand::Resume { id: descriptor.id })
             .await?;
-        match next_event_with_timeout(&mut stream, 50).await {
-            Some(Event::StateChanged { torrent_id, state }) => {
-                assert_eq!(torrent_id, descriptor.id);
-                assert!(matches!(state, TorrentState::Downloading));
+        let mut resumed_event = None;
+        for _ in 0..5 {
+            match next_event_with_timeout(&mut stream, 50).await {
+                Some(Event::StateChanged { torrent_id, state }) => {
+                    resumed_event = Some((torrent_id, state));
+                    break;
+                }
+                Some(Event::MetadataUpdated { .. }) => {}
+                other => panic!("expected downloading state, got {other:?}"),
             }
-            other => panic!("expected downloading state, got {other:?}"),
         }
+        let Some((torrent_id, state)) = resumed_event else {
+            panic!("state change not observed after resume");
+        };
+        assert_eq!(torrent_id, descriptor.id);
+        assert!(matches!(state, TorrentState::Downloading));
 
         Ok(())
     }
@@ -1798,6 +1954,8 @@ mod tests {
                 priority: FilePriority::High,
             }],
             download_dir: Some("/persisted/downloads".into()),
+            storage_mode: Some(StorageMode::Sparse),
+            use_partfile: Some(true),
             sequential: true,
             trackers: vec!["https://tracker.example/announce".into()],
             replace_trackers: true,
@@ -1838,15 +1996,19 @@ mod tests {
             .handle(EngineCommand::Add(Box::new(descriptor.clone())))
             .await?;
 
-        // Drain torrent added and initial state change events.
-        let _ = next_event_with_timeout(&mut stream, 50).await;
-        let _ = next_event_with_timeout(&mut stream, 50).await;
-        match next_event_with_timeout(&mut stream, 50).await {
-            Some(Event::SelectionReconciled { torrent_id, .. }) => {
-                assert_eq!(torrent_id, descriptor.id);
+        let mut reconciled = false;
+        for _ in 0..8 {
+            match next_event_with_timeout(&mut stream, 50).await {
+                Some(Event::SelectionReconciled { torrent_id, .. }) => {
+                    assert_eq!(torrent_id, descriptor.id);
+                    reconciled = true;
+                    break;
+                }
+                Some(_) => {}
+                None => break,
             }
-            other => panic!("expected selection reconciliation event, got {other:?}"),
         }
+        assert!(reconciled, "expected selection reconciliation event");
 
         // Apply a new selection update and toggle sequential mode.
         let update = FileSelectionUpdate {
@@ -2091,6 +2253,8 @@ mod tests {
         let config = EngineRuntimeConfig {
             download_root: "/data".into(),
             resume_dir: "/state".into(),
+            storage_mode: StorageMode::Sparse.into(),
+            use_partfile: true,
             listen_interfaces: Vec::new(),
             ipv6_mode: Ipv6Mode::Disabled,
             enable_dht: false,
@@ -2304,6 +2468,10 @@ mod tests {
         }
 
         async fn reannounce(&mut self, _id: Uuid) -> Result<()> {
+            Ok(())
+        }
+
+        async fn move_torrent(&mut self, _id: Uuid, _download_dir: &str) -> Result<()> {
             Ok(())
         }
 

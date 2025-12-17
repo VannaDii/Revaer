@@ -60,6 +60,7 @@ pub(crate) struct TorrentMetadata {
     pub(crate) selection: FileSelectionUpdate,
     pub(crate) super_seeding: Option<bool>,
     pub(crate) seed_mode: Option<bool>,
+    pub(crate) download_dir: Option<String>,
     pub(crate) seed_ratio_limit: Option<f64>,
     pub(crate) seed_time_limit: Option<u64>,
     pub(crate) auto_managed: Option<bool>,
@@ -78,6 +79,7 @@ impl TorrentMetadata {
         rate_limit: Option<TorrentRateLimit>,
         connections_limit: Option<i32>,
         selection: FileSelectionUpdate,
+        download_dir: Option<String>,
     ) -> Self {
         Self {
             tags,
@@ -89,6 +91,7 @@ impl TorrentMetadata {
             selection,
             super_seeding: None,
             seed_mode: None,
+            download_dir,
             seed_ratio_limit: None,
             seed_time_limit: None,
             auto_managed: None,
@@ -120,6 +123,7 @@ impl TorrentMetadata {
             rate_limit,
             connections_limit,
             selection,
+            request.download_dir.clone(),
         )
         .with_additional_flags(request)
     }
@@ -401,6 +405,7 @@ mod tests {
                 skip_fluff: true,
                 priorities: Vec::new(),
             },
+            status.download_dir.clone(),
         );
 
         let detail = detail_from_components(status, metadata);

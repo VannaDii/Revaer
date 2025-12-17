@@ -5,7 +5,9 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
-use revaer_torrent_core::{FilePriorityOverride, FileSelectionRules, TorrentRateLimit};
+use revaer_torrent_core::{
+    FilePriorityOverride, FileSelectionRules, StorageMode, TorrentRateLimit,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -24,6 +26,12 @@ pub struct StoredTorrentMetadata {
     #[serde(default)]
     /// Optional download directory recorded by the engine.
     pub download_dir: Option<String>,
+    #[serde(default)]
+    /// Storage allocation mode at admission time.
+    pub storage_mode: Option<StorageMode>,
+    #[serde(default)]
+    /// Whether partfiles were enabled.
+    pub use_partfile: Option<bool>,
     #[serde(default)]
     /// Indicates whether sequential download mode was active.
     pub sequential: bool,
@@ -279,6 +287,8 @@ mod tests {
                 priority: revaer_torrent_core::FilePriority::High,
             }],
             download_dir: Some("/data/downloads".into()),
+            storage_mode: Some(StorageMode::Sparse),
+            use_partfile: Some(true),
             sequential: true,
             seed_mode: Some(true),
             hash_check_sample_pct: Some(10),

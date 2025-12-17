@@ -124,6 +124,11 @@ impl TorrentEngine for LibtorrentEngine {
         self.send_command(EngineCommand::Reannounce { id }).await
     }
 
+    async fn move_torrent(&self, id: Uuid, download_dir: String) -> Result<()> {
+        self.send_command(EngineCommand::MoveStorage { id, download_dir })
+            .await
+    }
+
     async fn recheck(&self, id: Uuid) -> Result<()> {
         self.send_command(EngineCommand::Recheck { id }).await
     }
@@ -135,7 +140,7 @@ mod tests {
     use crate::store::FastResumeStore;
     use crate::types::{
         ChokingAlgorithm, EncryptionPolicy, EngineRuntimeConfig, Ipv6Mode, SeedChokingAlgorithm,
-        TrackerRuntimeConfig,
+        StorageMode, TrackerRuntimeConfig,
     };
     use revaer_torrent_core::{
         AddTorrentOptions, TorrentSource,
@@ -149,6 +154,8 @@ mod tests {
         EngineRuntimeConfig {
             download_root: download_root.into(),
             resume_dir: resume_dir.into(),
+            storage_mode: StorageMode::Sparse,
+            use_partfile: true,
             listen_interfaces: Vec::new(),
             ipv6_mode: Ipv6Mode::Disabled,
             enable_dht: false,

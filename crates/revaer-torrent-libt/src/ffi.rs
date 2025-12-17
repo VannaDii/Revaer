@@ -30,10 +30,10 @@ mod tests {
 
         assert_eq!(network, 152);
         assert_eq!(limits, 104);
-        assert_eq!(storage, 48);
+        assert_eq!(storage, 56);
         assert_eq!(behavior, 5);
         assert_eq!(proxy, 80);
         assert_eq!(tracker, 400);
-        assert_eq!(options, 712);
+        assert_eq!(options, 720);
     }
 }

@@ -2,11 +2,12 @@ use std::path::Path;
 
 use anyhow::anyhow;
 use base64::{Engine as _, engine::general_purpose};
+use clap::ValueEnum;
 use revaer_api::models::{
     TorrentAction as ApiTorrentAction, TorrentCreateRequest, TorrentDetail, TorrentListResponse,
     TorrentSelectionRequest,
 };
-use revaer_torrent_core::{FilePriority, FilePriorityOverride};
+use revaer_torrent_core::{FilePriority, FilePriorityOverride, StorageMode};
 use serde::Deserialize;
 use uuid::Uuid;
 
@@ -21,6 +22,22 @@ use crate::output::{render_torrent_detail, render_torrent_list};
 pub(crate) struct FilePriorityOverrideArg {
     pub index: u32,
     pub priority: FilePriority,
+}
+
+#[derive(Copy, Clone, Debug, Deserialize, ValueEnum)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum StorageModeArg {
+    Sparse,
+    Allocate,
+}
+
+impl From<StorageModeArg> for StorageMode {
+    fn from(mode: StorageModeArg) -> Self {
+        match mode {
+            StorageModeArg::Sparse => Self::Sparse,
+            StorageModeArg::Allocate => Self::Allocate,
+        }
+    }
 }
 
 pub(crate) async fn handle_torrent_add(ctx: &AppContext, args: TorrentAddArgs) -> CliResult<()> {
@@ -40,6 +57,7 @@ pub(crate) async fn handle_torrent_add(ctx: &AppContext, args: TorrentAddArgs) -
         metainfo: None,
         name: args.name,
         download_dir: None,
+        storage_mode: args.storage_mode.map(Into::into),
         sequential: None,
         start_paused: None,
         seed_mode: None,
@@ -325,6 +343,17 @@ pub(crate) fn build_action_payload(args: &TorrentActionArgs) -> CliResult<ApiTor
                 upload_bps: args.upload,
             }
         }
+        ActionType::Move => {
+            let download_dir = args.download_dir.clone().ok_or_else(|| {
+                CliError::validation("--download-dir must be provided for move action")
+            })?;
+            if download_dir.trim().is_empty() {
+                return Err(CliError::validation(
+                    "--download-dir must not be empty for move action",
+                ));
+            }
+            ApiTorrentAction::Move { download_dir }
+        }
     };
     Ok(action)
 }
@@ -429,6 +458,7 @@ mod tests {
                     "metainfo": null,
                     "name": name,
                     "download_dir": null,
+                    "storage_mode": null,
                     "sequential": null,
                     "start_paused": null,
                     "seed_mode": null,
@@ -459,6 +489,7 @@ mod tests {
             source: magnet.to_string(),
             name: Some(name.to_string()),
             id: Some(id),
+            storage_mode: None,
         };
 
         handle_torrent_add(&ctx, args)
@@ -603,6 +634,7 @@ mod tests {
             delete_data: false,
             download: None,
             upload: None,
+            download_dir: None,
         };
 
         handle_torrent_action(&ctx, args)
@@ -636,6 +668,7 @@ mod tests {
             delete_data: false,
             download: Some(2048),
             upload: Some(1024),
+            download_dir: None,
         };
 
         handle_torrent_action(&ctx, args)
@@ -718,6 +751,7 @@ mod tests {
             delete_data: false,
             download: None,
             upload: None,
+            download_dir: None,
         };
         let err = build_action_payload(&args).expect_err("missing enable should fail");
         assert!(matches!(err, CliError::Validation(message) if message.contains("--enable")));
@@ -732,6 +766,7 @@ mod tests {
             delete_data: false,
             download: None,
             upload: None,
+            download_dir: None,
         };
         let err =
             build_action_payload(&args).expect_err("missing rate values should fail validation");
@@ -747,6 +782,7 @@ mod tests {
             delete_data: false,
             download: Some(1024),
             upload: None,
+            download_dir: None,
         };
         match build_action_payload(&args)? {
             ApiTorrentAction::Rate {
@@ -756,6 +792,40 @@ mod tests {
                 assert_eq!(download_bps, Some(1024));
                 assert_eq!(upload_bps, None);
             }
+            other => panic!("unexpected payload {other:?}"),
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn build_action_payload_validates_move_path() {
+        let args = TorrentActionArgs {
+            id: Uuid::new_v4(),
+            action: ActionType::Move,
+            enable: None,
+            delete_data: false,
+            download: None,
+            upload: None,
+            download_dir: None,
+        };
+        let err =
+            build_action_payload(&args).expect_err("missing download dir should fail validation");
+        assert!(matches!(err, CliError::Validation(message) if message.contains("download-dir")));
+    }
+
+    #[test]
+    fn build_action_payload_move_sets_path() -> CliResult<()> {
+        let args = TorrentActionArgs {
+            id: Uuid::new_v4(),
+            action: ActionType::Move,
+            enable: None,
+            delete_data: false,
+            download: None,
+            upload: None,
+            download_dir: Some("/downloads/new".into()),
+        };
+        match build_action_payload(&args)? {
+            ApiTorrentAction::Move { download_dir } => assert_eq!(download_dir, "/downloads/new"),
             other => panic!("unexpected payload {other:?}"),
         }
         Ok(())

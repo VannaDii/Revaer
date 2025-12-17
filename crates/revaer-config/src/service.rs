@@ -805,6 +805,8 @@ fn map_engine_profile_row(row: EngineProfileRow) -> EngineProfile {
         max_queued_disk_bytes: row.max_queued_disk_bytes,
         resume_dir: row.resume_dir,
         download_root: row.download_root,
+        storage_mode: row.storage_mode,
+        use_partfile: row.use_partfile.into(),
         tracker: row.tracker,
         enable_lsd: row.nat.lsd().into(),
         enable_upnp: row.nat.upnp().into(),
@@ -1044,6 +1046,8 @@ async fn persist_engine_profile(
             max_queued_disk_bytes: profile.max_queued_disk_bytes,
             resume_dir: &profile.resume_dir,
             download_root: &profile.download_root,
+            storage_mode: &profile.storage_mode,
+            use_partfile: bool::from(profile.use_partfile),
             tracker: &profile.tracker,
             nat: data_config::NatToggleSet::from_flags([
                 bool::from(profile.enable_lsd),

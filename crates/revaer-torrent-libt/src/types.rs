@@ -1,6 +1,7 @@
 //! Strongly typed inputs and policies exposed by the libtorrent adapter.
 
 use chrono::Weekday;
+use revaer_torrent_core::StorageMode as CoreStorageMode;
 
 /// Wrapper for boolean flags to avoid pedantic lint churn.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -33,6 +34,10 @@ pub struct EngineRuntimeConfig {
     pub download_root: String,
     /// Directory where fast-resume payloads are stored.
     pub resume_dir: String,
+    /// Storage allocation mode applied to new torrents by default.
+    pub storage_mode: StorageMode,
+    /// Whether partfiles are used for incomplete pieces.
+    pub use_partfile: bool,
     /// Explicit listen interfaces (host/device/IP + port).
     pub listen_interfaces: Vec<String>,
     /// IPv6 preference for listening and outbound behaviour.
@@ -139,6 +144,44 @@ impl Ipv6Mode {
             Self::Disabled => 0,
             Self::Enabled => 1,
             Self::PreferV6 => 2,
+        }
+    }
+}
+
+/// Allocation strategies supported by the native session.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StorageMode {
+    /// Sparse files (default).
+    Sparse,
+    /// Pre-allocate full files.
+    Allocate,
+}
+
+impl StorageMode {
+    #[must_use]
+    /// Numeric representation used in FFI/native code.
+    pub const fn as_i32(self) -> i32 {
+        match self {
+            Self::Sparse => 0,
+            Self::Allocate => 1,
+        }
+    }
+}
+
+impl From<CoreStorageMode> for StorageMode {
+    fn from(mode: CoreStorageMode) -> Self {
+        match mode {
+            CoreStorageMode::Sparse => Self::Sparse,
+            CoreStorageMode::Allocate => Self::Allocate,
+        }
+    }
+}
+
+impl From<StorageMode> for CoreStorageMode {
+    fn from(mode: StorageMode) -> Self {
+        match mode {
+            StorageMode::Sparse => Self::Sparse,
+            StorageMode::Allocate => Self::Allocate,
         }
     }
 }
