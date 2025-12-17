@@ -207,6 +207,21 @@ pub struct EngineProfile {
     /// Whether partfiles should be used for incomplete pieces.
     #[serde(default = "EngineProfile::default_use_partfile")]
     pub use_partfile: Toggle,
+    /// Optional disk cache size in MiB.
+    #[serde(default)]
+    pub cache_size: Option<i32>,
+    /// Optional disk cache expiry in seconds.
+    #[serde(default)]
+    pub cache_expiry: Option<i32>,
+    /// Whether disk reads should be coalesced.
+    #[serde(default = "EngineProfile::default_coalesce_reads")]
+    pub coalesce_reads: Toggle,
+    /// Whether disk writes should be coalesced.
+    #[serde(default = "EngineProfile::default_coalesce_writes")]
+    pub coalesce_writes: Toggle,
+    /// Whether the shared disk cache pool should be used.
+    #[serde(default = "EngineProfile::default_use_disk_cache_pool")]
+    pub use_disk_cache_pool: Toggle,
     /// Arbitrary tracker configuration payload (JSON object).
     pub tracker: Value,
     /// Enable local service discovery (mDNS).
@@ -265,6 +280,24 @@ impl EngineProfile {
     /// Canonical default for partfile usage.
     #[must_use]
     pub const fn default_use_partfile() -> Toggle {
+        Toggle(true)
+    }
+
+    /// Canonical default for coalescing reads.
+    #[must_use]
+    pub const fn default_coalesce_reads() -> Toggle {
+        Toggle(true)
+    }
+
+    /// Canonical default for coalescing writes.
+    #[must_use]
+    pub const fn default_coalesce_writes() -> Toggle {
+        Toggle(true)
+    }
+
+    /// Canonical default for using the disk cache pool.
+    #[must_use]
+    pub const fn default_use_disk_cache_pool() -> Toggle {
         Toggle(true)
     }
 }

@@ -811,7 +811,7 @@ impl Worker {
         };
         self.global_limits = self.base_limits.clone();
         self.storage_mode = config.storage_mode.into();
-        self.use_partfile = config.use_partfile;
+        self.use_partfile = bool::from(config.use_partfile);
         self.alt_speed = config.alt_speed.clone().and_then(alt_speed_plan);
         self.seed_ratio_default = config.seed_ratio_limit;
         self.seed_time_limit_default = config
@@ -2254,7 +2254,12 @@ mod tests {
             download_root: "/data".into(),
             resume_dir: "/state".into(),
             storage_mode: StorageMode::Sparse.into(),
-            use_partfile: true,
+            use_partfile: true.into(),
+            cache_size: None,
+            cache_expiry: None,
+            coalesce_reads: true.into(),
+            coalesce_writes: true.into(),
+            use_disk_cache_pool: true.into(),
             listen_interfaces: Vec::new(),
             ipv6_mode: Ipv6Mode::Disabled,
             enable_dht: false,

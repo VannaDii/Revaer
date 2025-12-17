@@ -134,6 +134,20 @@ pub mod ffi {
         storage_mode: i32,
         /// Whether partfiles should be used.
         use_partfile: bool,
+        /// Optional cache size in MiB.
+        cache_size: i32,
+        /// Whether a cache size override was provided.
+        has_cache_size: bool,
+        /// Optional cache expiry in seconds.
+        cache_expiry: i32,
+        /// Whether a cache expiry override was provided.
+        has_cache_expiry: bool,
+        /// Whether disk reads should be coalesced.
+        coalesce_reads: bool,
+        /// Whether disk writes should be coalesced.
+        coalesce_writes: bool,
+        /// Whether to use the shared disk cache pool.
+        use_disk_cache_pool: bool,
     }
 
     /// Behavioural defaults applied to new torrents.

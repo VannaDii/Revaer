@@ -468,6 +468,15 @@ public:
             }
             default_storage_mode_ = to_storage_mode(options.storage.storage_mode);
             set_bool_setting(pack, "use_partfile", options.storage.use_partfile);
+            if (options.storage.has_cache_size) {
+                set_int_setting(pack, "cache_size", options.storage.cache_size);
+            }
+            if (options.storage.has_cache_expiry) {
+                set_int_setting(pack, "cache_expiry", options.storage.cache_expiry);
+            }
+            set_bool_setting(pack, "coalesce_reads", options.storage.coalesce_reads);
+            set_bool_setting(pack, "coalesce_writes", options.storage.coalesce_writes);
+            set_bool_setting(pack, "use_disk_cache_pool", options.storage.use_disk_cache_pool);
 
             sequential_default_ = options.behavior.sequential_default;
             auto_managed_default_ = options.behavior.auto_managed;

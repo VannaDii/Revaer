@@ -37,7 +37,17 @@ pub struct EngineRuntimeConfig {
     /// Storage allocation mode applied to new torrents by default.
     pub storage_mode: StorageMode,
     /// Whether partfiles are used for incomplete pieces.
-    pub use_partfile: bool,
+    pub use_partfile: Toggle,
+    /// Optional disk cache size in MiB.
+    pub cache_size: Option<i32>,
+    /// Optional cache expiry in seconds.
+    pub cache_expiry: Option<i32>,
+    /// Whether disk reads should be coalesced.
+    pub coalesce_reads: Toggle,
+    /// Whether disk writes should be coalesced.
+    pub coalesce_writes: Toggle,
+    /// Whether to use the shared disk cache pool.
+    pub use_disk_cache_pool: Toggle,
     /// Explicit listen interfaces (host/device/IP + port).
     pub listen_interfaces: Vec<String>,
     /// IPv6 preference for listening and outbound behaviour.

@@ -273,6 +273,16 @@ pub struct EngineStorageConfig {
     pub storage_mode: StorageMode,
     /// Whether partfiles should be used for incomplete pieces.
     pub use_partfile: Toggle,
+    /// Optional disk cache size in MiB.
+    pub cache_size: Option<i32>,
+    /// Optional cache expiry in seconds.
+    pub cache_expiry: Option<i32>,
+    /// Whether disk reads should be coalesced.
+    pub coalesce_reads: Toggle,
+    /// Whether disk writes should be coalesced.
+    pub coalesce_writes: Toggle,
+    /// Whether the shared disk cache pool should be used.
+    pub use_disk_cache_pool: Toggle,
 }
 
 /// Allocation modes supported by the engine.
@@ -536,6 +546,11 @@ pub(crate) fn validate_engine_profile_patch(
         download_root: effective.storage.download_root.clone(),
         storage_mode: storage_mode_label(effective.storage.storage_mode).to_string(),
         use_partfile: effective.storage.use_partfile,
+        cache_size: effective.storage.cache_size,
+        cache_expiry: effective.storage.cache_expiry,
+        coalesce_reads: effective.storage.coalesce_reads,
+        coalesce_writes: effective.storage.coalesce_writes,
+        use_disk_cache_pool: effective.storage.use_disk_cache_pool,
         tracker: effective.tracker.clone(),
         enable_lsd: effective.network.enable_lsd,
         enable_upnp: effective.network.enable_upnp,
@@ -876,12 +891,22 @@ fn sanitize_storage(profile: &EngineProfile, warnings: &mut Vec<String>) -> Engi
     );
     let storage_mode = sanitize_storage_mode(&profile.storage_mode, warnings);
     let use_partfile = profile.use_partfile;
+    let cache_size = sanitize_cache_value("cache_size", profile.cache_size, warnings);
+    let cache_expiry = sanitize_cache_value("cache_expiry", profile.cache_expiry, warnings);
+    let coalesce_reads = profile.coalesce_reads;
+    let coalesce_writes = profile.coalesce_writes;
+    let use_disk_cache_pool = profile.use_disk_cache_pool;
 
     EngineStorageConfig {
         download_root,
         resume_dir,
         storage_mode,
         use_partfile,
+        cache_size,
+        cache_expiry,
+        coalesce_reads,
+        coalesce_writes,
+        use_disk_cache_pool,
     }
 }
 
@@ -898,6 +923,23 @@ fn sanitize_storage_mode(value: &str, warnings: &mut Vec<String>) -> StorageMode
             DEFAULT_STORAGE_MODE
         }
     }
+}
+
+fn sanitize_cache_value(
+    field: &str,
+    value: Option<i32>,
+    warnings: &mut Vec<String>,
+) -> Option<i32> {
+    value.and_then(|val| {
+        if val <= 0 {
+            warnings.push(format!(
+                "{field} {val} is non-positive; leaving libtorrent defaults in place"
+            ));
+            None
+        } else {
+            Some(val)
+        }
+    })
 }
 
 fn validate_storage_mode(mode: &str) -> Result<(), ConfigError> {
@@ -1214,6 +1256,26 @@ fn apply_behavior_field(
         "use_partfile" => Some(assign_if_changed(
             &mut working.use_partfile,
             Toggle::from(required_bool(value, "use_partfile")?),
+        )),
+        "cache_size" => Some(assign_if_changed(
+            &mut working.cache_size,
+            parse_optional_i32(value, "cache_size")?,
+        )),
+        "cache_expiry" => Some(assign_if_changed(
+            &mut working.cache_expiry,
+            parse_optional_i32(value, "cache_expiry")?,
+        )),
+        "coalesce_reads" => Some(assign_if_changed(
+            &mut working.coalesce_reads,
+            Toggle::from(required_bool(value, "coalesce_reads")?),
+        )),
+        "coalesce_writes" => Some(assign_if_changed(
+            &mut working.coalesce_writes,
+            Toggle::from(required_bool(value, "coalesce_writes")?),
+        )),
+        "use_disk_cache_pool" => Some(assign_if_changed(
+            &mut working.use_disk_cache_pool,
+            Toggle::from(required_bool(value, "use_disk_cache_pool")?),
         )),
         _ => None,
     };
@@ -2643,6 +2705,11 @@ mod tests {
             download_root: "/tmp/downloads".into(),
             storage_mode: EngineProfile::default_storage_mode(),
             use_partfile: EngineProfile::default_use_partfile(),
+            cache_size: None,
+            cache_expiry: None,
+            coalesce_reads: EngineProfile::default_coalesce_reads(),
+            coalesce_writes: EngineProfile::default_coalesce_writes(),
+            use_disk_cache_pool: EngineProfile::default_use_disk_cache_pool(),
             tracker: json!({}),
             enable_lsd: false.into(),
             enable_upnp: false.into(),

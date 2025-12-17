@@ -27,13 +27,16 @@ mod tests {
         let proxy = mem::size_of::<ffi::TrackerProxyOptions>();
         let tracker = mem::size_of::<ffi::EngineTrackerOptions>();
         let options = mem::size_of::<ffi::EngineOptions>();
+        let sizes = format!(
+            "network={network} limits={limits} storage={storage} behavior={behavior} proxy={proxy} tracker={tracker} options={options}"
+        );
 
-        assert_eq!(network, 152);
-        assert_eq!(limits, 104);
-        assert_eq!(storage, 56);
-        assert_eq!(behavior, 5);
-        assert_eq!(proxy, 80);
-        assert_eq!(tracker, 400);
-        assert_eq!(options, 720);
+        assert_eq!(network, 152, "{sizes}");
+        assert_eq!(limits, 104, "{sizes}");
+        assert_eq!(storage, 72, "{sizes}");
+        assert_eq!(behavior, 5, "{sizes}");
+        assert_eq!(proxy, 80, "{sizes}");
+        assert_eq!(tracker, 400, "{sizes}");
+        assert_eq!(options, 736, "{sizes}");
     }
 }
