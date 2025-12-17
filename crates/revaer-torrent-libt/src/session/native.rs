@@ -134,6 +134,9 @@ pub(super) mod test_support {
                 resume_dir: self.resume.path().to_string_lossy().into_owned(),
                 storage_mode: crate::types::StorageMode::Sparse,
                 use_partfile: true.into(),
+                disk_read_mode: None,
+                disk_write_mode: None,
+                verify_piece_hashes: true.into(),
                 cache_size: None,
                 cache_expiry: None,
                 coalesce_reads: true.into(),
@@ -750,6 +753,9 @@ mod tests {
         config.coalesce_reads = false.into();
         config.coalesce_writes = true.into();
         config.use_disk_cache_pool = false.into();
+        config.disk_read_mode = Some(crate::types::DiskIoMode::DisableOsCache);
+        config.disk_write_mode = Some(crate::types::DiskIoMode::WriteThrough);
+        config.verify_piece_hashes = false.into();
 
         harness.session.apply_config(&config).await?;
 
@@ -762,6 +768,15 @@ mod tests {
         assert!(!flags.coalesce_reads());
         assert!(flags.coalesce_writes());
         assert!(!flags.use_disk_cache_pool());
+        assert_eq!(
+            snapshot.disk_read_mode,
+            crate::types::DiskIoMode::DisableOsCache.as_i32()
+        );
+        assert_eq!(
+            snapshot.disk_write_mode,
+            crate::types::DiskIoMode::WriteThrough.as_i32()
+        );
+        assert!(!snapshot.verify_piece_hashes);
         Ok(())
     }
 

@@ -398,6 +398,12 @@ pub struct EngineProfileRow {
     pub storage_mode: String,
     /// Storage-related toggles.
     pub storage: StorageToggleSet,
+    /// Optional disk read mode.
+    pub disk_read_mode: Option<String>,
+    /// Optional disk write mode.
+    pub disk_write_mode: Option<String>,
+    /// Whether piece hash verification is enabled.
+    pub verify_piece_hashes: bool,
     /// Optional cache size in MiB.
     pub cache_size: Option<i32>,
     /// Optional cache expiry in seconds.
@@ -461,6 +467,7 @@ impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
         let coalesce_reads: bool = row.try_get("coalesce_reads")?;
         let coalesce_writes: bool = row.try_get("coalesce_writes")?;
         let use_disk_cache_pool: bool = row.try_get("use_disk_cache_pool")?;
+        let verify_piece_hashes: bool = row.try_get("verify_piece_hashes")?;
 
         Ok(Self {
             id: row.try_get("id")?,
@@ -496,6 +503,9 @@ impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
                 coalesce_writes,
                 use_disk_cache_pool,
             ]),
+            disk_read_mode: row.try_get("disk_read_mode")?,
+            disk_write_mode: row.try_get("disk_write_mode")?,
+            verify_piece_hashes,
             cache_size: row.try_get("cache_size")?,
             cache_expiry: row.try_get("cache_expiry")?,
             tracker: row.try_get("tracker")?,
@@ -1396,6 +1406,12 @@ pub struct EngineProfileUpdate<'a> {
     pub storage_mode: &'a str,
     /// Storage-related toggles.
     pub storage: StorageToggleSet,
+    /// Optional disk read mode override.
+    pub disk_read_mode: Option<&'a str>,
+    /// Optional disk write mode override.
+    pub disk_write_mode: Option<&'a str>,
+    /// Whether piece hash verification is enabled.
+    pub verify_piece_hashes: bool,
     /// Optional cache size in MiB.
     pub cache_size: Option<i32>,
     /// Optional cache expiry in seconds.
@@ -1449,7 +1465,7 @@ where
     E: Executor<'e, Database = Postgres>,
 {
     sqlx::query(
-        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _seed_ratio_limit => $9, _seed_time_limit => $10, _sequential_default => $11, _auto_managed => $12, _auto_manage_prefer_seeds => $13, _dont_count_slow_torrents => $14, _super_seeding => $15, _choking_algorithm => $16, _seed_choking_algorithm => $17, _strict_super_seeding => $18, _optimistic_unchoke_slots => $19, _max_queued_disk_bytes => $20, _resume_dir => $21, _download_root => $22, _storage_mode => $23, _use_partfile => $24, _cache_size => $25, _cache_expiry => $26, _coalesce_reads => $27, _coalesce_writes => $28, _use_disk_cache_pool => $29, _tracker => $30, _lsd => $31, _upnp => $32, _natpmp => $33, _pex => $34, _dht_bootstrap_nodes => $35, _dht_router_nodes => $36, _ip_filter => $37, _listen_interfaces => $38, _ipv6_mode => $39, _anonymous_mode => $40, _force_proxy => $41, _prefer_rc4 => $42, _allow_multiple_connections_per_ip => $43, _enable_outgoing_utp => $44, _enable_incoming_utp => $45, _outgoing_port_min => $46, _outgoing_port_max => $47, _peer_dscp => $48, _connections_limit => $49, _connections_limit_per_torrent => $50, _unchoke_slots => $51, _half_open_limit => $52, _alt_speed => $53, _stats_interval_ms => $54)",
+        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _seed_ratio_limit => $9, _seed_time_limit => $10, _sequential_default => $11, _auto_managed => $12, _auto_manage_prefer_seeds => $13, _dont_count_slow_torrents => $14, _super_seeding => $15, _choking_algorithm => $16, _seed_choking_algorithm => $17, _strict_super_seeding => $18, _optimistic_unchoke_slots => $19, _max_queued_disk_bytes => $20, _resume_dir => $21, _download_root => $22, _storage_mode => $23, _use_partfile => $24, _cache_size => $25, _cache_expiry => $26, _coalesce_reads => $27, _coalesce_writes => $28, _use_disk_cache_pool => $29, _disk_read_mode => $30, _disk_write_mode => $31, _verify_piece_hashes => $32, _tracker => $33, _lsd => $34, _upnp => $35, _natpmp => $36, _pex => $37, _dht_bootstrap_nodes => $38, _dht_router_nodes => $39, _ip_filter => $40, _listen_interfaces => $41, _ipv6_mode => $42, _anonymous_mode => $43, _force_proxy => $44, _prefer_rc4 => $45, _allow_multiple_connections_per_ip => $46, _enable_outgoing_utp => $47, _enable_incoming_utp => $48, _outgoing_port_min => $49, _outgoing_port_max => $50, _peer_dscp => $51, _connections_limit => $52, _connections_limit_per_torrent => $53, _unchoke_slots => $54, _half_open_limit => $55, _alt_speed => $56, _stats_interval_ms => $57)",
         )
     .bind(profile.id)
     .bind(profile.implementation)
@@ -1480,6 +1496,9 @@ where
     .bind(profile.storage.coalesce_reads())
     .bind(profile.storage.coalesce_writes())
     .bind(profile.storage.use_disk_cache_pool())
+    .bind(profile.disk_read_mode)
+    .bind(profile.disk_write_mode)
+    .bind(profile.verify_piece_hashes)
     .bind(profile.tracker)
     .bind(profile.nat.lsd())
     .bind(profile.nat.upnp())

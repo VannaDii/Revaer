@@ -33,10 +33,10 @@ mod tests {
 
         assert_eq!(network, 152, "{sizes}");
         assert_eq!(limits, 104, "{sizes}");
-        assert_eq!(storage, 72, "{sizes}");
+        assert_eq!(storage, 88, "{sizes}");
         assert_eq!(behavior, 5, "{sizes}");
         assert_eq!(proxy, 80, "{sizes}");
         assert_eq!(tracker, 400, "{sizes}");
-        assert_eq!(options, 736, "{sizes}");
+        assert_eq!(options, 752, "{sizes}");
     }
 }

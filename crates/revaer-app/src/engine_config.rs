@@ -6,7 +6,8 @@
 //! - Keeps encryption mapping centralised to avoid drift between API/config/runtime layers.
 
 use revaer_config::engine_profile::{
-    AltSpeedConfig, ChokingAlgorithm, SeedChokingAlgorithm, StorageMode as ConfigStorageMode,
+    AltSpeedConfig, ChokingAlgorithm, DiskIoMode, SeedChokingAlgorithm,
+    StorageMode as ConfigStorageMode,
 };
 use revaer_config::{
     EngineEncryptionPolicy, EngineIpv6Mode, EngineNetworkConfig, EngineProfile,
@@ -21,7 +22,7 @@ use revaer_torrent_libt::{
     types::{
         AltSpeedRuntimeConfig as RuntimeAltSpeedConfig,
         AltSpeedSchedule as RuntimeAltSpeedSchedule, ChokingAlgorithm as RuntimeChokingAlgorithm,
-        OutgoingPortRange as RuntimeOutgoingPortRange,
+        DiskIoMode as RuntimeDiskIoMode, OutgoingPortRange as RuntimeOutgoingPortRange,
         SeedChokingAlgorithm as RuntimeSeedChokingAlgorithm, StorageMode as RuntimeStorageMode,
     },
 };
@@ -61,6 +62,9 @@ impl EngineRuntimePlan {
             resume_dir: effective.storage.resume_dir.clone(),
             storage_mode: map_storage_mode(effective.storage.storage_mode),
             use_partfile: bool::from(effective.storage.use_partfile).into(),
+            disk_read_mode: effective.storage.disk_read_mode.map(map_disk_mode),
+            disk_write_mode: effective.storage.disk_write_mode.map(map_disk_mode),
+            verify_piece_hashes: bool::from(effective.storage.verify_piece_hashes).into(),
             cache_size: effective.storage.cache_size,
             cache_expiry: effective.storage.cache_expiry,
             coalesce_reads: bool::from(effective.storage.coalesce_reads).into(),
@@ -165,6 +169,14 @@ const fn map_storage_mode(mode: ConfigStorageMode) -> RuntimeStorageMode {
     match mode {
         ConfigStorageMode::Sparse => RuntimeStorageMode::Sparse,
         ConfigStorageMode::Allocate => RuntimeStorageMode::Allocate,
+    }
+}
+
+const fn map_disk_mode(mode: DiskIoMode) -> RuntimeDiskIoMode {
+    match mode {
+        DiskIoMode::EnableOsCache => RuntimeDiskIoMode::EnableOsCache,
+        DiskIoMode::DisableOsCache => RuntimeDiskIoMode::DisableOsCache,
+        DiskIoMode::WriteThrough => RuntimeDiskIoMode::WriteThrough,
     }
 }
 
@@ -332,6 +344,9 @@ mod tests {
             download_root: "   ".into(),
             storage_mode: EngineProfile::default_storage_mode(),
             use_partfile: EngineProfile::default_use_partfile(),
+            disk_read_mode: None,
+            disk_write_mode: None,
+            verify_piece_hashes: EngineProfile::default_verify_piece_hashes(),
             cache_size: None,
             cache_expiry: None,
             coalesce_reads: EngineProfile::default_coalesce_reads(),
@@ -420,6 +435,9 @@ mod tests {
             download_root: "/data".into(),
             storage_mode: EngineProfile::default_storage_mode(),
             use_partfile: EngineProfile::default_use_partfile(),
+            disk_read_mode: None,
+            disk_write_mode: None,
+            verify_piece_hashes: EngineProfile::default_verify_piece_hashes(),
             cache_size: None,
             cache_expiry: None,
             coalesce_reads: EngineProfile::default_coalesce_reads(),
@@ -505,6 +523,9 @@ mod tests {
             download_root: "/data".into(),
             storage_mode: EngineProfile::default_storage_mode(),
             use_partfile: EngineProfile::default_use_partfile(),
+            disk_read_mode: None,
+            disk_write_mode: None,
+            verify_piece_hashes: EngineProfile::default_verify_piece_hashes(),
             cache_size: None,
             cache_expiry: None,
             coalesce_reads: EngineProfile::default_coalesce_reads(),
@@ -585,6 +606,9 @@ mod tests {
             download_root: "/data".into(),
             storage_mode: EngineProfile::default_storage_mode(),
             use_partfile: EngineProfile::default_use_partfile(),
+            disk_read_mode: None,
+            disk_write_mode: None,
+            verify_piece_hashes: EngineProfile::default_verify_piece_hashes(),
             cache_size: None,
             cache_expiry: None,
             coalesce_reads: EngineProfile::default_coalesce_reads(),
@@ -662,6 +686,9 @@ mod tests {
             download_root: "/data".into(),
             storage_mode: EngineProfile::default_storage_mode(),
             use_partfile: EngineProfile::default_use_partfile(),
+            disk_read_mode: None,
+            disk_write_mode: None,
+            verify_piece_hashes: EngineProfile::default_verify_piece_hashes(),
             cache_size: None,
             cache_expiry: None,
             coalesce_reads: EngineProfile::default_coalesce_reads(),

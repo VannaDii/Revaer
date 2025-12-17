@@ -485,6 +485,14 @@ public:
             }
             default_storage_mode_ = to_storage_mode(options.storage.storage_mode);
             set_bool_setting(pack, "use_partfile", options.storage.use_partfile);
+            if (options.storage.has_disk_read_mode) {
+                set_int_setting(pack, "disk_io_read_mode", options.storage.disk_read_mode);
+            }
+            if (options.storage.has_disk_write_mode) {
+                set_int_setting(pack, "disk_io_write_mode", options.storage.disk_write_mode);
+            }
+            set_bool_setting(
+                pack, "disable_hash_checks", !options.storage.verify_piece_hashes);
             if (options.storage.has_cache_size) {
                 set_int_setting(pack, "cache_size", options.storage.cache_size);
             }
@@ -1303,6 +1311,9 @@ public:
         snapshot.cache_size = get_int_setting(settings, "cache_size", 0);
         snapshot.cache_expiry = get_int_setting(settings, "cache_expiry", 0);
         snapshot.flags = flags;
+        snapshot.disk_read_mode = get_int_setting(settings, "disk_io_read_mode", 0);
+        snapshot.disk_write_mode = get_int_setting(settings, "disk_io_write_mode", 0);
+        snapshot.verify_piece_hashes = !get_bool_setting(settings, "disable_hash_checks", false);
         return snapshot;
     }
 

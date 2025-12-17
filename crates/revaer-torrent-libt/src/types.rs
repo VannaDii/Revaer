@@ -38,6 +38,12 @@ pub struct EngineRuntimeConfig {
     pub storage_mode: StorageMode,
     /// Whether partfiles are used for incomplete pieces.
     pub use_partfile: Toggle,
+    /// Optional disk read mode override.
+    pub disk_read_mode: Option<DiskIoMode>,
+    /// Optional disk write mode override.
+    pub disk_write_mode: Option<DiskIoMode>,
+    /// Whether piece hashes should be verified.
+    pub verify_piece_hashes: Toggle,
     /// Optional disk cache size in MiB.
     pub cache_size: Option<i32>,
     /// Optional cache expiry in seconds.
@@ -165,6 +171,29 @@ pub enum StorageMode {
     Sparse,
     /// Pre-allocate full files.
     Allocate,
+}
+
+/// Disk IO cache policy for reads and writes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DiskIoMode {
+    /// Allow the operating system to cache disk IO.
+    EnableOsCache,
+    /// Disable operating system caching.
+    DisableOsCache,
+    /// Write-through without caching.
+    WriteThrough,
+}
+
+impl DiskIoMode {
+    #[must_use]
+    /// Numeric representation consumed by the native bridge.
+    pub const fn as_i32(self) -> i32 {
+        match self {
+            Self::EnableOsCache => 0,
+            Self::DisableOsCache => 2,
+            Self::WriteThrough => 3,
+        }
+    }
 }
 
 impl StorageMode {

@@ -134,6 +134,16 @@ pub mod ffi {
         storage_mode: i32,
         /// Whether partfiles should be used.
         use_partfile: bool,
+        /// Optional disk read mode.
+        disk_read_mode: i32,
+        /// Whether a disk read mode override was provided.
+        has_disk_read_mode: bool,
+        /// Optional disk write mode.
+        disk_write_mode: i32,
+        /// Whether a disk write mode override was provided.
+        has_disk_write_mode: bool,
+        /// Whether piece hashes should be verified.
+        verify_piece_hashes: bool,
         /// Optional cache size in MiB.
         cache_size: i32,
         /// Whether a cache size override was provided.
@@ -159,6 +169,12 @@ pub mod ffi {
         cache_expiry: i32,
         /// Bitfield of storage flags (partfile/coalesce settings).
         flags: u8,
+        /// Disk read mode in use.
+        disk_read_mode: i32,
+        /// Disk write mode in use.
+        disk_write_mode: i32,
+        /// Whether piece hashes are verified.
+        verify_piece_hashes: bool,
     }
 
     /// Behavioural defaults applied to new torrents.

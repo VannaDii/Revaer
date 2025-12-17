@@ -239,14 +239,14 @@
     -   [x] API/docs: document effect on telemetry volume; keep default conservative.
     -   [x] Tests: config validation; native test that interval applies without error.
 
--   [ ] Disk cache/memory knobs exposed
+-   [x] Disk cache/memory knobs exposed
 
-    -   [x] Config/DB: add cache-related fields (cache_size, cache_expiry, coalesce_reads, coalesce_writes, use_disk_cache_pool) to `EngineProfile`; validate bounds. Piece hash verification mode still pending.
+    -   [x] Config/DB: add cache-related fields (cache_size, cache_expiry, coalesce_reads, coalesce_writes, use_disk_cache_pool) to `EngineProfile`; validate bounds, including piece hash verification and disk I/O mode enums.
     -   [x] Runtime/bridge: thread cache_size/cache_expiry/coalesce flags and use_disk_cache_pool through `EngineRuntimeConfig`/`EngineOptions`.
-    -   [x] Native: set `lt::settings_pack` cache knobs (`cache_size`, `cache_expiry`, `coalesce_reads`, `coalesce_writes`, `use_disk_cache_pool`) via name-based setters to avoid deprecated enums. Disk I/O modes and piece hash verification mapping remain TODO.
+    -   [x] Native: set `lt::settings_pack` cache knobs (`cache_size`, `cache_expiry`, `coalesce_reads`, `coalesce_writes`, `use_disk_cache_pool`) via name-based setters to avoid deprecated enums; include disk I/O modes and piece hash verification mapping.
     -   [x] API/docs: expose new cache/storage fields in settings and health surfaces; update examples.
     -   [x] Tests: add dedicated coverage that cache settings are applied and survive native round-trips (plus piece hash mode when available).
-    -   [ ] Piece hash verification mode and disk I/O mode mapping wired through.
+    -   [x] Piece hash verification mode and disk I/O mode mapping wired through.
 
 -   [ ] TLS/SSL tracker and client cert configuration
 

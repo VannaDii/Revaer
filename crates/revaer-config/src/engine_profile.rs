@@ -273,6 +273,12 @@ pub struct EngineStorageConfig {
     pub storage_mode: StorageMode,
     /// Whether partfiles should be used for incomplete pieces.
     pub use_partfile: Toggle,
+    /// Optional disk read mode.
+    pub disk_read_mode: Option<DiskIoMode>,
+    /// Optional disk write mode.
+    pub disk_write_mode: Option<DiskIoMode>,
+    /// Whether piece hashes should be verified.
+    pub verify_piece_hashes: Toggle,
     /// Optional disk cache size in MiB.
     pub cache_size: Option<i32>,
     /// Optional cache expiry in seconds.
@@ -293,6 +299,30 @@ pub enum StorageMode {
     Sparse,
     /// Pre-allocate full files.
     Allocate,
+}
+
+/// Disk IO cache policy exposed to the engine.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum DiskIoMode {
+    /// Allow the operating system to cache disk IO.
+    EnableOsCache,
+    /// Disable OS caching for disk IO.
+    DisableOsCache,
+    /// Write through without caching.
+    WriteThrough,
+}
+
+impl DiskIoMode {
+    #[must_use]
+    /// String representation used for persistence and API payloads.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::EnableOsCache => "enable_os_cache",
+            Self::DisableOsCache => "disable_os_cache",
+            Self::WriteThrough => "write_through",
+        }
+    }
 }
 
 /// Behavioural defaults applied when admitting torrents.
@@ -546,6 +576,15 @@ pub(crate) fn validate_engine_profile_patch(
         download_root: effective.storage.download_root.clone(),
         storage_mode: storage_mode_label(effective.storage.storage_mode).to_string(),
         use_partfile: effective.storage.use_partfile,
+        disk_read_mode: effective
+            .storage
+            .disk_read_mode
+            .map(|mode| mode.as_str().to_string()),
+        disk_write_mode: effective
+            .storage
+            .disk_write_mode
+            .map(|mode| mode.as_str().to_string()),
+        verify_piece_hashes: effective.storage.verify_piece_hashes,
         cache_size: effective.storage.cache_size,
         cache_expiry: effective.storage.cache_expiry,
         coalesce_reads: effective.storage.coalesce_reads,
@@ -891,6 +930,17 @@ fn sanitize_storage(profile: &EngineProfile, warnings: &mut Vec<String>) -> Engi
     );
     let storage_mode = sanitize_storage_mode(&profile.storage_mode, warnings);
     let use_partfile = profile.use_partfile;
+    let disk_read_mode = parse_disk_mode(
+        profile.disk_read_mode.as_deref(),
+        "disk_read_mode",
+        warnings,
+    );
+    let disk_write_mode = parse_disk_mode(
+        profile.disk_write_mode.as_deref(),
+        "disk_write_mode",
+        warnings,
+    );
+    let verify_piece_hashes = profile.verify_piece_hashes;
     let cache_size = sanitize_cache_value("cache_size", profile.cache_size, warnings);
     let cache_expiry = sanitize_cache_value("cache_expiry", profile.cache_expiry, warnings);
     let coalesce_reads = profile.coalesce_reads;
@@ -902,6 +952,9 @@ fn sanitize_storage(profile: &EngineProfile, warnings: &mut Vec<String>) -> Engi
         resume_dir,
         storage_mode,
         use_partfile,
+        disk_read_mode,
+        disk_write_mode,
+        verify_piece_hashes,
         cache_size,
         cache_expiry,
         coalesce_reads,
@@ -921,6 +974,27 @@ fn sanitize_storage_mode(value: &str, warnings: &mut Vec<String>) -> StorageMode
                 "storage_mode '{other}' is not supported; defaulting to sparse allocation"
             ));
             DEFAULT_STORAGE_MODE
+        }
+    }
+}
+
+fn parse_disk_mode(
+    value: Option<&str>,
+    field: &str,
+    warnings: &mut Vec<String>,
+) -> Option<DiskIoMode> {
+    let mode = value.map(|raw| raw.trim().to_ascii_lowercase())?;
+
+    match mode.as_str() {
+        "" => None,
+        "enable_os_cache" => Some(DiskIoMode::EnableOsCache),
+        "disable_os_cache" => Some(DiskIoMode::DisableOsCache),
+        "write_through" => Some(DiskIoMode::WriteThrough),
+        other => {
+            warnings.push(format!(
+                "{field} '{other}' is not supported; ignoring override"
+            ));
+            None
         }
     }
 }
@@ -1256,6 +1330,18 @@ fn apply_behavior_field(
         "use_partfile" => Some(assign_if_changed(
             &mut working.use_partfile,
             Toggle::from(required_bool(value, "use_partfile")?),
+        )),
+        "disk_read_mode" => Some(assign_if_changed(
+            &mut working.disk_read_mode,
+            Some(required_string(value, "disk_read_mode")?),
+        )),
+        "disk_write_mode" => Some(assign_if_changed(
+            &mut working.disk_write_mode,
+            Some(required_string(value, "disk_write_mode")?),
+        )),
+        "verify_piece_hashes" => Some(assign_if_changed(
+            &mut working.verify_piece_hashes,
+            Toggle::from(required_bool(value, "verify_piece_hashes")?),
         )),
         "cache_size" => Some(assign_if_changed(
             &mut working.cache_size,
@@ -2705,6 +2791,9 @@ mod tests {
             download_root: "/tmp/downloads".into(),
             storage_mode: EngineProfile::default_storage_mode(),
             use_partfile: EngineProfile::default_use_partfile(),
+            disk_read_mode: None,
+            disk_write_mode: None,
+            verify_piece_hashes: EngineProfile::default_verify_piece_hashes(),
             cache_size: None,
             cache_expiry: None,
             coalesce_reads: EngineProfile::default_coalesce_reads(),

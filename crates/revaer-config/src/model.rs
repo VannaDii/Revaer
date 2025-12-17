@@ -207,6 +207,15 @@ pub struct EngineProfile {
     /// Whether partfiles should be used for incomplete pieces.
     #[serde(default = "EngineProfile::default_use_partfile")]
     pub use_partfile: Toggle,
+    /// Optional disk read mode for the cache.
+    #[serde(default)]
+    pub disk_read_mode: Option<String>,
+    /// Optional disk write mode for the cache.
+    #[serde(default)]
+    pub disk_write_mode: Option<String>,
+    /// Whether piece hashes should be verified.
+    #[serde(default = "EngineProfile::default_verify_piece_hashes")]
+    pub verify_piece_hashes: Toggle,
     /// Optional disk cache size in MiB.
     #[serde(default)]
     pub cache_size: Option<i32>,
@@ -298,6 +307,12 @@ impl EngineProfile {
     /// Canonical default for using the disk cache pool.
     #[must_use]
     pub const fn default_use_disk_cache_pool() -> Toggle {
+        Toggle(true)
+    }
+
+    /// Canonical default for verifying piece hashes.
+    #[must_use]
+    pub const fn default_verify_piece_hashes() -> Toggle {
         Toggle(true)
     }
 }
