@@ -896,6 +896,21 @@ mod tests {
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
     }
 
+    #[test]
+    fn build_add_torrent_accepts_v2_magnet() {
+        let request = TorrentCreateRequest {
+            id: Uuid::new_v4(),
+            magnet: Some(
+                "magnet:?xt=urn:btmh:1220bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                    .to_string(),
+            ),
+            ..TorrentCreateRequest::default()
+        };
+
+        let result = build_add_torrent(&request, Vec::new(), Vec::new());
+        assert!(result.is_ok(), "v2 magnet should be accepted");
+    }
+
     #[tokio::test]
     async fn list_torrent_trackers_returns_metadata() {
         let workflow = Arc::new(RecordingWorkflow::default());

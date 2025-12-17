@@ -255,12 +255,12 @@
     -   [x] Native: set `lt::settings_pack` SSL options (e.g., `ssl_cert`, `ssl_private_key`, `ssl_ca_cert`, `ssl_tracker_verify`) and apply per-tracker if supported.
     -   [x] API/docs/tests: expose only if needed; document security implications; native test that SSL settings apply and tracker connections succeed.
 
--   [ ] BitTorrent v2/hybrid torrents supported
+-   [x] BitTorrent v2/hybrid torrents supported
 
-    -   [ ] API: accept v2/hybrid metainfo and expose v2 fields where relevant; validate size.
-    -   [ ] Worker/bridge: ensure add path passes v2/hybrid payloads unchanged.
-    -   [ ] Native: confirm libtorrent is built with v2 support and accepts hybrid torrents; adjust event mapping if v2-specific metadata arises.
-    -   [ ] Tests: feature-gated native test adding a v2/hybrid torrent to ensure admission succeeds.
+    -   [x] API: accept v2/hybrid metainfo and expose v2 fields where relevant; validate size.
+    -   [x] Worker/bridge: ensure add path passes v2/hybrid payloads unchanged.
+    -   [x] Native: confirm libtorrent is built with v2 support and accepts hybrid torrents; adjust event mapping if v2-specific metadata arises.
+    -   [x] Tests: feature-gated native test adding a v2/hybrid torrent to ensure admission succeeds.
 
 -   [ ] Torrent creation (authoring) supported
 

@@ -689,6 +689,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn native_session_accepts_v2_magnet() -> Result<()> {
+        let mut harness = NativeSessionHarness::new()?;
+        let config = harness.runtime_config();
+        harness.session.apply_config(&config).await?;
+
+        let descriptor = AddTorrent {
+            id: Uuid::new_v4(),
+            source: TorrentSource::magnet(
+                "magnet:?xt=urn:btmh:1220aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            ),
+            options: AddTorrentOptions::default(),
+        };
+
+        harness.session.add_torrent(&descriptor).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn native_session_accepts_explicit_listen_interfaces() -> Result<()> {
         let mut harness = NativeSessionHarness::new()?;
         let mut config = harness.runtime_config();
