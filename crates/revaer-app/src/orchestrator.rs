@@ -25,7 +25,7 @@ use revaer_torrent_core::{
     AddTorrent, FilePriority, FileSelectionUpdate, RemoveTorrent, TorrentEngine, TorrentFile,
     TorrentInspector, TorrentProgress, TorrentRateLimit, TorrentRates, TorrentStatus,
     TorrentWorkflow,
-    model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
+    model::{PeerSnapshot, TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
 };
 use revaer_torrent_libt::{IpFilterRule as RuntimeIpFilterRule, IpFilterRuntimeConfig};
 use serde_json::json;
@@ -734,6 +734,10 @@ where
 
     async fn get(&self, id: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
         Ok(self.catalog.get(id).await)
+    }
+
+    async fn peers(&self, id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+        self.engine.peers(id).await
     }
 }
 

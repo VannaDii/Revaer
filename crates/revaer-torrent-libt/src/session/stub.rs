@@ -4,7 +4,8 @@ use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use revaer_events::TorrentState;
 use revaer_torrent_core::{
-    AddTorrent, EngineEvent, FileSelectionUpdate, RemoveTorrent, StorageMode, TorrentRateLimit,
+    AddTorrent, EngineEvent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, StorageMode,
+    TorrentRateLimit,
 };
 use serde_json::json;
 use uuid::Uuid;
@@ -18,6 +19,7 @@ use revaer_torrent_core::{FilePriorityOverride, FileSelectionRules};
 pub struct StubSession {
     torrents: HashMap<Uuid, StubTorrent>,
     pending_events: Vec<EngineEvent>,
+    peer_map: HashMap<Uuid, Vec<PeerSnapshot>>,
 }
 
 #[derive(Clone)]
@@ -88,6 +90,13 @@ impl StubSession {
         self.torrents
             .get_mut(&id)
             .ok_or_else(|| anyhow!("unknown torrent {id}"))
+    }
+
+    /// Seed peer snapshots for a given torrent.
+    #[must_use]
+    pub fn with_peers(mut self, id: Uuid, peers: Vec<PeerSnapshot>) -> Self {
+        self.peer_map.insert(id, peers);
+        self
     }
 
     fn push_state(&mut self, id: Uuid, state: TorrentState) {
@@ -351,6 +360,10 @@ impl LibTorrentSession for StubSession {
         } else {
             Err(anyhow!("unknown torrent {id} for recheck"))
         }
+    }
+
+    async fn peers(&mut self, id: Uuid) -> Result<Vec<PeerSnapshot>> {
+        Ok(self.peer_map.get(&id).cloned().unwrap_or_default())
     }
 
     async fn poll_events(&mut self) -> Result<Vec<EngineEvent>> {

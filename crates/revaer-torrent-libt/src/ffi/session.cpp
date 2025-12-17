@@ -38,6 +38,7 @@
 #include <libtorrent/read_resume_data.hpp>
 #include <libtorrent/session.hpp>
 #include <libtorrent/session_params.hpp>
+#include <libtorrent/peer_info.hpp>
 #include <libtorrent/settings_pack.hpp>
 #include <libtorrent/session_types.hpp>
 #include <libtorrent/storage_defs.hpp>
@@ -1091,6 +1092,39 @@ public:
         });
     }
 
+    rust::Vec<NativePeerInfo> list_peers(::rust::Str id) {
+        rust::Vec<NativePeerInfo> peers_out;
+        const auto key = to_std_string(id);
+        auto it = handles_.find(key);
+        if (it == handles_.end()) {
+            return peers_out;
+        }
+        std::vector<lt::peer_info> peers;
+        it->second.get_peer_info(peers);
+        peers_out.reserve(peers.size());
+        for (const auto& peer : peers) {
+            NativePeerInfo info{};
+            const auto address = peer.ip.address().to_string();
+            const auto port = peer.ip.port();
+            if (port > 0) {
+                info.endpoint = address + ":" + std::to_string(port);
+            } else {
+                info.endpoint = address;
+            }
+            info.client = peer.client;
+            info.progress = peer.progress;
+            info.download_rate = static_cast<std::int64_t>(peer.down_speed);
+            info.upload_rate = static_cast<std::int64_t>(peer.up_speed);
+            info.interesting = (peer.flags & lt::peer_info::interesting) != 0;
+            info.choked = (peer.flags & lt::peer_info::choked) != 0;
+            info.remote_interested =
+                (peer.flags & lt::peer_info::remote_interested) != 0;
+            info.remote_choked = (peer.flags & lt::peer_info::remote_choked) != 0;
+            peers_out.push_back(std::move(info));
+        }
+        return peers_out;
+    }
+
     rust::Vec<NativeEvent> poll_events() {
         rust::Vec<NativeEvent> events;
 
@@ -1592,6 +1626,10 @@ Session::~Session() = default;
 
 ::rust::String Session::recheck(::rust::Str id) {
     return impl_->recheck(to_std_string(id));
+}
+
+rust::Vec<NativePeerInfo> Session::list_peers(::rust::Str id) {
+    return impl_->list_peers(id);
 }
 
 EngineStorageState Session::inspect_storage_state() const {

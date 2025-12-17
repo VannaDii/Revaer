@@ -24,7 +24,8 @@ mod tests {
     use async_trait::async_trait;
     use revaer_config::{AppMode, AppProfile};
     use revaer_torrent_core::{
-        AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentWorkflow,
+        AddTorrent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentRateLimit,
+        TorrentWorkflow,
     };
     use serde_json::json;
     use tokio::runtime::Runtime;
@@ -91,12 +92,14 @@ mod tests {
     #[derive(Default)]
     struct RecordingWorkflow {
         statuses: RwLock<Vec<TorrentStatus>>,
+        peers: RwLock<HashMap<Uuid, Vec<PeerSnapshot>>>,
     }
 
     impl RecordingWorkflow {
         fn with_status(status: TorrentStatus) -> Arc<Self> {
             Self {
                 statuses: RwLock::new(vec![status]),
+                peers: RwLock::new(HashMap::new()),
             }
             .into()
         }
@@ -165,6 +168,16 @@ mod tests {
 
         async fn get(&self, _: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
             Ok(None)
+        }
+
+        async fn peers(&self, id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+            Ok(self
+                .peers
+                .read()
+                .await
+                .get(&id)
+                .cloned()
+                .unwrap_or_default())
         }
     }
 

@@ -267,6 +267,43 @@ pub struct TorrentRates {
     pub ratio: f64,
 }
 
+/// Snapshot of a peer connected to a torrent.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PeerSnapshot {
+    /// Socket endpoint (host:port) of the peer.
+    pub endpoint: String,
+    /// Client identifier reported by the peer.
+    pub client: Option<String>,
+    /// Progress fraction (0.0-1.0) reported by the engine.
+    pub progress: f64,
+    /// Current download rate in bytes per second.
+    pub download_bps: u64,
+    /// Current upload rate in bytes per second.
+    pub upload_bps: u64,
+    /// Interest flags for the peer connection.
+    pub interest: PeerInterest,
+    /// Choke flags for the peer connection.
+    pub choke: PeerChoke,
+}
+
+/// Interest flags for a peer connection.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PeerInterest {
+    /// Whether we are interested in the peer.
+    pub local: bool,
+    /// Whether the peer is interested in us.
+    pub remote: bool,
+}
+
+/// Choke flags for a peer connection.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PeerChoke {
+    /// Whether the peer is choking us.
+    pub local: bool,
+    /// Whether we are choking the peer.
+    pub remote: bool,
+}
+
 /// Aggregated progress metrics for a torrent.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TorrentProgress {

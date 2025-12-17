@@ -39,9 +39,9 @@ use crate::http::setup::{setup_complete, setup_start};
 use crate::http::sse::stream_events;
 use crate::http::telemetry::HttpMetricsLayer;
 use crate::http::torrents::handlers::{
-    action_torrent, create_torrent, delete_torrent, get_torrent, list_torrent_trackers,
-    list_torrents, remove_torrent_trackers, select_torrent, update_torrent_options,
-    update_torrent_trackers, update_torrent_web_seeds,
+    action_torrent, create_torrent, delete_torrent, get_torrent, list_torrent_peers,
+    list_torrent_trackers, list_torrents, remove_torrent_trackers, select_torrent,
+    update_torrent_options, update_torrent_trackers, update_torrent_web_seeds,
 };
 use crate::openapi::OpenApiDependencies;
 
@@ -222,6 +222,10 @@ impl ApiServer {
                     .route_layer(require_api.clone()),
             )
             .route(
+                "/admin/torrents/{id}/peers",
+                get(list_torrent_peers).route_layer(require_api.clone()),
+            )
+            .route(
                 "/v1/torrents",
                 get(list_torrents)
                     .post(create_torrent)
@@ -249,6 +253,10 @@ impl ApiServer {
                     .patch(update_torrent_trackers)
                     .delete(remove_torrent_trackers)
                     .route_layer(require_api.clone()),
+            )
+            .route(
+                "/v1/torrents/{id}/peers",
+                get(list_torrent_peers).route_layer(require_api.clone()),
             )
             .route(
                 "/v1/torrents/{id}/web_seeds",

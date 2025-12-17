@@ -1,7 +1,7 @@
 //! Safe wrapper around the libtorrent worker and FFI bindings.
 
 use anyhow::{Result, anyhow};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
 use crate::command::EngineCommand;
@@ -10,7 +10,7 @@ use crate::types::EngineRuntimeConfig;
 use crate::worker;
 use revaer_events::EventBus;
 use revaer_torrent_core::{
-    AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentEngine, TorrentRateLimit,
+    AddTorrent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentEngine, TorrentRateLimit,
     model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
 };
 
@@ -131,6 +131,14 @@ impl TorrentEngine for LibtorrentEngine {
 
     async fn recheck(&self, id: Uuid) -> Result<()> {
         self.send_command(EngineCommand::Recheck { id }).await
+    }
+
+    async fn peers(&self, id: Uuid) -> Result<Vec<PeerSnapshot>> {
+        let (respond_to, rx) = oneshot::channel();
+        self.send_command(EngineCommand::QueryPeers { id, respond_to })
+            .await?;
+        rx.await
+            .map_err(|err| anyhow!("peer query response dropped: {err}"))?
     }
 }
 

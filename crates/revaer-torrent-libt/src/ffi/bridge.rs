@@ -568,6 +568,29 @@ pub mod ffi {
         message: String,
     }
 
+    /// Peer snapshot exported from libtorrent.
+    #[derive(Debug)]
+    struct NativePeerInfo {
+        /// Endpoint in host:port form.
+        endpoint: String,
+        /// Client identifier.
+        client: String,
+        /// Progress fraction (0.0-1.0).
+        progress: f64,
+        /// Current download rate in bytes per second.
+        download_rate: i64,
+        /// Current upload rate in bytes per second.
+        upload_rate: i64,
+        /// Whether we are interested in the peer.
+        interesting: bool,
+        /// Whether the peer is choking us.
+        choked: bool,
+        /// Whether the peer is interested in us.
+        remote_interested: bool,
+        /// Whether we are choking the peer.
+        remote_choked: bool,
+    }
+
     unsafe extern "C++" {
         include!("revaer/session.hpp");
 
@@ -628,5 +651,8 @@ pub mod ffi {
         /// Poll pending events from the session.
         #[must_use]
         fn poll_events(self: Pin<&mut Session>) -> Vec<NativeEvent>;
+        /// Retrieve connected peers for a torrent.
+        #[must_use]
+        fn list_peers(self: Pin<&mut Session>, id: &str) -> Vec<NativePeerInfo>;
     }
 }

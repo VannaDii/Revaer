@@ -1,8 +1,9 @@
 use crate::types::EngineRuntimeConfig;
 use revaer_torrent_core::{
-    AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit,
+    AddTorrent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentRateLimit,
     model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
 };
+use tokio::sync::oneshot;
 use uuid::Uuid;
 
 /// Command definitions and runtime configuration inputs for the libtorrent worker.
@@ -89,4 +90,11 @@ pub enum EngineCommand {
     },
     /// Apply a new runtime configuration profile.
     ApplyConfig(Box<EngineRuntimeConfig>),
+    /// Inspect peers connected to a torrent.
+    QueryPeers {
+        /// Unique torrent identifier.
+        id: Uuid,
+        /// Channel used to return peer snapshots.
+        respond_to: oneshot::Sender<anyhow::Result<Vec<PeerSnapshot>>>,
+    },
 }

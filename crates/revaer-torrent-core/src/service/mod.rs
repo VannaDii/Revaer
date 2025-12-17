@@ -2,8 +2,8 @@
 
 use crate::model::TorrentStatus;
 use crate::model::{
-    AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentTrackersUpdate,
-    TorrentWebSeedsUpdate,
+    AddTorrent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentRateLimit,
+    TorrentTrackersUpdate, TorrentWebSeedsUpdate,
 };
 use anyhow::bail;
 use async_trait::async_trait;
@@ -99,6 +99,12 @@ pub trait TorrentEngine: Send + Sync {
     async fn recheck(&self, id: Uuid) -> anyhow::Result<()> {
         let _ = id;
         bail!("recheck not supported by this engine");
+    }
+
+    /// Retrieve connected peers for a torrent.
+    async fn peers(&self, id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+        let _ = id;
+        bail!("peer inspection not supported by this engine");
     }
 }
 
@@ -204,6 +210,9 @@ pub trait TorrentInspector: Send + Sync {
 
     /// Retrieve an individual torrent status snapshot.
     async fn get(&self, id: Uuid) -> anyhow::Result<Option<TorrentStatus>>;
+
+    /// Retrieve connected peers for a torrent.
+    async fn peers(&self, id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>>;
 }
 
 #[cfg(test)]
@@ -232,6 +241,7 @@ mod tests {
         assert!(engine.resume_torrent(id).await.is_err());
         assert!(engine.reannounce(id).await.is_err());
         assert!(engine.recheck(id).await.is_err());
+        assert!(engine.peers(id).await.is_err());
         assert!(
             engine
                 .move_torrent(id, "/tmp/downloads".into())

@@ -12,7 +12,8 @@ use uuid::Uuid;
 use revaer_events::TorrentState;
 use revaer_torrent_core::{
     AddTorrentOptions, FilePriority, FilePriorityOverride, FileSelectionRules, FileSelectionUpdate,
-    StorageMode, TorrentRateLimit, TorrentSource, TorrentStatus,
+    PeerChoke, PeerInterest, PeerSnapshot, StorageMode, TorrentRateLimit, TorrentSource,
+    TorrentStatus,
     model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
 };
 
@@ -655,6 +656,40 @@ pub struct TrackerView {
 pub struct TorrentTrackersResponse {
     /// Trackers currently attached to the torrent.
     pub trackers: Vec<TrackerView>,
+}
+
+/// Peer snapshot exposed via the torrent endpoints.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TorrentPeer {
+    /// Endpoint (host:port).
+    pub endpoint: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Optional client identifier reported by the peer.
+    pub client: Option<String>,
+    /// Progress fraction (0.0-1.0).
+    pub progress: f64,
+    /// Current download rate in bytes per second.
+    pub download_bps: u64,
+    /// Current upload rate in bytes per second.
+    pub upload_bps: u64,
+    /// Interest flags for the peer connection.
+    pub interest: PeerInterest,
+    /// Choke flags for the peer connection.
+    pub choke: PeerChoke,
+}
+
+impl From<PeerSnapshot> for TorrentPeer {
+    fn from(peer: PeerSnapshot) -> Self {
+        Self {
+            endpoint: peer.endpoint,
+            client: peer.client,
+            progress: peer.progress,
+            download_bps: peer.download_bps,
+            upload_bps: peer.upload_bps,
+            interest: peer.interest,
+            choke: peer.choke,
+        }
+    }
 }
 
 /// Body accepted by `DELETE /v1/torrents/{id}/trackers`.

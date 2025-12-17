@@ -85,9 +85,9 @@ mod tests {
     use revaer_events::{Event as CoreEvent, EventBus, TorrentState};
     use revaer_telemetry::Metrics;
     use revaer_torrent_core::{
-        AddTorrent, AddTorrentOptions, FileSelectionUpdate, RemoveTorrent, TorrentInspector,
-        TorrentProgress, TorrentRateLimit, TorrentRates, TorrentSource, TorrentStatus,
-        TorrentWorkflow,
+        AddTorrent, AddTorrentOptions, FileSelectionUpdate, PeerSnapshot, RemoveTorrent,
+        TorrentInspector, TorrentProgress, TorrentRateLimit, TorrentRates, TorrentSource,
+        TorrentStatus, TorrentWorkflow,
     };
     use serde_json::{Value, json};
     use std::collections::HashMap;
@@ -129,6 +129,10 @@ mod tests {
 
         async fn get(&self, _id: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
             Ok(None)
+        }
+
+        async fn peers(&self, _id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+            Ok(Vec::new())
         }
     }
 
@@ -706,6 +710,10 @@ mod tests {
                 .iter()
                 .find(|status| status.id == id)
                 .cloned())
+        }
+
+        async fn peers(&self, _id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+            Ok(Vec::new())
         }
     }
 
@@ -1466,6 +1474,10 @@ mod tests {
             let snapshot = self.statuses.lock().await.clone();
             Ok(snapshot.into_iter().find(|status| status.id == id))
         }
+
+        async fn peers(&self, _id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+            Ok(Vec::new())
+        }
     }
 
     #[tokio::test]
@@ -1557,6 +1569,10 @@ mod tests {
 
         async fn get(&self, _id: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
             Ok(None)
+        }
+
+        async fn peers(&self, _id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+            Ok(Vec::new())
         }
     }
 

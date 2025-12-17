@@ -254,6 +254,10 @@ impl Worker {
             EngineCommand::ApplyConfig(config) => {
                 self.handle_apply_config(*config).await?;
             }
+            EngineCommand::QueryPeers { id, respond_to } => {
+                let result = self.session.peers(id).await;
+                let _ = respond_to.send(result);
+            }
         }
 
         self.flush_session_events().await
@@ -1374,12 +1378,15 @@ mod tests {
     use revaer_events::{Event, EventBus, TorrentState};
     use revaer_torrent_core::{
         AddTorrent, AddTorrentOptions, FilePriority, FilePriorityOverride, FileSelectionRules,
-        FileSelectionUpdate, RemoveTorrent, TorrentProgress, TorrentRateLimit, TorrentRates,
-        TorrentSource, model::TorrentOptionsUpdate,
+        FileSelectionUpdate, PeerChoke, PeerInterest, PeerSnapshot, RemoveTorrent, TorrentProgress,
+        TorrentRateLimit, TorrentRates, TorrentSource, model::TorrentOptionsUpdate,
     };
     use std::time::Duration;
     use tempfile::TempDir;
-    use tokio::time::{sleep, timeout};
+    use tokio::{
+        sync::oneshot,
+        time::{sleep, timeout},
+    };
     use tokio_stream::StreamExt;
 
     const SAMPLE_PIECE_HASH: [u8; 20] = [
@@ -1496,6 +1503,44 @@ mod tests {
                 .and_then(|rate| rate.download_bps),
             Some(12_000)
         );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn query_peers_returns_stubbed_snapshot() -> Result<()> {
+        let bus = EventBus::with_capacity(4);
+        let torrent_id = Uuid::new_v4();
+        let peer = PeerSnapshot {
+            endpoint: "203.0.113.2:6881".to_string(),
+            client: Some("lt/peer".to_string()),
+            progress: 0.25,
+            download_bps: 512,
+            upload_bps: 256,
+            interest: PeerInterest {
+                local: true,
+                remote: true,
+            },
+            choke: PeerChoke {
+                local: false,
+                remote: false,
+            },
+        };
+        let session: Box<dyn LibTorrentSession> =
+            Box::new(StubSession::default().with_peers(torrent_id, vec![peer.clone()]));
+        let mut worker = Worker::new(bus, session, None);
+
+        let (respond_to, rx) = oneshot::channel();
+        worker
+            .handle(EngineCommand::QueryPeers {
+                id: torrent_id,
+                respond_to,
+            })
+            .await?;
+
+        let peers = rx.await.expect("response channel")?;
+        assert_eq!(peers.len(), 1);
+        assert_eq!(peers[0].endpoint, peer.endpoint);
+        assert_eq!(peers[0].download_bps, peer.download_bps);
         Ok(())
     }
 
@@ -2485,6 +2530,10 @@ mod tests {
 
         async fn recheck(&mut self, _id: Uuid) -> Result<()> {
             Ok(())
+        }
+
+        async fn peers(&mut self, _id: Uuid) -> Result<Vec<PeerSnapshot>> {
+            Err(anyhow::anyhow!("simulated session failure"))
         }
 
         async fn apply_config(&mut self, _config: &EngineRuntimeConfig) -> Result<()> {

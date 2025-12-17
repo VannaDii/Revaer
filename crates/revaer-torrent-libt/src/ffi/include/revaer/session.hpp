@@ -21,6 +21,7 @@ struct MoveTorrentRequest;
 struct SelectionRules;
 struct NativeEvent;
 struct EngineStorageState;
+struct NativePeerInfo;
 
 class Session {
 public:
@@ -43,6 +44,7 @@ public:
     ::rust::String reannounce(::rust::Str id);
     ::rust::String recheck(::rust::Str id);
     [[nodiscard]] EngineStorageState inspect_storage_state() const;
+    rust::Vec<NativePeerInfo> list_peers(::rust::Str id);
     rust::Vec<NativeEvent> poll_events();
 
 private:

@@ -2,7 +2,7 @@ use crate::types::EngineRuntimeConfig;
 use anyhow::Result;
 use async_trait::async_trait;
 use revaer_torrent_core::{
-    AddTorrent, EngineEvent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit,
+    AddTorrent, EngineEvent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentRateLimit,
 };
 use uuid::Uuid;
 
@@ -119,6 +119,12 @@ pub trait LibTorrentSession: Send {
     ///
     /// Returns an error if the recheck cannot be scheduled.
     async fn recheck(&mut self, id: Uuid) -> Result<()>;
+    /// Inspect connected peers for a torrent.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if peer metadata cannot be fetched.
+    async fn peers(&mut self, id: Uuid) -> Result<Vec<PeerSnapshot>>;
     /// Drain pending events from the session.
     ///
     /// # Errors

@@ -7,9 +7,9 @@ use crate::convert::{map_native_event, map_priority};
 use crate::ffi::ffi;
 use crate::types::EngineRuntimeConfig;
 use ffi::SourceKind;
-use revaer_torrent_core::model::TrackerAuth;
 use revaer_torrent_core::{
-    AddTorrent, EngineEvent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentSource,
+    AddTorrent, EngineEvent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentRateLimit,
+    TorrentSource, model::TrackerAuth,
 };
 use tracing::warn;
 
@@ -94,6 +94,26 @@ fn map_tracker_auth(auth: Option<&TrackerAuth>) -> ffi::TrackerAuthOptions {
         has_username: auth.username.is_some(),
         has_password: auth.password.is_some(),
         has_cookie: auth.cookie.is_some(),
+    }
+}
+
+fn map_peer_info(peer: ffi::NativePeerInfo) -> PeerSnapshot {
+    let download_bps = u64::try_from(peer.download_rate).unwrap_or(0);
+    let upload_bps = u64::try_from(peer.upload_rate).unwrap_or(0);
+    PeerSnapshot {
+        endpoint: peer.endpoint,
+        client: (!peer.client.is_empty()).then_some(peer.client),
+        progress: peer.progress,
+        download_bps,
+        upload_bps,
+        interest: revaer_torrent_core::model::PeerInterest {
+            local: peer.interesting,
+            remote: peer.remote_interested,
+        },
+        choke: revaer_torrent_core::model::PeerChoke {
+            local: peer.choked,
+            remote: peer.remote_choked,
+        },
     }
 }
 
@@ -399,6 +419,13 @@ impl LibTorrentSession for NativeSession {
         let session = self.inner.pin_mut();
         let result = session.recheck(&key);
         Self::map_error(result)
+    }
+
+    async fn peers(&mut self, id: Uuid) -> Result<Vec<PeerSnapshot>> {
+        let key = id.to_string();
+        let session = self.inner.pin_mut();
+        let peers = session.list_peers(&key);
+        Ok(peers.into_iter().map(map_peer_info).collect())
     }
 
     async fn update_trackers(

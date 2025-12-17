@@ -17,8 +17,9 @@ use crate::http::constants::{DEFAULT_PAGE_SIZE, MAX_METAINFO_BYTES, MAX_PAGE_SIZ
 use crate::http::errors::ApiError;
 use crate::models::{
     TorrentAction, TorrentCreateRequest, TorrentDetail, TorrentListResponse, TorrentOptionsRequest,
-    TorrentSelectionRequest, TorrentStateKind, TorrentSummary, TorrentTrackersRemoveRequest,
-    TorrentTrackersRequest, TorrentTrackersResponse, TorrentWebSeedsRequest, TrackerView,
+    TorrentPeer, TorrentSelectionRequest, TorrentStateKind, TorrentSummary,
+    TorrentTrackersRemoveRequest, TorrentTrackersRequest, TorrentTrackersResponse,
+    TorrentWebSeedsRequest, TrackerView,
 };
 use revaer_events::Event as CoreEvent;
 use revaer_torrent_core::model::TorrentTrackersUpdate;
@@ -201,6 +202,21 @@ pub(crate) async fn list_torrent_trackers(
         })
         .collect();
     Ok(Json(TorrentTrackersResponse { trackers }))
+}
+
+pub(crate) async fn list_torrent_peers(
+    State(state): State<Arc<ApiState>>,
+    AxumPath(id): AxumPath<Uuid>,
+) -> Result<Json<Vec<TorrentPeer>>, ApiError> {
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+    let peers = handles.inspector().peers(id).await.map_err(|err| {
+        error!(error = %err, torrent_id = %id, "failed to fetch torrent peers");
+        ApiError::internal("failed to fetch torrent peers")
+    })?;
+    Ok(Json(peers.into_iter().map(TorrentPeer::from).collect()))
 }
 
 pub(crate) async fn remove_torrent_trackers(
@@ -823,10 +839,11 @@ mod tests {
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
     use revaer_torrent_core::{
-        AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentStatus,
-        model::TorrentTrackersUpdate,
+        AddTorrent, FileSelectionUpdate, PeerChoke, PeerInterest, PeerSnapshot, RemoveTorrent,
+        TorrentRateLimit, TorrentStatus, model::TorrentTrackersUpdate,
     };
     use serde_json::json;
+    use std::collections::HashMap;
     use std::time::Duration;
     use tokio::sync::Mutex as AsyncMutex;
 
@@ -942,6 +959,48 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn list_torrent_peers_returns_snapshot() {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = Arc::new(ApiState::new(
+            Arc::new(DummyConfig),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            Some(handles),
+        ));
+        let torrent_id = Uuid::new_v4();
+        workflow
+            .set_peers(
+                torrent_id,
+                vec![PeerSnapshot {
+                    endpoint: "192.0.2.1:6881".to_string(),
+                    client: Some("peer-test".to_string()),
+                    progress: 0.5,
+                    download_bps: 10,
+                    upload_bps: 5,
+                    interest: PeerInterest {
+                        local: true,
+                        remote: true,
+                    },
+                    choke: PeerChoke {
+                        local: false,
+                        remote: false,
+                    },
+                }],
+            )
+            .await;
+
+        let Json(peers) = list_torrent_peers(State(state), AxumPath(torrent_id))
+            .await
+            .expect("peers should be listed");
+        assert_eq!(peers.len(), 1);
+        assert_eq!(peers[0].endpoint, "192.0.2.1:6881");
+        assert!(peers[0].interest.local);
+        assert!(peers[0].interest.remote);
+    }
+
+    #[tokio::test]
     async fn remove_torrent_trackers_filters_and_replaces() {
         let workflow = Arc::new(RecordingWorkflow::default());
         let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
@@ -1028,6 +1087,7 @@ mod tests {
     struct RecordingWorkflow {
         tracker_updates: AsyncMutex<Vec<TorrentTrackersUpdate>>,
         moves: AsyncMutex<Vec<(Uuid, String)>>,
+        peers: AsyncMutex<HashMap<Uuid, Vec<PeerSnapshot>>>,
     }
 
     #[async_trait::async_trait]
@@ -1108,6 +1168,16 @@ mod tests {
         async fn get(&self, _: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
             Ok(None)
         }
+
+        async fn peers(&self, id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+            Ok(self
+                .peers
+                .lock()
+                .await
+                .get(&id)
+                .cloned()
+                .unwrap_or_default())
+        }
     }
 
     impl RecordingWorkflow {
@@ -1123,6 +1193,10 @@ mod tests {
             let moves = guard.clone();
             guard.clear();
             moves
+        }
+
+        async fn set_peers(&self, id: Uuid, peers: Vec<PeerSnapshot>) {
+            self.peers.lock().await.insert(id, peers);
         }
     }
 

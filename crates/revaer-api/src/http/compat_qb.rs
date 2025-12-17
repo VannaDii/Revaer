@@ -992,7 +992,8 @@ mod tests {
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
     use revaer_torrent_core::{
-        AddTorrent, TorrentInspector, TorrentProgress, TorrentRates, TorrentStatus, TorrentWorkflow,
+        AddTorrent, PeerSnapshot, TorrentInspector, TorrentProgress, TorrentRates, TorrentStatus,
+        TorrentWorkflow,
     };
     use serde_json::Value;
     use std::{sync::Arc, time::Duration};
@@ -1364,6 +1365,10 @@ mod tests {
 
         async fn get(&self, id: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
             Ok(self.statuses.iter().find(|status| status.id == id).cloned())
+        }
+
+        async fn peers(&self, _id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+            Ok(Vec::new())
         }
     }
 }

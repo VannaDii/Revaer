@@ -218,11 +218,11 @@
     -   [ ] API/docs: expose only if needed; document complexity and defaults.
     -   [ ] Tests: unit tests for class mapping; native test that class assignments apply without error.
 
--   [ ] Peer view and diagnostics exposed
+-   [x] Peer view and diagnostics exposed
 
-    -   [ ] Domain/API: add peer listing (IP/flags/rates/client, progress) via inspector/endpoint.
-    -   [ ] Native: surface peer info through FFI (translate peer_info structs); ensure alert polling or snapshot supports peer views.
-    -   [ ] Tests: native tests that peers are returned; API tests for peer view responses.
+    -   [x] Domain/API: add peer listing (IP/flags/rates/client, progress) via inspector/endpoint.
+    -   [x] Native: surface peer info through FFI (translate peer_info structs); ensure alert polling or snapshot supports peer views.
+    -   [x] Tests: native tests that peers are returned; API tests for peer view responses.
 
 -   [ ] Alert coverage and error surfacing expanded
 
