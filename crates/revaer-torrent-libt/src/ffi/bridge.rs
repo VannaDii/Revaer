@@ -259,6 +259,22 @@ pub mod ffi {
         request_timeout_ms: i64,
         /// Flag indicating whether timeout was set.
         has_request_timeout: bool,
+        /// Optional client certificate path for tracker TLS.
+        ssl_cert: String,
+        /// Flag indicating whether a client certificate was provided.
+        has_ssl_cert: bool,
+        /// Optional client key path for tracker TLS.
+        ssl_private_key: String,
+        /// Flag indicating whether a client key was provided.
+        has_ssl_private_key: bool,
+        /// Optional CA certificate bundle path for tracker TLS.
+        ssl_ca_cert: String,
+        /// Flag indicating whether a CA bundle was provided.
+        has_ssl_ca_cert: bool,
+        /// Whether to verify tracker TLS certificates.
+        ssl_tracker_verify: bool,
+        /// Flag indicating whether tracker verification was provided.
+        has_ssl_tracker_verify: bool,
         /// Whether to announce to all trackers.
         announce_to_all: bool,
         /// Proxy configuration for tracker announces.

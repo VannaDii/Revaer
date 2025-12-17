@@ -207,6 +207,14 @@ fn map_tracker_options(config: &TrackerRuntimeConfig) -> ffi::EngineTrackerOptio
         has_listen_interface: config.listen_interface.is_some(),
         request_timeout_ms: config.request_timeout_ms.unwrap_or_default(),
         has_request_timeout: config.request_timeout_ms.is_some(),
+        ssl_cert: config.ssl_cert.clone().unwrap_or_default(),
+        has_ssl_cert: config.ssl_cert.is_some(),
+        ssl_private_key: config.ssl_private_key.clone().unwrap_or_default(),
+        has_ssl_private_key: config.ssl_private_key.is_some(),
+        ssl_ca_cert: config.ssl_ca_cert.clone().unwrap_or_default(),
+        has_ssl_ca_cert: config.ssl_ca_cert.is_some(),
+        ssl_tracker_verify: config.ssl_tracker_verify.unwrap_or(true),
+        has_ssl_tracker_verify: config.ssl_tracker_verify.is_some(),
         announce_to_all: config.announce_to_all,
         proxy,
         auth,
@@ -833,6 +841,10 @@ mod tests {
             listen_interface: Some("0.0.0.0:9000".into()),
             request_timeout_ms: Some(5_000),
             announce_to_all: true,
+            ssl_cert: Some("/etc/certs/client.pem".into()),
+            ssl_private_key: Some("/etc/certs/client.key".into()),
+            ssl_ca_cert: Some("/etc/certs/ca.pem".into()),
+            ssl_tracker_verify: Some(false),
             proxy: Some(TrackerProxyRuntime {
                 host: "proxy.example".into(),
                 port: 8080,
@@ -871,6 +883,14 @@ mod tests {
         assert!(tracker.has_listen_interface);
         assert_eq!(tracker.request_timeout_ms, 5_000);
         assert!(tracker.has_request_timeout);
+        assert_eq!(tracker.ssl_cert, "/etc/certs/client.pem");
+        assert!(tracker.has_ssl_cert);
+        assert_eq!(tracker.ssl_private_key, "/etc/certs/client.key");
+        assert!(tracker.has_ssl_private_key);
+        assert_eq!(tracker.ssl_ca_cert, "/etc/certs/ca.pem");
+        assert!(tracker.has_ssl_ca_cert);
+        assert!(!tracker.ssl_tracker_verify);
+        assert!(tracker.has_ssl_tracker_verify);
         assert!(tracker.announce_to_all);
         assert!(tracker.proxy.has_proxy);
         assert_eq!(tracker.proxy.host, "proxy.example");

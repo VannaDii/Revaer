@@ -248,12 +248,12 @@
     -   [x] Tests: add dedicated coverage that cache settings are applied and survive native round-trips (plus piece hash mode when available).
     -   [x] Piece hash verification mode and disk I/O mode mapping wired through.
 
--   [ ] TLS/SSL tracker and client cert configuration
+-   [x] TLS/SSL tracker and client cert configuration
 
-    -   [ ] Config/DB: allow tracker SSL settings (trust store path, verify flags) and optional client cert/key references (stored as secrets).
-    -   [ ] Runtime/bridge: carry SSL tracker settings in `EngineRuntimeConfig`/`EngineOptions`.
-    -   [ ] Native: set `lt::settings_pack` SSL options (e.g., `ssl_cert`, `ssl_private_key`, `ssl_ca_cert`, `ssl_tracker_verify`) and apply per-tracker if supported.
-    -   [ ] API/docs/tests: expose only if needed; document security implications; native test that SSL settings apply and tracker connections succeed.
+    -   [x] Config/DB: allow tracker SSL settings (trust store path, verify flags) and optional client cert/key references (stored as secrets).
+    -   [x] Runtime/bridge: carry SSL tracker settings in `EngineRuntimeConfig`/`EngineOptions`.
+    -   [x] Native: set `lt::settings_pack` SSL options (e.g., `ssl_cert`, `ssl_private_key`, `ssl_ca_cert`, `ssl_tracker_verify`) and apply per-tracker if supported.
+    -   [x] API/docs/tests: expose only if needed; document security implications; native test that SSL settings apply and tracker connections succeed.
 
 -   [ ] BitTorrent v2/hybrid torrents supported
 

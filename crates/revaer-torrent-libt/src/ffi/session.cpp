@@ -304,6 +304,15 @@ bool set_int_setting(lt::settings_pack& pack, const char* name, int value) {
     return true;
 }
 
+bool set_str_setting(lt::settings_pack& pack, const char* name, const std::string& value) {
+    const int index = lt::setting_by_name(name);
+    if (index < 0) {
+        return false;
+    }
+    pack.set_str(index, value);
+    return true;
+}
+
 void set_strict_super_seeding(lt::settings_pack& pack, bool value) {
     if (set_bool_setting(pack, "strict_super_seeding", value)) {
         return;
@@ -559,6 +568,21 @@ public:
                     std::max<std::int64_t>(1, options.tracker.request_timeout_ms / 1000);
                 pack.set_int(lt::settings_pack::request_timeout,
                              static_cast<int>(seconds));
+            }
+            if (options.tracker.has_ssl_cert) {
+                set_str_setting(pack, "ssl_cert", to_std_string(options.tracker.ssl_cert));
+            }
+            if (options.tracker.has_ssl_private_key) {
+                set_str_setting(
+                    pack, "ssl_private_key", to_std_string(options.tracker.ssl_private_key));
+            }
+            if (options.tracker.has_ssl_ca_cert) {
+                set_str_setting(
+                    pack, "ssl_ca_cert", to_std_string(options.tracker.ssl_ca_cert));
+            }
+            if (options.tracker.has_ssl_tracker_verify) {
+                set_bool_setting(
+                    pack, "ssl_tracker_verify", options.tracker.ssl_tracker_verify);
             }
             pack.set_bool(lt::settings_pack::announce_to_all_trackers,
                           options.tracker.announce_to_all);

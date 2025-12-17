@@ -321,7 +321,7 @@ pub struct TrackerProxyRuntime {
 }
 
 /// Tracker configuration applied to the session.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TrackerRuntimeConfig {
     /// Default tracker list applied to all torrents.
     pub default: Vec<String>,
@@ -339,10 +339,39 @@ pub struct TrackerRuntimeConfig {
     pub request_timeout_ms: Option<i64>,
     /// Whether to announce to all trackers.
     pub announce_to_all: bool,
+    /// Optional client certificate path for tracker TLS.
+    pub ssl_cert: Option<String>,
+    /// Optional client private key path for tracker TLS.
+    pub ssl_private_key: Option<String>,
+    /// Optional CA certificate bundle path for tracker TLS.
+    pub ssl_ca_cert: Option<String>,
+    /// Whether to verify tracker TLS certificates.
+    pub ssl_tracker_verify: Option<bool>,
     /// Optional proxy configuration.
     pub proxy: Option<TrackerProxyRuntime>,
     /// Optional authentication material.
     pub auth: Option<TrackerAuthRuntime>,
+}
+
+impl Default for TrackerRuntimeConfig {
+    fn default() -> Self {
+        Self {
+            default: Vec::new(),
+            extra: Vec::new(),
+            replace: false,
+            user_agent: None,
+            announce_ip: None,
+            listen_interface: None,
+            request_timeout_ms: None,
+            announce_to_all: false,
+            ssl_cert: None,
+            ssl_private_key: None,
+            ssl_ca_cert: None,
+            ssl_tracker_verify: Some(true),
+            proxy: None,
+            auth: None,
+        }
+    }
 }
 
 /// Inclusive IP range used for filtering peers.

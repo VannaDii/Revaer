@@ -455,7 +455,7 @@ pub struct TrackerProxyConfig {
 }
 
 /// Normalised tracker configuration derived from the persisted payload.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct TrackerConfig {
     /// Default tracker list applied to all torrents.
     #[serde(default)]
@@ -481,6 +481,18 @@ pub struct TrackerConfig {
     /// Whether to announce to all trackers.
     #[serde(default)]
     pub announce_to_all: bool,
+    /// Optional client certificate path for tracker TLS.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ssl_cert: Option<String>,
+    /// Optional client private key path for tracker TLS.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ssl_private_key: Option<String>,
+    /// Optional CA certificate bundle path for tracker TLS.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ssl_ca_cert: Option<String>,
+    /// Whether to verify tracker TLS certificates.
+    #[serde(default = "TrackerConfig::default_ssl_tracker_verify")]
+    pub ssl_tracker_verify: bool,
     /// Optional proxy configuration for tracker announces.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<TrackerProxyConfig>,
@@ -494,6 +506,31 @@ impl TrackerConfig {
     #[must_use]
     pub fn to_value(&self) -> Value {
         json!(self)
+    }
+
+    const fn default_ssl_tracker_verify() -> bool {
+        true
+    }
+}
+
+impl Default for TrackerConfig {
+    fn default() -> Self {
+        Self {
+            default: Vec::new(),
+            extra: Vec::new(),
+            replace: false,
+            user_agent: None,
+            announce_ip: None,
+            listen_interface: None,
+            request_timeout_ms: None,
+            announce_to_all: false,
+            ssl_cert: None,
+            ssl_private_key: None,
+            ssl_ca_cert: None,
+            ssl_tracker_verify: true,
+            proxy: None,
+            auth: None,
+        }
     }
 }
 
@@ -2170,7 +2207,8 @@ fn normalize_tracker_payload(value: &Value) -> Result<Value, ConfigError> {
     for key in map.keys() {
         match key.as_str() {
             "default" | "extra" | "replace" | "user_agent" | "announce_ip" | "listen_interface"
-            | "request_timeout_ms" | "announce_to_all" | "proxy" | "auth" => {}
+            | "request_timeout_ms" | "announce_to_all" | "ssl_cert" | "ssl_private_key"
+            | "ssl_ca_cert" | "ssl_tracker_verify" | "proxy" | "auth" => {}
             other => {
                 return Err(ConfigError::UnknownField {
                     section: "engine_profile".to_string(),
@@ -2192,6 +2230,13 @@ fn normalize_tracker_payload(value: &Value) -> Result<Value, ConfigError> {
         parse_optional_string(map.get("listen_interface"), "tracker.listen_interface")?;
     let request_timeout_ms =
         parse_optional_timeout(map.get("request_timeout_ms"), "tracker.request_timeout_ms")?;
+    let ssl_cert = parse_optional_string(map.get("ssl_cert"), "tracker.ssl_cert")?;
+    let ssl_private_key =
+        parse_optional_string(map.get("ssl_private_key"), "tracker.ssl_private_key")?;
+    let ssl_ca_cert = parse_optional_string(map.get("ssl_ca_cert"), "tracker.ssl_ca_cert")?;
+    let ssl_tracker_verify =
+        parse_optional_bool(map.get("ssl_tracker_verify"), "tracker.ssl_tracker_verify")?
+            .unwrap_or(true);
     let proxy = parse_proxy(map.get("proxy"))?;
     let auth = parse_auth(map.get("auth"))?;
 
@@ -2204,6 +2249,10 @@ fn normalize_tracker_payload(value: &Value) -> Result<Value, ConfigError> {
         listen_interface,
         request_timeout_ms,
         announce_to_all,
+        ssl_cert,
+        ssl_private_key,
+        ssl_ca_cert,
+        ssl_tracker_verify,
         proxy,
         auth,
     };
@@ -3073,6 +3122,36 @@ mod tests {
         assert_eq!(auth.username_secret.as_deref(), Some("TRACKER_USER"));
         assert_eq!(auth.cookie_secret.as_deref(), Some("TRACKER_COOKIE"));
         assert!(auth.password_secret.is_none());
+    }
+
+    #[test]
+    fn tracker_ssl_fields_are_normalised() {
+        let payload = json!({
+            "ssl_cert": "/etc/certs/client.pem",
+            "ssl_private_key": "/etc/certs/client.key",
+            "ssl_ca_cert": "/etc/certs/ca.pem",
+            "ssl_tracker_verify": false
+        });
+
+        let normalized = normalize_tracker_payload(&payload).expect("tracker payload");
+        let config: TrackerConfig =
+            serde_json::from_value(normalized).expect("config should decode");
+
+        assert_eq!(config.ssl_cert.as_deref(), Some("/etc/certs/client.pem"));
+        assert_eq!(
+            config.ssl_private_key.as_deref(),
+            Some("/etc/certs/client.key")
+        );
+        assert_eq!(config.ssl_ca_cert.as_deref(), Some("/etc/certs/ca.pem"));
+        assert!(!config.ssl_tracker_verify);
+    }
+
+    #[test]
+    fn tracker_ssl_verify_defaults_to_true() {
+        let normalized = normalize_tracker_payload(&json!({})).expect("tracker payload defaults");
+        let config: TrackerConfig =
+            serde_json::from_value(normalized).expect("config should decode");
+        assert!(config.ssl_tracker_verify);
     }
 
     #[test]

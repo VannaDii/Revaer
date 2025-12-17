@@ -207,6 +207,10 @@ fn map_tracker_config(config: TrackerConfig) -> TrackerRuntimeConfig {
         listen_interface: config.listen_interface,
         request_timeout_ms: config.request_timeout_ms,
         announce_to_all: config.announce_to_all,
+        ssl_cert: config.ssl_cert,
+        ssl_private_key: config.ssl_private_key,
+        ssl_ca_cert: config.ssl_ca_cert,
+        ssl_tracker_verify: Some(config.ssl_tracker_verify),
         proxy: config.proxy.map(map_proxy_config),
         auth: config.auth.map(map_tracker_auth),
     }
