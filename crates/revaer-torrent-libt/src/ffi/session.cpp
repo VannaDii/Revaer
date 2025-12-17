@@ -6,6 +6,7 @@
 #include <array>
 #include <cctype>
 #include <chrono>
+#include <cstdint>
 #include <cmath>
 #include <filesystem>
 #include <fstream>
@@ -276,6 +277,22 @@ bool set_bool_setting(lt::settings_pack& pack, const char* name, bool value) {
     }
     pack.set_bool(index, value);
     return true;
+}
+
+bool get_bool_setting(const lt::settings_pack& pack, const char* name, bool fallback) {
+    const int index = lt::setting_by_name(name);
+    if (index < 0) {
+        return fallback;
+    }
+    return pack.get_bool(index);
+}
+
+int get_int_setting(const lt::settings_pack& pack, const char* name, int fallback) {
+    const int index = lt::setting_by_name(name);
+    if (index < 0) {
+        return fallback;
+    }
+    return pack.get_int(index);
 }
 
 bool set_int_setting(lt::settings_pack& pack, const char* name, int value) {
@@ -1266,6 +1283,29 @@ public:
         return events;
     }
 
+    EngineStorageState inspect_storage_state() const {
+        const auto settings = session_->get_settings();
+        std::uint8_t flags = 0;
+        if (get_bool_setting(settings, "use_partfile", false)) {
+            flags |= 0b0001;
+        }
+        if (get_bool_setting(settings, "coalesce_reads", true)) {
+            flags |= 0b0010;
+        }
+        if (get_bool_setting(settings, "coalesce_writes", true)) {
+            flags |= 0b0100;
+        }
+        if (get_bool_setting(settings, "use_disk_cache_pool", true)) {
+            flags |= 0b1000;
+        }
+
+        EngineStorageState snapshot{};
+        snapshot.cache_size = get_int_setting(settings, "cache_size", 0);
+        snapshot.cache_expiry = get_int_setting(settings, "cache_expiry", 0);
+        snapshot.flags = flags;
+        return snapshot;
+    }
+
 private:
     template <typename Fn>
     ::rust::String mutate_handle(const std::string& id, Fn&& fn) {
@@ -1517,6 +1557,10 @@ Session::~Session() = default;
 
 ::rust::String Session::recheck(::rust::Str id) {
     return impl_->recheck(to_std_string(id));
+}
+
+EngineStorageState Session::inspect_storage_state() const {
+    return impl_->inspect_storage_state();
 }
 
 rust::Vec<NativeEvent> Session::poll_events() {

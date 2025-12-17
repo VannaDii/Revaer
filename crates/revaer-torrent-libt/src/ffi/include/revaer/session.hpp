@@ -20,6 +20,7 @@ struct UpdateWebSeedsRequest;
 struct MoveTorrentRequest;
 struct SelectionRules;
 struct NativeEvent;
+struct EngineStorageState;
 
 class Session {
 public:
@@ -41,6 +42,7 @@ public:
     ::rust::String move_torrent(const MoveTorrentRequest& request);
     ::rust::String reannounce(::rust::Str id);
     ::rust::String recheck(::rust::Str id);
+    [[nodiscard]] EngineStorageState inspect_storage_state() const;
     rust::Vec<NativeEvent> poll_events();
 
 private:

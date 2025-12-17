@@ -34,6 +34,14 @@ impl NativeSession {
             Err(anyhow!(message))
         }
     }
+
+    #[cfg(all(test, feature = "libtorrent"))]
+    fn inspect_storage_state(&self) -> ffi::EngineStorageState {
+        self.inner
+            .as_ref()
+            .expect("native session must be initialized")
+            .inspect_storage_state()
+    }
 }
 
 const fn base_options() -> ffi::SessionOptions {
@@ -704,6 +712,56 @@ mod tests {
         });
 
         harness.session.apply_config(&config).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn native_session_applies_disk_cache_settings() -> Result<()> {
+        #[derive(Copy, Clone)]
+        struct StorageFlags(u8);
+        impl StorageFlags {
+            const USE_PARTFILE: u8 = 0b0001;
+            const COALESCE_READS: u8 = 0b0010;
+            const COALESCE_WRITES: u8 = 0b0100;
+            const USE_DISK_CACHE_POOL: u8 = 0b1000;
+
+            fn use_partfile(self) -> bool {
+                self.0 & Self::USE_PARTFILE != 0
+            }
+
+            fn coalesce_reads(self) -> bool {
+                self.0 & Self::COALESCE_READS != 0
+            }
+
+            fn coalesce_writes(self) -> bool {
+                self.0 & Self::COALESCE_WRITES != 0
+            }
+
+            fn use_disk_cache_pool(self) -> bool {
+                self.0 & Self::USE_DISK_CACHE_POOL != 0
+            }
+        }
+
+        let mut harness = NativeSessionHarness::new()?;
+        let mut config = harness.runtime_config();
+        config.cache_size = Some(192);
+        config.cache_expiry = Some(120);
+        config.use_partfile = false.into();
+        config.coalesce_reads = false.into();
+        config.coalesce_writes = true.into();
+        config.use_disk_cache_pool = false.into();
+
+        harness.session.apply_config(&config).await?;
+
+        let snapshot = harness.session.inspect_storage_state();
+        let flags = StorageFlags(snapshot.flags);
+
+        assert_eq!(snapshot.cache_size, 192);
+        assert_eq!(snapshot.cache_expiry, 120);
+        assert!(!flags.use_partfile());
+        assert!(!flags.coalesce_reads());
+        assert!(flags.coalesce_writes());
+        assert!(!flags.use_disk_cache_pool());
         Ok(())
     }
 

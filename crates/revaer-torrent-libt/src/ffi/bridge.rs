@@ -150,6 +150,17 @@ pub mod ffi {
         use_disk_cache_pool: bool,
     }
 
+    /// Snapshot of cache-related storage settings in the native session.
+    #[derive(Debug)]
+    struct EngineStorageState {
+        /// Cached block capacity in MiB.
+        cache_size: i32,
+        /// Cached block expiry in seconds.
+        cache_expiry: i32,
+        /// Bitfield of storage flags (partfile/coalesce settings).
+        flags: u8,
+    }
+
     /// Behavioural defaults applied to new torrents.
     #[derive(Debug)]
     struct EngineBehaviorOptions {
@@ -579,6 +590,9 @@ pub mod ffi {
         /// Recheck on-disk data for a torrent.
         #[must_use]
         fn recheck(self: Pin<&mut Session>, id: &str) -> String;
+        /// Inspect cache-related storage settings applied to the session.
+        #[must_use]
+        fn inspect_storage_state(self: &Session) -> EngineStorageState;
         /// Poll pending events from the session.
         #[must_use]
         fn poll_events(self: Pin<&mut Session>) -> Vec<NativeEvent>;

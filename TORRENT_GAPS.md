@@ -245,7 +245,8 @@
     -   [x] Runtime/bridge: thread cache_size/cache_expiry/coalesce flags and use_disk_cache_pool through `EngineRuntimeConfig`/`EngineOptions`.
     -   [x] Native: set `lt::settings_pack` cache knobs (`cache_size`, `cache_expiry`, `coalesce_reads`, `coalesce_writes`, `use_disk_cache_pool`) via name-based setters to avoid deprecated enums. Disk I/O modes and piece hash verification mapping remain TODO.
     -   [x] API/docs: expose new cache/storage fields in settings and health surfaces; update examples.
-    -   [ ] Tests: add dedicated coverage that cache settings are applied and survive native round-trips (plus piece hash mode when available).
+    -   [x] Tests: add dedicated coverage that cache settings are applied and survive native round-trips (plus piece hash mode when available).
+    -   [ ] Piece hash verification mode and disk I/O mode mapping wired through.
 
 -   [ ] TLS/SSL tracker and client cert configuration
 
