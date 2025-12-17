@@ -109,6 +109,8 @@ pub struct EngineRuntimeConfig {
     pub seed_time_limit: Option<i64>,
     /// Optional alternate speed limits and schedule.
     pub alt_speed: Option<AltSpeedRuntimeConfig>,
+    /// Optional stats alert interval in milliseconds.
+    pub stats_interval_ms: Option<i32>,
     /// Peer encryption requirements enforced by the engine.
     pub encryption: EncryptionPolicy,
     /// Tracker configuration applied to the session.
@@ -257,6 +259,8 @@ pub struct TrackerRuntimeConfig {
     pub announce_to_all: bool,
     /// Optional proxy configuration.
     pub proxy: Option<TrackerProxyRuntime>,
+    /// Optional authentication material.
+    pub auth: Option<TrackerAuthRuntime>,
 }
 
 /// Inclusive IP range used for filtering peers.
@@ -310,6 +314,23 @@ pub struct AltSpeedSchedule {
     pub start_minutes: u16,
     /// End time expressed as minutes from midnight UTC.
     pub end_minutes: u16,
+}
+
+/// Tracker authentication material resolved for runtime usage.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct TrackerAuthRuntime {
+    /// Plain username resolved from secrets.
+    pub username: Option<String>,
+    /// Plain password resolved from secrets.
+    pub password: Option<String>,
+    /// Cookie or trackerid value applied on announce.
+    pub cookie: Option<String>,
+    /// Secret reference for the username, when configured.
+    pub username_secret: Option<String>,
+    /// Secret reference for the password, when configured.
+    pub password_secret: Option<String>,
+    /// Secret reference for the cookie, when configured.
+    pub cookie_secret: Option<String>,
 }
 
 #[cfg(test)]

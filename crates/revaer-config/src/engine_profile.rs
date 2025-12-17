@@ -182,6 +182,9 @@ pub struct EngineLimitsConfig {
     pub unchoke_slots: Option<i32>,
     /// Optional half-open connection limit.
     pub half_open_limit: Option<i32>,
+    /// Optional stats alert interval in milliseconds.
+    #[serde(default)]
+    pub stats_interval_ms: Option<i32>,
     /// Choking strategy used for downloads.
     pub choking_algorithm: ChokingAlgorithm,
     /// Choking strategy used while seeding.
@@ -426,6 +429,9 @@ pub struct TrackerConfig {
     /// Optional proxy configuration for tracker announces.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub proxy: Option<TrackerProxyConfig>,
+    /// Optional authentication material for tracker announces.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth: Option<TrackerAuthConfig>,
 }
 
 impl TrackerConfig {
@@ -434,6 +440,20 @@ impl TrackerConfig {
     pub fn to_value(&self) -> Value {
         json!(self)
     }
+}
+
+/// Authentication material for tracker requests.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct TrackerAuthConfig {
+    /// Optional username secret reference.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub username_secret: Option<String>,
+    /// Optional password secret reference.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub password_secret: Option<String>,
+    /// Optional cookie secret reference (trackerid or HTTP cookie value).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cookie_secret: Option<String>,
 }
 
 /// Validate and normalise an engine profile patch against the current snapshot.
@@ -485,6 +505,7 @@ pub(crate) fn validate_engine_profile_patch(
         connections_limit_per_torrent: effective.limits.connections_limit_per_torrent,
         unchoke_slots: effective.limits.unchoke_slots,
         half_open_limit: effective.limits.half_open_limit,
+        stats_interval_ms: effective.limits.stats_interval_ms.map(i64::from),
         alt_speed: effective.alt_speed.to_value(),
         sequential_default: effective.behavior.sequential_default,
         auto_managed: effective.behavior.auto_managed,
@@ -634,6 +655,8 @@ fn sanitize_limits(profile: &EngineProfile, warnings: &mut Vec<String>) -> Engin
     let unchoke_slots = sanitize_positive_limit(profile.unchoke_slots, "unchoke_slots", warnings);
     let half_open_limit =
         sanitize_positive_limit(profile.half_open_limit, "half_open_limit", warnings);
+    let stats_interval_ms =
+        sanitize_stats_interval(profile.stats_interval_ms, "stats_interval_ms", warnings);
     let download_rate_limit =
         clamp_rate_limit("max_download_bps", profile.max_download_bps, warnings);
     let upload_rate_limit = clamp_rate_limit("max_upload_bps", profile.max_upload_bps, warnings);
@@ -657,6 +680,7 @@ fn sanitize_limits(profile: &EngineProfile, warnings: &mut Vec<String>) -> Engin
         connections_limit_per_torrent,
         unchoke_slots,
         half_open_limit,
+        stats_interval_ms,
         choking_algorithm,
         seed_choking_algorithm,
         strict_super_seeding: profile.strict_super_seeding,
@@ -751,6 +775,23 @@ fn canonical_choking_algorithm(raw: &str, warnings: &mut Vec<String>) -> Choking
             ));
             ChokingAlgorithm::FixedSlots
         }
+    }
+}
+
+fn sanitize_stats_interval(
+    value: Option<i64>,
+    label: &str,
+    warnings: &mut Vec<String>,
+) -> Option<i32> {
+    match value {
+        Some(v) if (100..=600_000).contains(&v) => i32::try_from(v).ok(),
+        Some(v) => {
+            warnings.push(format!(
+                "{label} {v} is out of range; using default cadence"
+            ));
+            None
+        }
+        None => None,
     }
 }
 
@@ -1061,6 +1102,10 @@ fn apply_limit_field(
         "seed_time_limit" => Some(assign_if_changed(
             &mut working.seed_time_limit,
             parse_optional_non_negative_i64(value, "seed_time_limit")?,
+        )),
+        "stats_interval_ms" => Some(assign_if_changed(
+            &mut working.stats_interval_ms,
+            parse_optional_non_negative_i64(value, "stats_interval_ms")?,
         )),
         _ => None,
     };
@@ -1915,7 +1960,7 @@ fn normalize_tracker_payload(value: &Value) -> Result<Value, ConfigError> {
     for key in map.keys() {
         match key.as_str() {
             "default" | "extra" | "replace" | "user_agent" | "announce_ip" | "listen_interface"
-            | "request_timeout_ms" | "announce_to_all" | "proxy" => {}
+            | "request_timeout_ms" | "announce_to_all" | "proxy" | "auth" => {}
             other => {
                 return Err(ConfigError::UnknownField {
                     section: "engine_profile".to_string(),
@@ -1938,6 +1983,7 @@ fn normalize_tracker_payload(value: &Value) -> Result<Value, ConfigError> {
     let request_timeout_ms =
         parse_optional_timeout(map.get("request_timeout_ms"), "tracker.request_timeout_ms")?;
     let proxy = parse_proxy(map.get("proxy"))?;
+    let auth = parse_auth(map.get("auth"))?;
 
     let config = TrackerConfig {
         default,
@@ -1949,6 +1995,7 @@ fn normalize_tracker_payload(value: &Value) -> Result<Value, ConfigError> {
         request_timeout_ms,
         announce_to_all,
         proxy,
+        auth,
     };
 
     Ok(config.to_value())
@@ -2134,6 +2181,43 @@ fn parse_proxy(value: Option<&Value>) -> Result<Option<TrackerProxyConfig>, Conf
         password_secret,
         kind,
         proxy_peers,
+    }))
+}
+
+fn parse_auth(value: Option<&Value>) -> Result<Option<TrackerAuthConfig>, ConfigError> {
+    let Some(raw) = value else {
+        return Ok(None);
+    };
+    if raw.is_null() {
+        return Ok(None);
+    }
+    let Some(map) = raw.as_object() else {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "tracker.auth".to_string(),
+            message: "must be an object".to_string(),
+        });
+    };
+
+    let username_secret =
+        parse_optional_string(map.get("username_secret"), "tracker.auth.username_secret")?;
+    let password_secret =
+        parse_optional_string(map.get("password_secret"), "tracker.auth.password_secret")?;
+    let cookie_secret =
+        parse_optional_string(map.get("cookie_secret"), "tracker.auth.cookie_secret")?;
+
+    if username_secret.is_none() && password_secret.is_none() && cookie_secret.is_none() {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "tracker.auth".to_string(),
+            message: "must include at least one secret reference".to_string(),
+        });
+    }
+
+    Ok(Some(TrackerAuthConfig {
+        username_secret,
+        password_secret,
+        cookie_secret,
     }))
 }
 
@@ -2481,6 +2565,7 @@ mod tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            stats_interval_ms: None,
             alt_speed: json!({}),
             sequential_default: false,
             auto_managed: true.into(),
@@ -2750,6 +2835,24 @@ mod tests {
         assert_eq!(proxy.port, 8080);
         assert!(proxy.proxy_peers);
         assert_eq!(proxy.kind, TrackerProxyType::Socks5);
+    }
+
+    #[test]
+    fn tracker_auth_requires_secret_references() {
+        let payload = json!({ "auth": {} });
+        let err = normalize_tracker_payload(&payload).unwrap_err();
+        assert!(err.to_string().contains("at least one secret reference"));
+
+        let with_auth = json!({
+            "auth": { "username_secret": "TRACKER_USER", "cookie_secret": "TRACKER_COOKIE" }
+        });
+        let normalized = normalize_tracker_payload(&with_auth).expect("valid tracker auth payload");
+        let config: TrackerConfig =
+            serde_json::from_value(normalized).expect("config should decode");
+        let auth = config.auth.expect("auth present");
+        assert_eq!(auth.username_secret.as_deref(), Some("TRACKER_USER"));
+        assert_eq!(auth.cookie_secret.as_deref(), Some("TRACKER_COOKIE"));
+        assert!(auth.password_secret.is_none());
     }
 
     #[test]

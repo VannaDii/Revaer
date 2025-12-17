@@ -165,6 +165,9 @@ pub struct EngineProfile {
     /// Alternate speed caps and optional schedule payload.
     #[serde(default)]
     pub alt_speed: Value,
+    /// Optional stats alert interval in milliseconds.
+    #[serde(default)]
+    pub stats_interval_ms: Option<i64>,
     /// Whether torrents default to sequential download.
     pub sequential_default: bool,
     /// Whether torrents should be auto-managed by default.

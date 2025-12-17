@@ -95,9 +95,22 @@ pub struct AddTorrentOptions {
     pub queue_position: Option<i32>,
     /// Optional override for peer exchange enablement on this torrent.
     pub pex_enabled: Option<bool>,
+    /// Optional tracker authentication for announces.
+    pub tracker_auth: Option<TrackerAuth>,
     /// Arbitrary labels propagated to downstream consumers.
     #[serde(default)]
     pub tags: Vec<String>,
+}
+
+/// Authentication material used when talking to trackers.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TrackerAuth {
+    /// Plain username, when provided.
+    pub username: Option<String>,
+    /// Plain password, when provided.
+    pub password: Option<String>,
+    /// Cookie or trackerid passed along with announces.
+    pub cookie: Option<String>,
 }
 
 /// Patch payload for adjusting per-torrent options after admission.

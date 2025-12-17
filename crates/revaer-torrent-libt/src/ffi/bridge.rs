@@ -117,6 +117,10 @@ pub mod ffi {
         max_queued_disk_bytes: i32,
         /// Whether a queued disk byte limit was provided.
         has_max_queued_disk_bytes: bool,
+        /// Stats alert interval in milliseconds.
+        stats_interval_ms: i32,
+        /// Whether a stats interval override was provided.
+        has_stats_interval: bool,
     }
 
     /// Storage paths and behaviour applied to the session.
@@ -162,6 +166,29 @@ pub mod ffi {
         has_proxy: bool,
     }
 
+    /// Authentication material for tracker announces.
+    #[derive(Debug)]
+    struct TrackerAuthOptions {
+        /// Plain username resolved from secrets.
+        username: String,
+        /// Plain password resolved from secrets.
+        password: String,
+        /// Cookie or trackerid value applied on announce.
+        cookie: String,
+        /// Secret reference used for the username when provided.
+        username_secret: String,
+        /// Secret reference used for the password when provided.
+        password_secret: String,
+        /// Secret reference used for the cookie when provided.
+        cookie_secret: String,
+        /// Flag indicating whether username is set.
+        has_username: bool,
+        /// Flag indicating whether password is set.
+        has_password: bool,
+        /// Flag indicating whether cookie is set.
+        has_cookie: bool,
+    }
+
     /// Tracker-related options for the session.
     #[derive(Debug)]
     struct EngineTrackerOptions {
@@ -191,6 +218,8 @@ pub mod ffi {
         announce_to_all: bool,
         /// Proxy configuration for tracker announces.
         proxy: TrackerProxyOptions,
+        /// Authentication material for tracker announces.
+        auth: TrackerAuthOptions,
     }
 
     /// Runtime engine configuration forwarded to the native layer.
@@ -269,6 +298,8 @@ pub mod ffi {
         web_seeds: Vec<String>,
         /// Whether web seeds should replace existing entries.
         replace_web_seeds: bool,
+        /// Optional tracker authentication overrides.
+        tracker_auth: TrackerAuthOptions,
     }
 
     /// Rate limit update applied globally or for a specific torrent.

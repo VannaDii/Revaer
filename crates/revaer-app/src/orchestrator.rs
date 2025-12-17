@@ -236,6 +236,7 @@ where
         }
         let mut plan = EngineRuntimePlan::from_profile(&profile);
         self.refresh_ip_filter(&mut plan).await?;
+        self.resolve_tracker_auth(&mut plan).await?;
         for warning in &plan.effective.warnings {
             warn!(%warning, "engine profile guard rail applied");
         }
@@ -341,6 +342,52 @@ where
             plan.effective.warnings.push(
                 "failed to persist ip_filter metadata; continuing with cached state".to_string(),
             );
+        }
+
+        Ok(())
+    }
+
+    async fn resolve_tracker_auth(&self, plan: &mut EngineRuntimePlan) -> Result<()> {
+        let Some(config) = &self.config else {
+            return Ok(());
+        };
+        let Some(auth) = plan.runtime.tracker.auth.as_mut() else {
+            return Ok(());
+        };
+
+        let mut warnings = Vec::new();
+
+        if auth.username.is_none()
+            && let Some(secret) = &auth.username_secret
+        {
+            match config.get_secret(secret).await? {
+                Some(value) => auth.username = Some(value),
+                None => warnings.push(format!(
+                    "tracker.auth.username_secret '{secret}' is not set"
+                )),
+            }
+        }
+        if auth.password.is_none()
+            && let Some(secret) = &auth.password_secret
+        {
+            match config.get_secret(secret).await? {
+                Some(value) => auth.password = Some(value),
+                None => warnings.push(format!(
+                    "tracker.auth.password_secret '{secret}' is not set"
+                )),
+            }
+        }
+        if auth.cookie.is_none()
+            && let Some(secret) = &auth.cookie_secret
+        {
+            match config.get_secret(secret).await? {
+                Some(value) => auth.cookie = Some(value),
+                None => warnings.push(format!("tracker.auth.cookie_secret '{secret}' is not set")),
+            }
+        }
+
+        if !warnings.is_empty() {
+            plan.effective.warnings.extend(warnings);
         }
 
         Ok(())
@@ -1005,6 +1052,7 @@ mod orchestrator_tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            stats_interval_ms: None,
             alt_speed: json!({}),
             sequential_default: false,
             auto_managed: true.into(),
@@ -1277,6 +1325,7 @@ mod engine_refresh_tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            stats_interval_ms: None,
             alt_speed: json!({}),
             sequential_default: false,
             auto_managed: true.into(),

@@ -2123,6 +2123,7 @@ mod tests {
                 upload_bps: None,
                 schedule: schedule.clone(),
             }),
+            stats_interval_ms: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,

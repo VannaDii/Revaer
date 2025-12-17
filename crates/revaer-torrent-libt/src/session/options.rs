@@ -8,7 +8,8 @@
 use crate::ffi::ffi;
 use crate::types::{
     EngineRuntimeConfig, IpFilterRule as RuntimeIpFilterRule, IpFilterRuntimeConfig,
-    OutgoingPortRange, TrackerProxyRuntime, TrackerProxyType, TrackerRuntimeConfig,
+    OutgoingPortRange, TrackerAuthRuntime, TrackerProxyRuntime, TrackerProxyType,
+    TrackerRuntimeConfig,
 };
 
 /// Planned native engine options plus guard-rail warnings.
@@ -128,6 +129,10 @@ fn build_limit_options(
         .max_queued_disk_bytes
         .map(|value| value.min(i64::from(i32::MAX)))
         .unwrap_or_default();
+    let (stats_interval_ms, has_stats_interval) = match config.stats_interval_ms {
+        Some(value) if value > 0 => (value, true),
+        _ => (0, false),
+    };
 
     ffi::EngineLimitOptions {
         max_active,
@@ -148,6 +153,8 @@ fn build_limit_options(
         has_optimistic_unchoke_slots: config.optimistic_unchoke_slots.is_some(),
         max_queued_disk_bytes: i32::try_from(max_queued_disk_bytes).unwrap_or(i32::MAX),
         has_max_queued_disk_bytes: config.max_queued_disk_bytes.is_some(),
+        stats_interval_ms,
+        has_stats_interval,
     }
 }
 
@@ -173,6 +180,7 @@ fn build_storage_options(
 
 fn map_tracker_options(config: &TrackerRuntimeConfig) -> ffi::EngineTrackerOptions {
     let proxy = map_proxy(config.proxy.as_ref());
+    let auth = map_auth(config.auth.as_ref());
     ffi::EngineTrackerOptions {
         default_trackers: config.default.clone(),
         extra_trackers: config.extra.clone(),
@@ -187,6 +195,7 @@ fn map_tracker_options(config: &TrackerRuntimeConfig) -> ffi::EngineTrackerOptio
         has_request_timeout: config.request_timeout_ms.is_some(),
         announce_to_all: config.announce_to_all,
         proxy,
+        auth,
     }
 }
 
@@ -209,6 +218,33 @@ fn map_proxy(proxy: Option<&TrackerProxyRuntime>) -> ffi::TrackerProxyOptions {
             kind: map_proxy_kind(proxy.kind),
             proxy_peers: proxy.proxy_peers,
             has_proxy: true,
+        },
+    )
+}
+
+fn map_auth(auth: Option<&TrackerAuthRuntime>) -> ffi::TrackerAuthOptions {
+    auth.map_or_else(
+        || ffi::TrackerAuthOptions {
+            username: String::new(),
+            password: String::new(),
+            cookie: String::new(),
+            username_secret: String::new(),
+            password_secret: String::new(),
+            cookie_secret: String::new(),
+            has_username: false,
+            has_password: false,
+            has_cookie: false,
+        },
+        |auth| ffi::TrackerAuthOptions {
+            username: auth.username.clone().unwrap_or_default(),
+            password: auth.password.clone().unwrap_or_default(),
+            cookie: auth.cookie.clone().unwrap_or_default(),
+            username_secret: auth.username_secret.clone().unwrap_or_default(),
+            password_secret: auth.password_secret.clone().unwrap_or_default(),
+            cookie_secret: auth.cookie_secret.clone().unwrap_or_default(),
+            has_username: auth.username.is_some(),
+            has_password: auth.password.is_some(),
+            has_cookie: auth.cookie.is_some(),
         },
     )
 }
@@ -354,6 +390,7 @@ mod tests {
             seed_ratio_limit: None,
             seed_time_limit: None,
             alt_speed: None,
+            stats_interval_ms: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
@@ -424,6 +461,7 @@ mod tests {
             seed_ratio_limit: None,
             seed_time_limit: None,
             alt_speed: None,
+            stats_interval_ms: Some(1_500),
             connections_limit: Some(200),
             connections_limit_per_torrent: Some(80),
             unchoke_slots: Some(40),
@@ -457,6 +495,8 @@ mod tests {
         assert_eq!(plan.options.limits.optimistic_unchoke_slots, 3);
         assert!(plan.options.limits.has_max_queued_disk_bytes);
         assert_eq!(plan.options.limits.max_queued_disk_bytes, 5_000_000);
+        assert!(plan.options.limits.has_stats_interval);
+        assert_eq!(plan.options.limits.stats_interval_ms, 1_500);
         assert!(plan.options.behavior.sequential_default);
         assert!(plan.options.behavior.super_seeding);
         assert_eq!(plan.options.network.encryption_policy, 0);
@@ -512,6 +552,7 @@ mod tests {
             seed_ratio_limit: Some(1.5),
             seed_time_limit: Some(i64::from(i32::MAX) + 10),
             alt_speed: None,
+            stats_interval_ms: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
@@ -576,6 +617,7 @@ mod tests {
             seed_ratio_limit: None,
             seed_time_limit: None,
             alt_speed: None,
+            stats_interval_ms: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
@@ -634,6 +676,7 @@ mod tests {
             seed_ratio_limit: None,
             seed_time_limit: None,
             alt_speed: None,
+            stats_interval_ms: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
@@ -656,9 +699,8 @@ mod tests {
         assert_eq!(plan.options.network.listen_port, 0);
     }
 
-    #[test]
-    fn tracker_options_are_mapped() {
-        let config = EngineRuntimeConfig {
+    fn runtime_config_with_tracker(tracker: TrackerRuntimeConfig) -> EngineRuntimeConfig {
+        EngineRuntimeConfig {
             download_root: "/data".into(),
             resume_dir: "/state".into(),
             listen_interfaces: Vec::new(),
@@ -689,6 +731,7 @@ mod tests {
             seed_ratio_limit: None,
             seed_time_limit: None,
             alt_speed: None,
+            stats_interval_ms: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,
@@ -699,27 +742,41 @@ mod tests {
             optimistic_unchoke_slots: None,
             max_queued_disk_bytes: None,
             encryption: EncryptionPolicy::Prefer,
-            tracker: TrackerRuntimeConfig {
-                default: vec!["https://tracker.example/announce".into()],
-                extra: vec!["udp://tracker.backup/announce".into()],
-                replace: true,
-                user_agent: Some("revaer/1.0".into()),
-                announce_ip: Some("192.168.1.100".into()),
-                listen_interface: Some("0.0.0.0:9000".into()),
-                request_timeout_ms: Some(5_000),
-                announce_to_all: true,
-                proxy: Some(TrackerProxyRuntime {
-                    host: "proxy.example".into(),
-                    port: 8080,
-                    username_secret: Some("user".into()),
-                    password_secret: Some("pass".into()),
-                    kind: TrackerProxyType::Socks5,
-                    proxy_peers: true,
-                }),
-            },
+            tracker,
             ip_filter: None,
             super_seeding: false.into(),
+        }
+    }
+
+    #[test]
+    fn tracker_options_are_mapped() {
+        let tracker_config = TrackerRuntimeConfig {
+            default: vec!["https://tracker.example/announce".into()],
+            extra: vec!["udp://tracker.backup/announce".into()],
+            replace: true,
+            user_agent: Some("revaer/1.0".into()),
+            announce_ip: Some("192.168.1.100".into()),
+            listen_interface: Some("0.0.0.0:9000".into()),
+            request_timeout_ms: Some(5_000),
+            announce_to_all: true,
+            proxy: Some(TrackerProxyRuntime {
+                host: "proxy.example".into(),
+                port: 8080,
+                username_secret: Some("user".into()),
+                password_secret: Some("pass".into()),
+                kind: TrackerProxyType::Socks5,
+                proxy_peers: true,
+            }),
+            auth: Some(TrackerAuthRuntime {
+                username: Some("resolved-user".into()),
+                password: Some("resolved-pass".into()),
+                cookie: Some("tracker-cookie".into()),
+                username_secret: Some("user-secret".into()),
+                password_secret: Some("pass-secret".into()),
+                cookie_secret: Some("cookie-secret".into()),
+            }),
         };
+        let config = runtime_config_with_tracker(tracker_config);
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);
         let tracker = plan.options.tracker;
@@ -748,6 +805,15 @@ mod tests {
         assert_eq!(tracker.proxy.password_secret, "pass");
         assert!(tracker.proxy.proxy_peers);
         assert_eq!(tracker.proxy.kind, 2);
+        assert!(tracker.auth.has_username);
+        assert!(tracker.auth.has_password);
+        assert!(tracker.auth.has_cookie);
+        assert_eq!(tracker.auth.username, "resolved-user");
+        assert_eq!(tracker.auth.password, "resolved-pass");
+        assert_eq!(tracker.auth.cookie, "tracker-cookie");
+        assert_eq!(tracker.auth.username_secret, "user-secret");
+        assert_eq!(tracker.auth.password_secret, "pass-secret");
+        assert_eq!(tracker.auth.cookie_secret, "cookie-secret");
     }
 
     #[test]
@@ -783,6 +849,7 @@ mod tests {
             seed_ratio_limit: None,
             seed_time_limit: None,
             alt_speed: None,
+            stats_interval_ms: None,
             connections_limit: None,
             connections_limit_per_torrent: None,
             unchoke_slots: None,

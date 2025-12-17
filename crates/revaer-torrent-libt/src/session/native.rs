@@ -7,6 +7,7 @@ use crate::convert::{map_native_event, map_priority};
 use crate::ffi::ffi;
 use crate::types::EngineRuntimeConfig;
 use ffi::SourceKind;
+use revaer_torrent_core::model::TrackerAuth;
 use revaer_torrent_core::{
     AddTorrent, EngineEvent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentSource,
 };
@@ -57,6 +58,34 @@ const fn map_max_connections(limit: Option<i32>) -> (i32, bool) {
     match limit {
         Some(value) if value > 0 => (value, true),
         _ => (-1, false),
+    }
+}
+
+fn map_tracker_auth(auth: Option<&TrackerAuth>) -> ffi::TrackerAuthOptions {
+    let Some(auth) = auth else {
+        return ffi::TrackerAuthOptions {
+            username: String::new(),
+            password: String::new(),
+            cookie: String::new(),
+            username_secret: String::new(),
+            password_secret: String::new(),
+            cookie_secret: String::new(),
+            has_username: false,
+            has_password: false,
+            has_cookie: false,
+        };
+    };
+
+    ffi::TrackerAuthOptions {
+        username: auth.username.clone().unwrap_or_default(),
+        password: auth.password.clone().unwrap_or_default(),
+        cookie: auth.cookie.clone().unwrap_or_default(),
+        username_secret: String::new(),
+        password_secret: String::new(),
+        cookie_secret: String::new(),
+        has_username: auth.username.is_some(),
+        has_password: auth.password.is_some(),
+        has_cookie: auth.cookie.is_some(),
     }
 }
 
@@ -123,6 +152,7 @@ pub(super) mod test_support {
                 seed_ratio_limit: None,
                 seed_time_limit: None,
                 alt_speed: None,
+                stats_interval_ms: None,
                 connections_limit: None,
                 connections_limit_per_torrent: None,
                 unchoke_slots: None,
@@ -188,6 +218,7 @@ impl LibTorrentSession for NativeSession {
             replace_trackers: request.options.replace_trackers,
             web_seeds: request.options.web_seeds.clone(),
             replace_web_seeds: request.options.replace_web_seeds,
+            tracker_auth: map_tracker_auth(request.options.tracker_auth.as_ref()),
         };
         (add_request.max_connections, add_request.has_max_connections) =
             map_max_connections(request.options.connections_limit);

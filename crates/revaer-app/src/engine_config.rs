@@ -8,13 +8,13 @@
 use revaer_config::engine_profile::{AltSpeedConfig, ChokingAlgorithm, SeedChokingAlgorithm};
 use revaer_config::{
     EngineEncryptionPolicy, EngineIpv6Mode, EngineNetworkConfig, EngineProfile,
-    EngineProfileEffective, IpFilterConfig, IpFilterRule, TrackerConfig, TrackerProxyConfig,
-    TrackerProxyType, normalize_engine_profile,
+    EngineProfileEffective, IpFilterConfig, IpFilterRule, TrackerAuthConfig, TrackerConfig,
+    TrackerProxyConfig, TrackerProxyType, normalize_engine_profile,
 };
 use revaer_torrent_core::TorrentRateLimit;
 use revaer_torrent_libt::{
     EncryptionPolicy, EngineRuntimeConfig, IpFilterRule as RuntimeIpFilterRule,
-    IpFilterRuntimeConfig, Ipv6Mode as RuntimeIpv6Mode, TrackerProxyRuntime,
+    IpFilterRuntimeConfig, Ipv6Mode as RuntimeIpv6Mode, TrackerAuthRuntime, TrackerProxyRuntime,
     TrackerProxyType as RuntimeProxyType, TrackerRuntimeConfig,
     types::{
         AltSpeedRuntimeConfig as RuntimeAltSpeedConfig,
@@ -90,6 +90,7 @@ impl EngineRuntimePlan {
             seed_ratio_limit: effective.limits.seed_ratio_limit,
             seed_time_limit: effective.limits.seed_time_limit,
             alt_speed,
+            stats_interval_ms: effective.limits.stats_interval_ms,
             connections_limit: effective.limits.connections_limit,
             connections_limit_per_torrent: effective.limits.connections_limit_per_torrent,
             unchoke_slots: effective.limits.unchoke_slots,
@@ -179,6 +180,7 @@ fn map_tracker_config(config: TrackerConfig) -> TrackerRuntimeConfig {
         request_timeout_ms: config.request_timeout_ms,
         announce_to_all: config.announce_to_all,
         proxy: config.proxy.map(map_proxy_config),
+        auth: config.auth.map(map_tracker_auth),
     }
 }
 
@@ -198,6 +200,15 @@ const fn map_proxy_kind(kind: TrackerProxyType) -> RuntimeProxyType {
         TrackerProxyType::Http => RuntimeProxyType::Http,
         TrackerProxyType::Https => RuntimeProxyType::Https,
         TrackerProxyType::Socks5 => RuntimeProxyType::Socks5,
+    }
+}
+
+fn map_tracker_auth(config: TrackerAuthConfig) -> TrackerAuthRuntime {
+    TrackerAuthRuntime {
+        username_secret: config.username_secret,
+        password_secret: config.password_secret,
+        cookie_secret: config.cookie_secret,
+        ..TrackerAuthRuntime::default()
     }
 }
 
@@ -289,6 +300,7 @@ mod tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            stats_interval_ms: None,
             alt_speed: json!({}),
             sequential_default: true,
             auto_managed: true.into(),
@@ -369,6 +381,7 @@ mod tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            stats_interval_ms: None,
             alt_speed: json!({}),
             sequential_default: false,
             auto_managed: true.into(),
@@ -446,6 +459,7 @@ mod tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            stats_interval_ms: None,
             alt_speed: json!({}),
             sequential_default: false,
             auto_managed: true.into(),
@@ -518,6 +532,7 @@ mod tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            stats_interval_ms: None,
             alt_speed: json!({}),
             sequential_default: false,
             auto_managed: true.into(),
@@ -587,6 +602,7 @@ mod tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            stats_interval_ms: None,
             alt_speed: json!({}),
             sequential_default: false,
             auto_managed: true.into(),

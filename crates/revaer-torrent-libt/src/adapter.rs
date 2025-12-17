@@ -187,6 +187,7 @@ mod tests {
             seed_ratio_limit: None,
             seed_time_limit: None,
             alt_speed: None,
+            stats_interval_ms: None,
             encryption: EncryptionPolicy::Prefer,
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,

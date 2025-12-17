@@ -38,6 +38,6 @@ pub use command::EngineCommand;
 pub use store::{FastResumeStore, StoredTorrentMetadata, StoredTorrentState};
 pub use types::{
     ChokingAlgorithm, EncryptionPolicy, EngineRuntimeConfig, IpFilterRule, IpFilterRuntimeConfig,
-    Ipv6Mode, SeedChokingAlgorithm, Toggle, TrackerProxyRuntime, TrackerProxyType,
-    TrackerRuntimeConfig,
+    Ipv6Mode, SeedChokingAlgorithm, Toggle, TrackerAuthRuntime, TrackerProxyRuntime,
+    TrackerProxyType, TrackerRuntimeConfig,
 };

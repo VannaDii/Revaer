@@ -10,8 +10,10 @@
 #include <filesystem>
 #include <fstream>
 #include <cstring>
+#include <sstream>
 #include <memory>
 #include <optional>
+#include <iomanip>
 #include <regex>
 #include <string>
 #include <unordered_set>
@@ -491,6 +493,10 @@ public:
             } else {
                 pack.set_int(lt::settings_pack::seed_time_limit, -1);
             }
+            if (options.limits.has_stats_interval) {
+                pack.set_int(lt::settings_pack::tick_interval,
+                             std::max(1, options.limits.stats_interval_ms));
+            }
 
             if (options.tracker.has_user_agent) {
                 pack.set_str(lt::settings_pack::user_agent,
@@ -525,6 +531,22 @@ public:
                 extra_trackers_.push_back(to_std_string(tracker));
             }
             replace_default_trackers_ = options.tracker.replace_trackers;
+
+            tracker_username_.clear();
+            tracker_password_.clear();
+            tracker_cookie_.clear();
+            has_tracker_username_ = options.tracker.auth.has_username;
+            has_tracker_password_ = options.tracker.auth.has_password;
+            has_tracker_cookie_ = options.tracker.auth.has_cookie;
+            if (has_tracker_username_) {
+                tracker_username_ = to_std_string(options.tracker.auth.username);
+            }
+            if (has_tracker_password_) {
+                tracker_password_ = to_std_string(options.tracker.auth.password);
+            }
+            if (has_tracker_cookie_) {
+                tracker_cookie_ = to_std_string(options.tracker.auth.cookie);
+            }
 
             if (options.tracker.proxy.has_proxy) {
                 pack.set_str(lt::settings_pack::proxy_hostname,
@@ -686,27 +708,7 @@ public:
                 params.max_connections = default_max_connections_per_torrent_;
             }
 
-            lt::torrent_handle handle = session_->add_torrent(params);
-            handles_[request_id] = handle;
-            snapshots_[request_id] = TorrentSnapshot{};
-
-            if (request.has_queue_position && request.queue_position >= 0) {
-                handle.queue_position_set(lt::queue_position_t{request.queue_position});
-            }
-
-            if (request.has_max_connections && request.max_connections > 0) {
-                handle.set_max_connections(request.max_connections);
-            }
-
-            bool sequential = sequential_default_;
-            if (request.has_sequential_override) {
-                sequential = request.sequential;
-            }
-            if (sequential) {
-                handle.set_flags(lt::torrent_flags::sequential_download);
-            } else {
-                handle.unset_flags(lt::torrent_flags::sequential_download);
-            }
+            const AuthView auth = resolve_auth_view(request.tracker_auth);
 
             std::vector<std::string> trackers;
             if (!replace_default_trackers_) {
@@ -725,7 +727,13 @@ public:
                 }
             }
             if (!trackers.empty()) {
-                params.trackers = trackers;
+                params.trackers = apply_tracker_auth(trackers, auth);
+            }
+
+            if (request.tracker_auth.has_cookie) {
+                params.trackerid = to_std_string(request.tracker_auth.cookie);
+            } else if (has_tracker_cookie_) {
+                params.trackerid = tracker_cookie_;
             }
 
             if (!request.web_seeds.empty()) {
@@ -749,6 +757,28 @@ public:
                 } else {
                     params.url_seeds = std::move(seeds);
                 }
+            }
+
+            lt::torrent_handle handle = session_->add_torrent(params);
+            handles_[request_id] = handle;
+            snapshots_[request_id] = TorrentSnapshot{};
+
+            if (request.has_queue_position && request.queue_position >= 0) {
+                handle.queue_position_set(lt::queue_position_t{request.queue_position});
+            }
+
+            if (request.has_max_connections && request.max_connections > 0) {
+                handle.set_max_connections(request.max_connections);
+            }
+
+            bool sequential = sequential_default_;
+            if (request.has_sequential_override) {
+                sequential = request.sequential;
+            }
+            if (sequential) {
+                handle.set_flags(lt::torrent_flags::sequential_download);
+            } else {
+                handle.unset_flags(lt::torrent_flags::sequential_download);
             }
 
             (void)request.tags;
@@ -908,6 +938,12 @@ public:
 
     ::rust::String update_trackers(const UpdateTrackersRequest& request) {
         const auto key = to_std_string(request.id);
+        const AuthView auth{
+            .username = tracker_username_,
+            .password = tracker_password_,
+            .has_username = has_tracker_username_,
+            .has_password = has_tracker_password_,
+        };
         return mutate_handle(key, [&](lt::torrent_handle& handle) {
             std::vector<lt::announce_entry> trackers;
             if (!request.replace) {
@@ -922,8 +958,9 @@ public:
                 if (url.empty()) {
                     continue;
                 }
-                if (seen.insert(url).second) {
-                    trackers.emplace_back(url);
+                auto rewritten = inject_basic_auth(url, auth);
+                if (seen.insert(rewritten).second) {
+                    trackers.emplace_back(rewritten);
                 }
             }
             if (!trackers.empty()) {
@@ -1257,12 +1294,94 @@ private:
         return matches_any(fluff, path);
     }
 
+    struct AuthView {
+        std::string username;
+        std::string password;
+        bool has_username{false};
+        bool has_password{false};
+    };
+
+    AuthView resolve_auth_view(const TrackerAuthOptions& request) const {
+        AuthView view{
+            .username = request.has_username ? to_std_string(request.username) : std::string(),
+            .password = request.has_password ? to_std_string(request.password) : std::string(),
+            .has_username = request.has_username,
+            .has_password = request.has_password,
+        };
+
+        if (!view.has_username && has_tracker_username_) {
+            view.username = tracker_username_;
+            view.has_username = true;
+        }
+        if (!view.has_password && has_tracker_password_) {
+            view.password = tracker_password_;
+            view.has_password = true;
+        }
+
+        return view;
+    }
+
+    static std::string percent_encode(const std::string& value) {
+        std::ostringstream encoded;
+        encoded << std::hex << std::uppercase;
+        for (unsigned char ch : value) {
+            if (std::isalnum(ch) != 0 || ch == '-' || ch == '_' || ch == '.' || ch == '~') {
+                encoded << ch;
+            } else {
+                encoded << '%' << std::setw(2) << std::setfill('0')
+                        << static_cast<int>(ch);
+            }
+        }
+        return encoded.str();
+    }
+
+    std::string inject_basic_auth(const std::string& tracker, const AuthView& auth) const {
+        const bool is_http = tracker.rfind("http://", 0) == 0;
+        const bool is_https = tracker.rfind("https://", 0) == 0;
+        if (!is_http && !is_https) {
+            return tracker;
+        }
+
+        const auto scheme_end = tracker.find("://");
+        if (scheme_end == std::string::npos) {
+            return tracker;
+        }
+
+        const auto encoded_user =
+            auth.has_username ? percent_encode(auth.username) : std::string();
+        const auto encoded_pass =
+            auth.has_password ? percent_encode(auth.password) : std::string();
+        return tracker.substr(0, scheme_end + 3) + encoded_user + ":" + encoded_pass + "@"
+            + tracker.substr(scheme_end + 3);
+    }
+
+    std::vector<std::string> apply_tracker_auth(
+        const std::vector<std::string>& trackers,
+        const AuthView& auth) const {
+        if (!auth.has_username && !auth.has_password) {
+            return trackers;
+        }
+
+        std::vector<std::string> rewritten;
+        rewritten.reserve(trackers.size());
+        for (const auto& tracker : trackers) {
+            rewritten.push_back(inject_basic_auth(tracker, auth));
+        }
+        return rewritten;
+    }
+
     std::unique_ptr<lt::session> session_;
     std::string default_download_root_;
     std::string resume_dir_;
     bool sequential_default_{false};
     std::vector<std::string> default_trackers_;
     std::vector<std::string> extra_trackers_;
+    std::string tracker_username_;
+    std::string tracker_password_;
+    std::string tracker_cookie_;
+    bool has_tracker_username_{false};
+    bool has_tracker_password_{false};
+    bool has_tracker_cookie_{false};
     bool replace_default_trackers_{false};
     bool announce_to_all_{false};
     bool auto_managed_default_{true};

@@ -55,6 +55,8 @@ pub trait SettingsFacade: Send + Sync {
     async fn get_engine_profile(&self) -> Result<EngineProfile>;
     /// Retrieve the current filesystem policy.
     async fn get_fs_policy(&self) -> Result<FsPolicy>;
+    /// Retrieve a secret value by name if present.
+    async fn get_secret(&self, name: &str) -> Result<Option<String>>;
     /// Subscribe to configuration change notifications.
     async fn subscribe_changes(&self) -> Result<SettingsStream>;
     /// Apply a structured changeset attributed to an actor and reason.
@@ -387,6 +389,15 @@ impl SettingsFacade for ConfigService {
 
     async fn get_fs_policy(&self) -> Result<FsPolicy> {
         fetch_fs_policy(&self.pool).await
+    }
+
+    async fn get_secret(&self, name: &str) -> Result<Option<String>> {
+        let record = data_config::fetch_secret_by_name(&self.pool, name).await?;
+        record
+            .map(|row| {
+                String::from_utf8(row.ciphertext).context("secret payload is not valid UTF-8")
+            })
+            .transpose()
     }
 
     async fn subscribe_changes(&self) -> Result<SettingsStream> {
@@ -816,6 +827,7 @@ fn map_engine_profile_row(row: EngineProfileRow) -> EngineProfile {
         unchoke_slots: row.unchoke_slots,
         half_open_limit: row.half_open_limit,
         alt_speed: row.alt_speed,
+        stats_interval_ms: row.stats_interval_ms.map(i64::from),
     }
 }
 
@@ -1060,6 +1072,9 @@ async fn persist_engine_profile(
             unchoke_slots: profile.unchoke_slots,
             half_open_limit: profile.half_open_limit,
             alt_speed: &profile.alt_speed,
+            stats_interval_ms: profile
+                .stats_interval_ms
+                .and_then(|value| i32::try_from(value).ok()),
         },
     )
     .await?;
@@ -1435,8 +1450,7 @@ async fn apply_secret_patches(
         match patch {
             SecretPatch::Set { name, value } => {
                 ensure_mutable(immutable_keys, "settings_secret", name)?;
-                let ciphertext = hash_secret(value)?;
-                data_config::upsert_secret(tx.as_mut(), name, ciphertext.as_bytes(), actor).await?;
+                data_config::upsert_secret(tx.as_mut(), name, value.as_bytes(), actor).await?;
                 events.push(json!({ "op": "set", "name": name }));
             }
             SecretPatch::Delete { name } => {

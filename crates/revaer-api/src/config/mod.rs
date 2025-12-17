@@ -142,6 +142,7 @@ mod tests {
             connections_limit_per_torrent: None,
             unchoke_slots: None,
             half_open_limit: None,
+            stats_interval_ms: None,
             alt_speed: serde_json::json!({}),
             sequential_default: false,
             auto_managed: true.into(),

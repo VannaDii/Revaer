@@ -27,7 +27,7 @@ pub(crate) mod validate;
 pub use engine_profile::{
     EngineBehaviorConfig, EngineEncryptionPolicy, EngineIpv6Mode, EngineLimitsConfig,
     EngineNetworkConfig, EngineProfileEffective, EngineStorageConfig, IpFilterConfig, IpFilterRule,
-    MAX_RATE_LIMIT_BPS, TrackerConfig, TrackerProxyConfig, TrackerProxyType,
+    MAX_RATE_LIMIT_BPS, TrackerAuthConfig, TrackerConfig, TrackerProxyConfig, TrackerProxyType,
     normalize_engine_profile,
 };
 pub use model::{

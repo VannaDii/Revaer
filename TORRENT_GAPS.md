@@ -167,7 +167,7 @@
 
 -   [x] Post-add mutation symmetry for per-torrent knobs
 
-    -   [ ] API: add PATCH endpoints to update per-torrent options currently set on add (rate caps, connection limits, PEX, super-seeding, seed ratio/time caps, queue priority, add-paused state transitions, tracker/web seed updates).
+    -   [x] API: add PATCH endpoints to update per-torrent options currently set on add (rate caps, connection limits, PEX, super-seeding, seed ratio/time caps, queue priority, add-paused state transitions, tracker/web seed updates).
         -   [x] Patch endpoint for connections/PEX/super-seeding/auto-managed/queue position/seed ratio and time caps.
         -   [x] Tracker and web seed updates.
         -   [x] Add-paused symmetry.
@@ -181,12 +181,12 @@
     -   [x] Native: map tracker alerts into per-tracker status; support add/remove tracker operations via session/torrent handle.
     -   [x] Tests: API + native tests for tracker add/remove and status propagation.
 
--   [ ] Tracker HTTP auth/cookies supported
+-   [x] Tracker HTTP auth/cookies supported
 
-    -   [ ] Config/DB: add tracker auth profile (basic auth/cookie headers) with secret refs; validate.
-    -   [ ] Runtime/bridge: pass auth headers/cookies in `EngineRuntimeConfig`/`EngineOptions` and per-torrent overrides.
-    -   [ ] Native: set per-tracker auth/cookies via libtorrent settings/`add_torrent_params` fields; handle updates.
-    -   [ ] API/docs/tests: expose tracker auth configuration; native test that authenticated trackers connect successfully.
+    -   [x] Config/DB: add tracker auth profile (basic auth/cookie headers) with secret refs; validate.
+    -   [x] Runtime/bridge: pass auth headers/cookies in `EngineRuntimeConfig`/`EngineOptions` and per-torrent overrides.
+    -   [x] Native: set per-tracker auth/cookies via libtorrent settings/`add_torrent_params` fields; handle updates.
+    -   [x] API/docs/tests: expose tracker auth configuration; native test that authenticated trackers connect successfully.
 
 -   [x] Web seeds (HTTP/URL seeds) supported
 
@@ -231,13 +231,13 @@
     -   [ ] API/UX: surface meaningful error messages in torrent status/details; document alert categories exposed.
     -   [ ] Tests: native (feature-gated) tests that injected tracker/storage/listen failures produce expected events and health degradation; unit tests for alert mapping coverage.
 
--   [ ] Session stats cadence tunable
+-   [x] Session stats cadence tunable
 
-    -   [ ] Config/DB: add `stats_interval_ms` to `EngineProfile` with sane bounds.
-    -   [ ] Runtime/bridge: include in `EngineRuntimeConfig`/`EngineOptions`.
-    -   [ ] Native: set `lt::settings_pack::stats_interval` to control alert cadence for stats; ensure worker can handle the volume.
-    -   [ ] API/docs: document effect on telemetry volume; keep default conservative.
-    -   [ ] Tests: config validation; native test that interval applies without error.
+    -   [x] Config/DB: add `stats_interval_ms` to `EngineProfile` with sane bounds.
+    -   [x] Runtime/bridge: include in `EngineRuntimeConfig`/`EngineOptions`.
+    -   [x] Native: set stats/tick interval to control alert cadence for stats; ensure worker can handle the volume.
+    -   [x] API/docs: document effect on telemetry volume; keep default conservative.
+    -   [x] Tests: config validation; native test that interval applies without error.
 
 -   [ ] Disk cache/memory knobs exposed
 

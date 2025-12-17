@@ -506,6 +506,7 @@ impl TorrentCreateRequest {
             pex_enabled: self.pex_enabled,
             web_seeds: self.web_seeds.clone(),
             replace_web_seeds: self.replace_web_seeds,
+            tracker_auth: None,
             tags: self.tags.clone(),
             trackers: Vec::new(),
             replace_trackers: self.replace_trackers,

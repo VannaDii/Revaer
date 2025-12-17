@@ -29,11 +29,11 @@ mod tests {
         let options = mem::size_of::<ffi::EngineOptions>();
 
         assert_eq!(network, 152);
-        assert_eq!(limits, 96);
+        assert_eq!(limits, 104);
         assert_eq!(storage, 48);
         assert_eq!(behavior, 5);
         assert_eq!(proxy, 80);
-        assert_eq!(tracker, 248);
-        assert_eq!(options, 552);
+        assert_eq!(tracker, 400);
+        assert_eq!(options, 712);
     }
 }

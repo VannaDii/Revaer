@@ -64,6 +64,7 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
         seed_ratio_limit: None,
         seed_time_limit: None,
         alt_speed: None,
+        stats_interval_ms: None,
         connections_limit: None,
         connections_limit_per_torrent: None,
         unchoke_slots: None,
