@@ -1,0 +1,28 @@
+# qBittorrent Parity and Tracker TLS Wiring
+
+- Status: Accepted
+- Date: 2025-12-17
+- Context:
+  - Libtorrent deprecation warnings and Phase 1 compatibility gaps required us to move away from deprecated tracker TLS fields and finish the qBittorrent façade.
+  - The façade needed tracker, peer, and properties endpoints so qBittorrent clients can query Revaer without custom plugins.
+  - Changes must comply with the AGENT.md gates (no unused code, warnings-as-errors, tests/coverage via `just ci`).
+- Decision:
+  - Thread tracker TLS settings (trust store, verification flags, client cert/key) through config → runtime → FFI/native without using deprecated libtorrent fields, and cover with native tests.
+  - Expose qBittorrent-compatible endpoints for torrent properties, trackers, peer sync, categories, and tags; return safe defaults where data is not yet modeled.
+  - Keep compatibility code minimal and session-gated; validate torrent hashes on peer sync and re-use existing metadata caches for properties/trackers.
+  - No new dependencies were introduced.
+- Consequences:
+  - Deprecated libtorrent usage removed; TLS tracker configuration now uses current settings_pack fields.
+  - qBittorrent clients can fetch properties/trackers/peer snapshots and manage empty categories/tags without errors.
+  - Coverage and lint gates remain clean; compatibility paths are exercised by new unit tests.
+- Follow-up:
+  - Expand peer diagnostics and alert surface once native peer info mapping is available (TORRENT_GAPS: “Peer view and diagnostics exposed”).
+  - Consider persisting categories/tags with policy once the domain model supports it.
+- Tests (coverage summary):
+  - `just ci` (fmt, lint, udeps, audit, deny, full test matrix including feature-min, cov) — passes; workspace coverage ≥ 80% with no regressions.
+- Observability:
+  - No new metrics or spans added; compatibility routes reuse existing request tracing.
+- Risk & Rollback:
+  - Compatibility endpoints currently return empty peer/category/tag data; risk is limited to client expectations. Roll back by reverting this ADR and associated API changes.
+- Dependency rationale:
+  - No new crates or feature flags added.

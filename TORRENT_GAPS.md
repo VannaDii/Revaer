@@ -283,10 +283,10 @@
     -   [ ] Worker/FsOps: apply category/tag-derived settings on add; integrate cleanup policy (remove after criteria) and FsOps paths.
     -   [ ] Tests: API + worker tests for category/tag behavior; cleanup policy tested against ratio/time thresholds.
 
--   [ ] qB-style API surface parity (if required)
+-   [x] qB-style API surface parity (if required)
 
-    -   [ ] Implement compatible endpoints for trackers (`/torrents/trackers` + ops), peers (`/sync/torrentPeers`), full torrent properties (`/torrents/properties`), categories/tags endpoints, aligned with our domain and security posture.
-    -   [ ] Tests: compatibility tests for the façade, ensuring responses match expected shapes/behaviors.
+    -   [x] Implement compatible endpoints for trackers (`/torrents/trackers` + ops), peers (`/sync/torrentPeers`), full torrent properties (`/torrents/properties`), categories/tags endpoints, aligned with our domain and security posture.
+    -   [x] Tests: compatibility tests for the façade, ensuring responses match expected shapes/behaviors.
 
 -   [ ] Streaming/piece-deadline support exposed
 

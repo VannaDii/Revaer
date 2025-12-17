@@ -20,7 +20,9 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{get, post},
 };
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tracing::{error, warn};
 use uuid::Uuid;
 
@@ -41,7 +43,14 @@ pub(crate) fn mount(router: Router<Arc<ApiState>>) -> Router<Arc<ApiState>> {
         .route("/api/v2/app/version", get(app_version))
         .route("/api/v2/app/webapiVersion", get(app_webapi_version))
         .route("/api/v2/sync/maindata", get(sync_maindata))
+        .route("/api/v2/sync/torrentPeers", get(sync_torrent_peers))
         .route("/api/v2/torrents/info", get(torrents_info))
+        .route("/api/v2/torrents/properties", get(torrents_properties))
+        .route("/api/v2/torrents/trackers", get(torrents_trackers))
+        .route("/api/v2/torrents/categories", get(list_categories))
+        .route("/api/v2/torrents/createCategory", post(create_category))
+        .route("/api/v2/torrents/tags", get(list_tags))
+        .route("/api/v2/torrents/createTags", post(create_tags))
         .route("/api/v2/torrents/add", post(torrents_add))
         .route("/api/v2/torrents/pause", post(torrents_pause))
         .route("/api/v2/torrents/resume", post(torrents_resume))
@@ -121,6 +130,18 @@ pub(crate) struct SyncParams {
     pub rid: Option<u64>,
 }
 
+#[derive(Deserialize)]
+pub(crate) struct TorrentHashQuery {
+    pub hash: String,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct TorrentHashWithRidQuery {
+    pub hash: String,
+    #[serde(default)]
+    pub rid: Option<u64>,
+}
+
 #[derive(Serialize)]
 pub(crate) struct SyncMainData {
     pub full_update: bool,
@@ -171,6 +192,49 @@ pub(crate) struct QbTorrentEntry {
     pub ratio: f64,
     #[serde(rename = "tags")]
     pub tag_list: String,
+}
+
+#[derive(Serialize, Default)]
+pub(crate) struct QbTorrentProperties {
+    pub save_path: String,
+    pub name: String,
+    pub hash: String,
+    pub creation_date: i64,
+    pub completion_on: i64,
+    pub added_on: i64,
+    pub last_activity: i64,
+    pub total_size: i64,
+    pub progress: f64,
+    pub ratio: f64,
+    pub dl_limit: i64,
+    pub up_limit: i64,
+    pub time_active: i64,
+    pub seeding_time: i64,
+    pub eta: i64,
+    pub super_seeding: bool,
+    pub force_start: bool,
+    pub private: bool,
+    pub comment: String,
+    pub tags: String,
+    pub category: String,
+}
+
+#[derive(Serialize)]
+pub(crate) struct QbTrackerEntry {
+    pub url: String,
+    pub status: i32,
+    pub num_peers: i32,
+    pub msg: String,
+    pub tier: i32,
+}
+
+#[derive(Serialize, Default)]
+pub(crate) struct QbPeerList {
+    pub rid: u64,
+    pub peers: HashMap<String, Value>,
+    #[serde(default)]
+    pub peers_removed: Vec<String>,
+    pub full_update: bool,
 }
 
 pub(crate) async fn sync_maindata(
@@ -267,6 +331,28 @@ pub(crate) async fn sync_maindata(
     }))
 }
 
+pub(crate) async fn sync_torrent_peers(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+    Query(params): Query<TorrentHashWithRidQuery>,
+) -> Result<Json<QbPeerList>, ApiError> {
+    ensure_session(&state, &headers)?;
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+    resolve_hashes(handles, &params.hash).await?;
+    let rid = params
+        .rid
+        .unwrap_or_else(|| state.events.last_event_id().unwrap_or(0));
+    Ok(Json(QbPeerList {
+        rid,
+        peers: HashMap::new(),
+        peers_removed: Vec::new(),
+        full_update: true,
+    }))
+}
+
 #[derive(Deserialize, Default, Clone)]
 pub(crate) struct TorrentsInfoParams {
     pub hashes: Option<String>,
@@ -308,6 +394,119 @@ pub(crate) async fn torrents_info(
     }
 
     Ok(Json(results))
+}
+
+pub(crate) async fn torrents_properties(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+    Query(params): Query<TorrentHashQuery>,
+) -> Result<Json<QbTorrentProperties>, ApiError> {
+    ensure_session(&state, &headers)?;
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+    let ids = resolve_hashes(handles, &params.hash).await?;
+    let id = *ids
+        .first()
+        .ok_or_else(|| ApiError::bad_request("hash required"))?;
+
+    let status = handles
+        .inspector()
+        .get(id)
+        .await
+        .map_err(|err| {
+            error!(error = %err, "failed to fetch torrent status");
+            ApiError::internal("failed to fetch torrent status")
+        })?
+        .ok_or_else(|| ApiError::not_found("torrent not found"))?;
+    let metadata = state.get_metadata(&id);
+    let now = Utc::now().timestamp();
+
+    let properties = QbTorrentProperties {
+        save_path: status
+            .download_dir
+            .clone()
+            .or_else(|| status.library_path.clone())
+            .unwrap_or_default(),
+        name: status
+            .name
+            .clone()
+            .unwrap_or_else(|| id.simple().to_string()),
+        hash: id.simple().to_string(),
+        creation_date: status.added_at.timestamp(),
+        completion_on: status.completed_at.map_or(0, |dt| dt.timestamp()),
+        added_on: status.added_at.timestamp(),
+        last_activity: status.last_updated.timestamp(),
+        total_size: i64::try_from(status.progress.bytes_total).unwrap_or(i64::MAX),
+        progress: progress_fraction(&status),
+        ratio: status.rates.ratio,
+        dl_limit: metadata
+            .rate_limit
+            .as_ref()
+            .and_then(|limit| {
+                limit
+                    .download_bps
+                    .and_then(|value| i64::try_from(value).ok())
+            })
+            .unwrap_or(-1),
+        up_limit: metadata
+            .rate_limit
+            .as_ref()
+            .and_then(|limit| limit.upload_bps.and_then(|value| i64::try_from(value).ok()))
+            .unwrap_or(-1),
+        time_active: now.saturating_sub(status.added_at.timestamp()),
+        seeding_time: status
+            .completed_at
+            .map_or(0, |ts| now.saturating_sub(ts.timestamp())),
+        eta: status
+            .progress
+            .eta_seconds
+            .map_or(-1, |eta| i64::try_from(eta).unwrap_or(-1)),
+        super_seeding: metadata.super_seeding.unwrap_or(false),
+        force_start: false,
+        private: false,
+        comment: String::new(),
+        tags: metadata.tags.join(","),
+        category: String::new(),
+    };
+
+    Ok(Json(properties))
+}
+
+pub(crate) async fn torrents_trackers(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+    Query(params): Query<TorrentHashQuery>,
+) -> Result<Json<Vec<QbTrackerEntry>>, ApiError> {
+    ensure_session(&state, &headers)?;
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+    let ids = resolve_hashes(handles, &params.hash).await?;
+    let id = *ids
+        .first()
+        .ok_or_else(|| ApiError::bad_request("hash required"))?;
+    let metadata = state.get_metadata(&id);
+
+    let mut trackers = Vec::new();
+    for (idx, url) in metadata.trackers.iter().enumerate() {
+        let message = metadata
+            .tracker_messages
+            .get(url)
+            .cloned()
+            .unwrap_or_default();
+        trackers.push(QbTrackerEntry {
+            url: url.clone(),
+            status: 2,
+            num_peers: 0,
+            msg: message,
+            tier: i32::try_from(idx).unwrap_or_default(),
+        });
+    }
+
+    Ok(Json(trackers))
 }
 
 #[derive(Deserialize, Default, Clone)]
@@ -428,6 +627,54 @@ pub(crate) async fn torrents_delete(
     })
     .await?;
     state.update_torrent_metrics().await;
+    Ok(ok_plain())
+}
+
+pub(crate) async fn list_categories(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+) -> Result<Json<HashMap<String, QbCategory>>, ApiError> {
+    ensure_session(&state, &headers)?;
+    Ok(Json(HashMap::new()))
+}
+
+#[derive(Deserialize)]
+pub(crate) struct CreateCategoryForm {
+    #[serde(rename = "category")]
+    _category: Option<String>,
+    #[serde(rename = "savePath")]
+    _save_path: Option<String>,
+}
+
+pub(crate) async fn create_category(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+    Form(_form): Form<CreateCategoryForm>,
+) -> Result<Response, ApiError> {
+    ensure_session(&state, &headers)?;
+    Ok(ok_plain())
+}
+
+pub(crate) async fn list_tags(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+) -> Result<Json<Vec<String>>, ApiError> {
+    ensure_session(&state, &headers)?;
+    Ok(Json(Vec::new()))
+}
+
+#[derive(Deserialize)]
+pub(crate) struct CreateTagsForm {
+    #[serde(rename = "tags")]
+    _tags: Option<String>,
+}
+
+pub(crate) async fn create_tags(
+    State(state): State<Arc<ApiState>>,
+    headers: HeaderMap,
+    Form(_form): Form<CreateTagsForm>,
+) -> Result<Response, ApiError> {
+    ensure_session(&state, &headers)?;
     Ok(ok_plain())
 }
 
@@ -744,6 +991,9 @@ mod tests {
     };
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
+    use revaer_torrent_core::{
+        AddTorrent, TorrentInspector, TorrentProgress, TorrentRates, TorrentStatus, TorrentWorkflow,
+    };
     use serde_json::Value;
     use std::{sync::Arc, time::Duration};
 
@@ -865,6 +1115,146 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn torrent_properties_returns_snapshot() -> Result<()> {
+        let progress = TorrentProgress {
+            bytes_downloaded: 512,
+            bytes_total: 1024,
+            eta_seconds: Some(30),
+        };
+        let status = TorrentStatus {
+            id: Uuid::new_v4(),
+            name: Some("demo".into()),
+            download_dir: Some("/downloads".into()),
+            progress,
+            rates: TorrentRates {
+                download_bps: 128_000,
+                upload_bps: 64_000,
+                ratio: 1.25,
+            },
+            ..TorrentStatus::default()
+        };
+
+        let metadata = TorrentMetadata {
+            tags: vec!["alpha".into(), "beta".into()],
+            rate_limit: Some(TorrentRateLimit {
+                download_bps: Some(1_000),
+                upload_bps: Some(2_000),
+            }),
+            ..TorrentMetadata::default()
+        };
+
+        let state = state_with_handles(vec![status.clone()], vec![(status.id, metadata)]);
+        let sid = state.issue_qb_session();
+        let headers = header_with_sid(&sid);
+        let Json(body) = torrents_properties(
+            State(state),
+            headers,
+            Query(TorrentHashQuery {
+                hash: status.id.simple().to_string(),
+            }),
+        )
+        .await
+        .expect("properties should resolve");
+
+        assert_eq!(body.hash, status.id.simple().to_string());
+        assert_eq!(body.name, "demo");
+        assert_eq!(body.save_path, "/downloads");
+        assert_eq!(body.tags, "alpha,beta");
+        assert!(body.progress > 0.0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn torrents_trackers_emit_metadata() -> Result<()> {
+        let status = TorrentStatus {
+            id: Uuid::new_v4(),
+            ..TorrentStatus::default()
+        };
+        let metadata = TorrentMetadata {
+            trackers: vec!["udp://tracker.test/announce".into()],
+            ..TorrentMetadata::default()
+        };
+
+        let state = state_with_handles(vec![status.clone()], vec![(status.id, metadata)]);
+        let sid = state.issue_qb_session();
+        let headers = header_with_sid(&sid);
+        let Json(entries) = torrents_trackers(
+            State(state),
+            headers,
+            Query(TorrentHashQuery {
+                hash: status.id.simple().to_string(),
+            }),
+        )
+        .await
+        .expect("trackers should resolve");
+
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].url, "udp://tracker.test/announce");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn torrent_peers_returns_empty_list() -> Result<()> {
+        let state = state_with_handles(Vec::new(), Vec::new());
+        let sid = state.issue_qb_session();
+        let headers = header_with_sid(&sid);
+        let Json(peers) = sync_torrent_peers(
+            State(state),
+            headers,
+            Query(TorrentHashWithRidQuery {
+                hash: Uuid::new_v4().simple().to_string(),
+                rid: Some(42),
+            }),
+        )
+        .await
+        .expect("peers should resolve");
+
+        assert_eq!(peers.rid, 42);
+        assert!(peers.peers.is_empty());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn categories_and_tags_endpoints_return_empty() -> Result<()> {
+        let state = test_state();
+        let sid = state.issue_qb_session();
+        let headers = header_with_sid(&sid);
+
+        let Json(categories) = list_categories(State(Arc::clone(&state)), headers.clone())
+            .await
+            .expect("categories should resolve");
+        assert!(categories.is_empty());
+
+        let Json(tags) = list_tags(State(Arc::clone(&state)), headers.clone())
+            .await
+            .expect("tags should resolve");
+        assert!(tags.is_empty());
+
+        create_category(
+            State(Arc::clone(&state)),
+            headers.clone(),
+            Form(CreateCategoryForm {
+                _category: Some("movies".into()),
+                _save_path: Some("/downloads".into()),
+            }),
+        )
+        .await
+        .expect("create category");
+
+        create_tags(
+            State(state),
+            headers,
+            Form(CreateTagsForm {
+                _tags: Some("alpha,beta".into()),
+            }),
+        )
+        .await
+        .expect("create tags");
+
+        Ok(())
+    }
+
     fn header_with_sid(sid: &str) -> HeaderMap {
         let mut headers = HeaderMap::new();
         headers.insert(
@@ -883,6 +1273,26 @@ mod tests {
             EventBus::with_capacity(4),
             None,
         ))
+    }
+
+    fn state_with_handles(
+        statuses: Vec<TorrentStatus>,
+        metadata: Vec<(Uuid, TorrentMetadata)>,
+    ) -> Arc<ApiState> {
+        let config: Arc<dyn ConfigFacade> = Arc::new(TestConfig);
+        let handles =
+            TorrentHandles::new(Arc::new(StubWorkflow), Arc::new(StubInspector { statuses }));
+        let state = Arc::new(ApiState::new(
+            config,
+            Metrics::new().expect("metrics init"),
+            Arc::new(Value::Null),
+            EventBus::with_capacity(4),
+            Some(handles),
+        ));
+        for (id, data) in metadata {
+            state.set_metadata(id, data);
+        }
+        state
     }
 
     #[derive(Clone)]
@@ -925,6 +1335,35 @@ mod tests {
             _secret: &str,
         ) -> Result<Option<ApiKeyAuth>> {
             Ok(None)
+        }
+    }
+
+    #[derive(Clone)]
+    struct StubWorkflow;
+
+    #[async_trait]
+    impl TorrentWorkflow for StubWorkflow {
+        async fn add_torrent(&self, _request: AddTorrent) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn remove_torrent(&self, _id: Uuid, _options: RemoveTorrent) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    struct StubInspector {
+        statuses: Vec<TorrentStatus>,
+    }
+
+    #[async_trait]
+    impl TorrentInspector for StubInspector {
+        async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+            Ok(self.statuses.clone())
+        }
+
+        async fn get(&self, id: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+            Ok(self.statuses.iter().find(|status| status.id == id).cloned())
         }
     }
 }
