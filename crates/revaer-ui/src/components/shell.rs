@@ -43,70 +43,87 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
         let nav_open = nav_open.clone();
         Callback::from(move |_| nav_open.set(!*nav_open))
     };
+    let close_nav = {
+        let nav_open = nav_open.clone();
+        Callback::from(move |_| nav_open.set(false))
+    };
 
     let theme_label = match props.theme {
         ThemeMode::Light => t("shell.theme.light"),
         ThemeMode::Dark => t("shell.theme.dark"),
     };
+    let current_label = match props.active {
+        Route::Dashboard => props.nav.dashboard.clone(),
+        Route::Torrents => props.nav.torrents.clone(),
+        Route::Search => props.nav.search.clone(),
+        Route::Jobs => props.nav.jobs.clone(),
+        Route::Settings => props.nav.settings.clone(),
+        Route::Logs => props.nav.logs.clone(),
+        Route::NotFound => "Not found".into(),
+    };
 
     html! {
-        <div class={classes!("app-shell", format!("theme-{}", props.theme.as_str()))}>
+        <div class={classes!("app-shell", "reaver-shell", format!("theme-{}", props.theme.as_str()))}>
             <aside class={classes!("sidebar", if *nav_open { "open" } else { "closed" })}>
                 <div class="brand">
                     <button class="ghost mobile-only" onclick={toggle_nav.clone()} aria-label={t("shell.close_nav")}>{"✕"}</button>
-                    <strong>{t("shell.brand")}</strong>
-                    <span class="muted">{t("shell.phase")}</span>
+                    <div class="logo-mark">{reaver_mark()}</div>
+                    <div class="brand-copy">
+                        <strong>{t("shell.brand")}</strong>
+                        <span class="muted">{t("shell.phase")}</span>
+                    </div>
                 </div>
-                <nav>
-                    {nav_item(Route::Dashboard, &props.nav.dashboard, props.active.clone())}
-                    {nav_item(Route::Torrents, &props.nav.torrents, props.active.clone())}
-                    {nav_item(Route::Search, &props.nav.search, props.active.clone())}
-                    {nav_item(Route::Jobs, &props.nav.jobs, props.active.clone())}
-                    {nav_item(Route::Settings, &props.nav.settings, props.active.clone())}
-                    {nav_item(Route::Logs, &props.nav.logs, props.active.clone())}
-                </nav>
+                <ul class="menu nav-list">
+                    {nav_item(Route::Dashboard, &props.nav.dashboard, props.active.clone(), close_nav.clone())}
+                    {nav_item(Route::Torrents, &props.nav.torrents, props.active.clone(), close_nav.clone())}
+                    {nav_item(Route::Search, &props.nav.search, props.active.clone(), close_nav.clone())}
+                    {nav_item(Route::Jobs, &props.nav.jobs, props.active.clone(), close_nav.clone())}
+                    {nav_item(Route::Settings, &props.nav.settings, props.active.clone(), close_nav.clone())}
+                    {nav_item(Route::Logs, &props.nav.logs, props.active.clone(), close_nav)}
+                </ul>
                 <div class="sidebar-footer">
-                    <div class="mode-toggle">
+                    <div class="sidebar-group">
                         <small>{t("shell.mode")}</small>
-                        <div class="segmented">
-                            <button class={classes!(if props.mode == UiMode::Simple { "active" } else { "" })} onclick={{
+                        <div class="chip-group">
+                            <button class={classes!("chip", if props.mode == UiMode::Simple { "active" } else { "ghost" })} onclick={{
                                 let cb = props.on_mode_change.clone();
                                 Callback::from(move |_| cb.emit(UiMode::Simple))
                             }}>{t("mode.simple")}</button>
-                            <button class={classes!(if props.mode == UiMode::Advanced { "active" } else { "" })} onclick={{
+                            <button class={classes!("chip", if props.mode == UiMode::Advanced { "active" } else { "ghost" })} onclick={{
                                 let cb = props.on_mode_change.clone();
                                 Callback::from(move |_| cb.emit(UiMode::Advanced))
                             }}>{t("mode.advanced")}</button>
                         </div>
                     </div>
-                    <div class="theme-toggle">
+                    <div class="sidebar-group">
                         <small>{t("shell.theme.label")}</small>
-                        <button class="ghost" onclick={{
+                        <button class="chip ghost" onclick={{
                             let cb = props.on_toggle_theme.clone();
                             Callback::from(move |_| cb.emit(()))
                         }}>{theme_label}</button>
                     </div>
-                    <div class="locale-toggle">
+                    <div class="sidebar-group">
                         <small>{t("shell.locale")}</small>
-                        {props.locale_selector.clone()}
+                        <div class="locale-select">{props.locale_selector.clone()}</div>
                     </div>
                 </div>
             </aside>
             <div class="main">
-                <header class="topbar">
+                <header class="topbar glass">
                     <button class="ghost mobile-only" aria-label={t("shell.open_nav")} onclick={toggle_nav}>{"☰"}</button>
-                    <div class="searchbar">
-                        <input placeholder={t("shell.search_placeholder")} aria-label={t("shell.search_label")} />
+                    <div class="page-title">
+                        <p class="eyebrow">{t("shell.phase")}</p>
+                        <h2>{current_label}</h2>
                     </div>
                     <div class="top-actions">
                         <SseBadge state={props.sse_state} />
-                        <button class="ghost" onclick={{
+                        <button class="ghost icon-btn" onclick={{
                             let cb = props.on_sse_retry.clone();
                             Callback::from(move |_| cb.emit(()))
-                        }}>{t("shell.simulate_sse")}</button>
-                        <span class="pill subtle">{format!("BP: {}", props.breakpoint.name)}</span>
-                        <span class="pill subtle">{format!("VPN: {}", props.network_mode)}</span>
-                        <button class="ghost" onclick={{
+                        }} aria-label={t("shell.simulate_sse")}>{"↻"}</button>
+                        <span class="pill subtle">{format!("BP {}", props.breakpoint.name)}</span>
+                        <span class="pill subtle">{props.network_mode.clone()}</span>
+                        <button class="ghost icon-btn" onclick={{
                             let cb = props.on_toggle_theme.clone();
                             Callback::from(move |_| cb.emit(()))
                         }} aria-label={t("shell.toggle_theme")}>{"🌓"}</button>
@@ -120,16 +137,76 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
     }
 }
 
-fn nav_item(route: Route, label: &str, active: Route) -> Html {
-    let classes = classes!(
-        "nav-item",
-        if active == route {
-            Some("active")
-        } else {
-            None
-        }
-    );
+fn nav_item(route: Route, label: &str, active: Route, on_select: Callback<()>) -> Html {
+    let is_active = active == route;
+    let classes = classes!("nav-item", if is_active { "active" } else { "" });
+    let close = {
+        let on_select = on_select.clone();
+        Callback::from(move |_| on_select.emit(()))
+    };
     html! {
-        <Link<Route> to={route} classes={classes}>{label}</Link<Route>>
+        <li onclick={close}>
+            <Link<Route> to={route.clone()} classes={classes}>
+                <span class="nav-icon">{nav_icon(&route)}</span>
+                <span class="nav-label">{label}</span>
+            </Link<Route>>
+        </li>
+    }
+}
+
+fn nav_icon(route: &Route) -> Html {
+    match route {
+        Route::Dashboard => html! {
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 4h7v7H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 13h7v7H4z" fill="currentColor" />
+            </svg>
+        },
+        Route::Torrents => html! {
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 7l8-4 8 4v10l-8 4-8-4z" fill="none" stroke="currentColor" stroke-width="2" />
+                <path d="M8 12l4 2 4-2" fill="none" stroke="currentColor" stroke-width="2" />
+            </svg>
+        },
+        Route::Search => html! {
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="2" fill="none" />
+                <path d="M16 16l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        },
+        Route::Jobs => html! {
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 6h14v12H5z" fill="none" stroke="currentColor" stroke-width="2" />
+                <path d="M9 10h6M9 14h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        },
+        Route::Settings => html! {
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M12 8a4 4 0 100 8 4 4 0 000-8z" stroke="currentColor" stroke-width="2" fill="none" />
+                <path d="M4 12h2M18 12h2M12 4v2M12 18v2M6 6l1.5 1.5M16.5 16.5 18 18M18 6l-1.5 1.5M6 18l1.5-1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        },
+        Route::Logs => html! {
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M5 5h14v14H5z" fill="none" stroke="currentColor" stroke-width="2" />
+                <path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        },
+        Route::NotFound => html! {
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 4h16v16H4z" fill="none" stroke="currentColor" stroke-width="2" />
+                <path d="M8 8l8 8M16 8l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+            </svg>
+        },
+    }
+}
+
+fn reaver_mark() -> Html {
+    html! {
+        <svg viewBox="0 0 64 64" class="reaver-logo" aria-hidden="true">
+            <path
+                d="M18 14h18c7.2 0 12 4.8 12 11.2 0 5.6-3.6 9.6-8.8 10.8L44 50H33.6l-4.4-12H26V50H18zm18 16c3.2 0 5-1.6 5-4s-1.8-4-5-4H26v8z"
+                fill="currentColor"
+            />
+        </svg>
     }
 }

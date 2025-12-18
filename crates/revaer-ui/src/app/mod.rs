@@ -573,7 +573,7 @@ pub fn revaer_app() -> Html {
                     <Switch<Route> render={move |route| {
                         let bundle = (*bundle_routes).clone();
                         match route {
-                            Route::Dashboard => html! { <DashboardPanel snapshot={(*dashboard).clone()} mode={*mode} density={*density} /> },
+                            Route::Dashboard => html! { <DashboardPanel snapshot={(*dashboard).clone()} mode={*mode} density={*density} torrents={(*torrents).clone()} /> },
                             Route::Torrents | Route::Search => html! { <TorrentView base_url={api_base_url()} api_key={(*api_key_routes).clone()} breakpoint={*breakpoint} torrents={(*torrents).clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_bulk_action={on_bulk_action.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={*add_busy} search={(*search).clone()} regex={*regex} on_search={set_search.clone()} on_toggle_regex={toggle_regex.clone()} /> },
                             Route::Jobs => html! { <Placeholder title={bundle.text("placeholder.jobs_title", "")} body={bundle.text("placeholder.jobs_body", "")} /> },
                             Route::Settings => html! { <Placeholder title={bundle.text("placeholder.settings_title", "")} body={bundle.text("placeholder.settings_body", "")} /> },
