@@ -4,45 +4,228 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "Dashboard",
-    "torrents": "Torrents",
-    "search": "Search",
-    "jobs": "Jobs / Post-processing",
-    "settings": "Settings",
-    "logs": "Logs"
+    "dashboard": "仪表板",
+    "torrents": "种子",
+    "search": "搜索",
+    "jobs": "任务 / 后处理",
+    "settings": "设置",
+    "logs": "日志"
   },
   "mode": {
-    "simple": "Simple",
-    "advanced": "Advanced"
+    "simple": "简单",
+    "advanced": "高级"
   },
   "density": {
-    "compact": "Compact",
-    "normal": "Normal",
-    "comfy": "Comfy"
+    "compact": "紧凑",
+    "normal": "正常",
+    "comfy": "舒适"
   },
   "toolbar": {
-    "regex": "Regex",
-    "add": "Add",
-    "pause": "Pause",
-    "resume": "Resume",
-    "delete": "Delete",
-    "delete_data": "Delete data",
-    "recheck": "Recheck"
+    "regex": "正则表达式",
+    "add": "添加",
+    "pause": "暂停",
+    "resume": "继续",
+    "delete": "删除",
+    "delete_data": "删除数据",
+    "recheck": "重新检查"
   },
   "torrents": {
-    "search_placeholder": "Search name, path, tracker",
-    "add_placeholder": "Magnet or URL",
-    "drop_help": "Drop .torrent or paste magnet",
-    "category": "Category",
-    "tags": "Tags",
-    "save_path": "Save path"
+    "search_label": "搜索种子",
+    "search_placeholder": "搜索名称、路径、追踪器",
+    "add_placeholder": "磁力链接或 URL",
+    "drop_help": "放置 .torrent 或粘贴磁力链接",
+    "drop_sub": "验证磁力链接/URL，支持拖放和文件选择。",
+    "upload_label": "上传种子",
+    "adding": "添加中…",
+    "ready_prefix": "准备上传",
+    "category": "分类",
+    "category_placeholder": "电视、电影、音乐",
+    "tags": "标签",
+    "tags_placeholder": "4K, hevc, scene",
+    "save_path": "保存路径",
+    "save_path_placeholder": "/data/incomplete",
+    "open_detail": "打开详情",
+    "eta_infinite": "∞",
+    "eta": "预计时间",
+    "down": "下载",
+    "up": "上传",
+    "ratio": "分享率",
+    "size": "大小",
+    "select_row": "选择种子",
+    "select_all": "全选",
+    "selected": "已选",
+    "watch_folder": "监视文件夹",
+    "watch_folder_body": "监视路径已启用；失败将出现在任务/后处理中。",
+    "error": {
+      "empty": "输入磁力链接、URL 或放置 .torrent",
+      "invalid": "无效的磁力链接或 URL",
+      "file_type": "不支持的文件类型"
+    },
+    "shortcut": "快捷键",
+    "more": "更多…",
+    "banner": {
+      "removed_data": "已删除种子 + 数据",
+      "removed": "已删除种子",
+      "recheck": "重新检查中",
+      "pause": "已暂停",
+      "resume": "已继续"
+    }
   },
   "dashboard": {
-    "speeds": "Global Speeds",
-    "torrents": "Torrents",
-    "disk": "Disk Usage",
-    "queue": "Queue",
-    "vpn": "VPN Status",
-    "events": "Recent Events"
+    "speeds": "全局速度",
+    "live": "SSE 实时",
+    "down": "下载",
+    "up": "上传",
+    "speeds_subtext": "移动设备和受限网络上具有回退的亚秒级更新。",
+    "torrents": "种子",
+    "torrents_sub": "活动 / 暂停 / 完成",
+    "active": "活动",
+    "paused": "暂停",
+    "completed": "完成",
+    "disk": "磁盘使用",
+    "disk_sub": "全局 + 每个路径",
+    "total": "总计",
+    "queue": "队列",
+    "queue_sub": "深度和暂停计数",
+    "queued": "排队中",
+    "depth": "深度",
+    "vpn": "VPN 状态",
+    "vpn_state": "状态",
+    "vpn_message": "消息",
+    "tracker_health": "追踪器健康",
+    "tracker_sub": "聚合",
+    "ok": "正常",
+    "warn": "警告",
+    "error": "错误",
+    "tracker_help": "失败将显示在事件日志中，带有下次公告时间戳。",
+    "events": "最近事件",
+    "events_sub": "警告和追踪器问题",
+    "event_info": "信息",
+    "event_warn": "警告",
+    "event_error": "错误"
+  },
+  "confirm": {
+    "delete": {
+      "title": "删除种子？",
+      "body": "文件仍保留在磁盘上。没有删除数据就无法撤消。",
+      "cta": "删除"
+    },
+    "delete_data": {
+      "title": "删除种子并清除数据？",
+      "body": "这将永久从磁盘删除文件。",
+      "cta": "删除数据"
+    },
+    "recheck": {
+      "title": "重新检查数据？",
+      "body": "哈希检查将验证现有数据。",
+      "cta": "重新检查"
+    },
+    "cancel": "取消"
+  },
+  "detail": {
+    "select_title": "选择种子",
+    "select_body": "打开种子以查看文件、对等点、追踪器和元数据。",
+    "view_label": "详细视图",
+    "tab": {
+      "files": "文件",
+      "peers": "对等点",
+      "trackers": "追踪器",
+      "log": "日志",
+      "info": "信息"
+    },
+    "files": {
+      "title": "文件",
+      "body": "每个文件的优先级 + 需要/不需要切换。移动设备上为手风琴。",
+      "wanted": "需要"
+    },
+    "peers": {
+      "title": "对等点",
+      "body": "可按速度/进度排序；显示标志 + 国家（如果可用）。",
+      "down": "下载",
+      "up": "上传",
+      "progress": "进度"
+    },
+    "trackers": {
+      "title": "追踪器",
+      "body": "状态、下次公告和带警告徽章的错误。"
+    },
+    "log": {
+      "title": "事件日志",
+      "body": "警告、追踪器问题、状态转换。"
+    },
+    "info": {
+      "title": "元数据",
+      "body": "哈希、磁力链接、大小、块数、块大小。",
+      "hash": "哈希",
+      "magnet": "磁力链接",
+      "size": "大小",
+      "pieces": "块",
+      "piece_size": "块大小"
+    }
+  },
+  "auth": {
+    "error_required": "远程模式需要 API 密钥",
+    "title": "需要 API 访问",
+    "body": "输入您的 API 密钥以连接。远程模式始终需要密钥；如果后端启用，LAN 模式可能允许匿名。",
+    "label": "API 密钥",
+    "placeholder": "revaer_api_key",
+    "allow_anon": "检测到 LAN 模式：留空以匿名继续。",
+    "use_anon": "使用匿名（如果允许）",
+    "submit": "继续"
+  },
+  "sse": {
+    "title": "SSE 已断开",
+    "body": "使用指数退避和抖动重新连接。",
+    "next_retry": "下次重试",
+    "last_event": "最后事件",
+    "reason": "原因：",
+    "retry": "立即重试",
+    "dismiss": "关闭覆盖层",
+    "badge": "SSE",
+    "badge_reconnecting": "SSE 重新连接中"
+  },
+  "shell": {
+    "theme": {
+      "light": "浅色",
+      "dark": "深色",
+      "label": "主题"
+    },
+    "close_nav": "关闭导航",
+    "open_nav": "打开导航",
+    "brand": "Revaer",
+    "phase": "第 1 阶段",
+    "mode": "模式",
+    "locale": "语言",
+    "search_placeholder": "搜索种子（按 / 聚焦）",
+    "search_label": "全局搜索",
+    "simulate_sse": "模拟 SSE 掉线",
+    "toggle_theme": "切换主题",
+    "network_connected": "已连接",
+    "network_remote": "远程（API 密钥）"
+  },
+  "placeholder": {
+    "jobs_title": "任务 / 后处理",
+    "jobs_body": "任务状态、监视文件夹错误、SSE 更新",
+    "settings_title": "设置",
+    "settings_body": "引擎配置文件、路径、角色、远程模式",
+    "logs_title": "日志",
+    "logs_body": "带过滤器的流式事件日志",
+    "not_found_title": "未找到",
+    "not_found_body": "使用导航返回到支持的视图。",
+    "badge": "移动 + 桌面响应式布局就绪。"
+  },
+  "toast": {
+    "pause": "已暂停",
+    "resume": "已继续",
+    "recheck": "重新检查中",
+    "delete": "已删除",
+    "delete_data": "已删除（数据已删除）",
+    "add_success": "已添加",
+    "add_refresh_failed": "已添加，但刷新失败：",
+    "add_failed": "添加失败：",
+    "action_failed": "操作失败",
+    "torrent_placeholder": "种子",
+    "bulk_done": "批量操作已完成",
+    "dismiss": "关闭"
   }
 }

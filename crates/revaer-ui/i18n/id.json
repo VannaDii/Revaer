@@ -4,45 +4,228 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "Dashboard",
-    "torrents": "Torrents",
-    "search": "Search",
-    "jobs": "Jobs / Post-processing",
-    "settings": "Settings",
-    "logs": "Logs"
+    "dashboard": "Dasbor",
+    "torrents": "Torrent",
+    "search": "Cari",
+    "jobs": "Pekerjaan / Pasca-pemrosesan",
+    "settings": "Pengaturan",
+    "logs": "Log"
   },
   "mode": {
-    "simple": "Simple",
-    "advanced": "Advanced"
+    "simple": "Sederhana",
+    "advanced": "Lanjutan"
   },
   "density": {
-    "compact": "Compact",
+    "compact": "Kompak",
     "normal": "Normal",
-    "comfy": "Comfy"
+    "comfy": "Nyaman"
   },
   "toolbar": {
     "regex": "Regex",
-    "add": "Add",
-    "pause": "Pause",
-    "resume": "Resume",
-    "delete": "Delete",
-    "delete_data": "Delete data",
-    "recheck": "Recheck"
+    "add": "Tambah",
+    "pause": "Jeda",
+    "resume": "Lanjutkan",
+    "delete": "Hapus",
+    "delete_data": "Hapus data",
+    "recheck": "Periksa ulang"
   },
   "torrents": {
-    "search_placeholder": "Search name, path, tracker",
-    "add_placeholder": "Magnet or URL",
-    "drop_help": "Drop .torrent or paste magnet",
-    "category": "Category",
-    "tags": "Tags",
-    "save_path": "Save path"
+    "search_label": "Cari torrent",
+    "search_placeholder": "Cari nama, jalur, pelacak",
+    "add_placeholder": "Magnet atau URL",
+    "drop_help": "Jatuhkan .torrent atau tempel magnet",
+    "drop_sub": "Memvalidasi magnet/URL, mendukung seret/lepas dan pemilihan file.",
+    "upload_label": "Unggah torrent",
+    "adding": "Menambahkan…",
+    "ready_prefix": "Siap mengunggah",
+    "category": "Kategori",
+    "category_placeholder": "tv, film, musik",
+    "tags": "Tag",
+    "tags_placeholder": "4K, hevc, scene",
+    "save_path": "Jalur penyimpanan",
+    "save_path_placeholder": "/data/incomplete",
+    "open_detail": "Buka detail",
+    "eta_infinite": "∞",
+    "eta": "Perkiraan waktu",
+    "down": "Unduh",
+    "up": "Unggah",
+    "ratio": "Rasio",
+    "size": "Ukuran",
+    "select_row": "Pilih torrent",
+    "select_all": "Pilih semua",
+    "selected": "dipilih",
+    "watch_folder": "Folder pantauan",
+    "watch_folder_body": "Jalur pantauan diaktifkan; kegagalan akan muncul di Pekerjaan/Pasca-pemrosesan.",
+    "error": {
+      "empty": "Masukkan tautan magnet, URL, atau jatuhkan .torrent",
+      "invalid": "Magnet atau URL tidak valid",
+      "file_type": "Jenis file tidak didukung"
+    },
+    "shortcut": "Pintasan",
+    "more": "Lainnya…",
+    "banner": {
+      "removed_data": "Torrent + data dihapus",
+      "removed": "Torrent dihapus",
+      "recheck": "Memeriksa ulang",
+      "pause": "Dijeda",
+      "resume": "Dilanjutkan"
+    }
   },
   "dashboard": {
-    "speeds": "Global Speeds",
-    "torrents": "Torrents",
-    "disk": "Disk Usage",
-    "queue": "Queue",
-    "vpn": "VPN Status",
-    "events": "Recent Events"
+    "speeds": "Kecepatan global",
+    "live": "SSE langsung",
+    "down": "Unduh",
+    "up": "Unggah",
+    "speeds_subtext": "Pembaruan sub-detik dengan mundur di seluler dan jaringan terbatas.",
+    "torrents": "Torrent",
+    "torrents_sub": "Aktif / Dijeda / Selesai",
+    "active": "Aktif",
+    "paused": "Dijeda",
+    "completed": "Selesai",
+    "disk": "Penggunaan disk",
+    "disk_sub": "Global + per jalur",
+    "total": "Total",
+    "queue": "Antrian",
+    "queue_sub": "Kedalaman dan hitungan dijeda",
+    "queued": "Diantrekan",
+    "depth": "Kedalaman",
+    "vpn": "Status VPN",
+    "vpn_state": "Status",
+    "vpn_message": "Pesan",
+    "tracker_health": "Kesehatan pelacak",
+    "tracker_sub": "Teragregasi",
+    "ok": "OK",
+    "warn": "Peringatan",
+    "error": "Kesalahan",
+    "tracker_help": "Kegagalan muncul di log peristiwa dengan stempel waktu pengumuman berikutnya.",
+    "events": "Peristiwa terkini",
+    "events_sub": "Peringatan dan masalah pelacak",
+    "event_info": "Info",
+    "event_warn": "Peringatan",
+    "event_error": "Kesalahan"
+  },
+  "confirm": {
+    "delete": {
+      "title": "Hapus torrent?",
+      "body": "File tetap di disk. Ini tidak dapat dibatalkan tanpa penghapusan data.",
+      "cta": "Hapus"
+    },
+    "delete_data": {
+      "title": "Hapus torrent dan hapus data?",
+      "body": "Ini menghapus file secara permanen dari disk.",
+      "cta": "Hapus data"
+    },
+    "recheck": {
+      "title": "Periksa ulang data?",
+      "body": "Pemeriksaan hash akan memverifikasi data yang ada.",
+      "cta": "Periksa ulang"
+    },
+    "cancel": "Batal"
+  },
+  "detail": {
+    "select_title": "Pilih torrent",
+    "select_body": "Buka torrent untuk melihat file, rekan, pelacak, dan metadata.",
+    "view_label": "Tampilan detail",
+    "tab": {
+      "files": "File",
+      "peers": "Rekan",
+      "trackers": "Pelacak",
+      "log": "Log",
+      "info": "Info"
+    },
+    "files": {
+      "title": "File",
+      "body": "Prioritas per file + tombol diinginkan/tidak diinginkan. Akordion di seluler.",
+      "wanted": "Diinginkan"
+    },
+    "peers": {
+      "title": "Rekan",
+      "body": "Dapat diurutkan berdasarkan kecepatan/kemajuan; menampilkan bendera + negara jika tersedia.",
+      "down": "Unduh",
+      "up": "Unggah",
+      "progress": "Kemajuan"
+    },
+    "trackers": {
+      "title": "Pelacak",
+      "body": "Status, pengumuman berikutnya, dan kesalahan dengan lencana peringatan."
+    },
+    "log": {
+      "title": "Log peristiwa",
+      "body": "Peringatan, masalah pelacak, transisi status."
+    },
+    "info": {
+      "title": "Metadata",
+      "body": "Hash, magnet, ukuran, jumlah potongan, ukuran potongan.",
+      "hash": "Hash",
+      "magnet": "Magnet",
+      "size": "Ukuran",
+      "pieces": "Potongan",
+      "piece_size": "Ukuran potongan"
+    }
+  },
+  "auth": {
+    "error_required": "Kunci API diperlukan untuk mode jarak jauh",
+    "title": "Akses API diperlukan",
+    "body": "Masukkan kunci API Anda untuk terhubung. Mode jarak jauh selalu memerlukan kunci; mode LAN dapat mengizinkan anonim jika diaktifkan oleh backend.",
+    "label": "Kunci API",
+    "placeholder": "revaer_api_key",
+    "allow_anon": "Mode LAN terdeteksi: biarkan kosong untuk melanjutkan secara anonim.",
+    "use_anon": "Gunakan anonim (jika diizinkan)",
+    "submit": "Lanjutkan"
+  },
+  "sse": {
+    "title": "SSE terputus",
+    "body": "Menyambung kembali dengan mundur eksponensial dan jitter.",
+    "next_retry": "Coba lagi berikutnya dalam",
+    "last_event": "Peristiwa terakhir",
+    "reason": "Alasan:",
+    "retry": "Coba lagi sekarang",
+    "dismiss": "Tutup overlay",
+    "badge": "SSE",
+    "badge_reconnecting": "SSE menyambung kembali"
+  },
+  "shell": {
+    "theme": {
+      "light": "Terang",
+      "dark": "Gelap",
+      "label": "Tema"
+    },
+    "close_nav": "Tutup navigasi",
+    "open_nav": "Buka navigasi",
+    "brand": "Revaer",
+    "phase": "Fase 1",
+    "mode": "Mode",
+    "locale": "Bahasa",
+    "search_placeholder": "Cari torrent (/ untuk fokus)",
+    "search_label": "Pencarian global",
+    "simulate_sse": "Simulasikan jatuhnya SSE",
+    "toggle_theme": "Alihkan tema",
+    "network_connected": "terhubung",
+    "network_remote": "jarak jauh (kunci API)"
+  },
+  "placeholder": {
+    "jobs_title": "Pekerjaan / Pasca-pemrosesan",
+    "jobs_body": "Status pekerjaan, kesalahan folder pantauan, pembaruan SSE",
+    "settings_title": "Pengaturan",
+    "settings_body": "Profil mesin, jalur, peran, mode jarak jauh",
+    "logs_title": "Log",
+    "logs_body": "Log peristiwa streaming dengan filter",
+    "not_found_title": "Tidak ditemukan",
+    "not_found_body": "Gunakan navigasi untuk kembali ke tampilan yang didukung.",
+    "badge": "Tata letak responsif seluler + desktop siap."
+  },
+  "toast": {
+    "pause": "Dijeda",
+    "resume": "Dilanjutkan",
+    "recheck": "Memeriksa ulang",
+    "delete": "Dihapus",
+    "delete_data": "Dihapus (data dihapus)",
+    "add_success": "Ditambahkan",
+    "add_refresh_failed": "Ditambahkan, tetapi penyegaran gagal:",
+    "add_failed": "Penambahan gagal:",
+    "action_failed": "Tindakan gagal untuk",
+    "torrent_placeholder": "Torrent",
+    "bulk_done": "Tindakan massal selesai untuk",
+    "dismiss": "Tutup"
   }
 }

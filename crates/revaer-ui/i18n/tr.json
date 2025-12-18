@@ -4,45 +4,228 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "Dashboard",
-    "torrents": "Torrents",
-    "search": "Search",
-    "jobs": "Jobs / Post-processing",
-    "settings": "Settings",
-    "logs": "Logs"
+    "dashboard": "Panel",
+    "torrents": "Torrentler",
+    "search": "Ara",
+    "jobs": "İşler / Sonrası İşlemler",
+    "settings": "Ayarlar",
+    "logs": "Günlükler"
   },
   "mode": {
-    "simple": "Simple",
-    "advanced": "Advanced"
+    "simple": "Basit",
+    "advanced": "Gelişmiş"
   },
   "density": {
-    "compact": "Compact",
+    "compact": "Sıkışık",
     "normal": "Normal",
-    "comfy": "Comfy"
+    "comfy": "Rahat"
   },
   "toolbar": {
     "regex": "Regex",
-    "add": "Add",
-    "pause": "Pause",
-    "resume": "Resume",
-    "delete": "Delete",
-    "delete_data": "Delete data",
-    "recheck": "Recheck"
+    "add": "Ekle",
+    "pause": "Duraklat",
+    "resume": "Devam Et",
+    "delete": "Sil",
+    "delete_data": "Veriyi sil",
+    "recheck": "Tekrar kontrol et"
   },
   "torrents": {
-    "search_placeholder": "Search name, path, tracker",
-    "add_placeholder": "Magnet or URL",
-    "drop_help": "Drop .torrent or paste magnet",
-    "category": "Category",
-    "tags": "Tags",
-    "save_path": "Save path"
+    "search_label": "Torrent ara",
+    "search_placeholder": "İsim, yol, izleyici ara",
+    "add_placeholder": "Magnet veya URL",
+    "drop_help": ".torrent bırak veya magnet yapıştır",
+    "drop_sub": "Magnet/URL'yi doğrular, sürükle/bırak ve dosya seçimini destekler.",
+    "upload_label": "Torrent yükle",
+    "adding": "Ekleniyor…",
+    "ready_prefix": "Yüklemeye hazır",
+    "category": "Kategori",
+    "category_placeholder": "tv, filmler, müzik",
+    "tags": "Etiketler",
+    "tags_placeholder": "4K, hevc, scene",
+    "save_path": "Kayıt yolu",
+    "save_path_placeholder": "/data/incomplete",
+    "open_detail": "Detayları aç",
+    "eta_infinite": "∞",
+    "eta": "Tahmini süre",
+    "down": "İndirme",
+    "up": "Yükleme",
+    "ratio": "Oran",
+    "size": "Boyut",
+    "select_row": "Torrent seç",
+    "select_all": "Tümünü seç",
+    "selected": "seçildi",
+    "watch_folder": "İzlenen klasör",
+    "watch_folder_body": "İzleme yolu etkin; hatalar İşler/Sonrası İşlemler'de görünecek.",
+    "error": {
+      "empty": "Magnet bağlantısı, URL girin veya .torrent bırakın",
+      "invalid": "Geçersiz magnet veya URL",
+      "file_type": "Desteklenmeyen dosya türü"
+    },
+    "shortcut": "Kısayol",
+    "more": "Daha fazla…",
+    "banner": {
+      "removed_data": "Torrent + veri kaldırıldı",
+      "removed": "Torrent kaldırıldı",
+      "recheck": "Tekrar kontrol ediliyor",
+      "pause": "Duraklatıldı",
+      "resume": "Devam edildi"
+    }
   },
   "dashboard": {
-    "speeds": "Global Speeds",
-    "torrents": "Torrents",
-    "disk": "Disk Usage",
-    "queue": "Queue",
-    "vpn": "VPN Status",
-    "events": "Recent Events"
+    "speeds": "Global Hızlar",
+    "live": "SSE canlı",
+    "down": "İndirme",
+    "up": "Yükleme",
+    "speeds_subtext": "Mobil ve kısıtlı ağlarda geri çekilme ile saniyenin altında güncellemeler.",
+    "torrents": "Torrentler",
+    "torrents_sub": "Aktif / Duraklatıldı / Tamamlandı",
+    "active": "Aktif",
+    "paused": "Duraklatıldı",
+    "completed": "Tamamlandı",
+    "disk": "Disk Kullanımı",
+    "disk_sub": "Global + yol başına",
+    "total": "Toplam",
+    "queue": "Kuyruk",
+    "queue_sub": "Derinlik ve duraklatılmış sayılar",
+    "queued": "Kuyrukta",
+    "depth": "Derinlik",
+    "vpn": "VPN Durumu",
+    "vpn_state": "Durum",
+    "vpn_message": "Mesaj",
+    "tracker_health": "İzleyici Sağlığı",
+    "tracker_sub": "Toplu",
+    "ok": "Tamam",
+    "warn": "Uyarı",
+    "error": "Hata",
+    "tracker_help": "Hatalar bir sonraki duyuru zaman damgalarıyla olay günlüğünde görünür.",
+    "events": "Son Olaylar",
+    "events_sub": "Uyarılar ve izleyici sorunları",
+    "event_info": "Bilgi",
+    "event_warn": "Uyarı",
+    "event_error": "Hata"
+  },
+  "confirm": {
+    "delete": {
+      "title": "Torrent kaldırılsın mı?",
+      "body": "Dosyalar diskte kalır. Veri silinmeden bu geri alınamaz.",
+      "cta": "Kaldır"
+    },
+    "delete_data": {
+      "title": "Torrent kaldırılsın ve veri silinsin mi?",
+      "body": "Bu dosyaları diskten kalıcı olarak siler.",
+      "cta": "Veriyi sil"
+    },
+    "recheck": {
+      "title": "Veri tekrar kontrol edilsin mi?",
+      "body": "Hash kontrolü mevcut veriyi doğrulayacak.",
+      "cta": "Tekrar kontrol et"
+    },
+    "cancel": "İptal"
+  },
+  "detail": {
+    "select_title": "Bir torrent seçin",
+    "select_body": "Dosyaları, eşleri, izleyicileri ve meta verileri görüntülemek için bir torrent açın.",
+    "view_label": "Detay görünümü",
+    "tab": {
+      "files": "Dosyalar",
+      "peers": "Eşler",
+      "trackers": "İzleyiciler",
+      "log": "Günlük",
+      "info": "Bilgi"
+    },
+    "files": {
+      "title": "Dosyalar",
+      "body": "Dosya başına öncelik + istenen/istenmeyen geçişler. Mobilde akordeon.",
+      "wanted": "İstenen"
+    },
+    "peers": {
+      "title": "Eşler",
+      "body": "Hız/ilerlemeye göre sıralanabilir; mevcut olduğunda bayraklar + ülke gösterir.",
+      "down": "İndirme",
+      "up": "Yükleme",
+      "progress": "İlerleme"
+    },
+    "trackers": {
+      "title": "İzleyiciler",
+      "body": "Durum, bir sonraki duyuru ve uyarı rozetleriyle hatalar."
+    },
+    "log": {
+      "title": "Olay Günlüğü",
+      "body": "Uyarılar, izleyici sorunları, durum geçişleri."
+    },
+    "info": {
+      "title": "Meta Veri",
+      "body": "Hash, magnet, boyut, parça sayısı, parça boyutu.",
+      "hash": "Hash",
+      "magnet": "Magnet",
+      "size": "Boyut",
+      "pieces": "Parçalar",
+      "piece_size": "Parça boyutu"
+    }
+  },
+  "auth": {
+    "error_required": "Uzak mod için API anahtarı gerekli",
+    "title": "API erişimi gerekli",
+    "body": "Bağlanmak için API anahtarınızı girin. Uzak mod her zaman bir anahtar gerektirir; LAN modu arka uç tarafından etkinleştirilirse anonim izin verebilir.",
+    "label": "API Anahtarı",
+    "placeholder": "revaer_api_key",
+    "allow_anon": "LAN modu algılandı: anonim devam etmek için boş bırakın.",
+    "use_anon": "Anonim kullan (izin verilirse)",
+    "submit": "Devam et"
+  },
+  "sse": {
+    "title": "SSE bağlantısı kesildi",
+    "body": "Üstel geri çekilme ve titreme ile yeniden bağlanıyor.",
+    "next_retry": "Sonraki deneme",
+    "last_event": "Son olay",
+    "reason": "Neden:",
+    "retry": "Şimdi tekrar dene",
+    "dismiss": "Katmanı kapat",
+    "badge": "SSE",
+    "badge_reconnecting": "SSE yeniden bağlanıyor"
+  },
+  "shell": {
+    "theme": {
+      "light": "Açık",
+      "dark": "Koyu",
+      "label": "Tema"
+    },
+    "close_nav": "Gezinmeyi kapat",
+    "open_nav": "Gezinmeyi aç",
+    "brand": "Revaer",
+    "phase": "Faz 1",
+    "mode": "Mod",
+    "locale": "Dil",
+    "search_placeholder": "Torrent ara (odaklanmak için /)",
+    "search_label": "Global arama",
+    "simulate_sse": "SSE düşüşünü simüle et",
+    "toggle_theme": "Temayı değiştir",
+    "network_connected": "bağlı",
+    "network_remote": "uzak (API anahtarı)"
+  },
+  "placeholder": {
+    "jobs_title": "İşler / Sonrası İşlemler",
+    "jobs_body": "İş durumları, izlenen klasör hataları, SSE güncellemeleri",
+    "settings_title": "Ayarlar",
+    "settings_body": "Motor profili, yollar, roller, uzak mod",
+    "logs_title": "Günlükler",
+    "logs_body": "Filtrelerle akışlı olay günlüğü",
+    "not_found_title": "Bulunamadı",
+    "not_found_body": "Desteklenen bir görünüme dönmek için gezinmeyi kullanın.",
+    "badge": "Mobil + masaüstü duyarlı düzen hazır."
+  },
+  "toast": {
+    "pause": "Duraklatıldı",
+    "resume": "Devam edildi",
+    "recheck": "Tekrar kontrol ediliyor",
+    "delete": "Kaldırıldı",
+    "delete_data": "Kaldırıldı (veri silindi)",
+    "add_success": "Eklendi",
+    "add_refresh_failed": "Eklendi, ancak yenileme başarısız:",
+    "add_failed": "Ekleme başarısız:",
+    "action_failed": "İşlem başarısız",
+    "torrent_placeholder": "Torrent",
+    "bulk_done": "Toplu işlemler tamamlandı",
+    "dismiss": "Kapat"
   }
 }

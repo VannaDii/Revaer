@@ -4,45 +4,228 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "Dashboard",
-    "torrents": "Torrents",
-    "search": "Search",
-    "jobs": "Jobs / Post-processing",
-    "settings": "Settings",
-    "logs": "Logs"
+    "dashboard": "Dasbor",
+    "torrents": "Torrent",
+    "search": "Nggoleki",
+    "jobs": "Pegaweyan / Pangolahan Sawise",
+    "settings": "Pengaturan",
+    "logs": "Log"
   },
   "mode": {
-    "simple": "Simple",
-    "advanced": "Advanced"
+    "simple": "Prasaja",
+    "advanced": "Lanjut"
   },
   "density": {
-    "compact": "Compact",
+    "compact": "Kompak",
     "normal": "Normal",
-    "comfy": "Comfy"
+    "comfy": "Nyaman"
   },
   "toolbar": {
     "regex": "Regex",
-    "add": "Add",
-    "pause": "Pause",
-    "resume": "Resume",
-    "delete": "Delete",
-    "delete_data": "Delete data",
-    "recheck": "Recheck"
+    "add": "Tambah",
+    "pause": "Jeda",
+    "resume": "Terusake",
+    "delete": "Busek",
+    "delete_data": "Busek data",
+    "recheck": "Priksa maneh"
   },
   "torrents": {
-    "search_placeholder": "Search name, path, tracker",
-    "add_placeholder": "Magnet or URL",
-    "drop_help": "Drop .torrent or paste magnet",
-    "category": "Category",
-    "tags": "Tags",
-    "save_path": "Save path"
+    "search_label": "Nggoleki torrent",
+    "search_placeholder": "Nggoleki jeneng, path, tracker",
+    "add_placeholder": "Magnet utawa URL",
+    "drop_help": "Selehake .torrent utawa tempel magnet",
+    "drop_sub": "Validasi magnet/URL, ndhukung seret/seleh lan pilihan berkas.",
+    "upload_label": "Unggah torrent",
+    "adding": "Nambah…",
+    "ready_prefix": "Siyap unggah",
+    "category": "Kategori",
+    "category_placeholder": "tv, film, musik",
+    "tags": "Tag",
+    "tags_placeholder": "4K, hevc, scene",
+    "save_path": "Path simpen",
+    "save_path_placeholder": "/data/incomplete",
+    "open_detail": "Bukak rincian",
+    "eta_infinite": "∞",
+    "eta": "Wektu kira-kira",
+    "down": "Undhuh",
+    "up": "Unggah",
+    "ratio": "Rasio",
+    "size": "Ukuran",
+    "select_row": "Pilih torrent",
+    "select_all": "Pilih kabeh",
+    "selected": "kapilih",
+    "watch_folder": "Folder pantau",
+    "watch_folder_body": "Path pantau diaktifake; kegagalan bakal katon ing Pegaweyan/Pangolahan Sawise.",
+    "error": {
+      "empty": "Lebokake link magnet, URL, utawa selehake .torrent",
+      "invalid": "Magnet utawa URL ora valid",
+      "file_type": "Jinis berkas ora didhukung"
+    },
+    "shortcut": "Jalan cepet",
+    "more": "Liyane…",
+    "banner": {
+      "removed_data": "Torrent + data dibusek",
+      "removed": "Torrent dibusek",
+      "recheck": "Mriksa maneh",
+      "pause": "Dijeda",
+      "resume": "Diterusake"
+    }
   },
   "dashboard": {
-    "speeds": "Global Speeds",
-    "torrents": "Torrents",
-    "disk": "Disk Usage",
-    "queue": "Queue",
-    "vpn": "VPN Status",
-    "events": "Recent Events"
+    "speeds": "Kacepetan Global",
+    "live": "SSE langsung",
+    "down": "Undhuh",
+    "up": "Unggah",
+    "speeds_subtext": "Nganyari sub-detik karo mundur ing seluler lan jaringan winates.",
+    "torrents": "Torrent",
+    "torrents_sub": "Aktif / Dijeda / Rampung",
+    "active": "Aktif",
+    "paused": "Dijeda",
+    "completed": "Rampung",
+    "disk": "Panggunaan Disk",
+    "disk_sub": "Global + saben path",
+    "total": "Total",
+    "queue": "Antrian",
+    "queue_sub": "Jero lan cacah dijeda",
+    "queued": "Diantrekake",
+    "depth": "Jero",
+    "vpn": "Status VPN",
+    "vpn_state": "Status",
+    "vpn_message": "Pesen",
+    "tracker_health": "Kesehatan Tracker",
+    "tracker_sub": "Diaregasi",
+    "ok": "OK",
+    "warn": "Peringatan",
+    "error": "Kesalahan",
+    "tracker_help": "Kegagalan katon ing log acara karo stempel wektu pengumuman sabanjure.",
+    "events": "Acara Anyar",
+    "events_sub": "Peringatan lan masalah tracker",
+    "event_info": "Info",
+    "event_warn": "Peringatan",
+    "event_error": "Kesalahan"
+  },
+  "confirm": {
+    "delete": {
+      "title": "Busek torrent?",
+      "body": "Berkas tetep ing disk. Iki ora bisa dibatalake tanpa mbusek data.",
+      "cta": "Busek"
+    },
+    "delete_data": {
+      "title": "Busek torrent lan mbusek data?",
+      "body": "Iki mbusek berkas saka disk kanthi permanen.",
+      "cta": "Busek data"
+    },
+    "recheck": {
+      "title": "Priksa maneh data?",
+      "body": "Priksa hash bakal verifikasi data sing ana.",
+      "cta": "Priksa maneh"
+    },
+    "cancel": "Batal"
+  },
+  "detail": {
+    "select_title": "Pilih torrent",
+    "select_body": "Bukak torrent kanggo ndeleng berkas, peer, tracker, lan metadata.",
+    "view_label": "Tampilan rincian",
+    "tab": {
+      "files": "Berkas",
+      "peers": "Peer",
+      "trackers": "Tracker",
+      "log": "Log",
+      "info": "Info"
+    },
+    "files": {
+      "title": "Berkas",
+      "body": "Prioritas saben berkas + tombol dikarepake/ora dikarepake. Akordion ing seluler.",
+      "wanted": "Dikarepake"
+    },
+    "peers": {
+      "title": "Peer",
+      "body": "Bisa diurutake miturut kacepetan/kemajuan; nuduhake bendera + negara yen kasedhiya.",
+      "down": "Undhuh",
+      "up": "Unggah",
+      "progress": "Kemajuan"
+    },
+    "trackers": {
+      "title": "Tracker",
+      "body": "Status, pengumuman sabanjure, lan kesalahan karo lencana peringatan."
+    },
+    "log": {
+      "title": "Log Acara",
+      "body": "Peringatan, masalah tracker, transisi status."
+    },
+    "info": {
+      "title": "Metadata",
+      "body": "Hash, magnet, ukuran, cacah potongan, ukuran potongan.",
+      "hash": "Hash",
+      "magnet": "Magnet",
+      "size": "Ukuran",
+      "pieces": "Potongan",
+      "piece_size": "Ukuran potongan"
+    }
+  },
+  "auth": {
+    "error_required": "Kunci API dibutuhake kanggo mode remot",
+    "title": "Akses API dibutuhake",
+    "body": "Lebokake kunci API sampeyan kanggo nyambung. Mode remot mesthi mbutuhake kunci; mode LAN bisa ngidini anonim yen diaktifake dening backend.",
+    "label": "Kunci API",
+    "placeholder": "revaer_api_key",
+    "allow_anon": "Mode LAN dideteksi: kosongi kanggo nerusake kanthi anonim.",
+    "use_anon": "Gunakake anonim (yen diidini)",
+    "submit": "Terusake"
+  },
+  "sse": {
+    "title": "SSE pedhot",
+    "body": "Nyambung maneh karo mundur eksponensial lan jitter.",
+    "next_retry": "Nyoba maneh sabanjure ing",
+    "last_event": "Acara pungkasan",
+    "reason": "Alesan:",
+    "retry": "Nyoba maneh saiki",
+    "dismiss": "Tutup overlay",
+    "badge": "SSE",
+    "badge_reconnecting": "SSE nyambung maneh"
+  },
+  "shell": {
+    "theme": {
+      "light": "Padhang",
+      "dark": "Peteng",
+      "label": "Tema"
+    },
+    "close_nav": "Tutup navigasi",
+    "open_nav": "Bukak navigasi",
+    "brand": "Revaer",
+    "phase": "Fase 1",
+    "mode": "Mode",
+    "locale": "Basa",
+    "search_placeholder": "Nggoleki torrent (/ kanggo fokus)",
+    "search_label": "Goleki global",
+    "simulate_sse": "Simulasi kejatuhan SSE",
+    "toggle_theme": "Ganti tema",
+    "network_connected": "nyambung",
+    "network_remote": "remot (kunci API)"
+  },
+  "placeholder": {
+    "jobs_title": "Pegaweyan / Pangolahan Sawise",
+    "jobs_body": "Status pegaweyan, kesalahan folder pantau, nganyari SSE",
+    "settings_title": "Pengaturan",
+    "settings_body": "Profil mesin, path, peran, mode remot",
+    "logs_title": "Log",
+    "logs_body": "Log acara streaming karo filter",
+    "not_found_title": "Ora ketemu",
+    "not_found_body": "Gunakake navigasi kanggo bali menyang tampilan sing didhukung.",
+    "badge": "Tata letak responsif seluler + desktop siyap."
+  },
+  "toast": {
+    "pause": "Dijeda",
+    "resume": "Diterusake",
+    "recheck": "Mriksa maneh",
+    "delete": "Dibusek",
+    "delete_data": "Dibusek (data dibusek)",
+    "add_success": "Ditambah",
+    "add_refresh_failed": "Ditambah, nanging refresh gagal:",
+    "add_failed": "Tambah gagal:",
+    "action_failed": "Tindakan gagal kanggo",
+    "torrent_placeholder": "Torrent",
+    "bulk_done": "Tindakan massal rampung kanggo",
+    "dismiss": "Tutup"
   }
 }

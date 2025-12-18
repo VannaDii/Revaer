@@ -4,45 +4,228 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "Dashboard",
-    "torrents": "Torrents",
-    "search": "Search",
-    "jobs": "Jobs / Post-processing",
-    "settings": "Settings",
-    "logs": "Logs"
+    "dashboard": "Панель",
+    "torrents": "Торренты",
+    "search": "Поиск",
+    "jobs": "Задачи / Постобработка",
+    "settings": "Настройки",
+    "logs": "Логи"
   },
   "mode": {
-    "simple": "Simple",
-    "advanced": "Advanced"
+    "simple": "Простой",
+    "advanced": "Расширенный"
   },
   "density": {
-    "compact": "Compact",
-    "normal": "Normal",
-    "comfy": "Comfy"
+    "compact": "Компактный",
+    "normal": "Обычный",
+    "comfy": "Удобный"
   },
   "toolbar": {
-    "regex": "Regex",
-    "add": "Add",
-    "pause": "Pause",
-    "resume": "Resume",
-    "delete": "Delete",
-    "delete_data": "Delete data",
-    "recheck": "Recheck"
+    "regex": "Регулярное выражение",
+    "add": "Добавить",
+    "pause": "Пауза",
+    "resume": "Возобновить",
+    "delete": "Удалить",
+    "delete_data": "Удалить данные",
+    "recheck": "Перепроверить"
   },
   "torrents": {
-    "search_placeholder": "Search name, path, tracker",
-    "add_placeholder": "Magnet or URL",
-    "drop_help": "Drop .torrent or paste magnet",
-    "category": "Category",
-    "tags": "Tags",
-    "save_path": "Save path"
+    "search_label": "Поиск торрентов",
+    "search_placeholder": "Поиск по имени, пути, трекеру",
+    "add_placeholder": "Magnet или URL",
+    "drop_help": "Перетащите .torrent или вставьте magnet",
+    "drop_sub": "Проверяет magnet/URL, поддерживает перетаскивание и выбор файлов.",
+    "upload_label": "Загрузить торрент",
+    "adding": "Добавление…",
+    "ready_prefix": "Готов к загрузке",
+    "category": "Категория",
+    "category_placeholder": "тв, фильмы, музыка",
+    "tags": "Теги",
+    "tags_placeholder": "4K, hevc, scene",
+    "save_path": "Путь сохранения",
+    "save_path_placeholder": "/data/incomplete",
+    "open_detail": "Открыть детали",
+    "eta_infinite": "∞",
+    "eta": "Осталось",
+    "down": "Загрузка",
+    "up": "Отдача",
+    "ratio": "Рейтинг",
+    "size": "Размер",
+    "select_row": "Выбрать торрент",
+    "select_all": "Выбрать все",
+    "selected": "выбрано",
+    "watch_folder": "Наблюдаемая папка",
+    "watch_folder_body": "Путь наблюдения включен; ошибки будут отображаться в Задачи/Постобработка.",
+    "error": {
+      "empty": "Введите magnet-ссылку, URL или перетащите .torrent",
+      "invalid": "Неверный magnet или URL",
+      "file_type": "Неподдерживаемый тип файла"
+    },
+    "shortcut": "Ярлык",
+    "more": "Ещё…",
+    "banner": {
+      "removed_data": "Торрент + данные удалены",
+      "removed": "Торрент удалён",
+      "recheck": "Перепроверка",
+      "pause": "Приостановлено",
+      "resume": "Возобновлено"
+    }
   },
   "dashboard": {
-    "speeds": "Global Speeds",
-    "torrents": "Torrents",
-    "disk": "Disk Usage",
-    "queue": "Queue",
-    "vpn": "VPN Status",
-    "events": "Recent Events"
+    "speeds": "Глобальная скорость",
+    "live": "SSE в реальном времени",
+    "down": "Загрузка",
+    "up": "Отдача",
+    "speeds_subtext": "Обновления менее чем за секунду с откатом на мобильных и ограниченных сетях.",
+    "torrents": "Торренты",
+    "torrents_sub": "Активные / Приостановленные / Завершённые",
+    "active": "Активные",
+    "paused": "Приостановленные",
+    "completed": "Завершённые",
+    "disk": "Использование диска",
+    "disk_sub": "Глобально + по пути",
+    "total": "Всего",
+    "queue": "Очередь",
+    "queue_sub": "Глубина и количество приостановленных",
+    "queued": "В очереди",
+    "depth": "Глубина",
+    "vpn": "Статус VPN",
+    "vpn_state": "Состояние",
+    "vpn_message": "Сообщение",
+    "tracker_health": "Состояние трекера",
+    "tracker_sub": "Сводка",
+    "ok": "ОК",
+    "warn": "Предупреждение",
+    "error": "Ошибка",
+    "tracker_help": "Ошибки отображаются в журнале событий с временными метками следующего объявления.",
+    "events": "Недавние события",
+    "events_sub": "Предупреждения и проблемы трекеров",
+    "event_info": "Инфо",
+    "event_warn": "Предупреждение",
+    "event_error": "Ошибка"
+  },
+  "confirm": {
+    "delete": {
+      "title": "Удалить торрент?",
+      "body": "Файлы останутся на диске. Это нельзя отменить без удаления данных.",
+      "cta": "Удалить"
+    },
+    "delete_data": {
+      "title": "Удалить торрент и стереть данные?",
+      "body": "Это навсегда удалит файлы с диска.",
+      "cta": "Удалить данные"
+    },
+    "recheck": {
+      "title": "Перепроверить данные?",
+      "body": "Проверка хеша проверит существующие данные.",
+      "cta": "Перепроверить"
+    },
+    "cancel": "Отмена"
+  },
+  "detail": {
+    "select_title": "Выберите торрент",
+    "select_body": "Откройте торрент для просмотра файлов, пиров, трекеров и метаданных.",
+    "view_label": "Подробный вид",
+    "tab": {
+      "files": "Файлы",
+      "peers": "Пиры",
+      "trackers": "Трекеры",
+      "log": "Лог",
+      "info": "Инфо"
+    },
+    "files": {
+      "title": "Файлы",
+      "body": "Приоритет для каждого файла + переключатели нужен/не нужен. Аккордеон на мобильных.",
+      "wanted": "Нужен"
+    },
+    "peers": {
+      "title": "Пиры",
+      "body": "Сортируется по скорости/прогрессу; показывает флаги + страну, если доступно.",
+      "down": "Загрузка",
+      "up": "Отдача",
+      "progress": "Прогресс"
+    },
+    "trackers": {
+      "title": "Трекеры",
+      "body": "Статус, следующее объявление и ошибки с предупреждающими значками."
+    },
+    "log": {
+      "title": "Журнал событий",
+      "body": "Предупреждения, проблемы трекеров, переходы состояний."
+    },
+    "info": {
+      "title": "Метаданные",
+      "body": "Хеш, magnet, размер, количество частей, размер части.",
+      "hash": "Хеш",
+      "magnet": "Magnet",
+      "size": "Размер",
+      "pieces": "Части",
+      "piece_size": "Размер части"
+    }
+  },
+  "auth": {
+    "error_required": "Требуется API-ключ для удалённого режима",
+    "title": "Требуется доступ к API",
+    "body": "Введите свой API-ключ для подключения. Удалённый режим всегда требует ключ; режим LAN может разрешить анонимный доступ, если включено в бэкенде.",
+    "label": "API-ключ",
+    "placeholder": "revaer_api_key",
+    "allow_anon": "Обнаружен режим LAN: оставьте пустым для продолжения анонимно.",
+    "use_anon": "Использовать анонимно (если разрешено)",
+    "submit": "Продолжить"
+  },
+  "sse": {
+    "title": "SSE отключено",
+    "body": "Переподключение с экспоненциальным откатом и джиттером.",
+    "next_retry": "Следующая попытка через",
+    "last_event": "Последнее событие",
+    "reason": "Причина:",
+    "retry": "Повторить сейчас",
+    "dismiss": "Закрыть оверлей",
+    "badge": "SSE",
+    "badge_reconnecting": "SSE переподключение"
+  },
+  "shell": {
+    "theme": {
+      "light": "Светлая",
+      "dark": "Тёмная",
+      "label": "Тема"
+    },
+    "close_nav": "Закрыть навигацию",
+    "open_nav": "Открыть навигацию",
+    "brand": "Revaer",
+    "phase": "Фаза 1",
+    "mode": "Режим",
+    "locale": "Язык",
+    "search_placeholder": "Поиск торрентов (/ для фокуса)",
+    "search_label": "Глобальный поиск",
+    "simulate_sse": "Симулировать сброс SSE",
+    "toggle_theme": "Переключить тему",
+    "network_connected": "подключено",
+    "network_remote": "удалённо (API-ключ)"
+  },
+  "placeholder": {
+    "jobs_title": "Задачи / Постобработка",
+    "jobs_body": "Состояния задач, ошибки наблюдаемой папки, обновления SSE",
+    "settings_title": "Настройки",
+    "settings_body": "Профиль движка, пути, роли, удалённый режим",
+    "logs_title": "Логи",
+    "logs_body": "Потоковый журнал событий с фильтрами",
+    "not_found_title": "Не найдено",
+    "not_found_body": "Используйте навигацию для возврата к поддерживаемому виду.",
+    "badge": "Адаптивный макет для мобильных + десктоп готов."
+  },
+  "toast": {
+    "pause": "Приостановлено",
+    "resume": "Возобновлено",
+    "recheck": "Перепроверка",
+    "delete": "Удалено",
+    "delete_data": "Удалено (данные стёрты)",
+    "add_success": "Добавлено",
+    "add_refresh_failed": "Добавлено, но обновление не удалось:",
+    "add_failed": "Не удалось добавить:",
+    "action_failed": "Действие не удалось для",
+    "torrent_placeholder": "Торрент",
+    "bulk_done": "Массовые действия завершены для",
+    "dismiss": "Закрыть"
   }
 }

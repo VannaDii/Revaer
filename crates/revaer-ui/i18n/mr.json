@@ -4,45 +4,228 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "Dashboard",
-    "torrents": "Torrents",
-    "search": "Search",
-    "jobs": "Jobs / Post-processing",
-    "settings": "Settings",
-    "logs": "Logs"
+    "dashboard": "डॅशबोर्ड",
+    "torrents": "टॉरेंट",
+    "search": "शोध",
+    "jobs": "कार्ये / पोस्ट-प्रोसेसिंग",
+    "settings": "सेटिंग्ज",
+    "logs": "लॉग"
   },
   "mode": {
-    "simple": "Simple",
-    "advanced": "Advanced"
+    "simple": "साधा",
+    "advanced": "प्रगत"
   },
   "density": {
-    "compact": "Compact",
-    "normal": "Normal",
-    "comfy": "Comfy"
+    "compact": "संक्षिप्त",
+    "normal": "सामान्य",
+    "comfy": "आरामदायक"
   },
   "toolbar": {
-    "regex": "Regex",
-    "add": "Add",
-    "pause": "Pause",
-    "resume": "Resume",
-    "delete": "Delete",
-    "delete_data": "Delete data",
-    "recheck": "Recheck"
+    "regex": "रेजेक्स",
+    "add": "जोडा",
+    "pause": "थांबवा",
+    "resume": "पुन्हा सुरू करा",
+    "delete": "हटवा",
+    "delete_data": "डेटा हटवा",
+    "recheck": "पुन्हा तपासा"
   },
   "torrents": {
-    "search_placeholder": "Search name, path, tracker",
-    "add_placeholder": "Magnet or URL",
-    "drop_help": "Drop .torrent or paste magnet",
-    "category": "Category",
-    "tags": "Tags",
-    "save_path": "Save path"
+    "search_label": "टॉरेंट शोधा",
+    "search_placeholder": "नाव, मार्ग, ट्रॅकर शोधा",
+    "add_placeholder": "मॅग्नेट किंवा URL",
+    "drop_help": ".torrent टाका किंवा मॅग्नेट पेस्ट करा",
+    "drop_sub": "मॅग्नेट/URL प्रमाणित करते, ड्रॅग/ड्रॉप आणि फाइल निवड समर्थित.",
+    "upload_label": "टॉरेंट अपलोड करा",
+    "adding": "जोडत आहे…",
+    "ready_prefix": "अपलोडसाठी तयार",
+    "category": "श्रेणी",
+    "category_placeholder": "टीव्ही, चित्रपट, संगीत",
+    "tags": "टॅग",
+    "tags_placeholder": "4K, hevc, scene",
+    "save_path": "साठवण मार्ग",
+    "save_path_placeholder": "/data/incomplete",
+    "open_detail": "तपशील उघडा",
+    "eta_infinite": "∞",
+    "eta": "अंदाजित वेळ",
+    "down": "डाउनलोड",
+    "up": "अपलोड",
+    "ratio": "प्रमाण",
+    "size": "आकार",
+    "select_row": "टॉरेंट निवडा",
+    "select_all": "सर्व निवडा",
+    "selected": "निवडले",
+    "watch_folder": "वॉच फोल्डर",
+    "watch_folder_body": "वॉच मार्ग सक्षम आहे; अपयश कार्ये/पोस्ट-प्रोसेसिंगमध्ये दिसेल.",
+    "error": {
+      "empty": "मॅग्नेट लिंक, URL प्रविष्ट करा किंवा .torrent टाका",
+      "invalid": "अवैध मॅग्नेट किंवा URL",
+      "file_type": "असमर्थित फाइल प्रकार"
+    },
+    "shortcut": "शॉर्टकट",
+    "more": "अधिक…",
+    "banner": {
+      "removed_data": "टॉरेंट + डेटा काढला",
+      "removed": "टॉरेंट काढला",
+      "recheck": "पुन्हा तपासत आहे",
+      "pause": "थांबवले",
+      "resume": "पुन्हा सुरू केले"
+    }
   },
   "dashboard": {
-    "speeds": "Global Speeds",
-    "torrents": "Torrents",
-    "disk": "Disk Usage",
-    "queue": "Queue",
-    "vpn": "VPN Status",
-    "events": "Recent Events"
+    "speeds": "जागतिक वेग",
+    "live": "SSE लाइव्ह",
+    "down": "डाउनलोड",
+    "up": "अपलोड",
+    "speeds_subtext": "मोबाइल आणि मर्यादित नेटवर्कवर बॅकऑफसह सब-सेकंद अपडेट.",
+    "torrents": "टॉरेंट",
+    "torrents_sub": "सक्रिय / थांबवले / पूर्ण",
+    "active": "सक्रिय",
+    "paused": "थांबवले",
+    "completed": "पूर्ण",
+    "disk": "डिस्क वापर",
+    "disk_sub": "जागतिक + प्रति मार्ग",
+    "total": "एकूण",
+    "queue": "रांग",
+    "queue_sub": "खोली आणि थांबवलेली संख्या",
+    "queued": "रांगेत",
+    "depth": "खोली",
+    "vpn": "VPN स्थिती",
+    "vpn_state": "स्थिती",
+    "vpn_message": "संदेश",
+    "tracker_health": "ट्रॅकर आरोग्य",
+    "tracker_sub": "एकत्रित",
+    "ok": "ठीक आहे",
+    "warn": "चेतावणी",
+    "error": "त्रुटी",
+    "tracker_help": "अपयश पुढील घोषणा टाइमस्टॅम्पसह इव्हेंट लॉगमध्ये दिसते.",
+    "events": "अलीकडील घटना",
+    "events_sub": "चेतावण्या आणि ट्रॅकर समस्या",
+    "event_info": "माहिती",
+    "event_warn": "चेतावणी",
+    "event_error": "त्रुटी"
+  },
+  "confirm": {
+    "delete": {
+      "title": "टॉरेंट काढायचे?",
+      "body": "फाइल डिस्कवर राहतात. डेटा हटवल्याशिवाय हे पूर्ववत करता येणार नाही.",
+      "cta": "काढा"
+    },
+    "delete_data": {
+      "title": "टॉरेंट काढायचे आणि डेटा हटवायचा?",
+      "body": "हे डिस्कवरून फाइल्स कायमची हटवते.",
+      "cta": "डेटा हटवा"
+    },
+    "recheck": {
+      "title": "डेटा पुन्हा तपासायचा?",
+      "body": "हॅश तपासणी विद्यमान डेटा सत्यापित करेल.",
+      "cta": "पुन्हा तपासा"
+    },
+    "cancel": "रद्द करा"
+  },
+  "detail": {
+    "select_title": "टॉरेंट निवडा",
+    "select_body": "फाइल्स, पीअर, ट्रॅकर आणि मेटाडेटा पाहण्यासाठी टॉरेंट उघडा.",
+    "view_label": "तपशील दृश्य",
+    "tab": {
+      "files": "फाइल्स",
+      "peers": "पीअर",
+      "trackers": "ट्रॅकर",
+      "log": "लॉग",
+      "info": "माहिती"
+    },
+    "files": {
+      "title": "फाइल्स",
+      "body": "प्रति-फाइल प्राधान्यता + इच्छित/अनिच्छित टॉगल. मोबाइलवर अकॉर्डियन.",
+      "wanted": "इच्छित"
+    },
+    "peers": {
+      "title": "पीअर",
+      "body": "वेग/प्रगतीनुसार क्रमवारी लावता येते; उपलब्ध असल्यास ध्वज + देश दर्शवितो.",
+      "down": "डाउनलोड",
+      "up": "अपलोड",
+      "progress": "प्रगती"
+    },
+    "trackers": {
+      "title": "ट्रॅकर",
+      "body": "स्थिती, पुढील घोषणा आणि चेतावणी बॅजसह त्रुटी."
+    },
+    "log": {
+      "title": "इव्हेंट लॉग",
+      "body": "चेतावण्या, ट्रॅकर समस्या, स्थिती संक्रमणे."
+    },
+    "info": {
+      "title": "मेटाडेटा",
+      "body": "हॅश, मॅग्नेट, आकार, तुकडे संख्या, तुकड्याचा आकार.",
+      "hash": "हॅश",
+      "magnet": "मॅग्नेट",
+      "size": "आकार",
+      "pieces": "तुकडे",
+      "piece_size": "तुकड्याचा आकार"
+    }
+  },
+  "auth": {
+    "error_required": "रिमोट मोडसाठी API की आवश्यक आहे",
+    "title": "API प्रवेश आवश्यक आहे",
+    "body": "कनेक्ट करण्यासाठी तुमची API की प्रविष्ट करा. रिमोट मोडला नेहमी की आवश्यक असते; LAN मोड बॅकएंडद्वारे सक्षम केले असल्यास अनामिकला परवानगी देऊ शकतो.",
+    "label": "API की",
+    "placeholder": "revaer_api_key",
+    "allow_anon": "LAN मोड आढळला: अनामिकपणे सुरू ठेवण्यासाठी रिक्त ठेवा.",
+    "use_anon": "अनामिक वापरा (परवानगी असल्यास)",
+    "submit": "सुरू ठेवा"
+  },
+  "sse": {
+    "title": "SSE डिस्कनेक्ट झाले",
+    "body": "एक्स्पोनेन्शियल बॅकऑफ आणि जिटरसह पुन्हा कनेक्ट करत आहे.",
+    "next_retry": "पुढील पुन्हा प्रयत्न",
+    "last_event": "शेवटची घटना",
+    "reason": "कारण:",
+    "retry": "आता पुन्हा प्रयत्न करा",
+    "dismiss": "ओव्हरले काढा",
+    "badge": "SSE",
+    "badge_reconnecting": "SSE पुन्हा कनेक्ट करत आहे"
+  },
+  "shell": {
+    "theme": {
+      "light": "हलका",
+      "dark": "गडद",
+      "label": "थीम"
+    },
+    "close_nav": "नेव्हिगेशन बंद करा",
+    "open_nav": "नेव्हिगेशन उघडा",
+    "brand": "Revaer",
+    "phase": "फेज 1",
+    "mode": "मोड",
+    "locale": "भाषा",
+    "search_placeholder": "टॉरेंट शोधा (फोकससाठी /)",
+    "search_label": "जागतिक शोध",
+    "simulate_sse": "SSE ड्रॉप सिम्युलेट करा",
+    "toggle_theme": "थीम टॉगल करा",
+    "network_connected": "कनेक्ट केले",
+    "network_remote": "रिमोट (API की)"
+  },
+  "placeholder": {
+    "jobs_title": "कार्ये / पोस्ट-प्रोसेसिंग",
+    "jobs_body": "कार्य स्थिती, वॉच फोल्डर त्रुटी, SSE अपडेट",
+    "settings_title": "सेटिंग्ज",
+    "settings_body": "इंजिन प्रोफाइल, मार्ग, भूमिका, रिमोट मोड",
+    "logs_title": "लॉग",
+    "logs_body": "फिल्टरसह स्ट्रीमिंग इव्हेंट लॉग",
+    "not_found_title": "आढळले नाही",
+    "not_found_body": "समर्थित दृश्यावर परत येण्यासाठी नेव्हिगेशन वापरा.",
+    "badge": "मोबाइल + डेस्कटॉप रिस्पॉन्सिव्ह लेआउट तयार."
+  },
+  "toast": {
+    "pause": "थांबवले",
+    "resume": "पुन्हा सुरू केले",
+    "recheck": "पुन्हा तपासत आहे",
+    "delete": "काढले",
+    "delete_data": "काढले (डेटा हटवला)",
+    "add_success": "जोडले",
+    "add_refresh_failed": "जोडले, परंतु रीफ्रेश अयशस्वी:",
+    "add_failed": "जोडणे अयशस्वी:",
+    "action_failed": "क्रिया अयशस्वी",
+    "torrent_placeholder": "टॉरेंट",
+    "bulk_done": "बल्क क्रिया पूर्ण",
+    "dismiss": "काढा"
   }
 }

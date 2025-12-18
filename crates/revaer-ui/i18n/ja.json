@@ -4,45 +4,228 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "Dashboard",
-    "torrents": "Torrents",
-    "search": "Search",
-    "jobs": "Jobs / Post-processing",
-    "settings": "Settings",
-    "logs": "Logs"
+    "dashboard": "ダッシュボード",
+    "torrents": "トレント",
+    "search": "検索",
+    "jobs": "ジョブ / 後処理",
+    "settings": "設定",
+    "logs": "ログ"
   },
   "mode": {
-    "simple": "Simple",
-    "advanced": "Advanced"
+    "simple": "シンプル",
+    "advanced": "詳細"
   },
   "density": {
-    "compact": "Compact",
-    "normal": "Normal",
-    "comfy": "Comfy"
+    "compact": "コンパクト",
+    "normal": "標準",
+    "comfy": "快適"
   },
   "toolbar": {
-    "regex": "Regex",
-    "add": "Add",
-    "pause": "Pause",
-    "resume": "Resume",
-    "delete": "Delete",
-    "delete_data": "Delete data",
-    "recheck": "Recheck"
+    "regex": "正規表現",
+    "add": "追加",
+    "pause": "一時停止",
+    "resume": "再開",
+    "delete": "削除",
+    "delete_data": "データを削除",
+    "recheck": "再確認"
   },
   "torrents": {
-    "search_placeholder": "Search name, path, tracker",
-    "add_placeholder": "Magnet or URL",
-    "drop_help": "Drop .torrent or paste magnet",
-    "category": "Category",
-    "tags": "Tags",
-    "save_path": "Save path"
+    "search_label": "トレントを検索",
+    "search_placeholder": "名前、パス、トラッカーを検索",
+    "add_placeholder": "マグネットまたはURL",
+    "drop_help": ".torrentをドロップまたはマグネットを貼り付け",
+    "drop_sub": "マグネット/URLを検証し、ドラッグ＆ドロップとファイル選択をサポートします。",
+    "upload_label": "トレントをアップロード",
+    "adding": "追加中…",
+    "ready_prefix": "アップロード準備完了",
+    "category": "カテゴリ",
+    "category_placeholder": "テレビ、映画、音楽",
+    "tags": "タグ",
+    "tags_placeholder": "4K、hevc、scene",
+    "save_path": "保存パス",
+    "save_path_placeholder": "/data/incomplete",
+    "open_detail": "詳細を開く",
+    "eta_infinite": "∞",
+    "eta": "予想時間",
+    "down": "ダウンロード",
+    "up": "アップロード",
+    "ratio": "レシオ",
+    "size": "サイズ",
+    "select_row": "トレントを選択",
+    "select_all": "すべて選択",
+    "selected": "選択済み",
+    "watch_folder": "監視フォルダ",
+    "watch_folder_body": "監視パスが有効です。失敗はジョブ/後処理に表示されます。",
+    "error": {
+      "empty": "マグネットリンク、URLを入力するか、.torrentをドロップしてください",
+      "invalid": "無効なマグネットまたはURL",
+      "file_type": "サポートされていないファイルタイプ"
+    },
+    "shortcut": "ショートカット",
+    "more": "その他…",
+    "banner": {
+      "removed_data": "トレント + データを削除しました",
+      "removed": "トレントを削除しました",
+      "recheck": "再確認中",
+      "pause": "一時停止しました",
+      "resume": "再開しました"
+    }
   },
   "dashboard": {
-    "speeds": "Global Speeds",
-    "torrents": "Torrents",
-    "disk": "Disk Usage",
-    "queue": "Queue",
-    "vpn": "VPN Status",
-    "events": "Recent Events"
+    "speeds": "グローバル速度",
+    "live": "SSEライブ",
+    "down": "ダウンロード",
+    "up": "アップロード",
+    "speeds_subtext": "モバイルおよび制限されたネットワークでのバックオフを伴うサブ秒更新。",
+    "torrents": "トレント",
+    "torrents_sub": "アクティブ / 一時停止 / 完了",
+    "active": "アクティブ",
+    "paused": "一時停止",
+    "completed": "完了",
+    "disk": "ディスク使用量",
+    "disk_sub": "グローバル + パスごと",
+    "total": "合計",
+    "queue": "キュー",
+    "queue_sub": "深さと一時停止数",
+    "queued": "キュー待ち",
+    "depth": "深さ",
+    "vpn": "VPNステータス",
+    "vpn_state": "状態",
+    "vpn_message": "メッセージ",
+    "tracker_health": "トラッカー健全性",
+    "tracker_sub": "集約",
+    "ok": "OK",
+    "warn": "警告",
+    "error": "エラー",
+    "tracker_help": "失敗は次のアナウンスタイムスタンプとともにイベントログに表示されます。",
+    "events": "最近のイベント",
+    "events_sub": "警告とトラッカーの問題",
+    "event_info": "情報",
+    "event_warn": "警告",
+    "event_error": "エラー"
+  },
+  "confirm": {
+    "delete": {
+      "title": "トレントを削除しますか？",
+      "body": "ファイルはディスクに残ります。データ削除なしでは元に戻せません。",
+      "cta": "削除"
+    },
+    "delete_data": {
+      "title": "トレントを削除してデータを消去しますか？",
+      "body": "これによりディスクからファイルが永久に削除されます。",
+      "cta": "データを削除"
+    },
+    "recheck": {
+      "title": "データを再確認しますか？",
+      "body": "ハッシュチェックにより既存のデータが検証されます。",
+      "cta": "再確認"
+    },
+    "cancel": "キャンセル"
+  },
+  "detail": {
+    "select_title": "トレントを選択",
+    "select_body": "ファイル、ピア、トラッカー、メタデータを表示するにはトレントを開いてください。",
+    "view_label": "詳細ビュー",
+    "tab": {
+      "files": "ファイル",
+      "peers": "ピア",
+      "trackers": "トラッカー",
+      "log": "ログ",
+      "info": "情報"
+    },
+    "files": {
+      "title": "ファイル",
+      "body": "ファイルごとの優先度 + 必要/不要トグル。モバイルではアコーディオン。",
+      "wanted": "必要"
+    },
+    "peers": {
+      "title": "ピア",
+      "body": "速度/進捗でソート可能。利用可能な場合、フラグ + 国を表示します。",
+      "down": "ダウンロード",
+      "up": "アップロード",
+      "progress": "進捗"
+    },
+    "trackers": {
+      "title": "トラッカー",
+      "body": "ステータス、次のアナウンス、警告バッジ付きエラー。"
+    },
+    "log": {
+      "title": "イベントログ",
+      "body": "警告、トラッカーの問題、状態遷移。"
+    },
+    "info": {
+      "title": "メタデータ",
+      "body": "ハッシュ、マグネット、サイズ、ピース数、ピースサイズ。",
+      "hash": "ハッシュ",
+      "magnet": "マグネット",
+      "size": "サイズ",
+      "pieces": "ピース",
+      "piece_size": "ピースサイズ"
+    }
+  },
+  "auth": {
+    "error_required": "リモートモードにはAPIキーが必要です",
+    "title": "APIアクセスが必要です",
+    "body": "接続するにはAPIキーを入力してください。リモートモードには常にキーが必要です。LANモードは、バックエンドで有効になっている場合、匿名を許可する場合があります。",
+    "label": "APIキー",
+    "placeholder": "revaer_api_key",
+    "allow_anon": "LANモードが検出されました：匿名で続行するには空白のままにしてください。",
+    "use_anon": "匿名を使用（許可されている場合）",
+    "submit": "続行"
+  },
+  "sse": {
+    "title": "SSE切断",
+    "body": "指数バックオフとジッターで再接続中。",
+    "next_retry": "次の再試行",
+    "last_event": "最後のイベント",
+    "reason": "理由：",
+    "retry": "今すぐ再試行",
+    "dismiss": "オーバーレイを閉じる",
+    "badge": "SSE",
+    "badge_reconnecting": "SSE再接続中"
+  },
+  "shell": {
+    "theme": {
+      "light": "ライト",
+      "dark": "ダーク",
+      "label": "テーマ"
+    },
+    "close_nav": "ナビゲーションを閉じる",
+    "open_nav": "ナビゲーションを開く",
+    "brand": "Revaer",
+    "phase": "フェーズ1",
+    "mode": "モード",
+    "locale": "言語",
+    "search_placeholder": "トレントを検索（フォーカスするには /）",
+    "search_label": "グローバル検索",
+    "simulate_sse": "SSEドロップをシミュレート",
+    "toggle_theme": "テーマを切り替え",
+    "network_connected": "接続済み",
+    "network_remote": "リモート（APIキー）"
+  },
+  "placeholder": {
+    "jobs_title": "ジョブ / 後処理",
+    "jobs_body": "ジョブステータス、監視フォルダエラー、SSE更新",
+    "settings_title": "設定",
+    "settings_body": "エンジンプロファイル、パス、ロール、リモートモード",
+    "logs_title": "ログ",
+    "logs_body": "フィルタ付きストリーミングイベントログ",
+    "not_found_title": "見つかりません",
+    "not_found_body": "ナビゲーションを使用してサポートされているビューに戻ってください。",
+    "badge": "モバイル + デスクトップレスポンシブレイアウト準備完了。"
+  },
+  "toast": {
+    "pause": "一時停止しました",
+    "resume": "再開しました",
+    "recheck": "再確認中",
+    "delete": "削除しました",
+    "delete_data": "削除しました（データ削除済み）",
+    "add_success": "追加しました",
+    "add_refresh_failed": "追加しましたが、更新に失敗しました：",
+    "add_failed": "追加に失敗しました：",
+    "action_failed": "アクションが失敗しました",
+    "torrent_placeholder": "トレント",
+    "bulk_done": "一括アクションが完了しました",
+    "dismiss": "閉じる"
   }
 }

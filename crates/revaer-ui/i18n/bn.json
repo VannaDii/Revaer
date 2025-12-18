@@ -4,45 +4,228 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "Dashboard",
-    "torrents": "Torrents",
-    "search": "Search",
-    "jobs": "Jobs / Post-processing",
-    "settings": "Settings",
-    "logs": "Logs"
+    "dashboard": "ড্যাশবোর্ড",
+    "torrents": "টরেন্ট",
+    "search": "অনুসন্ধান",
+    "jobs": "কাজ / পরবর্তী প্রক্রিয়াকরণ",
+    "settings": "সেটিংস",
+    "logs": "লগ"
   },
   "mode": {
-    "simple": "Simple",
-    "advanced": "Advanced"
+    "simple": "সাধারণ",
+    "advanced": "উন্নত"
   },
   "density": {
-    "compact": "Compact",
-    "normal": "Normal",
-    "comfy": "Comfy"
+    "compact": "কমপ্যাক্ট",
+    "normal": "সাধারণ",
+    "comfy": "আরামদায়ক"
   },
   "toolbar": {
-    "regex": "Regex",
-    "add": "Add",
-    "pause": "Pause",
-    "resume": "Resume",
-    "delete": "Delete",
-    "delete_data": "Delete data",
-    "recheck": "Recheck"
+    "regex": "রেজেক্স",
+    "add": "যোগ করুন",
+    "pause": "বিরতি",
+    "resume": "পুনরায় শুরু",
+    "delete": "মুছুন",
+    "delete_data": "ডেটা মুছুন",
+    "recheck": "পুনরায় পরীক্ষা"
   },
   "torrents": {
-    "search_placeholder": "Search name, path, tracker",
-    "add_placeholder": "Magnet or URL",
-    "drop_help": "Drop .torrent or paste magnet",
-    "category": "Category",
-    "tags": "Tags",
-    "save_path": "Save path"
+    "search_label": "টরেন্ট অনুসন্ধান করুন",
+    "search_placeholder": "নাম, পথ, ট্র্যাকার অনুসন্ধান করুন",
+    "add_placeholder": "ম্যাগনেট বা URL",
+    "drop_help": ".torrent ফেলুন বা ম্যাগনেট পেস্ট করুন",
+    "drop_sub": "ম্যাগনেট/URL যাচাই করে, ড্র্যাগ/ড্রপ এবং ফাইল নির্বাচন সমর্থন করে।",
+    "upload_label": "টরেন্ট আপলোড করুন",
+    "adding": "যোগ করা হচ্ছে…",
+    "ready_prefix": "আপলোডের জন্য প্রস্তুত",
+    "category": "বিভাগ",
+    "category_placeholder": "টিভি, সিনেমা, সঙ্গীত",
+    "tags": "ট্যাগ",
+    "tags_placeholder": "4K, hevc, scene",
+    "save_path": "সংরক্ষণ পথ",
+    "save_path_placeholder": "/data/incomplete",
+    "open_detail": "বিশদ খুলুন",
+    "eta_infinite": "∞",
+    "eta": "আনুমানিক সময়",
+    "down": "ডাউনলোড",
+    "up": "আপলোড",
+    "ratio": "অনুপাত",
+    "size": "আকার",
+    "select_row": "টরেন্ট নির্বাচন করুন",
+    "select_all": "সব নির্বাচন করুন",
+    "selected": "নির্বাচিত",
+    "watch_folder": "পর্যবেক্ষণ ফোল্ডার",
+    "watch_folder_body": "পর্যবেক্ষণ পথ সক্রিয়; ব্যর্থতা কাজ/পরবর্তী প্রক্রিয়াকরণে প্রদর্শিত হবে।",
+    "error": {
+      "empty": "একটি ম্যাগনেট লিংক, URL লিখুন বা .torrent ফেলুন",
+      "invalid": "অবৈধ ম্যাগনেট বা URL",
+      "file_type": "অসমর্থিত ফাইল ধরন"
+    },
+    "shortcut": "শর্টকাট",
+    "more": "আরও…",
+    "banner": {
+      "removed_data": "টরেন্ট + ডেটা সরানো হয়েছে",
+      "removed": "টরেন্ট সরানো হয়েছে",
+      "recheck": "পুনরায় পরীক্ষা করা হচ্ছে",
+      "pause": "বিরতি দেওয়া হয়েছে",
+      "resume": "পুনরায় শুরু করা হয়েছে"
+    }
   },
   "dashboard": {
-    "speeds": "Global Speeds",
-    "torrents": "Torrents",
-    "disk": "Disk Usage",
-    "queue": "Queue",
-    "vpn": "VPN Status",
-    "events": "Recent Events"
+    "speeds": "বৈশ্বিক গতি",
+    "live": "SSE লাইভ",
+    "down": "ডাউনলোড",
+    "up": "আপলোড",
+    "speeds_subtext": "মোবাইল এবং সীমাবদ্ধ নেটওয়ার্কে ব্যাকঅফ সহ সাব-সেকেন্ড আপডেট।",
+    "torrents": "টরেন্ট",
+    "torrents_sub": "সক্রিয় / বিরতি / সম্পূর্ণ",
+    "active": "সক্রিয়",
+    "paused": "বিরতি",
+    "completed": "সম্পূর্ণ",
+    "disk": "ডিস্ক ব্যবহার",
+    "disk_sub": "বৈশ্বিক + প্রতি পথ",
+    "total": "মোট",
+    "queue": "সারি",
+    "queue_sub": "গভীরতা এবং বিরতি গণনা",
+    "queued": "সারিতে",
+    "depth": "গভীরতা",
+    "vpn": "VPN অবস্থা",
+    "vpn_state": "অবস্থা",
+    "vpn_message": "বার্তা",
+    "tracker_health": "ট্র্যাকার স্বাস্থ্য",
+    "tracker_sub": "সমষ্টিগত",
+    "ok": "ঠিক আছে",
+    "warn": "সতর্কতা",
+    "error": "ত্রুটি",
+    "tracker_help": "ব্যর্থতা পরবর্তী ঘোষণা টাইমস্ট্যাম্প সহ ইভেন্ট লগে প্রদর্শিত হয়।",
+    "events": "সাম্প্রতিক ইভেন্ট",
+    "events_sub": "সতর্কতা এবং ট্র্যাকার সমস্যা",
+    "event_info": "তথ্য",
+    "event_warn": "সতর্কতা",
+    "event_error": "ত্রুটি"
+  },
+  "confirm": {
+    "delete": {
+      "title": "টরেন্ট সরান?",
+      "body": "ফাইল ডিস্কে থাকবে। ডেটা মুছে ফেলা ছাড়া এটি পূর্বাবস্থায় ফেরানো যাবে না।",
+      "cta": "সরান"
+    },
+    "delete_data": {
+      "title": "টরেন্ট সরান এবং ডেটা মুছুন?",
+      "body": "এটি ডিস্ক থেকে ফাইল স্থায়ীভাবে মুছে ফেলে।",
+      "cta": "ডেটা মুছুন"
+    },
+    "recheck": {
+      "title": "ডেটা পুনরায় পরীক্ষা করবেন?",
+      "body": "হ্যাশ চেক বিদ্যমান ডেটা যাচাই করবে।",
+      "cta": "পুনরায় পরীক্ষা"
+    },
+    "cancel": "বাতিল"
+  },
+  "detail": {
+    "select_title": "একটি টরেন্ট নির্বাচন করুন",
+    "select_body": "ফাইল, পিয়ার, ট্র্যাকার এবং মেটাডেটা দেখতে একটি টরেন্ট খুলুন।",
+    "view_label": "বিশদ দর্শন",
+    "tab": {
+      "files": "ফাইল",
+      "peers": "পিয়ার",
+      "trackers": "ট্র্যাকার",
+      "log": "লগ",
+      "info": "তথ্য"
+    },
+    "files": {
+      "title": "ফাইল",
+      "body": "প্রতি-ফাইল অগ্রাধিকার + চাওয়া/অবাঞ্ছিত টগল। মোবাইলে অ্যাকর্ডিয়ন।",
+      "wanted": "চাওয়া"
+    },
+    "peers": {
+      "title": "পিয়ার",
+      "body": "গতি/অগ্রগতি অনুসারে সাজানো যায়; উপলব্ধ হলে পতাকা + দেশ দেখায়।",
+      "down": "ডাউনলোড",
+      "up": "আপলোড",
+      "progress": "অগ্রগতি"
+    },
+    "trackers": {
+      "title": "ট্র্যাকার",
+      "body": "স্থিতি, পরবর্তী ঘোষণা এবং সতর্কতা ব্যাজ সহ ত্রুটি।"
+    },
+    "log": {
+      "title": "ইভেন্ট লগ",
+      "body": "সতর্কতা, ট্র্যাকার সমস্যা, অবস্থা পরিবর্তন।"
+    },
+    "info": {
+      "title": "মেটাডেটা",
+      "body": "হ্যাশ, ম্যাগনেট, আকার, টুকরা গণনা, টুকরা আকার।",
+      "hash": "হ্যাশ",
+      "magnet": "ম্যাগনেট",
+      "size": "আকার",
+      "pieces": "টুকরা",
+      "piece_size": "টুকরা আকার"
+    }
+  },
+  "auth": {
+    "error_required": "দূরবর্তী মোডের জন্য API কী প্রয়োজন",
+    "title": "API অ্যাক্সেস প্রয়োজন",
+    "body": "সংযোগ করতে আপনার API কী লিখুন। দূরবর্তী মোড সর্বদা একটি কী প্রয়োজন; LAN মোড বেনামী অনুমতি দিতে পারে যদি ব্যাকএন্ড দ্বারা সক্রিয় করা হয়।",
+    "label": "API কী",
+    "placeholder": "revaer_api_key",
+    "allow_anon": "LAN মোড সনাক্ত করা হয়েছে: বেনামে চালিয়ে যেতে খালি রাখুন।",
+    "use_anon": "বেনামী ব্যবহার করুন (যদি অনুমোদিত)",
+    "submit": "চালিয়ে যান"
+  },
+  "sse": {
+    "title": "SSE সংযোগ বিচ্ছিন্ন",
+    "body": "এক্সপোনেনশিয়াল ব্যাকঅফ এবং জিটার সহ পুনঃসংযোগ।",
+    "next_retry": "পরবর্তী পুনঃচেষ্টা",
+    "last_event": "শেষ ইভেন্ট",
+    "reason": "কারণ:",
+    "retry": "এখনই পুনরায় চেষ্টা করুন",
+    "dismiss": "ওভারলে খারিজ করুন",
+    "badge": "SSE",
+    "badge_reconnecting": "SSE পুনঃসংযোগ"
+  },
+  "shell": {
+    "theme": {
+      "light": "হালকা",
+      "dark": "অন্ধকার",
+      "label": "থিম"
+    },
+    "close_nav": "নেভিগেশন বন্ধ করুন",
+    "open_nav": "নেভিগেশন খুলুন",
+    "brand": "Revaer",
+    "phase": "পর্যায় ১",
+    "mode": "মোড",
+    "locale": "ভাষা",
+    "search_placeholder": "টরেন্ট অনুসন্ধান করুন (ফোকাস করতে /)",
+    "search_label": "বৈশ্বিক অনুসন্ধান",
+    "simulate_sse": "SSE ড্রপ সিমুলেট করুন",
+    "toggle_theme": "থিম টগল করুন",
+    "network_connected": "সংযুক্ত",
+    "network_remote": "দূরবর্তী (API কী)"
+  },
+  "placeholder": {
+    "jobs_title": "কাজ / পরবর্তী প্রক্রিয়াকরণ",
+    "jobs_body": "কাজের অবস্থা, ওয়াচ ফোল্ডার ত্রুটি, SSE আপডেট",
+    "settings_title": "সেটিংস",
+    "settings_body": "ইঞ্জিন প্রোফাইল, পথ, ভূমিকা, দূরবর্তী মোড",
+    "logs_title": "লগ",
+    "logs_body": "ফিল্টার সহ স্ট্রিমিং ইভেন্ট লগ",
+    "not_found_title": "পাওয়া যায়নি",
+    "not_found_body": "সমর্থিত দর্শনে ফিরে যেতে নেভিগেশন ব্যবহার করুন।",
+    "badge": "মোবাইল + ডেস্কটপ প্রতিক্রিয়াশীল লেআউট প্রস্তুত।"
+  },
+  "toast": {
+    "pause": "বিরতি দেওয়া হয়েছে",
+    "resume": "পুনরায় শুরু করা হয়েছে",
+    "recheck": "পুনরায় পরীক্ষা করা হচ্ছে",
+    "delete": "সরানো হয়েছে",
+    "delete_data": "সরানো হয়েছে (ডেটা মুছে ফেলা হয়েছে)",
+    "add_success": "যোগ করা হয়েছে",
+    "add_refresh_failed": "যোগ করা হয়েছে, কিন্তু রিফ্রেশ ব্যর্থ হয়েছে:",
+    "add_failed": "যোগ করা ব্যর্থ হয়েছে:",
+    "action_failed": "এর জন্য ক্রিয়া ব্যর্থ হয়েছে",
+    "torrent_placeholder": "টরেন্ট",
+    "bulk_done": "এর জন্য বাল্ক ক্রিয়া সম্পূর্ণ",
+    "dismiss": "খারিজ"
   }
 }

@@ -4,45 +4,228 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "Dashboard",
-    "torrents": "Torrents",
-    "search": "Search",
-    "jobs": "Jobs / Post-processing",
-    "settings": "Settings",
-    "logs": "Logs"
+    "dashboard": "ਡੈਸ਼ਬੋਰਡ",
+    "torrents": "ਟੌਰੈਂਟ",
+    "search": "ਖੋਜ",
+    "jobs": "ਕੰਮ / ਪੋਸਟ-ਪ੍ਰੋਸੈਸਿੰਗ",
+    "settings": "ਸੈਟਿੰਗਾਂ",
+    "logs": "ਲੌਗ"
   },
   "mode": {
-    "simple": "Simple",
-    "advanced": "Advanced"
+    "simple": "ਸਧਾਰਨ",
+    "advanced": "ਉੱਨਤ"
   },
   "density": {
-    "compact": "Compact",
-    "normal": "Normal",
-    "comfy": "Comfy"
+    "compact": "ਸੰਖੇਪ",
+    "normal": "ਆਮ",
+    "comfy": "ਆਰਾਮਦਾਇਕ"
   },
   "toolbar": {
-    "regex": "Regex",
-    "add": "Add",
-    "pause": "Pause",
-    "resume": "Resume",
-    "delete": "Delete",
-    "delete_data": "Delete data",
-    "recheck": "Recheck"
+    "regex": "ਰੈਜੈਕਸ",
+    "add": "ਜੋੜੋ",
+    "pause": "ਰੋਕੋ",
+    "resume": "ਮੁੜ ਸ਼ੁਰੂ ਕਰੋ",
+    "delete": "ਮਿਟਾਓ",
+    "delete_data": "ਡਾਟਾ ਮਿਟਾਓ",
+    "recheck": "ਮੁੜ ਜਾਂਚੋ"
   },
   "torrents": {
-    "search_placeholder": "Search name, path, tracker",
-    "add_placeholder": "Magnet or URL",
-    "drop_help": "Drop .torrent or paste magnet",
-    "category": "Category",
-    "tags": "Tags",
-    "save_path": "Save path"
+    "search_label": "ਟੌਰੈਂਟ ਖੋਜੋ",
+    "search_placeholder": "ਨਾਮ, ਮਾਰਗ, ਟਰੈਕਰ ਖੋਜੋ",
+    "add_placeholder": "ਮੈਗਨੈਟ ਜਾਂ URL",
+    "drop_help": ".torrent ਛੱਡੋ ਜਾਂ ਮੈਗਨੈਟ ਪੇਸਟ ਕਰੋ",
+    "drop_sub": "ਮੈਗਨੈਟ/URL ਪ੍ਰਮਾਣਿਤ ਕਰਦਾ ਹੈ, ਡਰੈਗ/ਡਰੌਪ ਅਤੇ ਫਾਈਲ ਚੋਣ ਦਾ ਸਮਰਥਨ ਕਰਦਾ ਹੈ।",
+    "upload_label": "ਟੌਰੈਂਟ ਅੱਪਲੋਡ ਕਰੋ",
+    "adding": "ਜੋੜ ਰਿਹਾ ਹੈ…",
+    "ready_prefix": "ਅੱਪਲੋਡ ਲਈ ਤਿਆਰ",
+    "category": "ਸ਼੍ਰੇਣੀ",
+    "category_placeholder": "ਟੀਵੀ, ਫਿਲਮਾਂ, ਸੰਗੀਤ",
+    "tags": "ਟੈਗ",
+    "tags_placeholder": "4K, hevc, scene",
+    "save_path": "ਸੰਭਾਲਣ ਮਾਰਗ",
+    "save_path_placeholder": "/data/incomplete",
+    "open_detail": "ਵੇਰਵੇ ਖੋਲ੍ਹੋ",
+    "eta_infinite": "∞",
+    "eta": "ਅਨੁਮਾਨਿਤ ਸਮਾਂ",
+    "down": "ਡਾਊਨਲੋਡ",
+    "up": "ਅੱਪਲੋਡ",
+    "ratio": "ਅਨੁਪਾਤ",
+    "size": "ਆਕਾਰ",
+    "select_row": "ਟੌਰੈਂਟ ਚੁਣੋ",
+    "select_all": "ਸਭ ਚੁਣੋ",
+    "selected": "ਚੁਣਿਆ",
+    "watch_folder": "ਨਿਗਰਾਨੀ ਫੋਲਡਰ",
+    "watch_folder_body": "ਨਿਗਰਾਨੀ ਮਾਰਗ ਸਮਰੱਥ ਹੈ; ਅਸਫਲਤਾਵਾਂ ਕੰਮ/ਪੋਸਟ-ਪ੍ਰੋਸੈਸਿੰਗ ਵਿੱਚ ਦਿਖਾਈ ਦੇਣਗੀਆਂ।",
+    "error": {
+      "empty": "ਮੈਗਨੈਟ ਲਿੰਕ, URL ਦਾਖਲ ਕਰੋ ਜਾਂ .torrent ਛੱਡੋ",
+      "invalid": "ਅਵੈਧ ਮੈਗਨੈਟ ਜਾਂ URL",
+      "file_type": "ਅਸਮਰਥਿਤ ਫਾਈਲ ਕਿਸਮ"
+    },
+    "shortcut": "ਸ਼ਾਰਟਕੱਟ",
+    "more": "ਹੋਰ…",
+    "banner": {
+      "removed_data": "ਟੌਰੈਂਟ + ਡਾਟਾ ਹਟਾਇਆ",
+      "removed": "ਟੌਰੈਂਟ ਹਟਾਇਆ",
+      "recheck": "ਮੁੜ ਜਾਂਚ ਰਿਹਾ ਹੈ",
+      "pause": "ਰੋਕਿਆ",
+      "resume": "ਮੁੜ ਸ਼ੁਰੂ ਕੀਤਾ"
+    }
   },
   "dashboard": {
-    "speeds": "Global Speeds",
-    "torrents": "Torrents",
-    "disk": "Disk Usage",
-    "queue": "Queue",
-    "vpn": "VPN Status",
-    "events": "Recent Events"
+    "speeds": "ਗਲੋਬਲ ਗਤੀ",
+    "live": "SSE ਲਾਈਵ",
+    "down": "ਡਾਊਨਲੋਡ",
+    "up": "ਅੱਪਲੋਡ",
+    "speeds_subtext": "ਮੋਬਾਈਲ ਅਤੇ ਸੀਮਤ ਨੈੱਟਵਰਕਾਂ ਤੇ ਬੈਕਆਫ ਨਾਲ ਸਬ-ਸੈਕਿੰਡ ਅੱਪਡੇਟ।",
+    "torrents": "ਟੌਰੈਂਟ",
+    "torrents_sub": "ਸਰਗਰਮ / ਰੋਕਿਆ / ਪੂਰਾ",
+    "active": "ਸਰਗਰਮ",
+    "paused": "ਰੋਕਿਆ",
+    "completed": "ਪੂਰਾ",
+    "disk": "ਡਿਸਕ ਵਰਤੋਂ",
+    "disk_sub": "ਗਲੋਬਲ + ਪ੍ਰਤੀ ਮਾਰਗ",
+    "total": "ਕੁੱਲ",
+    "queue": "ਕਤਾਰ",
+    "queue_sub": "ਡੂੰਘਾਈ ਅਤੇ ਰੋਕੀਆਂ ਗਿਣਤੀਆਂ",
+    "queued": "ਕਤਾਰ ਵਿੱਚ",
+    "depth": "ਡੂੰਘਾਈ",
+    "vpn": "VPN ਸਥਿਤੀ",
+    "vpn_state": "ਸਥਿਤੀ",
+    "vpn_message": "ਸੁਨੇਹਾ",
+    "tracker_health": "ਟਰੈਕਰ ਸਿਹਤ",
+    "tracker_sub": "ਇਕੱਤਰ",
+    "ok": "ਠੀਕ ਹੈ",
+    "warn": "ਚੇਤਾਵਨੀ",
+    "error": "ਗਲਤੀ",
+    "tracker_help": "ਅਸਫਲਤਾਵਾਂ ਅਗਲੀ ਘੋਸ਼ਣਾ ਟਾਈਮਸਟੈਂਪ ਨਾਲ ਇਵੈਂਟ ਲੌਗ ਵਿੱਚ ਦਿਖਾਈ ਦਿੰਦੀਆਂ ਹਨ।",
+    "events": "ਤਾਜ਼ਾ ਇਵੈਂਟ",
+    "events_sub": "ਚੇਤਾਵਨੀਆਂ ਅਤੇ ਟਰੈਕਰ ਸਮੱਸਿਆਵਾਂ",
+    "event_info": "ਜਾਣਕਾਰੀ",
+    "event_warn": "ਚੇਤਾਵਨੀ",
+    "event_error": "ਗਲਤੀ"
+  },
+  "confirm": {
+    "delete": {
+      "title": "ਟੌਰੈਂਟ ਹਟਾਓ?",
+      "body": "ਫਾਈਲਾਂ ਡਿਸਕ ਤੇ ਰਹਿੰਦੀਆਂ ਹਨ। ਇਹ ਡਾਟਾ ਮਿਟਾਏ ਬਿਨਾਂ ਵਾਪਸ ਨਹੀਂ ਕੀਤਾ ਜਾ ਸਕਦਾ।",
+      "cta": "ਹਟਾਓ"
+    },
+    "delete_data": {
+      "title": "ਟੌਰੈਂਟ ਹਟਾਓ ਅਤੇ ਡਾਟਾ ਮਿਟਾਓ?",
+      "body": "ਇਹ ਡਿਸਕ ਤੋਂ ਫਾਈਲਾਂ ਨੂੰ ਸਥਾਈ ਤੌਰ 'ਤੇ ਮਿਟਾ ਦਿੰਦਾ ਹੈ।",
+      "cta": "ਡਾਟਾ ਮਿਟਾਓ"
+    },
+    "recheck": {
+      "title": "ਡਾਟਾ ਮੁੜ ਜਾਂਚੋ?",
+      "body": "ਹੈਸ਼ ਜਾਂਚ ਮੌਜੂਦਾ ਡਾਟਾ ਪ੍ਰਮਾਣਿਤ ਕਰੇਗੀ।",
+      "cta": "ਮੁੜ ਜਾਂਚੋ"
+    },
+    "cancel": "ਰੱਦ ਕਰੋ"
+  },
+  "detail": {
+    "select_title": "ਟੌਰੈਂਟ ਚੁਣੋ",
+    "select_body": "ਫਾਈਲਾਂ, ਪੀਅਰ, ਟਰੈਕਰ ਅਤੇ ਮੈਟਾਡੇਟਾ ਦੇਖਣ ਲਈ ਟੌਰੈਂਟ ਖੋਲ੍ਹੋ।",
+    "view_label": "ਵੇਰਵਾ ਦ੍ਰਿਸ਼",
+    "tab": {
+      "files": "ਫਾਈਲਾਂ",
+      "peers": "ਪੀਅਰ",
+      "trackers": "ਟਰੈਕਰ",
+      "log": "ਲੌਗ",
+      "info": "ਜਾਣਕਾਰੀ"
+    },
+    "files": {
+      "title": "ਫਾਈਲਾਂ",
+      "body": "ਪ੍ਰਤੀ-ਫਾਈਲ ਤਰਜੀਹ + ਲੋੜੀਂਦਾ/ਅਣਚਾਹੁੰਦਾ ਟੌਗਲ। ਮੋਬਾਈਲ ਤੇ ਐਕੋਰਡੀਅਨ।",
+      "wanted": "ਲੋੜੀਂਦਾ"
+    },
+    "peers": {
+      "title": "ਪੀਅਰ",
+      "body": "ਗਤੀ/ਪ੍ਰਗਤੀ ਦੁਆਰਾ ਕ੍ਰਮਬੱਧ; ਉਪਲਬਧ ਹੋਣ 'ਤੇ ਝੰਡੇ + ਦੇਸ਼ ਦਿਖਾਉਂਦਾ ਹੈ।",
+      "down": "ਡਾਊਨਲੋਡ",
+      "up": "ਅੱਪਲੋਡ",
+      "progress": "ਪ੍ਰਗਤੀ"
+    },
+    "trackers": {
+      "title": "ਟਰੈਕਰ",
+      "body": "ਸਥਿਤੀ, ਅਗਲੀ ਘੋਸ਼ਣਾ ਅਤੇ ਚੇਤਾਵਨੀ ਬੈਜਾਂ ਨਾਲ ਗਲਤੀਆਂ।"
+    },
+    "log": {
+      "title": "ਇਵੈਂਟ ਲੌਗ",
+      "body": "ਚੇਤਾਵਨੀਆਂ, ਟਰੈਕਰ ਸਮੱਸਿਆਵਾਂ, ਸਥਿਤੀ ਤਬਦੀਲੀਆਂ।"
+    },
+    "info": {
+      "title": "ਮੈਟਾਡੇਟਾ",
+      "body": "ਹੈਸ਼, ਮੈਗਨੈਟ, ਆਕਾਰ, ਟੁਕੜੇ ਗਿਣਤੀ, ਟੁਕੜੇ ਦਾ ਆਕਾਰ।",
+      "hash": "ਹੈਸ਼",
+      "magnet": "ਮੈਗਨੈਟ",
+      "size": "ਆਕਾਰ",
+      "pieces": "ਟੁਕੜੇ",
+      "piece_size": "ਟੁਕੜੇ ਦਾ ਆਕਾਰ"
+    }
+  },
+  "auth": {
+    "error_required": "ਰਿਮੋਟ ਮੋਡ ਲਈ API ਕੁੰਜੀ ਲੋੜੀਂਦੀ ਹੈ",
+    "title": "API ਪਹੁੰਚ ਲੋੜੀਂਦੀ ਹੈ",
+    "body": "ਕਨੈਕਟ ਕਰਨ ਲਈ ਆਪਣੀ API ਕੁੰਜੀ ਦਾਖਲ ਕਰੋ। ਰਿਮੋਟ ਮੋਡ ਨੂੰ ਹਮੇਸ਼ਾਂ ਇੱਕ ਕੁੰਜੀ ਦੀ ਲੋੜ ਹੁੰਦੀ ਹੈ; LAN ਮੋਡ ਬੈਕਐਂਡ ਦੁਆਰਾ ਸਮਰੱਥ ਹੋਣ 'ਤੇ ਗੁਮਨਾਮ ਦੀ ਇਜਾਜ਼ਤ ਦੇ ਸਕਦਾ ਹੈ।",
+    "label": "API ਕੁੰਜੀ",
+    "placeholder": "revaer_api_key",
+    "allow_anon": "LAN ਮੋਡ ਖੋਜਿਆ ਗਿਆ: ਗੁਮਨਾਮ ਤੌਰ 'ਤੇ ਜਾਰੀ ਰੱਖਣ ਲਈ ਖਾਲੀ ਛੱਡੋ।",
+    "use_anon": "ਗੁਮਨਾਮ ਵਰਤੋ (ਜੇ ਇਜਾਜ਼ਤ ਹੈ)",
+    "submit": "ਜਾਰੀ ਰੱਖੋ"
+  },
+  "sse": {
+    "title": "SSE ਡਿਸਕਨੈਕਟ ਹੋਇਆ",
+    "body": "ਐਕਸਪੋਨੈਂਸ਼ੀਅਲ ਬੈਕਆਫ ਅਤੇ ਜਿਟਰ ਨਾਲ ਮੁੜ ਕਨੈਕਟ ਕਰ ਰਿਹਾ ਹੈ।",
+    "next_retry": "ਅਗਲੀ ਕੋਸ਼ਿਸ਼",
+    "last_event": "ਆਖਰੀ ਇਵੈਂਟ",
+    "reason": "ਕਾਰਨ:",
+    "retry": "ਹੁਣੇ ਮੁੜ ਕੋਸ਼ਿਸ਼ ਕਰੋ",
+    "dismiss": "ਓਵਰਲੇ ਬੰਦ ਕਰੋ",
+    "badge": "SSE",
+    "badge_reconnecting": "SSE ਮੁੜ ਕਨੈਕਟ ਕਰ ਰਿਹਾ ਹੈ"
+  },
+  "shell": {
+    "theme": {
+      "light": "ਹਲਕਾ",
+      "dark": "ਗੂੜ੍ਹਾ",
+      "label": "ਥੀਮ"
+    },
+    "close_nav": "ਨੈਵੀਗੇਸ਼ਨ ਬੰਦ ਕਰੋ",
+    "open_nav": "ਨੈਵੀਗੇਸ਼ਨ ਖੋਲ੍ਹੋ",
+    "brand": "Revaer",
+    "phase": "ਪੜਾਅ 1",
+    "mode": "ਮੋਡ",
+    "locale": "ਭਾਸ਼ਾ",
+    "search_placeholder": "ਟੌਰੈਂਟ ਖੋਜੋ (ਫੋਕਸ ਲਈ /)",
+    "search_label": "ਗਲੋਬਲ ਖੋਜ",
+    "simulate_sse": "SSE ਡਰੌਪ ਸਿਮੂਲੇਟ ਕਰੋ",
+    "toggle_theme": "ਥੀਮ ਟੌਗਲ ਕਰੋ",
+    "network_connected": "ਕਨੈਕਟ ਹੋਇਆ",
+    "network_remote": "ਰਿਮੋਟ (API ਕੁੰਜੀ)"
+  },
+  "placeholder": {
+    "jobs_title": "ਕੰਮ / ਪੋਸਟ-ਪ੍ਰੋਸੈਸਿੰਗ",
+    "jobs_body": "ਕੰਮ ਸਥਿਤੀ, ਨਿਗਰਾਨੀ ਫੋਲਡਰ ਗਲਤੀਆਂ, SSE ਅੱਪਡੇਟ",
+    "settings_title": "ਸੈਟਿੰਗਾਂ",
+    "settings_body": "ਇੰਜਣ ਪ੍ਰੋਫਾਈਲ, ਮਾਰਗ, ਭੂਮਿਕਾਵਾਂ, ਰਿਮੋਟ ਮੋਡ",
+    "logs_title": "ਲੌਗ",
+    "logs_body": "ਫਿਲਟਰਾਂ ਨਾਲ ਸਟ੍ਰੀਮਿੰਗ ਇਵੈਂਟ ਲੌਗ",
+    "not_found_title": "ਨਹੀਂ ਮਿਲਿਆ",
+    "not_found_body": "ਸਮਰਥਿਤ ਦ੍ਰਿਸ਼ ਤੇ ਵਾਪਸ ਜਾਣ ਲਈ ਨੈਵੀਗੇਸ਼ਨ ਵਰਤੋ।",
+    "badge": "ਮੋਬਾਈਲ + ਡੈਸਕਟੌਪ ਰਿਸਪੌਂਸਿਵ ਲੇਆਉਟ ਤਿਆਰ।"
+  },
+  "toast": {
+    "pause": "ਰੋਕਿਆ",
+    "resume": "ਮੁੜ ਸ਼ੁਰੂ ਕੀਤਾ",
+    "recheck": "ਮੁੜ ਜਾਂਚ ਰਿਹਾ ਹੈ",
+    "delete": "ਹਟਾਇਆ",
+    "delete_data": "ਹਟਾਇਆ (ਡਾਟਾ ਮਿਟਾਇਆ)",
+    "add_success": "ਜੋੜਿਆ",
+    "add_refresh_failed": "ਜੋੜਿਆ, ਪਰ ਰੀਫ੍ਰੈਸ਼ ਅਸਫਲ:",
+    "add_failed": "ਜੋੜਨਾ ਅਸਫਲ:",
+    "action_failed": "ਕਾਰਵਾਈ ਅਸਫਲ",
+    "torrent_placeholder": "ਟੌਰੈਂਟ",
+    "bulk_done": "ਥੋਕ ਕਾਰਵਾਈਆਂ ਪੂਰੀਆਂ",
+    "dismiss": "ਬੰਦ ਕਰੋ"
   }
 }

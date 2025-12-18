@@ -4,45 +4,228 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "Dashboard",
-    "torrents": "Torrents",
-    "search": "Search",
-    "jobs": "Jobs / Post-processing",
-    "settings": "Settings",
-    "logs": "Logs"
+    "dashboard": "डैशबोर्ड",
+    "torrents": "टॉरेंट",
+    "search": "खोज",
+    "jobs": "कार्य / पोस्ट-प्रोसेसिंग",
+    "settings": "सेटिंग्स",
+    "logs": "लॉग"
   },
   "mode": {
-    "simple": "Simple",
-    "advanced": "Advanced"
+    "simple": "सरल",
+    "advanced": "उन्नत"
   },
   "density": {
-    "compact": "Compact",
-    "normal": "Normal",
-    "comfy": "Comfy"
+    "compact": "कॉम्पैक्ट",
+    "normal": "सामान्य",
+    "comfy": "आरामदायक"
   },
   "toolbar": {
-    "regex": "Regex",
-    "add": "Add",
-    "pause": "Pause",
-    "resume": "Resume",
-    "delete": "Delete",
-    "delete_data": "Delete data",
-    "recheck": "Recheck"
+    "regex": "रेजेक्स",
+    "add": "जोड़ें",
+    "pause": "रोकें",
+    "resume": "फिर से शुरू करें",
+    "delete": "हटाएं",
+    "delete_data": "डेटा हटाएं",
+    "recheck": "पुनः जांचें"
   },
   "torrents": {
-    "search_placeholder": "Search name, path, tracker",
-    "add_placeholder": "Magnet or URL",
-    "drop_help": "Drop .torrent or paste magnet",
-    "category": "Category",
-    "tags": "Tags",
-    "save_path": "Save path"
+    "search_label": "टॉरेंट खोजें",
+    "search_placeholder": "नाम, पथ, ट्रैकर खोजें",
+    "add_placeholder": "मैग्नेट या URL",
+    "drop_help": ".torrent छोड़ें या मैग्नेट पेस्ट करें",
+    "drop_sub": "मैग्नेट/URL को मान्य करता है, ड्रैग/ड्रॉप और फ़ाइल चयन का समर्थन करता है।",
+    "upload_label": "टॉरेंट अपलोड करें",
+    "adding": "जोड़ा जा रहा है…",
+    "ready_prefix": "अपलोड के लिए तैयार",
+    "category": "श्रेणी",
+    "category_placeholder": "टीवी, फिल्में, संगीत",
+    "tags": "टैग",
+    "tags_placeholder": "4K, hevc, scene",
+    "save_path": "सहेजने का पथ",
+    "save_path_placeholder": "/data/incomplete",
+    "open_detail": "विवरण खोलें",
+    "eta_infinite": "∞",
+    "eta": "अनुमानित समय",
+    "down": "डाउनलोड",
+    "up": "अपलोड",
+    "ratio": "अनुपात",
+    "size": "आकार",
+    "select_row": "टॉरेंट चुनें",
+    "select_all": "सभी चुनें",
+    "selected": "चयनित",
+    "watch_folder": "वॉच फ़ोल्डर",
+    "watch_folder_body": "वॉच पथ सक्षम है; विफलताएँ कार्य/पोस्ट-प्रोसेसिंग में दिखाई देंगी।",
+    "error": {
+      "empty": "एक मैग्नेट लिंक, URL दर्ज करें या .torrent छोड़ें",
+      "invalid": "अमान्य मैग्नेट या URL",
+      "file_type": "असमर्थित फ़ाइल प्रकार"
+    },
+    "shortcut": "शॉर्टकट",
+    "more": "अधिक…",
+    "banner": {
+      "removed_data": "टॉरेंट + डेटा हटा दिया गया",
+      "removed": "टॉरेंट हटा दिया गया",
+      "recheck": "पुनः जांच हो रही है",
+      "pause": "रोक दिया गया",
+      "resume": "फिर से शुरू किया गया"
+    }
   },
   "dashboard": {
-    "speeds": "Global Speeds",
-    "torrents": "Torrents",
-    "disk": "Disk Usage",
-    "queue": "Queue",
-    "vpn": "VPN Status",
-    "events": "Recent Events"
+    "speeds": "वैश्विक गति",
+    "live": "SSE लाइव",
+    "down": "डाउनलोड",
+    "up": "अपलोड",
+    "speeds_subtext": "मोबाइल और सीमित नेटवर्क पर बैकऑफ के साथ उप-सेकंड अपडेट।",
+    "torrents": "टॉरेंट",
+    "torrents_sub": "सक्रिय / रोका गया / पूर्ण",
+    "active": "सक्रिय",
+    "paused": "रोका गया",
+    "completed": "पूर्ण",
+    "disk": "डिस्क उपयोग",
+    "disk_sub": "वैश्विक + प्रति पथ",
+    "total": "कुल",
+    "queue": "कतार",
+    "queue_sub": "गहराई और रोकी गई गिनती",
+    "queued": "कतार में",
+    "depth": "गहराई",
+    "vpn": "VPN स्थिति",
+    "vpn_state": "स्थिति",
+    "vpn_message": "संदेश",
+    "tracker_health": "ट्रैकर स्वास्थ्य",
+    "tracker_sub": "एकत्रित",
+    "ok": "ठीक है",
+    "warn": "चेतावनी",
+    "error": "त्रुटि",
+    "tracker_help": "विफलताएँ अगली घोषणा टाइमस्टैम्प के साथ इवेंट लॉग में दिखाई देती हैं।",
+    "events": "हाल की घटनाएँ",
+    "events_sub": "चेतावनियाँ और ट्रैकर समस्याएँ",
+    "event_info": "जानकारी",
+    "event_warn": "चेतावनी",
+    "event_error": "त्रुटि"
+  },
+  "confirm": {
+    "delete": {
+      "title": "टॉरेंट हटाएं?",
+      "body": "फ़ाइलें डिस्क पर रहती हैं। डेटा हटाए बिना इसे पूर्ववत नहीं किया जा सकता।",
+      "cta": "हटाएं"
+    },
+    "delete_data": {
+      "title": "टॉरेंट हटाएं और डेटा मिटाएं?",
+      "body": "यह डिस्क से फ़ाइलों को स्थायी रूप से हटा देता है।",
+      "cta": "डेटा मिटाएं"
+    },
+    "recheck": {
+      "title": "डेटा की पुनः जांच करें?",
+      "body": "हैश चेक मौजूदा डेटा को सत्यापित करेगा।",
+      "cta": "पुनः जांचें"
+    },
+    "cancel": "रद्द करें"
+  },
+  "detail": {
+    "select_title": "एक टॉरेंट चुनें",
+    "select_body": "फ़ाइलें, पीयर, ट्रैकर और मेटाडेटा देखने के लिए एक टॉरेंट खोलें।",
+    "view_label": "विवरण दृश्य",
+    "tab": {
+      "files": "फ़ाइलें",
+      "peers": "पीयर",
+      "trackers": "ट्रैकर",
+      "log": "लॉग",
+      "info": "जानकारी"
+    },
+    "files": {
+      "title": "फ़ाइलें",
+      "body": "प्रति-फ़ाइल प्राथमिकता + वांछित/अवांछित टॉगल। मोबाइल पर अकॉर्डियन।",
+      "wanted": "वांछित"
+    },
+    "peers": {
+      "title": "पीयर",
+      "body": "गति/प्रगति के अनुसार क्रमबद्ध; उपलब्ध होने पर झंडे + देश दिखाता है।",
+      "down": "डाउनलोड",
+      "up": "अपलोड",
+      "progress": "प्रगति"
+    },
+    "trackers": {
+      "title": "ट्रैकर",
+      "body": "स्थिति, अगली घोषणा और चेतावनी बैज के साथ त्रुटियां।"
+    },
+    "log": {
+      "title": "इवेंट लॉग",
+      "body": "चेतावनियाँ, ट्रैकर समस्याएँ, स्थिति संक्रमण।"
+    },
+    "info": {
+      "title": "मेटाडेटा",
+      "body": "हैश, मैग्नेट, आकार, पीस गिनती, पीस आकार।",
+      "hash": "हैश",
+      "magnet": "मैग्नेट",
+      "size": "आकार",
+      "pieces": "पीस",
+      "piece_size": "पीस आकार"
+    }
+  },
+  "auth": {
+    "error_required": "रिमोट मोड के लिए API कुंजी आवश्यक है",
+    "title": "API एक्सेस आवश्यक है",
+    "body": "कनेक्ट करने के लिए अपनी API कुंजी दर्ज करें। रिमोट मोड को हमेशा एक कुंजी की आवश्यकता होती है; LAN मोड बैकएंड द्वारा सक्षम होने पर अनाम की अनुमति दे सकता है।",
+    "label": "API कुंजी",
+    "placeholder": "revaer_api_key",
+    "allow_anon": "LAN मोड का पता चला: अनाम रूप से जारी रखने के लिए खाली छोड़ दें।",
+    "use_anon": "अनाम उपयोग करें (यदि अनुमति हो)",
+    "submit": "जारी रखें"
+  },
+  "sse": {
+    "title": "SSE डिस्कनेक्ट हो गया",
+    "body": "एक्सपोनेंशियल बैकऑफ और जिटर के साथ पुनः कनेक्ट हो रहा है।",
+    "next_retry": "अगला पुनः प्रयास",
+    "last_event": "अंतिम घटना",
+    "reason": "कारण:",
+    "retry": "अभी पुनः प्रयास करें",
+    "dismiss": "ओवरले खारिज करें",
+    "badge": "SSE",
+    "badge_reconnecting": "SSE पुनः कनेक्ट हो रहा है"
+  },
+  "shell": {
+    "theme": {
+      "light": "हल्का",
+      "dark": "गहरा",
+      "label": "थीम"
+    },
+    "close_nav": "नेविगेशन बंद करें",
+    "open_nav": "नेविगेशन खोलें",
+    "brand": "Revaer",
+    "phase": "चरण 1",
+    "mode": "मोड",
+    "locale": "भाषा",
+    "search_placeholder": "टॉरेंट खोजें (फोकस करने के लिए /)",
+    "search_label": "वैश्विक खोज",
+    "simulate_sse": "SSE ड्रॉप सिम्युलेट करें",
+    "toggle_theme": "थीम टॉगल करें",
+    "network_connected": "कनेक्टेड",
+    "network_remote": "रिमोट (API कुंजी)"
+  },
+  "placeholder": {
+    "jobs_title": "कार्य / पोस्ट-प्रोसेसिंग",
+    "jobs_body": "कार्य स्थिति, वॉच फ़ोल्डर त्रुटियां, SSE अपडेट",
+    "settings_title": "सेटिंग्स",
+    "settings_body": "इंजन प्रोफ़ाइल, पथ, भूमिकाएं, रिमोट मोड",
+    "logs_title": "लॉग",
+    "logs_body": "फ़िल्टर के साथ स्ट्रीमिंग इवेंट लॉग",
+    "not_found_title": "नहीं मिला",
+    "not_found_body": "समर्थित दृश्य पर वापस जाने के लिए नेविगेशन का उपयोग करें।",
+    "badge": "मोबाइल + डेस्कटॉप रिस्पॉन्सिव लेआउट तैयार।"
+  },
+  "toast": {
+    "pause": "रोका गया",
+    "resume": "फिर से शुरू किया गया",
+    "recheck": "पुनः जांच हो रही है",
+    "delete": "हटा दिया गया",
+    "delete_data": "हटा दिया गया (डेटा हटा दिया गया)",
+    "add_success": "जोड़ा गया",
+    "add_refresh_failed": "जोड़ा गया, लेकिन रीफ्रेश विफल:",
+    "add_failed": "जोड़ना विफल:",
+    "action_failed": "क्रिया विफल",
+    "torrent_placeholder": "टॉरेंट",
+    "bulk_done": "बल्क क्रियाएं पूर्ण",
+    "dismiss": "खारिज करें"
   }
 }
