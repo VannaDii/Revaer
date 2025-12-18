@@ -1,5 +1,7 @@
 # 025: Seed mode admission with optional hash sampling
 
+> Allow seed-mode admissions without full rechecks while optionally sampling hashes to guard against corrupt data.
+
 ## Status
 
 Accepted
