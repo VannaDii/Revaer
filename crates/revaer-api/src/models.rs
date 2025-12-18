@@ -214,6 +214,9 @@ pub struct TorrentSettingsView {
     #[serde(default)]
     /// Trackers recorded for the torrent.
     pub trackers: Vec<String>,
+    #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+    /// Tracker messages/errors keyed by URL.
+    pub tracker_messages: std::collections::HashMap<String, String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Per-torrent bandwidth limits when present.
     pub rate_limit: Option<TorrentRateLimit>,
@@ -365,6 +368,7 @@ impl From<TorrentStatus> for TorrentDetail {
         let settings = TorrentSettingsView {
             tags: Vec::new(),
             trackers: Vec::new(),
+            tracker_messages: std::collections::HashMap::new(),
             rate_limit: None,
             connections_limit: None,
             download_dir: status.download_dir.clone(),

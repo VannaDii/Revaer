@@ -208,6 +208,7 @@ pub(crate) fn detail_from_components(
         rate_limit,
         connections_limit,
         selection,
+        tracker_messages,
         super_seeding,
         seed_mode,
         seed_ratio_limit,
@@ -228,6 +229,7 @@ pub(crate) fn detail_from_components(
     if let Some(settings) = detail.settings.as_mut() {
         settings.tags = tags;
         settings.trackers = trackers;
+        settings.tracker_messages = tracker_messages;
         settings.rate_limit = rate_limit;
         settings.connections_limit = connections_limit;
         settings.selection = Some(TorrentSelectionView::from(&selection));

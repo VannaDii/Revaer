@@ -224,11 +224,11 @@
     -   [x] Native: surface peer info through FFI (translate peer_info structs); ensure alert polling or snapshot supports peer views.
     -   [x] Tests: native tests that peers are returned; API tests for peer view responses.
 
--   [ ] Alert coverage and error surfacing expanded
+-   [x] Alert coverage and error surfacing expanded
 
     -   [x] Bridge/native: map additional libtorrent alerts (tracker errors/warnings, listen/port binding failures, peer bans, storage errors, SSL verification issues) into `NativeEvent`/`EngineEvent` instead of dropping them.
     -   [x] Worker: translate new events into `EventBus` health/state changes with actionable messages; ensure degraded health captures session and tracker/storage faults.
-    -   [ ] API/UX: surface meaningful error messages in torrent status/details; document alert categories exposed.
+    -   [x] API/UX: surface meaningful error messages in torrent status/details; document alert categories exposed.
     -   [x] Tests: native (feature-gated) tests that injected tracker/storage/listen failures produce expected events and health degradation; unit tests for alert mapping coverage.
 
 -   [x] Session stats cadence tunable
