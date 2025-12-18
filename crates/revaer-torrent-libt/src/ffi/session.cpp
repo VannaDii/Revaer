@@ -27,6 +27,7 @@
 #include <libtorrent/add_torrent_params.hpp>
 #include <libtorrent/alert.hpp>
 #include <libtorrent/alert_types.hpp>
+#include <libtorrent/bencode.hpp>
 #include <libtorrent/download_priority.hpp>
 #include <libtorrent/error_code.hpp>
 #include <libtorrent/address.hpp>
@@ -34,11 +35,10 @@
 #include <libtorrent/file_storage.hpp>
 #include <libtorrent/info_hash.hpp>
 #include <libtorrent/magnet_uri.hpp>
-#include <libtorrent/bencode.hpp>
+#include <libtorrent/peer_info.hpp>
 #include <libtorrent/read_resume_data.hpp>
 #include <libtorrent/session.hpp>
 #include <libtorrent/session_params.hpp>
-#include <libtorrent/peer_info.hpp>
 #include <libtorrent/settings_pack.hpp>
 #include <libtorrent/session_types.hpp>
 #include <libtorrent/storage_defs.hpp>
@@ -1128,6 +1128,19 @@ public:
     rust::Vec<NativeEvent> poll_events() {
         rust::Vec<NativeEvent> events;
 
+        auto push_session_error = [&events](
+                                      std::string component,
+                                      std::string message,
+                                      std::string id) {
+            NativeEvent evt{};
+            evt.id = std::move(id);
+            evt.kind = NativeEventKind::SessionError;
+            evt.state = NativeTorrentState::Failed;
+            evt.component = std::move(component);
+            evt.message = std::move(message);
+            events.push_back(std::move(evt));
+        };
+
         std::vector<lt::alert*> alerts;
         session_->pop_alerts(&alerts);
         for (lt::alert* alert : alerts) {
@@ -1158,6 +1171,22 @@ public:
                     events.push_back(evt);
                 }
             }
+            if (auto* listen_err = lt::alert_cast<lt::listen_failed_alert>(alert)) {
+                push_session_error("network", listen_err->error.message(), std::string());
+            }
+            if (auto* portmap_err = lt::alert_cast<lt::portmap_error_alert>(alert)) {
+                push_session_error("portmap", portmap_err->error.message(), std::string());
+            }
+            if (auto* storage_err = lt::alert_cast<lt::file_error_alert>(alert)) {
+                auto id = find_torrent_id(storage_err->handle);
+                NativeEvent evt{};
+                evt.id = id;
+                evt.kind = NativeEventKind::Error;
+                evt.state = NativeTorrentState::Failed;
+                evt.message = storage_err->error.message();
+                events.push_back(evt);
+                push_session_error("storage", storage_err->error.message(), id);
+            }
             if (auto* tracker_warn = lt::alert_cast<lt::tracker_warning_alert>(alert)) {
                 auto id = find_torrent_id(tracker_warn->handle);
                 if (!id.empty()) {
@@ -1173,6 +1202,28 @@ public:
                     evt.tracker_statuses.push_back(std::move(status));
                     events.push_back(evt);
                 }
+            }
+            if (auto* tracker_err =
+                    lt::alert_cast<lt::tracker_error_alert>(alert)) {
+                auto id = find_torrent_id(tracker_err->handle);
+                push_session_error("tracker", tracker_err->error.message(), id);
+            }
+            if (auto* peer_ban = lt::alert_cast<lt::peer_ban_alert>(alert)) {
+                auto id = find_torrent_id(peer_ban->handle);
+                push_session_error("peer", peer_ban->message(), id);
+            }
+            if (auto* peer_error = lt::alert_cast<lt::peer_error_alert>(alert)) {
+                auto id = find_torrent_id(peer_error->handle);
+                push_session_error("peer", peer_error->message(), id);
+            }
+            if (auto* peer_blocked =
+                    lt::alert_cast<lt::peer_blocked_alert>(alert)) {
+                auto id = find_torrent_id(peer_blocked->handle);
+                push_session_error("peer", peer_blocked->message(), id);
+            }
+            if (auto* cert = lt::alert_cast<lt::torrent_need_cert_alert>(alert)) {
+                auto id = find_torrent_id(cert->handle);
+                push_session_error("ssl", cert->message(), id);
             }
             if (auto* moved = lt::alert_cast<lt::storage_moved_alert>(alert)) {
                 auto id = find_torrent_id(moved->handle);

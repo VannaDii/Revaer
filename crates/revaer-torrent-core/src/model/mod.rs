@@ -467,6 +467,13 @@ pub enum EngineEvent {
         /// Status entries keyed by tracker.
         trackers: Vec<TrackerStatus>,
     },
+    /// Session-level error not tied to a specific torrent.
+    SessionError {
+        /// Component that reported the error (network/storage/etc.).
+        component: Option<String>,
+        /// Human-readable message.
+        message: String,
+    },
 }
 
 #[cfg(test)]

@@ -875,8 +875,16 @@ impl Worker {
         match self.session.poll_events().await {
             Ok(events) => {
                 let mut actions = Vec::new();
+                let mut saw_error = false;
                 self.enqueue_time_based_goals(&mut actions);
                 for event in events {
+                    let is_error = matches!(
+                        &event,
+                        EngineEvent::Error { .. } | EngineEvent::SessionError { .. }
+                    );
+                    if is_error {
+                        saw_error = true;
+                    }
                     self.publish_engine_event(event, &mut actions);
                 }
                 if let Err(err) = self.apply_actions(actions).await {
@@ -884,7 +892,9 @@ impl Worker {
                     self.mark_degraded("session", Some(&detail));
                     return Err(err);
                 }
-                self.mark_recovered("session");
+                if !saw_error {
+                    self.mark_recovered("session");
+                }
                 Ok(())
             }
             Err(err) => {
@@ -941,6 +951,9 @@ impl Worker {
                 trackers,
             } => {
                 self.handle_tracker_status(torrent_id, trackers);
+            }
+            EngineEvent::SessionError { component, message } => {
+                self.handle_session_error(component, &message);
             }
         }
     }
@@ -1042,14 +1055,35 @@ impl Worker {
     }
 
     fn handle_error(&mut self, torrent_id: Uuid, message: String) {
+        let detail = message.clone();
         let _ = self.events.publish(Event::StateChanged {
             torrent_id,
             state: TorrentState::Failed { message },
         });
-        self.mark_degraded("session", None);
+        self.mark_degraded("session", Some(detail.as_str()));
+    }
+
+    fn handle_session_error(&mut self, component: Option<String>, message: &str) {
+        if let Some(component) = component {
+            self.mark_degraded(&component, Some(message));
+        } else {
+            self.mark_degraded("session", Some(message));
+        }
     }
 
     fn handle_tracker_status(&mut self, torrent_id: Uuid, trackers: Vec<TrackerStatus>) {
+        let mut has_error = false;
+        let mut detail = None;
+        for status in &trackers {
+            if let Some(status_label) = status.status.as_deref()
+                && status_label.eq_ignore_ascii_case("error")
+            {
+                has_error = true;
+                if detail.is_none() {
+                    detail.clone_from(&status.message);
+                }
+            }
+        }
         self.update_metadata(torrent_id, move |meta| {
             for status in trackers {
                 let Some(message) = status.message else {
@@ -1058,6 +1092,15 @@ impl Worker {
                 meta.tracker_messages.insert(status.url, message);
             }
         });
+        if has_error {
+            if let Some(detail) = detail {
+                self.mark_degraded("tracker", Some(detail.as_str()));
+            } else {
+                self.mark_degraded("tracker", Some("tracker reported error"));
+            }
+        } else {
+            self.mark_recovered("tracker");
+        }
     }
 
     fn register_seeding_goal(
@@ -2279,6 +2322,83 @@ mod tests {
                 assert!(degraded.is_empty(), "expected recovery event");
             }
             other => panic!("expected health recovery event, got {other:?}"),
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn session_error_event_degrades_health() -> Result<()> {
+        let bus = EventBus::with_capacity(4);
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
+        let mut worker = Worker::new(bus.clone(), session, None);
+        let mut stream = bus.subscribe(None);
+        let mut actions = Vec::new();
+
+        worker.publish_engine_event(
+            EngineEvent::SessionError {
+                component: Some("network".to_string()),
+                message: "bind failed".to_string(),
+            },
+            &mut actions,
+        );
+
+        match next_event_with_timeout(&mut stream, 50).await {
+            Some(Event::HealthChanged { degraded }) => {
+                assert_eq!(degraded, vec!["network".to_string()]);
+            }
+            other => panic!("expected health change event, got {other:?}"),
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn tracker_error_marks_degraded_and_recovers() -> Result<()> {
+        let bus = EventBus::with_capacity(8);
+        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
+        let mut worker = Worker::new(bus.clone(), session, None);
+        let mut stream = bus.subscribe(None);
+        let torrent_id = Uuid::new_v4();
+        let mut actions = Vec::new();
+
+        worker.publish_engine_event(
+            EngineEvent::TrackerStatus {
+                torrent_id,
+                trackers: vec![TrackerStatus {
+                    url: "https://tracker.example/announce".to_string(),
+                    status: Some("error".to_string()),
+                    message: Some("unreachable".to_string()),
+                }],
+            },
+            &mut actions,
+        );
+
+        match next_event_with_timeout(&mut stream, 50).await {
+            Some(Event::HealthChanged { degraded }) => {
+                assert_eq!(degraded, vec!["tracker".to_string()]);
+            }
+            other => panic!("expected tracker degradation event, got {other:?}"),
+        }
+
+        let mut actions = Vec::new();
+        worker.publish_engine_event(
+            EngineEvent::TrackerStatus {
+                torrent_id,
+                trackers: vec![TrackerStatus {
+                    url: "https://tracker.example/announce".to_string(),
+                    status: None,
+                    message: None,
+                }],
+            },
+            &mut actions,
+        );
+
+        match next_event_with_timeout(&mut stream, 50).await {
+            Some(Event::HealthChanged { degraded }) => {
+                assert!(degraded.is_empty(), "expected tracker recovery");
+            }
+            other => panic!("expected tracker recovery event, got {other:?}"),
         }
 
         Ok(())

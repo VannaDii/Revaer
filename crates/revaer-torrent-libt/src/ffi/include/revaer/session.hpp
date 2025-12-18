@@ -22,6 +22,7 @@ struct SelectionRules;
 struct NativeEvent;
 struct EngineStorageState;
 struct NativePeerInfo;
+struct NativePeerInfo;
 
 class Session {
 public:

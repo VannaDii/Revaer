@@ -474,9 +474,7 @@ impl LibTorrentSession for NativeSession {
         let mut events = Vec::with_capacity(raw_events.len());
 
         for native in raw_events {
-            let Ok(torrent_id) = Uuid::parse_str(&native.id) else {
-                continue;
-            };
+            let torrent_id = Uuid::parse_str(&native.id).ok().filter(|id| !id.is_nil());
             events.extend(map_native_event(torrent_id, native));
         }
 
@@ -829,7 +827,7 @@ mod tests {
     fn native_event_translates_progress_and_resume_data() {
         let torrent_id = Uuid::new_v4();
         let events = map_native_event(
-            torrent_id,
+            Some(torrent_id),
             NativeEvent {
                 id: torrent_id.to_string(),
                 kind: NativeEventKind::Progress,
@@ -846,6 +844,7 @@ mod tests {
                 resume_data: Vec::new(),
                 message: String::new(),
                 tracker_statuses: Vec::new(),
+                component: String::new(),
             },
         );
 
@@ -864,7 +863,7 @@ mod tests {
         ));
 
         let resume = map_native_event(
-            torrent_id,
+            Some(torrent_id),
             NativeEvent {
                 id: torrent_id.to_string(),
                 kind: NativeEventKind::ResumeData,
@@ -881,6 +880,7 @@ mod tests {
                 resume_data: vec![1, 2, 3, 4],
                 message: String::new(),
                 tracker_statuses: Vec::new(),
+                component: String::new(),
             },
         );
 

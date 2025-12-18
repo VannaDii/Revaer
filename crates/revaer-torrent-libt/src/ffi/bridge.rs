@@ -506,6 +506,8 @@ pub mod ffi {
         message: String,
         /// Tracker status entries (if any).
         tracker_statuses: Vec<NativeTrackerStatus>,
+        /// Optional component identifier for session errors.
+        component: String,
     }
 
     /// Event kinds surfaced by the native bridge.
@@ -527,6 +529,8 @@ pub mod ffi {
         Error,
         /// Tracker status update.
         TrackerUpdate,
+        /// Session-level error not tied to a specific torrent.
+        SessionError,
     }
 
     /// Torrent lifecycle states emitted by libtorrent.
