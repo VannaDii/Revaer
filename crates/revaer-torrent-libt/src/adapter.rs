@@ -11,7 +11,7 @@ use crate::worker;
 use revaer_events::EventBus;
 use revaer_torrent_core::{
     AddTorrent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentEngine, TorrentRateLimit,
-    model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
+    model::{PieceDeadline, TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
 };
 
 const COMMAND_BUFFER: usize = 128;
@@ -131,6 +131,15 @@ impl TorrentEngine for LibtorrentEngine {
 
     async fn recheck(&self, id: Uuid) -> Result<()> {
         self.send_command(EngineCommand::Recheck { id }).await
+    }
+
+    async fn set_piece_deadline(&self, id: Uuid, deadline: PieceDeadline) -> Result<()> {
+        self.send_command(EngineCommand::SetPieceDeadline {
+            id,
+            piece: deadline.piece,
+            deadline_ms: deadline.deadline_ms,
+        })
+        .await
     }
 
     async fn peers(&self, id: Uuid) -> Result<Vec<PeerSnapshot>> {

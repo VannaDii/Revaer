@@ -146,6 +146,15 @@ pub struct TorrentOptionsUpdate {
     pub seed_time_limit: Option<u64>,
 }
 
+/// Request to set or clear a streaming deadline for a specific piece.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct PieceDeadline {
+    /// Piece index to target.
+    pub piece: u32,
+    /// Deadline in milliseconds; when omitted the deadline is cleared.
+    pub deadline_ms: Option<u32>,
+}
+
 /// Tracker update payload applied after admission.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TorrentTrackersUpdate {

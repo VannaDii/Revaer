@@ -101,6 +101,17 @@ pub trait LibTorrentSession: Send {
         id: Uuid,
         web_seeds: &revaer_torrent_core::model::TorrentWebSeedsUpdate,
     ) -> Result<()>;
+    /// Set or clear a deadline for a specific piece.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the deadline cannot be applied.
+    async fn set_piece_deadline(
+        &mut self,
+        id: Uuid,
+        piece: u32,
+        deadline_ms: Option<u32>,
+    ) -> Result<()>;
     /// Trigger tracker reannounce for a torrent.
     ///
     /// # Errors

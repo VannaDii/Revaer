@@ -97,4 +97,13 @@ pub enum EngineCommand {
         /// Channel used to return peer snapshots.
         respond_to: oneshot::Sender<anyhow::Result<Vec<PeerSnapshot>>>,
     },
+    /// Set or clear a streaming deadline for a piece.
+    SetPieceDeadline {
+        /// Unique torrent identifier.
+        id: Uuid,
+        /// Piece index to target.
+        piece: u32,
+        /// Deadline in milliseconds; when absent the deadline is cleared.
+        deadline_ms: Option<u32>,
+    },
 }

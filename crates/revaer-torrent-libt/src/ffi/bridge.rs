@@ -649,6 +649,15 @@ pub mod ffi {
         /// Recheck on-disk data for a torrent.
         #[must_use]
         fn recheck(self: Pin<&mut Session>, id: &str) -> String;
+        /// Set or clear a deadline for a piece.
+        #[must_use]
+        fn set_piece_deadline(
+            self: Pin<&mut Session>,
+            id: &str,
+            piece: u32,
+            deadline_ms: i32,
+            has_deadline: bool,
+        ) -> String;
         /// Inspect cache-related storage settings applied to the session.
         #[must_use]
         fn inspect_storage_state(self: &Session) -> EngineStorageState;

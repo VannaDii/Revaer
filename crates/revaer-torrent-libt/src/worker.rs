@@ -251,6 +251,13 @@ impl Worker {
             EngineCommand::Recheck { id } => {
                 self.handle_recheck(id).await?;
             }
+            EngineCommand::SetPieceDeadline {
+                id,
+                piece,
+                deadline_ms,
+            } => {
+                self.handle_piece_deadline(id, piece, deadline_ms).await?;
+            }
             EngineCommand::ApplyConfig(config) => {
                 self.handle_apply_config(*config).await?;
             }
@@ -804,6 +811,19 @@ impl Worker {
     async fn handle_recheck(&mut self, id: Uuid) -> Result<()> {
         self.session.recheck(id).await?;
         info!(torrent_id = %id, "recheck requested");
+        Ok(())
+    }
+
+    async fn handle_piece_deadline(
+        &mut self,
+        id: Uuid,
+        piece: u32,
+        deadline_ms: Option<u32>,
+    ) -> Result<()> {
+        self.session
+            .set_piece_deadline(id, piece, deadline_ms)
+            .await?;
+        info!(torrent_id = %id, piece = piece, "piece deadline updated");
         Ok(())
     }
 
@@ -1417,6 +1437,7 @@ mod tests {
         store::{FastResumeStore, StoredTorrentMetadata},
     };
     use anyhow::Result;
+    use async_trait::async_trait;
     use chrono::{TimeZone, Utc, Weekday};
     use revaer_events::{Event, EventBus, TorrentState};
     use revaer_torrent_core::{
@@ -1444,6 +1465,114 @@ mod tests {
         match timeout(Duration::from_millis(timeout_ms), stream.next()).await {
             Ok(Some(Ok(envelope))) => Some(envelope.event),
             _ => None,
+        }
+    }
+
+    type DeadlineLog = std::sync::Arc<tokio::sync::Mutex<Vec<(Uuid, u32, Option<u32>)>>>;
+
+    #[derive(Clone, Default)]
+    struct DeadlineSession {
+        deadlines: DeadlineLog,
+    }
+
+    #[async_trait]
+    impl LibTorrentSession for DeadlineSession {
+        async fn add_torrent(&mut self, _request: &AddTorrent) -> Result<()> {
+            Ok(())
+        }
+
+        async fn remove_torrent(&mut self, _id: Uuid, _options: &RemoveTorrent) -> Result<()> {
+            Ok(())
+        }
+
+        async fn pause_torrent(&mut self, _id: Uuid) -> Result<()> {
+            Ok(())
+        }
+
+        async fn resume_torrent(&mut self, _id: Uuid) -> Result<()> {
+            Ok(())
+        }
+
+        async fn set_sequential(&mut self, _id: Uuid, _sequential: bool) -> Result<()> {
+            Ok(())
+        }
+
+        async fn load_fastresume(&mut self, _id: Uuid, _payload: &[u8]) -> Result<()> {
+            Ok(())
+        }
+
+        async fn update_limits(
+            &mut self,
+            _id: Option<Uuid>,
+            _limits: &TorrentRateLimit,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn update_selection(
+            &mut self,
+            _id: Uuid,
+            _rules: &FileSelectionUpdate,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn update_options(
+            &mut self,
+            _id: Uuid,
+            _options: &revaer_torrent_core::model::TorrentOptionsUpdate,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn update_trackers(
+            &mut self,
+            _id: Uuid,
+            _trackers: &revaer_torrent_core::model::TorrentTrackersUpdate,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn update_web_seeds(
+            &mut self,
+            _id: Uuid,
+            _web_seeds: &revaer_torrent_core::model::TorrentWebSeedsUpdate,
+        ) -> Result<()> {
+            Ok(())
+        }
+
+        async fn reannounce(&mut self, _id: Uuid) -> Result<()> {
+            Ok(())
+        }
+
+        async fn move_torrent(&mut self, _id: Uuid, _download_dir: &str) -> Result<()> {
+            Ok(())
+        }
+
+        async fn recheck(&mut self, _id: Uuid) -> Result<()> {
+            Ok(())
+        }
+
+        async fn peers(&mut self, _id: Uuid) -> Result<Vec<PeerSnapshot>> {
+            Ok(Vec::new())
+        }
+
+        async fn poll_events(&mut self) -> Result<Vec<EngineEvent>> {
+            Ok(Vec::new())
+        }
+
+        async fn apply_config(&mut self, _config: &EngineRuntimeConfig) -> Result<()> {
+            Ok(())
+        }
+
+        async fn set_piece_deadline(
+            &mut self,
+            id: Uuid,
+            piece: u32,
+            deadline_ms: Option<u32>,
+        ) -> Result<()> {
+            self.deadlines.lock().await.push((id, piece, deadline_ms));
+            Ok(())
         }
     }
 
@@ -1754,6 +1883,27 @@ mod tests {
         assert_eq!(event_id, torrent_id);
         assert!(matches!(state, TorrentState::Downloading));
 
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn piece_deadline_command_invokes_session() -> Result<()> {
+        let bus = EventBus::with_capacity(4);
+        let session = DeadlineSession::default();
+        let log = session.deadlines.clone();
+        let mut worker = Worker::new(bus, Box::new(session), None);
+        let torrent_id = Uuid::new_v4();
+
+        worker
+            .handle(EngineCommand::SetPieceDeadline {
+                id: torrent_id,
+                piece: 3,
+                deadline_ms: Some(1_200),
+            })
+            .await?;
+
+        let entries = log.lock().await.clone();
+        assert_eq!(entries, vec![(torrent_id, 3, Some(1_200))]);
         Ok(())
     }
 
@@ -2654,6 +2804,15 @@ mod tests {
 
         async fn peers(&mut self, _id: Uuid) -> Result<Vec<PeerSnapshot>> {
             Err(anyhow::anyhow!("simulated session failure"))
+        }
+
+        async fn set_piece_deadline(
+            &mut self,
+            _id: Uuid,
+            _piece: u32,
+            _deadline_ms: Option<u32>,
+        ) -> Result<()> {
+            Ok(())
         }
 
         async fn apply_config(&mut self, _config: &EngineRuntimeConfig) -> Result<()> {

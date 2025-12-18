@@ -1559,6 +1559,14 @@ mod tests {
             self.removed.lock().await.push((id, options));
             Ok(())
         }
+
+        async fn set_piece_deadline(
+            &self,
+            _: Uuid,
+            _: revaer_torrent_core::model::PieceDeadline,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
     }
 
     #[async_trait]

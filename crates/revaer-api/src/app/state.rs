@@ -158,6 +158,14 @@ mod tests {
         async fn recheck(&self, _: Uuid) -> anyhow::Result<()> {
             Ok(())
         }
+
+        async fn set_piece_deadline(
+            &self,
+            _: Uuid,
+            _: revaer_torrent_core::model::PieceDeadline,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
     }
 
     #[async_trait]

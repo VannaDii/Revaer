@@ -290,6 +290,10 @@
 
 -   [ ] Streaming/piece-deadline support exposed
 
+    -   [x] API/worker: add piece deadline action and command.
+    -   [x] Bridge/native: surface set/reset piece deadline through FFI.
+    -   [ ] Tests: native test that deadlines apply without breaking transfers.
+
     -   [ ] API: optional streaming flag or piece deadlines for preview use-cases.
     -   [ ] Worker: new command to set piece deadlines/read-ahead for a torrent.
     -   [ ] Bridge/native: expose `set_piece_deadline`/`reset_piece_deadline` and read-ahead knobs through FFI; guard usage to streaming paths.

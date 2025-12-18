@@ -2,7 +2,7 @@
 
 use crate::model::TorrentStatus;
 use crate::model::{
-    AddTorrent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentRateLimit,
+    AddTorrent, FileSelectionUpdate, PeerSnapshot, PieceDeadline, RemoveTorrent, TorrentRateLimit,
     TorrentTrackersUpdate, TorrentWebSeedsUpdate,
 };
 use anyhow::bail;
@@ -106,6 +106,12 @@ pub trait TorrentEngine: Send + Sync {
         let _ = id;
         bail!("peer inspection not supported by this engine");
     }
+
+    /// Set or clear a streaming deadline for a piece.
+    async fn set_piece_deadline(&self, id: Uuid, deadline: PieceDeadline) -> anyhow::Result<()> {
+        let _ = (id, deadline);
+        bail!("piece deadline updates not supported by this engine");
+    }
 }
 
 /// Workflow façade exposed to the API layer for torrent lifecycle control.
@@ -200,6 +206,12 @@ pub trait TorrentWorkflow: Send + Sync {
         let _ = id;
         bail!("recheck not supported");
     }
+
+    /// Set or clear a streaming deadline for a piece.
+    async fn set_piece_deadline(&self, id: Uuid, deadline: PieceDeadline) -> anyhow::Result<()> {
+        let _ = (id, deadline);
+        bail!("piece deadline updates not supported");
+    }
 }
 
 /// Inspector trait used by API consumers to fetch torrent snapshots.
@@ -255,6 +267,18 @@ mod tests {
                 .expect_err("sequential should error")
                 .to_string()
                 .contains("sequential")
+        );
+        assert!(
+            engine
+                .set_piece_deadline(
+                    id,
+                    PieceDeadline {
+                        piece: 0,
+                        deadline_ms: Some(1_000),
+                    },
+                )
+                .await
+                .is_err()
         );
     }
 }

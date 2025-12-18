@@ -44,6 +44,7 @@ public:
     ::rust::String move_torrent(const MoveTorrentRequest& request);
     ::rust::String reannounce(::rust::Str id);
     ::rust::String recheck(::rust::Str id);
+    ::rust::String set_piece_deadline(::rust::Str id, std::uint32_t piece, std::int32_t deadline_ms, bool has_deadline);
     [[nodiscard]] EngineStorageState inspect_storage_state() const;
     rust::Vec<NativePeerInfo> list_peers(::rust::Str id);
     rust::Vec<NativeEvent> poll_events();

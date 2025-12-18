@@ -458,6 +458,25 @@ impl LibTorrentSession for NativeSession {
         Self::map_error(result)
     }
 
+    async fn set_piece_deadline(
+        &mut self,
+        id: Uuid,
+        piece: u32,
+        deadline_ms: Option<u32>,
+    ) -> Result<()> {
+        let (deadline, has_deadline) = match deadline_ms {
+            Some(value) => {
+                let deadline = i32::try_from(value)
+                    .map_err(|_| anyhow!("deadline exceeds supported range"))?;
+                (deadline, true)
+            }
+            None => (0, false),
+        };
+        let session = self.inner.pin_mut();
+        let result = session.set_piece_deadline(&id.to_string(), piece, deadline, has_deadline);
+        Self::map_error(result)
+    }
+
     async fn apply_config(&mut self, config: &EngineRuntimeConfig) -> Result<()> {
         let plan = EngineOptionsPlan::from_runtime_config(config);
         for warning in &plan.warnings {

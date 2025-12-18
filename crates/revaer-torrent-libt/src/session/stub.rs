@@ -20,6 +20,7 @@ pub struct StubSession {
     torrents: HashMap<Uuid, StubTorrent>,
     pending_events: Vec<EngineEvent>,
     peer_map: HashMap<Uuid, Vec<PeerSnapshot>>,
+    deadlines: HashMap<Uuid, HashMap<u32, Option<u32>>>,
 }
 
 #[derive(Clone)]
@@ -321,6 +322,17 @@ impl LibTorrentSession for StubSession {
         torrent.web_seeds = seeds;
         torrent.replace_web_seeds = web_seeds.replace;
         self.refresh_resume(id);
+        Ok(())
+    }
+
+    async fn set_piece_deadline(
+        &mut self,
+        id: Uuid,
+        piece: u32,
+        deadline_ms: Option<u32>,
+    ) -> Result<()> {
+        let deadlines = self.deadlines.entry(id).or_default();
+        deadlines.insert(piece, deadline_ms);
         Ok(())
     }
 

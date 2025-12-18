@@ -1048,6 +1048,14 @@ pub enum TorrentAction {
         /// Destination path for in-progress data.
         download_dir: String,
     },
+    /// Set or clear a deadline for a specific piece to support streaming.
+    PieceDeadline {
+        /// Zero-based piece index to target.
+        piece: u32,
+        #[serde(default)]
+        /// Deadline in milliseconds; when omitted the deadline is cleared.
+        deadline_ms: Option<u32>,
+    },
 }
 
 impl TorrentAction {

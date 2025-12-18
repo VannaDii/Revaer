@@ -1092,6 +1092,17 @@ public:
         });
     }
 
+    ::rust::String set_piece_deadline(::rust::Str id, std::uint32_t piece, std::int32_t deadline_ms, bool has_deadline) {
+        return mutate_handle(to_std_string(id), [piece, deadline_ms, has_deadline](lt::torrent_handle& handle) {
+            lt::piece_index_t target{static_cast<int>(piece)};
+            if (has_deadline) {
+                handle.set_piece_deadline(target, deadline_ms);
+            } else {
+                handle.reset_piece_deadline(target);
+            }
+        });
+    }
+
     rust::Vec<NativePeerInfo> list_peers(::rust::Str id) {
         rust::Vec<NativePeerInfo> peers_out;
         const auto key = to_std_string(id);
@@ -1677,6 +1688,11 @@ Session::~Session() = default;
 
 ::rust::String Session::recheck(::rust::Str id) {
     return impl_->recheck(to_std_string(id));
+}
+
+::rust::String Session::set_piece_deadline(
+    ::rust::Str id, std::uint32_t piece, std::int32_t deadline_ms, bool has_deadline) {
+    return impl_->set_piece_deadline(to_std_string(id), piece, deadline_ms, has_deadline);
 }
 
 rust::Vec<NativePeerInfo> Session::list_peers(::rust::Str id) {

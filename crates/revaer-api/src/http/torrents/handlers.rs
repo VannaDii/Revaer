@@ -445,6 +445,17 @@ pub(crate) async fn action_torrent(
             }
             workflow.move_torrent(id, trimmed.to_string()).await
         }
+        TorrentAction::PieceDeadline { piece, deadline_ms } => {
+            workflow
+                .set_piece_deadline(
+                    id,
+                    revaer_torrent_core::model::PieceDeadline {
+                        piece: *piece,
+                        deadline_ms: *deadline_ms,
+                    },
+                )
+                .await
+        }
     };
 
     result.map_err(|err| {
@@ -840,7 +851,8 @@ mod tests {
     use revaer_telemetry::Metrics;
     use revaer_torrent_core::{
         AddTorrent, FileSelectionUpdate, PeerChoke, PeerInterest, PeerSnapshot, RemoveTorrent,
-        TorrentRateLimit, TorrentStatus, model::TorrentTrackersUpdate,
+        TorrentRateLimit, TorrentStatus,
+        model::{PieceDeadline, TorrentTrackersUpdate},
     };
     use serde_json::json;
     use std::collections::HashMap;
@@ -1083,11 +1095,47 @@ mod tests {
         assert_eq!(metadata.download_dir.as_deref(), Some("/downloads/new"));
     }
 
+    #[tokio::test]
+    async fn piece_deadline_action_dispatches() {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = Arc::new(ApiState::new(
+            Arc::new(DummyConfig),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            Some(handles),
+        ));
+        let torrent_id = Uuid::new_v4();
+
+        let response = action_torrent(
+            State(state.clone()),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(torrent_id),
+            Json(TorrentAction::PieceDeadline {
+                piece: 7,
+                deadline_ms: Some(1_500),
+            }),
+        )
+        .await
+        .expect("action should succeed");
+
+        assert_eq!(response, StatusCode::ACCEPTED);
+        let deadlines = workflow.take_deadlines().await;
+        assert_eq!(deadlines.len(), 1);
+        assert_eq!(deadlines[0].0, torrent_id);
+        assert_eq!(deadlines[0].1.piece, 7);
+        assert_eq!(deadlines[0].1.deadline_ms, Some(1_500));
+    }
+
     #[derive(Default)]
     struct RecordingWorkflow {
         tracker_updates: AsyncMutex<Vec<TorrentTrackersUpdate>>,
         moves: AsyncMutex<Vec<(Uuid, String)>>,
         peers: AsyncMutex<HashMap<Uuid, Vec<PeerSnapshot>>>,
+        deadlines: AsyncMutex<Vec<(Uuid, PieceDeadline)>>,
     }
 
     #[async_trait::async_trait]
@@ -1157,6 +1205,15 @@ mod tests {
         async fn recheck(&self, _: Uuid) -> anyhow::Result<()> {
             Ok(())
         }
+
+        async fn set_piece_deadline(
+            &self,
+            id: Uuid,
+            deadline: PieceDeadline,
+        ) -> anyhow::Result<()> {
+            self.deadlines.lock().await.push((id, deadline));
+            Ok(())
+        }
     }
 
     #[async_trait::async_trait]
@@ -1193,6 +1250,13 @@ mod tests {
             let moves = guard.clone();
             guard.clear();
             moves
+        }
+
+        async fn take_deadlines(&self) -> Vec<(Uuid, PieceDeadline)> {
+            let mut guard = self.deadlines.lock().await;
+            let updates = guard.clone();
+            guard.clear();
+            updates
         }
 
         async fn set_peers(&self, id: Uuid, peers: Vec<PeerSnapshot>) {
