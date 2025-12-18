@@ -1,15 +1,6 @@
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
+use crate::models::SseState;
 use yew::prelude::*;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub(crate) enum SseState {
-    Connected,
-    Reconnecting {
-        retry_in_secs: u8,
-        last_event: &'static str,
-        reason: &'static str,
-    },
-}
 
 #[derive(Properties, PartialEq)]
 pub(crate) struct SseProps {

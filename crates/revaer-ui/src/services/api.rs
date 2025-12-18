@@ -1,12 +1,12 @@
 //! HTTP client helpers (REST).
 
-use crate::components::dashboard::{DashboardSnapshot, QueueStatus, TrackerHealth, VpnState};
-use crate::components::detail::DetailData;
-use crate::components::torrents::AddTorrentInput;
 use crate::core::logic::build_torrents_path;
 use crate::features::torrents::actions::TorrentAction;
 use crate::features::torrents::state::TorrentRow;
-use crate::models::{TorrentDetail, TorrentSummary};
+use crate::models::{
+    AddTorrentInput, DashboardSnapshot, DetailData, QueueStatus, TorrentDetail, TorrentSummary,
+    TrackerHealth, VpnState,
+};
 use gloo_net::http::Request;
 use serde::Serialize;
 use web_sys::FormData;

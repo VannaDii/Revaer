@@ -1,9 +1,9 @@
 use crate::components::auth::AuthPrompt;
-use crate::components::dashboard::{DashboardPanel, demo_snapshot};
-use crate::components::shell::{AppShell, NavLabels};
-use crate::components::status::{SseOverlay, SseState};
-use crate::components::toast::{Toast, ToastHost, ToastKind};
-use crate::components::torrents::{AddTorrentInput, TorrentView, demo_rows};
+use crate::components::dashboard::DashboardPanel;
+use crate::components::shell::AppShell;
+use crate::components::status::SseOverlay;
+use crate::components::toast::ToastHost;
+use crate::components::torrents::{TorrentView, demo_rows};
 use crate::core::breakpoints::Breakpoint;
 use crate::core::logic::backoff_delay_ms;
 use crate::core::theme::ThemeMode;
@@ -11,6 +11,7 @@ use crate::core::ui::{Density, UiMode};
 use crate::features::torrents::actions::{TorrentAction, success_message};
 use crate::features::torrents::state::{apply_progress, apply_rates, apply_remove, apply_status};
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode, TranslationBundle};
+use crate::models::{AddTorrentInput, NavLabels, SseState, Toast, ToastKind, demo_snapshot};
 use crate::services::api::ApiClient;
 use crate::services::sse::connect_sse;
 use gloo::events::EventListener;
@@ -720,10 +721,10 @@ fn remove_torrent(
 }
 
 fn update_system_rates(
-    state: &UseStateHandle<crate::components::dashboard::DashboardSnapshot>,
+    state: &UseStateHandle<crate::models::DashboardSnapshot>,
     download_bps: u64,
     upload_bps: u64,
-) -> crate::components::dashboard::DashboardSnapshot {
+) -> crate::models::DashboardSnapshot {
     let mut snapshot = (**state).clone();
     snapshot.download_bps = download_bps;
     snapshot.upload_bps = upload_bps;
@@ -731,14 +732,14 @@ fn update_system_rates(
 }
 
 fn update_queue(
-    state: &UseStateHandle<crate::components::dashboard::DashboardSnapshot>,
+    state: &UseStateHandle<crate::models::DashboardSnapshot>,
     active: u32,
     paused: u32,
     queued: u32,
     depth: u32,
-) -> crate::components::dashboard::DashboardSnapshot {
+) -> crate::models::DashboardSnapshot {
     let mut snapshot = (**state).clone();
-    snapshot.queue = crate::components::dashboard::QueueStatus {
+    snapshot.queue = crate::models::QueueStatus {
         active: active as u16,
         paused: paused as u16,
         queued: queued as u16,
@@ -748,13 +749,13 @@ fn update_queue(
 }
 
 fn update_vpn(
-    state: &UseStateHandle<crate::components::dashboard::DashboardSnapshot>,
+    state: &UseStateHandle<crate::models::DashboardSnapshot>,
     status: String,
     message: String,
     last_change: String,
-) -> crate::components::dashboard::DashboardSnapshot {
+) -> crate::models::DashboardSnapshot {
     let mut snapshot = (**state).clone();
-    snapshot.vpn = crate::components::dashboard::VpnState {
+    snapshot.vpn = crate::models::VpnState {
         state: status,
         message,
         last_change,

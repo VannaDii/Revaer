@@ -1,67 +1,8 @@
 use crate::features::torrents::state::TorrentRow;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
+use crate::models::{DashboardSnapshot, EventKind};
 use crate::{Density, UiMode};
 use yew::prelude::*;
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct DashboardSnapshot {
-    pub download_bps: u64,
-    pub upload_bps: u64,
-    pub active: u32,
-    pub paused: u32,
-    pub completed: u32,
-    pub disk_total_gb: u32,
-    pub disk_used_gb: u32,
-    pub paths: Vec<PathUsage>,
-    pub recent_events: Vec<DashboardEvent>,
-    pub tracker_health: TrackerHealth,
-    pub queue: QueueStatus,
-    pub vpn: VpnState,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct PathUsage {
-    pub label: &'static str,
-    pub used_gb: u32,
-    pub total_gb: u32,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct DashboardEvent {
-    pub label: &'static str,
-    pub detail: &'static str,
-    pub kind: EventKind,
-}
-
-#[allow(dead_code)]
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum EventKind {
-    Info,
-    Warning,
-    Error,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct TrackerHealth {
-    pub ok: u16,
-    pub warn: u16,
-    pub error: u16,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct QueueStatus {
-    pub active: u16,
-    pub paused: u16,
-    pub queued: u16,
-    pub depth: u16,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct VpnState {
-    pub state: String,
-    pub message: String,
-    pub last_change: String,
-}
 
 #[derive(Properties, PartialEq)]
 pub(crate) struct DashboardProps {
@@ -394,74 +335,5 @@ fn queue_bar(value: u16, label: &str, tone: &'static str) -> Html {
             <div class={classes!("bar", tone)} style={format!("width: {:.1}%", width)} />
             <small class="muted">{format!("{label} ({value})")}</small>
         </div>
-    }
-}
-
-/// Demo snapshot used by the initial UI shell.
-#[must_use]
-pub(crate) fn demo_snapshot() -> DashboardSnapshot {
-    DashboardSnapshot {
-        download_bps: 142_000_000,
-        upload_bps: 22_000_000,
-        active: 12,
-        paused: 4,
-        completed: 187,
-        disk_total_gb: 4200,
-        disk_used_gb: 2830,
-        paths: vec![
-            PathUsage {
-                label: "/data/media",
-                used_gb: 1800,
-                total_gb: 2600,
-            },
-            PathUsage {
-                label: "/data/incomplete",
-                used_gb: 120,
-                total_gb: 400,
-            },
-            PathUsage {
-                label: "/data/archive",
-                used_gb: 910,
-                total_gb: 1200,
-            },
-        ],
-        recent_events: vec![
-            DashboardEvent {
-                label: "Tracker warn",
-                detail: "udp://tracker.example: announce timeout; retrying in 5m",
-                kind: EventKind::Warning,
-            },
-            DashboardEvent {
-                label: "Filesystem move",
-                detail: "Moved The.Expanse.S01E05 → /media/tv/The Expanse/Season 1",
-                kind: EventKind::Info,
-            },
-            DashboardEvent {
-                label: "Tracker failure",
-                detail: "http://tracker.down: failed with 502 after retries",
-                kind: EventKind::Error,
-            },
-            DashboardEvent {
-                label: "VPN reconnection",
-                detail: "Recovered tunnel after 12s; session resumed",
-                kind: EventKind::Info,
-            },
-        ],
-        tracker_health: TrackerHealth {
-            ok: 24,
-            warn: 3,
-            error: 1,
-        },
-        queue: QueueStatus {
-            active: 12,
-            paused: 4,
-            queued: 18,
-            depth: 34,
-        },
-        vpn: VpnState {
-            state: "connected".into(),
-            message: "Routing through wg0".into(),
-            last_change: "12s ago".into(),
-        },
     }
 }

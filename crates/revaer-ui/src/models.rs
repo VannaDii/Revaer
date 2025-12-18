@@ -3,6 +3,292 @@
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+#[cfg(target_arch = "wasm32")]
+use web_sys::File;
+
+/// Dashboard snapshot used by the UI and API client.
+#[allow(missing_docs)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct DashboardSnapshot {
+    pub download_bps: u64,
+    pub upload_bps: u64,
+    pub active: u32,
+    pub paused: u32,
+    pub completed: u32,
+    pub disk_total_gb: u32,
+    pub disk_used_gb: u32,
+    pub paths: Vec<PathUsage>,
+    pub recent_events: Vec<DashboardEvent>,
+    pub tracker_health: TrackerHealth,
+    pub queue: QueueStatus,
+    pub vpn: VpnState,
+}
+
+/// Disk usage per path for the dashboard view.
+#[allow(missing_docs)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PathUsage {
+    pub label: &'static str,
+    pub used_gb: u32,
+    pub total_gb: u32,
+}
+
+/// Event entry displayed in the dashboard recent events list.
+#[allow(missing_docs)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct DashboardEvent {
+    pub label: &'static str,
+    pub detail: &'static str,
+    pub kind: EventKind,
+}
+
+/// Event severity kinds for dashboard events.
+#[allow(dead_code, missing_docs)]
+#[derive(Clone, Debug, PartialEq)]
+pub enum EventKind {
+    Info,
+    Warning,
+    Error,
+}
+
+/// Tracker health aggregates.
+#[allow(missing_docs)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TrackerHealth {
+    pub ok: u16,
+    pub warn: u16,
+    pub error: u16,
+}
+
+/// Queue status aggregates.
+#[allow(missing_docs)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct QueueStatus {
+    pub active: u16,
+    pub paused: u16,
+    pub queued: u16,
+    pub depth: u16,
+}
+
+/// VPN state summary for the dashboard.
+#[allow(missing_docs)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct VpnState {
+    pub state: String,
+    pub message: String,
+    pub last_change: String,
+}
+
+/// Toast variants used across the UI.
+#[allow(missing_docs)]
+#[derive(Clone, Debug, PartialEq)]
+pub enum ToastKind {
+    Info,
+    Success,
+    Error,
+}
+
+/// Toast payload used by the host and app state.
+#[allow(missing_docs)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Toast {
+    pub id: u64,
+    pub message: String,
+    pub kind: ToastKind,
+}
+
+/// Navigation labels supplied by the router shell.
+#[allow(missing_docs)]
+#[derive(Clone, PartialEq)]
+pub struct NavLabels {
+    pub dashboard: String,
+    pub torrents: String,
+    pub search: String,
+    pub jobs: String,
+    pub settings: String,
+    pub logs: String,
+}
+
+/// SSE connection state shared across shell/status components.
+#[allow(missing_docs)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SseState {
+    Connected,
+    Reconnecting {
+        retry_in_secs: u8,
+        last_event: &'static str,
+        reason: &'static str,
+    },
+}
+
+/// Dialog confirmation kinds for torrent actions.
+#[allow(missing_docs)]
+#[derive(Clone, Debug, PartialEq)]
+pub enum ConfirmKind {
+    Delete,
+    DeleteData,
+    Recheck,
+}
+
+/// Torrent add payload accepted by the API and UI.
+#[cfg(target_arch = "wasm32")]
+#[allow(missing_docs)]
+#[derive(Clone, Debug)]
+pub struct AddTorrentInput {
+    pub value: Option<String>,
+    pub file: Option<File>,
+    pub category: Option<String>,
+    pub tags: Option<Vec<String>>,
+    pub save_path: Option<String>,
+}
+
+#[cfg(target_arch = "wasm32")]
+impl PartialEq for AddTorrentInput {
+    fn eq(&self, other: &Self) -> bool {
+        self.value == other.value
+            && self.category == other.category
+            && self.tags == other.tags
+            && self.save_path == other.save_path
+            && self.file.as_ref().map(|f| f.name()) == other.file.as_ref().map(|f| f.name())
+    }
+}
+
+/// Torrent detail view node representation.
+#[allow(missing_docs)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct FileNode {
+    pub name: String,
+    pub size_gb: f32,
+    pub completed_gb: f32,
+    pub priority: String,
+    pub wanted: bool,
+    pub children: Vec<FileNode>,
+}
+
+/// Peer row for detail pane.
+#[allow(missing_docs)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PeerRow {
+    pub ip: String,
+    pub client: String,
+    pub flags: String,
+    pub country: String,
+    pub download_bps: u64,
+    pub upload_bps: u64,
+    pub progress: f32,
+}
+
+/// Tracker row for detail pane.
+#[allow(missing_docs)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct TrackerRow {
+    pub url: String,
+    pub status: String,
+    pub next_announce: String,
+    pub last_error: Option<String>,
+}
+
+/// Event row for detail pane.
+#[allow(missing_docs)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct EventRow {
+    pub timestamp: String,
+    pub level: String,
+    pub message: String,
+}
+
+/// Metadata section for detail pane.
+#[allow(missing_docs)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Metadata {
+    pub hash: String,
+    pub magnet: String,
+    pub size_gb: f32,
+    pub piece_count: u32,
+    pub piece_size_mb: u32,
+}
+
+/// Aggregated detail data used by the UI.
+#[allow(missing_docs)]
+#[derive(Clone, Debug, PartialEq)]
+pub struct DetailData {
+    pub name: String,
+    pub files: Vec<FileNode>,
+    pub peers: Vec<PeerRow>,
+    pub trackers: Vec<TrackerRow>,
+    pub events: Vec<EventRow>,
+    pub metadata: Metadata,
+}
+
+/// Demo snapshot used by the initial UI shell.
+#[must_use]
+pub fn demo_snapshot() -> DashboardSnapshot {
+    DashboardSnapshot {
+        download_bps: 142_000_000,
+        upload_bps: 22_000_000,
+        active: 12,
+        paused: 4,
+        completed: 187,
+        disk_total_gb: 4200,
+        disk_used_gb: 2830,
+        paths: vec![
+            PathUsage {
+                label: "/data/media",
+                used_gb: 1800,
+                total_gb: 2600,
+            },
+            PathUsage {
+                label: "/data/incomplete",
+                used_gb: 120,
+                total_gb: 400,
+            },
+            PathUsage {
+                label: "/data/archive",
+                used_gb: 910,
+                total_gb: 1200,
+            },
+        ],
+        recent_events: vec![
+            DashboardEvent {
+                label: "Tracker warn",
+                detail: "udp://tracker.example: announce timeout; retrying in 5m",
+                kind: EventKind::Warning,
+            },
+            DashboardEvent {
+                label: "Filesystem move",
+                detail: "Moved The.Expanse.S01E05 → /media/tv/The Expanse/Season 1",
+                kind: EventKind::Info,
+            },
+            DashboardEvent {
+                label: "Tracker failure",
+                detail: "http://tracker.down: failed with 502 after retries",
+                kind: EventKind::Error,
+            },
+            DashboardEvent {
+                label: "VPN reconnection",
+                detail: "Recovered tunnel after 12s; session resumed",
+                kind: EventKind::Info,
+            },
+        ],
+        tracker_health: TrackerHealth {
+            ok: 24,
+            warn: 3,
+            error: 1,
+        },
+        queue: QueueStatus {
+            active: 12,
+            paused: 4,
+            queued: 18,
+            depth: 34,
+        },
+        vpn: VpnState {
+            state: "connected".into(),
+            message: "Routing through wg0".into(),
+            last_change: "12s ago".into(),
+        },
+    }
+}
+
 /// Minimal torrent summary returned from the Phase 1 API.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TorrentSummary {
@@ -228,4 +514,171 @@ pub struct TorrentDetail {
     pub piece_count: u32,
     /// Piece size in bytes.
     pub piece_size_bytes: u32,
+}
+
+impl From<TorrentDetail> for DetailData {
+    fn from(detail: TorrentDetail) -> Self {
+        let files = detail
+            .files
+            .into_iter()
+            .map(|file| FileNode {
+                name: file.path,
+                size_gb: file.size_bytes as f32 / (1024.0 * 1024.0 * 1024.0),
+                completed_gb: file.completed_bytes as f32 / (1024.0 * 1024.0 * 1024.0),
+                priority: file.priority,
+                wanted: file.wanted,
+                children: vec![],
+            })
+            .collect();
+        let peers = detail
+            .peers
+            .into_iter()
+            .map(|peer| PeerRow {
+                ip: peer.ip,
+                client: peer.client,
+                flags: peer.flags,
+                country: peer.country.unwrap_or_default(),
+                download_bps: peer.download_bps,
+                upload_bps: peer.upload_bps,
+                progress: peer.progress,
+            })
+            .collect();
+        let trackers = detail
+            .trackers
+            .into_iter()
+            .map(|tracker| TrackerRow {
+                url: tracker.url,
+                status: tracker.status,
+                next_announce: tracker.next_announce_at.unwrap_or_else(|| "-".to_string()),
+                last_error: tracker.last_error,
+            })
+            .collect();
+        let events = detail
+            .events
+            .into_iter()
+            .map(|event| EventRow {
+                timestamp: event.timestamp,
+                level: event.level,
+                message: event.message,
+            })
+            .collect();
+        Self {
+            name: detail.name,
+            files,
+            peers,
+            trackers,
+            events,
+            metadata: Metadata {
+                hash: detail.hash,
+                magnet: detail.magnet,
+                size_gb: detail.size_bytes as f32 / (1024.0 * 1024.0 * 1024.0),
+                piece_count: detail.piece_count,
+                piece_size_mb: detail.piece_size_bytes / 1024 / 1024,
+            },
+        }
+    }
+}
+
+/// Demo detail record used by the torrent view.
+#[must_use]
+pub fn demo_detail(id: &str) -> Option<DetailData> {
+    let name = match id {
+        "2" => "The.Expanse.S01E05.1080p.BluRay.DTS.x264",
+        "3" => "Dune.Part.One.2021.2160p.REMUX.DV.DTS-HD.MA.7.1",
+        "4" => "Ubuntu-24.04.1-live-server-amd64.iso",
+        "5" => "Arcane.S02E02.1080p.NF.WEB-DL.DDP5.1.Atmos.x264",
+        _ => "Foundation.S02E08.2160p.WEB-DL.DDP5.1.Atmos.HDR10",
+    };
+
+    Some(DetailData {
+        name: name.to_string(),
+        files: vec![
+            FileNode {
+                name: "Foundation.S02E08.mkv".to_string(),
+                size_gb: 14.2,
+                completed_gb: 6.1,
+                priority: "high".to_string(),
+                wanted: true,
+                children: vec![],
+            },
+            FileNode {
+                name: "Extras".to_string(),
+                size_gb: 3.2,
+                completed_gb: 1.4,
+                priority: "normal".to_string(),
+                wanted: true,
+                children: vec![
+                    FileNode {
+                        name: "Featurette-01.mkv".to_string(),
+                        size_gb: 1.1,
+                        completed_gb: 1.1,
+                        priority: "normal".to_string(),
+                        wanted: true,
+                        children: vec![],
+                    },
+                    FileNode {
+                        name: "Interview-01.mkv".to_string(),
+                        size_gb: 0.9,
+                        completed_gb: 0.2,
+                        priority: "low".to_string(),
+                        wanted: false,
+                        children: vec![],
+                    },
+                ],
+            },
+        ],
+        peers: vec![
+            PeerRow {
+                ip: "203.0.113.24".to_string(),
+                client: "qBittorrent 4.6".to_string(),
+                flags: "DIXE".to_string(),
+                country: "CA".to_string(),
+                download_bps: 8_400_000,
+                upload_bps: 650_000,
+                progress: 0.54,
+            },
+            PeerRow {
+                ip: "198.51.100.18".to_string(),
+                client: "Transmission 4.0".to_string(),
+                flags: "UXE".to_string(),
+                country: "US".to_string(),
+                download_bps: 2_200_000,
+                upload_bps: 90_000,
+                progress: 0.31,
+            },
+        ],
+        trackers: vec![
+            TrackerRow {
+                url: "udp://tracker.example:6969".to_string(),
+                status: "online".to_string(),
+                next_announce: "in 3m".to_string(),
+                last_error: None,
+            },
+            TrackerRow {
+                url: "http://tracker.down/announce".to_string(),
+                status: "error".to_string(),
+                next_announce: "retrying".to_string(),
+                last_error: Some("502 Bad Gateway".to_string()),
+            },
+        ],
+        events: vec![
+            EventRow {
+                timestamp: "12:04:11".to_string(),
+                level: "info".to_string(),
+                message: "Resumed torrent after pause".to_string(),
+            },
+            EventRow {
+                timestamp: "12:03:55".to_string(),
+                level: "warn".to_string(),
+                message: "Tracker timed out; will retry".to_string(),
+            },
+        ],
+        metadata: Metadata {
+            hash: "123456ABCDEF".into(),
+            magnet: "magnet:?xt=urn:btih:123456ABCDEF".into(),
+            size_gb: 14.2,
+            piece_count: 1120,
+            piece_size_mb: 8,
+        },
+    })
 }

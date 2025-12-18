@@ -1,20 +1,7 @@
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
+use crate::models::{Toast, ToastKind};
 use gloo::timers::callback::Timeout;
 use yew::prelude::*;
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum ToastKind {
-    Info,
-    Success,
-    Error,
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) struct Toast {
-    pub id: u64,
-    pub message: String,
-    pub kind: ToastKind,
-}
 
 #[derive(Properties, PartialEq)]
 pub(crate) struct ToastHostProps {

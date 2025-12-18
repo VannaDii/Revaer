@@ -1,21 +1,12 @@
 use crate::UiMode;
 use crate::app::Route;
 use crate::breakpoints::Breakpoint;
-use crate::components::status::{SseBadge, SseState};
+use crate::components::status::SseBadge;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
+use crate::models::{NavLabels, SseState};
 use crate::theme::ThemeMode;
 use yew::prelude::*;
 use yew_router::prelude::Link;
-
-#[derive(Clone, PartialEq)]
-pub(crate) struct NavLabels {
-    pub dashboard: String,
-    pub torrents: String,
-    pub search: String,
-    pub jobs: String,
-    pub settings: String,
-    pub logs: String,
-}
 
 #[derive(Properties, PartialEq)]
 pub(crate) struct ShellProps {

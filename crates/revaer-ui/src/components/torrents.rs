@@ -1,4 +1,4 @@
-use crate::components::detail::{DetailView, demo_detail};
+use crate::components::detail::DetailView;
 use crate::components::virtual_list::VirtualList;
 use crate::core::breakpoints::Breakpoint;
 use crate::core::logic::{
@@ -8,6 +8,7 @@ use crate::core::logic::{
 use crate::features::torrents::actions::TorrentAction;
 use crate::features::torrents::state::TorrentRow;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
+use crate::models::{AddTorrentInput, ConfirmKind, demo_detail};
 use crate::services::api::ApiClient;
 use crate::{Density, UiMode};
 use std::collections::BTreeSet;
@@ -36,25 +37,6 @@ pub(crate) struct TorrentProps {
     pub regex: bool,
     pub on_search: Callback<String>,
     pub on_toggle_regex: Callback<()>,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct AddTorrentInput {
-    pub value: Option<String>,
-    pub file: Option<File>,
-    pub category: Option<String>,
-    pub tags: Option<Vec<String>>,
-    pub save_path: Option<String>,
-}
-
-impl PartialEq for AddTorrentInput {
-    fn eq(&self, other: &Self) -> bool {
-        self.value == other.value
-            && self.category == other.category
-            && self.tags == other.tags
-            && self.save_path == other.save_path
-            && self.file.as_ref().map(|f| f.name()) == other.file.as_ref().map(|f| f.name())
-    }
 }
 
 #[function_component(TorrentView)]
@@ -973,13 +955,6 @@ fn mobile_action_row(props: &MobileActionProps) -> Html {
             <button class="solid">{t("torrents.more")}</button>
         </div>
     }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub(crate) enum ConfirmKind {
-    Delete,
-    DeleteData,
-    Recheck,
 }
 
 #[derive(Properties, PartialEq)]
