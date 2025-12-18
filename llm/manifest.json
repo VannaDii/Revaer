@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2025-12-14T18:39:33.144626493+00:00",
+  "generated": "2025-12-18T04:39:00.657887033+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -231,6 +231,46 @@
       "summary": "Status: Accepted Date: 2025-12-12 Context: Tracker configuration and per-torrent trackers were only partially wired, creating drift between API, DB, and runtime handling. Client-supplied trackers were not persisted in resume metadata, and tags were ignored by the worker store, risking loss across restarts. AGENT guardrails require validation parity via stored procedures and no dead code as tracker fields expand. Decision: Add typed tracker config with shared normalization plus a stored procedure that clamps lists, proxy fields, and timeouts before persistence. Map tracker config into runtime/FFI/native session (user agent, announce overrides, proxy, default/extra lists, replace flag) and thread per-torrent trackers/replace through the",
       "tags": [],
       "href": "/adr/023-tracker-config-wiring/"
+    },
+    {
+      "id": "adr/024-seeding-stop-criteria",
+      "title": "Seeding stop criteria and per-torrent overrides",
+      "summary": "Status: Accepted Date: 2025-12-14 Context: TORRENT_GAPS calls for seed ratio/time stop knobs at both profile and per-torrent scope. We must keep config/DB/runtime/API in lock-step via stored procedures and shared validators (AGENT). Libtorrent exposes global share_ratio_limit / seed_time_limit, but per-torrent setters are limited; we still need per-torrent overrides. No new dependencies allowed; coverage, lint, and just ci gates must stay green. Decision: Added seed_ratio_limit (f64) and seed_time_limit (seconds, i64) to engine profiles with normalization/validation (non-negative, finite) and a migration updating the unified stored procs. Threaded the limits through runtime plans/options; apply_config now sets libtorrent’s global share_ratio_limit/seed_time_limit (ratio scaled ×1000). Worker records",
+      "tags": [],
+      "href": "/adr/024-seeding-stop-criteria/"
+    },
+    {
+      "id": "adr/025-seed-mode-add-as-complete",
+      "title": "025: Seed mode admission with optional hash sampling",
+      "summary": "Allow seed-mode admissions without full rechecks while optionally sampling hashes to guard against corrupt data.",
+      "tags": [
+        "consequences",
+        "context",
+        "decision",
+        "status"
+      ],
+      "href": "/adr/025-seed-mode-add-as-complete/"
+    },
+    {
+      "id": "adr/026-queue-auto-managed-and-pex",
+      "title": "Queue auto-managed defaults and PEX threading",
+      "summary": "Status: Accepted Date: 2025-03-16 Context: TORRENT_GAPS called out missing support for queue management toggles (auto-managed defaults, prefer-seed/don’t-count-slow policies) and peer exchange enable/disable paths. Config/runtime needed a single source of truth so workers and the native bridge don’t drift, and per-torrent overrides had to survive restarts via metadata. Decision: Added engine profile fields auto_managed, auto_manage_prefer_seeds, and dont_count_slow_torrents with validation/normalization and a unified stored-proc update, plus a migration to persist them. Extended runtime/FFI to carry the queue policy flags; native now sets libtorrent’s auto_manage_prefer_seeds/dont_count_slow_torrents, tracks the default auto-managed posture, and applies per-torrent overrides (including queue position) when adding torrents. Threaded pex_enabled through",
+      "tags": [],
+      "href": "/adr/026-queue-auto-managed-and-pex/"
+    },
+    {
+      "id": "adr/027-choking-and-super-seeding",
+      "title": "Choking Strategy And Super-Seeding Configuration",
+      "summary": "Status: Accepted Date: 2025-12-14 Context: TORRENT_GAPS requires configurable choke/unchoke strategy and super-seeding defaults. We must keep config/runtime/FFI/native paths aligned while preserving safe defaults. API and persistence need to surface new knobs without regressing existing behaviour. Decision: Added engine profile fields for choking (choking_algorithm, seed_choking_algorithm, strict_super_seeding, optimistic_unchoke_slots, max_queued_disk_bytes) and super_seeding. Normalise/validate values with guard-rail warnings; persist via a single stored-proc update path and migration 0006_choking_and_super_seeding.sql. Thread new options through runtime config, FFI structs, and native session (settings_pack + per-torrent flags). Per-torrent super_seeding overrides are stored with metadata. Updated API models/OpenAPI and added tests covering canonicalisation, clamping, and FFI planning. Consequences: Engine",
+      "tags": [],
+      "href": "/adr/027-choking-and-super-seeding/"
+    },
+    {
+      "id": "adr/028-qbittorrent-parity-and-tracker-tls",
+      "title": "qBittorrent Parity and Tracker TLS Wiring",
+      "summary": "Status: Accepted Date: 2025-12-17 Context: Libtorrent deprecation warnings and Phase 1 compatibility gaps required us to move away from deprecated tracker TLS fields and finish the qBittorrent façade. The façade needed tracker, peer, and properties endpoints so qBittorrent clients can query Revaer without custom plugins. Changes must comply with the AGENT.md gates (no unused code, warnings-as-errors, tests/coverage via just ci). Decision: Thread tracker TLS settings (trust store, verification flags, client cert/key) through config → runtime → FFI/native without using deprecated libtorrent fields, and cover with native tests. Expose qBittorrent-compatible endpoints for torrent properties, trackers, peer sync, categories, and tags; return",
+      "tags": [],
+      "href": "/adr/028-qbittorrent-parity-and-tracker-tls/"
     },
     {
       "id": "adr/index",
