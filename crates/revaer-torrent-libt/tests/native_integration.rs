@@ -6,6 +6,7 @@ use revaer_events::{Event, TorrentState};
 use revaer_test_support::fixtures::docker_available;
 use revaer_torrent_core::{
     AddTorrent, AddTorrentOptions, TorrentEngine, TorrentRateLimit, TorrentSource,
+    model::PieceDeadline,
 };
 use revaer_torrent_libt::types::StorageMode;
 use revaer_torrent_libt::{
@@ -113,6 +114,28 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
         )
         .await
         .context("apply global limits")?;
+
+    // Apply a piece deadline and clear it to ensure the native binding works end-to-end.
+    engine
+        .set_piece_deadline(
+            torrent_id,
+            PieceDeadline {
+                piece: 0,
+                deadline_ms: Some(1_000),
+            },
+        )
+        .await
+        .context("set piece deadline")?;
+    engine
+        .set_piece_deadline(
+            torrent_id,
+            PieceDeadline {
+                piece: 0,
+                deadline_ms: None,
+            },
+        )
+        .await
+        .context("clear piece deadline")?;
 
     let mut stream = bus.subscribe(None);
     let mut saw_progress = false;

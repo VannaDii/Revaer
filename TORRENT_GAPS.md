@@ -288,13 +288,9 @@
     -   [x] Implement compatible endpoints for trackers (`/torrents/trackers` + ops), peers (`/sync/torrentPeers`), full torrent properties (`/torrents/properties`), categories/tags endpoints, aligned with our domain and security posture.
     -   [x] Tests: compatibility tests for the façade, ensuring responses match expected shapes/behaviors.
 
--   [ ] Streaming/piece-deadline support exposed
+-   [x] Streaming/piece-deadline support exposed
 
-    -   [x] API/worker: add piece deadline action and command.
-    -   [x] Bridge/native: surface set/reset piece deadline through FFI.
-    -   [ ] Tests: native test that deadlines apply without breaking transfers.
-
-    -   [ ] API: optional streaming flag or piece deadlines for preview use-cases.
-    -   [ ] Worker: new command to set piece deadlines/read-ahead for a torrent.
-    -   [ ] Bridge/native: expose `set_piece_deadline`/`reset_piece_deadline` and read-ahead knobs through FFI; guard usage to streaming paths.
-    -   [ ] Tests: native test that deadlines apply and do not break normal transfers.
+    -   [x] API: optional streaming flag or piece deadlines for preview use-cases.
+    -   [x] Worker: new command to set piece deadlines/read-ahead for a torrent.
+    -   [x] Bridge/native: expose `set_piece_deadline`/`reset_piece_deadline` and read-ahead knobs through FFI; guard usage to streaming paths.
+    -   [x] Tests: native test that deadlines apply without breaking transfers.
