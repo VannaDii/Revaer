@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <load src="partials/components-layout/sidebar.html" />
+
+                <div id="components-layout-main">
+                    <load src="partials/components-layout/topbar.html" />
+
+                    <div id="components-layout-content">
+                        <div>
+                            <div class="flex flex-col items-center justify-center space-y-0.5">
+                                <div
+                                    class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                    <div class="status status-sm bg-base-content/30"></div>
+                                    Layouts
+                                </div>
+                                <p
+                                    class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                    Dashboard Skeleton
+                                </p>
+                                <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                    Responsive dashboard blueprint, featuring adaptive grids for
+                                    statistics, charts, and interactive content displays
+                                </p>
+                            </div>
+                            <p class="text-base-content/60 mt-6 font-medium lg:mt-12">Demos</p>
+                            <div class="mt-6 space-y-6 md:space-y-8 xl:space-y-12">
+                                <div class="card bg-base-100 card-border">
+                                    <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                        Basic
+                                    </div>
+                                    <div class="p-5">
+                                        <div
+                                            class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+                                            <div
+                                                class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-28 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                <p class="text-base-content/80 font-medium">
+                                                    Stats
+                                                </p>
+                                                <p class="text-base-content/50 text-sm">1 / 4</p>
+                                            </div>
+                                            <div
+                                                class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-28 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                <p class="text-base-content/80 font-medium">
+                                                    Stats
+                                                </p>
+                                                <p class="text-base-content/50 text-sm">1 / 4</p>
+                                            </div>
+                                            <div
+                                                class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-28 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                <p class="text-base-content/80 font-medium">
+                                                    Stats
+                                                </p>
+                                                <p class="text-base-content/50 text-sm">1 / 4</p>
+                                            </div>
+                                            <div
+                                                class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-28 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                <p class="text-base-content/80 font-medium">
+                                                    Stats
+                                                </p>
+                                                <p class="text-base-content/50 text-sm">1 / 4</p>
+                                            </div>
+                                        </div>
+                                        <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
+                                            <div
+                                                class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box col-span-1 flex h-80 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all lg:col-span-7">
+                                                <p class="text-base-content/80 font-medium">
+                                                    Primary Chart
+                                                </p>
+                                                <p class="text-base-content/50 text-sm">7 / 12</p>
+                                            </div>
+                                            <div
+                                                class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box col-span-1 flex h-80 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all lg:col-span-5">
+                                                <p class="text-base-content/80 font-medium">
+                                                    Secondary Chart
+                                                </p>
+                                                <p class="text-base-content/50 text-sm">5 / 12</p>
+                                            </div>
+                                        </div>
+                                        <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-3">
+                                            <div
+                                                class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-60 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                <p class="text-base-content/80 font-medium">
+                                                    Chat Area
+                                                </p>
+                                                <p class="text-base-content/50 text-sm">1 / 3</p>
+                                            </div>
+                                            <div
+                                                class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-60 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                <p class="text-base-content/80 font-medium">
+                                                    Listing
+                                                </p>
+                                                <p class="text-base-content/50 text-sm">1 / 3</p>
+                                            </div>
+                                            <div
+                                                class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-60 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                <p class="text-base-content/80 font-medium">
+                                                    Utility Section
+                                                </p>
+                                                <p class="text-base-content/50 text-sm">1 / 3</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card bg-base-100 card-border">
+                                    <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                        Multi-Panel
+                                    </div>
+                                    <div class="p-5">
+                                        <div class="grid grid-cols-12 gap-5">
+                                            <div
+                                                class="col-span-12 space-y-5 md:col-span-4 xl:col-span-3 2xl:col-span-2">
+                                                <div
+                                                    class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-22 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                    <p class="text-base-content/80 font-medium">
+                                                        Stats
+                                                    </p>
+                                                    <p class="text-base-content/50 text-sm">
+                                                        2 / 12
+                                                    </p>
+                                                </div>
+                                                <div
+                                                    class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-22 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                    <p class="text-base-content/80 font-medium">
+                                                        Stats
+                                                    </p>
+                                                    <p class="text-base-content/50 text-sm">
+                                                        2 / 12
+                                                    </p>
+                                                </div>
+                                                <div
+                                                    class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-22 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                    <p class="text-base-content/80 font-medium">
+                                                        Stats
+                                                    </p>
+                                                    <p class="text-base-content/50 text-sm">
+                                                        2 / 12
+                                                    </p>
+                                                </div>
+                                                <div
+                                                    class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-22 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                    <p class="text-base-content/80 font-medium">
+                                                        Stats
+                                                    </p>
+                                                    <p class="text-base-content/50 text-sm">
+                                                        2 / 12
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box col-span-12 flex h-103 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all md:col-span-8 xl:col-span-6 2xl:col-span-7">
+                                                <p class="text-base-content/80 font-medium">
+                                                    Primary Chart
+                                                </p>
+                                                <p class="text-base-content/50 text-sm">7 / 12</p>
+                                            </div>
+                                            <div class="col-span-12 xl:col-span-3">
+                                                <div
+                                                    class="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-1">
+                                                    <div class="col-span-1">
+                                                        <div
+                                                            class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-36 min-h-full cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                            <p
+                                                                class="text-base-content/80 font-medium">
+                                                                Panel One
+                                                            </p>
+                                                            <p class="text-base-content/50 text-sm">
+                                                                3 / 12
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <div class="col-span-1">
+                                                        <div
+                                                            class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-62 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                            <p
+                                                                class="text-base-content/80 font-medium">
+                                                                Panel Two
+                                                            </p>
+                                                            <p class="text-base-content/50 text-sm">
+                                                                3 / 12
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="mt-6 grid grid-cols-1 gap-5 lg:grid-cols-4">
+                                            <div
+                                                class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-60 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                <p class="text-base-content/80 font-medium">
+                                                    Chat Area
+                                                </p>
+                                                <p class="text-base-content/50 text-sm">1 / 4</p>
+                                            </div>
+                                            <div
+                                                class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box col-span-1 flex h-60 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all lg:col-span-2">
+                                                <p class="text-base-content/80 font-medium">
+                                                    Listing
+                                                </p>
+                                                <p class="text-base-content/50 text-sm">2 / 4</p>
+                                            </div>
+                                            <div
+                                                class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-60 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                <p class="text-base-content/80 font-medium">
+                                                    Utility Section
+                                                </p>
+                                                <p class="text-base-content/50 text-sm">1 / 4</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card bg-base-100 card-border">
+                                    <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                        Split View
+                                    </div>
+                                    <div class="grid grid-cols-1 lg:grid-cols-4">
+                                        <div
+                                            class="border-base-200 col-span-1 p-5 lg:col-span-3 lg:border-e">
+                                            <div class="grid grid-cols-1 gap-5 md:grid-cols-3">
+                                                <div
+                                                    class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-28 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                    <p class="text-base-content/80 font-medium">
+                                                        Stats
+                                                    </p>
+                                                    <p class="text-base-content/50 text-sm">
+                                                        1 / 3
+                                                    </p>
+                                                </div>
+                                                <div
+                                                    class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-28 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                    <p class="text-base-content/80 font-medium">
+                                                        Stats
+                                                    </p>
+                                                    <p class="text-base-content/50 text-sm">
+                                                        1 / 3
+                                                    </p>
+                                                </div>
+                                                <div
+                                                    class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-28 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                    <p class="text-base-content/80 font-medium">
+                                                        Stats
+                                                    </p>
+                                                    <p class="text-base-content/50 text-sm">
+                                                        1 / 3
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div class="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
+                                                <div
+                                                    class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-112 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                    <p class="text-base-content/80 font-medium">
+                                                        Listing
+                                                    </p>
+                                                    <p class="text-base-content/50 text-sm">
+                                                        1 / 2
+                                                    </p>
+                                                </div>
+                                                <div class="space-y-5">
+                                                    <div
+                                                        class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-38 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                        <p class="text-base-content/80 font-medium">
+                                                            Utility
+                                                        </p>
+                                                        <p class="text-base-content/50 text-sm">
+                                                            1 / 2
+                                                        </p>
+                                                    </div>
+                                                    <div
+                                                        class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-69 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                        <p class="text-base-content/80 font-medium">
+                                                            Chat Area
+                                                        </p>
+                                                        <p class="text-base-content/50 text-sm">
+                                                            1 / 2
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-span-1 p-5 max-lg:pt-0">
+                                            <div
+                                                class="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-1">
+                                                <div
+                                                    class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-80 cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                    <p class="text-base-content/80 font-medium">
+                                                        Panel One
+                                                    </p>
+                                                    <p class="text-base-content/50 text-sm">
+                                                        1 / 4
+                                                    </p>
+                                                </div>
+                                                <div
+                                                    class="border-base-300/80 hover:bg-base-200/40 hover:border-base-300 bg-base-200/20 rounded-box flex h-60 min-h-full cursor-pointer flex-col items-center justify-center border border-dashed text-center transition-all">
+                                                    <p class="text-base-content/80 font-medium">
+                                                        Panel Two
+                                                    </p>
+                                                    <p class="text-base-content/50 text-sm">
+                                                        1 / 4
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <load src="partials/components-layout/footer.html" />
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

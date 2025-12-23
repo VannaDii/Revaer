@@ -1,0 +1,1378 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div>
+            <div
+                id="landing-topbar"
+                class="group fixed inset-x-0 z-[60] flex justify-center transition-[top] duration-500 data-[scrolling=down]:-top-full sm:container [&:not([data-scrolling=down])]:top-0 [&:not([data-scrolling=down])]:sm:top-4">
+                <div
+                    class="group-data-[at-top=false]:bg-base-100 group-data-[at-top=false]:dark:bg-base-200 flex w-full items-center justify-between px-3 py-3 transition-all duration-500 group-data-[at-top=false]:w-[800px] group-data-[at-top=false]:shadow sm:rounded-full sm:px-6 lg:py-1.5">
+                    <div class="flex items-center gap-2">
+                        <div class="flex-none lg:hidden">
+                            <div class="drawer">
+                                <input
+                                    id="landing-menu-drawer"
+                                    type="checkbox"
+                                    class="drawer-toggle" />
+                                <div class="drawer-content">
+                                    <label
+                                        for="landing-menu-drawer"
+                                        class="btn drawer-button btn-ghost btn-square btn-sm">
+                                        <span class="iconify lucide--menu size-4.5"></span>
+                                    </label>
+                                </div>
+                                <div class="drawer-side z-[50]">
+                                    <label
+                                        for="landing-menu-drawer"
+                                        aria-label="close sidebar"
+                                        class="drawer-overlay"></label>
+                                    <ul
+                                        class="menu bg-base-100 text-base-content min-h-full w-80 p-4">
+                                        <li>
+                                            <a href="/dashboards-ecommerce">Dashboard</a>
+                                        </li>
+                                        <li>
+                                            <a href="/components">Components</a>
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+
+                        <a href="./dashboards-ecommerce.html">
+                            <load src="partials/logo.html" />
+                        </a>
+                    </div>
+                    <ul class="menu menu-horizontal hidden gap-2 px-0 lg:inline-flex">
+                        <li>
+                            <a href="/dashboards-ecommerce">Dashboard</a>
+                        </li>
+                        <li>
+                            <a href="/components">Components</a>
+                        </li>
+                    </ul>
+                    <div class="inline-flex items-center gap-3">
+                        <load
+                            src="partials/theme-toggle.html"
+                            class="btn btn-square btn-ghost btn-sm border-transparent" />
+                        <a
+                            href="https://daisyui.com/store/244268"
+                            target="_blank"
+                            class="btn from-primary to-secondary group/purchase text-primary-content btn-sm max-sm:btn-square relative gap-2 border-0 bg-linear-to-r text-sm">
+                            <span class="iconify lucide--shopping-cart size-4"></span>
+                            <span class="max-sm:hidden">Buy Now</span>
+                            <div
+                                class="from-primary to-secondary absolute inset-x-0 top-1 -z-1 h-8 bg-linear-to-r opacity-40 blur-md transition-all duration-500 group-hover/purchase:opacity-60 group-hover/purchase:blur-lg"></div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="relative">
+                <div
+                    class="absolute inset-0 -top-2 h-[1600px] bg-[url(/images/landing/hero-bg-gradient.png)] [background-size:200%_60%] bg-no-repeat opacity-20 [background-position-x:center] sm:[background-size:100%_100%] dark:opacity-15"></div>
+                <div class="relative z-10 container py-28 xl:py-40">
+                    <div class="flex flex-col items-center">
+                        <a
+                            class="flex items-center gap-1.5 rounded-full border border-white/60 bg-white/40 py-0.5 ps-1 pe-2 text-sm transition-all hover:bg-white/60 dark:border-white/5 dark:bg-white/5 dark:hover:bg-white/10"
+                            href="/components"
+                            target="_blank">
+                            <div
+                                class="bg-primary/10 border-primary/10 text-primary flex items-center justify-center rounded-full border px-1.5 py-0 text-xs font-medium dark:border-white/5 dark:bg-white/5 dark:text-white">
+                                v3
+                            </div>
+                            Endless Design
+                        </a>
+                        <div
+                            class="mt-4 max-w-[1000px] transition-all duration-1000 starting:scale-125 starting:opacity-0 starting:blur-sm">
+                            <p
+                                class="text-center text-2xl leading-tight font-bold sm:text-3xl md:text-4xl lg:text-5xl 2xl:text-6xl">
+                                Flexible, Quick, Effortless
+                                <br />
+                                Ultimate
+                                <span
+                                    class="animated-text bg-linear-to-r from-purple-500 via-blue-500 to-cyan-600 dark:from-purple-400 dark:via-blue-400 dark:to-cyan-400">
+                                    Admin Dashboard
+                                </span>
+                            </p>
+                        </div>
+                        <div
+                            class="mt-4 max-w-[750px] transition-all duration-1000 sm:mt-6 xl:mt-8 starting:opacity-0 starting:blur-sm">
+                            <p class="text-center max-sm:text-sm md:text-lg">
+                                Launch powerful modern dashboards with customizable apps,
+                                components, blocks and integrations designed to accelerate workflows
+                                and boost efficiency.
+                            </p>
+                        </div>
+
+                        <div
+                            class="mt-6 inline-flex items-center gap-2.5 transition-all delay-300 duration-1000 sm:gap-5 xl:mt-10 starting:opacity-0 starting:blur-sm">
+                            <a
+                                href="/dashboards-ecommerce"
+                                target="_blank"
+                                class="btn btn-primary btn-lg gap-2.5">
+                                <span class="iconify lucide--monitor-dot size-5 sm:size-5.5"></span>
+                                <div class="text-start">
+                                    <p class="text-sm/none">Dashboard</p>
+                                    <p class="text-primary-content/70 mt-px text-[11px]/none">
+                                        Preview
+                                    </p>
+                                </div>
+                            </a>
+                            <a
+                                href="/components"
+                                class="btn btn-ghost btn-neutral btn-lg gap-3 !border-transparent text-base dark:border-white dark:text-white dark:hover:bg-white dark:hover:text-black">
+                                <span class="iconify lucide--blocks size-5 sm:size-5.5"></span>
+                                Components
+                            </a>
+                        </div>
+                        <div
+                            class="group relative mt-8 max-w-full md:mt-16 md:max-w-xl lg:max-w-3xl xl:mt-20 xl:max-w-5xl 2xl:max-w-6xl">
+                            <div
+                                class="border-base-100/20 bg-base-100/30 dark:border-px relative rounded-lg border-2 py-2 dark:border-white/2 dark:bg-white/4">
+                                <div class="swiper" id="hero-swiper">
+                                    <div class="swiper-wrapper">
+                                        <div class="swiper-slide">
+                                            <div class="mx-2 cursor-pointer">
+                                                <a class="relative" href="/dashboards-ecommerce">
+                                                    <img
+                                                        src="/images/landing/dashboard-ecommerce-light.jpg"
+                                                        class="h-full w-full rounded-lg dark:hidden"
+                                                        alt="hero-landing" />
+                                                    <img
+                                                        src="/images/landing/dashboard-ecommerce-dark.jpg"
+                                                        class="hidden h-full w-full rounded-lg dark:block"
+                                                        alt="hero-landing" />
+                                                    <div
+                                                        class="absolute inset-0 flex items-end justify-center rounded-lg bg-linear-to-b from-transparent from-[50%] via-black/20 via-[80%] to-black/80 opacity-0 transition-all duration-300 group-hover:opacity-100">
+                                                        <div
+                                                            class="rounded-box mb-8 gap-2.5 bg-white px-4 py-2 text-sm font-medium text-black/80">
+                                                            Ecommerce Dashboard
+                                                        </div>
+                                                    </div>
+                                                </a>
+                                            </div>
+                                        </div>
+                                        <div class="swiper-slide">
+                                            <div class="mx-2 cursor-pointer">
+                                                <a class="relative" href="/dashboards/gen-ai">
+                                                    <img
+                                                        src="/images/landing/dashboard-gen-ai-light.jpg"
+                                                        class="h-full w-full rounded-lg dark:hidden"
+                                                        alt="hero-landing" />
+                                                    <img
+                                                        src="/images/landing/dashboard-gen-ai-dark.jpg"
+                                                        class="hidden h-full w-full rounded-lg dark:block"
+                                                        alt="hero-landing" />
+                                                    <div
+                                                        class="absolute inset-0 flex items-end justify-center rounded-lg bg-linear-to-b from-transparent from-[50%] via-black/20 via-[80%] to-black/80 opacity-0 transition-all duration-300 group-hover:opacity-100">
+                                                        <div
+                                                            class="rounded-box mb-8 gap-2.5 bg-white px-4 py-2 text-sm font-medium text-black/80">
+                                                            Gen AI Dashboard
+                                                        </div>
+                                                    </div>
+                                                </a>
+                                            </div>
+                                        </div>
+                                        <div class="swiper-slide">
+                                            <div class="mx-2 cursor-pointer">
+                                                <a class="relative" href="/dashboards/crm">
+                                                    <img
+                                                        src="/images/landing/dashboard-crm-light.jpg"
+                                                        class="h-full w-full rounded-lg dark:hidden"
+                                                        alt="hero-landing" />
+                                                    <img
+                                                        src="/images/landing/dashboard-crm-dark.jpg"
+                                                        class="hidden h-full w-full rounded-lg dark:block"
+                                                        alt="hero-landing" />
+                                                    <div
+                                                        class="absolute inset-0 flex items-end justify-center rounded-lg bg-linear-to-b from-transparent from-[50%] via-black/20 via-[80%] to-black/80 opacity-0 transition-all duration-300 group-hover:opacity-100">
+                                                        <div
+                                                            class="rounded-box mb-8 gap-2.5 bg-white px-4 py-2 text-sm font-medium text-black/80">
+                                                            CRM Dashboard
+                                                        </div>
+                                                    </div>
+                                                </a>
+                                            </div>
+                                        </div>
+                                        <div class="swiper-slide">
+                                            <div class="mx-2 cursor-pointer">
+                                                <a
+                                                    class="relative"
+                                                    href="/components"
+                                                    target="_blank">
+                                                    <img
+                                                        src="/images/landing/components-home-light.jpg"
+                                                        class="h-full w-full rounded-lg dark:hidden"
+                                                        alt="hero-landing" />
+                                                    <img
+                                                        src="/images/landing/components-home-dark.jpg"
+                                                        class="hidden h-full w-full rounded-lg dark:block"
+                                                        alt="hero-landing" />
+                                                    <div
+                                                        class="absolute inset-0 flex items-end justify-center rounded-lg bg-linear-to-b from-transparent from-[50%] via-black/20 via-[80%] to-black/80 opacity-0 transition-all duration-300 group-hover:opacity-100">
+                                                        <div
+                                                            class="rounded-box mb-8 gap-2.5 bg-white px-4 py-2 text-sm font-medium text-black/80">
+                                                            Components
+                                                        </div>
+                                                    </div>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                class="absolute z-1 flex justify-between max-md:start-1/2 max-md:-bottom-12 max-md:-translate-x-1/2 max-md:gap-3 md:-inset-x-24 md:top-1/2 md:-translate-y-1/2">
+                                <button
+                                    class="hero-swiper-button-prev border-base-200 flex size-8 cursor-pointer items-center justify-center rounded-full bg-white shadow-xs transition-all hover:shadow-md max-md:shadow md:size-10 dark:border-white/10 dark:bg-white/10 dark:hover:bg-white/20">
+                                    <span class="iconify lucide--chevron-left size-5"></span>
+                                </button>
+                                <button
+                                    class="hero-swiper-button-next border-base-200 flex size-8 cursor-pointer items-center justify-center rounded-full bg-white shadow-xs transition-all hover:shadow-md max-md:shadow md:size-10 dark:border-white/10 dark:bg-white/10 dark:hover:bg-white/20">
+                                    <span class="iconify lucide--chevron-right size-5"></span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="mt-16 text-center">
+                            <p class="text-base-content/60 font-medium">Available In</p>
+                            <div class="mt-4 flex flex-wrap items-center justify-center gap-6">
+                                <div class="tooltip" data-tip="Tailwind CSS 4">
+                                    <img
+                                        src="/images/landing/logo-tailwind.svg"
+                                        class="size-7 sm:size-9"
+                                        alt="Tailwind CSS" />
+                                </div>
+                                <div class="tooltip" data-tip="daisyUI 5 - Component Library">
+                                    <img
+                                        src="/images/landing/logo-daisyui.svg"
+                                        class="size-7 sm:size-9"
+                                        alt="DaisyUI" />
+                                </div>
+                                <div class="tooltip" data-tip="Javascript">
+                                    <img
+                                        src="/images/landing/logo-js.svg"
+                                        class="size-7 sm:size-9"
+                                        alt="Javascript" />
+                                </div>
+
+                                <div class="tooltip" data-tip="Typescript 5">
+                                    <img
+                                        src="/images/landing/logo-ts.svg"
+                                        class="size-7 sm:size-9"
+                                        alt="Typescript" />
+                                </div>
+                                <div class="tooltip" data-tip="Vite">
+                                    <img
+                                        src="/images/landing/logo-vite.svg"
+                                        class="size-7 sm:size-9"
+                                        alt="Vite" />
+                                </div>
+
+                                <div class="tooltip" data-tip="React 19">
+                                    <img
+                                        src="/images/landing/logo-react.svg"
+                                        class="size-7 sm:size-9"
+                                        alt="React" />
+                                </div>
+
+                                <div class="tooltip" data-tip="Next.JS 15">
+                                    <img
+                                        src="/images/landing/logo-next.svg"
+                                        class="size-7 sm:size-9 dark:invert"
+                                        alt="Next.JS" />
+                                </div>
+                                <div class="tooltip" data-tip="SvelteKit 2">
+                                    <img
+                                        src="/images/landing/logo-svelte.svg"
+                                        class="size-7 sm:size-9"
+                                        alt="SvelteKit 2" />
+                                </div>
+                                <div class="tooltip" data-tip="Nuxt 3">
+                                    <img
+                                        src="/images/landing/logo-nuxt.svg"
+                                        class="size-8 sm:size-10"
+                                        alt="Nuxt 3" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="animate-bounce-slow absolute start-16 top-60 opacity-80 max-xl:hidden dark:opacity-60">
+                        <img src="/images/landing/hero-widget-1.png" class="h-30" alt="Hero 1" />
+                    </div>
+                    <div
+                        class="animate-bounce-slow absolute end-0 top-160 opacity-80 max-xl:hidden dark:opacity-60">
+                        <img src="/images/landing/hero-widget-2.png" class="h-30" alt="Hero 2" />
+                    </div>
+                </div>
+            </div>
+            <div id="features" class="container py-8 md:py-12 xl:py-16 2xl:py-24">
+                <div class="text-center">
+                    <div
+                        class="rounded-box inline-flex items-center border border-indigo-500/10 bg-indigo-500/5 p-2">
+                        <span class="iconify lucide--wand-2 size-5 text-indigo-600" />
+                    </div>
+                    <p id="fade-in" class="custom-fade-in mt-4 text-2xl font-semibold sm:text-3xl">
+                        Designed for Impact
+                    </p>
+                    <p class="text-base-content/70 mt-3 inline-block max-w-lg max-sm:text-sm">
+                        From layouts to interactions, every detail is built to deliver clarity,
+                        speed, and a seamless user experience.
+                    </p>
+                </div>
+                <div
+                    class="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:mt-16 xl:grid-cols-4 2xl:mt-24 2xl:gap-6">
+                    <div
+                        class="card border-base-300 cursor-pointer border border-dashed transition-all duration-300 hover:border-blue-500/40 hover:bg-blue-500/5">
+                        <div class="card-body">
+                            <div>
+                                <div
+                                    class="rounded-box inline-flex items-center bg-blue-500/5 p-2 text-blue-500">
+                                    <span class="iconify lucide--layers size-6"></span>
+                                </div>
+                                <p class="mt-3 text-lg font-medium">Framework Flexibility</p>
+                                <p
+                                    class="text-base-content/80 overflow-eclipsis mt-0.5 line-clamp-2 text-sm">
+                                    Integrate effortlessly with multiple frameworks to speed up
+                                    development
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="card border-base-300 cursor-pointer border border-dashed transition-all duration-300 hover:border-violet-500/40 hover:bg-violet-500/5">
+                        <div class="card-body">
+                            <div>
+                                <div
+                                    class="rounded-box inline-flex items-center bg-violet-500/5 p-2 text-violet-500">
+                                    <span class="iconify lucide--monitor-dot size-6"></span>
+                                </div>
+                                <p class="mt-3 text-lg font-medium">User-Friendly Dashboard</p>
+                                <p
+                                    class="text-base-content/80 overflow-eclipsis mt-0.5 line-clamp-2 text-sm">
+                                    Enjoy a sleek, responsive design for easy navigation and
+                                    real-time insights
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="card border-base-300 cursor-pointer border border-dashed transition-all duration-300 hover:border-cyan-600/40 hover:bg-cyan-600/5">
+                        <div class="card-body">
+                            <div>
+                                <div
+                                    class="rounded-box inline-flex items-center bg-cyan-600/5 p-2 text-cyan-600">
+                                    <span class="iconify lucide--package size-6"></span>
+                                </div>
+                                <p class="mt-3 text-lg font-medium">Ready-to-Use UI</p>
+                                <p
+                                    class="text-base-content/80 overflow-eclipsis mt-0.5 line-clamp-2 text-sm">
+                                    Quickly prototype with ready-made buttons, forms, and tables
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="card border-base-300 cursor-pointer border border-dashed transition-all duration-300 hover:border-fuchsia-500/40 hover:bg-fuchsia-500/5">
+                        <div class="card-body">
+                            <div>
+                                <div
+                                    class="rounded-box inline-flex items-center bg-fuchsia-500/5 p-2 text-fuchsia-500">
+                                    <span class="iconify lucide--line-chart size-6"></span>
+                                </div>
+                                <p class="mt-3 text-lg font-medium">Dynamic Charts</p>
+                                <p
+                                    class="text-base-content/80 overflow-eclipsis mt-0.5 line-clamp-2 text-sm">
+                                    Create interactive line, bar, pie charts, and visuals with ease
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="card border-base-300 cursor-pointer border border-dashed transition-all duration-300 hover:border-orange-400/40 hover:bg-orange-400/5">
+                        <div class="card-body">
+                            <div>
+                                <div
+                                    class="rounded-box inline-flex items-center bg-orange-500/5 p-2 text-orange-400">
+                                    <span class="iconify lucide--palette size-6"></span>
+                                </div>
+                                <p class="mt-3 text-lg font-medium">Versatile Themes</p>
+                                <p
+                                    class="text-base-content/80 overflow-eclipsis mt-0.5 line-clamp-2 text-sm">
+                                    Explore themes like light, dark, material, high contrast, and
+                                    system modes
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="card border-base-300 cursor-pointer border border-dashed transition-all duration-300 hover:border-teal-500/40 hover:bg-teal-500/5">
+                        <div class="card-body">
+                            <div>
+                                <div
+                                    class="rounded-box inline-flex items-center bg-teal-500/5 p-2 text-teal-500">
+                                    <span class="iconify lucide--pencil-ruler size-6"></span>
+                                </div>
+                                <p class="mt-3 text-lg font-medium">Consistent Design System</p>
+                                <p
+                                    class="text-base-content/80 overflow-eclipsis mt-0.5 line-clamp-2 text-sm">
+                                    Ensure a cohesive look with standardized typography, colors, and
+                                    spacing
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="card border-base-300 cursor-pointer border border-dashed transition-all duration-300 hover:border-blue-500/40 hover:bg-blue-500/5">
+                        <div class="card-body">
+                            <div>
+                                <div
+                                    class="rounded-box inline-flex items-center bg-blue-500/5 p-2 text-blue-500">
+                                    <span class="iconify lucide--monitor-smartphone size-6"></span>
+                                </div>
+                                <p class="mt-3 text-lg font-medium">Responsive Everywhere</p>
+                                <p
+                                    class="text-base-content/80 mt-0.5 line-clamp-2 text-sm overflow-ellipsis">
+                                    Enjoy a seamless and consistent experience across all devices
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="card border-base-300 cursor-pointer border border-dashed transition-all duration-300 hover:border-violet-500/40 hover:bg-violet-500/5">
+                        <div class="card-body">
+                            <div>
+                                <div
+                                    class="rounded-box inline-flex items-center bg-violet-500/5 p-2 text-violet-500">
+                                    <span class="iconify lucide--pencil-line size-6"></span>
+                                </div>
+                                <p class="mt-3 text-lg font-medium">Fully Customizable</p>
+                                <p
+                                    class="text-base-content/80 overflow-eclipsis mt-0.5 line-clamp-2 text-sm">
+                                    Boost creativity with tools that bring your ideas to life.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div>
+                <div class="relative container py-8 md:py-12 xl:py-16 2xl:py-24">
+                    <div class="relative z-10 grid gap-12 lg:grid-cols-7 lg:gap-24">
+                        <div
+                            class="flex flex-col max-sm:items-center max-sm:text-center lg:col-span-3">
+                            <div
+                                class="rounded-box inline-flex w-fit items-center border border-teal-500/5 bg-teal-500/5 p-2.5">
+                                <span class="iconify lucide--box size-5 text-teal-600"></span>
+                            </div>
+                            <p class="mt-3 text-2xl font-semibold sm:text-3xl">UI Toolkit</p>
+                            <p class="text-base-content/70 mt-4 max-sm:text-sm">
+                                Explore essential components like sidebars, footers, buttons, forms,
+                                tables, menus, modals, notification menus, and more for your admin
+                                dashboard.
+                            </p>
+                            <div class="mt-6">
+                                <a href="/components" class="btn btn-outline btn-sm btn-neutral">
+                                    View Components
+                                    <span class="iconify lucide--chevron-right"></span>
+                                </a>
+                            </div>
+                        </div>
+                        <div class="relative lg:col-span-4">
+                            <div
+                                class="absolute -start-50 -top-50 z-[-1] size-[450px] bg-[url(/images/landing/showcase-bg-gradient.png)] bg-cover bg-center bg-no-repeat opacity-20 sm:size-[600px] dark:hidden"></div>
+                            <div
+                                class="absolute -end-12 -bottom-12 z-[-1] size-[350px] bg-[url(/images/landing/showcase-bg-element.png)] bg-cover bg-center bg-no-repeat opacity-60 max-lg:hidden sm:size-[120px] dark:opacity-60"></div>
+                            <div
+                                class="from-base-100/60 to-base-100 rounded-box bg-linear-to-tl to-[20%] p-10 text-center backdrop-blur-[4px]">
+                                <div class="flex flex-wrap justify-center gap-6">
+                                    <button class="btn btn-secondary btn-sm">
+                                        <span class="iconify lucide--search size-3.5"></span>
+                                        Search
+                                    </button>
+                                    <button class="btn btn-ghost btn-sm">
+                                        <span class="iconify lucide--upload size-3.5"></span>
+                                        Upload
+                                    </button>
+                                    <button
+                                        class="btn btn-primary btn-circle btn-sm"
+                                        aria-label="Buy Now">
+                                        <span class="iconify lucide--shopping-cart size-4"></span>
+                                    </button>
+                                    <div class="dropdown">
+                                        <div tabindex="0" role="button" class="btn btn-sm">
+                                            Dropdown
+                                        </div>
+                                        <ul
+                                            tabindex="0"
+                                            class="dropdown-content menu bg-base-100 rounded-box z-1 w-40 p-2 shadow-sm">
+                                            <li><a>Item 1</a></li>
+                                            <li><a>Item 2</a></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <div class="mt-10 flex flex-wrap justify-center gap-6">
+                                    <div role="tablist" class="tabs tabs-border tabs-sm">
+                                        <input
+                                            role="tab"
+                                            class="tab"
+                                            aria-label="Tailwind CSS"
+                                            type="radio"
+                                            name="demo-tabs-radio" />
+                                        <input
+                                            role="tab"
+                                            class="tab"
+                                            aria-label="DaisyUI"
+                                            type="radio"
+                                            checked=""
+                                            name="demo-tabs-radio" />
+                                        <input
+                                            role="tab"
+                                            class="tab"
+                                            aria-label="Nexus"
+                                            type="radio"
+                                            name="demo-tabs-radio" />
+                                    </div>
+                                    <span class="loading loading-ring text-primary"></span>
+                                    <span class="loading loading-bars text-primary"></span>
+                                    <span class="loading loading-infinity text-primary"></span>
+                                </div>
+                                <div class="mt-10 flex flex-wrap items-center justify-center gap-6">
+                                    <div class="avatar">
+                                        <div class="bg-base-200 w-10 rounded-full">
+                                            <img alt="Avatar" src="/images/avatars/1.png" />
+                                        </div>
+                                    </div>
+                                    <div class="avatar-group -space-x-5">
+                                        <div class="avatar">
+                                            <div class="bg-base-200 w-10 rounded-full">
+                                                <img alt="Avatar" src="/images/avatars/4.png" />
+                                            </div>
+                                        </div>
+                                        <div class="avatar">
+                                            <div class="bg-base-200 w-10 rounded-full">
+                                                <img alt="Avatar" src="/images/avatars/5.png" />
+                                            </div>
+                                        </div>
+                                        <div class="avatar">
+                                            <div class="bg-base-200 w-10 rounded-full">
+                                                <img alt="Avatar" src="/images/avatars/7.png" />
+                                            </div>
+                                        </div>
+                                        <div class="avatar avatar-placeholder">
+                                            <div class="bg-base-300 w-10 rounded-full">+99</div>
+                                        </div>
+                                    </div>
+                                    <div class="join">
+                                        <button class="btn join-item btn-square btn-sm">1</button>
+                                        <button class="btn join-item btn-square btn-sm btn-active">
+                                            2
+                                        </button>
+                                        <button class="btn join-item btn-square btn-sm">3</button>
+                                        <button class="btn join-item btn-square btn-sm">4</button>
+                                    </div>
+                                    <div
+                                        class="alert alert-info w-fit gap-2 px-2 py-1.5"
+                                        role="alert">
+                                        <span class="iconify lucide--info size-5"></span>
+                                        <span>New update available.</span>
+                                    </div>
+                                </div>
+                                <div class="mt-10 flex flex-wrap items-center justify-center gap-4">
+                                    <div class="inline-flex gap-2">
+                                        <input
+                                            class="radio"
+                                            aria-label="showcase radio 1"
+                                            type="radio"
+                                            checked=""
+                                            name="showcase_radio" />
+                                        <input
+                                            class="radio"
+                                            aria-label="showcase radio 2"
+                                            type="radio"
+                                            name="showcase_radio" />
+                                    </div>
+                                    <div class="inline-flex items-center gap-2">
+                                        <input
+                                            class="toggle toggle-sm toggle-primary"
+                                            id="showcase_toggle"
+                                            type="checkbox"
+                                            checked="" />
+                                        <label class="label" for="showcase_toggle">Toggle</label>
+                                    </div>
+                                    <div class="inline-flex items-center gap-2">
+                                        <input
+                                            class="checkbox checkbox-error checkbox-sm"
+                                            id="showcase_checkbox"
+                                            type="checkbox"
+                                            checked="" />
+                                        <label class="label" for="showcase_checkbox">
+                                            Checkbox
+                                        </label>
+                                    </div>
+                                    <div class="inline-flex items-center gap-2">
+                                        <input
+                                            class="checkbox checkbox-sm"
+                                            id="showcase_checkbox_disabled"
+                                            disabled=""
+                                            type="checkbox" />
+                                        <label
+                                            class="label text-base-content/40"
+                                            for="showcase_checkbox_disabled">
+                                            Disabled
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="mt-10 grid gap-6 md:grid-cols-2">
+                                    <div class="col-span-1">
+                                        <div class="rating gap-1">
+                                            <input
+                                                class="mask mask-heart bg-red-400"
+                                                aria-label="1 star"
+                                                type="radio"
+                                                name="rating-3" />
+                                            <input
+                                                class="mask mask-heart bg-orange-400"
+                                                aria-label="2 star"
+                                                type="radio"
+                                                name="rating-3" />
+                                            <input
+                                                class="mask mask-heart bg-yellow-400"
+                                                aria-label="3 star"
+                                                type="radio"
+                                                name="rating-3" />
+                                            <input
+                                                class="mask mask-heart bg-lime-400"
+                                                aria-label="4 star"
+                                                type="radio"
+                                                checked=""
+                                                name="rating-3" />
+                                            <input
+                                                class="mask mask-heart bg-green-400"
+                                                aria-label="5 star"
+                                                type="radio"
+                                                name="rating-3" />
+                                        </div>
+                                        <div>
+                                            <fieldset class="fieldset mt-4">
+                                                <legend class="fieldset-legend text-start">
+                                                    Title
+                                                </legend>
+                                                <input
+                                                    aria-label="Input"
+                                                    class="input"
+                                                    placeholder="My awesome page"
+                                                    type="text" />
+                                                <p class="fieldset-label">* Required</p>
+                                            </fieldset>
+                                        </div>
+                                        <div class="form-control mt-4">
+                                            <textarea
+                                                class="textarea"
+                                                placeholder="Bio"
+                                                aria-label="Input"></textarea>
+                                        </div>
+                                        <div class="mt-5">
+                                            <input
+                                                class="range range-xs range-primary"
+                                                id="showcase_range"
+                                                aria-label="Input"
+                                                type="range" />
+                                        </div>
+                                        <div class="mt-2">
+                                            <progress
+                                                aria-label="showcase progress"
+                                                max="100"
+                                                id="showcase_progress"
+                                                class="progress progress-success h-1 w-full"></progress>
+                                            <label class="hidden" for="showcase_progress">
+                                                Progress
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-span-1">
+                                        <div class="card bg-base-100 card-border">
+                                            <div class="card-body text-start">
+                                                <div class="flex items-center gap-3">
+                                                    <div class="avatar">
+                                                        <div
+                                                            class="bg-base-200 mask mask-squircle w-8">
+                                                            <img
+                                                                alt="Avatar"
+                                                                src="/images/avatars/1.png" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="text-start">
+                                                        <p class="leading-none">James Ford</p>
+                                                        <p class="text-base-content/60 text-xs">
+                                                            Designer &amp; Developer
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <img
+                                                    class="rounded-box mt-3"
+                                                    alt="card"
+                                                    src="/images/landing/showcase-card-image.png" />
+                                                <p
+                                                    class="text-base-content/80 mt-0.5 text-center text-xs italic">
+                                                    Image caption
+                                                </p>
+                                                <p class="mt-2">More Text goes here....</p>
+                                                <div class="card-actions mt-3 justify-end">
+                                                    <button class="btn btn-sm btn-ghost">
+                                                        Cancel
+                                                    </button>
+                                                    <button class="btn btn-primary btn-sm">
+                                                        Action
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <section id="testimonial" class="relative container py-8 md:py-12 xl:py-16 2xl:py-24">
+                <div
+                    class="absolute inset-0 bg-[url('/images/landing/testimonial-background.svg')] bg-cover bg-center bg-no-repeat opacity-8 dark:opacity-6"></div>
+                <div class="relative">
+                    <div class="text-center">
+                        <div
+                            class="rounded-box inline-flex items-center border border-orange-500/10 bg-orange-500/5 p-2">
+                            <span class="iconify lucide--sparkles size-5 text-orange-600"></span>
+                        </div>
+                        <h2 class="mt-4 text-2xl font-semibold sm:text-3xl">Voices That Matter</h2>
+                        <p class="text-base-content/70 mt-3 inline-block max-w-lg max-sm:text-sm">
+                            Hear directly from users who’ve successfully transformed their workflow
+                            with our dashboard solution.
+                        </p>
+                    </div>
+                    <div class="relative mt-24 w-full">
+                        <div class="swiper" id="testimonial-swiper">
+                            <div class="swiper-wrapper">
+                                <div class="swiper-slide flex flex-col items-center justify-center">
+                                    <div class="text-center">
+                                        <div class="avatar">
+                                            <div class="mask mask-squircle bg-base-200 w-24">
+                                                <img
+                                                    src="/images/landing/testimonial-avatar-2.jpg"
+                                                    alt="testimonial" />
+                                            </div>
+                                        </div>
+                                        <p class="mt-6 text-xl font-medium">Alexandre Cohen</p>
+                                        <p class="text-base-content/80">
+                                            Co-owner / CTO of Disphere
+                                        </p>
+                                        <div class="mt-6 flex items-center justify-center">
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                width="24"
+                                                height="24"
+                                                class="size-6 text-yellow-500"
+                                                viewBox="0 0 24 24">
+                                                <path
+                                                    fill="currentColor"
+                                                    d="m12 17.275l-4.15 2.5q-.275.175-.575.15t-.525-.2t-.35-.437t-.05-.588l1.1-4.725L3.775 10.8q-.25-.225-.312-.513t.037-.562t.3-.45t.55-.225l4.85-.425l1.875-4.45q.125-.3.388-.45t.537-.15t.537.15t.388.45l1.875 4.45l4.85.425q.35.05.55.225t.3.45t.038.563t-.313.512l-3.675 3.175l1.1 4.725q.075.325-.05.588t-.35.437t-.525.2t-.575-.15z"></path>
+                                            </svg>
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                width="24"
+                                                height="24"
+                                                class="size-6 text-yellow-500"
+                                                viewBox="0 0 24 24">
+                                                <path
+                                                    fill="currentColor"
+                                                    d="m12 17.275l-4.15 2.5q-.275.175-.575.15t-.525-.2t-.35-.437t-.05-.588l1.1-4.725L3.775 10.8q-.25-.225-.312-.513t.037-.562t.3-.45t.55-.225l4.85-.425l1.875-4.45q.125-.3.388-.45t.537-.15t.537.15t.388.45l1.875 4.45l4.85.425q.35.05.55.225t.3.45t.038.563t-.313.512l-3.675 3.175l1.1 4.725q.075.325-.05.588t-.35.437t-.525.2t-.575-.15z"></path>
+                                            </svg>
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                width="24"
+                                                height="24"
+                                                class="size-6 text-yellow-500"
+                                                viewBox="0 0 24 24">
+                                                <path
+                                                    fill="currentColor"
+                                                    d="m12 17.275l-4.15 2.5q-.275.175-.575.15t-.525-.2t-.35-.437t-.05-.588l1.1-4.725L3.775 10.8q-.25-.225-.312-.513t.037-.562t.3-.45t.55-.225l4.85-.425l1.875-4.45q.125-.3.388-.45t.537-.15t.537.15t.388.45l1.875 4.45l4.85.425q.35.05.55.225t.3.45t.038.563t-.313.512l-3.675 3.175l1.1 4.725q.075.325-.05.588t-.35.437t-.525.2t-.575-.15z"></path>
+                                            </svg>
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                width="24"
+                                                height="24"
+                                                class="size-6 text-yellow-500"
+                                                viewBox="0 0 24 24">
+                                                <path
+                                                    fill="currentColor"
+                                                    d="m12 17.275l-4.15 2.5q-.275.175-.575.15t-.525-.2t-.35-.437t-.05-.588l1.1-4.725L3.775 10.8q-.25-.225-.312-.513t.037-.562t.3-.45t.55-.225l4.85-.425l1.875-4.45q.125-.3.388-.45t.537-.15t.537.15t.388.45l1.875 4.45l4.85.425q.35.05.55.225t.3.45t.038.563t-.313.512l-3.675 3.175l1.1 4.725q.075.325-.05.588t-.35.437t-.525.2t-.575-.15z"></path>
+                                            </svg>
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                width="24"
+                                                height="24"
+                                                class="size-6 text-yellow-500"
+                                                viewBox="0 0 24 24">
+                                                <path
+                                                    fill="currentColor"
+                                                    d="m12 17.275l-4.15 2.5q-.275.175-.575.15t-.525-.2t-.35-.437t-.05-.588l1.1-4.725L3.775 10.8q-.25-.225-.312-.513t.037-.562t.3-.45t.55-.225l4.85-.425l1.875-4.45q.125-.3.388-.45t.537-.15t.537.15t.388.45l1.875 4.45l4.85.425q.35.05.55.225t.3.45t.038.563t-.313.512l-3.675 3.175l1.1 4.725q.075.325-.05.588t-.35.437t-.525.2t-.575-.15z"></path>
+                                            </svg>
+                                        </div>
+                                        <p class="mt-6 inline-block max-w-[600px]">
+                                            Exceptional dashboard with a sleek design and seamless
+                                            integration of DaisyUI components. Perfect for my
+                                            existing project !
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="swiper-slide flex flex-col items-center justify-center">
+                                    <div class="text-center">
+                                        <div class="avatar">
+                                            <div class="mask mask-squircle bg-base-200 w-24">
+                                                <img
+                                                    src="/images/landing/testimonial-avatar-1.jpg"
+                                                    alt="testimonial" />
+                                            </div>
+                                        </div>
+                                        <p class="mt-6 text-xl font-medium">Pouya Saadeghi</p>
+                                        <p class="text-base-content/80">Creator of daisyUI</p>
+                                        <div class="mt-6 flex items-center justify-center">
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                width="24"
+                                                height="24"
+                                                class="size-6 text-yellow-500"
+                                                viewBox="0 0 24 24">
+                                                <path
+                                                    fill="currentColor"
+                                                    d="m12 17.275l-4.15 2.5q-.275.175-.575.15t-.525-.2t-.35-.437t-.05-.588l1.1-4.725L3.775 10.8q-.25-.225-.312-.513t.037-.562t.3-.45t.55-.225l4.85-.425l1.875-4.45q.125-.3.388-.45t.537-.15t.537.15t.388.45l1.875 4.45l4.85.425q.35.05.55.225t.3.45t.038.563t-.313.512l-3.675 3.175l1.1 4.725q.075.325-.05.588t-.35.437t-.525.2t-.575-.15z"></path>
+                                            </svg>
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                width="24"
+                                                height="24"
+                                                class="size-6 text-yellow-500"
+                                                viewBox="0 0 24 24">
+                                                <path
+                                                    fill="currentColor"
+                                                    d="m12 17.275l-4.15 2.5q-.275.175-.575.15t-.525-.2t-.35-.437t-.05-.588l1.1-4.725L3.775 10.8q-.25-.225-.312-.513t.037-.562t.3-.45t.55-.225l4.85-.425l1.875-4.45q.125-.3.388-.45t.537-.15t.537.15t.388.45l1.875 4.45l4.85.425q.35.05.55.225t.3.45t.038.563t-.313.512l-3.675 3.175l1.1 4.725q.075.325-.05.588t-.35.437t-.525.2t-.575-.15z"></path>
+                                            </svg>
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                width="24"
+                                                height="24"
+                                                class="size-6 text-yellow-500"
+                                                viewBox="0 0 24 24">
+                                                <path
+                                                    fill="currentColor"
+                                                    d="m12 17.275l-4.15 2.5q-.275.175-.575.15t-.525-.2t-.35-.437t-.05-.588l1.1-4.725L3.775 10.8q-.25-.225-.312-.513t.037-.562t.3-.45t.55-.225l4.85-.425l1.875-4.45q.125-.3.388-.45t.537-.15t.537.15t.388.45l1.875 4.45l4.85.425q.35.05.55.225t.3.45t.038.563t-.313.512l-3.675 3.175l1.1 4.725q.075.325-.05.588t-.35.437t-.525.2t-.575-.15z"></path>
+                                            </svg>
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                width="24"
+                                                height="24"
+                                                class="size-6 text-yellow-500"
+                                                viewBox="0 0 24 24">
+                                                <path
+                                                    fill="currentColor"
+                                                    d="m12 17.275l-4.15 2.5q-.275.175-.575.15t-.525-.2t-.35-.437t-.05-.588l1.1-4.725L3.775 10.8q-.25-.225-.312-.513t.037-.562t.3-.45t.55-.225l4.85-.425l1.875-4.45q.125-.3.388-.45t.537-.15t.537.15t.388.45l1.875 4.45l4.85.425q.35.05.55.225t.3.45t.038.563t-.313.512l-3.675 3.175l1.1 4.725q.075.325-.05.588t-.35.437t-.525.2t-.575-.15z"></path>
+                                            </svg>
+                                            <svg
+                                                xmlns="http://www.w3.org/2000/svg"
+                                                width="24"
+                                                height="24"
+                                                class="size-6 text-yellow-500"
+                                                viewBox="0 0 24 24">
+                                                <path
+                                                    fill="currentColor"
+                                                    d="m12 17.275l-4.15 2.5q-.275.175-.575.15t-.525-.2t-.35-.437t-.05-.588l1.1-4.725L3.775 10.8q-.25-.225-.312-.513t.037-.562t.3-.45t.55-.225l4.85-.425l1.875-4.45q.125-.3.388-.45t.537-.15t.537.15t.388.45l1.875 4.45l4.85.425q.35.05.55.225t.3.45t.038.563t-.313.512l-3.675 3.175l1.1 4.725q.075.325-.05.588t-.35.437t-.525.2t-.575-.15z"></path>
+                                            </svg>
+                                        </div>
+                                        <p class="mt-6 inline-block max-w-[600px]">
+                                            This is the ultimate admin dashboard template, with all
+                                            the essential blocks and features you need. Save you
+                                            months of development time and helps you launch your app
+                                            faster
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            class="absolute top-1/2 right-5 left-5 z-1 flex -translate-y-1/2 transform justify-between">
+                            <button
+                                class="btn btn-circle testimonial-swiper-button-prev"
+                                aria-label="prev">
+                                <span class="iconify lucide--chevron-left size-4"></span>
+                            </button>
+                            <button
+                                class="btn btn-circle testimonial-swiper-button-next"
+                                aria-label="next">
+                                <span class="iconify lucide--chevron-right size-4"></span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <div class="container sm:px-16">
+                <div
+                    class="relative overflow-hidden py-8 sm:rounded-[60px] md:py-12 xl:py-16 2xl:pt-24 2xl:pb-48">
+                    <div
+                        class="absolute start-16 -bottom-40 h-64 w-72 bg-blue-400 blur-[180px] max-sm:hidden"></div>
+                    <div
+                        class="absolute start-1/2 -bottom-40 h-64 w-72 -translate-x-1/2 bg-cyan-400 blur-[180px] max-sm:hidden"></div>
+                    <div
+                        class="absolute end-16 -bottom-40 h-64 w-72 bg-purple-400 blur-[180px] max-sm:hidden"></div>
+                    <div class="grainy absolute inset-0 z-0 opacity-20 max-sm:hidden"></div>
+                    <div
+                        class="absolute inset-x-0 top-0 h-160 bg-linear-to-b from-(--root-bg) to-transparent max-sm:hidden"></div>
+
+                    <div class="relative">
+                        <div class="text-center">
+                            <div
+                                class="from-primary to-secondary text-primary-content inline-flex items-center rounded-full bg-linear-to-tr p-2.5">
+                                <span class="iconify lucide--rocket size-5"></span>
+                            </div>
+                            <p class="mt-4 text-xl font-bold sm:text-2xl lg:text-4xl">
+                                Launch, Manage, and Succeed
+                            </p>
+                            <p class="mt-3 inline-block max-w-2xl max-sm:text-sm">
+                                Pay once, use forever. No subscriptions, only powerful tools and
+                                endless possibilities to build with confidence.
+                            </p>
+                        </div>
+
+                        <div class="mt-6 flex justify-center xl:mt-8">
+                            <ul class="max-w-md space-y-3 text-center">
+                                <li class="flex items-center gap-2 max-sm:text-sm">
+                                    <span
+                                        class="iconify lucide--badge-check size-6 text-green-500"></span>
+                                    Built with Tailwind CSS 4 & DaisyUI 5
+                                </li>
+                                <li class="flex items-center gap-2 max-sm:text-sm">
+                                    <span
+                                        class="iconify lucide--badge-check size-6 text-green-500"></span>
+                                    Lifetime access with free updates
+                                </li>
+                                <li class="flex items-center gap-2 max-sm:text-sm">
+                                    <span
+                                        class="iconify lucide--badge-check size-6 text-green-500"></span>
+                                    Fully responsive & optimized for all devices
+                                </li>
+                            </ul>
+                        </div>
+                        <div class="mt-6 flex items-center justify-center gap-3 sm:gap-5 xl:mt-8">
+                            <a
+                                href="https://daisyui.com/store/244268"
+                                target="_blank"
+                                class="btn from-primary to-secondary group text-primary-content relative gap-3 border-0 bg-linear-to-r text-base">
+                                <span class="iconify lucide--shopping-cart size-4 sm:size-5"></span>
+                                Buy Now
+                                <div
+                                    class="from-primary to-secondary absolute inset-x-1 top-2 -z-1 h-10 bg-linear-to-r opacity-40 blur-md transition-all duration-500 group-hover:inset-x-0 group-hover:opacity-80 group-hover:blur-lg dark:opacity-20 group-hover:dark:!opacity-40"></div>
+                            </a>
+                            <a href="#faqs" class="btn btn-ghost">
+                                Need help?
+                                <span class="iconify lucide--arrow-down size-3.5"></span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="container py-8 md:py-12 xl:py-16 2xl:py-24" id="faqs">
+                <div class="grid grid-cols-1 gap-12 lg:grid-cols-7 lg:gap-24">
+                    <div
+                        class="col-span-1 flex flex-col max-sm:items-center max-sm:text-center lg:col-span-3">
+                        <div
+                            class="rounded-box inline-flex w-fit items-center border border-purple-500/10 bg-purple-500/5 p-2">
+                            <span
+                                class="iconify lucide--messages-square size-5 text-purple-600"></span>
+                        </div>
+                        <p class="mt-4 text-2xl font-semibold sm:text-3xl">Support Center</p>
+                        <p class="text-base-content/70 mt-3 inline-block max-w-lg max-sm:text-sm">
+                            If you still have questions, don’t hesitate to reach out. Contact us
+                            anytime for quick assistance.
+                        </p>
+                        <a
+                            class="btn btn-sm mt-4 w-fit"
+                            target="_blank"
+                            href="https://discord.com/invite/S6TZxycVHs">
+                            Contact Us
+                        </a>
+                    </div>
+                    <div class="lg:col-span-4">
+                        <div class="space-y-0">
+                            <div class="collapse-plus border-base-300 collapse">
+                                <input type="radio" aria-label="Accordion radio" name="accordion" />
+                                <div class="collapse-title cursor-pointer font-medium sm:text-xl">
+                                    <div class="ite flex items-center gap-4">
+                                        <div
+                                            class="border-base-300 rounded-box inline-flex items-center justify-center border p-1.5">
+                                            <span
+                                                class="iconify lucide--messages-square size-4.5"></span>
+                                        </div>
+                                        How can i give a feedback?
+                                    </div>
+                                </div>
+                                <div class="collapse-content ms-12">
+                                    <p>
+                                        You can provide feedback by filling out our
+                                        <a
+                                            class="text-primary ms-1"
+                                            target="_blank"
+                                            href="https://forms.gle/UeX3jgsjFNFcZsq9A">
+                                            Google Form
+                                        </a>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="collapse-plus border-base-300 collapse">
+                                <input type="radio" aria-label="Accordion radio" name="accordion" />
+                                <div class="collapse-title cursor-pointer font-medium sm:text-xl">
+                                    <div class="ite flex items-center gap-4">
+                                        <div
+                                            class="border-base-300 rounded-box inline-flex items-center justify-center border p-1.5">
+                                            <span class="iconify lucide--code size-4.5"></span>
+                                        </div>
+                                        Can i get full source code?
+                                    </div>
+                                </div>
+                                <div class="collapse-content ms-12">
+                                    <p>
+                                        Certainly, we offer the complete source code depending on
+                                        the package you've purchased. You might look into depth:
+                                        <a
+                                            class="text-primary ms-1"
+                                            target="_blank"
+                                            href="https://nexus.daisyui.com/docs/">
+                                            Packages
+                                        </a>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="collapse-plus border-base-300 collapse">
+                                <input type="radio" aria-label="Accordion radio" name="accordion" />
+                                <div class="collapse-title cursor-pointer font-medium sm:text-xl">
+                                    <div class="ite flex items-center gap-4">
+                                        <div
+                                            class="border-base-300 rounded-box inline-flex items-center justify-center border p-1.5">
+                                            <span
+                                                class="iconify lucide--credit-card size-4.5"></span>
+                                        </div>
+                                        Will there be any future payments required?
+                                    </div>
+                                </div>
+                                <div class="collapse-content ms-12">
+                                    <p>
+                                        Absolutely not. It's a one-time purchase, with no hidden
+                                        charges or future payments to worry about.
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="collapse-plus border-base-300 collapse">
+                                <input type="radio" aria-label="Accordion radio" name="accordion" />
+                                <div class="collapse-title cursor-pointer font-medium sm:text-xl">
+                                    <div class="ite flex items-center gap-4">
+                                        <div
+                                            class="border-base-300 rounded-box inline-flex items-center justify-center border p-1.5">
+                                            <span class="iconify lucide--repeat size-4.5"></span>
+                                        </div>
+                                        Are there plans for future updates, and will they incur any
+                                        costs?
+                                    </div>
+                                </div>
+                                <div class="collapse-content ms-12">
+                                    <p>
+                                        All future updates are completely free. No payment is
+                                        required for any upcoming updates. Yes, there are many plans
+                                        for future updates. You can checkout
+                                        <a
+                                            class="text-primary ms-1"
+                                            target="_blank"
+                                            href="https://nexus.daisyui.com/docs/">
+                                            future roadmap
+                                        </a>
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="collapse-plus border-base-300 collapse">
+                                <input type="radio" aria-label="Accordion radio" name="accordion" />
+                                <div class="collapse-title cursor-pointer font-medium sm:text-xl">
+                                    <div class="ite flex items-center gap-4">
+                                        <div
+                                            class="border-base-300 rounded-box inline-flex items-center justify-center border p-1.5">
+                                            <span class="iconify lucide--server size-4.5"></span>
+                                        </div>
+                                        Do I need a backend for this?
+                                    </div>
+                                </div>
+                                <div class="collapse-content ms-12">
+                                    <p>
+                                        No backend is required to run this UI template. However, you
+                                        can integrate any type of backend as needed.
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="collapse-plus border-base-300 collapse">
+                                <input type="radio" aria-label="Accordion radio" name="accordion" />
+                                <div class="collapse-title cursor-pointer font-medium sm:text-xl">
+                                    <div class="ite flex items-center gap-4">
+                                        <div
+                                            class="border-base-300 rounded-box inline-flex items-center justify-center border p-1.5">
+                                            <span class="iconify lucide--telescope size-4.5"></span>
+                                        </div>
+                                        Is there any updates in the future?
+                                    </div>
+                                </div>
+                                <div class="collapse-content ms-12">
+                                    <p>
+                                        Yes, Our team constantly improves the admin template based
+                                        on user feedback and industry trends.
+                                        <a
+                                            class="text-primary ms-1"
+                                            target="_blank"
+                                            href="https://nexus.daisyui.com/docs/">
+                                            You can see product roadmap
+                                        </a>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                class="container pt-8 pb-12 md:pt-12 md:pb-18 xl:pt-16 xl:pb-24 2xl:pt-24 2xl:pb-36"
+                id="bundle">
+                <div class="text-center">
+                    <div
+                        class="rounded-box inline-flex items-center border border-purple-500/10 bg-purple-500/5 p-2 text-purple-500">
+                        <span class="iconify lucide--package-search size-5"></span>
+                    </div>
+                    <p class="mt-4 text-2xl font-semibold sm:text-3xl">
+                        The Powerful Admin & Startup Solution
+                    </p>
+                    <p class="text-base-content/70 mt-3 inline-block max-w-lg max-sm:text-sm">
+                        Accelerate your projects with a flexible dashboard and landing template
+                        designed for startup growth and business success.
+                    </p>
+                </div>
+                <div class="mt-8 grid gap-6 lg:mt-16 lg:grid-cols-2">
+                    <a
+                        href="https://daisyui.com/store/475050/"
+                        class="border-base-300 bg-base-100 h-fit rounded-md border p-6"
+                        target="_blank">
+                        <p class="text-base-content/60 font-medium italic">
+                            Looking for
+                            <span class="underline">Startup</span>
+                        </p>
+                        <div class="mt-5">
+                            <img
+                                src="/images/landing/scalo-logo-light.svg"
+                                class="h-6.5 dark:hidden"
+                                alt="Scalo" />
+                            <img
+                                src="/images/landing/scalo-logo-dark.svg"
+                                class="hidden h-6.5 dark:inline"
+                                alt="Scalo" />
+                        </div>
+                        <p class="text-base-content/70 mt-5">
+                            Scalo and Nexus make your admin dashboard feel less like work and more
+                            like launching your next big thing. Smart, fast, focused, and
+                            beautifully built for startups.
+                        </p>
+                        <div class="flex justify-center">
+                            <button class="btn btn-primary mt-5 gap-3 text-base">
+                                <span class="iconify lucide--plane-takeoff size-4 sm:size-5"></span>
+                                Get Scalo
+                            </button>
+                        </div>
+                    </a>
+                    <a
+                        class="from-primary to-secondary group h-fit rounded-md bg-linear-to-br p-0.5"
+                        href="https://daisyui.com/store/244268/"
+                        target="_blank">
+                        <div class="bg-base-100 rounded-box">
+                            <div
+                                class="from-primary/5 to-secondary/5 group-hover:from-primary/10 group-hover:to-secondary/10 relative bg-linear-to-br p-6 transition-all">
+                                <p class="text-base-content/60 font-medium italic">Bundle Offer</p>
+                                <div class="mt-5 flex items-center gap-4">
+                                    <img
+                                        src="/images/logo/logo-light.svg"
+                                        class="h-5 dark:hidden"
+                                        alt="Scalo" />
+                                    <img
+                                        src="/images/logo/logo-dark.svg"
+                                        class="hidden h-5 dark:inline"
+                                        alt="Scalo" />
+                                    <span
+                                        class="iconify lucide--plus text-base-content/50 size-5"></span>
+                                    <img
+                                        src="/images/landing/scalo-logo-light.svg"
+                                        class="h-6.5 dark:hidden"
+                                        alt="Scalo" />
+                                    <img
+                                        src="/images/landing/scalo-logo-dark.svg"
+                                        class="hidden h-6.5 dark:inline"
+                                        alt="Scalo" />
+                                </div>
+                                <p class="text-base-content/80 mt-4">
+                                    Get
+                                    <span class="text-primary font-semibold">Nexus Dashboard</span>
+                                    and
+                                    <span class="text-secondary font-semibold">
+                                        Scalo Startup Template
+                                    </span>
+                                    together at a discounted price. The perfect combo for building
+                                    and managing modern web projects effortlessly.
+                                </p>
+                                <div class="mt-5 flex justify-center">
+                                    <button
+                                        class="btn shadow-primary-content/20 from-primary to-secondary text-primary-content gap-3 border-0 bg-linear-to-br text-base shadow-inner">
+                                        <span
+                                            class="iconify lucide--package size-4 sm:size-5"></span>
+                                        Get Bundle
+                                    </button>
+                                </div>
+                                <p
+                                    class="absolute end-4 top-4 font-medium text-orange-600 dark:text-orange-400">
+                                    Special Discount
+                                </p>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+
+            <div class="relative">
+                <div class="grainy absolute inset-0 z-0 opacity-20"></div>
+
+                <div class="relative z-[2] container pt-8 md:pt-12 xl:pt-16 2xl:pt-24">
+                    <div class="grid grid-cols-2 gap-6 md:grid-cols-5">
+                        <div class="col-span-2">
+                            <a href="./dashboards-ecommerce.html">
+                                <load src="partials/logo.html" />
+                            </a>
+
+                            <p class="text-base-content/80 mt-3 max-sm:text-sm">
+                                Launch powerful modern dashboards with customizable apps,
+                                components, blocks and integrations designed to accelerate workflows
+                                and boost efficiency.
+                            </p>
+                            <div class="mt-6 flex items-center gap-2.5 xl:mt-16">
+                                <a
+                                    class="btn btn-sm btn-circle"
+                                    href="https://github.com/withden"
+                                    target="_blank">
+                                    <span class="iconify lucide--github size-4"></span>
+                                </a>
+                                <a
+                                    class="btn btn-sm btn-circle"
+                                    href="https://x.com/withden_"
+                                    target="_blank">
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="24"
+                                        height="24"
+                                        viewBox="0 0 24 24"
+                                        class="size-4">
+                                        <path
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-linecap="round"
+                                            stroke-linejoin="round"
+                                            stroke-width="1.7"
+                                            d="m3 21l7.548-7.548M21 3l-7.548 7.548m0 0L8 3H3l7.548 10.452m2.904-2.904L21 21h-5l-5.452-7.548"
+                                            color="currentColor" />
+                                    </svg>
+                                </a>
+                                <a href="https://withden.dev/" class="btn btn-sm btn-circle">
+                                    <span class="iconify lucide--link size-3.5"></span>
+                                </a>
+                            </div>
+                        </div>
+                        <div class="max-md:hidden xl:col-span-1"></div>
+                        <div class="col-span-1">
+                            <p class="font-medium">Quick as</p>
+                            <div
+                                class="text-base-content/80 *:hover:text-base-content mt-5 flex flex-col space-y-1.5 *:cursor-pointer">
+                                <span>Dashboard</span>
+                                <span>UI Kit</span>
+                                <span>Login</span>
+                                <p class="flex items-center gap-1.5">
+                                    Feedback
+                                    <span class="badge badge-sm h-4.5 rounded-full px-1.5">
+                                        New
+                                    </span>
+                                </p>
+                            </div>
+                        </div>
+                        <div class="col-span-1">
+                            <p class="font-medium">Company</p>
+                            <div
+                                class="text-base-content/80 *:hover:text-base-content mt-5 flex flex-col space-y-1.5 *:cursor-pointer">
+                                <span>About</span>
+                                <p class="flex items-center gap-1.5">
+                                    Career
+                                    <span
+                                        class="badge badge-sm badge-success h-4.5 rounded-full px-1.5">
+                                        Hiring
+                                    </span>
+                                </p>
+                                <span>Blog</span>
+                                <span>Contact</span>
+                                <span>Support</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="border-base-300 mt-12 flex flex-wrap justify-between gap-3 border-t py-6">
+                        <p>
+                            Built and designed with care by
+                            <a href="https://withden.dev/" target="_blank" class="text-primary">
+                                Denish
+                            </a>
+                        </p>
+                        <span>
+                            🌼 Made with
+                            <a
+                                class="link-hover link-primary ms-1"
+                                href="https://daisyui.com"
+                                target="_blank">
+                                daisyUI
+                            </a>
+                        </span>
+                    </div>
+                </div>
+
+                <p
+                    class="text-base-content/5 -mt-12 flex h-[195px] justify-center overflow-hidden text-[200px] font-black tracking-[12px] whitespace-nowrap select-none max-lg:hidden">
+                    NEXUS DESIGN
+                </p>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+
+        <load src="partials/footer-scripts.html" />
+
+        <script src="/js/pages/landing.js"></script>
+    </body>
+</html>

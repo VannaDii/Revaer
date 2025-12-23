@@ -1,0 +1,59 @@
+<form
+    x-data="useRatingsFormValidator()"
+    x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+    novalidate
+    class="space-y-3">
+    <div class="space-y-1.5">
+        <div class="flex items-center justify-between gap-2">
+            <label class="label text-sm font-medium">
+                Ratings
+                <span x-text="'('+getData('requiredRating')+')'"></span>
+            </label>
+            <p class="text-base-content/60 text-end text-xs">Select a rating</p>
+        </div>
+        <div class="rating">
+            <input
+                type="radio"
+                class="mask mask-star-2 bg-orange-400"
+                aria-label="Star"
+                value="1"
+                @change="updateData('requiredRating', $event.target.value)"
+                name="requiredRating" />
+            <input
+                type="radio"
+                class="mask mask-star-2 bg-orange-400"
+                aria-label="Star"
+                value="2"
+                @change="updateData('requiredRating', $event.target.value)"
+                name="requiredRating" />
+            <input
+                type="radio"
+                class="mask mask-star-2 bg-orange-400"
+                aria-label="Star"
+                value="3"
+                @change="updateData('requiredRating', $event.target.value)"
+                name="requiredRating" />
+            <input
+                type="radio"
+                class="mask mask-star-2 bg-orange-400"
+                aria-label="Star"
+                value="4"
+                @change="updateData('requiredRating', $event.target.value)"
+                name="requiredRating" />
+            <input
+                type="radio"
+                class="mask mask-star-2 bg-orange-400"
+                aria-label="Star"
+                value="5"
+                @change="updateData('requiredRating', $event.target.value)"
+                name="requiredRating" />
+        </div>
+        <p
+            :data-error="hasError('requiredRating')"
+            class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+            x-text="getError('requiredRating')"></p>
+    </div>
+    <div class="text-end">
+        <button type="submit" class="btn btn-sm">Submit</button>
+    </div>
+</form>

@@ -1,0 +1,1201 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <meta charset="UTF-8" />
+        <meta name="author" content="Denish Navadiya" />
+        <meta
+            name="keywords"
+            content="HTML, CSS, daisyui, tailwindcss, admin, client, dashboard, ui kit, component" />
+        <meta
+            name="description"
+            content="Start your next project with Nexus, designed for effortless customization to streamline your development process" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link
+            rel="shortcut icon"
+            href="./images/favicon-dark.png"
+            media="(prefers-color-scheme: dark)" />
+        <link
+            rel="shortcut icon"
+            href="./images/favicon-light.png"
+            media="(prefers-color-scheme: light)" />
+
+        <script>
+            try {
+                const localStorageItem = localStorage.getItem("__NEXUS_CONFIG_v3.0__")
+                if (localStorageItem) {
+                    const theme = JSON.parse(localStorageItem).theme
+                    if (theme !== "system") {
+                        document.documentElement.setAttribute("data-theme", theme)
+                    }
+                }
+            } catch (err) {
+                console.log(err)
+            }
+        </script>
+
+        <script type="module" src="./assets/components-interactions-form-validations.js"></script>
+        <link rel="stylesheet" href="./assets/app.css" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <div class="max-xl:hidden">
+                    <div
+                        class="border-base-300/80 bg-base-100 sticky top-0 bottom-0 flex h-screen w-64 min-w-64 flex-col border-s border-e border-dashed">
+                        <div
+                            class="border-base-300 flex h-16 min-h-16 items-center gap-4 border-b border-dashed px-5">
+                            <a href="./dashboards-ecommerce.html">
+                                <img
+                                    alt="logo-dark"
+                                    class="hidden h-5.5 dark:inline"
+                                    src="./images/logo/logo-dark.png" />
+                                <img
+                                    alt="logo-light"
+                                    class="h-5.5 dark:hidden"
+                                    src="./images/logo/logo-light.png" />
+                            </a>
+                            <hr class="border-base-300 h-6 border-e" />
+                            <p class="text-base-content/60 mt-0.5 text-lg font-medium">Design</p>
+                        </div>
+                        <div data-simplebar class="h-full min-h-0 grow">
+                            <div
+                                class="sidebar-menu-activation sidebar-menu mt-4 space-y-0.5 px-2.5 pb-4">
+                                <p class="menu-label px-2.5 pt-3 pb-1.5 first:pt-0">Base</p>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--shapes size-4"></span>
+                                        <span class="grow">Foundations</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-text.html">
+                                                <span class="grow">Text</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-display.html">
+                                                <span class="grow">Display</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-effects.html">
+                                                <span class="grow">Effects</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-shadows.html">
+                                                <span class="grow">Shadows</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--blocks size-4"></span>
+                                        <span class="grow">Blocks</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-blocks-stats.html">
+                                                <span class="grow">Dashboard Stats</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-blocks-prompt-bar.html">
+                                                <span class="grow">Prompt Bar</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span
+                                            class="iconify lucide--layout-panel-left size-4"></span>
+                                        <span class="grow">Layouts</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-skeleton.html">
+                                                <span class="grow">Skeleton</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-sidebar.html">
+                                                <span class="grow">Sidebar</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-topbar.html">
+                                                <span class="grow">Topbar</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-footer.html">
+                                                <span class="grow">Footer</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-profile-menu.html">
+                                                <span class="grow">Profile Menu</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-search.html">
+                                                <span class="grow">Search</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-notification.html">
+                                                <span class="grow">Notification</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-page-title.html">
+                                                <span class="grow">Page Title</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="menu-label px-2.5 pt-3 pb-1.5 first:pt-0">Dynamics</p>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--layers-3 size-4"></span>
+                                        <span class="grow">Interactions</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-carousel.html">
+                                                <span class="grow">Carousel</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-clipboard.html">
+                                                <span class="grow">Clipboard</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-datatables.html">
+                                                <span class="grow">Data Tables</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-fab.html">
+                                                <span class="grow">FAB</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-file-upload.html">
+                                                <span class="grow">File Upload</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-flatpickr.html">
+                                                <span class="grow">Flatpickr</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-form-validations.html">
+                                                <span class="grow">Form Validations</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-input-spinner.html">
+                                                <span class="grow">Input Spinner</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-password-meter.html">
+                                                <span class="grow">Password Meter</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-select.html">
+                                                <span class="grow">Select</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-sortable.html">
+                                                <span class="grow">Sortable</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-text-editor.html">
+                                                <span class="grow">Text Editor</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-wizard.html">
+                                                <span class="grow">Wizard</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--chart-bar size-4"></span>
+                                        <span class="grow">Apex Charts</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-area.html">
+                                                <span class="grow">Area</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-bar.html">
+                                                <span class="grow">Bar</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-column.html">
+                                                <span class="grow">Column</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-line.html">
+                                                <span class="grow">Line</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-pie.html">
+                                                <span class="grow">Pie</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <a
+                                target="_blank"
+                                class="group rounded-box relative mx-2.5 block gap-3"
+                                href="/dashboards-ecommerce">
+                                <div
+                                    class="rounded-box absolute inset-0 bg-gradient-to-r from-transparent to-transparent transition-opacity duration-300 group-hover:opacity-0"></div>
+                                <div
+                                    class="from-primary to-secondary rounded-box absolute inset-0 bg-gradient-to-r opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                                <div class="relative flex h-10 items-center gap-3 px-3">
+                                    <i
+                                        class="iconify lucide--monitor-dot text-primary size-4.5 transition-all duration-300 group-hover:text-white"></i>
+                                    <p
+                                        class="from-primary to-secondary bg-gradient-to-r bg-clip-text font-medium text-transparent transition-all duration-300 group-hover:text-white">
+                                        Dashboard
+                                    </p>
+                                    <i
+                                        class="iconify lucide--chevron-right text-secondary ms-auto size-4.5 transition-all duration-300 group-hover:text-white"></i>
+                                </div>
+                            </a>
+                            <hr class="border-base-300 mt-2 border-dashed" />
+                            <a
+                                target="_blank"
+                                class="bg-base-200/60 hover:bg-base-200 rounded-box m-2.5 mb-2 flex cursor-pointer items-center gap-3 px-3.5 py-2 transition-all"
+                                href="https://nexus.daisyui.com/docs/">
+                                <span class="iconify lucide--book-open-text size-5"></span>
+                                <div class="grow -space-y-0.5">
+                                    <p class="text-sm font-medium">Documentation</p>
+                                    <p class="text-base-content/60 text-xs">Installations</p>
+                                </div>
+                                <span
+                                    class="iconify lucide--external-link text-base-content/60 size-4"></span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="components-layout-main">
+                    <div
+                        role="navigation"
+                        aria-label="Navbar"
+                        class="border-base-300/80 bg-base-100 sticky top-0 z-1 h-16 border-b border-dashed px-4 md:px-8 xl:px-12 2xl:px-20">
+                        <div class="flex h-full items-center justify-between px-0">
+                            <div class="flex items-center gap-5">
+                                <a
+                                    class="text-base-content/70 hover:text-base-content transition-all"
+                                    href="/dashboards-ecommerce">
+                                    Dashboard
+                                </a>
+                                <a class="font-medium" href="/components">Components</a>
+                            </div>
+                            <div class="inline-flex items-center gap-3">
+                                <button
+                                    aria-label="Toggle Theme"
+                                    class="btn btn-sm btn-circle btn-ghost relative overflow-hidden"
+                                    data-theme-control="toggle">
+                                    <span
+                                        class="iconify lucide--sun absolute size-4.5 -translate-y-4 opacity-0 transition-all duration-300 group-data-[theme=light]/html:translate-y-0 group-data-[theme=light]/html:opacity-100"></span>
+                                    <span
+                                        class="iconify lucide--moon absolute size-4.5 translate-y-4 opacity-0 transition-all duration-300 group-data-[theme=dark]/html:translate-y-0 group-data-[theme=dark]/html:opacity-100"></span>
+                                    <span
+                                        class="iconify lucide--palette absolute size-4.5 opacity-100 group-data-[theme=dark]/html:opacity-0 group-data-[theme=light]/html:opacity-0"></span>
+                                </button>
+
+                                <a
+                                    target="_blank"
+                                    class="btn from-primary to-secondary group/purchase text-primary-content btn-sm max-sm:btn-square relative gap-2 border-0 bg-linear-to-r text-sm"
+                                    href="https://daisyui.com/store/244268">
+                                    <span class="iconify lucide--shopping-cart size-4"></span>
+                                    <span class="max-sm:hidden">Buy Now</span>
+                                    <div
+                                        class="from-primary to-secondary absolute inset-x-0 top-1 -z-1 h-8 bg-linear-to-r opacity-40 blur-md transition-all duration-500 group-hover/purchase:opacity-60 group-hover/purchase:blur-lg"></div>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="components-layout-content">
+                        <div class="flex flex-col items-center justify-center space-y-0.5">
+                            <div
+                                class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                <div class="status status-sm bg-base-content/30"></div>
+                                Interactions
+                            </div>
+                            <p
+                                class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                Form Validation
+                            </p>
+                            <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                Flexible form validation with inputs, checkboxes, radios, toggles,
+                                selects, and custom controls
+                            </p>
+                        </div>
+                        <p class="text-base-content/60 mt-6 font-medium lg:mt-12">Demos</p>
+
+                        <div class="bg-base-100 card card-border mt-6">
+                            <div
+                                class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                <span class="iconify lucide--form-input size-4.5"></span>
+                                Form
+                            </div>
+                            <div class="p-5">
+                                <form
+                                    x-data="useFormFormValidator()"
+                                    x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+                                    novalidate>
+                                    <div
+                                        class="grid grid-cols-1 gap-5 xl:grid-cols-2 2xl:grid-cols-3">
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label
+                                                    class="label text-sm font-medium"
+                                                    for="firstName">
+                                                    First Name
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    * Required
+                                                </p>
+                                            </div>
+                                            <label
+                                                for="firstName"
+                                                class="input data-error:input-error w-full">
+                                                <span class="iconify lucide--user size-4.5"></span>
+                                                <input
+                                                    id="firstName"
+                                                    type="text"
+                                                    placeholder="Den"
+                                                    name="firstName"
+                                                    @input="updateData('firstName', $event.target.value)"
+                                                    :data-error="hasError('firstName')" />
+                                            </label>
+                                            <p
+                                                :data-error="hasError('firstName')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('firstName')"></p>
+                                        </div>
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label
+                                                    class="label text-sm font-medium"
+                                                    for="lastName">
+                                                    Last Name
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    * Required
+                                                </p>
+                                            </div>
+                                            <label
+                                                for="lastName"
+                                                class="input data-error:input-error w-full">
+                                                <span class="iconify lucide--user size-4.5"></span>
+                                                <input
+                                                    id="lastName"
+                                                    type="text"
+                                                    placeholder="Navadiya"
+                                                    name="lastName"
+                                                    @input="updateData('lastName', $event.target.value)"
+                                                    :data-error="hasError('lastName')" />
+                                            </label>
+                                            <p
+                                                :data-error="hasError('lastName')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('lastName')"></p>
+                                        </div>
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label
+                                                    class="label text-sm font-medium"
+                                                    for="username">
+                                                    Username
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    * Required
+                                                </p>
+                                            </div>
+                                            <label
+                                                for="username"
+                                                class="input data-error:input-error w-full">
+                                                <span
+                                                    class="iconify lucide--at-sign size-4.5"></span>
+                                                <input
+                                                    id="username"
+                                                    type="text"
+                                                    placeholder="withden"
+                                                    name="username"
+                                                    @input="updateData('username', $event.target.value)"
+                                                    :data-error="hasError('username')" />
+                                            </label>
+                                            <p
+                                                :data-error="hasError('username')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('username')"></p>
+                                        </div>
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label
+                                                    class="label text-sm font-medium"
+                                                    for="email">
+                                                    Email
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    * Required
+                                                </p>
+                                            </div>
+                                            <label
+                                                for="email"
+                                                class="input data-error:input-error w-full">
+                                                <span class="iconify lucide--mail size-4.5"></span>
+                                                <input
+                                                    id="email"
+                                                    type="email"
+                                                    placeholder="abc@xyz.com"
+                                                    name="email"
+                                                    @input="updateData('email', $event.target.value)"
+                                                    :data-error="hasError('email')" />
+                                            </label>
+                                            <p
+                                                :data-error="hasError('email')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('email')"></p>
+                                        </div>
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label
+                                                    class="label text-sm font-medium"
+                                                    for="phoneNumber">
+                                                    Phone Number
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    * Required
+                                                </p>
+                                            </div>
+                                            <label
+                                                for="phoneNumber"
+                                                class="input data-error:input-error w-full">
+                                                <span class="iconify lucide--phone size-4.5"></span>
+                                                <input
+                                                    id="phoneNumber"
+                                                    type="tel"
+                                                    placeholder="+84 78965 12335"
+                                                    name="phoneNumber"
+                                                    @input="updateData('phoneNumber', $event.target.value)"
+                                                    :data-error="hasError('phoneNumber')" />
+                                            </label>
+                                            <p
+                                                :data-error="hasError('phoneNumber')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('phoneNumber')"></p>
+                                        </div>
+                                        <div class="flex flex-col gap-1">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label class="label text-sm font-medium" for="dob">
+                                                    Date of Birth
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    * Required
+                                                </p>
+                                            </div>
+                                            <label
+                                                for="dob"
+                                                class="input data-error:input-error w-full">
+                                                <span
+                                                    class="iconify lucide--calendar-1 size-4.5"></span>
+                                                <input
+                                                    id="dob"
+                                                    type="date"
+                                                    placeholder="+84 78965 12335"
+                                                    :value="getData('dob')"
+                                                    @input="updateData('dob', $event.target.value)"
+                                                    :data-error="hasError('dob')"
+                                                    name="dob" />
+                                            </label>
+                                            <p
+                                                :data-error="hasError('dob')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('dob')"></p>
+                                        </div>
+                                    </div>
+                                    <div class="mt-5 flex items-center justify-end gap-3">
+                                        <button
+                                            type="reset"
+                                            class="btn btn-sm btn-outline border-base-300">
+                                            Clear
+                                        </button>
+                                        <button type="submit" class="btn btn-sm btn-primary">
+                                            Submit
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <p class="text-base-content/60 mt-6 font-medium">Form Elements</p>
+                        <div
+                            class="mt-6 grid grid-cols-1 gap-6 space-y-6 lg:grid-cols-2 xl:grid-cols-3">
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--text size-4.5"></span>
+                                    Text
+                                </div>
+                                <div class="p-5">
+                                    <form
+                                        x-data="useTextFormValidator()"
+                                        x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+                                        novalidate
+                                        class="space-y-3">
+                                        <div class="flex flex-col items-stretch gap-1.5">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label
+                                                    class="label text-sm font-medium"
+                                                    for="optionalText">
+                                                    Optional Text
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    Can empty
+                                                </p>
+                                            </div>
+                                            <input
+                                                name="optionalText"
+                                                id="optionalText"
+                                                @input="updateData('optionalText', $event.target.value)"
+                                                type="text"
+                                                :data-error="hasError('optionalText')"
+                                                class="input data-error:input-error w-full"
+                                                placeholder="..." />
+                                            <p
+                                                :data-error="hasError('optionalText')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('optionalText')">
+                                                >
+                                            </p>
+                                        </div>
+                                        <div class="flex flex-col items-stretch gap-1.5">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label
+                                                    class="label text-sm font-medium"
+                                                    for="minimumText">
+                                                    Minimum Text
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    Min 3 chars
+                                                </p>
+                                            </div>
+                                            <input
+                                                name="minimumText"
+                                                id="minimumText"
+                                                :value="getData('minimumText')"
+                                                @input="updateData('minimumText', $event.target.value)"
+                                                type="text"
+                                                :data-error="hasError('minimumText')"
+                                                class="input data-error:input-error w-full"
+                                                placeholder="A1B2C3" />
+                                            <p
+                                                :data-error="hasError('minimumText')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('minimumText')"></p>
+                                        </div>
+                                        <div class="flex flex-col items-stretch gap-1.5">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label
+                                                    class="label text-sm font-medium"
+                                                    for="maximumText">
+                                                    Maximum Text
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    Max 5 chars
+                                                </p>
+                                            </div>
+                                            <input
+                                                name="maximumText"
+                                                id="maximumText"
+                                                type="text"
+                                                :value="getData('maximumText')"
+                                                @input="updateData('maximumText', $event.target.value)"
+                                                :data-error="hasError('maximumText')"
+                                                class="input data-error:input-error w-full"
+                                                placeholder="A1B2" />
+                                            <p
+                                                :data-error="hasError('maximumText')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('maximumText')"></p>
+                                        </div>
+                                        <div class="text-end">
+                                            <button type="submit" class="btn btn-sm">Submit</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--binary size-4.5"></span>
+                                    Number
+                                </div>
+                                <div class="p-5">
+                                    <form
+                                        x-data="useNumberValidator()"
+                                        x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+                                        novalidate
+                                        class="space-y-3">
+                                        <div class="space-y-1.5">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label
+                                                    class="label text-sm font-medium"
+                                                    for="optionalNumber">
+                                                    Optional Number
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    Can empty
+                                                </p>
+                                            </div>
+                                            <input
+                                                name="optionalNumber"
+                                                id="optionalNumber"
+                                                type="number"
+                                                @input="updateData('optionalNumber', Number($event.target.value))"
+                                                :data-error="hasError('optionalNumber')"
+                                                class="input data-error:input-error w-full"
+                                                placeholder="..." />
+                                            <p
+                                                :data-error="hasError('optionalNumber')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('optionalNumber')"></p>
+                                        </div>
+                                        <div class="space-y-1.5">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label
+                                                    class="label text-sm font-medium"
+                                                    for="minimumNumber">
+                                                    Minimum Number
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    Minimum 18
+                                                </p>
+                                            </div>
+                                            <input
+                                                name="minimumNumber"
+                                                id="minimumNumber"
+                                                type="number"
+                                                :value="getData('minimumNumber')"
+                                                @input="updateData('minimumNumber', Number($event.target.value))"
+                                                :data-error="hasError('minimumNumber')"
+                                                class="input data-error:input-error w-full"
+                                                placeholder="Required Text" />
+                                            <p
+                                                :data-error="hasError('minimumNumber')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('minimumNumber')"></p>
+                                        </div>
+
+                                        <div class="space-y-1.5">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label
+                                                    class="label text-sm font-medium"
+                                                    for="maximumNumber">
+                                                    Maximum Number
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    Maximum 99
+                                                </p>
+                                            </div>
+                                            <input
+                                                name="maximumNumber"
+                                                id="maximumNumber"
+                                                :value="getData('maximumNumber')"
+                                                type="number"
+                                                @input="updateData('maximumNumber', Number($event.target.value))"
+                                                :data-error="hasError('maximumNumber')"
+                                                class="input data-error:input-error w-full"
+                                                placeholder="Required Text" />
+                                            <p
+                                                :data-error="hasError('maximumNumber')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('maximumNumber')"></p>
+                                        </div>
+
+                                        <div class="text-end">
+                                            <button type="submit" class="btn btn-sm">Submit</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--mail size-4.5"></span>
+                                    Email
+                                </div>
+                                <div class="p-5">
+                                    <form
+                                        x-data="useEmailFormValidator()"
+                                        x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+                                        novalidate
+                                        class="space-y-3">
+                                        <div class="space-y-1.5">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label
+                                                    class="label text-sm font-medium"
+                                                    for="optionalEmail">
+                                                    Optional Email
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    Can empty
+                                                </p>
+                                            </div>
+                                            <input
+                                                name="optionalEmail"
+                                                id="optionalEmail"
+                                                type="email"
+                                                @input="updateData('optionalEmail', $event.target.value)"
+                                                :data-error="hasError('optionalEmail')"
+                                                class="input data-error:input-error w-full"
+                                                placeholder="abc@mail.com" />
+                                            <p
+                                                :data-error="hasError('optionalEmail')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('optionalEmail')"></p>
+                                        </div>
+                                        <div class="space-y-1.5">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label
+                                                    class="label text-sm font-medium"
+                                                    for="requiredEmail">
+                                                    Email Address
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    * Required
+                                                </p>
+                                            </div>
+                                            <input
+                                                name="requiredEmail"
+                                                id="requiredEmail"
+                                                type="email"
+                                                @input="updateData('requiredEmail', $event.target.value)"
+                                                :data-error="hasError('requiredEmail')"
+                                                class="input data-error:input-error w-full"
+                                                placeholder="abc@mail.com" />
+                                            <p
+                                                :data-error="hasError('requiredEmail')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('requiredEmail')"></p>
+                                        </div>
+                                        <div class="text-end">
+                                            <button type="submit" class="btn btn-sm">Submit</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--circle-dot size-4.5"></span>
+                                    Radio
+                                </div>
+                                <div class="p-5">
+                                    <form
+                                        x-data="useRadioFormValidator()"
+                                        x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+                                        novalidate
+                                        class="space-y-3">
+                                        <div class="space-y-1.5">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label
+                                                    class="label text-sm font-medium"
+                                                    for="requiredRadio">
+                                                    Gender
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    * Required
+                                                </p>
+                                            </div>
+                                            <div class="flex gap-2">
+                                                <label class="label cursor-pointer gap-2">
+                                                    <input
+                                                        type="radio"
+                                                        class="radio radio-sm"
+                                                        name="requiredRadio"
+                                                        value="male"
+                                                        @change="updateData('requiredRadio', $event.target.value)" />
+                                                    <span class="capitalize">male</span>
+                                                </label>
+                                                <label class="label cursor-pointer gap-2">
+                                                    <input
+                                                        type="radio"
+                                                        class="radio radio-sm"
+                                                        name="requiredRadio"
+                                                        value="female"
+                                                        @change="updateData('requiredRadio', $event.target.value)" />
+                                                    <span class="capitalize">female</span>
+                                                </label>
+                                                <label class="label cursor-pointer gap-2">
+                                                    <input
+                                                        type="radio"
+                                                        class="radio radio-sm"
+                                                        name="requiredRadio"
+                                                        value="other"
+                                                        @change="updateData('requiredRadio', $event.target.value)" />
+                                                    <span class="capitalize">other</span>
+                                                </label>
+                                            </div>
+                                            <p
+                                                :data-error="hasError('requiredRadio')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('requiredRadio')"></p>
+                                        </div>
+                                        <div class="text-end">
+                                            <button type="submit" class="btn btn-sm">Submit</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--square-check size-4.5"></span>
+                                    Checkbox
+                                </div>
+                                <div class="p-5">
+                                    <form
+                                        x-data="useCheckboxFormValidator()"
+                                        x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+                                        novalidate
+                                        class="space-y-3">
+                                        <div class="space-y-1.5">
+                                            <div class="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    id="requiredCheckbox"
+                                                    :data-error="hasError('requiredCheckbox')"
+                                                    @change="updateData('requiredCheckbox', $event.target.checked)"
+                                                    class="checkbox checkbox-sm data-error:checkbox-error"
+                                                    name="requiredCheckbox" />
+                                                <label for="requiredCheckbox">
+                                                    I accept the terms and conditions
+                                                </label>
+                                            </div>
+                                            <p
+                                                :data-error="hasError('requiredCheckbox')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('requiredCheckbox')"></p>
+                                        </div>
+                                        <div class="text-end">
+                                            <button type="submit" class="btn btn-sm">Submit</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--toggle-right size-4.5"></span>
+                                    Toggle
+                                </div>
+                                <div class="p-5">
+                                    <form
+                                        x-data="useToggleFormValidator()"
+                                        x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+                                        novalidate
+                                        class="space-y-3">
+                                        <div class="space-y-1.5">
+                                            <div class="flex items-center gap-2">
+                                                <input
+                                                    type="checkbox"
+                                                    id="requiredToggle"
+                                                    :data-error="hasError('requiredToggle')"
+                                                    @change="updateData('requiredToggle', $event.target.checked)"
+                                                    class="toggle toggle-sm"
+                                                    name="requiredToggle" />
+                                                <label for="requiredToggle">
+                                                    I accept the terms and conditions
+                                                </label>
+                                            </div>
+                                            <p
+                                                :data-error="hasError('requiredToggle')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('requiredToggle')"></p>
+                                        </div>
+                                        <div class="text-end">
+                                            <button type="submit" class="btn btn-sm">Submit</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--diamond size-4.5"></span>
+                                    Select
+                                </div>
+                                <div class="p-5">
+                                    <form
+                                        x-data="useSelectFormValidator()"
+                                        x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+                                        novalidate
+                                        class="space-y-3">
+                                        <div class="space-y-1.5">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label
+                                                    class="label text-sm font-medium"
+                                                    for="requiredSelect">
+                                                    Select
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    * Required
+                                                </p>
+                                            </div>
+                                            <select
+                                                name="requiredSelect"
+                                                id="requiredSelect"
+                                                @change="updateData('requiredSelect', $event.target.value)"
+                                                :data-error="hasError('requiredSelect')"
+                                                class="select data-error:select-error w-full">
+                                                <option value="" selected="">Select Country</option>
+                                                <option value="india">India</option>
+                                                <option value="usa">USA</option>
+                                                <option value="germany">Germany</option>
+                                            </select>
+                                            <p
+                                                :data-error="hasError('requiredSelect')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('requiredSelect')"></p>
+                                        </div>
+                                        <div class="text-end">
+                                            <button type="submit" class="btn btn-sm">Submit</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--settings-2 size-4.5"></span>
+                                    Range
+                                </div>
+                                <div class="p-5">
+                                    <form
+                                        x-data="useRangeFormValidator()"
+                                        x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+                                        novalidate
+                                        class="space-y-3">
+                                        <div class="space-y-1.5">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label
+                                                    class="label text-sm font-medium"
+                                                    for="betweenNumber">
+                                                    Age
+                                                    <span
+                                                        x-text="'('+getData('betweenNumber')+')'"></span>
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    Between 5 and 95
+                                                </p>
+                                            </div>
+                                            <input
+                                                type="range"
+                                                min="0"
+                                                max="100"
+                                                id="betweenNumber"
+                                                class="range data-error:range-error range-primary range-xs w-full transition-all duration-300"
+                                                name="betweenNumber"
+                                                @input="updateData('betweenNumber', Number($event.target.value))"
+                                                :data-error="hasError('betweenNumber')"
+                                                value="15" />
+                                            <p
+                                                :data-error="hasError('betweenNumber')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('betweenNumber')"></p>
+                                        </div>
+                                        <div class="text-end">
+                                            <button type="submit" class="btn btn-sm">Submit</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--star size-4.5"></span>
+                                    Ratings
+                                </div>
+                                <div class="p-5">
+                                    <form
+                                        x-data="useRatingsFormValidator()"
+                                        x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+                                        novalidate
+                                        class="space-y-3">
+                                        <div class="space-y-1.5">
+                                            <div class="flex items-center justify-between gap-2">
+                                                <label class="label text-sm font-medium">
+                                                    Ratings
+                                                    <span
+                                                        x-text="'('+getData('requiredRating')+')'"></span>
+                                                </label>
+                                                <p class="text-base-content/60 text-end text-xs">
+                                                    Select a rating
+                                                </p>
+                                            </div>
+                                            <div class="rating">
+                                                <input
+                                                    type="radio"
+                                                    class="mask mask-star-2 bg-orange-400"
+                                                    aria-label="Star"
+                                                    value="1"
+                                                    @change="updateData('requiredRating', $event.target.value)"
+                                                    name="requiredRating" />
+                                                <input
+                                                    type="radio"
+                                                    class="mask mask-star-2 bg-orange-400"
+                                                    aria-label="Star"
+                                                    value="2"
+                                                    @change="updateData('requiredRating', $event.target.value)"
+                                                    name="requiredRating" />
+                                                <input
+                                                    type="radio"
+                                                    class="mask mask-star-2 bg-orange-400"
+                                                    aria-label="Star"
+                                                    value="3"
+                                                    @change="updateData('requiredRating', $event.target.value)"
+                                                    name="requiredRating" />
+                                                <input
+                                                    type="radio"
+                                                    class="mask mask-star-2 bg-orange-400"
+                                                    aria-label="Star"
+                                                    value="4"
+                                                    @change="updateData('requiredRating', $event.target.value)"
+                                                    name="requiredRating" />
+                                                <input
+                                                    type="radio"
+                                                    class="mask mask-star-2 bg-orange-400"
+                                                    aria-label="Star"
+                                                    value="5"
+                                                    @change="updateData('requiredRating', $event.target.value)"
+                                                    name="requiredRating" />
+                                            </div>
+                                            <p
+                                                :data-error="hasError('requiredRating')"
+                                                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                                                x-text="getError('requiredRating')"></p>
+                                        </div>
+                                        <div class="text-end">
+                                            <button type="submit" class="btn btn-sm">Submit</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        class="border-base-300/80 bg-base-100 border-t border-dashed px-4 py-4 md:px-8 xl:px-12 2xl:px-20">
+                        <div class="flex items-center justify-between px-0">
+                            <p>
+                                Built and designed with care by
+                                <a target="_blank" class="text-primary" href="https://withden.dev/">
+                                    Denish
+                                </a>
+                            </p>
+                            <a
+                                aria-label="Buy now"
+                                target="_blank"
+                                class="bg-primary text-primary-content group flex size-9 items-center gap-2 overflow-hidden rounded-full px-2.5 py-0.5 font-medium transition-all hover:w-26"
+                                href="https://daisyui.com/store/244268">
+                                <span class="iconify lucide--shopping-cart block size-4.5"></span>
+                                <span class="hidden text-sm text-nowrap group-hover:block">
+                                    Buy Now
+                                </span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+        <script src="./js/components/form-validations.js" type="module"></script>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/simplebar/6.2.7/simplebar.min.js"></script>
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/simplebar/6.2.7/simplebar.css" />
+        <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+        <script src="./js/app.js"></script>
+    </body>
+</html>

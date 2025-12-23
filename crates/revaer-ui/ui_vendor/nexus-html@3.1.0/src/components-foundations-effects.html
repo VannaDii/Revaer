@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <load src="partials/components-layout/sidebar.html" />
+
+                <div id="components-layout-main">
+                    <load src="partials/components-layout/topbar.html" />
+                    <div id="components-layout-content">
+                        <div>
+                            <div class="flex flex-col items-center justify-center space-y-0.5">
+                                <div
+                                    class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                    <div class="status status-sm bg-base-content/30"></div>
+                                    Foundations
+                                </div>
+                                <p
+                                    class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                    Effects
+                                </p>
+                                <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                    Explore visual effects like filters and backdrops to enhance
+                                    depth and style effortlessly
+                                </p>
+                            </div>
+                            <p class="text-base-content/60 mt-6 font-medium lg:mt-12">Demos</p>
+                            <div class="mt-6 space-y-6">
+                                <div class="card card-border bg-base-100">
+                                    <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                        Filter
+                                    </div>
+                                    <div
+                                        class="grid grid-cols-2 gap-4 p-4 sm:gap-8 sm:p-6 lg:grid-cols-4">
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <img
+                                                alt="Filter"
+                                                class="rounded-box size-28 md:size-36"
+                                                src="/images/apps/ecommerce/products/9.jpg" />
+                                            <p class="text-base-content/60 text-sm">Normal</p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <img
+                                                alt="Filter"
+                                                class="rounded-box size-28 grayscale md:size-36"
+                                                src="/images/apps/ecommerce/products/9.jpg" />
+                                            <p class="text-base-content/60 text-sm">Grayscale</p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <img
+                                                alt="Filter"
+                                                class="rounded-box size-28 invert md:size-36"
+                                                src="/images/apps/ecommerce/products/9.jpg" />
+                                            <p class="text-base-content/60 text-sm">Invert</p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <img
+                                                alt="Filter"
+                                                class="rounded-box size-28 sepia md:size-36"
+                                                src="/images/apps/ecommerce/products/9.jpg" />
+                                            <p class="text-base-content/60 text-sm">Sepia</p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <img
+                                                alt="Filter"
+                                                class="rounded-box size-28 blur-sm md:size-36"
+                                                src="/images/apps/ecommerce/products/9.jpg" />
+                                            <p class="text-base-content/60 text-sm">Blur</p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <img
+                                                alt="Filter"
+                                                class="rounded-box size-28 brightness-125 md:size-36"
+                                                src="/images/apps/ecommerce/products/9.jpg" />
+                                            <p class="text-base-content/60 text-sm">Brightness</p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <img
+                                                alt="Filter"
+                                                class="rounded-box size-28 contrast-200 md:size-36"
+                                                src="/images/apps/ecommerce/products/9.jpg" />
+                                            <p class="text-base-content/60 text-sm">Contrast</p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <img
+                                                alt="Filter"
+                                                class="rounded-box size-28 saturate-200 md:size-36"
+                                                src="/images/apps/ecommerce/products/9.jpg" />
+                                            <p class="text-base-content/60 text-sm">Saturate</p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <img
+                                                alt="Filter"
+                                                class="rounded-box size-28 hue-rotate-60 md:size-36"
+                                                src="/images/apps/ecommerce/products/9.jpg" />
+                                            <p class="text-base-content/60 text-sm">Hue Rotate</p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card card-border bg-base-100">
+                                    <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                        Background Blend
+                                    </div>
+                                    <div
+                                        class="grid grid-cols-2 gap-4 p-4 sm:gap-6 sm:p-6 lg:grid-cols-4">
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div
+                                                class="bg-primary rounded-box size-28 bg-[url(/images/apps/ecommerce/products/9.jpg)] bg-cover bg-center md:size-36"></div>
+                                            <p class="text-base-content/60 sm:t ext-sm text-xs">
+                                                No Blend
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div
+                                                class="bg-primary rounded-box size-28 bg-[url(/images/apps/ecommerce/products/9.jpg)] bg-cover bg-center bg-blend-multiply md:size-36"></div>
+                                            <p class="text-base-content/60 sm:t ext-sm text-xs">
+                                                bg-blend-multiply
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div
+                                                class="bg-primary rounded-box size-28 bg-[url(/images/apps/ecommerce/products/9.jpg)] bg-cover bg-center bg-blend-screen md:size-36"></div>
+                                            <p class="text-base-content/60 sm:t ext-sm text-xs">
+                                                bg-blend-screen
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div
+                                                class="bg-primary rounded-box size-28 bg-[url(/images/apps/ecommerce/products/9.jpg)] bg-cover bg-center bg-blend-overlay md:size-36"></div>
+                                            <p class="text-base-content/60 sm:t ext-sm text-xs">
+                                                bg-blend-overlay
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div
+                                                class="bg-primary rounded-box size-28 bg-[url(/images/apps/ecommerce/products/9.jpg)] bg-cover bg-center bg-blend-darken md:size-36"></div>
+                                            <p class="text-base-content/60 sm:t ext-sm text-xs">
+                                                bg-blend-darken
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div
+                                                class="bg-primary rounded-box size-28 bg-[url(/images/apps/ecommerce/products/9.jpg)] bg-cover bg-center bg-blend-lighten md:size-36"></div>
+                                            <p class="text-base-content/60 sm:t ext-sm text-xs">
+                                                bg-blend-lighten
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div
+                                                class="bg-primary rounded-box size-28 bg-[url(/images/apps/ecommerce/products/9.jpg)] bg-cover bg-center bg-blend-color-dodge md:size-36"></div>
+                                            <p class="text-base-content/60 sm:t ext-sm text-xs">
+                                                bg-blend-color-dodge
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div
+                                                class="bg-primary rounded-box size-28 bg-[url(/images/apps/ecommerce/products/9.jpg)] bg-cover bg-center bg-blend-color-burn md:size-36"></div>
+                                            <p class="text-base-content/60 sm:t ext-sm text-xs">
+                                                bg-blend-color-burn
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div
+                                                class="bg-primary rounded-box size-28 bg-[url(/images/apps/ecommerce/products/9.jpg)] bg-cover bg-center bg-blend-hard-light md:size-36"></div>
+                                            <p class="text-base-content/60 sm:t ext-sm text-xs">
+                                                bg-blend-hard-light
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div
+                                                class="bg-primary rounded-box size-28 bg-[url(/images/apps/ecommerce/products/9.jpg)] bg-cover bg-center bg-blend-soft-light md:size-36"></div>
+                                            <p class="text-base-content/60 sm:t ext-sm text-xs">
+                                                bg-blend-soft-light
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div
+                                                class="bg-primary rounded-box size-28 bg-[url(/images/apps/ecommerce/products/9.jpg)] bg-cover bg-center bg-blend-difference md:size-36"></div>
+                                            <p class="text-base-content/60 sm:t ext-sm text-xs">
+                                                bg-blend-difference
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div
+                                                class="bg-primary rounded-box size-28 bg-[url(/images/apps/ecommerce/products/9.jpg)] bg-cover bg-center bg-blend-exclusion md:size-36"></div>
+                                            <p class="text-base-content/60 sm:t ext-sm text-xs">
+                                                bg-blend-exclusion
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div
+                                                class="bg-primary rounded-box size-28 bg-[url(/images/apps/ecommerce/products/9.jpg)] bg-cover bg-center bg-blend-hue md:size-36"></div>
+                                            <p class="text-base-content/60 sm:t ext-sm text-xs">
+                                                bg-blend-hue
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div
+                                                class="bg-primary rounded-box size-28 bg-[url(/images/apps/ecommerce/products/9.jpg)] bg-cover bg-center bg-blend-saturation md:size-36"></div>
+                                            <p class="text-base-content/60 sm:t ext-sm text-xs">
+                                                bg-blend-saturation
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div
+                                                class="bg-primary rounded-box size-28 bg-[url(/images/apps/ecommerce/products/9.jpg)] bg-cover bg-center bg-blend-color md:size-36"></div>
+                                            <p class="text-base-content/60 sm:t ext-sm text-xs">
+                                                bg-blend-color
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div
+                                                class="bg-primary rounded-box size-28 bg-[url(/images/apps/ecommerce/products/9.jpg)] bg-cover bg-center bg-blend-luminosity md:size-36"></div>
+                                            <p class="text-base-content/60 sm:t ext-sm text-xs">
+                                                bg-blend-luminosity
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card card-border bg-base-100">
+                                    <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                        Overlay Filter
+                                    </div>
+                                    <div
+                                        class="grid grid-cols-2 gap-4 p-4 sm:gap-6 sm:p-6 lg:grid-cols-4">
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div class="relative">
+                                                <img
+                                                    alt="backdrop-filter"
+                                                    class="rounded-box size-32 md:size-48"
+                                                    src="/images/apps/ecommerce/products/9.jpg" />
+                                                <div
+                                                    class="rounded-box absolute start-1/2 top-1/2 size-20 -translate-1/2 bg-white/30 md:size-28"></div>
+                                            </div>
+                                            <p class="text-base-content/60 text-xs sm:text-sm">
+                                                opacity-30
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div class="relative">
+                                                <img
+                                                    alt="backdrop-filter"
+                                                    class="rounded-box size-32 md:size-48"
+                                                    src="/images/apps/ecommerce/products/9.jpg" />
+                                                <div
+                                                    class="rounded-box absolute start-1/2 top-1/2 size-20 -translate-1/2 bg-white/30 backdrop-blur-md md:size-28"></div>
+                                            </div>
+                                            <p class="text-base-content/60 text-xs sm:text-sm">
+                                                backdrop-blur-md
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div class="relative">
+                                                <img
+                                                    alt="backdrop-filter"
+                                                    class="rounded-box size-32 md:size-48"
+                                                    src="/images/apps/ecommerce/products/9.jpg" />
+                                                <div
+                                                    class="rounded-box absolute start-1/2 top-1/2 size-20 -translate-1/2 bg-white/30 backdrop-brightness-125 md:size-28"></div>
+                                            </div>
+                                            <p class="text-base-content/60 text-xs sm:text-sm">
+                                                backdrop-brightness-125
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div class="relative">
+                                                <img
+                                                    alt="backdrop-filter"
+                                                    class="rounded-box size-32 md:size-48"
+                                                    src="/images/apps/ecommerce/products/9.jpg" />
+                                                <div
+                                                    class="rounded-box absolute start-1/2 top-1/2 size-20 -translate-1/2 bg-white/30 backdrop-contrast-200 md:size-28"></div>
+                                            </div>
+                                            <p class="text-base-content/60 text-xs sm:text-sm">
+                                                backdrop-contrast-200
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div class="relative">
+                                                <img
+                                                    alt="backdrop-filter"
+                                                    class="rounded-box size-32 md:size-48"
+                                                    src="/images/apps/ecommerce/products/9.jpg" />
+                                                <div
+                                                    class="rounded-box absolute start-1/2 top-1/2 size-20 -translate-1/2 bg-white/30 backdrop-grayscale md:size-28"></div>
+                                            </div>
+                                            <p class="text-base-content/60 text-xs sm:text-sm">
+                                                backdrop-grayscale
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div class="relative">
+                                                <img
+                                                    alt="backdrop-filter"
+                                                    class="rounded-box size-32 md:size-48"
+                                                    src="/images/apps/ecommerce/products/9.jpg" />
+                                                <div
+                                                    class="rounded-box absolute start-1/2 top-1/2 size-20 -translate-1/2 bg-white/30 backdrop-hue-rotate-90 md:size-28"></div>
+                                            </div>
+                                            <p class="text-base-content/60 text-xs sm:text-sm">
+                                                backdrop-hue-rotate-90
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div class="relative">
+                                                <img
+                                                    alt="backdrop-filter"
+                                                    class="rounded-box size-32 md:size-48"
+                                                    src="/images/apps/ecommerce/products/9.jpg" />
+                                                <div
+                                                    class="rounded-box absolute start-1/2 top-1/2 size-20 -translate-1/2 bg-white/30 backdrop-invert md:size-28"></div>
+                                            </div>
+                                            <p class="text-base-content/60 text-xs sm:text-sm">
+                                                backdrop-invert
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div class="relative">
+                                                <img
+                                                    alt="backdrop-filter"
+                                                    class="rounded-box size-32 md:size-48"
+                                                    src="/images/apps/ecommerce/products/9.jpg" />
+                                                <div
+                                                    class="rounded-box absolute start-1/2 top-1/2 size-20 -translate-1/2 bg-white/30 backdrop-saturate-200 md:size-28"></div>
+                                            </div>
+                                            <p class="text-base-content/60 text-xs sm:text-sm">
+                                                backdrop-saturate-200
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-2">
+                                            <div class="relative">
+                                                <img
+                                                    alt="backdrop-filter"
+                                                    class="rounded-box size-32 md:size-48"
+                                                    src="/images/apps/ecommerce/products/9.jpg" />
+                                                <div
+                                                    class="rounded-box absolute start-1/2 top-1/2 size-20 -translate-1/2 bg-white/30 backdrop-sepia md:size-28"></div>
+                                            </div>
+                                            <p class="text-base-content/60 text-xs sm:text-sm">
+                                                backdrop-sepia
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <load src="partials/components-layout/footer.html" />
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

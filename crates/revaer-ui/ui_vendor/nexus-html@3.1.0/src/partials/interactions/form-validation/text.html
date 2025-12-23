@@ -1,0 +1,67 @@
+<form
+    x-data="useTextFormValidator()"
+    x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+    novalidate
+    class="space-y-3">
+    <div class="flex flex-col items-stretch gap-1.5">
+        <div class="flex items-center justify-between gap-2">
+            <label class="label text-sm font-medium" for="optionalText">Optional Text</label>
+            <p class="text-base-content/60 text-end text-xs">Can empty</p>
+        </div>
+        <input
+            name="optionalText"
+            id="optionalText"
+            @input="updateData('optionalText', $event.target.value)"
+            type="text"
+            :data-error="hasError('optionalText')"
+            class="input data-error:input-error w-full"
+            placeholder="..." />
+        <p
+            :data-error="hasError('optionalText')"
+            class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+            x-text="getError('optionalText')">
+            >
+        </p>
+    </div>
+    <div class="flex flex-col items-stretch gap-1.5">
+        <div class="flex items-center justify-between gap-2">
+            <label class="label text-sm font-medium" for="minimumText">Minimum Text</label>
+            <p class="text-base-content/60 text-end text-xs">Min 3 chars</p>
+        </div>
+        <input
+            name="minimumText"
+            id="minimumText"
+            :value="getData('minimumText')"
+            @input="updateData('minimumText', $event.target.value)"
+            type="text"
+            :data-error="hasError('minimumText')"
+            class="input data-error:input-error w-full"
+            placeholder="A1B2C3" />
+        <p
+            :data-error="hasError('minimumText')"
+            class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+            x-text="getError('minimumText')"></p>
+    </div>
+    <div class="flex flex-col items-stretch gap-1.5">
+        <div class="flex items-center justify-between gap-2">
+            <label class="label text-sm font-medium" for="maximumText">Maximum Text</label>
+            <p class="text-base-content/60 text-end text-xs">Max 5 chars</p>
+        </div>
+        <input
+            name="maximumText"
+            id="maximumText"
+            type="text"
+            :value="getData('maximumText')"
+            @input="updateData('maximumText', $event.target.value)"
+            :data-error="hasError('maximumText')"
+            class="input data-error:input-error w-full"
+            placeholder="A1B2" />
+        <p
+            :data-error="hasError('maximumText')"
+            class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+            x-text="getError('maximumText')"></p>
+    </div>
+    <div class="text-end">
+        <button type="submit" class="btn btn-sm">Submit</button>
+    </div>
+</form>

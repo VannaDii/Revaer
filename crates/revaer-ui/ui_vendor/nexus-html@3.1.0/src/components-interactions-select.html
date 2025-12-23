@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <load src="partials/components-layout/sidebar.html" />
+
+                <div id="components-layout-main">
+                    <load src="partials/components-layout/topbar.html" />
+
+                    <div id="components-layout-content">
+                        <div class="flex flex-col items-center justify-center space-y-0.5">
+                            <div
+                                class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                <div class="status status-sm bg-base-content/30"></div>
+                                Interactions
+                            </div>
+                            <p
+                                class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                Select
+                            </p>
+                            <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                Feature-rich select and input components with support for groups,
+                                search, multiple, and more
+                            </p>
+                        </div>
+
+                        <div class="bg-base-200/40 rounded-box mt-6 px-5 py-4 lg:mt-12">
+                            <p class="text-base-content/60 font-medium">Usage guidelines</p>
+                            <p class="mt-1">
+                                <span class="me-1">- Plugin Documentation:</span>
+                                <a
+                                    href="https://choices-js.github.io/Choices/"
+                                    target="_blank"
+                                    class="text-primary">
+                                    Choices.js
+                                </a>
+                            </p>
+                        </div>
+                        <p class="text-base-content/60 mt-6 font-medium">Demos</p>
+                        <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3 font-medium">Simple</div>
+                                <div class="p-5">
+                                    <select id="simple-select-demo" aria-label="Select">
+                                        <option value="">Select an option</option>
+                                        <option value="apple">Apple</option>
+                                        <option value="banana">Banana</option>
+                                        <option disabled value="orange">Orange</option>
+                                        <option value="carrot">Carrot</option>
+                                        <option value="broccoli">Broccoli</option>
+                                        <option value="spinach">Spinach</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3 font-medium">Disabled</div>
+                                <div class="p-5">
+                                    <select id="disabled-select-demo" aria-label="Select" disabled>
+                                        <option value="">Select an option</option>
+                                        <option value="apple">Apple</option>
+                                        <option value="banana">Banana</option>
+                                        <option disabled value="orange">Orange</option>
+                                        <option value="carrot">Carrot</option>
+                                        <option value="broccoli">Broccoli</option>
+                                        <option value="spinach">Spinach</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3 font-medium">Group</div>
+                                <div class="p-5">
+                                    <select aria-label="Select" id="group-select-demo">
+                                        <option value="">Select an option</option>
+
+                                        <optgroup label="Fruits">
+                                            <option value="apple">Apple</option>
+                                            <option value="banana">Banana</option>
+                                            <option disabled value="orange">Orange</option>
+                                        </optgroup>
+
+                                        <optgroup label="Vegetables">
+                                            <option value="carrot">Carrot</option>
+                                            <option value="broccoli">Broccoli</option>
+                                            <option value="spinach">Spinach</option>
+                                        </optgroup>
+
+                                        <optgroup label="Others">
+                                            <option value="bread">Bread</option>
+                                            <option value="milk">Milk</option>
+                                        </optgroup>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3 font-medium">Multiple</div>
+                                <div class="p-5">
+                                    <select multiple id="multiple-select-demo" aria-label="Select">
+                                        <option value="">Select an option</option>
+                                        <option value="apple">Apple</option>
+                                        <option value="banana">Banana</option>
+                                        <option disabled value="orange">Orange</option>
+                                        <option value="carrot">Carrot</option>
+                                        <option value="broccoli">Broccoli</option>
+                                        <option value="spinach">Spinach</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3 font-medium">Removable</div>
+                                <div class="p-5">
+                                    <select id="removable-select-demo" aria-label="Select" multiple>
+                                        <option value="">Select an option</option>
+                                        <option value="apple">Apple</option>
+                                        <option value="banana">Banana</option>
+                                        <option disabled value="orange">Orange</option>
+                                        <option value="carrot">Carrot</option>
+                                        <option value="broccoli">Broccoli</option>
+                                        <option value="spinach">Spinach</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3 font-medium">Searchable</div>
+                                <div class="p-5">
+                                    <select
+                                        id="searchable-select-demo"
+                                        aria-label="Select"
+                                        multiple>
+                                        <option value="">Select an option</option>
+                                        <option value="apple">Apple</option>
+                                        <option value="banana">Banana</option>
+                                        <option disabled value="orange">Orange</option>
+                                        <option value="carrot">Carrot</option>
+                                        <option value="broccoli">Broccoli</option>
+                                        <option value="spinach">Spinach</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3 font-medium">Text Input</div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Select text"
+                                        id="text-input-select-demo"
+                                        type="text"
+                                        value="text-1,text-2"
+                                        placeholder="Enter something" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3 font-medium">Email Input</div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Select email"
+                                        id="email-input-select-demo"
+                                        type="text"
+                                        value="denish@mail.com"
+                                        placeholder="Enter something" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <load src="partials/components-layout/footer.html" />
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+
+        <!-- CDN for choices.js -->
+        <link
+            href="https://cdn.jsdelivr.net/npm/choices.js/public/assets/styles/choices.min.css"
+            rel="stylesheet" />
+        <script src="https://cdn.jsdelivr.net/npm/choices.js/public/assets/scripts/choices.min.js"></script>
+        <script src="/js/components/select.js"></script>
+    </body>
+</html>

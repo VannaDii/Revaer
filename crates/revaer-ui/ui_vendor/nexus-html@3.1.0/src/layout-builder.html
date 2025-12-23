@@ -1,0 +1,260 @@
+<!doctype html>
+<html class="group/html" lang="en">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+
+        <script>
+            const sidebars = {
+                "ecommerce": "Ecommerce",
+                "payment": "Payment",
+                "project": "Project",
+                "chat": "Chat",
+                "documentation": "Documentation",
+                "huge-icons": "Huge Icons",
+                "remix-icons": "Remix Icons",
+                "custom-background": "Custom Background",
+            }
+
+            const topbars = {
+                "classic": "Classic",
+                "greeting": "Greeting",
+                "editor": "Editor",
+                "nav-menu-1": "Nav Menu 1",
+                "nav-menu-2": "Nav Menu 2",
+                "custom-background": "Custom Background",
+            }
+
+            const footers = {
+                "minimal": "Minimal",
+                "social": "Social",
+                "branding": "Branding",
+                "legal": "Legal",
+                "status": "Status",
+                "support": "Support",
+                "options-1": "Options 1",
+                "options-2": "Options 2",
+                "custom-background": "Custom Background",
+            }
+        </script>
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div
+            class="size-full"
+            x-data="{ sidebar: 'ecommerce', topbar: 'classic', footer: 'minimal' }">
+            <div class="flex">
+                <input
+                    aria-label="Toggle layout sidebar"
+                    class="hidden"
+                    id="layout-sidebar-toggle-trigger"
+                    type="checkbox" />
+                <input
+                    aria-label="Dense layout sidebar"
+                    class="hidden"
+                    id="layout-sidebar-hover-trigger"
+                    type="checkbox" />
+                <div class="bg-base-300 h-screen w-1" id="layout-sidebar-hover"></div>
+                <div class="overflow-hidden" id="layout-sidebar">
+                    <div x-show="sidebar === 'ecommerce'" class="h-full">
+                        <load src="partials/layouts/sidebar/ecommerce.html" />
+                    </div>
+                    <div x-show="sidebar === 'payment'" class="h-full">
+                        <load src="partials/layouts/sidebar/payment.html" />
+                    </div>
+                    <div x-show="sidebar === 'project'" class="h-full">
+                        <load src="partials/layouts/sidebar/project.html" />
+                    </div>
+                    <div x-show="sidebar === 'chat'" class="h-full">
+                        <load src="partials/layouts/sidebar/chat.html" />
+                    </div>
+                    <div x-show="sidebar === 'documentation'" class="h-full">
+                        <load src="partials/layouts/sidebar/documentation.html" />
+                    </div>
+                    <div x-show="sidebar === 'huge-icons'" class="h-full">
+                        <load src="partials/layouts/sidebar/huge-icons.html" />
+                    </div>
+                    <div x-show="sidebar === 'remix-icons'" class="h-full">
+                        <load src="partials/layouts/sidebar/remix-icons.html" />
+                    </div>
+                    <div x-show="sidebar === 'custom-background'" class="h-full">
+                        <load src="partials/layouts/sidebar/custom-background.html" />
+                    </div>
+                </div>
+                <label for="layout-sidebar-toggle-trigger" id="layout-sidebar-backdrop"></label>
+
+                <div class="flex h-screen min-w-0 grow flex-col overflow-auto">
+                    <div id="layout-topbar">
+                        <div x-show="topbar === 'classic'" class="h-full">
+                            <load src="partials/layouts/topbar/classic.html" />
+                        </div>
+                        <div x-show="topbar === 'greeting'" class="h-full">
+                            <load src="partials/layouts/topbar/greeting.html" />
+                        </div>
+                        <div x-show="topbar === 'editor'" class="h-full">
+                            <load src="partials/layouts/topbar/editor.html" />
+                        </div>
+                        <div x-show="topbar === 'nav-menu-1'" class="h-full">
+                            <load src="partials/layouts/topbar/nav-menu-1.html" />
+                        </div>
+                        <div x-show="topbar === 'nav-menu-2'" class="h-full">
+                            <load src="partials/layouts/topbar/nav-menu-2.html" />
+                        </div>
+                        <div x-show="topbar === 'custom-background'" class="h-full">
+                            <load src="partials/layouts/topbar/custom-background.html" />
+                        </div>
+                    </div>
+                    <div id="layout-content">
+                        <div class="flex items-center justify-between">
+                            <p class="text-lg font-medium">Layout Builder</p>
+                            <div class="breadcrumbs hidden p-0 text-sm sm:inline">
+                                <ul>
+                                    <li><a href="/dashboards-ecommerce">Nexus</a></li>
+                                    <li class="opacity-80">Layout Builder</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div
+                            class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 rounded-box mx-3 mt-3 flex items-center gap-2 px-4 py-2 font-medium">
+                                    <span class="iconify lucide--layout-panel-left size-4"></span>
+                                    Sidebar
+                                </div>
+                                <div class="space-y-0.5 p-3">
+                                    <template
+                                        x-for="[key, label] in Object.entries(sidebars)"
+                                        :key="key">
+                                        <div
+                                            :class="{ 'bg-base-200': key === sidebar }"
+                                            class="hover:bg-base-200 rounded-box flex cursor-pointer items-center gap-2 px-2.5 py-1"
+                                            x-on:click="sidebar = key">
+                                            <div class="w-5">
+                                                <span
+                                                    x-show="key === sidebar"
+                                                    class="iconify lucide--check block"></span>
+                                            </div>
+                                            <div x-text="label"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 rounded-box mx-3 mt-3 flex items-center gap-2 px-4 py-2 font-medium">
+                                    <span class="iconify lucide--layout-panel-top size-4"></span>
+                                    Topbar
+                                </div>
+                                <div class="space-y-0.5 p-3">
+                                    <template
+                                        x-for="[key, label] in Object.entries(topbars)"
+                                        :key="key">
+                                        <div
+                                            :class="{ 'bg-base-200': key === topbar }"
+                                            class="hover:bg-base-200 rounded-box flex cursor-pointer items-center gap-2 px-2.5 py-1"
+                                            x-on:click="topbar = key">
+                                            <div class="w-5">
+                                                <span
+                                                    x-show="key === topbar"
+                                                    class="iconify lucide--check block"></span>
+                                            </div>
+                                            <div x-text="label"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 rounded-box mx-3 mt-3 flex items-center gap-2 px-4 py-2 font-medium">
+                                    <span
+                                        class="iconify lucide--layout-panel-top size-4 rotate-180"></span>
+                                    Footer
+                                </div>
+                                <div class="space-y-0.5 p-3">
+                                    <template
+                                        x-for="[key, label] in Object.entries(footers)"
+                                        :key="key">
+                                        <div
+                                            :class="{ 'bg-base-200': key === footer }"
+                                            class="hover:bg-base-200 rounded-box flex cursor-pointer items-center gap-2 px-2.5 py-1"
+                                            x-on:click="footer = key">
+                                            <div class="w-5">
+                                                <span
+                                                    x-show="key === footer"
+                                                    class="iconify lucide--check block"></span>
+                                            </div>
+                                            <div x-text="label"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            class="bg-base-100 rounded-box border-base-200 mt-8 max-w-md border p-5 xl:mt-12 2xl:mt-16">
+                            <p class="text-info font-medium">Note:</p>
+                            <p class="text-base-content/80 mt-1 text-sm">
+                                All layout components, including the
+                                <a
+                                    class="link link-hover text-primary"
+                                    href="/components-layouts-sidebar">
+                                    sidebar
+                                </a>
+                                ,
+                                <a
+                                    class="link link-hover text-primary"
+                                    href="/components-layouts-topbar">
+                                    topbar
+                                </a>
+                                and
+                                <a
+                                    class="link link-hover text-primary"
+                                    href="/components-layouts-footer">
+                                    footer
+                                </a>
+                                are available in the components section for easy access and
+                                customization.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="px-4 py-1">
+                        <div x-show="footer === 'minimal'" class="h-full">
+                            <load src="partials/layouts/footer/minimal.html" />
+                        </div>
+                        <div x-show="footer === 'social'" class="h-full">
+                            <load src="partials/layouts/footer/social.html" />
+                        </div>
+                        <div x-show="footer === 'branding'" class="h-full">
+                            <load src="partials/layouts/footer/branding.html" />
+                        </div>
+                        <div x-show="footer === 'legal'" class="h-full">
+                            <load src="partials/layouts/footer/legal.html" />
+                        </div>
+                        <div x-show="footer === 'status'" class="h-full">
+                            <load src="partials/layouts/footer/status.html" />
+                        </div>
+                        <div x-show="footer === 'support'" class="h-full">
+                            <load src="partials/layouts/footer/support.html" />
+                        </div>
+                        <div x-show="footer === 'options-1'" class="h-full">
+                            <load src="partials/layouts/footer/options-1.html" />
+                        </div>
+                        <div x-show="footer === 'options-2'" class="h-full">
+                            <load src="partials/layouts/footer/options-2.html" />
+                        </div>
+                        <div x-show="footer === 'custom-background'" class="h-full">
+                            <load src="partials/layouts/footer/custom-background.html" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

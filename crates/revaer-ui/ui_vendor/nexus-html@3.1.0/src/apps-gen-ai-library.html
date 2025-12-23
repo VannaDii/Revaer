@@ -1,0 +1,840 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div class="size-full">
+            <div class="flex">
+                <load src="partials/sidebar.html" />
+
+                <div class="flex h-screen min-w-0 grow flex-col overflow-auto">
+                    <load src="partials/topbar.html" />
+
+                    <!--  Start: Layout - Content -->
+
+                    <div id="layout-content">
+                        <div class="flex items-center justify-between">
+                            <p class="text-lg font-medium">Image Gen</p>
+                            <div class="breadcrumbs hidden p-0 text-sm sm:inline">
+                                <ul>
+                                    <li><a href="/dashboards-ecommerce">Nexus</a></li>
+                                    <li>Gen Ai</li>
+                                    <li class="opacity-80">Image Gen</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <div class="card bg-base-100 shadow">
+                                <div class="card-body p-0">
+                                    <div class="flex items-center justify-between px-5 pt-5">
+                                        <div class="inline-flex items-center gap-3">
+                                            <label class="input input-sm">
+                                                <span
+                                                    class="iconify lucide--search text-base-content/80 size-3.5"></span>
+                                                <input
+                                                    type="search"
+                                                    class="w-24 sm:w-36"
+                                                    placeholder="Search along items"
+                                                    aria-label="Search items" />
+                                            </label>
+                                        </div>
+                                        <div class="inline-flex items-center gap-3">
+                                            <a
+                                                href="/apps/gen-ai/image"
+                                                aria-label="Generate image link"
+                                                class="btn btn-primary btn-sm max-sm:btn-square">
+                                                <span
+                                                    class="iconify lucide--wand-2 size-3.5"></span>
+                                                <span class="max-sm:hidden">Generate</span>
+                                            </a>
+                                            <div class="dropdown dropdown-bottom dropdown-end">
+                                                <div
+                                                    role="button"
+                                                    class="btn btn-ghost border-base-300 btn-sm btn-square"
+                                                    aria-label="More option"
+                                                    tabindex="0">
+                                                    <span
+                                                        class="iconify lucide--settings-2 size-4"></span>
+                                                </div>
+                                                <div
+                                                    class="dropdown-content bg-base-100 rounded-box z-1 w-52 shadow"
+                                                    tabindex="0">
+                                                    <ul class="menu w-full p-2">
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--wand size-4"></span>
+                                                                Bulk Actions
+                                                            </div>
+                                                        </li>
+                                                    </ul>
+                                                    <hr class="border-base-300" />
+                                                    <ul class="menu w-full p-2">
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--download-cloud size-4"></span>
+                                                                Import from Store
+                                                            </div>
+                                                        </li>
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--copy-plus size-4"></span>
+                                                                Create from Existing
+                                                            </div>
+                                                        </li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4 overflow-auto">
+                                        <table class="table">
+                                            <thead>
+                                                <tr>
+                                                    <th>
+                                                        <input
+                                                            id="check_all"
+                                                            aria-label="Check all"
+                                                            type="checkbox"
+                                                            class="checkbox checkbox-sm" />
+                                                    </th>
+                                                    <th>ID</th>
+                                                    <th>User</th>
+                                                    <th>Type</th>
+                                                    <th>Title</th>
+                                                    <th>Content</th>
+                                                    <th>Tokens</th>
+                                                    <th>Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            type="checkbox"
+                                                            class="checkbox checkbox-sm" />
+                                                    </th>
+                                                    <td class="font-medium">1</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-10"
+                                                                alt="Library Image"
+                                                                src="/images/avatars/1.png" />
+                                                            <p class="font-medium">Sophia Turner</p>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div
+                                                            class="inline-flex items-center gap-1.5">
+                                                            <span
+                                                                class="iconify lucide--image size-4"></span>
+                                                            Image
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <p class="text-nowrap">AI Art Generator</p>
+                                                    </td>
+                                                    <td>
+                                                        <p
+                                                            class="line-clamp-2 max-w-80 min-w-48 text-ellipsis">
+                                                            Create stunning digital art with
+                                                            AI-powered tools. Provide a prompt, and
+                                                            let the AI bring your vision to life.
+                                                        </p>
+                                                    </td>
+                                                    <td class="text-sm font-medium">50</td>
+                                                    <td>
+                                                        <div class="inline-flex">
+                                                            <button
+                                                                aria-label="Edit Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--pencil size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Show Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete customer"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            type="checkbox"
+                                                            class="checkbox checkbox-sm" />
+                                                    </th>
+                                                    <td class="font-medium">2</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-10"
+                                                                alt="Library Image"
+                                                                src="/images/avatars/2.png" />
+                                                            <p class="font-medium">Ethan Roberts</p>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div
+                                                            class="inline-flex items-center gap-1.5">
+                                                            <span
+                                                                class="iconify lucide--text size-4"></span>
+                                                            Text
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <p class="text-nowrap">Text Summarizer</p>
+                                                    </td>
+                                                    <td>
+                                                        <p
+                                                            class="line-clamp-2 max-w-80 min-w-48 text-ellipsis">
+                                                            Summarize lengthy documents or articles
+                                                            into concise, easy-to-digest
+                                                            information.
+                                                        </p>
+                                                    </td>
+                                                    <td class="text-sm font-medium">30</td>
+                                                    <td>
+                                                        <div class="inline-flex">
+                                                            <button
+                                                                aria-label="Edit Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--pencil size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Show Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete customer"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            type="checkbox"
+                                                            class="checkbox checkbox-sm" />
+                                                    </th>
+                                                    <td class="font-medium">3</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-10"
+                                                                alt="Library Image"
+                                                                src="/images/avatars/3.png" />
+                                                            <p class="font-medium">
+                                                                Olivia Martinez
+                                                            </p>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div
+                                                            class="inline-flex items-center gap-1.5">
+                                                            <span
+                                                                class="iconify lucide--code size-4"></span>
+                                                            Code
+                                                        </div>
+                                                    </td>
+                                                    <td><p class="text-nowrap">Code Helper</p></td>
+                                                    <td>
+                                                        <p
+                                                            class="line-clamp-2 max-w-80 min-w-48 text-ellipsis">
+                                                            Get suggestions, refactor code, and find
+                                                            solutions to common programming
+                                                            challenges.
+                                                        </p>
+                                                    </td>
+                                                    <td class="text-sm font-medium">70</td>
+                                                    <td>
+                                                        <div class="inline-flex">
+                                                            <button
+                                                                aria-label="Edit Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--pencil size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Show Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete customer"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            type="checkbox"
+                                                            class="checkbox checkbox-sm" />
+                                                    </th>
+                                                    <td class="font-medium">4</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-10"
+                                                                alt="Library Image"
+                                                                src="/images/avatars/4.png" />
+                                                            <p class="font-medium">James Cooper</p>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div
+                                                            class="inline-flex items-center gap-1.5">
+                                                            <span
+                                                                class="iconify lucide--image size-4"></span>
+                                                            Image
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <p class="text-nowrap">Photo Enhancer</p>
+                                                    </td>
+                                                    <td>
+                                                        <p
+                                                            class="line-clamp-2 max-w-80 min-w-48 text-ellipsis">
+                                                            Enhance image quality, remove noise, and
+                                                            upscale resolution with AI-powered
+                                                            enhancements.
+                                                        </p>
+                                                    </td>
+                                                    <td class="text-sm font-medium">40</td>
+                                                    <td>
+                                                        <div class="inline-flex">
+                                                            <button
+                                                                aria-label="Edit Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--pencil size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Show Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete customer"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            type="checkbox"
+                                                            class="checkbox checkbox-sm" />
+                                                    </th>
+                                                    <td class="font-medium">5</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-10"
+                                                                alt="Library Image"
+                                                                src="/images/avatars/5.png" />
+                                                            <p class="font-medium">
+                                                                Isabella Lewis
+                                                            </p>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div
+                                                            class="inline-flex items-center gap-1.5">
+                                                            <span
+                                                                class="iconify lucide--text size-4"></span>
+                                                            Text
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <p class="text-nowrap">
+                                                            Grammar and Style Checker
+                                                        </p>
+                                                    </td>
+                                                    <td>
+                                                        <p
+                                                            class="line-clamp-2 max-w-80 min-w-48 text-ellipsis">
+                                                            Polish your writing with advanced
+                                                            grammar checks and style suggestions.
+                                                        </p>
+                                                    </td>
+                                                    <td class="text-sm font-medium">20</td>
+                                                    <td>
+                                                        <div class="inline-flex">
+                                                            <button
+                                                                aria-label="Edit Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--pencil size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Show Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete customer"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            type="checkbox"
+                                                            class="checkbox checkbox-sm" />
+                                                    </th>
+                                                    <td class="font-medium">6</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-10"
+                                                                alt="Library Image"
+                                                                src="/images/avatars/6.png" />
+                                                            <p class="font-medium">Liam Carter</p>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div
+                                                            class="inline-flex items-center gap-1.5">
+                                                            <span
+                                                                class="iconify lucide--code size-4"></span>
+                                                            Code
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <p class="text-nowrap">Code Explainer</p>
+                                                    </td>
+                                                    <td>
+                                                        <p
+                                                            class="line-clamp-2 max-w-80 min-w-48 text-ellipsis">
+                                                            Understand complex code snippets with
+                                                            detailed explanations generated by AI.
+                                                        </p>
+                                                    </td>
+                                                    <td class="text-sm font-medium">60</td>
+                                                    <td>
+                                                        <div class="inline-flex">
+                                                            <button
+                                                                aria-label="Edit Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--pencil size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Show Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete customer"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            type="checkbox"
+                                                            class="checkbox checkbox-sm" />
+                                                    </th>
+                                                    <td class="font-medium">7</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-10"
+                                                                alt="Library Image"
+                                                                src="/images/avatars/7.png" />
+                                                            <p class="font-medium">Emily Scott</p>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div
+                                                            class="inline-flex items-center gap-1.5">
+                                                            <span
+                                                                class="iconify lucide--text size-4"></span>
+                                                            Text
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <p class="text-nowrap">Prompt Optimizer</p>
+                                                    </td>
+                                                    <td>
+                                                        <p
+                                                            class="line-clamp-2 max-w-80 min-w-48 text-ellipsis">
+                                                            Optimize your AI prompts for better
+                                                            output and improved results.
+                                                        </p>
+                                                    </td>
+                                                    <td class="text-sm font-medium">25</td>
+                                                    <td>
+                                                        <div class="inline-flex">
+                                                            <button
+                                                                aria-label="Edit Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--pencil size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Show Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete customer"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            type="checkbox"
+                                                            class="checkbox checkbox-sm" />
+                                                    </th>
+                                                    <td class="font-medium">8</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-10"
+                                                                alt="Library Image"
+                                                                src="/images/avatars/8.png" />
+                                                            <p class="font-medium">Noah Bennett</p>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div
+                                                            class="inline-flex items-center gap-1.5">
+                                                            <span
+                                                                class="iconify lucide--image size-4"></span>
+                                                            Image
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <p class="text-nowrap">
+                                                            3D Model Generator
+                                                        </p>
+                                                    </td>
+                                                    <td>
+                                                        <p
+                                                            class="line-clamp-2 max-w-80 min-w-48 text-ellipsis">
+                                                            Generate 3D models and designs with
+                                                            AI-driven creativity and precision.
+                                                        </p>
+                                                    </td>
+                                                    <td class="text-sm font-medium">80</td>
+                                                    <td>
+                                                        <div class="inline-flex">
+                                                            <button
+                                                                aria-label="Edit Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--pencil size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Show Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete customer"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            type="checkbox"
+                                                            class="checkbox checkbox-sm" />
+                                                    </th>
+                                                    <td class="font-medium">9</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-10"
+                                                                alt="Library Image"
+                                                                src="/images/avatars/9.png" />
+                                                            <p class="font-medium">
+                                                                Charlotte Edwards
+                                                            </p>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div
+                                                            class="inline-flex items-center gap-1.5">
+                                                            <span
+                                                                class="iconify lucide--text size-4"></span>
+                                                            Text
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <p class="text-nowrap">Story Generator</p>
+                                                    </td>
+                                                    <td>
+                                                        <p
+                                                            class="line-clamp-2 max-w-80 min-w-48 text-ellipsis">
+                                                            Create captivating stories and
+                                                            narratives with the help of AI
+                                                            storytelling tools.
+                                                        </p>
+                                                    </td>
+                                                    <td class="text-sm font-medium">45</td>
+                                                    <td>
+                                                        <div class="inline-flex">
+                                                            <button
+                                                                aria-label="Edit Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--pencil size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Show Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete customer"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            type="checkbox"
+                                                            class="checkbox checkbox-sm" />
+                                                    </th>
+                                                    <td class="font-medium">10</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-10"
+                                                                alt="Library Image"
+                                                                src="/images/avatars/10.png" />
+                                                            <p class="font-medium">
+                                                                William Harris
+                                                            </p>
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div
+                                                            class="inline-flex items-center gap-1.5">
+                                                            <span
+                                                                class="iconify lucide--image size-4"></span>
+                                                            Image
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <p class="text-nowrap">AI Diagram Maker</p>
+                                                    </td>
+                                                    <td>
+                                                        <p
+                                                            class="line-clamp-2 max-w-80 min-w-48 text-ellipsis">
+                                                            Quickly create flowcharts, diagrams, and
+                                                            visualizations tailored to your needs.
+                                                        </p>
+                                                    </td>
+                                                    <td class="text-sm font-medium">55</td>
+                                                    <td>
+                                                        <div class="inline-flex">
+                                                            <button
+                                                                aria-label="Edit Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--pencil size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Show Library"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete customer"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="flex items-center justify-between p-6">
+                                        <div class="text-base-content/80 flex gap-2 text-sm">
+                                            <span class="hidden sm:inline">Per page</span>
+                                            <select
+                                                class="select select-xs w-18"
+                                                aria-label="Per page">
+                                                <option selected="" value="10">10</option>
+                                                <option value="20">20</option>
+                                                <option value="50">50</option>
+                                                <option value="100">100</option>
+                                            </select>
+                                        </div>
+                                        <span class="text-base-content/80 hidden text-sm lg:inline">
+                                            Showing
+                                            <span class="text-base-content font-medium">
+                                                1 to 10
+                                            </span>
+                                            of 457 items
+                                        </span>
+                                        <div class="inline-flex items-center gap-1">
+                                            <button
+                                                class="btn btn-circle sm:btn-sm btn-xs btn-ghost"
+                                                aria-label="Prev">
+                                                <span class="iconify lucide--chevron-left"></span>
+                                            </button>
+                                            <button
+                                                class="btn btn-primary btn-circle sm:btn-sm btn-xs">
+                                                1
+                                            </button>
+                                            <button
+                                                class="btn btn-ghost btn-circle sm:btn-sm btn-xs">
+                                                2
+                                            </button>
+                                            <button
+                                                class="btn btn-ghost btn-circle sm:btn-sm btn-xs">
+                                                3
+                                            </button>
+                                            <button
+                                                class="btn btn-circle sm:btn-sm btn-xs btn-ghost"
+                                                aria-label="Next">
+                                                <span class="iconify lucide--chevron-right"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <dialog id="apps-ai-library-delete" class="modal">
+                                <div class="modal-box">
+                                    <div
+                                        class="flex items-center justify-between text-lg font-medium">
+                                        Confirm Delete
+                                        <form method="dialog">
+                                            <button
+                                                class="btn btn-sm btn-ghost btn-circle"
+                                                aria-label="Close modal">
+                                                <span class="iconify lucide--x size-4"></span>
+                                            </button>
+                                        </form>
+                                    </div>
+                                    <p class="py-4">
+                                        You are about to delete this item. Would you like to proceed
+                                        further ?
+                                    </p>
+                                    <div class="modal-action">
+                                        <form method="dialog">
+                                            <button class="btn btn-ghost btn-sm">No</button>
+                                        </form>
+                                        <form method="dialog">
+                                            <button class="btn btn-sm btn-error">
+                                                Yes, delete it
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                                <form method="dialog" class="modal-backdrop">
+                                    <button>close</button>
+                                </form>
+                            </dialog>
+                        </div>
+                    </div>
+
+                    <!--  End: Layout - Content -->
+                    <load src="partials/footer.html" />
+                </div>
+            </div>
+
+            <load src="partials/rightbar.html" />
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

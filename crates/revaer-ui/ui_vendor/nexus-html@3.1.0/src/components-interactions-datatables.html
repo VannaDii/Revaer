@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <load src="partials/components-layout/sidebar.html" />
+
+                <div id="components-layout-main">
+                    <load src="partials/components-layout/topbar.html" />
+
+                    <div id="components-layout-content">
+                        <div class="flex flex-col items-center justify-center space-y-0.5">
+                            <div
+                                class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                <div class="status status-sm bg-base-content/30"></div>
+                                Interactions
+                            </div>
+                            <p
+                                class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                Data Tables
+                            </p>
+                            <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                Powerful data tables with sorting, search, pagination, column
+                                control, and row actions
+                            </p>
+                        </div>
+
+                        <div class="bg-base-200/40 rounded-box mt-6 px-5 py-4 lg:mt-12">
+                            <p class="text-base-content/60 font-medium">Usage guidelines</p>
+                            <p class="mt-1">
+                                <span class="me-1">- Plugin Documentation:</span>
+                                <a
+                                    target="_blank"
+                                    class="text-primary"
+                                    href="https://tanstack.com/table">
+                                    Tanstack Table
+                                </a>
+                            </p>
+                        </div>
+
+                        <p class="text-base-content/60 mt-8 font-medium">Complete Actions</p>
+                        <div class="mt-4 lg:mt-6">
+                            <div class="bg-base-100 card card-border">
+                                <div
+                                    class="bg-base-200/30 rounded-t-box flex flex-wrap items-center justify-between space-x-2 px-5 py-4">
+                                    <p class="font-medium">Recent Orders</p>
+                                    <p class="text-base-content/50 text-xs italic">
+                                        Synced 20 min ago
+                                    </p>
+                                </div>
+                                <load src="partials/interactions/datatables/advanced.html" />
+                            </div>
+                        </div>
+                        <p class="text-base-content/60 mt-8 font-medium">Feature Demos</p>
+                        <div class="mt-6 space-y-6">
+                            <div class="bg-base-100 card card-border">
+                                <div
+                                    class="bg-base-200/30 rounded-t-box flex flex-wrap items-center justify-between space-x-2 px-5 py-4">
+                                    <p class="font-medium">Simple</p>
+                                    <p class="text-base-content/70 text-sm">
+                                        Clean layout for static content
+                                    </p>
+                                </div>
+                                <div class="py-1">
+                                    <load src="partials/interactions/datatables/simple.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div
+                                    class="bg-base-200/30 rounded-t-box flex flex-wrap items-center justify-between space-x-2 px-5 py-4">
+                                    <p class="font-medium">Scrollable</p>
+                                    <p class="text-base-content/70 text-sm">
+                                        Scroll to view more rows
+                                    </p>
+                                </div>
+                                <div class="py-1">
+                                    <load src="partials/interactions/datatables/scrollable.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div
+                                    class="bg-base-200/30 rounded-t-box flex flex-wrap items-center justify-between space-x-2 px-5 py-4">
+                                    <p class="font-medium">Column Search</p>
+                                    <p class="text-base-content/70 text-sm">
+                                        Search specific columns like name
+                                    </p>
+                                </div>
+                                <div class="py-1">
+                                    <load
+                                        src="partials/interactions/datatables/column-search.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div
+                                    class="bg-base-200/30 rounded-t-box flex flex-wrap items-center justify-between space-x-2 px-5 py-4">
+                                    <p class="font-medium">Global Search</p>
+                                    <p class="text-base-content/70 text-sm">
+                                        Search across all table fields
+                                    </p>
+                                </div>
+                                <div class="py-1">
+                                    <load
+                                        src="partials/interactions/datatables/global-search.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div
+                                    class="bg-base-200/30 rounded-t-box flex flex-wrap items-center justify-between space-x-2 px-5 py-4">
+                                    <p class="font-medium">Pagination</p>
+                                    <p class="text-base-content/70 text-sm">
+                                        Navigate data page by page
+                                    </p>
+                                </div>
+                                <div class="py-1">
+                                    <load src="partials/interactions/datatables/pagination.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div
+                                    class="bg-base-200/30 rounded-t-box flex flex-wrap items-center justify-between space-x-2 px-5 py-4">
+                                    <p class="font-medium">Sorting</p>
+                                    <p class="text-base-content/70 text-sm">
+                                        Sort rows by column values
+                                    </p>
+                                </div>
+                                <div class="py-1">
+                                    <load src="partials/interactions/datatables/sorting.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div
+                                    class="bg-base-200/30 rounded-t-box flex flex-wrap items-center justify-between space-x-2 px-5 py-4">
+                                    <p class="font-medium">Column Visibility</p>
+                                    <p class="text-base-content/70 text-sm">
+                                        Show or hide table columns
+                                    </p>
+                                </div>
+                                <div class="py-1">
+                                    <load
+                                        src="partials/interactions/datatables/column-visibility.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div
+                                    class="bg-base-200/30 rounded-t-box flex flex-wrap items-center justify-between space-x-2 px-5 py-4">
+                                    <p class="font-medium">Row Selection</p>
+                                    <p class="text-base-content/70 text-sm">
+                                        Show or hide table columns
+                                    </p>
+                                </div>
+                                <div class="py-1">
+                                    <load
+                                        src="partials/interactions/datatables/row-selection.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div
+                                    class="bg-base-200/30 rounded-t-box flex flex-wrap items-center justify-between space-x-2 px-5 py-4">
+                                    <p class="font-medium">Row Actions</p>
+                                    <p class="text-base-content/70 text-sm">
+                                        Perform actions directly on rows
+                                    </p>
+                                </div>
+                                <div class="py-1">
+                                    <load src="partials/interactions/datatables/row-actions.html" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <load src="partials/components-layout/footer.html" />
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+
+        <!--  CDN for Datatables -->
+        <script src="https://unpkg.com/@tanstack/table-core@8.11.6/build/umd/index.development.js"></script>
+        <script src="/js/components/datatables.js"></script>
+    </body>
+</html>

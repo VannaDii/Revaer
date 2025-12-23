@@ -1,0 +1,31 @@
+<div
+    class="border-base-300 rounded-box flex max-w-lg grow items-center gap-2 border px-4 py-2"
+    x-data="{ copied: false }"
+    x-init="$watch('copied', value => {
+        navigator.clipboard.writeText('npm i tailwindcss daisyui --save-dev');
+         if (value) setTimeout(() => copied = false, 3000)
+     })">
+    <span class="iconify lucide--terminal size-4.5 opacity-80"></span>
+    <p class="grow">
+        <span class="text-teal-500">npm</span>
+        <span class="text-gray-500">i</span>
+        <span class="text-blue-500">tailwindcss</span>
+        <span class="text-blue-500">daisyui</span>
+        <span class="text-gray-500">--save-dev</span>
+    </p>
+    <div
+        class="group relative size-5 cursor-pointer transition-all active:scale-95"
+        x-on:click="copied = true"
+        x-bind:data-copied="copied ? true : null">
+        <span
+            class="iconify lucide--copy absolute inset-0 m-auto size-4.5 transition-all duration-300 group-data-copied:scale-0"></span>
+        <span
+            class="iconify lucide--check absolute inset-0 m-auto size-4.5 scale-0 transition-all duration-300 group-data-copied:scale-100"></span>
+        <div
+            class="bg-base-content/10 rounded-box absolute -inset-1.5 scale-80 opacity-0 transition-all group-hover:scale-100 group-hover:opacity-100"></div>
+        <div
+            class="bg-primary text-primary-content rounded-box absolute -end-2 -bottom-6 scale-90 px-2 py-1 text-sm opacity-0 transition-all duration-300 group-data-copied:-bottom-8 group-data-copied:scale-100 group-data-copied:opacity-100">
+            Copied
+        </div>
+    </div>
+</div>

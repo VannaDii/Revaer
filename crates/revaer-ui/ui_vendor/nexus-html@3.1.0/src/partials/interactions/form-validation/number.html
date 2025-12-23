@@ -1,0 +1,67 @@
+<form
+    x-data="useNumberValidator()"
+    x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+    novalidate
+    class="space-y-3">
+    <div class="space-y-1.5">
+        <div class="flex items-center justify-between gap-2">
+            <label class="label text-sm font-medium" for="optionalNumber">Optional Number</label>
+            <p class="text-base-content/60 text-end text-xs">Can empty</p>
+        </div>
+        <input
+            name="optionalNumber"
+            id="optionalNumber"
+            type="number"
+            @input="updateData('optionalNumber', Number($event.target.value))"
+            :data-error="hasError('optionalNumber')"
+            class="input data-error:input-error w-full"
+            placeholder="..." />
+        <p
+            :data-error="hasError('optionalNumber')"
+            class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+            x-text="getError('optionalNumber')"></p>
+    </div>
+    <div class="space-y-1.5">
+        <div class="flex items-center justify-between gap-2">
+            <label class="label text-sm font-medium" for="minimumNumber">Minimum Number</label>
+            <p class="text-base-content/60 text-end text-xs">Minimum 18</p>
+        </div>
+        <input
+            name="minimumNumber"
+            id="minimumNumber"
+            type="number"
+            :value="getData('minimumNumber')"
+            @input="updateData('minimumNumber', Number($event.target.value))"
+            :data-error="hasError('minimumNumber')"
+            class="input data-error:input-error w-full"
+            placeholder="Required Text" />
+        <p
+            :data-error="hasError('minimumNumber')"
+            class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+            x-text="getError('minimumNumber')"></p>
+    </div>
+
+    <div class="space-y-1.5">
+        <div class="flex items-center justify-between gap-2">
+            <label class="label text-sm font-medium" for="maximumNumber">Maximum Number</label>
+            <p class="text-base-content/60 text-end text-xs">Maximum 99</p>
+        </div>
+        <input
+            name="maximumNumber"
+            id="maximumNumber"
+            :value="getData('maximumNumber')"
+            type="number"
+            @input="updateData('maximumNumber', Number($event.target.value))"
+            :data-error="hasError('maximumNumber')"
+            class="input data-error:input-error w-full"
+            placeholder="Required Text" />
+        <p
+            :data-error="hasError('maximumNumber')"
+            class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+            x-text="getError('maximumNumber')"></p>
+    </div>
+
+    <div class="text-end">
+        <button type="submit" class="btn btn-sm">Submit</button>
+    </div>
+</form>

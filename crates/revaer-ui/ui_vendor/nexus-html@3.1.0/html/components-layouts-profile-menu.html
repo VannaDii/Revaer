@@ -1,0 +1,1398 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <meta charset="UTF-8" />
+        <meta name="author" content="Denish Navadiya" />
+        <meta
+            name="keywords"
+            content="HTML, CSS, daisyui, tailwindcss, admin, client, dashboard, ui kit, component" />
+        <meta
+            name="description"
+            content="Start your next project with Nexus, designed for effortless customization to streamline your development process" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link
+            rel="shortcut icon"
+            href="./images/favicon-dark.png"
+            media="(prefers-color-scheme: dark)" />
+        <link
+            rel="shortcut icon"
+            href="./images/favicon-light.png"
+            media="(prefers-color-scheme: light)" />
+
+        <script>
+            try {
+                const localStorageItem = localStorage.getItem("__NEXUS_CONFIG_v3.0__")
+                if (localStorageItem) {
+                    const theme = JSON.parse(localStorageItem).theme
+                    if (theme !== "system") {
+                        document.documentElement.setAttribute("data-theme", theme)
+                    }
+                }
+            } catch (err) {
+                console.log(err)
+            }
+        </script>
+
+        <link rel="stylesheet" href="./assets/app.css" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <div class="max-xl:hidden">
+                    <div
+                        class="border-base-300/80 bg-base-100 sticky top-0 bottom-0 flex h-screen w-64 min-w-64 flex-col border-s border-e border-dashed">
+                        <div
+                            class="border-base-300 flex h-16 min-h-16 items-center gap-4 border-b border-dashed px-5">
+                            <a href="./dashboards-ecommerce.html">
+                                <img
+                                    alt="logo-dark"
+                                    class="hidden h-5.5 dark:inline"
+                                    src="./images/logo/logo-dark.png" />
+                                <img
+                                    alt="logo-light"
+                                    class="h-5.5 dark:hidden"
+                                    src="./images/logo/logo-light.png" />
+                            </a>
+                            <hr class="border-base-300 h-6 border-e" />
+                            <p class="text-base-content/60 mt-0.5 text-lg font-medium">Design</p>
+                        </div>
+                        <div data-simplebar class="h-full min-h-0 grow">
+                            <div
+                                class="sidebar-menu-activation sidebar-menu mt-4 space-y-0.5 px-2.5 pb-4">
+                                <p class="menu-label px-2.5 pt-3 pb-1.5 first:pt-0">Base</p>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--shapes size-4"></span>
+                                        <span class="grow">Foundations</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-text.html">
+                                                <span class="grow">Text</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-display.html">
+                                                <span class="grow">Display</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-effects.html">
+                                                <span class="grow">Effects</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-shadows.html">
+                                                <span class="grow">Shadows</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--blocks size-4"></span>
+                                        <span class="grow">Blocks</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-blocks-stats.html">
+                                                <span class="grow">Dashboard Stats</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-blocks-prompt-bar.html">
+                                                <span class="grow">Prompt Bar</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span
+                                            class="iconify lucide--layout-panel-left size-4"></span>
+                                        <span class="grow">Layouts</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-skeleton.html">
+                                                <span class="grow">Skeleton</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-sidebar.html">
+                                                <span class="grow">Sidebar</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-topbar.html">
+                                                <span class="grow">Topbar</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-footer.html">
+                                                <span class="grow">Footer</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-profile-menu.html">
+                                                <span class="grow">Profile Menu</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-search.html">
+                                                <span class="grow">Search</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-notification.html">
+                                                <span class="grow">Notification</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-page-title.html">
+                                                <span class="grow">Page Title</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="menu-label px-2.5 pt-3 pb-1.5 first:pt-0">Dynamics</p>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--layers-3 size-4"></span>
+                                        <span class="grow">Interactions</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-carousel.html">
+                                                <span class="grow">Carousel</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-clipboard.html">
+                                                <span class="grow">Clipboard</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-datatables.html">
+                                                <span class="grow">Data Tables</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-fab.html">
+                                                <span class="grow">FAB</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-file-upload.html">
+                                                <span class="grow">File Upload</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-flatpickr.html">
+                                                <span class="grow">Flatpickr</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-form-validations.html">
+                                                <span class="grow">Form Validations</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-input-spinner.html">
+                                                <span class="grow">Input Spinner</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-password-meter.html">
+                                                <span class="grow">Password Meter</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-select.html">
+                                                <span class="grow">Select</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-sortable.html">
+                                                <span class="grow">Sortable</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-text-editor.html">
+                                                <span class="grow">Text Editor</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-wizard.html">
+                                                <span class="grow">Wizard</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--chart-bar size-4"></span>
+                                        <span class="grow">Apex Charts</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-area.html">
+                                                <span class="grow">Area</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-bar.html">
+                                                <span class="grow">Bar</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-column.html">
+                                                <span class="grow">Column</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-line.html">
+                                                <span class="grow">Line</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-pie.html">
+                                                <span class="grow">Pie</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <a
+                                target="_blank"
+                                class="group rounded-box relative mx-2.5 block gap-3"
+                                href="/dashboards-ecommerce">
+                                <div
+                                    class="rounded-box absolute inset-0 bg-gradient-to-r from-transparent to-transparent transition-opacity duration-300 group-hover:opacity-0"></div>
+                                <div
+                                    class="from-primary to-secondary rounded-box absolute inset-0 bg-gradient-to-r opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                                <div class="relative flex h-10 items-center gap-3 px-3">
+                                    <i
+                                        class="iconify lucide--monitor-dot text-primary size-4.5 transition-all duration-300 group-hover:text-white"></i>
+                                    <p
+                                        class="from-primary to-secondary bg-gradient-to-r bg-clip-text font-medium text-transparent transition-all duration-300 group-hover:text-white">
+                                        Dashboard
+                                    </p>
+                                    <i
+                                        class="iconify lucide--chevron-right text-secondary ms-auto size-4.5 transition-all duration-300 group-hover:text-white"></i>
+                                </div>
+                            </a>
+                            <hr class="border-base-300 mt-2 border-dashed" />
+                            <a
+                                target="_blank"
+                                class="bg-base-200/60 hover:bg-base-200 rounded-box m-2.5 mb-2 flex cursor-pointer items-center gap-3 px-3.5 py-2 transition-all"
+                                href="https://nexus.daisyui.com/docs/">
+                                <span class="iconify lucide--book-open-text size-5"></span>
+                                <div class="grow -space-y-0.5">
+                                    <p class="text-sm font-medium">Documentation</p>
+                                    <p class="text-base-content/60 text-xs">Installations</p>
+                                </div>
+                                <span
+                                    class="iconify lucide--external-link text-base-content/60 size-4"></span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="components-layout-main">
+                    <div
+                        role="navigation"
+                        aria-label="Navbar"
+                        class="border-base-300/80 bg-base-100 sticky top-0 z-1 h-16 border-b border-dashed px-4 md:px-8 xl:px-12 2xl:px-20">
+                        <div class="flex h-full items-center justify-between px-0">
+                            <div class="flex items-center gap-5">
+                                <a
+                                    class="text-base-content/70 hover:text-base-content transition-all"
+                                    href="/dashboards-ecommerce">
+                                    Dashboard
+                                </a>
+                                <a class="font-medium" href="/components">Components</a>
+                            </div>
+                            <div class="inline-flex items-center gap-3">
+                                <button
+                                    aria-label="Toggle Theme"
+                                    class="btn btn-sm btn-circle btn-ghost relative overflow-hidden"
+                                    data-theme-control="toggle">
+                                    <span
+                                        class="iconify lucide--sun absolute size-4.5 -translate-y-4 opacity-0 transition-all duration-300 group-data-[theme=light]/html:translate-y-0 group-data-[theme=light]/html:opacity-100"></span>
+                                    <span
+                                        class="iconify lucide--moon absolute size-4.5 translate-y-4 opacity-0 transition-all duration-300 group-data-[theme=dark]/html:translate-y-0 group-data-[theme=dark]/html:opacity-100"></span>
+                                    <span
+                                        class="iconify lucide--palette absolute size-4.5 opacity-100 group-data-[theme=dark]/html:opacity-0 group-data-[theme=light]/html:opacity-0"></span>
+                                </button>
+
+                                <a
+                                    target="_blank"
+                                    class="btn from-primary to-secondary group/purchase text-primary-content btn-sm max-sm:btn-square relative gap-2 border-0 bg-linear-to-r text-sm"
+                                    href="https://daisyui.com/store/244268">
+                                    <span class="iconify lucide--shopping-cart size-4"></span>
+                                    <span class="max-sm:hidden">Buy Now</span>
+                                    <div
+                                        class="from-primary to-secondary absolute inset-x-0 top-1 -z-1 h-8 bg-linear-to-r opacity-40 blur-md transition-all duration-500 group-hover/purchase:opacity-60 group-hover/purchase:blur-lg"></div>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="components-layout-content">
+                        <div class="flex flex-col items-center justify-center space-y-0.5">
+                            <div
+                                class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                <div class="status status-sm bg-base-content/30"></div>
+                                Layouts
+                            </div>
+                            <p
+                                class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                Profile Menu
+                            </p>
+                            <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                Clean profile menus with support for account switching, nested
+                                items, overlays, stats, and actions
+                            </p>
+                        </div>
+
+                        <p class="text-base-content/60 mt-6 font-medium lg:mt-12">Demos</p>
+
+                        <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:pb-16">
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Minimal
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <div
+                                        class="dropdown dropdown-bottom sm:dropdown-end max-sm:dropdown-center">
+                                        <div
+                                            tabindex="0"
+                                            class="avatar bg-base-200 size-12 cursor-pointer overflow-hidden rounded-full px-1 pt-1">
+                                            <img alt="Avatar" src="./images/avatars/1.png" />
+                                        </div>
+                                        <div
+                                            tabindex="0"
+                                            class="dropdown-content bg-base-100 rounded-box mt-2 w-54 shadow">
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--user-circle size-4.5"></span>
+                                                        <span>Profile</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--mail-plus size-4.5"></span>
+                                                        <span>Invitations</span>
+                                                        <div class="badge badge-sm">4</div>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--star size-4.5"></span>
+                                                        <span>Favorites</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-200" />
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--settings-2 size-4.5"></span>
+                                                        <span>Settings</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--file-text size-4.5"></span>
+                                                        <span>My Content</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--box size-4.5"></span>
+                                                        <span>Library</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-200" />
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <div>
+                                                        <span
+                                                            class="iconify lucide--arrow-left-right size-4.5"></span>
+                                                        <span>Switch User</span>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <a
+                                                        class="text-error hover:bg-error/10"
+                                                        href="#">
+                                                        <span
+                                                            class="iconify lucide--log-out size-4.5"></span>
+                                                        <span>Sign Out</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Switch Account
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <div
+                                        class="dropdown dropdown-bottom sm:dropdown-end max-sm:dropdown-center">
+                                        <div
+                                            tabindex="0"
+                                            class="avatar bg-base-200 size-12 cursor-pointer overflow-hidden rounded-full px-1 pt-1">
+                                            <img alt="Avatar" src="./images/avatars/2.png" />
+                                        </div>
+                                        <div
+                                            tabindex="0"
+                                            class="dropdown-content bg-base-100 rounded-box mt-2 w-72 shadow">
+                                            <div class="flex items-start gap-3 px-4 py-3">
+                                                <div
+                                                    class="avatar bg-base-200 size-10 cursor-pointer overflow-hidden rounded-full px-1 pt-1">
+                                                    <img
+                                                        alt="Avatar"
+                                                        src="./images/avatars/2.png" />
+                                                </div>
+                                                <div>
+                                                    <p class="font-medium">John Doe</p>
+                                                    <p class="text-base-content/70 text-sm/none">
+                                                        john@email.com (Admin)
+                                                    </p>
+                                                    <div class="mt-3 flex items-center gap-2">
+                                                        <button
+                                                            class="btn btn-xs btn-outline border-base-300">
+                                                            <span
+                                                                class="iconify lucide--settings-2 size-3.5"></span>
+                                                            <span>Account</span>
+                                                        </button>
+                                                        <button
+                                                            class="btn btn-xs btn-outline border-base-300">
+                                                            <span
+                                                                class="iconify lucide--log-out size-3.5"></span>
+                                                            <span>Sign Out</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <hr class="border-base-200" />
+                                            <div
+                                                class="hover:bg-base-200/30 flex cursor-pointer items-center gap-3 px-4 py-2.5">
+                                                <div
+                                                    class="avatar bg-base-200 size-10 overflow-hidden rounded-full px-1 pt-1">
+                                                    <img
+                                                        alt="Avatar"
+                                                        src="./images/avatars/3.png" />
+                                                </div>
+                                                <div>
+                                                    <p class="font-medium">Jane Smith</p>
+                                                    <p class="text-base-content/70 text-sm/none">
+                                                        jane@email.com (Editor)
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="hover:bg-base-200/30 flex cursor-pointer items-center gap-3 px-4 py-2.5">
+                                                <div
+                                                    class="avatar bg-base-200 flex size-10 items-center justify-center rounded-full font-medium">
+                                                    AB
+                                                </div>
+                                                <div>
+                                                    <p class="font-medium">Alex Brown</p>
+                                                    <div class="text-base-content/70 text-sm/none">
+                                                        alex@email.com (Viewer)
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="hover:bg-base-200/30 flex cursor-pointer items-center gap-3 px-4 py-2.5">
+                                                <div
+                                                    class="avatar border-base-300 flex size-10 items-center justify-center rounded-full border border-dashed">
+                                                    <span
+                                                        class="iconify lucide--user-plus size-5"></span>
+                                                </div>
+                                                <p class="font-medium">Add New Account</p>
+                                            </div>
+                                            <hr class="border-base-200" />
+                                            <div
+                                                class="hover:bg-base-200/30 flex cursor-pointer items-center gap-3 px-4 py-2.5">
+                                                <div class="flex w-10 items-center justify-center">
+                                                    <span
+                                                        class="iconify lucide--log-out size-4.5"></span>
+                                                </div>
+                                                <p>Sign out from all accounts</p>
+                                            </div>
+                                            <p
+                                                class="text-base-content/60 px-7 pt-1 pb-3 text-sm italic">
+                                                v3.0 -
+                                                <span class="underline">
+                                                    Terms &amp; Conditions
+                                                </span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Profile Overlay
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <div class="dropdown dropdown-bottom dropdown-end">
+                                        <div
+                                            tabindex="0"
+                                            class="flex cursor-pointer items-center gap-3">
+                                            <div
+                                                class="avatar from-primary to-primary/80 size-12 overflow-hidden rounded-full bg-linear-to-b px-1 pt-1">
+                                                <img alt="Avatar" src="./images/avatars/3.png" />
+                                            </div>
+                                            <div>
+                                                <p class="font-medium">David Lee</p>
+                                                <p class="text-primary -mt-1 text-sm">
+                                                    david.lee@mail.com
+                                                </p>
+                                            </div>
+                                            <div
+                                                class="bg-base-100 flex h-fit items-center justify-center rounded-full p-1 shadow">
+                                                <span
+                                                    class="iconify lucide--chevron-down size-4"></span>
+                                            </div>
+                                        </div>
+                                        <div
+                                            tabindex="0"
+                                            class="dropdown-content bg-base-100 rounded-box -mt-12 w-64 shadow">
+                                            <div
+                                                class="hover:bg-base-200/30 rounded-t-box flex cursor-pointer items-start gap-3 px-4 py-2.5">
+                                                <div
+                                                    class="avatar bg-base-200 size-10 overflow-hidden rounded-full px-1 pt-1">
+                                                    <img
+                                                        alt="Avatar"
+                                                        src="./images/avatars/3.png" />
+                                                </div>
+                                                <div class="grow">
+                                                    <p class="font-medium">David Lee</p>
+                                                    <p class="text-base-content/70 text-sm/none">
+                                                        david.lee@mail.com
+                                                    </p>
+                                                </div>
+                                                <span
+                                                    class="iconify lucide--shield-check text-info size-5"></span>
+                                            </div>
+                                            <hr class="border-base-200" />
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--sliders-horizontal size-4.5"></span>
+                                                        <span>Preferences</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--folder-open size-4.5"></span>
+                                                        <span>My Files</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--library-big size-4.5"></span>
+                                                        <span>Collections</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-200" />
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a
+                                                        class="text-error hover:bg-error/10"
+                                                        href="#">
+                                                        <span
+                                                            class="iconify lucide--log-out size-4.5"></span>
+                                                        <span>Log Out</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                            <p
+                                                class="text-base-content/60 px-5 pb-3 text-sm italic">
+                                                Managed by
+                                                <span class="underline">Nexus</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Referral
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <div
+                                        class="dropdown dropdown-bottom sm:dropdown-end max-sm:dropdown-center">
+                                        <div
+                                            tabindex="0"
+                                            class="flex cursor-pointer items-center gap-3">
+                                            <div
+                                                class="avatar bg-base-200 size-12 overflow-hidden rounded-full px-1 pt-1">
+                                                <img alt="Avatar" src="./images/avatars/4.png" />
+                                            </div>
+                                            <div>
+                                                <p class="font-medium">Olivia Carter</p>
+                                                <p class="text-base-content/70 -mt-1 text-sm">
+                                                    olivia.carter@mail.com
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div
+                                            tabindex="0"
+                                            class="dropdown-content bg-base-100 rounded-box mt-2 w-60 shadow">
+                                            <div
+                                                class="hover:bg-base-200/30 rounded-t-box flex cursor-pointer items-start gap-3 px-4 py-2.5">
+                                                <div
+                                                    class="avatar bg-base-200 size-10 overflow-hidden rounded-full px-1 pt-1">
+                                                    <img
+                                                        alt="Avatar"
+                                                        src="./images/avatars/4.png" />
+                                                </div>
+                                                <div class="grow">
+                                                    <p class="font-medium">Olivia Carter</p>
+                                                    <p class="text-base-content/70 text-sm/none">
+                                                        olivia.carter@mail.com
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <hr class="border-base-200" />
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--users size-4.5"></span>
+                                                        <span>My Referrals</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--dollar-sign size-4.5"></span>
+                                                        <span>Referral Rewards</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--clock size-4.5"></span>
+                                                        <span>Pending Invitations</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-200" />
+                                            <div
+                                                class="from-primary/3 hover:from-primary/5 flex cursor-pointer items-center gap-3 bg-linear-to-r to-transparent px-4 py-3 transition-all">
+                                                <span class="iconify lucide--gift size-6"></span>
+                                                <div class="grow">
+                                                    <p class="font-medium">Refer a friend</p>
+                                                    <p class="text-base-content/70 text-sm/none">
+                                                        5 invites waiting
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Account List
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <div
+                                        class="dropdown dropdown-bottom sm:dropdown-end max-sm:dropdown-center">
+                                        <div
+                                            tabindex="0"
+                                            class="flex cursor-pointer items-center gap-3">
+                                            <div
+                                                class="avatar bg-base-200 size-12 overflow-hidden rounded-full px-1 pt-1">
+                                                <img alt="Avatar" src="./images/avatars/5.png" />
+                                            </div>
+                                        </div>
+                                        <div
+                                            tabindex="0"
+                                            class="dropdown-content bg-base-100 rounded-box mt-2 w-64 shadow">
+                                            <div
+                                                class="bg-base-200/40 rounded-box mx-2 mt-2 cursor-pointer items-start gap-3 px-3 py-3">
+                                                <div class="flex justify-between">
+                                                    <div
+                                                        class="avatar bg-base-200 size-12 overflow-hidden rounded-full px-1 pt-1">
+                                                        <img
+                                                            alt="Avatar"
+                                                            src="./images/avatars/5.png" />
+                                                    </div>
+                                                    <div
+                                                        class="avatar-group -space-x-3.5 *:border-2 *:transition-all hover:space-x-0.5 hover:*:shadow-sm">
+                                                        <div
+                                                            class="avatar bg-base-200 size-9 overflow-hidden rounded-full px-1 pt-1">
+                                                            <img
+                                                                alt="Avatar"
+                                                                src="./images/avatars/1.png" />
+                                                        </div>
+                                                        <div
+                                                            class="avatar bg-base-200 size-9 overflow-hidden rounded-full px-1 pt-1">
+                                                            <img
+                                                                alt="Avatar"
+                                                                src="./images/avatars/2.png" />
+                                                        </div>
+                                                        <div
+                                                            class="avatar bg-base-200 size-9 overflow-hidden rounded-full px-1 pt-1">
+                                                            <img
+                                                                alt="Avatar"
+                                                                src="./images/avatars/3.png" />
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="mt-2">
+                                                    <p class="font-medium">Michael Adams</p>
+                                                    <p class="text-base-content/70 text-sm/none">
+                                                        michael.adams@mail.com
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--users size-4.5"></span>
+                                                        <span>Team Members</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--shield-check size-4.5"></span>
+                                                        <span>Roles &amp; Permissions</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--folder-kanban size-4.5"></span>
+                                                        <span>Shared Projects</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-200" />
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--repeat size-4.5"></span>
+                                                        <span>Switch Team</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a
+                                                        class="text-error hover:bg-error/10"
+                                                        href="#">
+                                                        <span
+                                                            class="iconify lucide--log-out size-4.5"></span>
+                                                        <span>Leave Team</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Nested
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <div
+                                        class="dropdown dropdown-bottom sm:dropdown-end max-sm:dropdown-center">
+                                        <div
+                                            tabindex="0"
+                                            class="flex cursor-pointer items-center gap-3">
+                                            <div
+                                                class="avatar bg-base-200 size-12 overflow-hidden rounded-full px-1 pt-1">
+                                                <img alt="Avatar" src="./images/avatars/7.png" />
+                                            </div>
+                                        </div>
+                                        <div
+                                            tabindex="0"
+                                            class="dropdown-content bg-base-100 rounded-box mt-2 w-56 shadow">
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--user size-4.5"></span>
+                                                        <span>My Profile</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--heart size-4.5"></span>
+                                                        <span>Saved Items</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-200" />
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <details>
+                                                        <summary>
+                                                            <div
+                                                                class="flex cursor-pointer items-center gap-3">
+                                                                <span
+                                                                    class="iconify lucide--bell size-4.5"></span>
+                                                                <p>Notifications</p>
+                                                            </div>
+                                                        </summary>
+                                                        <ul class="ms-5.5">
+                                                            <li>
+                                                                <a href="#">
+                                                                    <span>Mute Alerts</span>
+                                                                </a>
+                                                            </li>
+                                                            <li>
+                                                                <a href="#">
+                                                                    <span>Settings</span>
+                                                                </a>
+                                                            </li>
+                                                        </ul>
+                                                    </details>
+                                                </li>
+                                                <li>
+                                                    <details>
+                                                        <summary>
+                                                            <div
+                                                                class="flex cursor-pointer items-center gap-3">
+                                                                <span
+                                                                    class="iconify lucide--paintbrush size-4.5"></span>
+                                                                <p>Appearance</p>
+                                                            </div>
+                                                        </summary>
+                                                        <ul class="ms-5.5">
+                                                            <li>
+                                                                <a href="#">
+                                                                    <span>Dark Mode</span>
+                                                                </a>
+                                                            </li>
+                                                            <li>
+                                                                <a href="#">
+                                                                    <span>Light Mode</span>
+                                                                </a>
+                                                            </li>
+                                                        </ul>
+                                                    </details>
+                                                </li>
+                                                <li>
+                                                    <details>
+                                                        <summary>
+                                                            <div
+                                                                class="flex cursor-pointer items-center gap-3">
+                                                                <span
+                                                                    class="iconify lucide--settings size-4.5"></span>
+                                                                <p>Preferences</p>
+                                                            </div>
+                                                        </summary>
+                                                        <ul class="ms-5.5">
+                                                            <li>
+                                                                <a href="#">
+                                                                    <span>Language</span>
+                                                                </a>
+                                                            </li>
+                                                            <li>
+                                                                <a href="#">
+                                                                    <span>Time Zone</span>
+                                                                </a>
+                                                            </li>
+                                                        </ul>
+                                                    </details>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-200" />
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <div>
+                                                        <span
+                                                            class="iconify lucide--users size-4.5"></span>
+                                                        <span>Switch Account</span>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <a
+                                                        class="text-error hover:bg-error/10"
+                                                        href="#">
+                                                        <span
+                                                            class="iconify lucide--log-out size-4.5"></span>
+                                                        <span>Sign Out</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Split
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <div
+                                        class="dropdown dropdown-bottom sm:dropdown-end max-sm:dropdown-center">
+                                        <div
+                                            tabindex="0"
+                                            class="flex cursor-pointer items-center gap-3">
+                                            <div
+                                                class="avatar bg-base-200 size-12 overflow-hidden rounded-full px-1 pt-1">
+                                                <img alt="Avatar" src="./images/avatars/6.png" />
+                                            </div>
+                                        </div>
+                                        <div tabindex="0" class="dropdown-content mt-2 w-54">
+                                            <div class="bg-base-100 rounded-box shadow-lg">
+                                                <ul class="menu w-full p-2">
+                                                    <li>
+                                                        <a href="#">
+                                                            <span
+                                                                class="iconify lucide--layout-dashboard size-4.5"></span>
+                                                            <span>Project Overview</span>
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a href="#">
+                                                            <span
+                                                                class="iconify lucide--folder-open size-4.5"></span>
+                                                            <span>My Workspaces</span>
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                            <div class="bg-base-100 rounded-box mt-1.5 shadow-lg">
+                                                <ul class="menu w-full p-2">
+                                                    <li class="menu-title">Select Team</li>
+                                                    <li>
+                                                        <div>
+                                                            <div
+                                                                class="from-primary to-primary/80 mask mask-squircle text-primary-content flex size-5 items-center justify-center bg-linear-to-b leading-none font-medium">
+                                                                C
+                                                            </div>
+                                                            <p class="grow text-sm">Creative Hub</p>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <div
+                                                                class="from-secondary to-secondary/80 mask mask-squircle text-secondary-content flex size-5 items-center justify-center bg-linear-to-b leading-none font-medium">
+                                                                D
+                                                            </div>
+                                                            <p class="grow text-sm">Design Squad</p>
+                                                            <span
+                                                                class="iconify lucide--check size-4 opacity-60"></span>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <div
+                                                                class="from-error to-error/80 mask mask-squircle text-error-content flex size-5 items-center justify-center bg-linear-to-b leading-none font-medium">
+                                                                M
+                                                            </div>
+                                                            <p class="grow text-sm">
+                                                                Marketing Team
+                                                            </p>
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                            <div class="bg-base-100 rounded-box mt-1.5 shadow-lg">
+                                                <ul class="menu w-full p-2">
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--repeat size-4.5"></span>
+                                                            <span>Switch Team</span>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <a
+                                                            class="text-error hover:bg-error/10"
+                                                            href="#">
+                                                            <span
+                                                                class="iconify lucide--log-out size-4.5"></span>
+                                                            <span>Sign Out</span>
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Usage Stats
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <div
+                                        class="dropdown dropdown-bottom sm:dropdown-end max-sm:dropdown-center">
+                                        <div
+                                            tabindex="0"
+                                            class="avatar bg-base-200 size-12 cursor-pointer overflow-hidden rounded-full px-1 pt-1">
+                                            <img alt="Avatar" src="./images/avatars/8.png" />
+                                        </div>
+                                        <div
+                                            tabindex="0"
+                                            class="dropdown-content bg-base-100 rounded-box mt-2 w-68 shadow">
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--user size-4.5"></span>
+                                                        <span>Account</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--bookmark size-4.5"></span>
+                                                        <span>Saved Items</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-200" />
+                                            <div class="px-4 py-3">
+                                                <p class="text-base-content/80 text-sm font-medium">
+                                                    Tool Usage
+                                                </p>
+                                                <div class="mt-3 flex items-center gap-2">
+                                                    <span
+                                                        class="iconify lucide--badge-check"></span>
+                                                    <p class="grow text-sm">Current Plan</p>
+                                                    <div
+                                                        class="badge badge-primary badge-sm rounded-full">
+                                                        Pro
+                                                    </div>
+                                                </div>
+                                                <div class="mt-2 flex items-center gap-2">
+                                                    <span class="iconify lucide--gauge"></span>
+                                                    <p class="grow text-sm">Token Limit</p>
+                                                    <span
+                                                        class="text-base-content/70 text-xs font-medium">
+                                                        74 / 2400
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <hr class="border-base-200" />
+                                            <div class="px-4 py-3">
+                                                <p class="text-base-content/80 text-sm font-medium">
+                                                    Image Generator
+                                                </p>
+                                                <div class="mt-3 flex items-center gap-2 text-sm">
+                                                    <span class="iconify lucide--image"></span>
+                                                    <p class="grow">Free access active</p>
+                                                    <div
+                                                        class="text-primary flex items-center gap-1 text-xs">
+                                                        <p>Upgrade</p>
+                                                        <span
+                                                            class="iconify lucide--arrow-right size-3.5"></span>
+                                                    </div>
+                                                </div>
+                                                <progress
+                                                    class="progress progress-warning mt-2 h-1 w-full align-super"
+                                                    value="74"
+                                                    max="100"></progress>
+                                                <div
+                                                    class="text-base-content/70 -mt-1 flex justify-between text-xs">
+                                                    <span>20 / 24 images</span>
+                                                    <span>5 days left</span>
+                                                </div>
+                                            </div>
+                                            <hr class="border-base-200" />
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a
+                                                        class="text-error hover:bg-error/10"
+                                                        href="#">
+                                                        <span
+                                                            class="iconify lucide--log-out size-4.5"></span>
+                                                        <span>Sign Out</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Drawer
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <div class="drawer drawer-end">
+                                        <input
+                                            id="drawer-profile-menu-demo"
+                                            class="drawer-toggle"
+                                            type="checkbox" />
+                                        <div class="drawer-content">
+                                            <label
+                                                for="drawer-profile-menu-demo"
+                                                class="avatar bg-base-200 size-12 cursor-pointer overflow-hidden rounded-full px-1 pt-1">
+                                                <img alt="Avatar" src="./images/avatars/1.png" />
+                                            </label>
+                                        </div>
+                                        <div class="drawer-side">
+                                            <label
+                                                for="drawer-profile-menu-demo"
+                                                aria-label="close sidebar"
+                                                class="drawer-overlay"></label>
+                                            <div class="h-full w-72 p-2 sm:w-84">
+                                                <div
+                                                    class="bg-base-100 rounded-box relative flex h-full flex-col pt-4 sm:pt-8">
+                                                    <label
+                                                        for="drawer-profile-menu-demo"
+                                                        class="btn btn-xs btn-circle btn-ghost absolute start-2 top-2"
+                                                        aria-label="Close">
+                                                        <span
+                                                            class="iconify lucide--x size-4"></span>
+                                                    </label>
+                                                    <div class="flex flex-col items-center">
+                                                        <div class="relative">
+                                                            <div
+                                                                class="avatar bg-base-200 isolate size-20 cursor-pointer overflow-hidden rounded-full px-1 pt-1 md:size-24">
+                                                                <img
+                                                                    alt="User Avatar"
+                                                                    src="./images/avatars/1.png" />
+                                                            </div>
+                                                            <div
+                                                                class="bg-base-100 absolute end-0 bottom-0 flex items-center justify-center rounded-full p-1.5 shadow-sm">
+                                                                <span
+                                                                    class="iconify lucide--pencil size-4"></span>
+                                                            </div>
+                                                        </div>
+                                                        <p
+                                                            class="mt-4 text-lg/none font-medium sm:mt-8">
+                                                            John Doe
+                                                        </p>
+                                                        <p
+                                                            class="text-base-content/60 mt-1 text-sm">
+                                                            john@company.com
+                                                        </p>
+                                                        <div
+                                                            class="mt-4 flex items-center gap-2 *:cursor-pointer sm:mt-6">
+                                                            <div
+                                                                class="avatar bg-base-200 size-10 overflow-hidden rounded-full px-1 pt-1">
+                                                                <img
+                                                                    alt="Team member"
+                                                                    src="./images/avatars/2.png" />
+                                                            </div>
+                                                            <div
+                                                                class="avatar bg-base-200 size-10 overflow-hidden rounded-full px-1 pt-1">
+                                                                <img
+                                                                    alt="Team member"
+                                                                    src="./images/avatars/3.png" />
+                                                            </div>
+                                                            <div
+                                                                class="avatar bg-base-200 size-10 overflow-hidden rounded-full px-1 pt-1">
+                                                                <img
+                                                                    alt="Team member"
+                                                                    src="./images/avatars/4.png" />
+                                                            </div>
+                                                            <div
+                                                                class="bg-base-200 border-base-300 flex size-10 items-center justify-center rounded-full border border-dashed">
+                                                                <span
+                                                                    class="iconify lucide--plus size-4.5"></span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div
+                                                        class="border-base-300 mt-4 grow overflow-auto border-t border-dashed px-2 sm:mt-6">
+                                                        <ul class="menu w-full p-2">
+                                                            <li class="menu-title">Account</li>
+                                                            <li>
+                                                                <a href="#">
+                                                                    <span
+                                                                        class="iconify lucide--user size-4.5"></span>
+                                                                    <span>View Profile</span>
+                                                                </a>
+                                                            </li>
+                                                            <li>
+                                                                <a href="#">
+                                                                    <span
+                                                                        class="iconify lucide--users size-4.5"></span>
+                                                                    <span>Team</span>
+                                                                </a>
+                                                            </li>
+                                                            <li>
+                                                                <a href="#">
+                                                                    <span
+                                                                        class="iconify lucide--mail-plus size-4.5"></span>
+                                                                    <span>Invites</span>
+                                                                    <div class="badge badge-sm">
+                                                                        4
+                                                                    </div>
+                                                                </a>
+                                                            </li>
+                                                            <li class="menu-title">Platform</li>
+                                                            <li>
+                                                                <a href="#">
+                                                                    <span
+                                                                        class="iconify lucide--settings size-4.5"></span>
+                                                                    <span>Settings</span>
+                                                                </a>
+                                                            </li>
+                                                            <li>
+                                                                <a href="#">
+                                                                    <span
+                                                                        class="iconify lucide--credit-card size-4.5"></span>
+                                                                    <span>Billing</span>
+                                                                </a>
+                                                            </li>
+                                                            <li>
+                                                                <a href="#">
+                                                                    <span
+                                                                        class="iconify lucide--help-circle size-4.5"></span>
+                                                                    <span>Support</span>
+                                                                </a>
+                                                            </li>
+                                                            <li>
+                                                                <a
+                                                                    class="text-error hover:bg-error/10"
+                                                                    href="#">
+                                                                    <span
+                                                                        class="iconify lucide--log-out size-4.5"></span>
+                                                                    <span>Sign Out</span>
+                                                                </a>
+                                                            </li>
+                                                        </ul>
+                                                    </div>
+                                                    <div
+                                                        class="rounded-box from-primary to-secondary text-primary-content m-4 mt-auto flex cursor-pointer flex-col items-center justify-center bg-linear-to-br p-4 text-center transition-all hover:opacity-95 sm:p-6">
+                                                        <div
+                                                            class="bg-primary-content/10 border-primary-content/10 flex items-center justify-center rounded-full border p-1.5 sm:p-2.5">
+                                                            <span
+                                                                class="iconify lucide--zap size-5 sm:size-6"></span>
+                                                        </div>
+                                                        <p
+                                                            class="mt-2 font-mono text-[11px] font-medium tracking-wider uppercase opacity-70 sm:mt-4">
+                                                            Upgrade your plan
+                                                        </p>
+                                                        <p
+                                                            class="mt-1 leading-none font-medium sm:text-lg">
+                                                            Save
+                                                            <span class="font-semibold underline">
+                                                                30%
+                                                            </span>
+                                                            today
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="border-base-300/80 bg-base-100 border-t border-dashed px-4 py-4 md:px-8 xl:px-12 2xl:px-20">
+                        <div class="flex items-center justify-between px-0">
+                            <p>
+                                Built and designed with care by
+                                <a target="_blank" class="text-primary" href="https://withden.dev/">
+                                    Denish
+                                </a>
+                            </p>
+                            <a
+                                aria-label="Buy now"
+                                target="_blank"
+                                class="bg-primary text-primary-content group flex size-9 items-center gap-2 overflow-hidden rounded-full px-2.5 py-0.5 font-medium transition-all hover:w-26"
+                                href="https://daisyui.com/store/244268">
+                                <span class="iconify lucide--shopping-cart block size-4.5"></span>
+                                <span class="hidden text-sm text-nowrap group-hover:block">
+                                    Buy Now
+                                </span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/simplebar/6.2.7/simplebar.min.js"></script>
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/simplebar/6.2.7/simplebar.css" />
+        <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+        <script src="./js/app.js"></script>
+    </body>
+</html>

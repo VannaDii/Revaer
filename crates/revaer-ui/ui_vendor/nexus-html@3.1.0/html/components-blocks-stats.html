@@ -1,0 +1,1663 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <meta charset="UTF-8" />
+        <meta name="author" content="Denish Navadiya" />
+        <meta
+            name="keywords"
+            content="HTML, CSS, daisyui, tailwindcss, admin, client, dashboard, ui kit, component" />
+        <meta
+            name="description"
+            content="Start your next project with Nexus, designed for effortless customization to streamline your development process" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link
+            rel="shortcut icon"
+            href="./images/favicon-dark.png"
+            media="(prefers-color-scheme: dark)" />
+        <link
+            rel="shortcut icon"
+            href="./images/favicon-light.png"
+            media="(prefers-color-scheme: light)" />
+
+        <script>
+            try {
+                const localStorageItem = localStorage.getItem("__NEXUS_CONFIG_v3.0__")
+                if (localStorageItem) {
+                    const theme = JSON.parse(localStorageItem).theme
+                    if (theme !== "system") {
+                        document.documentElement.setAttribute("data-theme", theme)
+                    }
+                }
+            } catch (err) {
+                console.log(err)
+            }
+        </script>
+
+        <link rel="stylesheet" href="./assets/app.css" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <div class="max-xl:hidden">
+                    <div
+                        class="border-base-300/80 bg-base-100 sticky top-0 bottom-0 flex h-screen w-64 min-w-64 flex-col border-s border-e border-dashed">
+                        <div
+                            class="border-base-300 flex h-16 min-h-16 items-center gap-4 border-b border-dashed px-5">
+                            <a href="./dashboards-ecommerce.html">
+                                <img
+                                    alt="logo-dark"
+                                    class="hidden h-5.5 dark:inline"
+                                    src="./images/logo/logo-dark.png" />
+                                <img
+                                    alt="logo-light"
+                                    class="h-5.5 dark:hidden"
+                                    src="./images/logo/logo-light.png" />
+                            </a>
+                            <hr class="border-base-300 h-6 border-e" />
+                            <p class="text-base-content/60 mt-0.5 text-lg font-medium">Design</p>
+                        </div>
+                        <div data-simplebar class="h-full min-h-0 grow">
+                            <div
+                                class="sidebar-menu-activation sidebar-menu mt-4 space-y-0.5 px-2.5 pb-4">
+                                <p class="menu-label px-2.5 pt-3 pb-1.5 first:pt-0">Base</p>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--shapes size-4"></span>
+                                        <span class="grow">Foundations</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-text.html">
+                                                <span class="grow">Text</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-display.html">
+                                                <span class="grow">Display</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-effects.html">
+                                                <span class="grow">Effects</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-shadows.html">
+                                                <span class="grow">Shadows</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--blocks size-4"></span>
+                                        <span class="grow">Blocks</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-blocks-stats.html">
+                                                <span class="grow">Dashboard Stats</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-blocks-prompt-bar.html">
+                                                <span class="grow">Prompt Bar</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span
+                                            class="iconify lucide--layout-panel-left size-4"></span>
+                                        <span class="grow">Layouts</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-skeleton.html">
+                                                <span class="grow">Skeleton</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-sidebar.html">
+                                                <span class="grow">Sidebar</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-topbar.html">
+                                                <span class="grow">Topbar</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-footer.html">
+                                                <span class="grow">Footer</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-profile-menu.html">
+                                                <span class="grow">Profile Menu</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-search.html">
+                                                <span class="grow">Search</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-notification.html">
+                                                <span class="grow">Notification</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-page-title.html">
+                                                <span class="grow">Page Title</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="menu-label px-2.5 pt-3 pb-1.5 first:pt-0">Dynamics</p>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--layers-3 size-4"></span>
+                                        <span class="grow">Interactions</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-carousel.html">
+                                                <span class="grow">Carousel</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-clipboard.html">
+                                                <span class="grow">Clipboard</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-datatables.html">
+                                                <span class="grow">Data Tables</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-fab.html">
+                                                <span class="grow">FAB</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-file-upload.html">
+                                                <span class="grow">File Upload</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-flatpickr.html">
+                                                <span class="grow">Flatpickr</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-form-validations.html">
+                                                <span class="grow">Form Validations</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-input-spinner.html">
+                                                <span class="grow">Input Spinner</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-password-meter.html">
+                                                <span class="grow">Password Meter</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-select.html">
+                                                <span class="grow">Select</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-sortable.html">
+                                                <span class="grow">Sortable</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-text-editor.html">
+                                                <span class="grow">Text Editor</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-wizard.html">
+                                                <span class="grow">Wizard</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--chart-bar size-4"></span>
+                                        <span class="grow">Apex Charts</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-area.html">
+                                                <span class="grow">Area</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-bar.html">
+                                                <span class="grow">Bar</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-column.html">
+                                                <span class="grow">Column</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-line.html">
+                                                <span class="grow">Line</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-pie.html">
+                                                <span class="grow">Pie</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <a
+                                target="_blank"
+                                class="group rounded-box relative mx-2.5 block gap-3"
+                                href="/dashboards-ecommerce">
+                                <div
+                                    class="rounded-box absolute inset-0 bg-gradient-to-r from-transparent to-transparent transition-opacity duration-300 group-hover:opacity-0"></div>
+                                <div
+                                    class="from-primary to-secondary rounded-box absolute inset-0 bg-gradient-to-r opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                                <div class="relative flex h-10 items-center gap-3 px-3">
+                                    <i
+                                        class="iconify lucide--monitor-dot text-primary size-4.5 transition-all duration-300 group-hover:text-white"></i>
+                                    <p
+                                        class="from-primary to-secondary bg-gradient-to-r bg-clip-text font-medium text-transparent transition-all duration-300 group-hover:text-white">
+                                        Dashboard
+                                    </p>
+                                    <i
+                                        class="iconify lucide--chevron-right text-secondary ms-auto size-4.5 transition-all duration-300 group-hover:text-white"></i>
+                                </div>
+                            </a>
+                            <hr class="border-base-300 mt-2 border-dashed" />
+                            <a
+                                target="_blank"
+                                class="bg-base-200/60 hover:bg-base-200 rounded-box m-2.5 mb-2 flex cursor-pointer items-center gap-3 px-3.5 py-2 transition-all"
+                                href="https://nexus.daisyui.com/docs/">
+                                <span class="iconify lucide--book-open-text size-5"></span>
+                                <div class="grow -space-y-0.5">
+                                    <p class="text-sm font-medium">Documentation</p>
+                                    <p class="text-base-content/60 text-xs">Installations</p>
+                                </div>
+                                <span
+                                    class="iconify lucide--external-link text-base-content/60 size-4"></span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="components-layout-main">
+                    <div
+                        role="navigation"
+                        aria-label="Navbar"
+                        class="border-base-300/80 bg-base-100 sticky top-0 z-1 h-16 border-b border-dashed px-4 md:px-8 xl:px-12 2xl:px-20">
+                        <div class="flex h-full items-center justify-between px-0">
+                            <div class="flex items-center gap-5">
+                                <a
+                                    class="text-base-content/70 hover:text-base-content transition-all"
+                                    href="/dashboards-ecommerce">
+                                    Dashboard
+                                </a>
+                                <a class="font-medium" href="/components">Components</a>
+                            </div>
+                            <div class="inline-flex items-center gap-3">
+                                <button
+                                    aria-label="Toggle Theme"
+                                    class="btn btn-sm btn-circle btn-ghost relative overflow-hidden"
+                                    data-theme-control="toggle">
+                                    <span
+                                        class="iconify lucide--sun absolute size-4.5 -translate-y-4 opacity-0 transition-all duration-300 group-data-[theme=light]/html:translate-y-0 group-data-[theme=light]/html:opacity-100"></span>
+                                    <span
+                                        class="iconify lucide--moon absolute size-4.5 translate-y-4 opacity-0 transition-all duration-300 group-data-[theme=dark]/html:translate-y-0 group-data-[theme=dark]/html:opacity-100"></span>
+                                    <span
+                                        class="iconify lucide--palette absolute size-4.5 opacity-100 group-data-[theme=dark]/html:opacity-0 group-data-[theme=light]/html:opacity-0"></span>
+                                </button>
+
+                                <a
+                                    target="_blank"
+                                    class="btn from-primary to-secondary group/purchase text-primary-content btn-sm max-sm:btn-square relative gap-2 border-0 bg-linear-to-r text-sm"
+                                    href="https://daisyui.com/store/244268">
+                                    <span class="iconify lucide--shopping-cart size-4"></span>
+                                    <span class="max-sm:hidden">Buy Now</span>
+                                    <div
+                                        class="from-primary to-secondary absolute inset-x-0 top-1 -z-1 h-8 bg-linear-to-r opacity-40 blur-md transition-all duration-500 group-hover/purchase:opacity-60 group-hover/purchase:blur-lg"></div>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="components-layout-content">
+                        <div class="flex flex-col items-center justify-center space-y-0.5">
+                            <div
+                                class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                <div class="status status-sm bg-base-content/30"></div>
+                                Blocks
+                            </div>
+                            <p
+                                class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                Dashboard Stats
+                            </p>
+                            <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                Dashboard stats with support for icons, actions, editable fields,
+                                filters, and flexible layouts
+                            </p>
+                        </div>
+                        <p class="text-base-content/60 mt-6 font-medium lg:mt-12">Demos</p>
+
+                        <div class="mt-6 space-y-6">
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Minimal
+                                </div>
+                                <div class="p-6">
+                                    <div
+                                        class="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+                                        <div class="card bg-base-100 card-border">
+                                            <div class="card-body">
+                                                <p
+                                                    class="text-base-content/60 text-xs font-medium tracking-wide uppercase">
+                                                    Tokens Used
+                                                </p>
+                                                <div
+                                                    class="mt-4 flex items-end justify-end gap-2 text-sm">
+                                                    <p class="text-2xl/none font-semibold">8.9M</p>
+                                                    <div
+                                                        class="text-success flex items-center gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5"></span>
+                                                        12.3%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="card bg-base-100 card-border">
+                                            <div class="card-body">
+                                                <p
+                                                    class="text-base-content/60 text-xs font-medium tracking-wide uppercase">
+                                                    Active Users
+                                                </p>
+                                                <div
+                                                    class="mt-4 flex items-end justify-end gap-2 text-sm">
+                                                    <p class="text-2xl/none font-semibold">4,532</p>
+                                                    <div
+                                                        class="text-success flex items-center gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5"></span>
+                                                        5.7%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="card bg-base-100 card-border">
+                                            <div class="card-body">
+                                                <p
+                                                    class="text-base-content/60 text-xs font-medium tracking-wide uppercase">
+                                                    Latency (ms)
+                                                </p>
+                                                <div
+                                                    class="mt-4 flex items-end justify-end gap-2 text-sm">
+                                                    <p class="text-2xl/none font-semibold">98</p>
+                                                    <div
+                                                        class="text-error flex items-center gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-down size-3.5"></span>
+                                                        -3.2%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="card bg-base-100 card-border">
+                                            <div class="card-body">
+                                                <p
+                                                    class="text-base-content/60 text-xs font-medium tracking-wide uppercase">
+                                                    Model Invocations
+                                                </p>
+                                                <div
+                                                    class="mt-4 flex items-end justify-end gap-2 text-sm">
+                                                    <p class="text-2xl/none font-semibold">117K</p>
+                                                    <div
+                                                        class="text-success flex items-center gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5"></span>
+                                                        9.1%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Charts
+                                </div>
+                                <div class="p-6">
+                                    <div
+                                        class="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+                                        <div class="card bg-base-100 card-border">
+                                            <div class="card-body">
+                                                <div class="flex justify-between gap-2 text-xs">
+                                                    <p
+                                                        class="text-base-content/60 font-medium tracking-wide uppercase">
+                                                        Total Sales
+                                                    </p>
+                                                    <div
+                                                        class="text-success flex items-center gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5"></span>
+                                                        14.8%
+                                                    </div>
+                                                </div>
+                                                <div class="mt-2 flex items-end gap-2">
+                                                    <p class="grow text-2xl/none font-semibold">
+                                                        $189K
+                                                    </p>
+                                                    <div class="w-24">
+                                                        <div id="dashboard-stats-demo-1"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="card bg-base-100 card-border">
+                                            <div class="card-body">
+                                                <div class="flex justify-between gap-2 text-xs">
+                                                    <p
+                                                        class="text-base-content/60 font-medium tracking-wide uppercase">
+                                                        New Customers
+                                                    </p>
+                                                    <div
+                                                        class="text-success flex items-center gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5"></span>
+                                                        7.2%
+                                                    </div>
+                                                </div>
+                                                <div class="mt-2 flex items-end gap-2">
+                                                    <p class="grow text-2xl/none font-semibold">
+                                                        1,245
+                                                    </p>
+                                                    <div class="w-24">
+                                                        <div id="dashboard-stats-demo-2"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="card bg-base-100 card-border">
+                                            <div class="card-body">
+                                                <div class="flex justify-between gap-2 text-xs">
+                                                    <p
+                                                        class="text-base-content/60 font-medium tracking-wide uppercase">
+                                                        Churn Rate
+                                                    </p>
+                                                    <div
+                                                        class="text-error flex items-center gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-down size-3.5"></span>
+                                                        -1.5%
+                                                    </div>
+                                                </div>
+                                                <div class="mt-2 flex items-end gap-2">
+                                                    <p class="grow text-2xl/none font-semibold">
+                                                        2.8%
+                                                    </p>
+                                                    <div class="w-24">
+                                                        <div id="dashboard-stats-demo-3"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="card bg-base-100 card-border">
+                                            <div class="card-body">
+                                                <div class="flex justify-between gap-2 text-xs">
+                                                    <p
+                                                        class="text-base-content/60 font-medium tracking-wide uppercase">
+                                                        Revenue Growth
+                                                    </p>
+                                                    <div
+                                                        class="text-success flex items-center gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5"></span>
+                                                        5.4%
+                                                    </div>
+                                                </div>
+                                                <div class="mt-2 flex items-end gap-2">
+                                                    <p class="grow text-2xl/none font-semibold">
+                                                        23%
+                                                    </p>
+                                                    <div class="w-24">
+                                                        <div id="dashboard-stats-demo-4"></div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Icon Corner
+                                </div>
+                                <div class="p-6">
+                                    <div
+                                        class="grid grid-cols-1 gap-5 sm:grid-cols-2 2xl:grid-cols-4">
+                                        <div class="card bg-base-100 relative shadow">
+                                            <div class="card-body gap-2">
+                                                <p class="inline text-2xl/none font-semibold">
+                                                    9.2M
+                                                </p>
+                                                <p
+                                                    class="text-base-content/60 mt-1 text-sm font-medium">
+                                                    Prompts Generated
+                                                </p>
+                                                <div class="mt-5 flex items-center gap-2">
+                                                    <div
+                                                        class="badge badge-soft badge-success badge-sm gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5"></span>
+                                                        14.6%
+                                                    </div>
+                                                    <p class="text-base-content/60 text-sm">
+                                                        compared to week
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="to-base-200/60 absolute -end-3 -top-3 rounded-full bg-linear-to-bl from-transparent p-1.5">
+                                                <div
+                                                    class="bg-base-100 flex items-center justify-center rounded-full p-2 shadow">
+                                                    <span class="iconify lucide--zap size-6"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="card bg-base-100 relative shadow">
+                                            <div class="card-body gap-2">
+                                                <p class="inline text-2xl/none font-semibold">
+                                                    3,124
+                                                </p>
+                                                <p
+                                                    class="text-base-content/60 mt-1 text-sm font-medium">
+                                                    New Paid Users
+                                                </p>
+                                                <div class="mt-5 flex items-center gap-2">
+                                                    <div
+                                                        class="badge badge-soft badge-success badge-sm gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5"></span>
+                                                        7.8%
+                                                    </div>
+                                                    <p class="text-base-content/60 text-sm">
+                                                        compared to week
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="to-base-200/60 absolute -end-3 -top-3 rounded-full bg-linear-to-bl from-transparent p-1.5">
+                                                <div
+                                                    class="bg-base-100 flex items-center justify-center rounded-full p-2 shadow">
+                                                    <span
+                                                        class="iconify lucide--badge-check size-6"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="card bg-base-100 relative shadow">
+                                            <div class="card-body gap-2">
+                                                <p class="inline text-2xl/none font-semibold">
+                                                    174.6K
+                                                </p>
+                                                <p
+                                                    class="text-base-content/60 mt-1 text-sm font-medium">
+                                                    API Requests
+                                                </p>
+                                                <div class="mt-5 flex items-center gap-2">
+                                                    <div
+                                                        class="badge badge-soft badge-success badge-sm gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5"></span>
+                                                        11.2%
+                                                    </div>
+                                                    <p class="text-base-content/60 text-sm">
+                                                        compared to week
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="to-base-200/60 absolute -end-3 -top-3 rounded-full bg-linear-to-bl from-transparent p-1.5">
+                                                <div
+                                                    class="bg-base-100 flex items-center justify-center rounded-full p-2 shadow">
+                                                    <span
+                                                        class="iconify lucide--terminal-square size-6"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="card bg-base-100 relative shadow">
+                                            <div class="card-body gap-2">
+                                                <p class="inline text-2xl/none font-semibold">
+                                                    87 ms
+                                                </p>
+                                                <p
+                                                    class="text-base-content/60 mt-1 text-sm font-medium">
+                                                    Avg. Response Time
+                                                </p>
+                                                <div class="mt-5 flex items-center gap-2">
+                                                    <div
+                                                        class="badge badge-soft badge-error badge-sm gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-down size-3.5"></span>
+                                                        -4.1%
+                                                    </div>
+                                                    <p class="text-base-content/60 text-sm">
+                                                        compared to week
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="to-base-200/60 absolute -end-3 -top-3 rounded-full bg-linear-to-bl from-transparent p-1.5">
+                                                <div
+                                                    class="bg-base-100 flex items-center justify-center rounded-full p-2 shadow">
+                                                    <span
+                                                        class="iconify lucide--gauge-circle size-6"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Interactive
+                                </div>
+                                <div class="p-6">
+                                    <div
+                                        class="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+                                        <div class="card bg-base-100 group card-border relative">
+                                            <div class="card-body">
+                                                <div
+                                                    class="flex items-center justify-between gap-2">
+                                                    <span
+                                                        class="iconify lucide--dollar-sign size-4"></span>
+                                                    <p class="text-base-content/80">MRR</p>
+                                                </div>
+                                                <p class="mt-2 text-2xl/none font-semibold">
+                                                    $82,450
+                                                </p>
+                                                <div class="mt-4 flex items-center gap-1 text-sm">
+                                                    <div
+                                                        class="text-success flex items-center gap-1 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5 -rotate-45"></span>
+                                                        5.2%
+                                                    </div>
+                                                    <p class="text-base-content/50">(30d)</p>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="rounded-box border-base-300 absolute end-3 top-3 flex origin-right scale-80 items-center p-0.5 opacity-0 shadow transition-all duration-300 group-hover:scale-100 group-hover:opacity-100">
+                                                <button
+                                                    class="btn btn-ghost btn-xs btn-square"
+                                                    aria-label="Edit">
+                                                    <span
+                                                        class="iconify lucide--pencil size-3.5"></span>
+                                                </button>
+                                                <button
+                                                    class="btn btn-ghost btn-xs btn-square"
+                                                    aria-label="Move">
+                                                    <span
+                                                        class="iconify lucide--arrow-left-right size-3.5"></span>
+                                                </button>
+                                                <button
+                                                    class="btn btn-ghost btn-error text-error hover:text-error-content btn-xs btn-square"
+                                                    aria-label="Delete">
+                                                    <span
+                                                        class="iconify lucide--trash-2 size-3.5"></span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="card bg-base-100 group card-border relative">
+                                            <div class="card-body">
+                                                <div
+                                                    class="flex items-center justify-between gap-2">
+                                                    <span
+                                                        class="iconify lucide--user-minus size-4"></span>
+                                                    <p class="text-base-content/80">Churn</p>
+                                                </div>
+                                                <p class="mt-2 text-2xl/none font-semibold">2.4%</p>
+                                                <div class="mt-4 flex items-center gap-1 text-sm">
+                                                    <div
+                                                        class="text-error flex items-center gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-down size-3.5 -rotate-45"></span>
+                                                        -0.6%
+                                                    </div>
+                                                    <p class="text-base-content/50">(30d)</p>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="rounded-box border-base-300 absolute end-3 top-3 flex origin-right scale-80 items-center p-0.5 opacity-0 shadow transition-all duration-300 group-hover:scale-100 group-hover:opacity-100">
+                                                <button
+                                                    class="btn btn-ghost btn-xs btn-square"
+                                                    aria-label="Edit">
+                                                    <span
+                                                        class="iconify lucide--pencil size-3.5"></span>
+                                                </button>
+                                                <button
+                                                    class="btn btn-ghost btn-xs btn-square"
+                                                    aria-label="Move">
+                                                    <span
+                                                        class="iconify lucide--arrow-left-right size-3.5"></span>
+                                                </button>
+                                                <button
+                                                    class="btn btn-ghost btn-error text-error hover:text-error-content btn-xs btn-square"
+                                                    aria-label="Delete">
+                                                    <span
+                                                        class="iconify lucide--trash-2 size-3.5"></span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="card bg-base-100 group card-border relative">
+                                            <div class="card-body">
+                                                <div
+                                                    class="flex items-center justify-between gap-2">
+                                                    <span
+                                                        class="iconify lucide--user-plus size-4"></span>
+                                                    <p class="text-base-content/80">New Users</p>
+                                                </div>
+                                                <p class="mt-2 text-2xl/none font-semibold">
+                                                    1,920
+                                                </p>
+                                                <div class="mt-4 flex items-center gap-1 text-sm">
+                                                    <div
+                                                        class="text-success flex items-center gap-1 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5 -rotate-45"></span>
+                                                        8.1%
+                                                    </div>
+                                                    <p class="text-base-content/50">(7d)</p>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="rounded-box border-base-300 absolute end-3 top-3 flex origin-right scale-80 items-center p-0.5 opacity-0 shadow transition-all duration-300 group-hover:scale-100 group-hover:opacity-100">
+                                                <button
+                                                    class="btn btn-ghost btn-xs btn-square"
+                                                    aria-label="Edit">
+                                                    <span
+                                                        class="iconify lucide--pencil size-3.5"></span>
+                                                </button>
+                                                <button
+                                                    class="btn btn-ghost btn-xs btn-square"
+                                                    aria-label="Move">
+                                                    <span
+                                                        class="iconify lucide--arrow-left-right size-3.5"></span>
+                                                </button>
+                                                <button
+                                                    class="btn btn-ghost btn-error text-error hover:text-error-content btn-xs btn-square"
+                                                    aria-label="Delete">
+                                                    <span
+                                                        class="iconify lucide--trash-2 size-3.5"></span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="card bg-base-100 group card-border relative">
+                                            <div class="card-body">
+                                                <div
+                                                    class="flex items-center justify-between gap-2">
+                                                    <span
+                                                        class="iconify lucide--users size-4"></span>
+                                                    <p class="text-base-content/80">Active Teams</p>
+                                                </div>
+                                                <p class="mt-2 text-2xl/none font-semibold">734</p>
+                                                <div class="mt-4 flex items-center gap-1 text-sm">
+                                                    <div
+                                                        class="text-success flex items-center gap-1 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5 -rotate-45"></span>
+                                                        3.9%
+                                                    </div>
+                                                    <p class="text-base-content/50">(7d)</p>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="rounded-box border-base-300 absolute end-3 top-3 flex origin-right scale-80 items-center p-0.5 opacity-0 shadow transition-all duration-300 group-hover:scale-100 group-hover:opacity-100">
+                                                <button
+                                                    class="btn btn-ghost btn-xs btn-square"
+                                                    aria-label="Edit">
+                                                    <span
+                                                        class="iconify lucide--pencil size-3.5"></span>
+                                                </button>
+                                                <button
+                                                    class="btn btn-ghost btn-xs btn-square"
+                                                    aria-label="Move">
+                                                    <span
+                                                        class="iconify lucide--arrow-left-right size-3.5"></span>
+                                                </button>
+                                                <button
+                                                    class="btn btn-ghost btn-error text-error hover:text-error-content btn-xs btn-square"
+                                                    aria-label="Delete">
+                                                    <span
+                                                        class="iconify lucide--trash-2 size-3.5"></span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Selectable
+                                </div>
+                                <div class="p-6">
+                                    <div
+                                        class="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+                                        <div
+                                            class="card bg-base-100 group card-border relative overflow-hidden">
+                                            <div class="card-body">
+                                                <p
+                                                    class="text-base-content/60 text-xs font-medium tracking-wide uppercase">
+                                                    Projects Active
+                                                </p>
+                                                <div
+                                                    class="mt-4 flex items-end justify-end gap-2 text-sm">
+                                                    <p class="text-2xl/none font-semibold">248</p>
+                                                    <div
+                                                        class="text-success flex items-center gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5"></span>
+                                                        6.2%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="bg-base-200 group-hover:bg-primary absolute -start-1 top-1/2 h-12 w-2 -translate-y-1/2 rounded-full transition-all duration-300 group-hover:h-16"></div>
+                                        </div>
+                                        <div
+                                            class="card bg-base-100 group card-border relative overflow-hidden">
+                                            <div class="card-body">
+                                                <p
+                                                    class="text-base-content/60 text-xs font-medium tracking-wide uppercase">
+                                                    Tasks Completed
+                                                </p>
+                                                <div
+                                                    class="mt-4 flex items-end justify-end gap-2 text-sm">
+                                                    <p class="text-2xl/none font-semibold">
+                                                        12,584
+                                                    </p>
+                                                    <div
+                                                        class="text-success flex items-center gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5"></span>
+                                                        9.4%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="bg-base-200 group-hover:bg-primary absolute -start-1 top-1/2 h-12 w-2 -translate-y-1/2 rounded-full transition-all duration-300 group-hover:h-16"></div>
+                                        </div>
+                                        <div
+                                            class="card bg-base-100 group card-border relative overflow-hidden">
+                                            <div class="card-body">
+                                                <p
+                                                    class="text-base-content/60 text-xs font-medium tracking-wide uppercase">
+                                                    Team Messages
+                                                </p>
+                                                <div
+                                                    class="mt-4 flex items-end justify-end gap-2 text-sm">
+                                                    <p class="text-2xl/none font-semibold">47.2K</p>
+                                                    <div
+                                                        class="text-success flex items-center gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5"></span>
+                                                        3.7%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="bg-base-200 group-hover:bg-primary absolute -start-1 top-1/2 h-12 w-2 -translate-y-1/2 rounded-full transition-all duration-300 group-hover:h-16"></div>
+                                        </div>
+                                        <div
+                                            class="card bg-base-100 group card-border relative overflow-hidden">
+                                            <div class="card-body">
+                                                <p
+                                                    class="text-base-content/60 text-xs font-medium tracking-wide uppercase">
+                                                    Downtime
+                                                </p>
+                                                <div
+                                                    class="mt-4 flex items-end justify-end gap-2 text-sm">
+                                                    <p class="text-2xl/none font-semibold">1.2h</p>
+                                                    <div
+                                                        class="text-error flex items-center gap-0.5 px-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-down size-3.5"></span>
+                                                        -12.5%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="bg-base-200 group-hover:bg-primary absolute -start-1 top-1/2 h-12 w-2 -translate-y-1/2 rounded-full transition-all duration-300 group-hover:h-16"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Merged
+                                </div>
+                                <div class="p-6">
+                                    <div
+                                        class="bg-base-100 rounded-box grid grid-cols-1 gap-4 shadow sm:grid-cols-2 2xl:grid-cols-4">
+                                        <div class="group relative py-6">
+                                            <div
+                                                class="bg-base-200 rounded-box absolute inset-3 scale-80 opacity-0 transition-all duration-300 group-hover:scale-100 group-hover:opacity-30"></div>
+                                            <div class="relative flex flex-col items-center">
+                                                <div
+                                                    class="bg-base-100 flex items-center justify-center rounded-full p-2.5 shadow">
+                                                    <span
+                                                        class="iconify lucide--file-text size-5"></span>
+                                                </div>
+                                                <p class="mt-3 text-2xl font-semibold">1,284</p>
+                                                <p class="text-base-content/60 text-sm font-medium">
+                                                    Articles Published
+                                                </p>
+                                                <div class="mt-1">
+                                                    <div
+                                                        class="text-success flex items-center gap-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5"></span>
+                                                        6.2%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="group relative py-6">
+                                            <div
+                                                class="bg-base-200 rounded-box absolute inset-3 scale-80 opacity-0 transition-all duration-300 group-hover:scale-100 group-hover:opacity-30"></div>
+                                            <div class="relative flex flex-col items-center">
+                                                <div
+                                                    class="bg-base-100 flex items-center justify-center rounded-full p-2.5 shadow">
+                                                    <span
+                                                        class="iconify lucide--search size-5"></span>
+                                                </div>
+                                                <p class="mt-3 text-2xl font-semibold">86.7K</p>
+                                                <p class="text-base-content/60 text-sm font-medium">
+                                                    Search Queries
+                                                </p>
+                                                <div class="mt-1">
+                                                    <div
+                                                        class="text-success flex items-center gap-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5"></span>
+                                                        9.5%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="group relative py-6">
+                                            <div
+                                                class="bg-base-200 rounded-box absolute inset-3 scale-80 opacity-0 transition-all duration-300 group-hover:scale-100 group-hover:opacity-30"></div>
+                                            <div class="relative flex flex-col items-center">
+                                                <div
+                                                    class="bg-base-100 flex items-center justify-center rounded-full p-2.5 shadow">
+                                                    <span
+                                                        class="iconify lucide--message-square size-5"></span>
+                                                </div>
+                                                <p class="mt-3 text-2xl font-semibold">3,210</p>
+                                                <p class="text-base-content/60 text-sm font-medium">
+                                                    User Feedback
+                                                </p>
+                                                <div class="mt-1">
+                                                    <div
+                                                        class="text-success flex items-center gap-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5"></span>
+                                                        4.3%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="group relative py-6">
+                                            <div
+                                                class="bg-base-200 rounded-box absolute inset-3 scale-80 opacity-0 transition-all duration-300 group-hover:scale-100 group-hover:opacity-30"></div>
+                                            <div class="relative flex flex-col items-center">
+                                                <div
+                                                    class="bg-base-100 flex items-center justify-center rounded-full p-2.5 shadow">
+                                                    <span
+                                                        class="iconify lucide--trending-down size-5"></span>
+                                                </div>
+                                                <p class="mt-3 text-2xl font-semibold">38.2%</p>
+                                                <p class="text-base-content/60 text-sm font-medium">
+                                                    Bounce Rate
+                                                </p>
+                                                <div class="mt-1">
+                                                    <div
+                                                        class="text-error flex items-center gap-1 font-medium">
+                                                        <span
+                                                            class="iconify lucide--arrow-down size-3.5"></span>
+                                                        -2.1%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    File
+                                </div>
+                                <div class="p-6">
+                                    <div
+                                        class="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
+                                        <div
+                                            class="card bg-base-100 cursor-pointer shadow transition-all hover:shadow-md">
+                                            <div class="p-4">
+                                                <div
+                                                    class="bg-base-200 rounded-box inline-flex items-center justify-center p-2">
+                                                    <span
+                                                        class="iconify lucide--folder size-5"></span>
+                                                </div>
+                                                <div class="mt-3 flex items-center justify-between">
+                                                    <p class="text-sm font-medium">Projects</p>
+                                                    <span class="text-base-content/80 text-xs">
+                                                        52.4%
+                                                    </span>
+                                                </div>
+                                                <progress
+                                                    max="125"
+                                                    value="65.5"
+                                                    class="progress progress-primary mt-0.5 h-1.5 align-super"></progress>
+                                                <div
+                                                    class="-mt-1.5 flex items-center justify-between">
+                                                    <span class="text-sm font-medium">65.5 GB</span>
+                                                    <span class="text-base-content/80 text-xs">
+                                                        125 GB
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div
+                                            class="card bg-base-100 cursor-pointer shadow transition-all hover:shadow-md">
+                                            <div class="p-4">
+                                                <div
+                                                    class="bg-base-200 rounded-box inline-flex items-center justify-center p-2">
+                                                    <span
+                                                        class="iconify lucide--image size-5"></span>
+                                                </div>
+                                                <div class="mt-3 flex items-center justify-between">
+                                                    <p class="text-sm font-medium">Media</p>
+                                                    <span class="text-base-content/80 text-xs">
+                                                        52.5%
+                                                    </span>
+                                                </div>
+                                                <progress
+                                                    max="80"
+                                                    value="42"
+                                                    class="progress progress-warning mt-0.5 h-1.5 align-super"></progress>
+                                                <div
+                                                    class="-mt-1.5 flex items-center justify-between">
+                                                    <span class="text-sm font-medium">42 GB</span>
+                                                    <span class="text-base-content/80 text-xs">
+                                                        80 GB
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div
+                                            class="card bg-base-100 cursor-pointer shadow transition-all hover:shadow-md">
+                                            <div class="p-4">
+                                                <div
+                                                    class="bg-base-200 rounded-box inline-flex items-center justify-center p-2">
+                                                    <span
+                                                        class="iconify lucide--file-text size-5"></span>
+                                                </div>
+                                                <div class="mt-3 flex items-center justify-between">
+                                                    <p class="text-sm font-medium">Documents</p>
+                                                    <span class="text-base-content/80 text-xs">
+                                                        91%
+                                                    </span>
+                                                </div>
+                                                <progress
+                                                    max="100"
+                                                    value="91"
+                                                    class="progress progress-error mt-0.5 h-1.5 align-super"></progress>
+                                                <div
+                                                    class="-mt-1.5 flex items-center justify-between">
+                                                    <span class="text-sm font-medium">91 GB</span>
+                                                    <span class="text-base-content/80 text-xs">
+                                                        100 GB
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div
+                                            class="card bg-base-100 cursor-pointer shadow transition-all hover:shadow-md">
+                                            <div class="p-4">
+                                                <div
+                                                    class="bg-base-200 rounded-box inline-flex items-center justify-center p-2">
+                                                    <span
+                                                        class="iconify lucide--trash-2 size-5"></span>
+                                                </div>
+                                                <div class="mt-3 flex items-center justify-between">
+                                                    <p class="text-sm font-medium">Trash</p>
+                                                    <span class="text-base-content/80 text-xs">
+                                                        45%
+                                                    </span>
+                                                </div>
+                                                <progress
+                                                    max="40"
+                                                    value="18"
+                                                    class="progress progress-info mt-0.5 h-1.5 align-super"></progress>
+                                                <div
+                                                    class="-mt-1.5 flex items-center justify-between">
+                                                    <span class="text-sm font-medium">18 GB</span>
+                                                    <span class="text-base-content/80 text-xs">
+                                                        40 GB
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Ecommerce
+                                </div>
+                                <div class="p-6">
+                                    <div
+                                        class="grid grid-cols-1 gap-5 sm:grid-cols-2 2xl:grid-cols-4">
+                                        <div class="card bg-base-100 shadow">
+                                            <div class="card-body gap-2 p-4">
+                                                <div
+                                                    class="flex items-start justify-between gap-2 text-sm">
+                                                    <div>
+                                                        <p class="text-base-content/60 font-medium">
+                                                            Revenue
+                                                        </p>
+                                                        <div class="mt-3 flex items-center gap-2">
+                                                            <p
+                                                                class="inline text-2xl font-semibold">
+                                                                $587.54
+                                                            </p>
+                                                            <div
+                                                                class="badge badge-soft badge-success badge-sm gap-0.5 px-1 font-medium">
+                                                                <span
+                                                                    class="iconify lucide--arrow-up size-3.5"></span>
+                                                                10.8%
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div
+                                                        class="bg-base-200 rounded-box flex items-center p-1.5">
+                                                        <span
+                                                            class="iconify lucide--circle-dollar-sign size-4.5"></span>
+                                                    </div>
+                                                </div>
+                                                <p class="text-base-content/60 text-sm">
+                                                    vs.
+                                                    <span class="mx-1">$494.16</span>
+                                                    last period
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div class="card bg-base-100 shadow">
+                                            <div class="card-body gap-2 p-4">
+                                                <div
+                                                    class="flex items-start justify-between gap-2 text-sm">
+                                                    <div>
+                                                        <p class="text-base-content/60 font-medium">
+                                                            Sales
+                                                        </p>
+                                                        <div class="mt-3 flex items-center gap-2">
+                                                            <p
+                                                                class="inline text-2xl font-semibold">
+                                                                4500
+                                                            </p>
+                                                            <div
+                                                                class="badge badge-soft badge-success badge-sm gap-0.5 px-1 font-medium">
+                                                                <span
+                                                                    class="iconify lucide--arrow-up size-3.5"></span>
+                                                                21.2%
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div
+                                                        class="bg-base-200 rounded-box flex items-center p-1.5">
+                                                        <span
+                                                            class="iconify lucide--package size-4.5"></span>
+                                                    </div>
+                                                </div>
+                                                <p class="text-base-content/60 text-sm">
+                                                    vs.
+                                                    <span class="mx-1">3845</span>
+                                                    last period
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div class="card bg-base-100 shadow">
+                                            <div class="card-body gap-2 p-4">
+                                                <div
+                                                    class="flex items-start justify-between gap-2 text-sm">
+                                                    <div>
+                                                        <p class="text-base-content/60 font-medium">
+                                                            Customers
+                                                        </p>
+                                                        <div class="mt-3 flex items-center gap-2">
+                                                            <p
+                                                                class="inline text-2xl font-semibold">
+                                                                2242
+                                                            </p>
+                                                            <div
+                                                                class="badge badge-soft badge-error badge-sm gap-0.5 px-1 font-medium">
+                                                                <span
+                                                                    class="iconify lucide--arrow-down size-3.5"></span>
+                                                                -6.8%
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div
+                                                        class="bg-base-200 rounded-box flex items-center p-1.5">
+                                                        <span
+                                                            class="iconify lucide--users size-4.5"></span>
+                                                    </div>
+                                                </div>
+                                                <p class="text-base-content/60 text-sm">
+                                                    vs.
+                                                    <span class="mx-1">2448</span>
+                                                    last period
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div class="card bg-base-100 shadow">
+                                            <div class="card-body gap-2 p-4">
+                                                <div
+                                                    class="flex items-start justify-between gap-2 text-sm">
+                                                    <div>
+                                                        <p class="text-base-content/60 font-medium">
+                                                            Spending
+                                                        </p>
+                                                        <div class="mt-3 flex items-center gap-2">
+                                                            <p
+                                                                class="inline text-2xl font-semibold">
+                                                                $112.54
+                                                            </p>
+                                                            <div
+                                                                class="badge badge-soft badge-success badge-sm gap-0.5 px-1 font-medium">
+                                                                <span
+                                                                    class="iconify lucide--arrow-up size-3.5"></span>
+                                                                8.5%
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div
+                                                        class="bg-base-200 rounded-box flex items-center p-1.5">
+                                                        <span
+                                                            class="iconify lucide--eraser size-4.5"></span>
+                                                    </div>
+                                                </div>
+                                                <p class="text-base-content/60 text-sm">
+                                                    vs.
+                                                    <span class="mx-1">$98.14</span>
+                                                    last period
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    CRM
+                                </div>
+                                <div class="p-6">
+                                    <div
+                                        class="grid grid-cols-1 gap-5 sm:grid-cols-2 2xl:grid-cols-4">
+                                        <div
+                                            class="card to-base-100 from-base-100 cursor-pointer bg-linear-to-tr shadow">
+                                            <div class="card-body gap-2 p-3 2xl:p-4">
+                                                <div class="flex items-center gap-3">
+                                                    <div
+                                                        class="bg-base-200 rounded-box false flex items-center p-1.5">
+                                                        <span
+                                                            class="iconify lucide--users size-4.5"></span>
+                                                    </div>
+                                                    <p
+                                                        class="line-clamp-1 font-medium max-2xl:text-sm">
+                                                        Customers
+                                                    </p>
+                                                </div>
+                                                <div
+                                                    class="mt-5 mb-0.5 flex items-center gap-2 text-sm 2xl:gap-3">
+                                                    <p
+                                                        class="text-lg leading-0 font-medium 2xl:text-2xl">
+                                                        4,235
+                                                    </p>
+                                                    <div
+                                                        class="badge badge-soft badge-success badge-sm !bg-primary-content/15 !text-primary-content gap-0.5 !border-transparent px-1.5">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3"></span>
+                                                        8.04%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div
+                                            class="card shadow-primary/10 to-primary/75 text-primary-content from-primary cursor-pointer bg-linear-to-tr shadow">
+                                            <div class="card-body gap-2 p-3 2xl:p-4">
+                                                <div class="flex items-center gap-3">
+                                                    <div
+                                                        class="bg-base-200 rounded-box bg-primary-content/15 flex items-center p-1.5">
+                                                        <span
+                                                            class="iconify lucide--dollar-sign size-4.5"></span>
+                                                    </div>
+                                                    <p
+                                                        class="line-clamp-1 font-medium max-2xl:text-sm">
+                                                        Revenue
+                                                    </p>
+                                                </div>
+                                                <div
+                                                    class="mt-5 mb-0.5 flex items-center gap-2 text-sm 2xl:gap-3">
+                                                    <p
+                                                        class="text-lg leading-0 font-medium 2xl:text-2xl">
+                                                        $75,400
+                                                    </p>
+                                                    <div
+                                                        class="badge badge-soft badge-success badge-sm !bg-primary-content/15 !text-primary-content gap-0.5 !border-transparent px-1.5">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3"></span>
+                                                        15.3%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div
+                                            class="card to-base-100 from-base-100 cursor-pointer bg-linear-to-tr shadow">
+                                            <div class="card-body gap-2 p-3 2xl:p-4">
+                                                <div class="flex items-center gap-3">
+                                                    <div
+                                                        class="bg-base-200 rounded-box false flex items-center p-1.5">
+                                                        <span
+                                                            class="iconify lucide--handshake size-4.5"></span>
+                                                    </div>
+                                                    <p
+                                                        class="line-clamp-1 font-medium max-2xl:text-sm">
+                                                        Closed Deals
+                                                    </p>
+                                                </div>
+                                                <div
+                                                    class="mt-5 mb-0.5 flex items-center gap-2 text-sm 2xl:gap-3">
+                                                    <p
+                                                        class="text-lg leading-0 font-medium 2xl:text-2xl">
+                                                        574
+                                                    </p>
+                                                    <div
+                                                        class="badge badge-soft badge-error badge-sm !bg-primary-content/15 !text-primary-content gap-0.5 !border-transparent px-1.5">
+                                                        <span
+                                                            class="iconify lucide--arrow-down size-3"></span>
+                                                        -2.4%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div
+                                            class="card to-base-100 from-base-100 cursor-pointer bg-linear-to-tr shadow">
+                                            <div class="card-body gap-2 p-3 2xl:p-4">
+                                                <div class="flex items-center gap-3">
+                                                    <div
+                                                        class="bg-base-200 rounded-box false flex items-center p-1.5">
+                                                        <span
+                                                            class="iconify lucide--smile size-4.5"></span>
+                                                    </div>
+                                                    <p
+                                                        class="line-clamp-1 font-medium max-2xl:text-sm">
+                                                        Satisfaction
+                                                    </p>
+                                                </div>
+                                                <div
+                                                    class="mt-5 mb-0.5 flex items-center gap-2 text-sm 2xl:gap-3">
+                                                    <p
+                                                        class="text-lg leading-0 font-medium 2xl:text-2xl">
+                                                        93%
+                                                    </p>
+                                                    <div
+                                                        class="badge badge-soft badge-success badge-sm !bg-primary-content/15 !text-primary-content gap-0.5 !border-transparent px-1.5">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3"></span>
+                                                        2.3%
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Gen AI
+                                </div>
+                                <div class="p-6">
+                                    <div
+                                        class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+                                        <div
+                                            class="card bg-base-100 h-full cursor-pointer p-4 shadow transition-all hover:shadow-md sm:col-span-2">
+                                            <div class="flex justify-between">
+                                                <p class="leading-none font-medium">
+                                                    Quick Insights
+                                                </p>
+                                                <button
+                                                    class="btn btn-xs btn-ghost btn-circle -m-1"
+                                                    aria-label="Quick Insights">
+                                                    <span
+                                                        class="iconify lucide--pin size-4 text-orange-400"></span>
+                                                </button>
+                                            </div>
+                                            <div
+                                                class="mt-3.5 flex h-full items-stretch gap-4 sm:gap-8">
+                                                <div>
+                                                    <p class="text-2xl font-semibold">
+                                                        <sup
+                                                            class="text-base-content/40 me-0.5 text-lg">
+                                                            $
+                                                        </sup>
+                                                        1245
+                                                        <span
+                                                            class="text-base-content/60 text-xl"></span>
+                                                    </p>
+                                                    <p
+                                                        class="text-base-content/50 mt-auto pt-1 text-center text-sm/none">
+                                                        Today
+                                                    </p>
+                                                </div>
+                                                <div
+                                                    class="border-base-300 h-full border-s border-dashed"></div>
+                                                <div>
+                                                    <p class="text-2xl font-semibold">
+                                                        <sup
+                                                            class="text-base-content/40 me-0.5 text-lg">
+                                                            $
+                                                        </sup>
+                                                        12.
+                                                        <span class="text-base-content/60 text-xl">
+                                                            74
+                                                        </span>
+                                                        K
+                                                    </p>
+                                                    <p
+                                                        class="text-base-content/50 mt-auto pt-1 text-center text-sm/none">
+                                                        This Month
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div
+                                            class="card bg-base-100 cursor-pointer p-4 shadow transition-all hover:shadow-md">
+                                            <div class="flex justify-between">
+                                                <p class="text-sm/none">Token Consumption</p>
+                                                <button
+                                                    class="btn btn-xs btn-ghost btn-circle -m-1"
+                                                    aria-label="Token Consumption">
+                                                    <span
+                                                        class="iconify lucide--flame text-base-content/80 size-4"></span>
+                                                </button>
+                                            </div>
+                                            <p class="mt-2 text-2xl font-medium">18.47 M</p>
+                                            <div class="flex items-end justify-between gap-2">
+                                                <p class="text-base-content/50 text-sm/none">
+                                                    Higher
+                                                </p>
+                                                <div class="bg-base-200 rounded-box p-1">
+                                                    <span
+                                                        class="iconify lucide--chevron-right text-base-content/80 block"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div
+                                            class="card bg-base-100 cursor-pointer p-4 shadow transition-all hover:shadow-md">
+                                            <div class="flex justify-between">
+                                                <p class="text-sm/none">AI Model Accuracy</p>
+                                                <button
+                                                    class="btn btn-xs btn-ghost btn-circle -m-1"
+                                                    aria-label="AI Model Accuracy">
+                                                    <span
+                                                        class="iconify lucide--target text-base-content/80 size-4"></span>
+                                                </button>
+                                            </div>
+                                            <p class="mt-2 text-2xl font-medium">97.2%</p>
+                                            <div class="flex items-end justify-between gap-2">
+                                                <p class="text-base-content/50 text-sm/none">
+                                                    Stable
+                                                </p>
+                                                <div class="bg-base-200 rounded-box p-1">
+                                                    <span
+                                                        class="iconify lucide--chevron-right text-base-content/80 block"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div
+                                            class="bg-neutral text-neutral-content card h-full p-3 shadow">
+                                            <p class="text-lg/5.5 font-medium">
+                                                Supercharge Your AI Capabilities
+                                            </p>
+                                            <div
+                                                class="mt-auto flex items-end justify-between gap-3 pt-2">
+                                                <div>
+                                                    <p class="text-sm/none italic opacity-80">
+                                                        Enhanced
+                                                    </p>
+                                                </div>
+                                                <button class="btn btn-sm rounded-full">
+                                                    Upgrade
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="border-base-300/80 bg-base-100 border-t border-dashed px-4 py-4 md:px-8 xl:px-12 2xl:px-20">
+                        <div class="flex items-center justify-between px-0">
+                            <p>
+                                Built and designed with care by
+                                <a target="_blank" class="text-primary" href="https://withden.dev/">
+                                    Denish
+                                </a>
+                            </p>
+                            <a
+                                aria-label="Buy now"
+                                target="_blank"
+                                class="bg-primary text-primary-content group flex size-9 items-center gap-2 overflow-hidden rounded-full px-2.5 py-0.5 font-medium transition-all hover:w-26"
+                                href="https://daisyui.com/store/244268">
+                                <span class="iconify lucide--shopping-cart block size-4.5"></span>
+                                <span class="hidden text-sm text-nowrap group-hover:block">
+                                    Buy Now
+                                </span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/simplebar/6.2.7/simplebar.min.js"></script>
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/simplebar/6.2.7/simplebar.css" />
+        <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+        <script src="./js/app.js"></script>
+
+        <!-- CDN for apexcharts -->
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/apexcharts/dist/apexcharts.min.css" />
+        <script src="https://cdn.jsdelivr.net/npm/apexcharts/dist/apexcharts.min.js"></script>
+        <script src="./js/components/blocks/stats.js"></script>
+    </body>
+</html>

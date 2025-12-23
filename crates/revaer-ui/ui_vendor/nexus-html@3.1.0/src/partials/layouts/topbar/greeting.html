@@ -1,0 +1,75 @@
+<div class="flex h-full w-full items-center justify-between px-4">
+    <div class="flex items-center gap-2 sm:gap-3">
+        <label
+            class="btn btn-square btn-ghost btn-sm group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:hidden"
+            aria-label="Sidebar toggle"
+            for="layout-sidebar-toggle-trigger">
+            <span class="iconify lucide--menu size-5"></span>
+        </label>
+        <label
+            class="btn btn-square btn-ghost btn-sm hidden group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:flex"
+            aria-label="Leftmenu toggle"
+            for="layout-sidebar-hover-trigger">
+            <span class="iconify lucide--menu size-5"></span>
+        </label>
+        <div>
+            <p class="leading-none font-medium md:text-lg">
+                Good Morning
+                <span class="max-sm:hidden">, Denish!</span>
+            </p>
+            <p class="text-base-content/60 mt-1 text-sm/none max-sm:hidden">
+                Welcome back, great to see you again!
+            </p>
+        </div>
+    </div>
+    <div class="flex items-center gap-4">
+        <div class="dropdown dropdown-bottom dropdown-end">
+            <div tabindex="0" class="flex cursor-pointer items-center gap-2">
+                <div class="avatar bg-base-200 rounded-box size-7 overflow-hidden">
+                    <img alt="Avatar" src="/images/avatars/1.png" />
+                </div>
+                <div>
+                    <p class="leading-none font-medium">Denish</p>
+                    <p class="text-base-content/60 mt-0 text-xs/none">@withden</p>
+                </div>
+            </div>
+            <div tabindex="0" class="dropdown-content bg-base-100 rounded-box mt-2 w-44 shadow">
+                <ul class="menu w-full p-2">
+                    <li>
+                        <a href="#">
+                            <span class="iconify lucide--user size-4"></span>
+                            <span>My Profile</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#">
+                            <span class="iconify lucide--settings size-4"></span>
+                            <span>Settings</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#">
+                            <span class="iconify lucide--help-circle size-4"></span>
+                            <span>Help</span>
+                        </a>
+                    </li>
+                </ul>
+                <hr class="border-base-300" />
+                <ul class="menu w-full p-2">
+                    <li>
+                        <div>
+                            <span class="iconify lucide--arrow-left-right size-4"></span>
+                            <span>Switch Account</span>
+                        </div>
+                    </li>
+                    <li>
+                        <a class="text-error hover:bg-error/10" href="#">
+                            <span class="iconify lucide--log-out size-4"></span>
+                            <span>Logout</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

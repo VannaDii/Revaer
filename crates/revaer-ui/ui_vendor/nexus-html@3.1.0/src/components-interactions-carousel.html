@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <load src="partials/components-layout/sidebar.html" />
+
+                <div id="components-layout-main">
+                    <load src="partials/components-layout/topbar.html" />
+
+                    <div id="components-layout-content">
+                        <div class="flex flex-col items-center justify-center space-y-0.5">
+                            <div
+                                class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                <div class="status status-sm bg-base-content/30"></div>
+                                Interactions
+                            </div>
+                            <p
+                                class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                Carousel
+                            </p>
+                            <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                Swipeable, responsive carousel with effects, grid layouts,
+                                navigation, and thumbnail support
+                            </p>
+                        </div>
+                        <div class="bg-base-200/40 rounded-box mt-6 px-5 py-4 lg:mt-12">
+                            <p class="text-base-content/60 font-medium">Usage guidelines</p>
+                            <p class="mt-1">
+                                <span class="me-1">- Plugin Documentation:</span>
+                                <a
+                                    target="_blank"
+                                    class="text-primary"
+                                    href="https://swiperjs.com/">
+                                    Swiperjs
+                                </a>
+                            </p>
+                        </div>
+                        <p class="text-base-content/60 mt-6 font-medium">Demos</p>
+                        <div class="mt-6 space-y-6">
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Simple
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/interactions/carousel/simple.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Navigation
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/interactions/carousel/navigation.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Scrollbar
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/interactions/carousel/scrollbar.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Grid
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/interactions/carousel/grid.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Parallax
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/interactions/carousel/parallax.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Coverflow
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/interactions/carousel/coverflow.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Cards
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/interactions/carousel/cards.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Thumbs
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/interactions/carousel/thumbs.html" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <load src="partials/components-layout/footer.html" />
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+
+        <!-- CDN for SwiperJS -->
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.css" />
+        <script src="https://cdn.jsdelivr.net/npm/swiper@11/swiper-bundle.min.js"></script>
+    </body>
+</html>

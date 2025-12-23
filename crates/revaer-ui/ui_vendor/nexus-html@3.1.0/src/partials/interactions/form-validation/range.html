@@ -1,0 +1,32 @@
+<form
+    x-data="useRangeFormValidator()"
+    x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+    novalidate
+    class="space-y-3">
+    <div class="space-y-1.5">
+        <div class="flex items-center justify-between gap-2">
+            <label class="label text-sm font-medium" for="betweenNumber">
+                Age
+                <span x-text="'('+getData('betweenNumber')+')'"></span>
+            </label>
+            <p class="text-base-content/60 text-end text-xs">Between 5 and 95</p>
+        </div>
+        <input
+            type="range"
+            min="0"
+            max="100"
+            id="betweenNumber"
+            class="range data-error:range-error range-primary range-xs w-full transition-all duration-300"
+            name="betweenNumber"
+            @input="updateData('betweenNumber', Number($event.target.value))"
+            :data-error="hasError('betweenNumber')"
+            value="15" />
+        <p
+            :data-error="hasError('betweenNumber')"
+            class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+            x-text="getError('betweenNumber')"></p>
+    </div>
+    <div class="text-end">
+        <button type="submit" class="btn btn-sm">Submit</button>
+    </div>
+</form>

@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div class="size-full">
+            <div class="flex">
+                <load src="partials/sidebar.html" />
+
+                <div class="flex h-screen min-w-0 grow flex-col overflow-auto">
+                    <load src="partials/topbar.html" />
+
+                    <!--  Start: Layout - Content -->
+
+                    <div id="layout-content">
+                        <div class="flex items-center justify-between">
+                            <p class="text-lg font-medium">Create Product</p>
+                            <div class="breadcrumbs hidden p-0 text-sm sm:inline">
+                                <ul>
+                                    <li>
+                                        <a href="./dashboards-ecommerce.html">Nexus</a>
+                                    </li>
+                                    <li>
+                                        <a href="./apps-ecommerce-products.html">Products</a>
+                                    </li>
+                                    <li class="opacity-80">Create</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+                                <div class="card bg-base-100 shadow">
+                                    <div class="card-body">
+                                        <div class="card-title">Basic Information</div>
+                                        <fieldset
+                                            class="fieldset mt-2 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="name">
+                                                    Name
+                                                </label>
+                                                <input
+                                                    class="input w-full"
+                                                    id="name"
+                                                    placeholder="Name"
+                                                    type="text" />
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="category">
+                                                    Category
+                                                </label>
+                                                <select
+                                                    class="select w-full"
+                                                    aria-label="Select Category"
+                                                    id="category">
+                                                    <option value="" disabled="" selected="">
+                                                        Select category
+                                                    </option>
+                                                    <option>Fashion</option>
+                                                    <option>Daily Need</option>
+                                                    <option>Cosmetic</option>
+                                                    <option>Electronic</option>
+                                                    <option>Food</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-span-1 space-y-2 lg:col-span-2">
+                                                <label class="fieldset-label" for="description">
+                                                    Description
+                                                </label>
+                                                <textarea
+                                                    placeholder="Description"
+                                                    id="description"
+                                                    class="textarea w-full"></textarea>
+                                            </div>
+                                        </fieldset>
+                                    </div>
+                                </div>
+                                <div class="card bg-base-100 shadow">
+                                    <div class="card-body">
+                                        <div class="card-title">Upload Image</div>
+                                        <div class="mt-5">
+                                            <input type="file" data-filepond />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card bg-base-100 shadow">
+                                    <div class="card-body">
+                                        <div class="card-title">Pricing</div>
+                                        <fieldset
+                                            class="fieldset mt-2 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="cost-price">
+                                                    Cost Price
+                                                </label>
+                                                <label class="input w-full">
+                                                    <span
+                                                        class="iconify lucide--dollar-sign text-base-content/60 size-4"></span>
+                                                    <input
+                                                        class="grow"
+                                                        id="cost-price"
+                                                        placeholder="0"
+                                                        min="0"
+                                                        type="number" />
+                                                </label>
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="sale-price">
+                                                    Sale Price
+                                                </label>
+                                                <label class="input w-full">
+                                                    <span
+                                                        class="iconify lucide--dollar-sign text-base-content/60 size-4"></span>
+                                                    <input
+                                                        class="grow"
+                                                        id="sale-price"
+                                                        placeholder="0"
+                                                        min="0"
+                                                        type="number" />
+                                                </label>
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="discount">
+                                                    Discount
+                                                </label>
+                                                <label class="input w-full">
+                                                    <input
+                                                        class="grow"
+                                                        placeholder="0"
+                                                        id="discount"
+                                                        min="0"
+                                                        max="100"
+                                                        type="number" />
+                                                    <span
+                                                        class="iconify lucide--percent text-base-content/60 size-4"></span>
+                                                </label>
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="tax">Tax</label>
+                                                <label class="input w-full">
+                                                    <input
+                                                        class="grow"
+                                                        placeholder="0"
+                                                        id="tax"
+                                                        min="0"
+                                                        max="100"
+                                                        type="number" />
+                                                    <span
+                                                        class="iconify lucide--percent text-base-content/60 size-4"></span>
+                                                </label>
+                                            </div>
+                                        </fieldset>
+                                    </div>
+                                </div>
+                                <div class="card bg-base-100 shadow">
+                                    <div class="card-body">
+                                        <div class="card-title">Inventory</div>
+                                        <div class="fieldset mt-2 gap-4">
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="sku">SKU</label>
+                                                <input
+                                                    class="input w-full"
+                                                    id="sku"
+                                                    placeholder="SKU (Stock Keeping Unit)"
+                                                    type="text" />
+                                            </div>
+                                            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                                <div class="space-y-2">
+                                                    <label class="fieldset-label" for="stock">
+                                                        Stock
+                                                    </label>
+                                                    <input
+                                                        min="0"
+                                                        class="input w-full"
+                                                        id="stock"
+                                                        placeholder="Stock"
+                                                        type="number" />
+                                                </div>
+                                                <div class="space-y-2">
+                                                    <label class="fieldset-label" for="stock-alert">
+                                                        Stock Alert
+                                                    </label>
+                                                    <input
+                                                        min="0"
+                                                        class="input w-full"
+                                                        id="stock-alert"
+                                                        placeholder="Stock alert"
+                                                        type="number" />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card bg-base-100 shadow">
+                                    <div class="card-body">
+                                        <div class="card-title">SEO (Meta)</div>
+                                        <div class="fieldset mt-2 gap-4">
+                                            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                                <div class="space-y-2">
+                                                    <label class="fieldset-label" for="slug">
+                                                        Slug
+                                                    </label>
+                                                    <input
+                                                        class="input w-full"
+                                                        id="slug"
+                                                        placeholder="Slug"
+                                                        type="text" />
+                                                </div>
+                                                <div class="space-y-2">
+                                                    <label class="fieldset-label" for="title">
+                                                        Title
+                                                    </label>
+                                                    <input
+                                                        class="input w-full"
+                                                        placeholder="Meta"
+                                                        id="title"
+                                                        type="text" />
+                                                </div>
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label
+                                                    class="fieldset-label"
+                                                    for="meta-description">
+                                                    Description
+                                                </label>
+                                                <textarea
+                                                    placeholder="Description"
+                                                    class="textarea w-full"
+                                                    id="meta-description"></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card bg-base-100 shadow">
+                                    <div class="card-body">
+                                        <div class="card-title">Shipping</div>
+                                        <div
+                                            class="fieldset mt-2 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="weight">
+                                                    Weight
+                                                </label>
+                                                <label class="input w-full">
+                                                    <input
+                                                        class="grow"
+                                                        placeholder="0"
+                                                        id="weight"
+                                                        min="0"
+                                                        type="number" />
+                                                    <span class="text-base-content/60">gm</span>
+                                                </label>
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="width">
+                                                    Width
+                                                </label>
+                                                <label class="input w-full">
+                                                    <input
+                                                        class="grow"
+                                                        placeholder="0"
+                                                        id="width"
+                                                        min="0"
+                                                        type="number" />
+                                                    <span class="text-base-content/60">In</span>
+                                                </label>
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="height">
+                                                    Height
+                                                </label>
+                                                <label class="input w-full">
+                                                    <input
+                                                        class="grow"
+                                                        placeholder="0"
+                                                        id="height"
+                                                        min="0"
+                                                        type="number" />
+                                                    <span class="text-base-content/60">In</span>
+                                                </label>
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="depth">
+                                                    Depth
+                                                </label>
+                                                <label class="input w-full">
+                                                    <input
+                                                        class="grow"
+                                                        placeholder="0"
+                                                        id="depth"
+                                                        min="0"
+                                                        type="number" />
+                                                    <span class="text-base-content/60">In</span>
+                                                </label>
+                                            </div>
+                                            <div class="flex items-center gap-4">
+                                                <label class="label" for="free_shipping">
+                                                    Free Shipping
+                                                </label>
+                                                <input
+                                                    class="toggle toggle-sm"
+                                                    id="free_shipping"
+                                                    type="checkbox" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-6 flex justify-end gap-3">
+                                <a
+                                    class="btn btn-sm btn-ghost"
+                                    href="./apps-ecommerce-products.html">
+                                    <span class="iconify lucide--x size-4"></span>
+                                    Cancel
+                                </a>
+                                <a
+                                    class="btn btn-sm btn-primary"
+                                    href="./apps-ecommerce-products.html">
+                                    <span class="iconify lucide--check size-4"></span>
+                                    Save
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--  End: Layout - Content -->
+                    <load src="partials/footer.html" />
+                </div>
+            </div>
+
+            <load src="partials/rightbar.html" />
+        </div>
+
+        <!--  End: Layout - Main -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/filepond/4.32.6/filepond.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/filepond-plugin-image-preview@4.6.12/dist/filepond-plugin-image-preview.min.js"></script>
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/filepond/4.32.6/filepond.min.css" />
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/filepond-plugin-image-preview@4.6.12/dist/filepond-plugin-image-preview.min.css" />
+
+        <load src="partials/footer-scripts.html" />
+        <script src="/js/pages/ecommerce.js"></script>
+    </body>
+</html>

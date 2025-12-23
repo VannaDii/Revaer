@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <load src="partials/components-layout/sidebar.html" />
+
+                <div id="components-layout-main">
+                    <load src="partials/components-layout/topbar.html" />
+
+                    <div id="components-layout-content">
+                        <div class="flex flex-col items-center justify-center space-y-0.5">
+                            <div
+                                class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                <div class="status status-sm bg-base-content/30"></div>
+                                Foundations
+                            </div>
+                            <p
+                                class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                Text
+                            </p>
+                            <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                A collection of text styles, gradients, and weights for polished
+                                typography design
+                            </p>
+                        </div>
+                        <p class="text-base-content/60 mt-6 font-medium lg:mt-12">Demos</p>
+
+                        <div class="mt-6 space-y-6">
+                            <div class="card card-border">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Sizes
+                                </div>
+                                <div class="flex flex-col gap-3 p-6">
+                                    <p class="text-xs">The quick brown fox jumps...</p>
+                                    <p class="text-sm">The quick brown fox jumps...</p>
+                                    <p class="text-base">The quick brown fox jumps...</p>
+                                    <p class="text-lg">The quick brown fox jumps...</p>
+                                    <p class="text-xl">The quick brown fox jumps...</p>
+                                    <p class="text-2xl">The quick brown fox jumps...</p>
+                                    <p class="text-3xl">The quick brown fox jumps...</p>
+                                    <p class="text-4xl">The quick brown fox jumps...</p>
+                                    <p class="text-5xl">The quick brown fox jumps...</p>
+                                    <p class="text-6xl">The quick brown fox jumps...</p>
+                                </div>
+                            </div>
+
+                            <div class="card card-border">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Weight
+                                </div>
+                                <div class="flex flex-col gap-3 p-6">
+                                    <p class="font-thin">The quick brown fox jumps...</p>
+                                    <p class="font-extralight">The quick brown fox jumps...</p>
+                                    <p class="font-light">The quick brown fox jumps...</p>
+                                    <p class="font-normal">The quick brown fox jumps...</p>
+                                    <p class="font-medium">The quick brown fox jumps...</p>
+                                    <p class="font-semibold">The quick brown fox jumps...</p>
+                                    <p class="font-bold">The quick brown fox jumps...</p>
+                                    <p class="font-extrabold">The quick brown fox jumps...</p>
+                                    <p class="font-black">The quick brown fox jumps...</p>
+                                </div>
+                            </div>
+
+                            <div class="card card-border">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Gradient Text
+                                </div>
+                                <div class="w-full p-6 text-center">
+                                    <p
+                                        class="from-primary to-secondary inline-block bg-linear-to-r bg-clip-text text-2xl font-black text-transparent sm:text-3xl md:text-4xl">
+                                        Why everytime fox jumps...
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <load src="partials/components-layout/footer.html" />
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

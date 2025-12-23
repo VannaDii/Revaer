@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <load src="partials/components-layout/sidebar.html" />
+
+                <div id="components-layout-main">
+                    <load src="partials/components-layout/topbar.html" />
+
+                    <div id="components-layout-content">
+                        <div class="flex flex-col items-center justify-center space-y-0.5">
+                            <div
+                                class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                <div class="status status-sm bg-base-content/30"></div>
+                                Blocks
+                            </div>
+                            <p
+                                class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                Dashboard Stats
+                            </p>
+                            <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                Dashboard stats with support for icons, actions, editable fields,
+                                filters, and flexible layouts
+                            </p>
+                        </div>
+                        <p class="text-base-content/60 mt-6 font-medium lg:mt-12">Demos</p>
+
+                        <div class="mt-6 space-y-6">
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Minimal
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/blocks/stats/minimal.html" />
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Charts
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/blocks/stats/charts.html" />
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Icon Corner
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/blocks/stats/icon-corner.html" />
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Interactive
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/blocks/stats/interactive.html" />
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Selectable
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/blocks/stats/selectable.html" />
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Merged
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/blocks/stats/merged.html" />
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    File
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/blocks/stats/file.html" />
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Ecommerce
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/blocks/stats/ecommerce.html" />
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    CRM
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/blocks/stats/crm.html" />
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Gen AI
+                                </div>
+                                <div class="p-6">
+                                    <load src="partials/blocks/stats/gen-ai.html" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <load src="partials/components-layout/footer.html" />
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+
+        <!-- CDN for apexcharts -->
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/apexcharts/dist/apexcharts.min.css" />
+        <script src="https://cdn.jsdelivr.net/npm/apexcharts/dist/apexcharts.min.js"></script>
+        <script src="/js/components/blocks/stats.js"></script>
+    </body>
+</html>

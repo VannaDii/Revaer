@@ -1,0 +1,890 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <meta charset="UTF-8" />
+        <meta name="author" content="Denish Navadiya" />
+        <meta
+            name="keywords"
+            content="HTML, CSS, daisyui, tailwindcss, admin, client, dashboard, ui kit, component" />
+        <meta
+            name="description"
+            content="Start your next project with Nexus, designed for effortless customization to streamline your development process" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link
+            rel="shortcut icon"
+            href="./images/favicon-dark.png"
+            media="(prefers-color-scheme: dark)" />
+        <link
+            rel="shortcut icon"
+            href="./images/favicon-light.png"
+            media="(prefers-color-scheme: light)" />
+
+        <script>
+            try {
+                const localStorageItem = localStorage.getItem("__NEXUS_CONFIG_v3.0__")
+                if (localStorageItem) {
+                    const theme = JSON.parse(localStorageItem).theme
+                    if (theme !== "system") {
+                        document.documentElement.setAttribute("data-theme", theme)
+                    }
+                }
+            } catch (err) {
+                console.log(err)
+            }
+        </script>
+
+        <link rel="stylesheet" href="./assets/app.css" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <div class="max-xl:hidden">
+                    <div
+                        class="border-base-300/80 bg-base-100 sticky top-0 bottom-0 flex h-screen w-64 min-w-64 flex-col border-s border-e border-dashed">
+                        <div
+                            class="border-base-300 flex h-16 min-h-16 items-center gap-4 border-b border-dashed px-5">
+                            <a href="./dashboards-ecommerce.html">
+                                <img
+                                    alt="logo-dark"
+                                    class="hidden h-5.5 dark:inline"
+                                    src="./images/logo/logo-dark.png" />
+                                <img
+                                    alt="logo-light"
+                                    class="h-5.5 dark:hidden"
+                                    src="./images/logo/logo-light.png" />
+                            </a>
+                            <hr class="border-base-300 h-6 border-e" />
+                            <p class="text-base-content/60 mt-0.5 text-lg font-medium">Design</p>
+                        </div>
+                        <div data-simplebar class="h-full min-h-0 grow">
+                            <div
+                                class="sidebar-menu-activation sidebar-menu mt-4 space-y-0.5 px-2.5 pb-4">
+                                <p class="menu-label px-2.5 pt-3 pb-1.5 first:pt-0">Base</p>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--shapes size-4"></span>
+                                        <span class="grow">Foundations</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-text.html">
+                                                <span class="grow">Text</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-display.html">
+                                                <span class="grow">Display</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-effects.html">
+                                                <span class="grow">Effects</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-shadows.html">
+                                                <span class="grow">Shadows</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--blocks size-4"></span>
+                                        <span class="grow">Blocks</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-blocks-stats.html">
+                                                <span class="grow">Dashboard Stats</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-blocks-prompt-bar.html">
+                                                <span class="grow">Prompt Bar</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span
+                                            class="iconify lucide--layout-panel-left size-4"></span>
+                                        <span class="grow">Layouts</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-skeleton.html">
+                                                <span class="grow">Skeleton</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-sidebar.html">
+                                                <span class="grow">Sidebar</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-topbar.html">
+                                                <span class="grow">Topbar</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-footer.html">
+                                                <span class="grow">Footer</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-profile-menu.html">
+                                                <span class="grow">Profile Menu</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-search.html">
+                                                <span class="grow">Search</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-notification.html">
+                                                <span class="grow">Notification</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-page-title.html">
+                                                <span class="grow">Page Title</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="menu-label px-2.5 pt-3 pb-1.5 first:pt-0">Dynamics</p>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--layers-3 size-4"></span>
+                                        <span class="grow">Interactions</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-carousel.html">
+                                                <span class="grow">Carousel</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-clipboard.html">
+                                                <span class="grow">Clipboard</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-datatables.html">
+                                                <span class="grow">Data Tables</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-fab.html">
+                                                <span class="grow">FAB</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-file-upload.html">
+                                                <span class="grow">File Upload</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-flatpickr.html">
+                                                <span class="grow">Flatpickr</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-form-validations.html">
+                                                <span class="grow">Form Validations</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-input-spinner.html">
+                                                <span class="grow">Input Spinner</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-password-meter.html">
+                                                <span class="grow">Password Meter</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-select.html">
+                                                <span class="grow">Select</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-sortable.html">
+                                                <span class="grow">Sortable</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-text-editor.html">
+                                                <span class="grow">Text Editor</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-wizard.html">
+                                                <span class="grow">Wizard</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--chart-bar size-4"></span>
+                                        <span class="grow">Apex Charts</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-area.html">
+                                                <span class="grow">Area</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-bar.html">
+                                                <span class="grow">Bar</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-column.html">
+                                                <span class="grow">Column</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-line.html">
+                                                <span class="grow">Line</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-pie.html">
+                                                <span class="grow">Pie</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <a
+                                target="_blank"
+                                class="group rounded-box relative mx-2.5 block gap-3"
+                                href="/dashboards-ecommerce">
+                                <div
+                                    class="rounded-box absolute inset-0 bg-gradient-to-r from-transparent to-transparent transition-opacity duration-300 group-hover:opacity-0"></div>
+                                <div
+                                    class="from-primary to-secondary rounded-box absolute inset-0 bg-gradient-to-r opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                                <div class="relative flex h-10 items-center gap-3 px-3">
+                                    <i
+                                        class="iconify lucide--monitor-dot text-primary size-4.5 transition-all duration-300 group-hover:text-white"></i>
+                                    <p
+                                        class="from-primary to-secondary bg-gradient-to-r bg-clip-text font-medium text-transparent transition-all duration-300 group-hover:text-white">
+                                        Dashboard
+                                    </p>
+                                    <i
+                                        class="iconify lucide--chevron-right text-secondary ms-auto size-4.5 transition-all duration-300 group-hover:text-white"></i>
+                                </div>
+                            </a>
+                            <hr class="border-base-300 mt-2 border-dashed" />
+                            <a
+                                target="_blank"
+                                class="bg-base-200/60 hover:bg-base-200 rounded-box m-2.5 mb-2 flex cursor-pointer items-center gap-3 px-3.5 py-2 transition-all"
+                                href="https://nexus.daisyui.com/docs/">
+                                <span class="iconify lucide--book-open-text size-5"></span>
+                                <div class="grow -space-y-0.5">
+                                    <p class="text-sm font-medium">Documentation</p>
+                                    <p class="text-base-content/60 text-xs">Installations</p>
+                                </div>
+                                <span
+                                    class="iconify lucide--external-link text-base-content/60 size-4"></span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="components-layout-main">
+                    <div
+                        role="navigation"
+                        aria-label="Navbar"
+                        class="border-base-300/80 bg-base-100 sticky top-0 z-1 h-16 border-b border-dashed px-4 md:px-8 xl:px-12 2xl:px-20">
+                        <div class="flex h-full items-center justify-between px-0">
+                            <div class="flex items-center gap-5">
+                                <a
+                                    class="text-base-content/70 hover:text-base-content transition-all"
+                                    href="/dashboards-ecommerce">
+                                    Dashboard
+                                </a>
+                                <a class="font-medium" href="/components">Components</a>
+                            </div>
+                            <div class="inline-flex items-center gap-3">
+                                <button
+                                    aria-label="Toggle Theme"
+                                    class="btn btn-sm btn-circle btn-ghost relative overflow-hidden"
+                                    data-theme-control="toggle">
+                                    <span
+                                        class="iconify lucide--sun absolute size-4.5 -translate-y-4 opacity-0 transition-all duration-300 group-data-[theme=light]/html:translate-y-0 group-data-[theme=light]/html:opacity-100"></span>
+                                    <span
+                                        class="iconify lucide--moon absolute size-4.5 translate-y-4 opacity-0 transition-all duration-300 group-data-[theme=dark]/html:translate-y-0 group-data-[theme=dark]/html:opacity-100"></span>
+                                    <span
+                                        class="iconify lucide--palette absolute size-4.5 opacity-100 group-data-[theme=dark]/html:opacity-0 group-data-[theme=light]/html:opacity-0"></span>
+                                </button>
+
+                                <a
+                                    target="_blank"
+                                    class="btn from-primary to-secondary group/purchase text-primary-content btn-sm max-sm:btn-square relative gap-2 border-0 bg-linear-to-r text-sm"
+                                    href="https://daisyui.com/store/244268">
+                                    <span class="iconify lucide--shopping-cart size-4"></span>
+                                    <span class="max-sm:hidden">Buy Now</span>
+                                    <div
+                                        class="from-primary to-secondary absolute inset-x-0 top-1 -z-1 h-8 bg-linear-to-r opacity-40 blur-md transition-all duration-500 group-hover/purchase:opacity-60 group-hover/purchase:blur-lg"></div>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="components-layout-content">
+                        <div class="flex flex-col items-center justify-center space-y-0.5">
+                            <div
+                                class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                <div class="status status-sm bg-base-content/30"></div>
+                                Interactions
+                            </div>
+                            <p
+                                class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                Input Spinner
+                            </p>
+                            <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                Versatile number input spinner with steps, limits, styles, and
+                                vertical or inline controls
+                            </p>
+                        </div>
+
+                        <p class="text-base-content/60 mt-6 font-medium lg:mt-12">In Action</p>
+                        <div class="mt-4 lg:mt-6">
+                            <div class="rounded-box relative h-64 max-w-88 overflow-hidden">
+                                <img
+                                    src="./images/apps/ecommerce/products/1.jpg"
+                                    class="size-full object-cover"
+                                    alt="Images" />
+                                <div
+                                    class="rounded-box absolute inset-x-2 bottom-2 border border-white/20 bg-white/40 p-4 text-black backdrop-blur">
+                                    <div class="flex items-end justify-between">
+                                        <div>
+                                            <p class="leading-none font-medium">White Sneakers</p>
+                                            <p class="mt-2 text-lg/none font-semibold">
+                                                <sup class="opacity-60">$</sup>
+                                                69
+                                            </p>
+                                        </div>
+                                        <div
+                                            class="flex items-center gap-1 rounded-full border border-white/25 bg-white/30 px-2 py-1 inset-shadow-xs inset-shadow-white/20">
+                                            <button
+                                                class="btn btn-circle btn-xs border-0 bg-white/60 hover:bg-white/80"
+                                                data-spinner-control="in-action-spinner-demo"
+                                                data-steps="-1"
+                                                aria-label="Decrement">
+                                                <span
+                                                    class="iconify lucide--minus size-4 text-black/80"></span>
+                                            </button>
+                                            <input
+                                                data-spinner
+                                                aria-label="Input Spinner"
+                                                id="in-action-spinner-demo"
+                                                value="1"
+                                                min="0"
+                                                max="10"
+                                                type="number"
+                                                class="input input-sm input-ghost no-spinner max-w-8 px-0 pe-2.5 text-center text-sm !text-black focus:bg-transparent focus:outline-0" />
+                                            <button
+                                                class="btn btn-circle btn-xs hover:bg-whit23e/80 border-0 bg-white/60"
+                                                aria-label="Increment"
+                                                data-spinner-control="in-action-spinner-demo">
+                                                <span
+                                                    class="iconify lucide--plus size-4 text-black/80"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-base-content/60 mt-8 font-medium">Demos</p>
+                        <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3">
+                                    <p class="font-medium">Simple</p>
+                                    <p class="text-base-content/80 text-sm">
+                                        Basic number spinner with plus and minus
+                                    </p>
+                                </div>
+                                <div class="p-6">
+                                    <div class="flex items-center justify-center gap-3">
+                                        <button
+                                            class="btn btn-square"
+                                            data-spinner-control="simple-spinner-demo"
+                                            data-steps="-1"
+                                            aria-label="Decrement">
+                                            <span class="iconify lucide--minus size-4"></span>
+                                        </button>
+                                        <input
+                                            data-spinner
+                                            aria-label="Input Spinner"
+                                            id="simple-spinner-demo"
+                                            value="0"
+                                            type="number"
+                                            class="input no-spinner input-bordered w-40" />
+                                        <button
+                                            class="btn btn-square"
+                                            data-spinner-control="simple-spinner-demo"
+                                            aria-label="Increment">
+                                            <span class="iconify lucide--plus size-4"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3">
+                                    <p class="font-medium">Disabled</p>
+                                    <p class="text-base-content/80 text-sm">
+                                        Spinner input with controls turned off
+                                    </p>
+                                </div>
+                                <div class="p-6">
+                                    <div
+                                        class="flex items-center justify-center gap-3"
+                                        x-data="{ alwaysDisable: true }">
+                                        <button
+                                            class="btn btn-square"
+                                            data-spinner-control="disabled-spinner-demo"
+                                            data-steps="-1"
+                                            aria-label="Decrement"
+                                            :disabled="alwaysDisable">
+                                            <span class="iconify lucide--minus size-4"></span>
+                                        </button>
+
+                                        <input
+                                            data-spinner
+                                            aria-label="Input Spinner"
+                                            class="input no-spinner input-bordered w-40"
+                                            disabled
+                                            id="disabled-spinner-demo"
+                                            max="50"
+                                            min="50"
+                                            type="number"
+                                            value="50" />
+
+                                        <button
+                                            class="btn btn-square"
+                                            aria-label="Increment"
+                                            data-spinner-control="disabled-spinner-demo"
+                                            :disabled="alwaysDisable">
+                                            <span class="iconify lucide--plus size-4"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3">
+                                    <p class="font-medium">Readonly</p>
+                                    <p class="text-base-content/80 text-sm">
+                                        Shows value without allowing changes
+                                    </p>
+                                </div>
+                                <div class="p-6">
+                                    <div class="flex items-center justify-center gap-3">
+                                        <button
+                                            class="btn btn-square"
+                                            data-spinner-control="readonly-spinner-demo"
+                                            data-steps="-1"
+                                            aria-label="Decrement">
+                                            <span class="iconify lucide--minus size-4"></span>
+                                        </button>
+                                        <input
+                                            data-spinner
+                                            aria-label="Input Spinner"
+                                            id="readonly-spinner-demo"
+                                            value="50"
+                                            type="number"
+                                            readonly
+                                            class="input no-spinner input-bordered w-40" />
+                                        <button
+                                            class="btn btn-square"
+                                            data-spinner-control="readonly-spinner-demo"
+                                            aria-label="Increment">
+                                            <span class="iconify lucide--plus size-4"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3">
+                                    <p class="font-medium">Inline</p>
+                                    <p class="text-base-content/80 text-sm">
+                                        Spinner fits neatly within text or inputs
+                                    </p>
+                                </div>
+                                <div class="p-6">
+                                    <div class="flex items-center justify-center gap-3">
+                                        <label class="input max-w-56 px-2">
+                                            <button
+                                                class="btn btn-soft btn-circle btn-xs"
+                                                data-spinner-control="inline-spinner-demo"
+                                                data-steps="-1"
+                                                aria-label="Decrement">
+                                                <span class="iconify lucide--minus size-3.5"></span>
+                                            </button>
+                                            <input
+                                                data-spinner
+                                                aria-label="Input Spinner"
+                                                class="no-spinner m-0 grow text-center"
+                                                id="inline-spinner-demo"
+                                                value="1"
+                                                placeholder="Quantity"
+                                                type="number" />
+                                            <button
+                                                class="btn btn-soft btn-circle btn-xs"
+                                                aria-label="Increment"
+                                                data-spinner-control="inline-spinner-demo">
+                                                <span class="iconify lucide--plus size-3.5"></span>
+                                            </button>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3">
+                                    <p class="font-medium">Multi Steps</p>
+                                    <p class="text-base-content/80 text-sm">
+                                        Increments or decrements in custom steps
+                                    </p>
+                                </div>
+                                <div class="p-6">
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button
+                                            class="btn btn-square"
+                                            data-spinner-control="multi-steps-spinner-demo"
+                                            data-steps="-5">
+                                            -5
+                                        </button>
+                                        <button
+                                            class="btn btn-square"
+                                            data-spinner-control="multi-steps-spinner-demo"
+                                            data-steps="-1"
+                                            aria-label="Decrement">
+                                            <span class="iconify lucide--minus size-4"></span>
+                                        </button>
+                                        <input
+                                            data-spinner
+                                            aria-label="Input Spinner"
+                                            id="multi-steps-spinner-demo"
+                                            value="0"
+                                            type="number"
+                                            class="input no-spinner input-bordered w-40" />
+                                        <button
+                                            class="btn btn-square"
+                                            data-spinner-control="multi-steps-spinner-demo"
+                                            aria-label="Increment">
+                                            <span class="iconify lucide--plus size-4"></span>
+                                        </button>
+                                        <button
+                                            class="btn btn-square"
+                                            data-steps="5"
+                                            data-spinner-control="multi-steps-spinner-demo">
+                                            +5
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3">
+                                    <p class="font-medium">Join</p>
+                                    <p class="text-base-content/80 text-sm">
+                                        Spinner combined with other form elements
+                                    </p>
+                                </div>
+                                <div class="p-6">
+                                    <div class="join flex items-center justify-center">
+                                        <button
+                                            class="btn border-base-300 btn-outline btn-square join-item"
+                                            data-spinner-control="join-spinner-demo"
+                                            data-steps="-5">
+                                            -5
+                                        </button>
+                                        <button
+                                            class="btn border-base-300 btn-outline join-item btn-square"
+                                            data-spinner-control="join-spinner-demo"
+                                            data-steps="-1"
+                                            aria-label="Decrement">
+                                            <span class="iconify lucide--minus size-4"></span>
+                                        </button>
+                                        <input
+                                            data-spinner
+                                            aria-label="Input Spinner"
+                                            id="join-spinner-demo"
+                                            value="0"
+                                            type="number"
+                                            class="input no-spinner input-bordered join-item w-40" />
+                                        <button
+                                            class="btn border-base-300 btn-outline join-item btn-square"
+                                            aria-label="Increment"
+                                            data-spinner-control="join-spinner-demo">
+                                            <span class="iconify lucide--plus size-4"></span>
+                                        </button>
+                                        <button
+                                            class="btn border-base-300 btn-outline join-item btn-square"
+                                            data-steps="5"
+                                            data-spinner-control="join-spinner-demo">
+                                            +5
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3">
+                                    <p class="font-medium">Min Max</p>
+                                    <p class="text-base-content/80 text-sm">
+                                        Restricts value within min and max range
+                                    </p>
+                                </div>
+                                <div class="p-6">
+                                    <div class="join flex items-start justify-center">
+                                        <button
+                                            class="btn border-base-300 btn-outline join-item btn-square"
+                                            data-spinner-control="min-max-spinner-demo"
+                                            data-steps="-1"
+                                            aria-label="Decrement">
+                                            <span class="iconify lucide--minus size-4"></span>
+                                        </button>
+                                        <label class="input join-item input-bordered max-w-48">
+                                            <input
+                                                data-spinner
+                                                id="min-max-spinner-demo"
+                                                value="15"
+                                                min="0"
+                                                max="100"
+                                                type="number"
+                                                class="no-spinner"
+                                                aria-label="Decrement" />
+                                            <span
+                                                class="iconify lucide--percent text-base-content/80 size-4"></span>
+                                        </label>
+                                        <button
+                                            class="btn border-base-300 btn-outline join-item btn-square"
+                                            aria-label="Increment"
+                                            data-spinner-control="min-max-spinner-demo">
+                                            <span class="iconify lucide--plus size-4"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3">
+                                    <p class="font-medium">Fractional</p>
+                                    <p class="text-base-content/80 text-sm">
+                                        Supports decimal values like 0.1 or 0.25
+                                    </p>
+                                </div>
+                                <div class="p-6">
+                                    <div class="join flex items-center justify-center">
+                                        <button
+                                            class="btn border-base-300 btn-outline join-item btn-square"
+                                            data-spinner-control="fractional-spinner-demo"
+                                            aria-label="Decrement"
+                                            data-steps="-0.1">
+                                            <span class="iconify lucide--minus size-4"></span>
+                                        </button>
+                                        <label class="input join-item input-bordered max-w-48">
+                                            <span
+                                                class="iconify lucide--dollar-sign text-base-content/80 size-4"></span>
+                                            <input
+                                                data-spinner
+                                                id="fractional-spinner-demo"
+                                                step="0.1"
+                                                value="9.9"
+                                                min="0"
+                                                max="100"
+                                                type="number"
+                                                class="no-spinner"
+                                                aria-label="Decrement" />
+                                        </label>
+                                        <button
+                                            class="btn border-base-300 btn-outline join-item btn-square"
+                                            data-steps="0.1"
+                                            aria-label="Increment"
+                                            data-spinner-control="fractional-spinner-demo">
+                                            <span class="iconify lucide--plus size-4"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3">
+                                    <p class="font-medium">Chip</p>
+                                    <p class="text-base-content/80 text-sm">
+                                        Spinner styled like a compact chip
+                                    </p>
+                                </div>
+                                <div class="p-6">
+                                    <div class="flex items-center justify-center">
+                                        <div
+                                            class="flex items-center gap-1 rounded-full p-1.5 shadow">
+                                            <button
+                                                class="btn btn-circle btn-ghost btn-sm"
+                                                data-spinner-control="chip-spinner-demo"
+                                                data-steps="-1"
+                                                aria-label="Decrement">
+                                                <span class="iconify lucide--minus size-4"></span>
+                                            </button>
+                                            <input
+                                                data-spinner
+                                                aria-label="Input Spinner"
+                                                id="chip-spinner-demo"
+                                                value="0"
+                                                type="number"
+                                                class="input input-sm input-ghost no-spinner me-2.5 max-w-10 text-center text-sm focus:outline-0" />
+                                            <button
+                                                class="btn btn-circle btn-ghost btn-sm"
+                                                aria-label="Increment"
+                                                data-spinner-control="chip-spinner-demo">
+                                                <span class="iconify lucide--plus size-4"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="bg-base-100 card card-border">
+                                <div class="bg-base-200/30 px-5 py-3">
+                                    <p class="font-medium">Vertical</p>
+                                    <p class="text-base-content/80 text-sm">
+                                        Up and down buttons stacked vertically
+                                    </p>
+                                </div>
+                                <div class="p-6">
+                                    <div class="flex items-center justify-center">
+                                        <div
+                                            class="flex flex-col items-center justify-center gap-1 rounded-full px-0.5 py-1.5 shadow">
+                                            <button
+                                                class="btn btn-circle btn-ghost btn-sm"
+                                                aria-label="Increment"
+                                                data-spinner-control="vertical-spinner-demo">
+                                                <span
+                                                    class="iconify lucide--chevron-up size-4"></span>
+                                            </button>
+                                            <input
+                                                data-spinner
+                                                aria-label="Input Spinner"
+                                                id="vertical-spinner-demo"
+                                                value="0"
+                                                type="number"
+                                                class="input input-sm no-spinner input-ghost me-2.5 max-w-8 text-center text-sm focus:outline-0" />
+
+                                            <button
+                                                class="btn btn-circle btn-ghost btn-sm"
+                                                data-spinner-control="vertical-spinner-demo"
+                                                data-steps="-1"
+                                                aria-label="Decrement">
+                                                <span
+                                                    class="iconify lucide--chevron-down size-4"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="border-base-300/80 bg-base-100 border-t border-dashed px-4 py-4 md:px-8 xl:px-12 2xl:px-20">
+                        <div class="flex items-center justify-between px-0">
+                            <p>
+                                Built and designed with care by
+                                <a target="_blank" class="text-primary" href="https://withden.dev/">
+                                    Denish
+                                </a>
+                            </p>
+                            <a
+                                aria-label="Buy now"
+                                target="_blank"
+                                class="bg-primary text-primary-content group flex size-9 items-center gap-2 overflow-hidden rounded-full px-2.5 py-0.5 font-medium transition-all hover:w-26"
+                                href="https://daisyui.com/store/244268">
+                                <span class="iconify lucide--shopping-cart block size-4.5"></span>
+                                <span class="hidden text-sm text-nowrap group-hover:block">
+                                    Buy Now
+                                </span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/simplebar/6.2.7/simplebar.min.js"></script>
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/simplebar/6.2.7/simplebar.css" />
+        <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+        <script src="./js/app.js"></script>
+
+        <!-- JS for Input Spinner -->
+        <script src="./js/components/input-spinner.js"></script>
+    </body>
+</html>

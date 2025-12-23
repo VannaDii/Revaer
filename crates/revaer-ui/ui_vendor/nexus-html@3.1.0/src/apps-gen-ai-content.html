@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div class="size-full">
+            <div class="flex">
+                <load src="partials/sidebar.html" />
+
+                <div class="flex h-screen min-w-0 grow flex-col overflow-auto">
+                    <load src="partials/topbar.html" />
+
+                    <!--  Start: Layout - Content -->
+
+                    <div id="layout-content">
+                        <div class="flex items-center justify-between">
+                            <p class="text-lg font-medium">Chat</p>
+                            <div class="breadcrumbs hidden p-0 text-sm sm:inline">
+                                <ul>
+                                    <li><a href="/dashboards-ecommerce">Nexus</a></li>
+                                    <li>Apps</li>
+                                    <li class="opacity-80">Chat</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-5 2xl:grid-cols-10">
+                            <div class="xl:col-span-2 2xl:col-span-3">
+                                <div class="space-y-6">
+                                    <div class="card bg-base-100 card-border">
+                                        <div class="card-body">
+                                            <div class="card-title">Information</div>
+                                            <div class="fieldset mt-2 gap-4">
+                                                <div class="space-y-2">
+                                                    <label class="fieldset-label" for="content">
+                                                        Content
+                                                    </label>
+                                                    <textarea
+                                                        class="textarea h-36 w-full pb-0 leading-5"
+                                                        id="content"
+                                                        aria-label="Textarea"
+                                                        placeholder="Join [Company Name] as a UI Designer and craft user-friendly, visually stunning interfaces. Collaborate with..."></textarea>
+                                                </div>
+                                                <div class="space-y-2">
+                                                    <label class="fieldset-label" for="keywords">
+                                                        Keywords are included
+                                                    </label>
+                                                    <input
+                                                        class="input w-full"
+                                                        id="keywords"
+                                                        placeholder="react, dashboard, nextjs, ...." />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="card bg-base-100 card-border">
+                                        <div class="card-body">
+                                            <div class="card-title">Language options</div>
+                                            <div
+                                                class="border-success/20 bg-success/5 rounded-box my-2.5 border p-3 text-sm">
+                                                <span class="font-medium">Beta:</span>
+                                                This feature is currently accessible to a limited
+                                                group of beta users.
+                                            </div>
+                                            <div class="fieldset">
+                                                <div class="flex gap-4">
+                                                    <div class="grow space-y-2">
+                                                        <label
+                                                            class="fieldset-label"
+                                                            for="voice-tone">
+                                                            Voice Tone
+                                                        </label>
+                                                        <select
+                                                            class="select w-full"
+                                                            id="voice-tone">
+                                                            <option>Formal</option>
+                                                            <option>Casual</option>
+                                                            <option>Persuasive</option>
+                                                            <option>Friendly</option>
+                                                            <option>Neutral</option>
+                                                        </select>
+                                                    </div>
+                                                    <div class="grow space-y-2">
+                                                        <label
+                                                            class="fieldset-label"
+                                                            for="creative">
+                                                            How creative it be
+                                                        </label>
+                                                        <input
+                                                            class="input w-full focus:outline-0"
+                                                            id="creative"
+                                                            min="0"
+                                                            step="0.1"
+                                                            max="1"
+                                                            type="number"
+                                                            placeholder="0.6"
+                                                            value="0.6" />
+                                                    </div>
+                                                </div>
+                                                <div class="mt-2 flex items-end gap-4">
+                                                    <div class="grow space-y-2">
+                                                        <label
+                                                            class="fieldset-label"
+                                                            for="input-voice">
+                                                            Input Voice
+                                                        </label>
+                                                        <select
+                                                            class="select w-full"
+                                                            id="input-voice">
+                                                            <option selected="" value="en">
+                                                                English
+                                                            </option>
+                                                            <option value="es">Spanish</option>
+                                                            <option value="fr">French</option>
+                                                            <option value="de">German</option>
+                                                            <option value="it">Italian</option>
+                                                        </select>
+                                                    </div>
+                                                    <button class="btn btn-sm btn-circle mb-1">
+                                                        <span
+                                                            class="iconify lucide--arrow-left-right size-4"></span>
+                                                    </button>
+                                                    <div class="grow space-y-2">
+                                                        <label
+                                                            class="fieldset-label"
+                                                            for="output-voice">
+                                                            Output Voice
+                                                        </label>
+                                                        <select
+                                                            class="select w-full"
+                                                            id="output-voice">
+                                                            <option value="en">English</option>
+                                                            <option value="es">Spanish</option>
+                                                            <option selected="" value="fr">
+                                                                French
+                                                            </option>
+                                                            <option value="de">German</option>
+                                                            <option value="it">Italian</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="mt-5 flex justify-end gap-3">
+                                                <button class="btn btn-ghost btn-sm" disabled="">
+                                                    Stop
+                                                </button>
+                                                <button class="btn btn-sm btn-primary">
+                                                    <span
+                                                        class="iconify lucide--wand-2 size-3.5"></span>
+                                                    Generate
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="xl:col-span-3 2xl:col-span-7">
+                                <div class="bg-base-100 card card-border">
+                                    <div
+                                        class="border-base-200 flex items-center justify-between border-b py-2.5 ps-5 pe-2.5">
+                                        <div class="inline-flex items-center gap-3">
+                                            <span
+                                                class="iconify lucide--file-clock size-4.5"></span>
+                                            <span>History</span>
+                                        </div>
+                                        <button class="btn btn-ghost btn-sm">Clear history</button>
+                                    </div>
+                                    <div class="card-body p-0">
+                                        <div class="h-[calc(100vh_-_220px)]" data-simplebar>
+                                            <div class="space-y-3 p-6 pt-3">
+                                                <div class="text-center">
+                                                    <div
+                                                        class="bg-base-200 inline-flex cursor-pointer items-center gap-1 rounded-full px-3 py-1 text-xs opacity-70 transition-all hover:opacity-100">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3"></span>
+                                                        Older
+                                                    </div>
+                                                </div>
+                                                <div class="chat chat-end">
+                                                    <div class="chat-bubble bg-base-200">
+                                                        Can you provide an estimated timeline for
+                                                        completion?
+                                                    </div>
+                                                    <div class="chat-footer opacity-50">
+                                                        Weeks ago
+                                                    </div>
+                                                </div>
+                                                <div class="chat chat-start group">
+                                                    <div
+                                                        class="chat-image bg-primary/5 text-primary border-primary/10 flex items-center justify-center rounded-full border p-2">
+                                                        <span
+                                                            class="iconify lucide--bot size-6"></span>
+                                                    </div>
+                                                    <div class="chat-bubble bg-base-200 relative">
+                                                        Certainly! Based on our current progress, we
+                                                        estimate the project will be completed
+                                                        within 4-6 weeks. Let me know if you’d like
+                                                        a detailed breakdown.
+                                                        <div
+                                                            class="border-base-300 bg-base-100 absolute end-2 -bottom-8 z-10 flex scale-90 items-center gap-1.5 rounded-full border px-3 py-2 opacity-0 transition-all group-hover:scale-100 group-hover:opacity-100">
+                                                            <button class="btn btn-xs">
+                                                                Regenerate
+                                                            </button>
+                                                            <button class="btn btn-xs">Copy</button>
+                                                            <button
+                                                                class="btn btn-xs btn-ghost btn-error btn-circle">
+                                                                <span
+                                                                    class="iconify lucide--thumbs-down size-3.5"></span>
+                                                            </button>
+                                                            <button
+                                                                class="btn btn-xs btn-ghost btn-success btn-circle">
+                                                                <span
+                                                                    class="iconify lucide--thumbs-up size-3.5"></span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="chat-footer opacity-50">
+                                                        Week ago
+                                                    </div>
+                                                </div>
+                                                <div class="chat chat-end">
+                                                    <div class="chat-bubble bg-base-200">
+                                                        Can you generate a random image?
+                                                    </div>
+                                                    <div class="chat-footer opacity-50">
+                                                        30 minutes ago
+                                                    </div>
+                                                </div>
+                                                <div class="chat chat-start group">
+                                                    <div
+                                                        class="chat-image bg-primary/5 text-primary border-primary/10 flex items-center justify-center rounded-full border p-2">
+                                                        <span
+                                                            class="iconify lucide--bot size-6"></span>
+                                                    </div>
+                                                    <div class="chat-bubble bg-base-200 relative">
+                                                        Here is your random image.
+                                                        <img
+                                                            class="rounded-box mt-1"
+                                                            alt="Gen Image"
+                                                            src="/images/apps/ai/gen-10.jpg" />
+                                                        <div
+                                                            class="border-base-300 bg-base-100 absolute end-2 -bottom-8 z-10 flex scale-90 items-center gap-1.5 rounded-full border px-3 py-2 opacity-0 transition-all group-hover:scale-100 group-hover:opacity-100">
+                                                            <button class="btn btn-xs">
+                                                                Regenerate
+                                                            </button>
+                                                            <button class="btn btn-xs">Copy</button>
+                                                            <button
+                                                                class="btn btn-xs btn-ghost btn-error btn-circle">
+                                                                <span
+                                                                    class="iconify lucide--thumbs-down size-3.5"></span>
+                                                            </button>
+                                                            <button
+                                                                class="btn btn-xs btn-ghost btn-success btn-circle">
+                                                                <span
+                                                                    class="iconify lucide--thumbs-up size-3.5"></span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="chat-footer opacity-50">
+                                                        30 minutes ago
+                                                    </div>
+                                                </div>
+                                                <div class="chat chat-end">
+                                                    <div class="chat-bubble bg-base-200">
+                                                        Do you have any suggestions for improvement?
+                                                    </div>
+                                                    <div class="chat-footer opacity-50">
+                                                        2 hours ago
+                                                    </div>
+                                                </div>
+                                                <div class="chat chat-start group">
+                                                    <div
+                                                        class="chat-image bg-primary/5 text-primary border-primary/10 flex items-center justify-center rounded-full border p-2">
+                                                        <span
+                                                            class="iconify lucide--bot size-6"></span>
+                                                    </div>
+                                                    <div class="chat-bubble bg-base-200 relative">
+                                                        Certainly! One suggestion would be to focus
+                                                        more on user feedback during the early
+                                                        stages of development.
+                                                        <div
+                                                            class="border-base-300 bg-base-100 absolute end-2 -bottom-8 z-10 flex scale-90 items-center gap-1.5 rounded-full border px-3 py-2 opacity-0 transition-all group-hover:scale-100 group-hover:opacity-100">
+                                                            <button class="btn btn-xs">
+                                                                Regenerate
+                                                            </button>
+                                                            <button class="btn btn-xs">Copy</button>
+                                                            <button
+                                                                class="btn btn-xs btn-ghost btn-error btn-circle">
+                                                                <span
+                                                                    class="iconify lucide--thumbs-down size-3.5"></span>
+                                                            </button>
+                                                            <button
+                                                                class="btn btn-xs btn-ghost btn-success btn-circle">
+                                                                <span
+                                                                    class="iconify lucide--thumbs-up size-3.5"></span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="chat-footer opacity-50">
+                                                        2 hours ago
+                                                    </div>
+                                                </div>
+                                                <div class="chat chat-end">
+                                                    <div class="chat-bubble bg-base-200">
+                                                        What are the next steps?
+                                                    </div>
+                                                    <div class="chat-footer opacity-50">
+                                                        1 minute ago
+                                                    </div>
+                                                </div>
+                                                <div class="chat chat-start group">
+                                                    <div
+                                                        class="chat-image bg-primary/5 text-primary border-primary/10 flex items-center justify-center rounded-full border p-2">
+                                                        <span
+                                                            class="iconify lucide--bot size-6"></span>
+                                                    </div>
+                                                    <div class="chat-bubble bg-base-200 relative">
+                                                        Next, we can schedule a meeting to discuss
+                                                        the implementation details. Does that work
+                                                        for you?
+                                                        <div
+                                                            class="border-base-300 bg-base-100 absolute end-2 -bottom-8 z-10 flex scale-90 items-center gap-1.5 rounded-full border px-3 py-2 opacity-0 transition-all group-hover:scale-100 group-hover:opacity-100">
+                                                            <button class="btn btn-xs">
+                                                                Regenerate
+                                                            </button>
+                                                            <button class="btn btn-xs">Copy</button>
+                                                            <button
+                                                                class="btn btn-xs btn-ghost btn-error btn-circle">
+                                                                <span
+                                                                    class="iconify lucide--thumbs-down size-3.5"></span>
+                                                            </button>
+                                                            <button
+                                                                class="btn btn-xs btn-ghost btn-success btn-circle">
+                                                                <span
+                                                                    class="iconify lucide--thumbs-up size-3.5"></span>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                    <div class="chat-footer opacity-50">Now</div>
+                                                </div>
+                                                <div class="chat chat-end">
+                                                    <div class="chat-bubble bg-base-200">
+                                                        Follow-Up on all conversations
+                                                    </div>
+                                                    <div class="chat-footer opacity-50">now</div>
+                                                </div>
+                                                <div
+                                                    class="bg-primary/5 text-primary border-primary/10 rounded-box inline border px-4 py-2">
+                                                    <span
+                                                        class="loading loading-dots loading-sm"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--  End: Layout - Content -->
+                    <load src="partials/footer.html" />
+                </div>
+            </div>
+
+            <load src="partials/rightbar.html" />
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div class="size-full">
+            <div class="flex">
+                <load src="partials/sidebar.html" />
+
+                <div class="flex h-screen min-w-0 grow flex-col overflow-auto">
+                    <load src="partials/topbar.html" />
+
+                    <!--  Start: Layout - Content -->
+
+                    <div id="layout-content">
+                        <div class="min-sm:container">
+                            <div
+                                class="bg-primary/10 rounded-box relative w-full overflow-hidden p-6">
+                                <div class="flex justify-between">
+                                    <div>
+                                        <div class="flex items-center gap-1">
+                                            <p class="text-base-content/80 text-sm">Pages</p>
+                                            <span
+                                                class="iconify lucide--chevron-right text-base-content/80 size-3.5"></span>
+                                            <p class="text-sm">Support</p>
+                                        </div>
+                                        <p class="text-primary mt-4 text-xl font-medium">
+                                            Get Help
+                                        </p>
+                                        <p class="text-base-content/80">
+                                            Find answers to common questions and learn how to use
+                                            the platform effectively
+                                        </p>
+                                    </div>
+                                    <div class="flex flex-col items-end justify-between">
+                                        <button class="btn btn-sm btn-primary max-xl:btn-square">
+                                            <span class="iconify lucide--plus size-4"></span>
+                                            <span class="max-xl:hidden">Create a Ticket</span>
+                                        </button>
+                                        <div
+                                            class="text-base-content/60 flex items-center gap-2 max-xl:hidden">
+                                            <span
+                                                class="iconify lucide--ticket-check size-4"></span>
+                                            <p class="text-sm">
+                                                Your last ticket has been resolved
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <span
+                                    class="iconify lucide--badge-help text-primary/5 absolute start-1/2 -bottom-12 size-44 -rotate-25"></span>
+                            </div>
+                            <div class="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
+                                <div
+                                    class="card card-border bg-base-100 hover:bg-primary hover:text-primary-content group hover:border-primary cursor-pointer transition-all">
+                                    <div class="card-body">
+                                        <div class="flex justify-between">
+                                            <p class="font-medium">Getting Started</p>
+                                            <span
+                                                class="iconify lucide--arrow-right text-primary-content -translate-x-2 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100"></span>
+                                        </div>
+                                        <p class="mt-1 line-clamp-2 text-sm overflow-ellipsis">
+                                            Learn how to set up your account and navigate the
+                                            dashboard.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div
+                                    class="card card-border bg-base-100 hover:bg-primary hover:text-primary-content group hover:border-primary cursor-pointer transition-all">
+                                    <div class="card-body">
+                                        <div class="flex justify-between">
+                                            <p class="font-medium">User Management</p>
+                                            <span
+                                                class="iconify lucide--arrow-right text-primary-content -translate-x-2 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100"></span>
+                                        </div>
+                                        <p class="mt-1 line-clamp-2 text-sm overflow-ellipsis">
+                                            Manage user roles, permissions, and access control
+                                            settings.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div
+                                    class="card card-border bg-base-100 hover:bg-primary hover:text-primary-content group hover:border-primary cursor-pointer transition-all">
+                                    <div class="card-body">
+                                        <div class="flex justify-between">
+                                            <p class="font-medium">Customization</p>
+                                            <span
+                                                class="iconify lucide--arrow-right text-primary-content -translate-x-2 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100"></span>
+                                        </div>
+                                        <p class="mt-1 line-clamp-2 text-sm overflow-ellipsis">
+                                            Adjust settings, themes, and preferences to personalize
+                                            your experience.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div
+                                    class="card card-border bg-base-100 hover:bg-primary hover:text-primary-content group hover:border-primary cursor-pointer transition-all">
+                                    <div class="card-body">
+                                        <div class="flex justify-between">
+                                            <p class="font-medium">Integrations</p>
+                                            <span
+                                                class="iconify lucide--arrow-right text-primary-content -translate-x-2 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100"></span>
+                                        </div>
+                                        <p class="mt-1 line-clamp-2 text-sm overflow-ellipsis">
+                                            Connect with third-party services and APIs to extend
+                                            functionality.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div
+                                    class="card card-border bg-base-100 hover:bg-primary hover:text-primary-content group hover:border-primary cursor-pointer transition-all">
+                                    <div class="card-body">
+                                        <div class="flex justify-between">
+                                            <p class="font-medium">Troubleshooting</p>
+                                            <span
+                                                class="iconify lucide--arrow-right text-primary-content -translate-x-2 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100"></span>
+                                        </div>
+                                        <p class="mt-1 line-clamp-2 text-sm overflow-ellipsis">
+                                            Find solutions to common issues and errors encountered
+                                            in the system.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div
+                                    class="card card-border bg-base-100 hover:bg-primary hover:text-primary-content group hover:border-primary cursor-pointer transition-all">
+                                    <div class="card-body">
+                                        <div class="flex justify-between">
+                                            <p class="font-medium">Billing &amp; Subscription</p>
+                                            <span
+                                                class="iconify lucide--arrow-right text-primary-content -translate-x-2 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100"></span>
+                                        </div>
+                                        <p class="mt-1 line-clamp-2 text-sm overflow-ellipsis">
+                                            Understand pricing plans, payment methods, and
+                                            subscription management.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div
+                                    class="card card-border bg-base-100 hover:bg-primary hover:text-primary-content group hover:border-primary cursor-pointer transition-all">
+                                    <div class="card-body">
+                                        <div class="flex justify-between">
+                                            <p class="font-medium">Security &amp; Privacy</p>
+                                            <span
+                                                class="iconify lucide--arrow-right text-primary-content -translate-x-2 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100"></span>
+                                        </div>
+                                        <p class="mt-1 line-clamp-2 text-sm overflow-ellipsis">
+                                            Learn about security best practices and how your data is
+                                            protected.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div
+                                    class="card card-border bg-base-100 hover:bg-primary hover:text-primary-content group hover:border-primary cursor-pointer transition-all">
+                                    <div class="card-body">
+                                        <div class="flex justify-between">
+                                            <p class="font-medium">Reports &amp; Analytics</p>
+                                            <span
+                                                class="iconify lucide--arrow-right text-primary-content -translate-x-2 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100"></span>
+                                        </div>
+                                        <p class="mt-1 line-clamp-2 text-sm overflow-ellipsis">
+                                            Generate and analyze reports to track system performance
+                                            and insights.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="mt-12 text-center text-2xl font-medium">
+                                Frequently Asked Questions
+                            </p>
+                            <p class="text-base-content/80 text-center">
+                                Find answers to common questions about system features, settings,
+                                and troubleshooting.
+                            </p>
+                            <div class="mt-8 grid gap-8 md:grid-cols-2">
+                                <div class="card bg-base-100 h-fit shadow">
+                                    <div class="card-body pb-0">
+                                        <div class="badge badge-sm badge-ghost">Control</div>
+                                        <p class="text-lg font-medium">User Management queries</p>
+                                        <div class="-mx-4 mt-2">
+                                            <div class="collapse-plus collapse">
+                                                <input
+                                                    type="radio"
+                                                    aria-label="Accordion radio"
+                                                    class="cursor-pointer"
+                                                    name="accordion" />
+                                                <div class="collapse-title cursor-pointer">
+                                                    How do I add a new user?
+                                                </div>
+                                                <div class="collapse-content">
+                                                    Go to the 'User Management' section, click 'Add
+                                                    User', fill in the required details, and submit.
+                                                </div>
+                                            </div>
+                                            <div class="collapse-plus collapse">
+                                                <input
+                                                    type="radio"
+                                                    aria-label="Accordion radio"
+                                                    class="cursor-pointer"
+                                                    name="accordion" />
+                                                <div class="collapse-title cursor-pointer">
+                                                    How can I change a user's role?
+                                                </div>
+                                                <div class="collapse-content">
+                                                    Navigate to 'User Management', select the user,
+                                                    click 'Edit', and update their role before
+                                                    saving.
+                                                </div>
+                                            </div>
+                                            <div class="collapse-plus collapse">
+                                                <input
+                                                    type="radio"
+                                                    aria-label="Accordion radio"
+                                                    class="cursor-pointer"
+                                                    name="accordion" />
+                                                <div class="collapse-title cursor-pointer">
+                                                    Can I deactivate a user instead of deleting
+                                                    them?
+                                                </div>
+                                                <div class="collapse-content">
+                                                    Yes, you can disable a user account by setting
+                                                    their status to 'Inactive' in the user settings.
+                                                </div>
+                                            </div>
+                                            <div class="collapse-plus collapse">
+                                                <input
+                                                    type="radio"
+                                                    aria-label="Accordion radio"
+                                                    class="cursor-pointer"
+                                                    name="accordion" />
+                                                <div class="collapse-title cursor-pointer">
+                                                    How do I reset a user's password?
+                                                </div>
+                                                <div class="collapse-content">
+                                                    Admins can reset passwords by selecting the user
+                                                    in 'User Management' and clicking 'Reset
+                                                    Password'. An email will be sent to the user.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card bg-base-100 h-fit shadow">
+                                    <div class="card-body pb-0">
+                                        <div class="badge badge-sm badge-ghost">Platform</div>
+                                        <p class="text-lg font-medium">System related queries</p>
+                                        <div class="-mx-4 mt-2">
+                                            <div class="collapse-plus collapse">
+                                                <input
+                                                    type="radio"
+                                                    aria-label="Accordion radio"
+                                                    class="cursor-pointer"
+                                                    name="accordion" />
+                                                <div class="collapse-title cursor-pointer">
+                                                    Where can I update the system settings?
+                                                </div>
+                                                <div class="collapse-content">
+                                                    Navigate to the 'Settings' section in the admin
+                                                    panel to configure system preferences, security
+                                                    options, and more.
+                                                </div>
+                                            </div>
+                                            <div class="collapse-plus collapse">
+                                                <input
+                                                    type="radio"
+                                                    aria-label="Accordion radio"
+                                                    class="cursor-pointer"
+                                                    name="accordion" />
+                                                <div class="collapse-title cursor-pointer">
+                                                    How do I enable or disable maintenance mode?
+                                                </div>
+                                                <div class="collapse-content">
+                                                    Go to 'Settings' &gt; 'System Configuration' and
+                                                    toggle the maintenance mode option to enable or
+                                                    disable it.
+                                                </div>
+                                            </div>
+                                            <div class="collapse-plus collapse">
+                                                <input
+                                                    type="radio"
+                                                    aria-label="Accordion radio"
+                                                    class="cursor-pointer"
+                                                    name="accordion" />
+                                                <div class="collapse-title cursor-pointer">
+                                                    Can I change the default timezone for the
+                                                    system?
+                                                </div>
+                                                <div class="collapse-content">
+                                                    Yes, you can update the system timezone in
+                                                    'Settings' under 'General Preferences'.
+                                                </div>
+                                            </div>
+                                            <div class="collapse-plus collapse">
+                                                <input
+                                                    type="radio"
+                                                    aria-label="Accordion radio"
+                                                    class="cursor-pointer"
+                                                    name="accordion" />
+                                                <div class="collapse-title cursor-pointer">
+                                                    How do I configure email notifications?
+                                                </div>
+                                                <div class="collapse-content">
+                                                    Navigate to 'Settings' &gt; 'Email
+                                                    Configuration' to set up SMTP settings and
+                                                    customize notification templates.
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--  End: Layout - Content -->
+                    <load src="partials/footer.html" />
+                </div>
+            </div>
+
+            <load src="partials/rightbar.html" />
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

@@ -1,0 +1,203 @@
+<div class="flex h-full w-full flex-col py-3">
+    <div class="flex min-h-10 items-center justify-between gap-3 px-5">
+        <span class="text-xl font-semibold">ACME Inc</span>
+        <div class="flex items-center gap-2">
+            <label
+                for="layout-sidebar-hover-trigger"
+                title="Toggle sidebar hover"
+                class="btn btn-circle btn-ghost btn-sm text-base-content/50 relative max-lg:hidden">
+                <span
+                    class="iconify lucide--panel-left-close absolute size-4.5 opacity-100 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-0"></span>
+                <span
+                    class="iconify lucide--panel-left-dashed absolute size-4.5 opacity-0 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-100"></span>
+            </label>
+            <div class="dropdown dropdown-bottom dropdown-end">
+                <div tabindex="0">
+                    <div
+                        class="avatar bg-base-200 size-8 cursor-pointer overflow-hidden rounded-full">
+                        <img alt="Avatar" src="/images/avatars/1.png" />
+                    </div>
+                </div>
+                <div tabindex="0" class="dropdown-content bg-base-100 rounded-box mt-4 w-44 shadow">
+                    <ul class="menu w-full p-2">
+                        <li>
+                            <a href="/pages/settings">
+                                <span class="iconify lucide--user size-4"></span>
+                                <span>My Profile</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/pages/settings">
+                                <span class="iconify lucide--settings size-4"></span>
+                                <span>Settings</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/pages/get-help">
+                                <span class="iconify lucide--help-circle size-4"></span>
+                                <span>Help</span>
+                            </a>
+                        </li>
+                    </ul>
+                    <hr class="border-base-300" />
+                    <ul class="menu w-full p-2">
+                        <li>
+                            <div>
+                                <span class="iconify lucide--arrow-left-right size-4"></span>
+                                <span>Switch Account</span>
+                            </div>
+                        </li>
+                        <li>
+                            <a class="text-error hover:bg-error/10" href="/auth/login">
+                                <span class="iconify lucide--log-out size-4"></span>
+                                <span>Logout</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="sidebar-menu custom-scrollbar grow overflow-auto px-2.5">
+        <p class="menu-label mt-2 px-2.5">Navigation</p>
+        <div class="mt-2">
+            <a class="menu-item" href="#">
+                <span class="iconify lucide--monitor-dot size-4"></span>
+                <span class="grow">Dashboard</span>
+            </a>
+        </div>
+        <p class="menu-label mt-2 px-2.5">Manage</p>
+        <div class="mt-2 space-y-0.5">
+            <div class="collapse">
+                <input aria-label="Sidemenu item trigger" class="peer" type="checkbox" />
+                <div class="collapse-title px-2.5 py-1.5">
+                    <span class="iconify lucide--package size-4"></span>
+                    <span class="grow">Products</span>
+                    <span class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                </div>
+                <div class="collapse-content ms-6.5 !p-0">
+                    <div class="mt-0.5 space-y-0.5">
+                        <a class="menu-item" href="#"><span class="grow">All Products</span></a>
+                        <a class="menu-item" href="#"><span class="grow">Add New</span></a>
+                        <a class="menu-item" href="#"><span class="grow">Categories</span></a>
+                    </div>
+                </div>
+            </div>
+            <div class="collapse">
+                <input aria-label="Sidemenu item trigger" class="peer" type="checkbox" />
+                <div class="collapse-title px-2.5 py-1.5">
+                    <span class="iconify lucide--receipt-text size-4"></span>
+                    <span class="grow">Orders</span>
+                    <span class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                </div>
+                <div class="collapse-content ms-6.5 !p-0">
+                    <div class="mt-0.5 space-y-0.5">
+                        <a class="menu-item" href="#"><span class="grow">All Order</span></a>
+                        <a class="menu-item" href="#"><span class="grow">Returns</span></a>
+                    </div>
+                </div>
+            </div>
+            <a class="menu-item" href="#">
+                <span class="iconify lucide--users size-4"></span>
+                <span class="grow">Customers</span>
+            </a>
+            <a class="menu-item" href="#">
+                <span class="iconify lucide--warehouse size-4"></span>
+                <span class="grow">Inventory</span>
+            </a>
+            <a class="menu-item" href="#">
+                <span class="iconify lucide--dollar-sign size-4"></span>
+                <span class="grow">Payouts</span>
+            </a>
+        </div>
+        <p class="menu-label mt-2 px-2.5">Other</p>
+        <div class="mt-2 space-y-0.5">
+            <div class="collapse">
+                <input aria-label="Sidemenu item trigger" class="peer" type="checkbox" />
+                <div class="collapse-title px-2.5 py-1.5">
+                    <span class="iconify lucide--align-center size-4"></span>
+                    <span class="grow">Menu Levels</span>
+                    <span class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                </div>
+                <div class="collapse-content ms-6.5 !p-0">
+                    <div class="mt-0.5 space-y-0.5">
+                        <a class="menu-item" href="#"><span class="grow">Level 1a</span></a>
+                        <div class="collapse">
+                            <input
+                                aria-label="Sidemenu item trigger"
+                                class="peer"
+                                type="checkbox" />
+                            <div class="collapse-title px-2.5 py-1.5">
+                                <span class="grow">Level 1b</span>
+                                <span
+                                    class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                            </div>
+                            <div class="collapse-content ms-6.5 !p-0">
+                                <div class="mt-0.5 space-y-0.5">
+                                    <a class="menu-item" href="#">
+                                        <span class="grow">Level 2a</span>
+                                    </a>
+                                    <div class="group collapse">
+                                        <input
+                                            aria-label="Sidemenu item trigger"
+                                            class="peer"
+                                            type="checkbox" />
+                                        <div class="collapse-title px-2.5 py-1.5">
+                                            <span class="grow">Level 2b</span>
+                                            <span
+                                                class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                        </div>
+                                        <div class="collapse-content ms-6.5 !p-0">
+                                            <div class="mt-0.5 space-y-0.5">
+                                                <a class="menu-item" href="#">
+                                                    <span class="grow">Level 3a</span>
+                                                </a>
+                                                <a class="menu-item" href="#">
+                                                    <span class="grow">Level 3b</span>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <a class="menu-item" target="_blank" href="https://google.com">
+                <span class="iconify lucide--external-link size-4"></span>
+                <span class="grow">External Links</span>
+            </a>
+            <a class="menu-item" href="#">
+                <span class="iconify lucide--award size-4"></span>
+                <span class="grow">Label</span>
+                <div class="ms-auto inline-flex gap-2">
+                    <div
+                        class="bg-secondary text-secondary-content rounded-box ms-0 px-1.5 text-[12px]">
+                        +8
+                    </div>
+                </div>
+            </a>
+        </div>
+    </div>
+    <div class="border-base-200 rounded-box relative mx-3 mt-3 border p-3">
+        <p class="font-medium">5 Days left!</p>
+        <progress class="progress progress-warning h-1 align-super" max="100" value="70"></progress>
+        <p class="text-base-content/80 -mt-1.5 text-sm leading-tight">
+            Trial ending soon. Upgrade to stay active.
+        </p>
+        <button class="btn btn-soft btn-xs btn-circle absolute end-2 top-2" aria-label="Close">
+            <span class="iconify lucide--x size-3.5"></span>
+        </button>
+    </div>
+    <div class="border-base-200 sidebar-menu mt-3 space-y-0.5 border-t px-2.5 pt-2">
+        <a class="menu-item" href="#">
+            <span class="iconify lucide--badge-info size-4"></span>
+            <span class="grow">Help &amp; Support</span>
+        </a>
+        <a class="menu-item" href="#">
+            <span class="iconify lucide--headphones size-4"></span>
+            <span class="grow">Contact us</span>
+        </a>
+    </div>
+</div>

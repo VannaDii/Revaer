@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div class="size-full">
+            <div class="flex">
+                <load src="partials/sidebar.html" />
+
+                <div class="flex h-screen min-w-0 grow flex-col overflow-auto">
+                    <load src="partials/topbar.html" />
+
+                    <!--  Start: Layout - Content -->
+
+                    <div id="layout-content">
+                        <div class="flex items-center justify-between">
+                            <p class="text-lg font-medium">Edit Shop</p>
+                            <div class="breadcrumbs hidden p-0 text-sm sm:inline">
+                                <ul>
+                                    <li><a href="./dashboards-ecommerce.html">Nexus</a></li>
+                                    <li class="">
+                                        <a href="./apps-ecommerce-shops.html">Shops</a>
+                                    </li>
+                                    <li class="opacity-80">Edit</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <div class="grid grid-cols-1 gap-5 md:grid-cols-2">
+                                <div class="card bg-base-100 shadow">
+                                    <div class="card-body">
+                                        <div class="card-title">Basic Information</div>
+                                        <div
+                                            class="fieldset mt-2 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="name">
+                                                    Name
+                                                </label>
+                                                <input
+                                                    class="input w-full"
+                                                    id="name"
+                                                    placeholder="Name"
+                                                    type="text" />
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label">Seller</label>
+                                                <select
+                                                    class="select w-full"
+                                                    aria-label="Select seller">
+                                                    <option value="" disabled="" selected="">
+                                                        Select seller
+                                                    </option>
+                                                    <option>Anthony S. Amaya</option>
+                                                    <option>Crystal R. Taylor</option>
+                                                    <option>Jeremy M. Simon</option>
+                                                    <option>Jane B. Bush</option>
+                                                    <option>Francis A. Bisson</option>
+                                                    <option>Lydia P. Barnett</option>
+                                                    <option>John B. Lopez</option>
+                                                </select>
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="mobile">
+                                                    Mobile
+                                                </label>
+                                                <input
+                                                    class="input w-full"
+                                                    id="mobile"
+                                                    placeholder="(098) 765 4321"
+                                                    type="tel" />
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="email">
+                                                    Email
+                                                </label>
+                                                <input
+                                                    class="input w-full"
+                                                    id="email"
+                                                    placeholder="Email"
+                                                    type="email" />
+                                            </div>
+                                            <div class="col-span-1 space-y-2 lg:col-span-2">
+                                                <label class="fieldset-label" for="description">
+                                                    Description
+                                                </label>
+                                                <textarea
+                                                    placeholder="Description"
+                                                    id="description"
+                                                    class="textarea w-full"></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="card bg-base-100 h-fit shadow">
+                                    <div class="card-body">
+                                        <div class="card-title">Address</div>
+                                        <div
+                                            class="fieldset mt-2 grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="street-address">
+                                                    Street Address
+                                                </label>
+                                                <input
+                                                    class="input w-full"
+                                                    id="street-address"
+                                                    placeholder="Street Address"
+                                                    type="text" />
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="city">
+                                                    City
+                                                </label>
+                                                <input
+                                                    class="input w-full"
+                                                    id="city"
+                                                    placeholder="City"
+                                                    type="text" />
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="state">
+                                                    State
+                                                </label>
+                                                <input
+                                                    class="input w-full"
+                                                    id="state"
+                                                    placeholder="State"
+                                                    type="text" />
+                                            </div>
+                                            <div class="space-y-2">
+                                                <label class="fieldset-label" for="postal-code">
+                                                    Postal Code
+                                                </label>
+                                                <input
+                                                    class="input w-full"
+                                                    id="postal-code"
+                                                    placeholder="564-879"
+                                                    type="text" />
+                                            </div>
+                                            <div class="flex items-center gap-3">
+                                                <input
+                                                    class="checkbox checkbox-sm"
+                                                    id="set-as-active"
+                                                    type="checkbox" />
+                                                <label class="label" for="set-as-active">
+                                                    Set as active
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-6 flex justify-end gap-3">
+                                <a class="btn btn-sm btn-ghost" href="./apps-ecommerce-shops.html">
+                                    <span class="iconify lucide--x size-4"></span>
+                                    Cancel
+                                </a>
+                                <a
+                                    class="btn btn-sm btn-primary"
+                                    href="./apps-ecommerce-shops.html">
+                                    <span class="iconify lucide--arrow-up-from-line size-4"></span>
+                                    Update
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--  End: Layout - Content -->
+                    <load src="partials/footer.html" />
+                </div>
+            </div>
+
+            <load src="partials/rightbar.html" />
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

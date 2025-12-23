@@ -1,0 +1,30 @@
+<form
+    x-data="useSelectFormValidator()"
+    x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+    novalidate
+    class="space-y-3">
+    <div class="space-y-1.5">
+        <div class="flex items-center justify-between gap-2">
+            <label class="label text-sm font-medium" for="requiredSelect">Select</label>
+            <p class="text-base-content/60 text-end text-xs">* Required</p>
+        </div>
+        <select
+            name="requiredSelect"
+            id="requiredSelect"
+            @change="updateData('requiredSelect', $event.target.value)"
+            :data-error="hasError('requiredSelect')"
+            class="select data-error:select-error w-full">
+            <option value="" selected="">Select Country</option>
+            <option value="india">India</option>
+            <option value="usa">USA</option>
+            <option value="germany">Germany</option>
+        </select>
+        <p
+            :data-error="hasError('requiredSelect')"
+            class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+            x-text="getError('requiredSelect')"></p>
+    </div>
+    <div class="text-end">
+        <button type="submit" class="btn btn-sm">Submit</button>
+    </div>
+</form>

@@ -1,0 +1,125 @@
+<div x-data="useColumnVisibilityTable()">
+    <div class="border-base-200 flex justify-end border-b border-dashed p-5">
+        <div class="dropdown dropdown-bottom dropdown-end">
+            <div tabindex="0" role="button" class="btn btn-outline btn-sm border-base-300">
+                <span class="iconify lucide--columns-3-cog size-4"></span>
+                Columns
+            </div>
+
+            <div tabindex="0" class="dropdown-content bg-base-100 rounded-box w-44 shadow">
+                <ul class="menu w-full">
+                    <template x-for="column in allLeafColumns" :key="column.id">
+                        <li @click="toggleColumn(column)">
+                            <div
+                                class="group gap-2.5"
+                                :data-visible="isColumnVisible(column) ? true : null">
+                                <span
+                                    class="iconify lucide--check size-4 scale-50 opacity-0 transition-all duration-300 group-data-visible:scale-100 group-data-visible:opacity-100"></span>
+
+                                <span class="font-medium" x-text="column.columnDef.header"></span>
+                            </div>
+                        </li>
+                    </template>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="table">
+            <thead>
+                <template x-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                    <tr>
+                        <template x-for="header in headerGroup.headers" :key="header.id">
+                            <th
+                                x-show="!header.isPlaceholder"
+                                x-text="flexRender(header.column.columnDef.header, header.getContext())"></th>
+                        </template>
+                    </tr>
+                </template>
+            </thead>
+            <tbody>
+                <template x-if="!visibleRows.length">
+                    <tr>
+                        <td :colspan="columns.length" class="h-24 text-center">No results.</td>
+                    </tr>
+                </template>
+                <template x-if="visibleRows.length">
+                    <template x-for="row in visibleRows" :key="row.id">
+                        <tr>
+                            <template x-for="cell in getVisibleCells(row)" :key="cell.id">
+                                <td>
+                                    <template x-if="cell.column.id === 'customerName'">
+                                        <div class="flex items-center gap-2">
+                                            <div class="avatar">
+                                                <div
+                                                    class="mask mask-squircle bg-base-200 h-9 w-9 px-0.5 pt-0.5">
+                                                    <img
+                                                        :src="cell.row.original.avatar"
+                                                        alt="Avatar" />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <p
+                                                    class="leading-none font-medium"
+                                                    x-text="cell.row.original.customerName"></p>
+                                                <p
+                                                    class="text-base-content/70 mt-0.5 text-xs/none"
+                                                    x-text="cell.row.original.email"></p>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <template x-if="cell.column.id === 'id'">
+                                        <span
+                                            class="text-base-content/70 font-mono text-xs uppercase"
+                                            x-text="'#' + cell.row.original.id"></span>
+                                    </template>
+
+                                    <template x-if="cell.column.id === 'status'">
+                                        <span
+                                            :class="{
+                  'badge badge-success badge-sm badge-soft': cell.row.original.status === 'success',
+                  'badge badge-info badge-sm badge-soft': cell.row.original.status === 'processing',
+                  'badge badge-error badge-sm badge-soft': cell.row.original.status === 'failed',
+                  'badge badge-ghost badge-sm': ['pending', null, undefined].includes(cell.row.original.status)
+                }"
+                                            x-text="cell.row.original.status.charAt(0).toUpperCase() + cell.row.original.status.slice(1)"></span>
+                                    </template>
+
+                                    <template x-if="cell.column.id === 'dateTime'">
+                                        <p class="space-x-1 whitespace-nowrap">
+                                            <span
+                                                x-text="new Date(cell.row.original.dateTime).toLocaleDateString('en-US', {
+                      day: 'numeric', month: 'short', year: '2-digit'
+                    })"></span>
+                                            <span
+                                                class="text-base-content/60 text-xs"
+                                                x-text="new Date(cell.row.original.dateTime).toLocaleTimeString([], {
+                        hour: '2-digit', minute: '2-digit'
+                      })"></span>
+                                        </p>
+                                    </template>
+
+                                    <template x-if="cell.column.id === 'amount'">
+                                        <span
+                                            class="text-base font-medium"
+                                            x-text="'\$ '+cell.row.original.amount"></span>
+                                    </template>
+
+                                    <template
+                                        x-if="!
+              ['id', 'customerName', 'status', 'dateTime', 'amount'].includes(cell.column.id)">
+                                        <span
+                                            x-html="cell.column.columnDef.cell
+                ? cell.column.columnDef.cell(cell.getContext())
+                : cell.getValue()"></span>
+                                    </template>
+                                </td>
+                            </template>
+                        </tr>
+                    </template>
+                </template>
+            </tbody>
+        </table>
+    </div>
+</div>

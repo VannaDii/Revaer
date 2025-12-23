@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <load src="partials/components-layout/sidebar.html" />
+
+                <div id="components-layout-main">
+                    <load src="partials/components-layout/topbar.html" />
+
+                    <div id="components-layout-content">
+                        <div class="flex flex-col items-center justify-center space-y-0.5">
+                            <div
+                                class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                <div class="status status-sm bg-base-content/30"></div>
+                                Layouts
+                            </div>
+                            <p
+                                class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                Sidebar
+                            </p>
+                            <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                Custom sidebar layouts with icons, project menus, docs view, and
+                                background styling options
+                            </p>
+                        </div>
+                        <div
+                            class="bg-base-200/40 rounded-box mt-6 flex items-center gap-3 px-5 py-4 lg:mt-12">
+                            <span class="iconify lucide--info text-base-content/70 size-4.5"></span>
+                            <p>
+                                <span class="me-1">Play with layouts using</span>
+                                <a target="_blank" class="text-primary" href="/layout-builder">
+                                    Layout Builder
+                                </a>
+                            </p>
+                        </div>
+                        <p class="text-base-content/60 mt-6 font-medium">Demos</p>
+                        <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2 xl:gap-8">
+                            <div class="card bg-base-100 card-border overflow-hidden">
+                                <div class="bg-base-200/30 px-5 py-3 font-medium">Ecommerce</div>
+                                <div class="flex items-center justify-center p-6 md:p-8">
+                                    <div
+                                        class="border-base-200 rounded-box h-full min-h-[85vh] w-64 border shadow-xs">
+                                        <load src="partials/layouts/sidebar/ecommerce.html" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card bg-base-100 card-border overflow-hidden">
+                                <div class="bg-base-200/30 px-5 py-3 font-medium">Payment</div>
+                                <div class="flex items-center justify-center p-6 md:p-8">
+                                    <div
+                                        class="border-base-200 rounded-box h-full min-h-[85vh] w-64 border shadow-xs">
+                                        <load src="partials/layouts/sidebar/payment.html" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card bg-base-100 card-border overflow-hidden">
+                                <div class="bg-base-200/30 px-5 py-3 font-medium">Project</div>
+                                <div class="flex items-center justify-center p-6 md:p-8">
+                                    <div
+                                        class="border-base-200 rounded-box h-full min-h-[85vh] w-64 border shadow-xs">
+                                        <load src="partials/layouts/sidebar/project.html" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card bg-base-100 card-border overflow-hidden">
+                                <div class="bg-base-200/30 px-5 py-3 font-medium">Chat</div>
+                                <div class="flex items-center justify-center p-6 md:p-8">
+                                    <div
+                                        class="border-base-200 rounded-box h-full min-h-[85vh] w-64 border shadow-xs">
+                                        <load src="partials/layouts/sidebar/chat.html" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="card bg-base-100 card-border overflow-hidden">
+                                <div class="bg-base-200/30 px-5 py-3 font-medium">Huge Icons</div>
+                                <div class="flex items-center justify-center p-6 md:p-8">
+                                    <div
+                                        class="border-base-200 rounded-box h-full min-h-[85vh] w-64 border shadow-xs">
+                                        <load src="partials/layouts/sidebar/huge-icons.html" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card bg-base-100 card-border overflow-hidden">
+                                <div class="bg-base-200/30 px-5 py-3 font-medium">Remix Icons</div>
+                                <div class="flex items-center justify-center p-6 md:p-8">
+                                    <div
+                                        class="border-base-200 rounded-box h-full min-h-[85vh] w-64 border shadow-xs">
+                                        <load src="partials/layouts/sidebar/remix-icons.html" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card bg-base-100 card-border overflow-hidden">
+                                <div class="bg-base-200/30 px-5 py-3 font-medium">
+                                    Documentation
+                                </div>
+                                <div class="flex items-center justify-center p-6 md:p-8">
+                                    <div
+                                        class="border-base-200 rounded-box h-full min-h-[85vh] w-64 border shadow-xs">
+                                        <load src="partials/layouts/sidebar/documentation.html" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card bg-base-100 card-border overflow-hidden">
+                                <div class="bg-base-200/30 px-5 py-3 font-medium">
+                                    Custom Background
+                                </div>
+                                <div class="flex items-center justify-center p-6 md:p-8">
+                                    <div
+                                        class="rounded-box h-full min-h-[85vh] w-64 overflow-hidden">
+                                        <load
+                                            src="partials/layouts/sidebar/custom-background.html" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <load src="partials/components-layout/footer.html" />
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

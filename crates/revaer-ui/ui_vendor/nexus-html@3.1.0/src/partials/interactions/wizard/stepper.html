@@ -1,0 +1,241 @@
+<div
+    x-data="{
+    step: 1,
+    totalSteps: 4,
+    get canPrevious() { return this.step > 1 },
+    get canNext() { return this.step < this.totalSteps },
+    get isLastStep() { return this.step === this.totalSteps },
+    goNext() { if (this.canNext) this.step++ },
+    goPrevious() { if (this.canPrevious) this.step-- },
+    goTo(n) {
+      this.step = Math.max(1, Math.min(this.totalSteps, n))
+    },
+    steps: ['Personal Details', 'Account Settings', 'Permissions', 'Review']
+
+}">
+    <div class="mt-2 flex items-center gap-3 text-sm">
+        <template x-for="n in totalSteps">
+            <div class="flex items-center gap-3">
+                <div
+                    class="text-base-content/80 hover:text-base-content flex cursor-pointer items-center gap-2"
+                    @click="goTo(n)">
+                    <div
+                        class="flex size-6 items-center justify-center rounded-full font-medium"
+                        :class="{
+              'bg-primary text-white': n < step,
+              'bg-base-200': n >= step
+            }">
+                        <span class="iconify lucide--check" x-show="n < step"></span>
+                        <span x-show="n >= step" x-text="n"></span>
+                    </div>
+                    <span class="font-medium max-lg:hidden" x-text="steps[n-1]"></span>
+                </div>
+                <span
+                    class="iconify lucide--chevron-right text-base-content/60"
+                    x-show="n < totalSteps"></span>
+            </div>
+        </template>
+    </div>
+    <div class="bg-base-100 border-base-300 rounded-box mt-6 border p-5">
+        <div x-show="step === 1">
+            <div class="">
+                <div class="bg-base-200 rounded-box flex w-fit items-center gap-2.5 px-3 py-1.5">
+                    <span class="iconify lucide--user size-3.5"></span>
+                    <span class="text-sm font-medium">Personal Details</span>
+                </div>
+                <div class="fieldset mt-4 grid grow grid-cols-1 gap-5 lg:grid-cols-2">
+                    <div class="space-y-2">
+                        <label class="fieldset-label" for="name">Full Name</label>
+                        <label class="input w-full">
+                            <span class="iconify lucide--user text-base-content/60 size-4.5"></span>
+                            <input
+                                type="text"
+                                class="grow"
+                                placeholder="Name"
+                                id="name"
+                                value="Denish Navadiya" />
+                        </label>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="fieldset-label">User</label>
+                        <label class="input w-full">
+                            <span class="label">nexus.com/</span>
+                            <input placeholder="username" type="text" value="withden" />
+                        </label>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="fieldset-label" for="email">Email</label>
+                        <label class="input w-full">
+                            <span class="iconify lucide--mail text-base-content/60 size-4.5"></span>
+                            <input
+                                type="text"
+                                class="grow"
+                                placeholder="Email"
+                                id="email"
+                                value="test@gmail.com" />
+                        </label>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="fieldset-label" for="mobile">Mobile</label>
+                        <label class="input w-full">
+                            <span
+                                class="iconify lucide--phone text-base-content/60 size-4.5"></span>
+                            <input
+                                type="text"
+                                class="grow"
+                                placeholder="Mobile"
+                                id="mobile"
+                                value="(+123) 9876543210" />
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div x-show="step === 2">
+            <div class="">
+                <div class="bg-base-200 rounded-box flex w-fit items-center gap-2.5 px-3 py-1.5">
+                    <span class="iconify lucide--settings-2 size-3.5"></span>
+                    <span class="text-sm font-medium">Account Settings</span>
+                </div>
+                <div class="fieldset mt-4 grid grow grid-cols-1 gap-5 lg:grid-cols-2">
+                    <div class="space-y-2">
+                        <label class="fieldset-label" for="password">Password</label>
+                        <label class="input w-full">
+                            <span class="iconify lucide--lock text-base-content/60 size-4.5"></span>
+                            <input
+                                type="password"
+                                class="grow"
+                                placeholder="••••••••"
+                                id="password"
+                                value="" />
+                        </label>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="fieldset-label" for="confirm-password">
+                            Confirm Password
+                        </label>
+                        <label class="input w-full">
+                            <span class="iconify lucide--lock text-base-content/60 size-4.5"></span>
+                            <input
+                                type="password"
+                                class="grow"
+                                placeholder="••••••••"
+                                id="confirm-password"
+                                value="" />
+                        </label>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="fieldset-label" for="language">Language</label>
+                        <select class="select w-full" aria-label="Language" id="language">
+                            <option value="english" selected>English</option>
+                            <option value="spanish">Spanish</option>
+                            <option value="german">German</option>
+                            <option value="hindi">Hindi</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="fieldset-label" for="timezone">Timezone</label>
+                        <select class="select w-full" aria-label="Timezone" id="timezone">
+                            <option value="UTC">UTC</option>
+                            <option value="IST" selected>IST</option>
+                            <option value="PST">PST</option>
+                            <option value="CET">CET</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div x-show="step === 3">
+            <div class="">
+                <div class="bg-base-200 rounded-box flex w-fit items-center gap-2.5 px-3 py-1.5">
+                    <span class="iconify lucide--shield-check size-3.5"></span>
+                    <span class="text-sm font-medium">Permissions</span>
+                </div>
+                <div class="fieldset mt-4 grid grid-cols-1 gap-5 lg:grid-cols-2">
+                    <div class="space-y-2">
+                        <label class="fieldset-label" for="user-role">Role</label>
+                        <select class="select w-full" aria-label="User Role" id="user-role">
+                            <option value="admin">Admin</option>
+                            <option value="editor">Editor</option>
+                            <option value="viewer" selected>Viewer</option>
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="fieldset-label" for="feature-access">Feature Access</label>
+                        <select
+                            class="select w-full"
+                            aria-label="Feature Access"
+                            id="feature-access">
+                            <option value="full">Full Access</option>
+                            <option value="limited" selected>Limited Access</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="fieldset-label" for="api-access">API Access</label>
+                        <select class="select w-full" aria-label="API Access" id="api-access">
+                            <option value="enabled" selected>Enabled</option>
+                            <option value="disabled">Disabled</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div x-show="step === 4">
+            <div class="bg-base-100 rounded-box">
+                <div class="bg-base-200 rounded-box flex w-fit items-center gap-2.5 px-3 py-1.5">
+                    <span class="iconify lucide--check-circle-2 size-3.5"></span>
+                    <span class="text-sm font-medium">Review Details</span>
+                </div>
+
+                <div class="mt-5 space-y-3.5 text-sm">
+                    <div class="flex">
+                        <span class="w-40 font-medium">Username:</span>
+                        <span class="text-base-content/80">withden</span>
+                    </div>
+                    <div class="flex">
+                        <span class="w-40 font-medium">Full Name:</span>
+                        <span class="text-base-content/80">Denish Navadiya</span>
+                    </div>
+                    <div class="flex">
+                        <span class="w-40 font-medium">Email:</span>
+                        <span class="text-base-content/80">test@gmail.com</span>
+                    </div>
+                    <div class="flex">
+                        <span class="w-40 font-medium">Account Settings:</span>
+                        <span class="text-base-content/80">Normal</span>
+                    </div>
+                    <div class="flex">
+                        <span class="w-40 font-medium">Permission:</span>
+                        <span class="text-base-content/80">User-level</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="mt-4 flex justify-between">
+        <button class="btn" @click="goPrevious()" :disabled="!canPrevious">
+            <span class="iconify lucide--chevron-left size-4"></span>
+            <span>Prev</span>
+        </button>
+
+        <template x-if="isLastStep">
+            <button class="btn btn-primary ms-auto">
+                <span class="iconify lucide--flag size-4"></span>
+                <span>Finish</span>
+            </button>
+        </template>
+
+        <template x-if="!isLastStep">
+            <button class="btn ms-auto" @click="goNext()" :disabled="!canNext">
+                <span>Next</span>
+                <span class="iconify lucide--chevron-right size-4"></span>
+            </button>
+        </template>
+    </div>
+</div>

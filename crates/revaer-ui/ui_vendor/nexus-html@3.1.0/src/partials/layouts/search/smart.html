@@ -1,0 +1,116 @@
+<button
+    role="button"
+    class="btn btn-circle btn-soft"
+    aria-label="Notifications"
+    onclick="document.getElementById('search-modal-demo-3').showModal()">
+    <span class="iconify lucide--search size-5"></span>
+</button>
+
+<dialog id="search-modal-demo-3" class="modal p-0">
+    <div class="modal-box p-0">
+        <div class="input border-base-300 w-full rounded-none border-0 border-b">
+            <span class="iconify lucide--search text-base-content/60 size-4.5"></span>
+            <input class="grow" placeholder="Search" aria-label="Search" type="search" />
+            <form method="dialog">
+                <button class="btn btn-xs btn-circle btn-ghost" aria-label="Close">
+                    <span class="iconify lucide--x text-base-content/80 size-4"></span>
+                </button>
+            </form>
+        </div>
+        <ul class="menu w-full space-y-1.5 pt-1">
+            <li class="menu-title pb-0">Search Results</li>
+            <li>
+                <div class="flex items-start gap-3">
+                    <div
+                        class="border-base-300 rounded-box flex items-center justify-center border p-1.5">
+                        <span class="iconify lucide--sparkles size-5"></span>
+                    </div>
+                    <div class="grow">
+                        <p class="leading-none font-medium">Generate Text</p>
+                        <p class="mt-1 text-sm/none opacity-80">
+                            Create content with natural language prompts.
+                        </p>
+                    </div>
+                </div>
+            </li>
+            <li>
+                <div class="flex items-start gap-3">
+                    <div
+                        class="border-base-300 rounded-box flex items-center justify-center border p-1.5">
+                        <span class="iconify lucide--image size-5"></span>
+                    </div>
+                    <div class="grow">
+                        <p class="leading-none font-medium">Create Image</p>
+                        <p class="mt-1 text-sm/none opacity-80">
+                            Turn your ideas into visual content instantly.
+                        </p>
+                    </div>
+                </div>
+            </li>
+        </ul>
+        <hr class="border-base-300 h-px border-dashed" />
+        <ul class="menu w-full space-y-1.5 pt-1">
+            <li class="menu-title pb-0">Quick Links</li>
+            <li>
+                <div class="flex items-start gap-3">
+                    <div
+                        class="border-base-300 rounded-box flex items-center justify-center border p-1.5">
+                        <span class="iconify lucide--bot size-5"></span>
+                    </div>
+                    <div class="grow">
+                        <p class="leading-none font-medium">Assistant</p>
+                        <p class="mt-1 text-sm/none opacity-80">
+                            Ask questions or get task suggestions fast.
+                        </p>
+                    </div>
+                </div>
+            </li>
+            <li>
+                <div class="flex items-start gap-3">
+                    <div
+                        class="border-base-300 rounded-box flex items-center justify-center border p-1.5">
+                        <span class="iconify lucide--clipboard-list size-5"></span>
+                    </div>
+                    <div class="grow">
+                        <p class="leading-none font-medium">My Tasks</p>
+                        <p class="mt-1 text-sm/none opacity-80">
+                            View and manage your recent work items.
+                        </p>
+                    </div>
+                </div>
+            </li>
+            <li>
+                <div class="flex items-start gap-3">
+                    <div
+                        class="border-base-300 rounded-box flex items-center justify-center border p-1.5">
+                        <span class="iconify lucide--bar-chart-3 size-5"></span>
+                    </div>
+                    <div class="grow">
+                        <p class="leading-none font-medium">Insights</p>
+                        <p class="mt-1 text-sm/none opacity-80">
+                            Review usage data, stats, and summaries.
+                        </p>
+                    </div>
+                </div>
+            </li>
+            <li>
+                <div class="flex items-start gap-3">
+                    <div
+                        class="border-base-300 rounded-box flex items-center justify-center border p-1.5">
+                        <span class="iconify lucide--settings size-5"></span>
+                    </div>
+                    <div class="grow">
+                        <p class="leading-none font-medium">Settings</p>
+                        <p class="mt-1 text-sm/none opacity-80">
+                            Update preferences, limits, and profile data.
+                        </p>
+                    </div>
+                </div>
+            </li>
+        </ul>
+        <div class="mt-1 mb-3 flex items-center justify-center">
+            <button class="btn btn-soft btn-sm btn-primary">Expand results</button>
+        </div>
+    </div>
+    <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>

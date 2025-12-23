@@ -1,0 +1,49 @@
+<div class="flex h-full w-full items-center justify-between gap-4 px-4">
+    <div class="flex items-center gap-3">
+        <label
+            class="btn btn-square btn-ghost btn-sm group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:hidden"
+            aria-label="Toggle sidebar"
+            for="layout-sidebar-toggle-trigger">
+            <span class="iconify lucide--menu size-5"></span>
+        </label>
+        <label
+            class="btn btn-square btn-ghost btn-sm hidden group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:flex"
+            aria-label="Leftmenu toggle"
+            for="layout-sidebar-hover-trigger">
+            <span class="iconify lucide--menu size-5"></span>
+        </label>
+        <div>
+            <p class="text-lg/none font-medium">Design Draft</p>
+            <div class="text-base-content/60 mt-0.5 flex items-center gap-1.5 max-sm:hidden">
+                <p class="text-sm">Projects</p>
+                <span class="iconify lucide--chevron-right size-3.5"></span>
+                <p class="text-base-content text-sm font-medium">Client</p>
+            </div>
+        </div>
+    </div>
+    <div
+        class="btn btn-outline border-base-300 btn-sm max-sm:btn-square w-56 gap-2 max-sm:ms-auto sm:justify-start">
+        <span class="iconify lucide--search size-3.5"></span>
+        <p class="text-base-content/60 text-sm font-normal max-sm:hidden">Search or jump to...</p>
+    </div>
+    <div class="flex items-center gap-3">
+        <div class="flex items-center gap-3 max-md:hidden">
+            <p class="text-base-content/60 text-sm">Saved just now</p>
+            <div class="avatar-group -space-x-3.5 *:border-2">
+                <div class="avatar bg-base-200 size-9 overflow-hidden rounded-full px-1 pt-1">
+                    <img alt="Avatar" src="/images/avatars/1.png" />
+                </div>
+                <div class="avatar bg-base-200 size-9 overflow-hidden rounded-full px-1 pt-1">
+                    <img alt="Avatar" src="/images/avatars/2.png" />
+                </div>
+                <div class="avatar bg-base-200 size-9 overflow-hidden rounded-full px-1 pt-1">
+                    <img alt="Avatar" src="/images/avatars/3.png" />
+                </div>
+            </div>
+        </div>
+        <button class="btn btn-outline border-base-300 btn-sm">
+            <span class="iconify lucide--pen size-3"></span>
+            Edit
+        </button>
+    </div>
+</div>

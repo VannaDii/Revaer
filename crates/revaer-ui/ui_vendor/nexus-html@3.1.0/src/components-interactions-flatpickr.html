@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <load src="partials/components-layout/sidebar.html" />
+
+                <div id="components-layout-main">
+                    <load src="partials/components-layout/topbar.html" />
+
+                    <div id="components-layout-content">
+                        <div class="flex flex-col items-center justify-center space-y-0.5">
+                            <div
+                                class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                <div class="status status-sm bg-base-content/30"></div>
+                                Interactions
+                            </div>
+                            <p
+                                class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                Flatpickr
+                            </p>
+                            <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                Feature-rich calendar with date, time, range, plugins, and full
+                                localization support.
+                            </p>
+                        </div>
+
+                        <div class="bg-base-200/40 rounded-box mt-6 px-5 py-4 lg:mt-12">
+                            <p class="text-base-content/60 font-medium">Usage guidelines</p>
+                            <p class="mt-1">
+                                <span class="me-1">- Plugin Documentation:</span>
+                                <a
+                                    href="https://flatpickr.js.org/"
+                                    target="_blank"
+                                    class="text-primary">
+                                    Flatpickr
+                                </a>
+                            </p>
+                        </div>
+                        <p class="text-base-content/60 mt-6 font-medium">Demos</p>
+                        <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Date
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="date-flatpickr-demo" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Disabled
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="disabled-flatpickr-demo"
+                                        disabled />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Time (AM/PM)
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="time-flatpickr-demo" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Time (24 Hours)
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="time-24-flatpickr-demo" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Date Time
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="date-time-flatpickr-demo" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Human Friendly
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="human-friendly-flatpickr-demo" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Controls
+                                </div>
+                                <div class="p-5">
+                                    <div class="join" id="controls-flatpickr-demo">
+                                        <input
+                                            aria-label="Date picker"
+                                            class="input join-item max-w-48"
+                                            data-input />
+                                        <button
+                                            class="btn btn-outline border-base-300 btn-square join-item"
+                                            data-toggle>
+                                            <span class="iconify lucide--calendar size-4"></span>
+                                        </button>
+                                        <button
+                                            class="btn btn-outline border-base-300 btn-square join-item btn-error"
+                                            data-clear>
+                                            <span class="iconify lucide--x size-4"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="text-base-content/70 mt-6 font-medium">Inline</p>
+                        <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Inline
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="inline-flatpickr-demo" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Min max
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="min-max-flatpickr-demo" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Enabled Dates
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="enabled-dates-flatpickr-demo" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Disabled Dates
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="disabled-dates-flatpickr-demo" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Multiple
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="multiple-flatpickr-demo" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Range
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="range-flatpickr-demo" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Week Number
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="week-number-flatpickr-demo" />
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-base-content/70 mt-6 font-medium">Plugins</p>
+                        <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Range
+                                </div>
+                                <div class="p-5">
+                                    <div class="join">
+                                        <input
+                                            aria-label="Date picker"
+                                            class="input join-item max-w-32"
+                                            id="range-plugin-flatpickr-demo-1" />
+                                        <div
+                                            class="border-base-300 join-item bg-base-200 text-base-content/80 flex items-center border px-3 font-medium">
+                                            to
+                                        </div>
+                                        <input
+                                            aria-label="Date picker"
+                                            class="input join-item max-w-32"
+                                            id="range-plugin-flatpickr-demo-2" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Confirm
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="confirm-plugin-flatpickr-demo" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Week
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="week-plugin-flatpickr-demo" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Month
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="month-plugin-flatpickr-demo" />
+                                </div>
+                            </div>
+                        </div>
+                        <p class="text-base-content/70 mt-6 font-medium">Localization (Demo)</p>
+                        <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Hindi
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="hindi-locale-flatpickr-demo" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Mandarin
+                                </div>
+                                <div class="p-5">
+                                    <input
+                                        aria-label="Date picker"
+                                        class="input max-w-56"
+                                        id="mandarin-flatpickr-demo" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <load src="partials/components-layout/footer.html" />
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+
+        <!-- CDN for Flatpickr -->
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css" />
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.css" />
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/style.css" />
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/monthSelect.css" />
+        <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+        <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/confirmDate/confirmDate.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/weekSelect/weekSelect.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/rangePlugin.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/plugins/monthSelect/index.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/hi.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/zh.js"></script>
+        <script src="/js/components/flatpickr.js"></script>
+    </body>
+</html>

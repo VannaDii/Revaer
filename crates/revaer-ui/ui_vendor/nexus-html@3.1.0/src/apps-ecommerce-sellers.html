@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div class="size-full">
+            <div class="flex">
+                <load src="partials/sidebar.html" />
+
+                <div class="flex h-screen min-w-0 grow flex-col overflow-auto">
+                    <load src="partials/topbar.html" />
+
+                    <!--  Start: Layout - Content -->
+
+                    <div id="layout-content">
+                        <div class="flex items-center justify-between">
+                            <p class="text-lg font-medium">Sellers</p>
+                            <div class="breadcrumbs hidden p-0 text-sm sm:inline">
+                                <ul>
+                                    <li><a href="./dashboards-ecommerce.html">Nexus</a></li>
+                                    <li>Ecommerce</li>
+                                    <li class="opacity-80">Sellers</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <div class="card bg-base-100 shadow">
+                                <div class="card-body p-0">
+                                    <div class="flex items-center justify-between px-5 pt-5">
+                                        <div class="inline-flex items-center gap-3">
+                                            <label class="input input-sm">
+                                                <span
+                                                    class="iconify lucide--search text-base-content/80 size-3.5"></span>
+                                                <input
+                                                    class="w-24 sm:w-36"
+                                                    placeholder="Search along sellers"
+                                                    aria-label="Search sellers"
+                                                    type="search" />
+                                            </label>
+                                            <div class="hidden sm:block">
+                                                <select
+                                                    class="select select-sm w-40"
+                                                    aria-label="Verification status">
+                                                    <option value="" disabled="" selected="">
+                                                        Verification Status
+                                                    </option>
+                                                    <option>Verified</option>
+                                                    <option>Unverified</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="inline-flex items-center gap-3">
+                                            <a
+                                                aria-label="Create seller link"
+                                                class="btn btn-primary btn-sm max-sm:btn-square"
+                                                href="./apps-ecommerce-sellers-create.html">
+                                                <span class="iconify lucide--plus size-4"></span>
+                                                <span class="hidden sm:inline">New Seller</span>
+                                            </a>
+                                            <div class="dropdown dropdown-bottom dropdown-end">
+                                                <div
+                                                    tabindex="0"
+                                                    role="button"
+                                                    class="btn btn-ghost border-base-300 btn-sm btn-square"
+                                                    aria-label="More option">
+                                                    <span
+                                                        class="iconify lucide--settings-2 size-4"></span>
+                                                </div>
+                                                <div
+                                                    tabindex="0"
+                                                    class="dropdown-content bg-base-100 rounded-box z-1 w-52 shadow">
+                                                    <ul class="menu w-full p-2">
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--wand size-4"></span>
+                                                                Bulk Actions
+                                                            </div>
+                                                        </li>
+                                                    </ul>
+                                                    <hr class="border-base-300" />
+                                                    <ul class="menu w-full p-2">
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--download-cloud size-4"></span>
+                                                                Import from Store
+                                                            </div>
+                                                        </li>
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--copy-plus size-4"></span>
+                                                                Create from Existing
+                                                            </div>
+                                                        </li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4 overflow-auto">
+                                        <table class="table">
+                                            <thead>
+                                                <tr>
+                                                    <th>
+                                                        <input
+                                                            id="seller_check_all"
+                                                            aria-label="Check all"
+                                                            class="checkbox checkbox-sm"
+                                                            type="checkbox" />
+                                                    </th>
+                                                    <th>ID</th>
+                                                    <th>Name</th>
+                                                    <th>Shop</th>
+                                                    <th>Email</th>
+                                                    <th>Mobile</th>
+                                                    <th>Sales</th>
+                                                    <th>Earning</th>
+                                                    <th>Verified</th>
+                                                    <th>Joined Date</th>
+                                                    <th>Action</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            class="checkbox checkbox-sm"
+                                                            type="checkbox" />
+                                                    </th>
+                                                    <td class="font-medium">1</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                alt="Seller Image"
+                                                                class="mask mask-squircle bg-base-200 size-10"
+                                                                src="/images/avatars/9.png" />
+                                                            <div>
+                                                                <p class="font-medium">
+                                                                    Anthony S. Amaya
+                                                                </p>
+                                                                <p
+                                                                    class="text-base-content/60 text-xs capitalize">
+                                                                    male
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="font-medium">Urban Chic Boutique</td>
+                                                    <td>antho.am@yahoo.com</td>
+                                                    <td>402-788-1602</td>
+                                                    <td>20</td>
+                                                    <td class="text-sm font-medium">$350</td>
+                                                    <td>
+                                                        <span
+                                                            class="iconify lucide--badge-check text-success size-4.5"></span>
+                                                    </td>
+                                                    <td class="text-sm">29 Mar 2024</td>
+                                                    <td>
+                                                        <div class="inline-flex w-fit">
+                                                            <a
+                                                                aria-label="Edit seller link"
+                                                                class="btn btn-square btn-ghost btn-sm"
+                                                                href="./apps-ecommerce-sellers-edit.html">
+                                                                <span
+                                                                    class="iconify lucide--pencil text-base-content/80 size-4"></span>
+                                                            </a>
+                                                            <button
+                                                                aria-label="Dummy show seller"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye text-base-content/80 size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete seller"
+                                                                onclick="apps_seller_delete.showModal()"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            class="checkbox checkbox-sm"
+                                                            type="checkbox" />
+                                                    </th>
+                                                    <td class="font-medium">2</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                alt="Seller Image"
+                                                                class="mask mask-squircle bg-base-200 size-10"
+                                                                src="/images/avatars/10.png" />
+                                                            <div>
+                                                                <p class="font-medium">
+                                                                    Crystal R. Taylor
+                                                                </p>
+                                                                <p
+                                                                    class="text-base-content/60 text-xs capitalize">
+                                                                    female
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="font-medium">
+                                                        Whimsical Wares Emporium
+                                                    </td>
+                                                    <td>crystal_taylor@hotmail.com</td>
+                                                    <td>469-632-2611</td>
+                                                    <td>24</td>
+                                                    <td class="text-sm font-medium">$360</td>
+                                                    <td>
+                                                        <span
+                                                            class="iconify lucide--badge-x text-error size-4.5"></span>
+                                                    </td>
+                                                    <td class="text-sm">29 Apr 2024</td>
+                                                    <td>
+                                                        <div class="inline-flex w-fit">
+                                                            <a
+                                                                aria-label="Edit seller link"
+                                                                class="btn btn-square btn-ghost btn-sm"
+                                                                href="./apps-ecommerce-sellers-edit.html">
+                                                                <span
+                                                                    class="iconify lucide--pencil text-base-content/80 size-4"></span>
+                                                            </a>
+                                                            <button
+                                                                aria-label="Dummy show seller"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye text-base-content/80 size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete seller"
+                                                                onclick="apps_seller_delete.showModal()"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            class="checkbox checkbox-sm"
+                                                            type="checkbox" />
+                                                    </th>
+                                                    <td class="font-medium">3</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                alt="Seller Image"
+                                                                class="mask mask-squircle bg-base-200 size-10"
+                                                                src="/images/avatars/7.png" />
+                                                            <div>
+                                                                <p class="font-medium">
+                                                                    Jeremy M. Simon
+                                                                </p>
+                                                                <p
+                                                                    class="text-base-content/60 text-xs capitalize">
+                                                                    male
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="font-medium">Serene Styles Haven</td>
+                                                    <td>jer.sim@gmail.com</td>
+                                                    <td>207-538-1345</td>
+                                                    <td>34</td>
+                                                    <td class="text-sm font-medium">$574</td>
+                                                    <td>
+                                                        <span
+                                                            class="iconify lucide--badge-check text-success size-4.5"></span>
+                                                    </td>
+                                                    <td class="text-sm">29 Nov 2023</td>
+                                                    <td>
+                                                        <div class="inline-flex w-fit">
+                                                            <a
+                                                                aria-label="Edit seller link"
+                                                                class="btn btn-square btn-ghost btn-sm"
+                                                                href="./apps-ecommerce-sellers-edit.html">
+                                                                <span
+                                                                    class="iconify lucide--pencil text-base-content/80 size-4"></span>
+                                                            </a>
+                                                            <button
+                                                                aria-label="Dummy show seller"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye text-base-content/80 size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete seller"
+                                                                onclick="apps_seller_delete.showModal()"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            class="checkbox checkbox-sm"
+                                                            type="checkbox" />
+                                                    </th>
+                                                    <td class="font-medium">4</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                alt="Seller Image"
+                                                                class="mask mask-squircle bg-base-200 size-10"
+                                                                src="/images/avatars/8.png" />
+                                                            <div>
+                                                                <p class="font-medium">
+                                                                    Jane B. Bush
+                                                                </p>
+                                                                <p
+                                                                    class="text-base-content/60 text-xs capitalize">
+                                                                    female
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="font-medium">Posh Picks Boutique</td>
+                                                    <td>jane@bush.com</td>
+                                                    <td>612-326-9186</td>
+                                                    <td>54</td>
+                                                    <td class="text-sm font-medium">$487</td>
+                                                    <td>
+                                                        <span
+                                                            class="iconify lucide--badge-check text-success size-4.5"></span>
+                                                    </td>
+                                                    <td class="text-sm">29 Jan 2024</td>
+                                                    <td>
+                                                        <div class="inline-flex w-fit">
+                                                            <a
+                                                                aria-label="Edit seller link"
+                                                                class="btn btn-square btn-ghost btn-sm"
+                                                                href="./apps-ecommerce-sellers-edit.html">
+                                                                <span
+                                                                    class="iconify lucide--pencil text-base-content/80 size-4"></span>
+                                                            </a>
+                                                            <button
+                                                                aria-label="Dummy show seller"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye text-base-content/80 size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete seller"
+                                                                onclick="apps_seller_delete.showModal()"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            class="checkbox checkbox-sm"
+                                                            type="checkbox" />
+                                                    </th>
+                                                    <td class="font-medium">5</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                alt="Seller Image"
+                                                                class="mask mask-squircle bg-base-200 size-10"
+                                                                src="/images/avatars/5.png" />
+                                                            <div>
+                                                                <p class="font-medium">
+                                                                    Francis A. Bisson
+                                                                </p>
+                                                                <p
+                                                                    class="text-base-content/60 text-xs capitalize">
+                                                                    male
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="font-medium">Blissful Finds Co.</td>
+                                                    <td>francis.biss@outlook.com</td>
+                                                    <td>317-949-1232</td>
+                                                    <td>67</td>
+                                                    <td class="text-sm font-medium">$784</td>
+                                                    <td>
+                                                        <span
+                                                            class="iconify lucide--badge-check text-success size-4.5"></span>
+                                                    </td>
+                                                    <td class="text-sm">29 Dec 2023</td>
+                                                    <td>
+                                                        <div class="inline-flex w-fit">
+                                                            <a
+                                                                aria-label="Edit seller link"
+                                                                class="btn btn-square btn-ghost btn-sm"
+                                                                href="./apps-ecommerce-sellers-edit.html">
+                                                                <span
+                                                                    class="iconify lucide--pencil text-base-content/80 size-4"></span>
+                                                            </a>
+                                                            <button
+                                                                aria-label="Dummy show seller"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye text-base-content/80 size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete seller"
+                                                                onclick="apps_seller_delete.showModal()"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            class="checkbox checkbox-sm"
+                                                            type="checkbox" />
+                                                    </th>
+                                                    <td class="font-medium">6</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                alt="Seller Image"
+                                                                class="mask mask-squircle bg-base-200 size-10"
+                                                                src="/images/avatars/6.png" />
+                                                            <div>
+                                                                <p class="font-medium">
+                                                                    Lydia P. Barnett
+                                                                </p>
+                                                                <p
+                                                                    class="text-base-content/60 text-xs capitalize">
+                                                                    female
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="font-medium">
+                                                        Trendy Threads Emporium
+                                                    </td>
+                                                    <td>lydia.p@mail.com</td>
+                                                    <td>936-895-2100</td>
+                                                    <td>74</td>
+                                                    <td class="text-sm font-medium">$657</td>
+                                                    <td>
+                                                        <span
+                                                            class="iconify lucide--badge-x text-error size-4.5"></span>
+                                                    </td>
+                                                    <td class="text-sm">29 Jun 2023</td>
+                                                    <td>
+                                                        <div class="inline-flex w-fit">
+                                                            <a
+                                                                aria-label="Edit seller link"
+                                                                class="btn btn-square btn-ghost btn-sm"
+                                                                href="./apps-ecommerce-sellers-edit.html">
+                                                                <span
+                                                                    class="iconify lucide--pencil text-base-content/80 size-4"></span>
+                                                            </a>
+                                                            <button
+                                                                aria-label="Dummy show seller"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye text-base-content/80 size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete seller"
+                                                                onclick="apps_seller_delete.showModal()"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            class="checkbox checkbox-sm"
+                                                            type="checkbox" />
+                                                    </th>
+                                                    <td class="font-medium">7</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                alt="Seller Image"
+                                                                class="mask mask-squircle bg-base-200 size-10"
+                                                                src="/images/avatars/3.png" />
+                                                            <div>
+                                                                <p class="font-medium">
+                                                                    John B. Lopez
+                                                                </p>
+                                                                <p
+                                                                    class="text-base-content/60 text-xs capitalize">
+                                                                    male
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="font-medium">Luxe Loft Creations</td>
+                                                    <td>john@lopez.com</td>
+                                                    <td>262-849-4319</td>
+                                                    <td>45</td>
+                                                    <td class="text-sm font-medium">$354</td>
+                                                    <td>
+                                                        <span
+                                                            class="iconify lucide--badge-check text-success size-4.5"></span>
+                                                    </td>
+                                                    <td class="text-sm">29 Jul 2023</td>
+                                                    <td>
+                                                        <div class="inline-flex w-fit">
+                                                            <a
+                                                                aria-label="Edit seller link"
+                                                                class="btn btn-square btn-ghost btn-sm"
+                                                                href="./apps-ecommerce-sellers-edit.html">
+                                                                <span
+                                                                    class="iconify lucide--pencil text-base-content/80 size-4"></span>
+                                                            </a>
+                                                            <button
+                                                                aria-label="Dummy show seller"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye text-base-content/80 size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete seller"
+                                                                onclick="apps_seller_delete.showModal()"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            class="checkbox checkbox-sm"
+                                                            type="checkbox" />
+                                                    </th>
+                                                    <td class="font-medium">8</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                alt="Seller Image"
+                                                                class="mask mask-squircle bg-base-200 size-10"
+                                                                src="/images/avatars/4.png" />
+                                                            <div>
+                                                                <p class="font-medium">
+                                                                    Detra M. Rogers
+                                                                </p>
+                                                                <p
+                                                                    class="text-base-content/60 text-xs capitalize">
+                                                                    female
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="font-medium">Vintage Vogue Hub</td>
+                                                    <td>detra@rogers.com</td>
+                                                    <td>847-452-0238</td>
+                                                    <td>21</td>
+                                                    <td class="text-sm font-medium">$352</td>
+                                                    <td>
+                                                        <span
+                                                            class="iconify lucide--badge-check text-success size-4.5"></span>
+                                                    </td>
+                                                    <td class="text-sm">29 Dec 2023</td>
+                                                    <td>
+                                                        <div class="inline-flex w-fit">
+                                                            <a
+                                                                aria-label="Edit seller link"
+                                                                class="btn btn-square btn-ghost btn-sm"
+                                                                href="./apps-ecommerce-sellers-edit.html">
+                                                                <span
+                                                                    class="iconify lucide--pencil text-base-content/80 size-4"></span>
+                                                            </a>
+                                                            <button
+                                                                aria-label="Dummy show seller"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye text-base-content/80 size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete seller"
+                                                                onclick="apps_seller_delete.showModal()"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            class="checkbox checkbox-sm"
+                                                            type="checkbox" />
+                                                    </th>
+                                                    <td class="font-medium">9</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                alt="Seller Image"
+                                                                class="mask mask-squircle bg-base-200 size-10"
+                                                                src="/images/avatars/1.png" />
+                                                            <div>
+                                                                <p class="font-medium">
+                                                                    Antonio D. Goss
+                                                                </p>
+                                                                <p
+                                                                    class="text-base-content/60 text-xs capitalize">
+                                                                    male
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="font-medium">
+                                                        Coastal Charm Marketplace
+                                                    </td>
+                                                    <td>goss@ant.com</td>
+                                                    <td>203-250-6265</td>
+                                                    <td>29</td>
+                                                    <td class="text-sm font-medium">$920</td>
+                                                    <td>
+                                                        <span
+                                                            class="iconify lucide--badge-x text-error size-4.5"></span>
+                                                    </td>
+                                                    <td class="text-sm">29 Apr 2023</td>
+                                                    <td>
+                                                        <div class="inline-flex w-fit">
+                                                            <a
+                                                                aria-label="Edit seller link"
+                                                                class="btn btn-square btn-ghost btn-sm"
+                                                                href="./apps-ecommerce-sellers-edit.html">
+                                                                <span
+                                                                    class="iconify lucide--pencil text-base-content/80 size-4"></span>
+                                                            </a>
+                                                            <button
+                                                                aria-label="Dummy show seller"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye text-base-content/80 size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete seller"
+                                                                onclick="apps_seller_delete.showModal()"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                                <tr
+                                                    class="hover:bg-base-200/40 cursor-pointer *:text-nowrap">
+                                                    <th>
+                                                        <input
+                                                            aria-label="Single check"
+                                                            class="checkbox checkbox-sm"
+                                                            type="checkbox" />
+                                                    </th>
+                                                    <td class="font-medium">10</td>
+                                                    <td>
+                                                        <div
+                                                            class="flex items-center space-x-3 truncate">
+                                                            <img
+                                                                alt="Seller Image"
+                                                                class="mask mask-squircle bg-base-200 size-10"
+                                                                src="/images/avatars/2.png" />
+                                                            <div>
+                                                                <p class="font-medium">
+                                                                    Brenda R. Holmes
+                                                                </p>
+                                                                <p
+                                                                    class="text-base-content/60 text-xs capitalize">
+                                                                    female
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td class="font-medium">
+                                                        Dapper Designs Depot
+                                                    </td>
+                                                    <td>brenda.holmes@mail.com</td>
+                                                    <td>325-480-1291</td>
+                                                    <td>67</td>
+                                                    <td class="text-sm font-medium">$874</td>
+                                                    <td>
+                                                        <span
+                                                            class="iconify lucide--badge-check text-success size-4.5"></span>
+                                                    </td>
+                                                    <td class="text-sm">29 Mar 2023</td>
+                                                    <td>
+                                                        <div class="inline-flex w-fit">
+                                                            <a
+                                                                aria-label="Edit seller link"
+                                                                class="btn btn-square btn-ghost btn-sm"
+                                                                href="./apps-ecommerce-sellers-edit.html">
+                                                                <span
+                                                                    class="iconify lucide--pencil text-base-content/80 size-4"></span>
+                                                            </a>
+                                                            <button
+                                                                aria-label="Dummy show seller"
+                                                                class="btn btn-square btn-ghost btn-sm">
+                                                                <span
+                                                                    class="iconify lucide--eye text-base-content/80 size-4"></span>
+                                                            </button>
+                                                            <button
+                                                                aria-label="Dummy delete seller"
+                                                                onclick="apps_seller_delete.showModal()"
+                                                                class="btn btn-square btn-error btn-outline btn-sm border-transparent">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div class="flex items-center justify-between p-6">
+                                        <div
+                                            class="text-base-content/80 hover:text-base-content flex gap-2 text-sm">
+                                            <span class="hidden sm:inline">Per page</span>
+                                            <select
+                                                class="select select-xs w-18"
+                                                aria-label="Per page">
+                                                <option value="10">10</option>
+                                                <option value="20" selected="">20</option>
+                                                <option value="50">50</option>
+                                                <option value="100">100</option>
+                                            </select>
+                                        </div>
+                                        <span class="text-base-content/80 hidden text-sm lg:inline">
+                                            Showing
+                                            <span class="text-base-content font-medium">
+                                                1 to 20
+                                            </span>
+                                            of 457 items
+                                        </span>
+                                        <div class="inline-flex items-center gap-1">
+                                            <button
+                                                class="btn btn-circle sm:btn-sm btn-xs btn-ghost"
+                                                aria-label="Prev">
+                                                <span class="iconify lucide--chevron-left"></span>
+                                            </button>
+                                            <button
+                                                class="btn btn-primary btn-circle sm:btn-sm btn-xs">
+                                                1
+                                            </button>
+                                            <button
+                                                class="btn btn-ghost btn-circle sm:btn-sm btn-xs">
+                                                2
+                                            </button>
+                                            <button
+                                                class="btn btn-ghost btn-circle sm:btn-sm btn-xs">
+                                                3
+                                            </button>
+                                            <button
+                                                class="btn btn-circle sm:btn-sm btn-xs btn-ghost"
+                                                aria-label="Next">
+                                                <span class="iconify lucide--chevron-right"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <dialog id="apps_seller_delete" class="modal">
+                                <div class="modal-box">
+                                    <div
+                                        class="flex items-center justify-between text-lg font-medium">
+                                        Confirm Delete
+                                        <form method="dialog">
+                                            <button
+                                                class="btn btn-sm btn-ghost btn-circle"
+                                                aria-label="Close modal">
+                                                <span class="iconify lucide--x size-4"></span>
+                                            </button>
+                                        </form>
+                                    </div>
+                                    <p class="py-4">
+                                        You are about to delete this seller. Would you like to
+                                        proceed further ?
+                                    </p>
+                                    <div class="modal-action">
+                                        <form method="dialog">
+                                            <button class="btn btn-ghost btn-sm">No</button>
+                                        </form>
+                                        <form method="dialog">
+                                            <button class="btn btn-sm btn-error">
+                                                Yes, delete it
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                                <form method="dialog" class="modal-backdrop">
+                                    <button>close</button>
+                                </form>
+                            </dialog>
+                        </div>
+                    </div>
+
+                    <!--  End: Layout - Content -->
+                    <load src="partials/footer.html" />
+                </div>
+            </div>
+
+            <load src="partials/rightbar.html" />
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

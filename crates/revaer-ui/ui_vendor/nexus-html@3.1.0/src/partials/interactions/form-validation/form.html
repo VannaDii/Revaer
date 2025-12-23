@@ -1,0 +1,129 @@
+<form x-data="useFormFormValidator()" x-on:submit="(e)=>{e.preventDefault();onSubmit()}" novalidate>
+    <div class="grid grid-cols-1 gap-5 xl:grid-cols-2 2xl:grid-cols-3">
+        <div class="flex flex-col gap-1">
+            <div class="flex items-center justify-between gap-2">
+                <label class="label text-sm font-medium" for="firstName">First Name</label>
+                <p class="text-base-content/60 text-end text-xs">* Required</p>
+            </div>
+            <label for="firstName" class="input data-error:input-error w-full">
+                <span class="iconify lucide--user size-4.5"></span>
+                <input
+                    id="firstName"
+                    type="text"
+                    placeholder="Den"
+                    name="firstName"
+                    @input="updateData('firstName', $event.target.value)"
+                    :data-error="hasError('firstName')" />
+            </label>
+            <p
+                :data-error="hasError('firstName')"
+                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                x-text="getError('firstName')"></p>
+        </div>
+        <div class="flex flex-col gap-1">
+            <div class="flex items-center justify-between gap-2">
+                <label class="label text-sm font-medium" for="lastName">Last Name</label>
+                <p class="text-base-content/60 text-end text-xs">* Required</p>
+            </div>
+            <label for="lastName" class="input data-error:input-error w-full">
+                <span class="iconify lucide--user size-4.5"></span>
+                <input
+                    id="lastName"
+                    type="text"
+                    placeholder="Navadiya"
+                    name="lastName"
+                    @input="updateData('lastName', $event.target.value)"
+                    :data-error="hasError('lastName')" />
+            </label>
+            <p
+                :data-error="hasError('lastName')"
+                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                x-text="getError('lastName')"></p>
+        </div>
+        <div class="flex flex-col gap-1">
+            <div class="flex items-center justify-between gap-2">
+                <label class="label text-sm font-medium" for="username">Username</label>
+                <p class="text-base-content/60 text-end text-xs">* Required</p>
+            </div>
+            <label for="username" class="input data-error:input-error w-full">
+                <span class="iconify lucide--at-sign size-4.5"></span>
+                <input
+                    id="username"
+                    type="text"
+                    placeholder="withden"
+                    name="username"
+                    @input="updateData('username', $event.target.value)"
+                    :data-error="hasError('username')" />
+            </label>
+            <p
+                :data-error="hasError('username')"
+                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                x-text="getError('username')"></p>
+        </div>
+        <div class="flex flex-col gap-1">
+            <div class="flex items-center justify-between gap-2">
+                <label class="label text-sm font-medium" for="email">Email</label>
+                <p class="text-base-content/60 text-end text-xs">* Required</p>
+            </div>
+            <label for="email" class="input data-error:input-error w-full">
+                <span class="iconify lucide--mail size-4.5"></span>
+                <input
+                    id="email"
+                    type="email"
+                    placeholder="abc@xyz.com"
+                    name="email"
+                    @input="updateData('email', $event.target.value)"
+                    :data-error="hasError('email')" />
+            </label>
+            <p
+                :data-error="hasError('email')"
+                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                x-text="getError('email')"></p>
+        </div>
+        <div class="flex flex-col gap-1">
+            <div class="flex items-center justify-between gap-2">
+                <label class="label text-sm font-medium" for="phoneNumber">Phone Number</label>
+                <p class="text-base-content/60 text-end text-xs">* Required</p>
+            </div>
+            <label for="phoneNumber" class="input data-error:input-error w-full">
+                <span class="iconify lucide--phone size-4.5"></span>
+                <input
+                    id="phoneNumber"
+                    type="tel"
+                    placeholder="+84 78965 12335"
+                    name="phoneNumber"
+                    @input="updateData('phoneNumber', $event.target.value)"
+                    :data-error="hasError('phoneNumber')" />
+            </label>
+            <p
+                :data-error="hasError('phoneNumber')"
+                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                x-text="getError('phoneNumber')"></p>
+        </div>
+        <div class="flex flex-col gap-1">
+            <div class="flex items-center justify-between gap-2">
+                <label class="label text-sm font-medium" for="dob">Date of Birth</label>
+                <p class="text-base-content/60 text-end text-xs">* Required</p>
+            </div>
+            <label for="dob" class="input data-error:input-error w-full">
+                <span class="iconify lucide--calendar-1 size-4.5"></span>
+                <input
+                    id="dob"
+                    type="date"
+                    placeholder="+84 78965 12335"
+                    :value="getData('dob')"
+                    @input="updateData('dob', $event.target.value)"
+                    :data-error="hasError('dob')"
+                    name="dob" />
+            </label>
+            <p
+                :data-error="hasError('dob')"
+                class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+                x-text="getError('dob')"></p>
+        </div>
+    </div>
+    <div class="mt-5 flex items-center justify-end gap-3">
+        <button type="reset" class="btn btn-sm btn-outline border-base-300">Clear</button>
+        <button type="submit" class="btn btn-sm btn-primary">Submit</button>
+    </div>
+</form>

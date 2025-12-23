@@ -1,0 +1,34 @@
+<div class="join flex items-center justify-center">
+    <button
+        class="btn border-base-300 btn-outline btn-square join-item"
+        data-spinner-control="join-spinner-demo"
+        data-steps="-5">
+        -5
+    </button>
+    <button
+        class="btn border-base-300 btn-outline join-item btn-square"
+        data-spinner-control="join-spinner-demo"
+        data-steps="-1"
+        aria-label="Decrement">
+        <span class="iconify lucide--minus size-4"></span>
+    </button>
+    <input
+        data-spinner
+        aria-label="Input Spinner"
+        id="join-spinner-demo"
+        value="0"
+        type="number"
+        class="input no-spinner input-bordered join-item w-40" />
+    <button
+        class="btn border-base-300 btn-outline join-item btn-square"
+        aria-label="Increment"
+        data-spinner-control="join-spinner-demo">
+        <span class="iconify lucide--plus size-4"></span>
+    </button>
+    <button
+        class="btn border-base-300 btn-outline join-item btn-square"
+        data-steps="5"
+        data-spinner-control="join-spinner-demo">
+        +5
+    </button>
+</div>

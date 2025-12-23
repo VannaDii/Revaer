@@ -1,0 +1,701 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div class="size-full">
+            <div class="flex">
+                <load src="partials/sidebar.html" />
+
+                <div class="flex h-screen min-w-0 grow flex-col overflow-auto">
+                    <load src="partials/topbar.html" />
+
+                    <!--  Start: Layout - Content -->
+
+                    <div id="layout-content">
+                        <div class="flex items-center justify-between">
+                            <p class="text-lg font-medium">Chat</p>
+                            <div class="breadcrumbs hidden p-0 text-sm sm:inline">
+                                <ul>
+                                    <li><a href="./dashboards-ecommerce.html">Nexus</a></li>
+                                    <li class="">Apps</li>
+                                    <li class="opacity-80">Chat</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="mt-6">
+                            <div class="grid grid-cols-1 gap-6 lg:grid-cols-12">
+                                <div class="lg:col-span-5 xl:col-span-4 2xl:col-span-3">
+                                    <!--  Start: Chat List -->
+
+                                    <div class="card bg-base-100 shadow">
+                                        <div class="card-body">
+                                            <div class="flex items-center justify-between gap-3">
+                                                <label class="input">
+                                                    <span
+                                                        class="iconify lucide--search text-base-content/80 size-4"></span>
+                                                    <input
+                                                        class="grow"
+                                                        placeholder="Search along chats"
+                                                        aria-label="Search chat"
+                                                        type="search" />
+                                                </label>
+                                                <div class="tooltip" data-tip="New Contact">
+                                                    <button
+                                                        class="btn btn-outline btn-square border-base-300"
+                                                        aria-label="Add New Contact">
+                                                        <span
+                                                            class="iconify lucide--plus size-4"></span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <div data-simplebar class="h-[calc(100vh_-_306px)]">
+                                                <div class="mt-4">
+                                                    <div>
+                                                        <div
+                                                            class="rounded-box hover:bg-base-200 bg-base-200 my-0.5 flex cursor-pointer items-center gap-3 p-2 px-3 transition-all">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-11 p-0.5"
+                                                                alt="avatar"
+                                                                src="/images/avatars/2.png" />
+                                                            <div class="grow">
+                                                                <div class="flex justify-between">
+                                                                    <p class="text-sm font-medium">
+                                                                        Debra C. Glen
+                                                                    </p>
+                                                                    <span
+                                                                        class="text-base-content/60 text-xs">
+                                                                        04:46 PM
+                                                                    </span>
+                                                                </div>
+                                                                <div
+                                                                    class="flex justify-between gap-3">
+                                                                    <p
+                                                                        class="text-base-content/80 line-clamp-1 text-sm">
+                                                                        Great! Let me know what you
+                                                                        think after watching.
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div
+                                                            class="rounded-box hover:bg-base-200 false my-0.5 flex cursor-pointer items-center gap-3 p-2 px-3 transition-all">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-11 p-0.5"
+                                                                alt="avatar"
+                                                                src="/images/avatars/3.png" />
+                                                            <div class="grow">
+                                                                <div class="flex justify-between">
+                                                                    <p class="text-sm font-medium">
+                                                                        Gary N. Roache
+                                                                    </p>
+                                                                    <span
+                                                                        class="text-base-content/60 text-xs">
+                                                                        02:51 PM
+                                                                    </span>
+                                                                </div>
+                                                                <div
+                                                                    class="flex justify-between gap-3">
+                                                                    <p
+                                                                        class="text-base-content/80 line-clamp-1 text-sm">
+                                                                        Yeah
+                                                                    </p>
+                                                                    <div
+                                                                        class="badge badge-xs badge-success px-1 py-1.5 text-xs">
+                                                                        2
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div
+                                                            class="rounded-box hover:bg-base-200 false my-0.5 flex cursor-pointer items-center gap-3 p-2 px-3 transition-all">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-11 p-0.5"
+                                                                alt="avatar"
+                                                                src="/images/avatars/4.png" />
+                                                            <div class="grow">
+                                                                <div class="flex justify-between">
+                                                                    <p class="text-sm font-medium">
+                                                                        Roberta K. Simons
+                                                                    </p>
+                                                                    <span
+                                                                        class="text-base-content/60 text-xs">
+                                                                        03:30 PM
+                                                                    </span>
+                                                                </div>
+                                                                <div
+                                                                    class="flex justify-between gap-3">
+                                                                    <p
+                                                                        class="text-base-content/80 line-clamp-1 text-sm">
+                                                                        Have you seen the new movie
+                                                                        everyone is talking about?
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div
+                                                            class="rounded-box hover:bg-base-200 false my-0.5 flex cursor-pointer items-center gap-3 p-2 px-3 transition-all">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-11 p-0.5"
+                                                                alt="avatar"
+                                                                src="/images/avatars/5.png" />
+                                                            <div class="grow">
+                                                                <div class="flex justify-between">
+                                                                    <p class="text-sm font-medium">
+                                                                        Michael S. Gillen
+                                                                    </p>
+                                                                    <span
+                                                                        class="text-base-content/60 text-xs">
+                                                                        05:25 PM
+                                                                    </span>
+                                                                </div>
+                                                                <div
+                                                                    class="flex justify-between gap-3">
+                                                                    <p
+                                                                        class="text-base-content/80 line-clamp-1 text-sm">
+                                                                        Looking forward to the
+                                                                        weekend. Any fun plans?
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div
+                                                            class="rounded-box hover:bg-base-200 false my-0.5 flex cursor-pointer items-center gap-3 p-2 px-3 transition-all">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-11 p-0.5"
+                                                                alt="avatar"
+                                                                src="/images/avatars/6.png" />
+                                                            <div class="grow">
+                                                                <div class="flex justify-between">
+                                                                    <p class="text-sm font-medium">
+                                                                        Pamela W. Boggess
+                                                                    </p>
+                                                                    <span
+                                                                        class="text-base-content/60 text-xs">
+                                                                        01:25 PM
+                                                                    </span>
+                                                                </div>
+                                                                <div
+                                                                    class="flex justify-between gap-3">
+                                                                    <p
+                                                                        class="text-base-content/80 line-clamp-1 text-sm">
+                                                                        Found a great podcast -
+                                                                        'Mindful Moments.' Highly
+                                                                        recommend!
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div
+                                                            class="rounded-box hover:bg-base-200 false my-0.5 flex cursor-pointer items-center gap-3 p-2 px-3 transition-all">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-11 p-0.5"
+                                                                alt="avatar"
+                                                                src="/images/avatars/7.png" />
+                                                            <div class="grow">
+                                                                <div class="flex justify-between">
+                                                                    <p class="text-sm font-medium">
+                                                                        Troy G. Ward
+                                                                    </p>
+                                                                    <span
+                                                                        class="text-base-content/60 text-xs">
+                                                                        11:25 AM
+                                                                    </span>
+                                                                </div>
+                                                                <div
+                                                                    class="flex justify-between gap-3">
+                                                                    <p
+                                                                        class="text-base-content/80 line-clamp-1 text-sm">
+                                                                        Any book recommendations?
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div>
+                                                        <div
+                                                            class="rounded-box hover:bg-base-200 false my-0.5 flex cursor-pointer items-center gap-3 p-2 px-3 transition-all">
+                                                            <img
+                                                                class="bg-base-200 mask mask-squircle size-11 p-0.5"
+                                                                alt="avatar"
+                                                                src="/images/avatars/8.png" />
+                                                            <div class="grow">
+                                                                <div class="flex justify-between">
+                                                                    <p class="text-sm font-medium">
+                                                                        Alicia W. Calvillo
+                                                                    </p>
+                                                                    <span
+                                                                        class="text-base-content/60 text-xs">
+                                                                        06:25 PM
+                                                                    </span>
+                                                                </div>
+                                                                <div
+                                                                    class="flex justify-between gap-3">
+                                                                    <p
+                                                                        class="text-base-content/80 line-clamp-1 text-sm">
+                                                                        Just tried a new recipe. It
+                                                                        turned out amazing!
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="mt-3 text-center">
+                                                <button class="btn btn-soft btn-primary btn-sm">
+                                                    <span
+                                                        class="iconify lucide--user-plus size-3.5"></span>
+                                                    Join a Community
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!--  End: Chat List -->
+                                </div>
+                                <div class="lg:col-span-7 xl:col-span-8 2xl:col-span-9">
+                                    <div class="card bg-base-100 shadow">
+                                        <div class="flex items-center gap-3 px-4 py-3">
+                                            <img
+                                                class="size-10 max-sm:size-8"
+                                                alt="avatar"
+                                                src="/images/avatars/2.png" />
+                                            <div class="mt-1.5 grow">
+                                                <p class="leading-none font-medium max-sm:text-sm">
+                                                    Debra C. Glen
+                                                </p>
+                                                <div class="mt-0.5 flex items-center gap-2">
+                                                    <div class="status status-success"></div>
+                                                    <p class="text-base-content/80 text-xs">
+                                                        Active
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <div class="tooltip" data-tip="Audio Call">
+                                                <button
+                                                    onclick="apps_chat_call_modal.showModal()"
+                                                    class="btn btn-outline border-base-300 btn-square btn-sm"
+                                                    aria-label="Audio Call">
+                                                    <span
+                                                        class="iconify lucide--phone size-4"></span>
+                                                </button>
+                                            </div>
+                                            <div
+                                                class="tooltip max-sm:hidden"
+                                                data-tip="Video Call">
+                                                <button
+                                                    class="btn btn-outline border-base-300 btn-square btn-sm"
+                                                    aria-label="Video Call">
+                                                    <span
+                                                        class="iconify lucide--video size-4"></span>
+                                                </button>
+                                            </div>
+                                            <div
+                                                class="tooltip max-sm:hidden"
+                                                data-tip="Add to Friend">
+                                                <button
+                                                    class="btn btn-outline border-base-300 btn-square btn-sm"
+                                                    aria-label="Add to Friend">
+                                                    <span
+                                                        class="iconify lucide--user-plus size-4"></span>
+                                                </button>
+                                            </div>
+                                            <div class="dropdown dropdown-bottom dropdown-end">
+                                                <div
+                                                    tabindex="0"
+                                                    role="button"
+                                                    class="btn btn-outline btn-square btn-sm border-base-300"
+                                                    aria-label="More options">
+                                                    <span
+                                                        class="iconify lucide--more-vertical size-4"></span>
+                                                </div>
+                                                <div
+                                                    tabindex="0"
+                                                    class="dropdown-content bg-base-100 rounded-box mt-2 w-52 shadow">
+                                                    <ul class="menu w-full p-2">
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--square-user size-4"></span>
+                                                                View Profile
+                                                            </div>
+                                                        </li>
+
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--pin size-4"></span>
+                                                                Pin
+                                                            </div>
+                                                        </li>
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--bell-dot size-4"></span>
+                                                                Mute Notification
+                                                            </div>
+                                                        </li>
+                                                    </ul>
+                                                    <hr class="border-base-300" />
+                                                    <ul class="menu w-full p-2">
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--archive size-4"></span>
+                                                                Archive
+                                                            </div>
+                                                        </li>
+                                                        <li class="">
+                                                            <div
+                                                                class="text-error hover:bg-error/10">
+                                                                <span
+                                                                    class="iconify lucide--trash size-4"></span>
+                                                                Delete Chat
+                                                            </div>
+                                                        </li>
+                                                    </ul>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <hr class="border-base-300" />
+
+                                        <!--  Start: Message List -->
+                                        <div data-simplebar class="h-[calc(100vh_-_320px)] p-5">
+                                            <div>
+                                                <div class="chat chat-start">
+                                                    <div class="chat-image avatar">
+                                                        <div class="w-10">
+                                                            <img
+                                                                class="mask mask-squircle bg-base-200 p-0.5"
+                                                                alt="Tailwind CSS chat bubble component"
+                                                                src="/images/avatars/2.png" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="chat-bubble bg-base-200 text-sm">
+                                                        Conversation Started
+                                                    </div>
+                                                    <div class="chat-footer text-base-content/60">
+                                                        04:30 PM
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="chat chat-start">
+                                                    <div class="chat-image avatar">
+                                                        <div class="w-10">
+                                                            <img
+                                                                class="mask mask-squircle bg-base-200 p-0.5"
+                                                                alt="Tailwind CSS chat bubble component"
+                                                                src="/images/avatars/2.png" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="chat-bubble bg-base-200 text-sm">
+                                                        Hey, how's it going?
+                                                    </div>
+                                                    <div class="chat-footer text-base-content/60">
+                                                        04:31 PM
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="chat chat-end">
+                                                    <div class="chat-image avatar">
+                                                        <div class="w-10">
+                                                            <img
+                                                                class="mask mask-squircle bg-base-200 p-0.5"
+                                                                alt="Tailwind CSS chat bubble component"
+                                                                src="/images/avatars/1.png" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="chat-bubble bg-base-200 text-sm">
+                                                        I'm doing well, thanks! How about you?
+                                                    </div>
+                                                    <div class="chat-footer text-base-content/60">
+                                                        04:33 PM
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="chat chat-start">
+                                                    <div class="chat-image avatar">
+                                                        <div class="w-10">
+                                                            <img
+                                                                class="mask mask-squircle bg-base-200 p-0.5"
+                                                                alt="Tailwind CSS chat bubble component"
+                                                                src="/images/avatars/2.png" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="chat-bubble bg-base-200 text-sm">
+                                                        Just finished a great book. Have any
+                                                        recommendations?
+                                                    </div>
+                                                    <div class="chat-footer text-base-content/60">
+                                                        04:34 PM
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="chat chat-end">
+                                                    <div class="chat-image avatar">
+                                                        <div class="w-10">
+                                                            <img
+                                                                class="mask mask-squircle bg-base-200 p-0.5"
+                                                                alt="Tailwind CSS chat bubble component"
+                                                                src="/images/avatars/1.png" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="chat-bubble bg-base-200 text-sm">
+                                                        That's awesome! I'd recommend 'The Silent
+                                                        Observer.'
+                                                    </div>
+                                                    <div class="chat-footer text-base-content/60">
+                                                        04:36 PM
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="chat chat-start">
+                                                    <div class="chat-image avatar">
+                                                        <div class="w-10">
+                                                            <img
+                                                                class="mask mask-squircle bg-base-200 p-0.5"
+                                                                alt="Tailwind CSS chat bubble component"
+                                                                src="/images/avatars/2.png" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="chat-bubble bg-base-200 text-sm">
+                                                        Thanks! I'll check it out.
+                                                    </div>
+                                                    <div class="chat-footer text-base-content/60">
+                                                        04:37 PM
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="chat chat-end">
+                                                    <div class="chat-image avatar">
+                                                        <div class="w-10">
+                                                            <img
+                                                                class="mask mask-squircle bg-base-200 p-0.5"
+                                                                alt="Tailwind CSS chat bubble component"
+                                                                src="/images/avatars/1.png" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="chat-bubble bg-base-200 text-sm">
+                                                        Did you catch the latest movie? It's
+                                                        fantastic!
+                                                    </div>
+                                                    <div class="chat-footer text-base-content/60">
+                                                        04:38 PM
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="chat chat-start">
+                                                    <div class="chat-image avatar">
+                                                        <div class="w-10">
+                                                            <img
+                                                                class="mask mask-squircle bg-base-200 p-0.5"
+                                                                alt="Tailwind CSS chat bubble component"
+                                                                src="/images/avatars/2.png" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="chat-bubble bg-base-200 text-sm">
+                                                        No, I haven't. What's the title?
+                                                    </div>
+                                                    <div class="chat-footer text-base-content/60">
+                                                        04:40 PM
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="chat chat-end">
+                                                    <div class="chat-image avatar">
+                                                        <div class="w-10">
+                                                            <img
+                                                                class="mask mask-squircle bg-base-200 p-0.5"
+                                                                alt="Tailwind CSS chat bubble component"
+                                                                src="/images/avatars/1.png" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="chat-bubble bg-base-200 text-sm">
+                                                        It's called 'Dreamscape.' A must-watch!
+                                                    </div>
+                                                    <div class="chat-footer text-base-content/60">
+                                                        04:42 PM
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="chat chat-start">
+                                                    <div class="chat-image avatar">
+                                                        <div class="w-10">
+                                                            <img
+                                                                class="mask mask-squircle bg-base-200 p-0.5"
+                                                                alt="Tailwind CSS chat bubble component"
+                                                                src="/images/avatars/2.png" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="chat-bubble bg-base-200 text-sm">
+                                                        Sounds intriguing. I'll add it to my
+                                                        watchlist.
+                                                    </div>
+                                                    <div class="chat-footer text-base-content/60">
+                                                        04:44 PM
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div class="chat chat-end">
+                                                    <div class="chat-image avatar">
+                                                        <div class="w-10">
+                                                            <img
+                                                                class="mask mask-squircle bg-base-200 p-0.5"
+                                                                alt="Tailwind CSS chat bubble component"
+                                                                src="/images/avatars/1.png" />
+                                                        </div>
+                                                    </div>
+                                                    <div class="chat-bubble bg-base-200 text-sm">
+                                                        Great! Let me know what you think after
+                                                        watching.
+                                                    </div>
+                                                    <div class="chat-footer text-base-content/60">
+                                                        04:46 PM
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <!--  End: Message List -->
+
+                                        <form class="bg-base-200 flex items-center gap-3 p-4">
+                                            <button
+                                                class="btn btn-ghost btn-sm btn-circle"
+                                                aria-label="Attachment"
+                                                type="button">
+                                                <span
+                                                    class="iconify lucide--paperclip size-4.5"></span>
+                                            </button>
+                                            <input
+                                                class="input validator grow"
+                                                required=""
+                                                placeholder="Type a message..."
+                                                type="text"
+                                                aria-label="Message"
+                                                name="message" />
+                                            <button
+                                                class="btn btn-primary btn-circle btn-sm"
+                                                type="submit"
+                                                aria-label="Send message">
+                                                <span
+                                                    class="iconify lucide--send-horizonal size-4.5"></span>
+                                            </button>
+                                        </form>
+                                        <dialog id="apps_chat_call_modal" class="modal">
+                                            <div class="modal-box">
+                                                <div class="text-center">
+                                                    <img
+                                                        class="bg-base-200 mask mask-squircle inline size-16 p-0.5"
+                                                        alt="avatar"
+                                                        src="/images/avatars/2.png" />
+                                                    <p class="mt-1 font-medium">Debra C. Glen</p>
+                                                    <p class="text-base-content/60 text-sm">
+                                                        02 : 55
+                                                    </p>
+                                                </div>
+                                                <div
+                                                    class="mt-8 grid grid-cols-4 gap-3 text-center">
+                                                    <div
+                                                        class="hover:bg-base-200 rounded-box cursor-pointer py-3 transition-all max-sm:text-sm">
+                                                        <span
+                                                            class="iconify lucide--mic-off size-6"></span>
+                                                        <p>Mute</p>
+                                                    </div>
+                                                    <div
+                                                        class="hover:bg-base-200 rounded-box cursor-pointer py-3 transition-all max-sm:text-sm">
+                                                        <span
+                                                            class="iconify lucide--pause size-6"></span>
+                                                        <p>Hold</p>
+                                                    </div>
+                                                    <div
+                                                        class="hover:bg-base-200 rounded-box cursor-pointer py-3 transition-all max-sm:text-sm">
+                                                        <span
+                                                            class="iconify lucide--disc size-6"></span>
+                                                        <p>Record</p>
+                                                    </div>
+                                                    <div
+                                                        class="hover:bg-base-200 rounded-box cursor-pointer py-3 transition-all max-sm:text-sm">
+                                                        <span
+                                                            class="iconify lucide--book-user size-6"></span>
+                                                        <p>Contact</p>
+                                                    </div>
+                                                </div>
+                                                <div class="mt-8 grid grid-cols-3 text-center">
+                                                    <div>
+                                                        <button
+                                                            class="btn btn-circle btn-ghost btn-lg"
+                                                            aria-label="Add User">
+                                                            <span
+                                                                class="iconify lucide--user-round-plus size-6"></span>
+                                                        </button>
+                                                    </div>
+                                                    <form method="dialog">
+                                                        <div class="mt-8">
+                                                            <button
+                                                                class="btn btn-circle btn-error btn-lg"
+                                                                aria-label="End call">
+                                                                <span
+                                                                    class="iconify lucide--phone size-6 rotate-[135deg]"></span>
+                                                            </button>
+                                                        </div>
+                                                    </form>
+                                                    <div>
+                                                        <button
+                                                            class="btn btn-circle btn-ghost btn-lg"
+                                                            aria-label="More option">
+                                                            <span
+                                                                class="iconify lucide--more-horizontal size-6"></span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <form method="dialog" class="modal-backdrop">
+                                                <button>close</button>
+                                            </form>
+                                        </dialog>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--  End: Layout - Content -->
+                    <load src="partials/footer.html" />
+                </div>
+            </div>
+
+            <load src="partials/rightbar.html" />
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

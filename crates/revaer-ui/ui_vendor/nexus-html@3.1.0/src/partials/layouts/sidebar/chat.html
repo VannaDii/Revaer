@@ -1,0 +1,124 @@
+<div class="sidebar-menu relative flex h-full w-full flex-col py-3">
+    <label
+        for="layout-sidebar-hover-trigger"
+        title="Toggle sidebar hover"
+        class="btn btn-circle btn-ghost btn-sm text-base-content/50 absolute end-2 top-3.5 max-lg:hidden">
+        <span
+            class="iconify lucide--panel-left-close absolute size-4.5 opacity-100 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-0"></span>
+        <span
+            class="iconify lucide--panel-left-dashed absolute size-4.5 opacity-0 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-100"></span>
+    </label>
+    <div class="flex min-h-10 items-center gap-3 px-5">
+        <span class="text-xl font-semibold">ACME Inc</span>
+        <hr class="border-base-300 h-5 border-e" />
+        <span class="text-base-content/50 font-medium">AI Agent</span>
+    </div>
+    <div class="mt-2 flex items-center gap-2.5 px-2.5">
+        <label class="input h-9 grow px-2.5">
+            <span class="iconify lucide--search text-base-content/80 min-h-4 min-w-4"></span>
+            <input class="grow" placeholder="Search" type="search" />
+            <kbd class="kbd kbd-sm">K</kbd>
+        </label>
+        <button class="btn btn-primary btn-square size-9" aria-label="New Chat">
+            <span class="iconify lucide--plus size-5"></span>
+        </button>
+    </div>
+    <div class="custom-scrollbar mt-2.5 grow space-y-2.5 overflow-auto px-2.5">
+        <div
+            class="rounded-box border-base-200 hover:bg-base-200/40 hover:border-base-300 flex cursor-pointer items-start gap-2 border px-2.5 py-1.5 transition-all">
+            <span class="iconify lucide--bot text-base-content/80 mt-px min-w-4"></span>
+            <div class="grow">
+                <p class="text-sm/none font-medium">AI Chat Assistant</p>
+                <p class="text-base-content/60 mt-0.5 line-clamp-1 text-xs">
+                    How can I help you today?
+                </p>
+            </div>
+            <span class="text-base-content/40 text-xs whitespace-nowrap">2 min</span>
+        </div>
+        <div
+            class="rounded-box border-base-200 hover:bg-base-200/40 hover:border-base-300 flex cursor-pointer items-start gap-2 border px-2.5 py-1.5 transition-all">
+            <span class="iconify lucide--bar-chart-3 text-base-content/80 mt-px min-w-4"></span>
+            <div class="grow">
+                <p class="text-sm/none font-medium">Marketing Bot</p>
+                <p class="text-base-content/60 mt-0.5 line-clamp-1 text-xs">
+                    Here’s your weekly report
+                </p>
+            </div>
+            <span class="text-base-content/40 text-xs whitespace-nowrap">10 min</span>
+        </div>
+        <div
+            class="rounded-box border-base-200 hover:bg-base-200/40 hover:border-base-300 flex cursor-pointer items-start gap-2 border px-2.5 py-1.5 transition-all">
+            <span class="iconify lucide--life-buoy text-base-content/80 mt-px min-w-4"></span>
+            <div class="grow">
+                <p class="text-sm/none font-medium">Support Chat</p>
+                <p class="text-base-content/60 mt-0.5 line-clamp-1 text-xs">
+                    Your ticket has been updated
+                </p>
+            </div>
+            <span class="text-base-content/40 text-xs whitespace-nowrap">25 min</span>
+        </div>
+        <div
+            class="rounded-box border-base-200 hover:bg-base-200/40 hover:border-base-300 flex cursor-pointer items-start gap-2 border px-2.5 py-1.5 transition-all">
+            <span class="iconify lucide--users text-base-content/80 mt-px min-w-4"></span>
+            <div class="grow">
+                <p class="text-sm/none font-medium">Team Workspace</p>
+                <p class="text-base-content/60 mt-0.5 line-clamp-1 text-xs">
+                    New updates on project X
+                </p>
+            </div>
+            <span class="text-base-content/40 text-xs whitespace-nowrap">1 hr</span>
+        </div>
+        <div
+            class="rounded-box border-base-200 hover:bg-base-200/40 hover:border-base-300 flex cursor-pointer items-start gap-2 border px-2.5 py-1.5 transition-all">
+            <span class="iconify lucide--bell text-base-content/80 mt-px min-w-4"></span>
+            <div class="grow">
+                <p class="text-sm/none font-medium">Notifications</p>
+                <p class="text-base-content/60 mt-0.5 line-clamp-1 text-xs">
+                    You have 3 unread alerts
+                </p>
+            </div>
+            <span class="text-base-content/40 text-xs whitespace-nowrap">3 hr</span>
+        </div>
+        <button class="btn btn-outline btn-block border-base-200 h-9">
+            <span class="iconify lucide--book-text text-base-content/80"></span>
+            Show All
+            <span class="iconify lucide--chevron-down text-base-content/80"></span>
+        </button>
+    </div>
+    <div class="mt-8"></div>
+    <div class="mt-2 space-y-0.5 px-2.5">
+        <a class="menu-item group" href="#">
+            <span class="iconify lucide--home size-4"></span>
+            <p class="grow">Home</p>
+        </a>
+        <a class="menu-item group" href="#">
+            <span class="iconify lucide--star size-4"></span>
+            <p class="grow">Favorite</p>
+        </a>
+        <a class="menu-item group" href="#">
+            <span class="iconify lucide--settings-2 size-4"></span>
+            <p class="grow">Settings</p>
+        </a>
+    </div>
+    <div class="border-base-200 rounded-box mx-2.5 mt-2 border px-2.5 py-2.5">
+        <div class="bg-base-200 rounded-box inline-flex items-center justify-center p-1.5">
+            <span class="iconify lucide--layers-2 size-4"></span>
+        </div>
+        <div class="mt-5 flex items-center justify-between">
+            <p class="text-sm font-medium">Basic</p>
+            <span class="text-base-content/80 text-xs">84%</span>
+        </div>
+        <progress
+            max="2000"
+            value="1600"
+            class="progress progress-warning h-1.5 align-super"></progress>
+        <div class="-mt-2 flex items-center justify-between">
+            <span class="text-sm font-medium">320 left</span>
+            <span class="text-base-content/80 text-xs">2K Tokens</span>
+        </div>
+        <button class="btn btn-outline btn-block border-base-300 mt-3 h-9">
+            <span class="iconify lucide--zap text-base-content/80"></span>
+            Upgrade
+        </button>
+    </div>
+</div>

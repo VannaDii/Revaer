@@ -1,0 +1,79 @@
+<div class="card bg-base-100 shadow">
+    <div class="flex items-center gap-3 px-4 py-2.5">
+        <span class="iconify lucide--hard-drive size-4"></span>
+        <p class="grow font-medium">Storage Status</p>
+        <p class="text-base-content/40 text-xs font-medium max-sm:hidden">Just checked</p>
+        <div class="dropdown dropdown-bottom dropdown-end">
+            <div
+                tabindex="0"
+                role="button"
+                class="btn btn-ghost btn-circle btn-xs"
+                aria-label="Menu">
+                <span class="iconify lucide--more-vertical size-3.5"></span>
+            </div>
+            <div
+                tabindex="0"
+                class="dropdown-content bg-base-100 rounded-box mt-2 w-40 shadow transition-all hover:shadow-lg">
+                <ul class="menu w-full p-1.5">
+                    <li>
+                        <div>
+                            <span class="iconify lucide--sparkles size-4"></span>
+                            Enhance
+                        </div>
+                    </li>
+                    <li>
+                        <div>
+                            <span class="iconify lucide--brain size-4"></span>
+                            Insights
+                        </div>
+                    </li>
+                    <li>
+                        <div>
+                            <span class="iconify lucide--wand-2 size-4"></span>
+                            Auto Tag
+                        </div>
+                    </li>
+                </ul>
+                <hr class="border-base-300" />
+                <ul class="menu w-full p-1.5">
+                    <li>
+                        <div class="text-error hover:bg-error/10">
+                            <span class="iconify lucide--trash size-4"></span>
+                            Delete
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="border-base-300 border-t border-dashed px-4 py-2.5">
+        <p class="text-base-content/60 text-sm">How much space is left?</p>
+        <p class="mt-3 font-medium">Your drive is almost full</p>
+        <div class="border-base-200 rounded-box mt-2 border p-3">
+            <div class="flex items-center justify-between">
+                <p class="text-sm font-medium">My Drive</p>
+                <span class="text-base-content/80 text-xs">92%</span>
+            </div>
+            <progress
+                max="250"
+                value="230"
+                class="progress progress-error mt-1.5 h-1.5 align-super"></progress>
+            <div class="-mt-1.5 flex items-center justify-between">
+                <span class="text-sm font-medium">230 GB</span>
+                <span class="text-base-content/80 text-xs">250 GB</span>
+            </div>
+        </div>
+    </div>
+    <div class="mt-auto flex items-end justify-end gap-2 px-4 pt-2 pb-4">
+        <div
+            class="bg-success/10 tooltip text-success flex items-center rounded-full p-0.5"
+            data-tip="Storage checked">
+            <span class="iconify lucide--check size-3.5"></span>
+        </div>
+        <button
+            class="btn btn-sm from-primary to-secondary text-primary-content ms-auto gap-2 border-none bg-linear-to-br">
+            <span class="iconify lucide--wand-2 size-4"></span>
+            Upgrade Plan
+        </button>
+    </div>
+</div>

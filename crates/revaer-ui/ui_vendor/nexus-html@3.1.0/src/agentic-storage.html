@@ -1,0 +1,158 @@
+<!doctype html>
+<html class="group/html" lang="en">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div class="size-full">
+            <div class="flex">
+                <load src="partials/sidebar.html" />
+
+                <div class="flex h-screen min-w-0 grow flex-col overflow-auto">
+                    <load src="partials/topbar.html" />
+
+                    <!--  Start: Layout - Content -->
+
+                    <div id="layout-content">
+                        <div class="flex items-center justify-between">
+                            <p class="text-lg font-medium">Agentic Storage</p>
+                            <div class="breadcrumbs hidden p-0 text-sm sm:inline">
+                                <ul>
+                                    <li><a href="/dashboards-ecommerce">Nexus</a></li>
+                                    <li class="">Agentic Hub</li>
+                                    <li class="opacity-80">Storage</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="mt-6 flex items-center justify-center">
+                            <div class="card bg-base-100 card-border max-w-4xl grow">
+                                <div class="card-body p-3">
+                                    <textarea
+                                        aria-label="Message"
+                                        class="textarea m-0 h-28 w-full resize-none border-0 p-1 text-base focus:outline-none max-sm:placeholder:text-sm">
+Put this image in the Excel sheet and save this file to the project folder
+                                    </textarea>
+                                    <div class="mt-0.5 flex items-center gap-2.5">
+                                        <div
+                                            class="border-base-300 rounded-box hover:bg-base-200 flex cursor-pointer items-center gap-2 border px-2 py-0.5">
+                                            <span
+                                                class="iconify lucide--file-spreadsheet size-3.5"></span>
+                                            <span class="text-sm">Report.xlsx</span>
+                                            <span class="iconify lucide--x size-3.5"></span>
+                                        </div>
+                                        <div
+                                            class="border-base-300 rounded-box hover:bg-base-200 flex cursor-pointer items-center gap-2 border px-2 py-0.5 max-sm:hidden">
+                                            <span
+                                                class="iconify lucide--file-image size-3.5"></span>
+                                            <span class="text-sm">DesignDraft.png</span>
+                                            <span class="iconify lucide--x size-3.5"></span>
+                                        </div>
+                                        <button
+                                            class="btn btn-xs btn-circle btn-ghost"
+                                            aria-label="Add">
+                                            <span
+                                                class="iconify lucide--plus-circle text-base-content/80 size-4.5"></span>
+                                        </button>
+                                    </div>
+                                    <div class="mt-0.5 flex items-end justify-between">
+                                        <div class="inline-flex items-center gap-0.5">
+                                            <div class="dropdown dropdown-start">
+                                                <div
+                                                    tabindex="0"
+                                                    role="button"
+                                                    class="badge badge-sm cursor-pointer"
+                                                    aria-label="Priority">
+                                                    <div
+                                                        class="bg-primary size-1.5 rounded-full"></div>
+                                                    <p>Queue</p>
+                                                </div>
+                                                <ul
+                                                    tabindex="0"
+                                                    class="dropdown-content bg-base-100 rounded-box menu mt-2 w-36 p-1.5 shadow">
+                                                    <li>
+                                                        <div>
+                                                            <div
+                                                                class="bg-error size-1.5 rounded-full"></div>
+                                                            Urgent
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <div
+                                                                class="bg-primary size-1.5 rounded-full"></div>
+                                                            Queue
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <div
+                                                                class="bg-base-content/30 size-1.5 rounded-full"></div>
+                                                            Background
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <button
+                                                class="btn btn-sm btn-circle btn-ghost"
+                                                aria-label="Voice">
+                                                <span
+                                                    class="iconify lucide--mic text-base-content/80 size-4.5"></span>
+                                            </button>
+                                            <button
+                                                class="btn btn-primary btn-circle btn-sm"
+                                                aria-label="Send">
+                                                <span
+                                                    class="iconify lucide--arrow-up size-4"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-6 xl:mt-8">
+                            <p class="text-base-content/60 font-medium">Examples</p>
+                            <div
+                                class="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                                <load src="partials/agentic-storage/in-process.html" />
+                                <load src="partials/agentic-storage/in-queue.html" />
+                                <load src="partials/agentic-storage/need-confirmation.html" />
+                                <load src="partials/agentic-storage/error.html" />
+                            </div>
+                            <p class="text-base-content/60 mt-6 font-medium">Tasks</p>
+                            <div
+                                class="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                                <load src="partials/agentic-storage/file-shared.html" />
+                                <load src="partials/agentic-storage/file-uploaded.html" />
+                                <load src="partials/agentic-storage/storage-status.html" />
+                                <load src="partials/agentic-storage/folder-created.html" />
+                                <load src="partials/agentic-storage/file-rename.html" />
+                                <load src="partials/agentic-storage/permission-updated.html" />
+                                <load src="partials/agentic-storage/file-deleted.html" />
+                                <div
+                                    class="card bg-base-100 text-base-content/40 flex items-center justify-center py-6 text-lg font-medium shadow">
+                                    More examples coming soon!
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--  End: Layout - Content -->
+                    <load src="partials/footer.html" />
+                </div>
+            </div>
+
+            <load src="partials/rightbar.html" />
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

@@ -1,0 +1,35 @@
+<div class="flex w-full items-center justify-between">
+    <div>
+        <p class="font-medium">Order Summary</p>
+        <p class="text-base-content/70 text-xs">
+            ID:
+            <span class="text-base-content font-medium">#12541</span>
+        </p>
+    </div>
+    <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
+            <span class="iconify lucide--calendar-days size-4"></span>
+            <span class="text-base-content/80 text-sm max-md:hidden">Tue Jul 22 2025</span>
+        </div>
+        <hr class="border-base-300 h-7 w-px border-e border-dashed max-md:hidden" />
+        <div class="flex items-center gap-2 max-md:hidden">
+            <label class="text-sm font-medium" for="status">Status</label>
+            <select id="status" aria-label="Order status" class="select select-sm w-24">
+                <option>Paid</option>
+                <option>Unpaid</option>
+            </select>
+        </div>
+        <hr class="border-base-300 h-7 w-px border-e border-dashed" />
+        <div class="flex items-center gap-2">
+            <button class="btn btn-primary btn-sm max-md:btn-square gap-2">
+                <span class="iconify lucide--download size-4"></span>
+                <span class="max-md:hidden">Invoice</span>
+            </button>
+            <button
+                class="btn btn-outline btn-sm border-base-300 btn-square"
+                aria-label="More options">
+                <span class="iconify lucide--more-vertical size-4"></span>
+            </button>
+        </div>
+    </div>
+</div>

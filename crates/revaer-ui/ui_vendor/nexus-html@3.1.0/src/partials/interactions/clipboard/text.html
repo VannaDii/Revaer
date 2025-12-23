@@ -1,0 +1,18 @@
+<div
+    class="max-w-lg grow"
+    x-data="{ copied: false }"
+    x-init="$watch('copied', value => {
+        navigator.clipboard.writeText($refs.textarea.value);
+         if (value) setTimeout(() => copied = false, 3000)
+     })">
+    <textarea aria-label="Text area" class="textarea w-full" x-ref="textarea">
+You can write text and copy to your clipboard</textarea
+    >
+
+    <div class="group mt-3 text-end" x-bind:data-copied="copied ? true : null">
+        <button class="btn" x-on:click="copied = true">
+            <span class="group-data-[copied]:hidden">Copy</span>
+            <span class="hidden group-data-[copied]:block">Copied</span>
+        </button>
+    </div>
+</div>

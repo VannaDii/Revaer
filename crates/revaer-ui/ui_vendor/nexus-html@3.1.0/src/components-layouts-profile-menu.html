@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <load src="partials/components-layout/sidebar.html" />
+
+                <div id="components-layout-main">
+                    <load src="partials/components-layout/topbar.html" />
+
+                    <div id="components-layout-content">
+                        <div class="flex flex-col items-center justify-center space-y-0.5">
+                            <div
+                                class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                <div class="status status-sm bg-base-content/30"></div>
+                                Layouts
+                            </div>
+                            <p
+                                class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                Profile Menu
+                            </p>
+                            <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                Clean profile menus with support for account switching, nested
+                                items, overlays, stats, and actions
+                            </p>
+                        </div>
+
+                        <p class="text-base-content/60 mt-6 font-medium lg:mt-12">Demos</p>
+
+                        <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2 lg:pb-16">
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Minimal
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <load src="partials/layouts/profile-menu/minimal.html" />
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Switch Account
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <load src="partials/layouts/profile-menu/switch-account.html" />
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Profile Overlay
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <load
+                                        src="partials/layouts/profile-menu/profile-overlay.html" />
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Referral
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <load src="partials/layouts/profile-menu/referral.html" />
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Account List
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <load src="partials/layouts/profile-menu/account-list.html" />
+                                </div>
+                            </div>
+
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Nested
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <load src="partials/layouts/profile-menu/nested.html" />
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Split
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <load src="partials/layouts/profile-menu/split.html" />
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Usage Stats
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <load src="partials/layouts/profile-menu/usage-stats.html" />
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Drawer
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <load src="partials/layouts/profile-menu/drawer.html" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <load src="partials/components-layout/footer.html" />
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div class="size-full">
+            <div class="flex">
+                <load src="partials/sidebar.html" />
+
+                <div class="flex h-screen min-w-0 grow flex-col overflow-auto">
+                    <load src="partials/topbar.html" />
+
+                    <!--  Start: Layout - Content -->
+
+                    <div id="layout-content">
+                        <div class="flex items-center justify-between">
+                            <p class="text-lg font-medium">Order Detail</p>
+                            <div class="breadcrumbs hidden p-0 text-sm sm:inline">
+                                <ul>
+                                    <li><a href="./dashboards-ecommerce.html">Nexus</a></li>
+                                    <li>
+                                        <a href="./apps-ecommerce-orders.html">Orders</a>
+                                    </li>
+                                    <li class="opacity-80">Detail</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
+                            <div class="lg:col-span-8 2xl:col-span-9">
+                                <div class="card card-border bg-base-100">
+                                    <div class="card-body p-0">
+                                        <div class="px-5 pt-5">
+                                            <div class="flex justify-between">
+                                                <div class="space-x-2">
+                                                    <span class="text-2xl font-medium">#1</span>
+                                                    <span
+                                                        class="text-base-content/70 hidden text-sm sm:inline">
+                                                        27 Dec 2024 at 05:26 PM
+                                                    </span>
+                                                </div>
+                                                <button
+                                                    class="btn btn-sm btn-outline border-base-300">
+                                                    <span
+                                                        class="iconify lucide--scroll-text size-3.5"></span>
+                                                    Invoice
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="mt-5 overflow-auto">
+                                            <table class="table">
+                                                <thead>
+                                                    <tr>
+                                                        <th>ID</th>
+                                                        <th>Name</th>
+                                                        <th>Category</th>
+                                                        <th>Price</th>
+                                                        <th>Quantity</th>
+                                                        <th>Amount</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    <tr>
+                                                        <th class="font-medium">1001</th>
+                                                        <td>
+                                                            <div
+                                                                class="flex items-center space-x-3 truncate">
+                                                                <img
+                                                                    alt="Product"
+                                                                    class="rounded-box size-10"
+                                                                    src="/images/apps/ecommerce/products/1.jpg" />
+                                                                <div>
+                                                                    <p class="font-medium">
+                                                                        Men's tracking shoes
+                                                                    </p>
+                                                                    <p
+                                                                        class="text-base-content/60 text-xs">
+                                                                        #SHOES
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td>Fashion</td>
+                                                        <td>$29</td>
+                                                        <td>3x</td>
+                                                        <td class="font-medium">$87</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th class="font-medium">1002</th>
+                                                        <td>
+                                                            <div
+                                                                class="flex items-center space-x-3 truncate">
+                                                                <img
+                                                                    alt="Product"
+                                                                    class="rounded-box size-10"
+                                                                    src="/images/apps/ecommerce/products/2.jpg" />
+                                                                <div>
+                                                                    <p class="font-medium">
+                                                                        Coco body oil
+                                                                    </p>
+                                                                    <p
+                                                                        class="text-base-content/60 text-xs">
+                                                                        #COCOOIL
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td>Daily Need</td>
+                                                        <td>$16</td>
+                                                        <td>2x</td>
+                                                        <td class="font-medium">$32</td>
+                                                    </tr>
+                                                    <tr>
+                                                        <th class="font-medium">1003</th>
+                                                        <td>
+                                                            <div
+                                                                class="flex items-center space-x-3 truncate">
+                                                                <img
+                                                                    alt="Product"
+                                                                    class="rounded-box size-10"
+                                                                    src="/images/apps/ecommerce/products/3.jpg" />
+                                                                <div>
+                                                                    <p class="font-medium">
+                                                                        Freeze air
+                                                                    </p>
+                                                                    <p
+                                                                        class="text-base-content/60 text-xs">
+                                                                        #FREEAIR
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td>Cosmetic</td>
+                                                        <td>$32</td>
+                                                        <td>4x</td>
+                                                        <td class="font-medium">$128</td>
+                                                    </tr>
+                                                    <tr class="font-medium">
+                                                        <td colspan="5" class="text-end">
+                                                            Sub Total
+                                                        </td>
+                                                        <td>$247</td>
+                                                    </tr>
+                                                    <tr class="font-medium">
+                                                        <td colspan="5" class="text-end">Tax</td>
+                                                        <td>+ $44</td>
+                                                    </tr>
+                                                    <tr class="text-success font-medium">
+                                                        <td colspan="5" class="text-end">
+                                                            Discount
+                                                        </td>
+                                                        <td class="text-success">- $60</td>
+                                                    </tr>
+                                                    <tr class="text-lg">
+                                                        <td
+                                                            colspan="5"
+                                                            class="text-end font-medium">
+                                                            Total
+                                                        </td>
+                                                        <td class="font-semibold">$231</td>
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div
+                                    class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2 2xl:grid-cols-3">
+                                    <div>
+                                        <div class="card card-border bg-base-100">
+                                            <div class="card-body">
+                                                <p
+                                                    class="bg-base-200 rounded-box px-3 py-2 font-medium">
+                                                    Payment Information
+                                                </p>
+                                                <div class="mt-3 flex gap-3">
+                                                    <span
+                                                        class="iconify lucide--credit-card size-6"></span>
+                                                    <div class="grow">
+                                                        <p class="font-medium">Ends with 2487</p>
+                                                        <p class="text-base-content/80 text-sm">
+                                                            Expired at 08/27
+                                                        </p>
+                                                    </div>
+                                                    <div
+                                                        class="badge badge-success badge-sm badge-dash">
+                                                        Paid
+                                                    </div>
+                                                </div>
+                                                <div class="mt-2 text-end">
+                                                    <button class="btn btn-primary btn-soft btn-sm">
+                                                        <span
+                                                            class="iconify lucide--arrow-left-right size-4"></span>
+                                                        Transactions
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="card card-border bg-base-100">
+                                            <div class="card-body">
+                                                <p
+                                                    class="bg-base-200 rounded-box px-3 py-2 font-medium">
+                                                    Customer Details
+                                                </p>
+                                                <div class="mt-3 flex items-center gap-3">
+                                                    <img
+                                                        class="bg-base-200 mask mask-squircle size-10 p-0.5"
+                                                        alt=""
+                                                        src="/images/avatars/5.png" />
+                                                    <div class="grow">
+                                                        <p class="font-medium">James J. Herron</p>
+                                                        <p class="text-base-content/80 text-sm">
+                                                            james@mail.com
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div
+                                                    class="mt-2 flex items-center justify-end gap-1">
+                                                    <button
+                                                        aria-label="call a customer"
+                                                        class="btn btn-ghost btn-sm btn-circle">
+                                                        <span
+                                                            class="iconify lucide--phone size-4"></span>
+                                                    </button>
+                                                    <button
+                                                        aria-label="mail to customer"
+                                                        class="btn btn-ghost btn-sm btn-circle">
+                                                        <span
+                                                            class="iconify lucide--mail size-4"></span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="card card-border bg-base-100">
+                                            <div class="card-body">
+                                                <p
+                                                    class="bg-base-200 rounded-box px-3 py-2 font-medium">
+                                                    Delivery Address
+                                                </p>
+                                                <div class="mt-3 flex gap-3">
+                                                    <span
+                                                        class="iconify lucide--map-pin size-6"></span>
+                                                    <div class="grow">
+                                                        <p class="font-medium">
+                                                            4239 Bloomfield Way
+                                                        </p>
+                                                        <p class="text-base-content/80 text-sm">
+                                                            Standish - ME 047842
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div class="mt-2 text-end">
+                                                    <button class="btn btn-primary btn-soft btn-sm">
+                                                        <span
+                                                            class="iconify lucide--map size-4"></span>
+                                                        View on Map
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="lg:col-span-4 2xl:col-span-3">
+                                <div class="card card-border bg-base-100">
+                                    <div class="card-body gap-0">
+                                        <p class="bg-base-200 rounded-box px-3 py-2 font-medium">
+                                            Track Order
+                                        </p>
+                                        <div class="mt-2">
+                                            <ul
+                                                class="timeline timeline-vertical timeline-snap-icon timeline-hr-sm -ms-[100%] ps-10">
+                                                <li>
+                                                    <div class="timeline-middle">
+                                                        <div
+                                                            class="bg-base-200 flex items-center rounded-full p-2">
+                                                            <span
+                                                                class="iconify lucide--clipboard size-4.5"></span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="timeline-end my-2.5 w-full px-4">
+                                                        <div
+                                                            class="flex items-center justify-between">
+                                                            <span class="text-sm font-medium">
+                                                                Ordered
+                                                            </span>
+                                                            <span
+                                                                class="text-base-content/60 text-xs">
+                                                                4 days
+                                                            </span>
+                                                        </div>
+                                                        <p class="text-base-content/70 text-xs">
+                                                            Samuel E. Clark ordered it via app
+                                                        </p>
+                                                    </div>
+                                                    <hr />
+                                                </li>
+                                                <li>
+                                                    <hr />
+                                                    <div class="timeline-middle">
+                                                        <div
+                                                            class="bg-base-200 flex items-center rounded-full p-2">
+                                                            <span
+                                                                class="iconify lucide--clipboard-check size-4.5"></span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="timeline-end my-2.5 w-full px-4">
+                                                        <div
+                                                            class="flex items-center justify-between">
+                                                            <span class="text-sm font-medium">
+                                                                Accepted
+                                                            </span>
+                                                            <span
+                                                                class="text-base-content/60 text-xs">
+                                                                3 days
+                                                            </span>
+                                                        </div>
+                                                        <p class="text-base-content/70 text-xs">
+                                                            Cafe day's accept order
+                                                        </p>
+                                                    </div>
+                                                    <hr />
+                                                </li>
+                                                <li>
+                                                    <hr />
+                                                    <div class="timeline-middle">
+                                                        <div
+                                                            class="bg-base-200 flex items-center rounded-full p-2">
+                                                            <span
+                                                                class="iconify lucide--package-check size-4.5"></span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="timeline-end my-2.5 w-full px-4">
+                                                        <div
+                                                            class="flex items-center justify-between">
+                                                            <span class="text-sm font-medium">
+                                                                Ready to dispatch
+                                                            </span>
+                                                            <span
+                                                                class="text-base-content/60 text-xs">
+                                                                23 hours
+                                                            </span>
+                                                        </div>
+                                                        <p class="text-base-content/70 text-xs">
+                                                            Packaging done with instructions
+                                                        </p>
+                                                    </div>
+                                                    <hr />
+                                                </li>
+                                                <li>
+                                                    <hr />
+                                                    <div class="timeline-middle">
+                                                        <div
+                                                            class="bg-base-200 flex items-center rounded-full p-2">
+                                                            <span
+                                                                class="iconify lucide--truck size-4.5"></span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="timeline-end my-2.5 w-full px-4">
+                                                        <div
+                                                            class="flex items-center justify-between">
+                                                            <span class="text-sm font-medium">
+                                                                On the Way
+                                                            </span>
+                                                            <span
+                                                                class="text-base-content/60 text-xs">
+                                                                2 hours
+                                                            </span>
+                                                        </div>
+                                                        <p class="text-base-content/70 text-xs">
+                                                            Way's truck goes for delivery
+                                                        </p>
+                                                    </div>
+                                                    <hr />
+                                                </li>
+                                                <li>
+                                                    <hr />
+                                                    <div class="timeline-middle">
+                                                        <div
+                                                            class="bg-primary/10 text-primary flex items-center rounded-full p-2">
+                                                            <span
+                                                                class="iconify lucide--package-open size-4.5"></span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="timeline-end my-2.5 w-full px-4">
+                                                        <div
+                                                            class="flex items-center justify-between">
+                                                            <span class="text-sm font-medium">
+                                                                Delivered
+                                                            </span>
+                                                            <span
+                                                                class="text-base-content/60 text-xs">
+                                                                24 minutes
+                                                            </span>
+                                                        </div>
+                                                        <p class="text-base-content/70 text-xs">
+                                                            Order put your door at snap
+                                                        </p>
+                                                    </div>
+                                                    <hr />
+                                                </li>
+                                                <li>
+                                                    <hr />
+                                                    <div class="timeline-middle">
+                                                        <div
+                                                            class="bg-success/10 text-success flex items-center rounded-full p-2">
+                                                            <span
+                                                                class="iconify lucide--stars size-4.5"></span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="timeline-end mx-5 my-2">
+                                                        <button
+                                                            class="btn btn-sm btn-soft btn-success">
+                                                            Review order
+                                                        </button>
+                                                    </div>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        <p
+                                            class="bg-base-200 rounded-box mt-4 px-3 py-2 font-medium">
+                                            Delivery Partner
+                                        </p>
+                                        <div class="mt-3">
+                                            <div class="flex items-center gap-3">
+                                                <img
+                                                    class="bg-base-200 mask mask-squircle size-10"
+                                                    alt="Avatar"
+                                                    src="/images/avatars/8.png" />
+                                                <div class="grow">
+                                                    <p class="text-sm font-medium">
+                                                        Patricia T. Gandy
+                                                    </p>
+                                                    <p class="text-base-content/80 text-sm">
+                                                        pat.gandy@mail.com
+                                                    </p>
+                                                </div>
+                                                <div class="inline-flex gap-2">
+                                                    <button class="btn btn-ghost btn-sm">
+                                                        <span
+                                                            class="iconify lucide--route size-3.5"></span>
+                                                        Track
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--  End: Layout - Content -->
+                    <load src="partials/footer.html" />
+                </div>
+            </div>
+
+            <load src="partials/rightbar.html" />
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

@@ -1,0 +1,57 @@
+<div
+    x-data="{
+    step: 1,
+    totalSteps: 4,
+    get canPrevious() { return this.step > 1 },
+    get canNext() { return this.step < this.totalSteps },
+    get isLastStep() { return this.step === this.totalSteps },
+    goNext() { if (this.canNext) this.step++ },
+    goPrevious() { if (this.canPrevious) this.step-- },
+    goTo(n) {
+      this.step = Math.max(1, Math.min(this.totalSteps, n))
+    },
+    steps: ['Personal Details', 'Account Settings', 'Permissions', 'Review']
+
+}">
+    <div role="tablist" class="tabs tabs-box">
+        <a role="tab" @click="goTo(1)" class="tab grow gap-2" :class="step===1?'tab-active':''">
+            <span class="iconify lucide--user size-4"></span>
+            <span class="max-md:hidden">Personal Details</span>
+        </a>
+        <a role="tab" @click="goTo(2)" class="tab grow gap-2" :class="step===2?'tab-active':''">
+            <span class="iconify lucide--settings-2 size-4"></span>
+            <span class="max-md:hidden">Account Settings</span>
+        </a>
+        <a role="tab" @click="goTo(3)" class="tab grow gap-2" :class="step===3?'tab-active':''">
+            <span class="iconify lucide--shield-check size-4"></span>
+            <span class="max-md:hidden">Permissions</span>
+        </a>
+        <a role="tab" @click="goTo(4)" class="tab grow gap-2" :class="step===4?'tab-active':''">
+            <span class="iconify lucide--check-circle-2 size-4"></span>
+            <span class="max-md:hidden">Review</span>
+        </a>
+    </div>
+    <div
+        class="bg-base-200/30 border-base-300 text-base-content/50 rounded-box mt-6 flex h-40 items-center justify-center p-5 font-medium"
+        x-text="'Step '+ step +' of '+' '+totalSteps"></div>
+    <div class="mt-4 flex justify-between">
+        <button :disabled="!canPrevious" @click="goPrevious()" class="btn">
+            <span class="iconify lucide--chevron-left size-4"></span>
+            <span>Prev</span>
+        </button>
+
+        <template x-if="isLastStep">
+            <button class="btn btn-primary ms-auto">
+                <span class="iconify lucide--flag size-4"></span>
+                <span>Finish</span>
+            </button>
+        </template>
+
+        <template x-if="!isLastStep">
+            <button :disabled="!canNext" @click="goNext()" class="btn ms-auto">
+                <span>Next</span>
+                <span class="iconify lucide--chevron-right size-4"></span>
+            </button>
+        </template>
+    </div>
+</div>

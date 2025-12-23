@@ -1,0 +1,125 @@
+<div class="relative isolate md:mx-20">
+    <div class="overflow-hidden">
+        <div class="swiper" id="cards-carousel-demo">
+            <div class="swiper-wrapper">
+                <div class="swiper-slide">
+                    <img
+                        src="https://images.unsplash.com/photo-1655201665132-717c141c3c18?q=80&amp;w=500"
+                        alt="Image"
+                        class="rounded-box h-40 w-full object-cover md:h-60" />
+                </div>
+                <div class="swiper-slide">
+                    <img
+                        src="https://images.unsplash.com/photo-1443926818681-717d074a57af?q=80&amp;w=500"
+                        alt="Image"
+                        class="rounded-box h-40 w-full object-cover md:h-60" />
+                </div>
+                <div class="swiper-slide">
+                    <img
+                        src="https://images.unsplash.com/photo-1552323543-4cffa4ffffe3?q=80&amp;w=500"
+                        alt="Image"
+                        class="rounded-box h-40 w-full object-cover md:h-60" />
+                </div>
+                <div class="swiper-slide">
+                    <img
+                        src="https://images.unsplash.com/photo-1494791368093-85217fbbf8de?q=80&amp;w=500"
+                        alt="Image"
+                        class="rounded-box h-40 w-full object-cover md:h-60" />
+                </div>
+                <div class="swiper-slide">
+                    <img
+                        src="https://images.unsplash.com/photo-1462331940025-496dfbfc7564?q=80&amp;w=500"
+                        alt="Image"
+                        class="rounded-box h-40 w-full object-cover md:h-60" />
+                </div>
+                <div class="swiper-slide">
+                    <img
+                        src="https://images.unsplash.com/photo-1706973376819-47f8234112ee?q=80&amp;w=500"
+                        alt="Image"
+                        class="rounded-box h-40 w-full object-cover md:h-60" />
+                </div>
+                <div class="swiper-slide">
+                    <img
+                        src="https://images.unsplash.com/photo-1588000196611-0c3fcc279899?q=80&amp;w=500"
+                        alt="Image"
+                        class="rounded-box h-40 w-full object-cover md:h-60" />
+                </div>
+                <div class="swiper-slide">
+                    <img
+                        src="https://images.unsplash.com/photo-1543178557-efb2baec2b89?q=80&amp;w=500"
+                        alt="Image"
+                        class="rounded-box h-40 w-full object-cover md:h-60" />
+                </div>
+                <div class="swiper-slide">
+                    <img
+                        src="https://images.unsplash.com/photo-1728237895204-695f3528c4f2?q=80&amp;w=500"
+                        alt="Image"
+                        class="rounded-box h-40 w-full object-cover md:h-60" />
+                </div>
+                <div class="swiper-slide">
+                    <img
+                        src="https://images.unsplash.com/photo-1648200204416-a03bffd6ab14?q=80&amp;w=500"
+                        alt="Image"
+                        class="rounded-box h-40 w-full object-cover md:h-60" />
+                </div>
+                <div class="swiper-slide">
+                    <img
+                        src="https://images.unsplash.com/photo-1603113397552-3c1e3920d0e7?q=80&amp;w=500"
+                        alt="Image"
+                        class="rounded-box h-40 w-full object-cover md:h-60" />
+                </div>
+            </div>
+        </div>
+    </div>
+    <div
+        class="absolute -inset-x-16 top-1/2 z-1 flex -translate-y-1/2 justify-between max-md:hidden">
+        <button
+            class="cards-carousel-demo-btn-prev btn btn-circle btn-soft"
+            aria-label="Navigation">
+            <span class="iconify lucide--chevron-left size-5"></span>
+        </button>
+        <button
+            class="cards-carousel-demo-btn-next btn btn-circle btn-soft"
+            aria-label="Navigation">
+            <span class="iconify lucide--chevron-right size-5"></span>
+        </button>
+    </div>
+</div>
+
+<script>
+    window.addEventListener("DOMContentLoaded", function () {
+        new Swiper("#cards-carousel-demo", {
+            centeredSlides: true,
+            loop: true,
+            speed: 1000,
+            autoplay: {
+                delay: 5000,
+            },
+            effect: "cards",
+            navigation: {
+                prevEl: ".cards-carousel-demo-btn-prev",
+                nextEl: ".cards-carousel-demo-btn-next",
+            },
+
+            breakpoints: {
+                0: {
+                    slidesPerView: 1.8,
+                },
+                768: {
+                    slidesPerView: 2.8,
+                    cardsEffect: {
+                        perSlideOffset: 4,
+                        perSlideRotate: 4,
+                    },
+                },
+                1440: {
+                    slidesPerView: 3.4,
+                    cardsEffect: {
+                        perSlideOffset: 8,
+                        perSlideRotate: 4,
+                    },
+                },
+            },
+        })
+    })
+</script>

@@ -1,0 +1,2438 @@
+<!doctype html>
+<html class="group/html" lang="en">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <meta charset="UTF-8" />
+        <meta name="author" content="Denish Navadiya" />
+        <meta
+            name="keywords"
+            content="HTML, CSS, daisyui, tailwindcss, admin, client, dashboard, ui kit, component" />
+        <meta
+            name="description"
+            content="Start your next project with Nexus, designed for effortless customization to streamline your development process" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link
+            rel="shortcut icon"
+            href="./images/favicon-dark.png"
+            media="(prefers-color-scheme: dark)" />
+        <link
+            rel="shortcut icon"
+            href="./images/favicon-light.png"
+            media="(prefers-color-scheme: light)" />
+
+        <script>
+            try {
+                const localStorageItem = localStorage.getItem("__NEXUS_CONFIG_v3.0__")
+                if (localStorageItem) {
+                    const theme = JSON.parse(localStorageItem).theme
+                    if (theme !== "system") {
+                        document.documentElement.setAttribute("data-theme", theme)
+                    }
+                }
+            } catch (err) {
+                console.log(err)
+            }
+        </script>
+
+        <script>
+            const sidebars = {
+                "ecommerce": "Ecommerce",
+                "payment": "Payment",
+                "project": "Project",
+                "chat": "Chat",
+                "documentation": "Documentation",
+                "huge-icons": "Huge Icons",
+                "remix-icons": "Remix Icons",
+                "custom-background": "Custom Background",
+            }
+
+            const topbars = {
+                "classic": "Classic",
+                "greeting": "Greeting",
+                "editor": "Editor",
+                "nav-menu-1": "Nav Menu 1",
+                "nav-menu-2": "Nav Menu 2",
+                "custom-background": "Custom Background",
+            }
+
+            const footers = {
+                "minimal": "Minimal",
+                "social": "Social",
+                "branding": "Branding",
+                "legal": "Legal",
+                "status": "Status",
+                "support": "Support",
+                "options-1": "Options 1",
+                "options-2": "Options 2",
+                "custom-background": "Custom Background",
+            }
+        </script>
+        <link rel="stylesheet" href="./assets/app.css" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div
+            class="size-full"
+            x-data="{ sidebar: 'ecommerce', topbar: 'classic', footer: 'minimal' }">
+            <div class="flex">
+                <input
+                    aria-label="Toggle layout sidebar"
+                    class="hidden"
+                    id="layout-sidebar-toggle-trigger"
+                    type="checkbox" />
+                <input
+                    aria-label="Dense layout sidebar"
+                    class="hidden"
+                    id="layout-sidebar-hover-trigger"
+                    type="checkbox" />
+                <div class="bg-base-300 h-screen w-1" id="layout-sidebar-hover"></div>
+                <div class="overflow-hidden" id="layout-sidebar">
+                    <div x-show="sidebar === 'ecommerce'" class="h-full">
+                        <div class="flex h-full w-full flex-col py-3">
+                            <div class="flex min-h-10 items-center justify-between gap-3 px-5">
+                                <span class="text-xl font-semibold">ACME Inc</span>
+                                <div class="flex items-center gap-2">
+                                    <label
+                                        for="layout-sidebar-hover-trigger"
+                                        title="Toggle sidebar hover"
+                                        class="btn btn-circle btn-ghost btn-sm text-base-content/50 relative max-lg:hidden">
+                                        <span
+                                            class="iconify lucide--panel-left-close absolute size-4.5 opacity-100 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-0"></span>
+                                        <span
+                                            class="iconify lucide--panel-left-dashed absolute size-4.5 opacity-0 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-100"></span>
+                                    </label>
+                                    <div class="dropdown dropdown-bottom dropdown-end">
+                                        <div tabindex="0">
+                                            <div
+                                                class="avatar bg-base-200 size-8 cursor-pointer overflow-hidden rounded-full">
+                                                <img alt="Avatar" src="./images/avatars/1.png" />
+                                            </div>
+                                        </div>
+                                        <div
+                                            tabindex="0"
+                                            class="dropdown-content bg-base-100 rounded-box mt-4 w-44 shadow">
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a href="/pages/settings">
+                                                        <span
+                                                            class="iconify lucide--user size-4"></span>
+                                                        <span>My Profile</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="/pages/settings">
+                                                        <span
+                                                            class="iconify lucide--settings size-4"></span>
+                                                        <span>Settings</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="/pages/get-help">
+                                                        <span
+                                                            class="iconify lucide--help-circle size-4"></span>
+                                                        <span>Help</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-300" />
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <div>
+                                                        <span
+                                                            class="iconify lucide--arrow-left-right size-4"></span>
+                                                        <span>Switch Account</span>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <a
+                                                        class="text-error hover:bg-error/10"
+                                                        href="/auth/login">
+                                                        <span
+                                                            class="iconify lucide--log-out size-4"></span>
+                                                        <span>Logout</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="sidebar-menu custom-scrollbar grow overflow-auto px-2.5">
+                                <p class="menu-label mt-2 px-2.5">Navigation</p>
+                                <div class="mt-2">
+                                    <a class="menu-item" href="#">
+                                        <span class="iconify lucide--monitor-dot size-4"></span>
+                                        <span class="grow">Dashboard</span>
+                                    </a>
+                                </div>
+                                <p class="menu-label mt-2 px-2.5">Manage</p>
+                                <div class="mt-2 space-y-0.5">
+                                    <div class="collapse">
+                                        <input
+                                            aria-label="Sidemenu item trigger"
+                                            class="peer"
+                                            type="checkbox" />
+                                        <div class="collapse-title px-2.5 py-1.5">
+                                            <span class="iconify lucide--package size-4"></span>
+                                            <span class="grow">Products</span>
+                                            <span
+                                                class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                        </div>
+                                        <div class="collapse-content ms-6.5 !p-0">
+                                            <div class="mt-0.5 space-y-0.5">
+                                                <a class="menu-item" href="#">
+                                                    <span class="grow">All Products</span>
+                                                </a>
+                                                <a class="menu-item" href="#">
+                                                    <span class="grow">Add New</span>
+                                                </a>
+                                                <a class="menu-item" href="#">
+                                                    <span class="grow">Categories</span>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="collapse">
+                                        <input
+                                            aria-label="Sidemenu item trigger"
+                                            class="peer"
+                                            type="checkbox" />
+                                        <div class="collapse-title px-2.5 py-1.5">
+                                            <span
+                                                class="iconify lucide--receipt-text size-4"></span>
+                                            <span class="grow">Orders</span>
+                                            <span
+                                                class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                        </div>
+                                        <div class="collapse-content ms-6.5 !p-0">
+                                            <div class="mt-0.5 space-y-0.5">
+                                                <a class="menu-item" href="#">
+                                                    <span class="grow">All Order</span>
+                                                </a>
+                                                <a class="menu-item" href="#">
+                                                    <span class="grow">Returns</span>
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <a class="menu-item" href="#">
+                                        <span class="iconify lucide--users size-4"></span>
+                                        <span class="grow">Customers</span>
+                                    </a>
+                                    <a class="menu-item" href="#">
+                                        <span class="iconify lucide--warehouse size-4"></span>
+                                        <span class="grow">Inventory</span>
+                                    </a>
+                                    <a class="menu-item" href="#">
+                                        <span class="iconify lucide--dollar-sign size-4"></span>
+                                        <span class="grow">Payouts</span>
+                                    </a>
+                                </div>
+                                <p class="menu-label mt-2 px-2.5">Other</p>
+                                <div class="mt-2 space-y-0.5">
+                                    <div class="collapse">
+                                        <input
+                                            aria-label="Sidemenu item trigger"
+                                            class="peer"
+                                            type="checkbox" />
+                                        <div class="collapse-title px-2.5 py-1.5">
+                                            <span
+                                                class="iconify lucide--align-center size-4"></span>
+                                            <span class="grow">Menu Levels</span>
+                                            <span
+                                                class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                        </div>
+                                        <div class="collapse-content ms-6.5 !p-0">
+                                            <div class="mt-0.5 space-y-0.5">
+                                                <a class="menu-item" href="#">
+                                                    <span class="grow">Level 1a</span>
+                                                </a>
+                                                <div class="collapse">
+                                                    <input
+                                                        aria-label="Sidemenu item trigger"
+                                                        class="peer"
+                                                        type="checkbox" />
+                                                    <div class="collapse-title px-2.5 py-1.5">
+                                                        <span class="grow">Level 1b</span>
+                                                        <span
+                                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                                    </div>
+                                                    <div class="collapse-content ms-6.5 !p-0">
+                                                        <div class="mt-0.5 space-y-0.5">
+                                                            <a class="menu-item" href="#">
+                                                                <span class="grow">Level 2a</span>
+                                                            </a>
+                                                            <div class="group collapse">
+                                                                <input
+                                                                    aria-label="Sidemenu item trigger"
+                                                                    class="peer"
+                                                                    type="checkbox" />
+                                                                <div
+                                                                    class="collapse-title px-2.5 py-1.5">
+                                                                    <span class="grow">
+                                                                        Level 2b
+                                                                    </span>
+                                                                    <span
+                                                                        class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                                                </div>
+                                                                <div
+                                                                    class="collapse-content ms-6.5 !p-0">
+                                                                    <div class="mt-0.5 space-y-0.5">
+                                                                        <a
+                                                                            class="menu-item"
+                                                                            href="#">
+                                                                            <span class="grow">
+                                                                                Level 3a
+                                                                            </span>
+                                                                        </a>
+                                                                        <a
+                                                                            class="menu-item"
+                                                                            href="#">
+                                                                            <span class="grow">
+                                                                                Level 3b
+                                                                            </span>
+                                                                        </a>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <a class="menu-item" target="_blank" href="https://google.com">
+                                        <span class="iconify lucide--external-link size-4"></span>
+                                        <span class="grow">External Links</span>
+                                    </a>
+                                    <a class="menu-item" href="#">
+                                        <span class="iconify lucide--award size-4"></span>
+                                        <span class="grow">Label</span>
+                                        <div class="ms-auto inline-flex gap-2">
+                                            <div
+                                                class="bg-secondary text-secondary-content rounded-box ms-0 px-1.5 text-[12px]">
+                                                +8
+                                            </div>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="border-base-200 rounded-box relative mx-3 mt-3 border p-3">
+                                <p class="font-medium">5 Days left!</p>
+                                <progress
+                                    class="progress progress-warning h-1 align-super"
+                                    max="100"
+                                    value="70"></progress>
+                                <p class="text-base-content/80 -mt-1.5 text-sm leading-tight">
+                                    Trial ending soon. Upgrade to stay active.
+                                </p>
+                                <button
+                                    class="btn btn-soft btn-xs btn-circle absolute end-2 top-2"
+                                    aria-label="Close">
+                                    <span class="iconify lucide--x size-3.5"></span>
+                                </button>
+                            </div>
+                            <div
+                                class="border-base-200 sidebar-menu mt-3 space-y-0.5 border-t px-2.5 pt-2">
+                                <a class="menu-item" href="#">
+                                    <span class="iconify lucide--badge-info size-4"></span>
+                                    <span class="grow">Help &amp; Support</span>
+                                </a>
+                                <a class="menu-item" href="#">
+                                    <span class="iconify lucide--headphones size-4"></span>
+                                    <span class="grow">Contact us</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div x-show="sidebar === 'payment'" class="h-full">
+                        <div class="sidebar-menu relative flex h-full w-full flex-col py-3">
+                            <label
+                                for="layout-sidebar-hover-trigger"
+                                title="Toggle sidebar hover"
+                                class="btn btn-circle btn-ghost btn-sm text-base-content/50 absolute end-2 top-3.5 max-lg:hidden">
+                                <span
+                                    class="iconify lucide--panel-left-close absolute size-4.5 opacity-100 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-0"></span>
+                                <span
+                                    class="iconify lucide--panel-left-dashed absolute size-4.5 opacity-0 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-100"></span>
+                            </label>
+                            <div class="flex min-h-10 items-center gap-3 px-5">
+                                <span class="text-xl font-semibold">ACME Inc</span>
+                                <hr class="border-base-300 h-5 border-e" />
+                                <p class="text-base-content/50 font-medium">Basic</p>
+                            </div>
+                            <div class="custom-scrollbar grow overflow-auto">
+                                <div class="mt-3 space-y-0.5 px-2.5">
+                                    <a class="menu-item" href="#">
+                                        <span class="iconify lucide--home size-4"></span>
+                                        <p>Home</p>
+                                    </a>
+                                    <a class="menu-item" href="#">
+                                        <span class="iconify lucide--bar-chart-2 size-4"></span>
+                                        <p>Overview</p>
+                                    </a>
+                                </div>
+                                <p class="menu-label mt-4 px-5">Transactions</p>
+                                <div class="mt-1 space-y-0.5 px-2.5">
+                                    <a class="menu-item" href="#">
+                                        <span class="iconify lucide--credit-card size-4"></span>
+                                        <p>Payment History</p>
+                                    </a>
+                                    <a class="menu-item" href="#">
+                                        <span class="iconify lucide--dollar-sign size-4"></span>
+                                        <p>Send Payment</p>
+                                    </a>
+                                    <a class="menu-item" href="#">
+                                        <span class="iconify lucide--repeat size-4"></span>
+                                        <p>Recurring Payments</p>
+                                    </a>
+                                </div>
+                                <p class="menu-label mt-4 px-5">Account</p>
+                                <div class="mt-1 space-y-0.5 px-2.5">
+                                    <a class="menu-item" href="#">
+                                        <span class="iconify lucide--user size-4"></span>
+                                        <p>Profile</p>
+                                    </a>
+                                    <a class="menu-item" href="#">
+                                        <span class="iconify lucide--lock size-4"></span>
+                                        <p>Security</p>
+                                    </a>
+                                    <a class="menu-item" href="#">
+                                        <span class="iconify lucide--wallet size-4"></span>
+                                        <p>Wallet</p>
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="px-2.5 pt-4">
+                                <a class="menu-item" href="#">
+                                    <span class="iconify lucide--settings size-4"></span>
+                                    <p>Settings</p>
+                                </a>
+                                <label class="menu-item menu-item-link">
+                                    <span class="iconify lucide--flask-conical size-4"></span>
+                                    <p class="grow">Test Mode</p>
+                                    <input
+                                        id="basic-test-mode"
+                                        class="toggle toggle-xs toggle-primary"
+                                        type="checkbox"
+                                        checked="" />
+                                </label>
+                                <a class="menu-item" href="#">
+                                    <span class="iconify lucide--log-out size-4"></span>
+                                    <p>Logout</p>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div x-show="sidebar === 'project'" class="h-full">
+                        <div class="sidebar-menu relative flex h-full w-full flex-col py-3">
+                            <label
+                                for="layout-sidebar-hover-trigger"
+                                title="Toggle sidebar hover"
+                                class="btn btn-circle btn-ghost btn-sm text-base-content/50 absolute end-2 top-3.5 max-lg:hidden">
+                                <span
+                                    class="iconify lucide--panel-left-close absolute size-4.5 opacity-100 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-0"></span>
+                                <span
+                                    class="iconify lucide--panel-left-dashed absolute size-4.5 opacity-0 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-100"></span>
+                            </label>
+                            <div class="flex min-h-10 items-center gap-3 px-5">
+                                <span class="text-xl font-semibold">ACME Inc</span>
+                                <hr class="border-base-300 h-5 border-e" />
+                                <div class="flex items-center gap-1.5">
+                                    <div class="status status-success size-1.5"></div>
+                                    <span class="text-base-content/80 text-sm">Online</span>
+                                </div>
+                            </div>
+                            <div class="mt-2 px-5">
+                                <div class="dropdown dropdown-bottom dropdown-end w-full">
+                                    <div
+                                        tabindex="0"
+                                        class="border-base-300 hover:bg-base-200 rounded-box flex cursor-pointer items-center gap-2 border p-1 pe-2">
+                                        <div
+                                            class="bg-primary/20 rounded-box flex size-8 items-center justify-center">
+                                            <div
+                                                class="mask mask-hexagon-2 bg-primary size-5"></div>
+                                        </div>
+                                        <div class="grow">
+                                            <p class="text-sm/none font-medium">Design System</p>
+                                            <p class="text-base-content/60 mt-1 text-xs/none">
+                                                In Development
+                                            </p>
+                                        </div>
+                                        <span
+                                            class="iconify lucide--chevrons-up-down text-base-content/50"></span>
+                                    </div>
+                                    <div
+                                        tabindex="0"
+                                        class="dropdown-content bg-base-100 rounded-box mt-1 w-44 shadow-md transition-all hover:shadow-lg">
+                                        <ul class="menu w-full space-y-1 p-2">
+                                            <li>
+                                                <div
+                                                    class="hover:bg-base-200 rounded-box flex cursor-pointer items-center gap-2 p-1 pe-2">
+                                                    <div
+                                                        class="bg-secondary/20 rounded-box flex size-8 items-center justify-center">
+                                                        <div
+                                                            class="mask mask-star-2 bg-secondary size-5"></div>
+                                                    </div>
+                                                    <div class="grow">
+                                                        <p class="text-sm/none font-medium">
+                                                            Project Astra
+                                                        </p>
+                                                        <p class="mt-1 text-xs/none opacity-60">
+                                                            In Production
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </li>
+                                            <li>
+                                                <div
+                                                    class="hover:bg-base-200 rounded-box flex cursor-pointer items-center gap-2 p-1 pe-2">
+                                                    <div
+                                                        class="bg-warning/20 rounded-box flex size-8 items-center justify-center">
+                                                        <div
+                                                            class="mask mask-diamond bg-warning size-5"></div>
+                                                    </div>
+                                                    <div class="grow">
+                                                        <p class="text-sm/none font-medium">
+                                                            Web Analytics
+                                                        </p>
+                                                        <p class="mt-1 text-xs/none opacity-60">
+                                                            On Hold
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="custom-scrollbar grow overflow-auto">
+                                <div class="mt-4">
+                                    <div class="flex items-center justify-between px-5">
+                                        <p class="menu-label">Navigation</p>
+                                        <button
+                                            class="btn btn-xs btn-ghost btn-circle"
+                                            aria-label="Add">
+                                            <span
+                                                class="iconify lucide--plus size-4 opacity-60"></span>
+                                        </button>
+                                    </div>
+                                    <div class="mt-1 space-y-0.5 px-2.5">
+                                        <a class="menu-item group" href="#">
+                                            <span
+                                                class="iconify lucide--layout-dashboard size-4"></span>
+                                            <p class="grow">Dashboard</p>
+                                            <span
+                                                class="iconify lucide--chevron-right size-3.5 -translate-x-1 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-60"></span>
+                                        </a>
+                                        <a class="menu-item group" href="#">
+                                            <span class="iconify lucide--folder-open size-4"></span>
+                                            <p class="grow">Projects</p>
+                                            <span
+                                                class="iconify lucide--chevron-right size-3.5 -translate-x-1 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-60"></span>
+                                        </a>
+                                        <a class="menu-item group" href="#">
+                                            <span class="iconify lucide--users size-4"></span>
+                                            <p class="grow">Team</p>
+                                            <span
+                                                class="iconify lucide--chevron-right size-3.5 -translate-x-1 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-60"></span>
+                                        </a>
+                                        <a class="menu-item group" href="#">
+                                            <span
+                                                class="iconify lucide--calendar-days size-4"></span>
+                                            <p class="grow">Schedule</p>
+                                            <span
+                                                class="iconify lucide--chevron-right size-3.5 -translate-x-1 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-60"></span>
+                                        </a>
+                                        <a class="menu-item group" href="#">
+                                            <span class="iconify lucide--file-text size-4"></span>
+                                            <p class="grow">Reports</p>
+                                            <span
+                                                class="iconify lucide--chevron-right size-3.5 -translate-x-1 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-60"></span>
+                                        </a>
+                                    </div>
+                                </div>
+                                <div class="mt-4">
+                                    <div class="flex items-center justify-between px-5">
+                                        <p class="menu-label">Favorite</p>
+                                        <button
+                                            class="btn btn-xs btn-ghost btn-circle"
+                                            aria-label="Add">
+                                            <span
+                                                class="iconify lucide--plus size-4 opacity-60"></span>
+                                        </button>
+                                    </div>
+                                    <div class="mt-1 space-y-0.5 px-2.5">
+                                        <a class="group menu-item justify-between" href="#">
+                                            <div class="flex items-center gap-2">
+                                                <span class="iconify lucide--search size-4"></span>
+                                                <p>Search Files</p>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <span
+                                                    class="iconify lucide--star translate-x-2 text-orange-500 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100"></span>
+                                                <kbd class="kbd kbd-sm">P</kbd>
+                                            </div>
+                                        </a>
+                                        <a class="group menu-item justify-between" href="#">
+                                            <div class="flex items-center gap-2">
+                                                <span
+                                                    class="iconify lucide--file-plus size-4"></span>
+                                                <p>New File</p>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <span
+                                                    class="iconify lucide--star translate-x-2 text-orange-500 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100"></span>
+                                                <kbd class="kbd kbd-sm">N</kbd>
+                                            </div>
+                                        </a>
+                                        <a class="group menu-item justify-between" href="#">
+                                            <div class="flex items-center gap-2">
+                                                <span class="iconify lucide--clock size-4"></span>
+                                                <p>Recent</p>
+                                            </div>
+                                            <div class="flex items-center gap-2">
+                                                <span
+                                                    class="iconify lucide--star translate-x-2 text-orange-500 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100"></span>
+                                                <kbd class="kbd kbd-sm">E</kbd>
+                                            </div>
+                                        </a>
+                                    </div>
+                                </div>
+                                <div class="mt-4">
+                                    <div class="flex items-center justify-between px-5">
+                                        <p class="menu-label">Channels</p>
+                                        <button
+                                            class="btn btn-xs btn-ghost btn-circle"
+                                            aria-label="Add">
+                                            <span
+                                                class="iconify lucide--plus size-4 opacity-60"></span>
+                                        </button>
+                                    </div>
+                                    <div class="mt-2 space-y-1 px-5">
+                                        <a
+                                            class="text-base-content/90 hover:text-primary flex items-center gap-2 transition-all"
+                                            href="#">
+                                            <span class="iconify lucide--hash"></span>
+                                            general
+                                        </a>
+                                        <a
+                                            class="text-base-content/90 hover:text-primary flex items-center gap-2 transition-all"
+                                            href="#">
+                                            <span class="iconify lucide--hash"></span>
+                                            design
+                                        </a>
+                                        <div
+                                            class="text-base-content/90 flex items-center gap-2 transition-all">
+                                            <a
+                                                class="hover:text-primary flex grow items-center gap-2"
+                                                href="#">
+                                                <span class="iconify lucide--hash"></span>
+                                                <p class="grow">meeting</p>
+                                            </a>
+                                            <button
+                                                aria-label="Notification"
+                                                tabindex="0"
+                                                class="btn btn-xs btn-circle btn-ghost"
+                                                popovertarget="popover-1"
+                                                style="anchor-name: --anchor-1">
+                                                <span class="iconify lucide--bell size-4"></span>
+                                            </button>
+                                            <ul
+                                                class="dropdown dropdown-end menu rounded-box bg-base-100 w-36 shadow hover:shadow-lg"
+                                                popover="auto"
+                                                id="popover-1"
+                                                style="position-anchor: --anchor-1">
+                                                <li>
+                                                    <a>
+                                                        <span
+                                                            class="iconify lucide--bell size-4"></span>
+                                                        Normal
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a>
+                                                        <span
+                                                            class="iconify lucide--bell-off size-4"></span>
+                                                        Muted
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a>
+                                                        <span
+                                                            class="iconify lucide--bell-ring size-4"></span>
+                                                        Vibrate
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a>
+                                                        <span
+                                                            class="iconify lucide--bell-minus size-4"></span>
+                                                        Silent
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        <a
+                                            class="text-base-content/90 hover:text-primary flex items-center gap-2 transition-all"
+                                            href="#">
+                                            <span class="iconify lucide--hash"></span>
+                                            support
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="border-base-300 relative mt-8 border-t px-5 pt-4">
+                                <div
+                                    class="bg-base-100 border-base-300 absolute -top-7 translate-y-1/2 rounded-full border px-3 py-0.5">
+                                    <p class="text-base-content/70 text-sm">In Meeting</p>
+                                </div>
+                                <div class="mt-2 flex items-center justify-between">
+                                    <div class="avatar-group -ms-2 -space-x-3.5">
+                                        <div class="avatar border-2">
+                                            <div class="bg-base-200 size-7 rounded-full">
+                                                <img alt="Avatar" src="./images/avatars/4.png" />
+                                            </div>
+                                        </div>
+                                        <div class="avatar border-2">
+                                            <div class="bg-base-200 size-7 rounded-full">
+                                                <img alt="Avatar" src="./images/avatars/5.png" />
+                                            </div>
+                                        </div>
+                                        <div class="avatar border-2">
+                                            <div class="bg-base-200 size-7 rounded-full">
+                                                <img alt="Avatar" src="./images/avatars/7.png" />
+                                            </div>
+                                        </div>
+                                        <div class="avatar border-2">
+                                            <div class="bg-base-200 size-7 rounded-full">
+                                                <img alt="Avatar" src="./images/avatars/8.png" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span class="text-base-content/70 text-sm font-medium">
+                                        12:42
+                                    </span>
+                                </div>
+                                <div class="mt-2 flex items-center justify-between gap-1.5">
+                                    <button
+                                        class="btn btn-sm btn-ghost btn-circle"
+                                        aria-label="More">
+                                        <span
+                                            class="iconify lucide--ellipsis-vertical size-4"></span>
+                                    </button>
+                                    <button
+                                        class="btn btn-sm btn-ghost btn-circle"
+                                        aria-label="Speaker">
+                                        <span class="iconify lucide--volume-2 size-4"></span>
+                                    </button>
+                                    <button
+                                        class="btn btn-sm btn-ghost btn-circle"
+                                        aria-label="Mute">
+                                        <span class="iconify lucide--mic size-4"></span>
+                                    </button>
+                                    <button class="btn btn-sm btn-error gap-2">
+                                        <span class="iconify lucide--phone-missed size-4"></span>
+                                        <span class="text-sm">Leave</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div x-show="sidebar === 'chat'" class="h-full">
+                        <div class="sidebar-menu relative flex h-full w-full flex-col py-3">
+                            <label
+                                for="layout-sidebar-hover-trigger"
+                                title="Toggle sidebar hover"
+                                class="btn btn-circle btn-ghost btn-sm text-base-content/50 absolute end-2 top-3.5 max-lg:hidden">
+                                <span
+                                    class="iconify lucide--panel-left-close absolute size-4.5 opacity-100 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-0"></span>
+                                <span
+                                    class="iconify lucide--panel-left-dashed absolute size-4.5 opacity-0 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-100"></span>
+                            </label>
+                            <div class="flex min-h-10 items-center gap-3 px-5">
+                                <span class="text-xl font-semibold">ACME Inc</span>
+                                <hr class="border-base-300 h-5 border-e" />
+                                <span class="text-base-content/50 font-medium">AI Agent</span>
+                            </div>
+                            <div class="mt-2 flex items-center gap-2.5 px-2.5">
+                                <label class="input h-9 grow px-2.5">
+                                    <span
+                                        class="iconify lucide--search text-base-content/80 min-h-4 min-w-4"></span>
+                                    <input class="grow" placeholder="Search" type="search" />
+                                    <kbd class="kbd kbd-sm">K</kbd>
+                                </label>
+                                <button
+                                    class="btn btn-primary btn-square size-9"
+                                    aria-label="New Chat">
+                                    <span class="iconify lucide--plus size-5"></span>
+                                </button>
+                            </div>
+                            <div
+                                class="custom-scrollbar mt-2.5 grow space-y-2.5 overflow-auto px-2.5">
+                                <div
+                                    class="rounded-box border-base-200 hover:bg-base-200/40 hover:border-base-300 flex cursor-pointer items-start gap-2 border px-2.5 py-1.5 transition-all">
+                                    <span
+                                        class="iconify lucide--bot text-base-content/80 mt-px min-w-4"></span>
+                                    <div class="grow">
+                                        <p class="text-sm/none font-medium">AI Chat Assistant</p>
+                                        <p class="text-base-content/60 mt-0.5 line-clamp-1 text-xs">
+                                            How can I help you today?
+                                        </p>
+                                    </div>
+                                    <span class="text-base-content/40 text-xs whitespace-nowrap">
+                                        2 min
+                                    </span>
+                                </div>
+                                <div
+                                    class="rounded-box border-base-200 hover:bg-base-200/40 hover:border-base-300 flex cursor-pointer items-start gap-2 border px-2.5 py-1.5 transition-all">
+                                    <span
+                                        class="iconify lucide--bar-chart-3 text-base-content/80 mt-px min-w-4"></span>
+                                    <div class="grow">
+                                        <p class="text-sm/none font-medium">Marketing Bot</p>
+                                        <p class="text-base-content/60 mt-0.5 line-clamp-1 text-xs">
+                                            Here’s your weekly report
+                                        </p>
+                                    </div>
+                                    <span class="text-base-content/40 text-xs whitespace-nowrap">
+                                        10 min
+                                    </span>
+                                </div>
+                                <div
+                                    class="rounded-box border-base-200 hover:bg-base-200/40 hover:border-base-300 flex cursor-pointer items-start gap-2 border px-2.5 py-1.5 transition-all">
+                                    <span
+                                        class="iconify lucide--life-buoy text-base-content/80 mt-px min-w-4"></span>
+                                    <div class="grow">
+                                        <p class="text-sm/none font-medium">Support Chat</p>
+                                        <p class="text-base-content/60 mt-0.5 line-clamp-1 text-xs">
+                                            Your ticket has been updated
+                                        </p>
+                                    </div>
+                                    <span class="text-base-content/40 text-xs whitespace-nowrap">
+                                        25 min
+                                    </span>
+                                </div>
+                                <div
+                                    class="rounded-box border-base-200 hover:bg-base-200/40 hover:border-base-300 flex cursor-pointer items-start gap-2 border px-2.5 py-1.5 transition-all">
+                                    <span
+                                        class="iconify lucide--users text-base-content/80 mt-px min-w-4"></span>
+                                    <div class="grow">
+                                        <p class="text-sm/none font-medium">Team Workspace</p>
+                                        <p class="text-base-content/60 mt-0.5 line-clamp-1 text-xs">
+                                            New updates on project X
+                                        </p>
+                                    </div>
+                                    <span class="text-base-content/40 text-xs whitespace-nowrap">
+                                        1 hr
+                                    </span>
+                                </div>
+                                <div
+                                    class="rounded-box border-base-200 hover:bg-base-200/40 hover:border-base-300 flex cursor-pointer items-start gap-2 border px-2.5 py-1.5 transition-all">
+                                    <span
+                                        class="iconify lucide--bell text-base-content/80 mt-px min-w-4"></span>
+                                    <div class="grow">
+                                        <p class="text-sm/none font-medium">Notifications</p>
+                                        <p class="text-base-content/60 mt-0.5 line-clamp-1 text-xs">
+                                            You have 3 unread alerts
+                                        </p>
+                                    </div>
+                                    <span class="text-base-content/40 text-xs whitespace-nowrap">
+                                        3 hr
+                                    </span>
+                                </div>
+                                <button class="btn btn-outline btn-block border-base-200 h-9">
+                                    <span
+                                        class="iconify lucide--book-text text-base-content/80"></span>
+                                    Show All
+                                    <span
+                                        class="iconify lucide--chevron-down text-base-content/80"></span>
+                                </button>
+                            </div>
+                            <div class="mt-8"></div>
+                            <div class="mt-2 space-y-0.5 px-2.5">
+                                <a class="menu-item group" href="#">
+                                    <span class="iconify lucide--home size-4"></span>
+                                    <p class="grow">Home</p>
+                                </a>
+                                <a class="menu-item group" href="#">
+                                    <span class="iconify lucide--star size-4"></span>
+                                    <p class="grow">Favorite</p>
+                                </a>
+                                <a class="menu-item group" href="#">
+                                    <span class="iconify lucide--settings-2 size-4"></span>
+                                    <p class="grow">Settings</p>
+                                </a>
+                            </div>
+                            <div
+                                class="border-base-200 rounded-box mx-2.5 mt-2 border px-2.5 py-2.5">
+                                <div
+                                    class="bg-base-200 rounded-box inline-flex items-center justify-center p-1.5">
+                                    <span class="iconify lucide--layers-2 size-4"></span>
+                                </div>
+                                <div class="mt-5 flex items-center justify-between">
+                                    <p class="text-sm font-medium">Basic</p>
+                                    <span class="text-base-content/80 text-xs">84%</span>
+                                </div>
+                                <progress
+                                    max="2000"
+                                    value="1600"
+                                    class="progress progress-warning h-1.5 align-super"></progress>
+                                <div class="-mt-2 flex items-center justify-between">
+                                    <span class="text-sm font-medium">320 left</span>
+                                    <span class="text-base-content/80 text-xs">2K Tokens</span>
+                                </div>
+                                <button class="btn btn-outline btn-block border-base-300 mt-3 h-9">
+                                    <span class="iconify lucide--zap text-base-content/80"></span>
+                                    Upgrade
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div x-show="sidebar === 'documentation'" class="h-full">
+                        <div class="sidebar-menu relative flex h-full w-full flex-col py-3">
+                            <label
+                                for="layout-sidebar-hover-trigger"
+                                title="Toggle sidebar hover"
+                                class="btn btn-circle btn-ghost btn-sm text-base-content/50 absolute end-2 top-3.5 max-lg:hidden">
+                                <span
+                                    class="iconify lucide--panel-left-close absolute size-4.5 opacity-100 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-0"></span>
+                                <span
+                                    class="iconify lucide--panel-left-dashed absolute size-4.5 opacity-0 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-100"></span>
+                            </label>
+                            <div class="flex min-h-10 items-center gap-3 px-5">
+                                <span class="text-xl font-semibold">ACME Inc</span>
+                                <hr class="border-base-300 h-5 border-e" />
+                                <span class="text-base-content/50 font-medium">Learn</span>
+                            </div>
+                            <div class="mt-2 px-5">
+                                <label class="input h-9 px-2.5">
+                                    <span
+                                        class="iconify lucide--search text-base-content/80 min-h-4 min-w-4"></span>
+                                    <input class="grow" placeholder="Search" type="search" />
+                                    <kbd class="kbd kbd-sm">K</kbd>
+                                </label>
+                            </div>
+                            <div class="custom-scrollbar grow overflow-auto">
+                                <div class="mt-4 space-y-1.5 px-5">
+                                    <a class="group flex items-center gap-2" href="#">
+                                        <div
+                                            class="border-base-300 group-hover:bg-primary group-hover:border-primary rounded-box border p-1.5 transition-all">
+                                            <span
+                                                class="iconify lucide--rocket group-hover:text-primary-content block size-4 transition-all"></span>
+                                        </div>
+                                        <span
+                                            class="text-base-content/80 group-hover:text-base-content font-medium transition-all">
+                                            Getting Started
+                                        </span>
+                                    </a>
+                                    <a class="group flex items-center gap-2" href="#">
+                                        <div
+                                            class="border-base-300 group-hover:bg-primary group-hover:border-primary rounded-box border p-1.5 transition-all">
+                                            <span
+                                                class="iconify lucide--book-open group-hover:text-primary-content block size-4 transition-all"></span>
+                                        </div>
+                                        <span
+                                            class="text-base-content/80 group-hover:text-base-content font-medium transition-all">
+                                            Guide
+                                        </span>
+                                    </a>
+                                    <a class="group flex items-center gap-2" href="#">
+                                        <div
+                                            class="border-base-300 group-hover:bg-primary group-hover:border-primary rounded-box border p-1.5 transition-all">
+                                            <span
+                                                class="iconify lucide--code-2 group-hover:text-primary-content block size-4 transition-all"></span>
+                                        </div>
+                                        <span
+                                            class="text-base-content/80 group-hover:text-base-content font-medium transition-all">
+                                            API
+                                        </span>
+                                    </a>
+                                    <a class="group flex items-center gap-2" href="#">
+                                        <div
+                                            class="border-base-300 group-hover:bg-primary group-hover:border-primary rounded-box border p-1.5 transition-all">
+                                            <span
+                                                class="iconify lucide--users group-hover:text-primary-content block size-4 transition-all"></span>
+                                        </div>
+                                        <span
+                                            class="text-base-content/80 group-hover:text-base-content font-medium transition-all">
+                                            Community
+                                        </span>
+                                    </a>
+                                </div>
+                                <div
+                                    class="border-base-300 mt-4 space-y-5 border-t border-dashed px-5 pt-4">
+                                    <div class="space-y-2.5">
+                                        <p class="menu-label">Getting Started</p>
+                                        <div class="space-y-2">
+                                            <a
+                                                class="text-base-content/90 hover:text-primary flex items-center gap-2 text-sm transition-all"
+                                                href="#">
+                                                <span class="iconify lucide--play size-4"></span>
+                                                <span>Installation</span>
+                                            </a>
+                                            <a
+                                                class="text-base-content/90 hover:text-primary flex items-center gap-2 text-sm transition-all"
+                                                href="#">
+                                                <span
+                                                    class="iconify lucide--book-open size-4"></span>
+                                                <span>Quickstart</span>
+                                            </a>
+                                            <a
+                                                class="text-base-content/90 hover:text-primary flex items-center gap-2 text-sm transition-all"
+                                                href="#">
+                                                <span
+                                                    class="iconify lucide--file-text size-4"></span>
+                                                <span>Introduction</span>
+                                            </a>
+                                            <a
+                                                class="text-base-content/90 hover:text-primary flex items-center gap-2 text-sm transition-all"
+                                                href="#">
+                                                <span
+                                                    class="iconify lucide--settings size-4"></span>
+                                                <span>Configuration</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-2.5">
+                                        <p class="menu-label">Components</p>
+                                        <div class="space-y-2">
+                                            <a
+                                                class="text-base-content/90 hover:text-primary flex items-center gap-2 text-sm transition-all"
+                                                href="#">
+                                                <span class="iconify lucide--layout size-4"></span>
+                                                <span>Layout</span>
+                                            </a>
+                                            <a
+                                                class="text-base-content/90 hover:text-primary flex items-center gap-2 text-sm transition-all"
+                                                href="#">
+                                                <span
+                                                    class="iconify lucide--form-input size-4"></span>
+                                                <span>Forms</span>
+                                            </a>
+                                            <a
+                                                class="text-base-content/90 hover:text-primary flex items-center gap-2 text-sm transition-all"
+                                                href="#">
+                                                <span class="iconify lucide--list size-4"></span>
+                                                <span>Lists</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-2.5">
+                                        <p class="menu-label">Utilities</p>
+                                        <div class="space-y-2">
+                                            <a
+                                                class="text-base-content/90 hover:text-primary flex items-center gap-2 text-sm transition-all"
+                                                href="#">
+                                                <span class="iconify lucide--wand size-4"></span>
+                                                <span>Animation</span>
+                                            </a>
+                                            <a
+                                                class="text-base-content/90 hover:text-primary flex items-center gap-2 text-sm transition-all"
+                                                href="#">
+                                                <span
+                                                    class="iconify lucide--sun-moon size-4"></span>
+                                                <span>Theming</span>
+                                            </a>
+                                            <a
+                                                class="text-base-content/90 hover:text-primary flex items-center gap-2 text-sm transition-all"
+                                                href="#">
+                                                <span class="iconify lucide--zoom-in size-4"></span>
+                                                <span>Responsiveness</span>
+                                            </a>
+                                            <a
+                                                class="text-base-content/90 hover:text-primary flex items-center gap-2 text-sm transition-all"
+                                                href="#">
+                                                <span class="iconify lucide--code size-4"></span>
+                                                <span>Custom CSS</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="mt-8 flex justify-between px-5">
+                                <p class="text-base-content/70 text-sm">Switch version</p>
+                                <div class="dropdown dropdown-top dropdown-center">
+                                    <div
+                                        tabindex="0"
+                                        class="flex cursor-pointer items-center gap-1.5 text-sm hover:underline">
+                                        v2.1
+                                        <span class="iconify lucide--chevron-down size-3"></span>
+                                    </div>
+                                    <div
+                                        tabindex="0"
+                                        class="dropdown-content bg-base-100 rounded-box mt-4 w-44 shadow">
+                                        <ul class="menu w-full p-2">
+                                            <li>
+                                                <p>
+                                                    <span class="font-semibold">v2.1</span>
+                                                    (Vanilla)
+                                                </p>
+                                            </li>
+                                            <li>
+                                                <p>
+                                                    <span class="font-semibold">v2.0</span>
+                                                    (Tailwind)
+                                                </p>
+                                            </li>
+                                        </ul>
+                                        <hr class="border-base-300" />
+                                        <p
+                                            class="text-base-content/60 mt-2 px-4 text-sm font-medium">
+                                            Legacy
+                                        </p>
+                                        <ul class="menu w-full p-2">
+                                            <li>
+                                                <p>
+                                                    <span class="font-semibold">v1.4</span>
+                                                    (Classic)
+                                                </p>
+                                            </li>
+                                            <li>
+                                                <p class="text-error hover:bg-error/10">
+                                                    <span class="font-semibold">v0.8</span>
+                                                    (Discontinue)
+                                                </p>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                            <div
+                                class="border-base-300 mt-3 space-y-1.5 border-t border-dashed px-5 pt-4">
+                                <a
+                                    class="text-base-content/90 hover:text-primary flex items-center gap-2 text-sm transition-all"
+                                    href="#">
+                                    <span class="iconify lucide--pencil"></span>
+                                    <span>Edit this page</span>
+                                </a>
+                                <a
+                                    class="text-base-content/90 hover:text-primary flex items-center gap-2 text-sm transition-all"
+                                    href="#">
+                                    <span class="iconify lucide--star"></span>
+                                    <span>Star on Github</span>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div x-show="sidebar === 'huge-icons'" class="h-full">
+                        <div class="sidebar-menu relative flex h-full w-full flex-col py-3">
+                            <label
+                                for="layout-sidebar-hover-trigger"
+                                title="Toggle sidebar hover"
+                                class="btn btn-circle btn-ghost btn-sm text-base-content/50 absolute end-2 top-3.5 max-lg:hidden">
+                                <span
+                                    class="iconify lucide--panel-left-close absolute size-4.5 opacity-100 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-0"></span>
+                                <span
+                                    class="iconify lucide--panel-left-dashed absolute size-4.5 opacity-0 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-100"></span>
+                            </label>
+                            <div class="flex min-h-10 items-center gap-3 px-5">
+                                <span class="text-xl font-semibold">ACME Inc</span>
+                                <hr class="border-base-300 h-5 border-e" />
+                                <p class="text-base-content/50 text-sm font-medium">24/7</p>
+                            </div>
+                            <div class="custom-scrollbar grow overflow-auto">
+                                <div class="mt-3 space-y-0.5 px-2.5">
+                                    <a href="#" class="menu-item">
+                                        <i
+                                            class="iconify hugeicons--dashboard-speed-02 size-4.5"></i>
+                                        <p>Overview</p>
+                                    </a>
+                                    <a href="#" class="menu-item">
+                                        <i
+                                            class="iconify hugeicons--calendar-favorite-02 size-4.5"></i>
+                                        <p>Appointments</p>
+                                    </a>
+                                </div>
+                                <p class="menu-label mt-4 px-5">Management</p>
+                                <div class="mt-1 space-y-0.5 px-2.5">
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify hugeicons--user-group size-4.5"></i>
+                                        <p>Patients</p>
+                                    </a>
+                                    <a href="#" class="menu-item">
+                                        <i
+                                            class="iconify hugeicons--dollar-receive-02 size-4.5"></i>
+                                        <p>Billing</p>
+                                    </a>
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify hugeicons--note-edit size-4.5"></i>
+                                        <p>Prescriptions</p>
+                                    </a>
+                                </div>
+                                <p class="menu-label mt-4 px-5">Administration</p>
+                                <div class="mt-1 space-y-0.5 px-2.5">
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify hugeicons--user-settings-01 size-4.5"></i>
+                                        <p>Staffs</p>
+                                    </a>
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify hugeicons--doc-01 size-4.5"></i>
+                                        <p>Reports</p>
+                                    </a>
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify hugeicons--notebook-01 size-4.5"></i>
+                                        <p>Inventory</p>
+                                    </a>
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify hugeicons--settings-04 size-4.5"></i>
+                                        <p>System</p>
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="mt-4 px-2.5">
+                                <a href="#" class="menu-item">
+                                    <i class="iconify hugeicons--user-circle size-4.5"></i>
+                                    <p>Profile</p>
+                                </a>
+                                <a href="#" class="menu-item">
+                                    <i class="iconify hugeicons--settings-03 size-4.5"></i>
+                                    <p>Settings</p>
+                                </a>
+                                <a href="#" class="menu-item">
+                                    <i class="iconify hugeicons--logout-03 size-4.5"></i>
+                                    <p>Logout</p>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div x-show="sidebar === 'remix-icons'" class="h-full">
+                        <div class="sidebar-menu relative flex h-full w-full flex-col py-3">
+                            <label
+                                for="layout-sidebar-hover-trigger"
+                                title="Toggle sidebar hover"
+                                class="btn btn-circle btn-ghost btn-sm text-base-content/50 absolute end-2 top-3.5 max-lg:hidden">
+                                <span
+                                    class="iconify lucide--panel-left-close absolute size-4.5 opacity-100 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-0"></span>
+                                <span
+                                    class="iconify lucide--panel-left-dashed absolute size-4.5 opacity-0 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-100"></span>
+                            </label>
+                            <div class="flex min-h-10 items-center gap-3 px-5">
+                                <span class="text-xl font-semibold">ACME Inc</span>
+                                <hr class="border-base-300 h-5 border-e" />
+                                <p class="text-base-content/50 text-sm font-medium">Open</p>
+                            </div>
+                            <div class="custom-scrollbar grow overflow-auto">
+                                <div class="mt-3 space-y-0.5 px-2.5">
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify ri--dashboard-line size-4"></i>
+                                        <p>Dashboard</p>
+                                    </a>
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify ri--bar-chart-2-line size-4"></i>
+                                        <p>Analytics</p>
+                                    </a>
+                                </div>
+                                <p class="menu-label mt-4 px-5">E-commerce</p>
+                                <div class="mt-1 space-y-0.5 px-2.5">
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify ri--box-3-line size-4"></i>
+                                        <p>Products</p>
+                                    </a>
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify ri--shopping-cart-line size-4"></i>
+                                        <p>Orders</p>
+                                    </a>
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify ri--user-line size-4"></i>
+                                        <p>Customers</p>
+                                    </a>
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify ri--price-tag-3-line size-4"></i>
+                                        <p>Discounts</p>
+                                    </a>
+                                </div>
+                                <p class="menu-label mt-4 px-5">Content &amp; Design</p>
+                                <div class="mt-1 space-y-0.5 px-2.5">
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify ri--file-text-line size-4"></i>
+                                        <p>Pages</p>
+                                    </a>
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify ri--image-line size-4"></i>
+                                        <p>Media</p>
+                                    </a>
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify ri--palette-line size-4"></i>
+                                        <p>Themes</p>
+                                    </a>
+                                </div>
+                            </div>
+                            <div class="mt-4 px-2.5">
+                                <a href="#" class="menu-item">
+                                    <i class="iconify ri--user-3-line size-4"></i>
+                                    <p>My Profile</p>
+                                </a>
+                                <a href="#" class="menu-item">
+                                    <i class="iconify ri--settings-3-line size-4"></i>
+                                    <p>Settings</p>
+                                </a>
+                                <a href="#" class="menu-item">
+                                    <i class="iconify ri--logout-box-line size-4"></i>
+                                    <p>Sign Out</p>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    <div x-show="sidebar === 'custom-background'" class="h-full">
+                        <div class="sidebar-menu relative h-full w-full overflow-hidden py-3">
+                            <div
+                                class="absolute start-10 top-8 h-44 w-32 bg-blue-500/50 blur-[180px]"></div>
+                            <div
+                                class="absolute start-10 bottom-8 h-44 w-32 rounded-full bg-purple-500/50 blur-[180px]"></div>
+                            <label
+                                for="layout-sidebar-hover-trigger"
+                                title="Toggle sidebar hover"
+                                class="btn btn-circle btn-ghost btn-sm text-base-content/50 absolute end-2 top-3.5 z-10 max-lg:hidden">
+                                <span
+                                    class="iconify lucide--panel-left-close absolute size-4.5 opacity-100 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-0"></span>
+                                <span
+                                    class="iconify lucide--panel-left-dashed absolute size-4.5 opacity-0 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-100"></span>
+                            </label>
+                            <div class="relative flex h-full w-full flex-col">
+                                <div class="flex min-h-10 items-center gap-3 px-5">
+                                    <span class="text-xl font-semibold">ACME Inc</span>
+                                    <hr class="border-base-300 h-5 border-e" />
+                                    <p class="text-base-content/50 text-sm font-medium">Control</p>
+                                </div>
+                                <div class="custom-scrollbar mt-3 grow overflow-auto">
+                                    <div class="space-y-0.5 px-2.5">
+                                        <a
+                                            href="#"
+                                            class="menu-item group from-primary to-secondary hover:bg-linear-to-r">
+                                            <i
+                                                class="iconify lucide--wand-2 text-primary size-4 group-hover:text-white"></i>
+                                            <p
+                                                class="from-primary to-secondary bg-gradient-to-r bg-clip-text text-base font-medium text-transparent group-hover:text-white">
+                                                AI Assistant
+                                            </p>
+                                        </a>
+                                        <a href="#" class="menu-item">
+                                            <i class="iconify lucide--layout-dashboard size-4"></i>
+                                            <p>Dashboard</p>
+                                        </a>
+                                        <a href="#" class="menu-item">
+                                            <i class="iconify lucide--bar-chart-3 size-4"></i>
+                                            <p>Analytics</p>
+                                        </a>
+                                    </div>
+                                    <p class="menu-label mt-4 px-5">Management</p>
+                                    <div class="mt-1 space-y-0.5 px-2.5">
+                                        <a href="#" class="menu-item">
+                                            <i class="iconify lucide--users size-4"></i>
+                                            <p>Users</p>
+                                        </a>
+                                        <a href="#" class="menu-item">
+                                            <i class="iconify lucide--credit-card size-4"></i>
+                                            <p>Billing</p>
+                                        </a>
+                                        <a href="#" class="menu-item">
+                                            <i class="iconify lucide--calendar-clock size-4"></i>
+                                            <p>Plans</p>
+                                        </a>
+                                        <a href="#" class="menu-item">
+                                            <i class="iconify lucide--briefcase size-4"></i>
+                                            <p>Teams</p>
+                                        </a>
+                                    </div>
+                                    <p class="menu-label mt-4 px-5">Content</p>
+                                    <div class="mt-1 space-y-0.5 px-2.5">
+                                        <a href="#" class="menu-item">
+                                            <i class="iconify lucide--file-text size-4"></i>
+                                            <p>Pages</p>
+                                        </a>
+                                        <a href="#" class="menu-item">
+                                            <i class="iconify lucide--image size-4"></i>
+                                            <p>Media</p>
+                                        </a>
+                                        <a href="#" class="menu-item">
+                                            <i class="iconify lucide--paintbrush size-4"></i>
+                                            <p>Appearance</p>
+                                        </a>
+                                    </div>
+                                </div>
+                                <div class="mt-4 px-2.5">
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify lucide--user size-4"></i>
+                                        <p>My Profile</p>
+                                    </a>
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify lucide--settings size-4"></i>
+                                        <p>Settings</p>
+                                    </a>
+                                    <a href="#" class="menu-item">
+                                        <i class="iconify lucide--log-out size-4"></i>
+                                        <p>Sign Out</p>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <label for="layout-sidebar-toggle-trigger" id="layout-sidebar-backdrop"></label>
+
+                <div class="flex h-screen min-w-0 grow flex-col overflow-auto">
+                    <div id="layout-topbar">
+                        <div x-show="topbar === 'classic'" class="h-full">
+                            <div class="flex h-full w-full items-center justify-between px-4">
+                                <div class="flex items-center gap-3">
+                                    <label
+                                        class="btn btn-square btn-ghost btn-sm group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:hidden"
+                                        aria-label="Sidebar toggle"
+                                        for="layout-sidebar-toggle-trigger">
+                                        <span class="iconify lucide--menu size-5"></span>
+                                    </label>
+                                    <label
+                                        class="btn btn-square btn-ghost btn-sm hidden group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:flex"
+                                        aria-label="Leftmenu toggle"
+                                        for="layout-sidebar-hover-trigger">
+                                        <span class="iconify lucide--menu size-5"></span>
+                                    </label>
+                                    <div
+                                        class="btn btn-outline border-base-300 btn-sm max-sm:btn-square w-56 gap-2 sm:justify-start">
+                                        <span class="iconify lucide--search size-3.5"></span>
+                                        <p
+                                            class="text-base-content/60 text-sm font-normal max-sm:hidden">
+                                            Search or jump to...
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center">
+                                    <button
+                                        class="btn btn-square btn-ghost btn-sm me-3"
+                                        aria-label="Notifications">
+                                        <span class="iconify lucide--bell-ring size-5"></span>
+                                    </button>
+                                    <button
+                                        class="btn btn-circle btn-ghost btn-sm me-3"
+                                        aria-label="Apps">
+                                        <span
+                                            class="iconify lucide--component text-base-content/80 size-5.5 rotate-45"></span>
+                                    </button>
+                                    <div class="dropdown dropdown-bottom dropdown-center me-3">
+                                        <div tabindex="0" class="cursor-pointer">
+                                            <img
+                                                alt="Avatar"
+                                                class="rounded-box size-5.5 object-cover"
+                                                src="https://flagcdn.com/us.svg" />
+                                        </div>
+                                        <div
+                                            tabindex="0"
+                                            class="dropdown-content bg-base-100 rounded-box mt-2 w-40 shadow">
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a class="flex items-center gap-2" href="#">
+                                                        <img
+                                                            alt="Avatar"
+                                                            class="rounded-box size-4.5 cursor-pointer object-cover"
+                                                            src="https://flagcdn.com/us.svg" />
+                                                        <span>English</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a class="flex items-center gap-2" href="#">
+                                                        <img
+                                                            alt="Avatar"
+                                                            class="rounded-box size-4.5 cursor-pointer object-cover"
+                                                            src="https://flagcdn.com/in.svg" />
+                                                        <span>Hindi</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a class="flex items-center gap-2" href="#">
+                                                        <img
+                                                            alt="Avatar"
+                                                            class="rounded-box size-4.5 cursor-pointer object-cover"
+                                                            src="https://flagcdn.com/es.svg" />
+                                                        <span>Spanish</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a class="flex items-center gap-2" href="#">
+                                                        <img
+                                                            alt="Avatar"
+                                                            class="rounded-box size-4.5 cursor-pointer object-cover"
+                                                            src="https://flagcdn.com/cn.svg" />
+                                                        <span>Chinese</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a class="flex items-center gap-2" href="#">
+                                                        <img
+                                                            alt="Avatar"
+                                                            class="rounded-box size-4.5 cursor-pointer object-cover"
+                                                            src="https://flagcdn.com/rs.svg" />
+                                                        <span>Arabic</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div class="border-base-300 me-3 h-7 border-e"></div>
+                                    <div class="dropdown dropdown-bottom dropdown-end">
+                                        <div tabindex="0" class="cursor-pointer">
+                                            <div
+                                                class="avatar bg-base-200 rounded-box size-7 overflow-hidden">
+                                                <img alt="Avatar" src="./images/avatars/1.png" />
+                                            </div>
+                                        </div>
+                                        <div
+                                            tabindex="0"
+                                            class="dropdown-content bg-base-100 rounded-box mt-2 w-44 shadow">
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--user size-4"></span>
+                                                        <span>My Profile</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--settings size-4"></span>
+                                                        <span>Settings</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--help-circle size-4"></span>
+                                                        <span>Help</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-300" />
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <div>
+                                                        <span
+                                                            class="iconify lucide--arrow-left-right size-4"></span>
+                                                        <span>Switch Account</span>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <a
+                                                        class="text-error hover:bg-error/10"
+                                                        href="#">
+                                                        <span
+                                                            class="iconify lucide--log-out size-4"></span>
+                                                        <span>Logout</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div x-show="topbar === 'greeting'" class="h-full">
+                            <div class="flex h-full w-full items-center justify-between px-4">
+                                <div class="flex items-center gap-2 sm:gap-3">
+                                    <label
+                                        class="btn btn-square btn-ghost btn-sm group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:hidden"
+                                        aria-label="Sidebar toggle"
+                                        for="layout-sidebar-toggle-trigger">
+                                        <span class="iconify lucide--menu size-5"></span>
+                                    </label>
+                                    <label
+                                        class="btn btn-square btn-ghost btn-sm hidden group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:flex"
+                                        aria-label="Leftmenu toggle"
+                                        for="layout-sidebar-hover-trigger">
+                                        <span class="iconify lucide--menu size-5"></span>
+                                    </label>
+                                    <div>
+                                        <p class="leading-none font-medium md:text-lg">
+                                            Good Morning
+                                            <span class="max-sm:hidden">, Denish!</span>
+                                        </p>
+                                        <p
+                                            class="text-base-content/60 mt-1 text-sm/none max-sm:hidden">
+                                            Welcome back, great to see you again!
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <div class="dropdown dropdown-bottom dropdown-end">
+                                        <div
+                                            tabindex="0"
+                                            class="flex cursor-pointer items-center gap-2">
+                                            <div
+                                                class="avatar bg-base-200 rounded-box size-7 overflow-hidden">
+                                                <img alt="Avatar" src="./images/avatars/1.png" />
+                                            </div>
+                                            <div>
+                                                <p class="leading-none font-medium">Denish</p>
+                                                <p class="text-base-content/60 mt-0 text-xs/none">
+                                                    @withden
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div
+                                            tabindex="0"
+                                            class="dropdown-content bg-base-100 rounded-box mt-2 w-44 shadow">
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--user size-4"></span>
+                                                        <span>My Profile</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--settings size-4"></span>
+                                                        <span>Settings</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--help-circle size-4"></span>
+                                                        <span>Help</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-300" />
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <div>
+                                                        <span
+                                                            class="iconify lucide--arrow-left-right size-4"></span>
+                                                        <span>Switch Account</span>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <a
+                                                        class="text-error hover:bg-error/10"
+                                                        href="#">
+                                                        <span
+                                                            class="iconify lucide--log-out size-4"></span>
+                                                        <span>Logout</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div x-show="topbar === 'editor'" class="h-full">
+                            <div class="flex h-full w-full items-center justify-between gap-4 px-4">
+                                <div class="flex items-center gap-3">
+                                    <label
+                                        class="btn btn-square btn-ghost btn-sm group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:hidden"
+                                        aria-label="Toggle sidebar"
+                                        for="layout-sidebar-toggle-trigger">
+                                        <span class="iconify lucide--menu size-5"></span>
+                                    </label>
+                                    <label
+                                        class="btn btn-square btn-ghost btn-sm hidden group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:flex"
+                                        aria-label="Leftmenu toggle"
+                                        for="layout-sidebar-hover-trigger">
+                                        <span class="iconify lucide--menu size-5"></span>
+                                    </label>
+                                    <div>
+                                        <p class="text-lg/none font-medium">Design Draft</p>
+                                        <div
+                                            class="text-base-content/60 mt-0.5 flex items-center gap-1.5 max-sm:hidden">
+                                            <p class="text-sm">Projects</p>
+                                            <span
+                                                class="iconify lucide--chevron-right size-3.5"></span>
+                                            <p class="text-base-content text-sm font-medium">
+                                                Client
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div
+                                    class="btn btn-outline border-base-300 btn-sm max-sm:btn-square w-56 gap-2 max-sm:ms-auto sm:justify-start">
+                                    <span class="iconify lucide--search size-3.5"></span>
+                                    <p
+                                        class="text-base-content/60 text-sm font-normal max-sm:hidden">
+                                        Search or jump to...
+                                    </p>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <div class="flex items-center gap-3 max-md:hidden">
+                                        <p class="text-base-content/60 text-sm">Saved just now</p>
+                                        <div class="avatar-group -space-x-3.5 *:border-2">
+                                            <div
+                                                class="avatar bg-base-200 size-9 overflow-hidden rounded-full px-1 pt-1">
+                                                <img alt="Avatar" src="./images/avatars/1.png" />
+                                            </div>
+                                            <div
+                                                class="avatar bg-base-200 size-9 overflow-hidden rounded-full px-1 pt-1">
+                                                <img alt="Avatar" src="./images/avatars/2.png" />
+                                            </div>
+                                            <div
+                                                class="avatar bg-base-200 size-9 overflow-hidden rounded-full px-1 pt-1">
+                                                <img alt="Avatar" src="./images/avatars/3.png" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-outline border-base-300 btn-sm">
+                                        <span class="iconify lucide--pen size-3"></span>
+                                        Edit
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div x-show="topbar === 'nav-menu-1'" class="h-full">
+                            <div class="flex h-full w-full items-center justify-between px-4">
+                                <div class="flex items-center gap-3">
+                                    <label
+                                        class="btn btn-square btn-ghost btn-sm group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:hidden"
+                                        aria-label="Sidebar toggle"
+                                        for="layout-sidebar-toggle-trigger">
+                                        <span class="iconify lucide--menu size-5"></span>
+                                    </label>
+                                    <label
+                                        class="btn btn-square btn-ghost btn-sm hidden group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:flex"
+                                        aria-label="Leftmenu toggle"
+                                        for="layout-sidebar-hover-trigger">
+                                        <span class="iconify lucide--menu size-5"></span>
+                                    </label>
+                                    <div
+                                        class="*:hover:bg-base-200 *:rounded-box flex items-center gap-0.5 text-sm *:px-2.5 *:py-1 max-sm:hidden">
+                                        <a class="!bg-primary/10 text-primary font-medium" href="#">
+                                            Apps
+                                        </a>
+                                        <a href="#">Components</a>
+                                        <a href="#">Pages</a>
+                                    </div>
+                                </div>
+                                <div class="flex items-center">
+                                    <button
+                                        class="btn btn-square btn-ghost btn-sm me-1"
+                                        aria-label="Search">
+                                        <span class="iconify lucide--search size-5"></span>
+                                    </button>
+                                    <button
+                                        class="btn btn-square btn-ghost btn-sm me-3"
+                                        aria-label="Notifications">
+                                        <span class="iconify lucide--bell-ring size-5"></span>
+                                    </button>
+                                    <div class="dropdown dropdown-bottom dropdown-center me-3">
+                                        <div tabindex="0" class="cursor-pointer">
+                                            <img
+                                                alt="Avatar"
+                                                class="rounded-box size-5.5 object-cover"
+                                                src="https://flagcdn.com/us.svg" />
+                                        </div>
+                                        <div
+                                            tabindex="0"
+                                            class="dropdown-content bg-base-100 rounded-box mt-2 w-40 shadow">
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a class="flex items-center gap-2" href="#">
+                                                        <img
+                                                            alt="Avatar"
+                                                            class="rounded-box size-4.5 cursor-pointer object-cover"
+                                                            src="https://flagcdn.com/us.svg" />
+                                                        <span>English</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a class="flex items-center gap-2" href="#">
+                                                        <img
+                                                            alt="Avatar"
+                                                            class="rounded-box size-4.5 cursor-pointer object-cover"
+                                                            src="https://flagcdn.com/in.svg" />
+                                                        <span>Hindi</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a class="flex items-center gap-2" href="#">
+                                                        <img
+                                                            alt="Avatar"
+                                                            class="rounded-box size-4.5 cursor-pointer object-cover"
+                                                            src="https://flagcdn.com/es.svg" />
+                                                        <span>Spanish</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a class="flex items-center gap-2" href="#">
+                                                        <img
+                                                            alt="Avatar"
+                                                            class="rounded-box size-4.5 cursor-pointer object-cover"
+                                                            src="https://flagcdn.com/cn.svg" />
+                                                        <span>Chinese</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a class="flex items-center gap-2" href="#">
+                                                        <img
+                                                            alt="Avatar"
+                                                            class="rounded-box size-4.5 cursor-pointer object-cover"
+                                                            src="https://flagcdn.com/rs.svg" />
+                                                        <span>Arabic</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                    <div class="border-base-300 me-3 h-7 border-e"></div>
+                                    <div class="dropdown dropdown-bottom dropdown-end">
+                                        <div tabindex="0" class="cursor-pointer">
+                                            <div
+                                                class="avatar bg-base-200 rounded-box size-7 overflow-hidden">
+                                                <img alt="Avatar" src="./images/avatars/1.png" />
+                                            </div>
+                                        </div>
+                                        <div
+                                            tabindex="0"
+                                            class="dropdown-content bg-base-100 rounded-box mt-2 w-44 shadow">
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--user size-4"></span>
+                                                        <span>My Profile</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--settings size-4"></span>
+                                                        <span>Settings</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--help-circle size-4"></span>
+                                                        <span>Help</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-300" />
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <div>
+                                                        <span
+                                                            class="iconify lucide--arrow-left-right size-4"></span>
+                                                        <span>Switch Account</span>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <a
+                                                        class="text-error hover:bg-error/10"
+                                                        href="#">
+                                                        <span
+                                                            class="iconify lucide--log-out size-4"></span>
+                                                        <span>Logout</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div x-show="topbar === 'nav-menu-2'" class="h-full">
+                            <div class="flex h-full w-full items-center justify-between px-4">
+                                <div class="flex items-center gap-0">
+                                    <label
+                                        class="btn btn-square btn-ghost btn-sm group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:hidden"
+                                        aria-label="Sidebar toggle"
+                                        for="layout-sidebar-toggle-trigger">
+                                        <span class="iconify lucide--menu size-5"></span>
+                                    </label>
+                                    <label
+                                        class="btn btn-square btn-ghost btn-sm hidden group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:flex"
+                                        aria-label="Leftmenu toggle"
+                                        for="layout-sidebar-hover-trigger">
+                                        <span class="iconify lucide--menu size-5"></span>
+                                    </label>
+                                    <div
+                                        class="*:rounded-box flex items-center gap-0.5 text-sm *:px-2.5 *:py-1 *:transition-all *:hover:opacity-70 max-md:hidden">
+                                        <a href="#">Dashboard</a>
+                                        <a href="#">Analytics</a>
+                                        <a href="#">Settings</a>
+                                        <a href="#">Users</a>
+                                        <a href="#">Reports</a>
+                                        <a href="#">Support</a>
+                                    </div>
+                                </div>
+                                <div class="flex items-center">
+                                    <button
+                                        class="btn btn-circle btn-ghost btn-sm me-1"
+                                        aria-label="Search">
+                                        <span
+                                            class="iconify lucide--search text-base-content/80 size-5"></span>
+                                    </button>
+                                    <button
+                                        class="btn btn-circle btn-ghost btn-sm me-1"
+                                        aria-label="Notifications">
+                                        <span
+                                            class="iconify lucide--bell-ring text-base-content/80 size-5"></span>
+                                    </button>
+                                    <button
+                                        class="btn btn-circle btn-ghost btn-sm me-3"
+                                        aria-label="Apps">
+                                        <span
+                                            class="iconify lucide--component text-base-content/80 size-5.5 rotate-45"></span>
+                                    </button>
+                                    <div class="dropdown dropdown-bottom dropdown-end">
+                                        <div tabindex="0" class="cursor-pointer">
+                                            <div
+                                                class="avatar bg-base-200 ring-success size-7 overflow-hidden rounded-full ring">
+                                                <img alt="Avatar" src="./images/avatars/1.png" />
+                                            </div>
+                                        </div>
+                                        <div
+                                            tabindex="0"
+                                            class="dropdown-content bg-base-100 rounded-box mt-2 w-44 shadow">
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--user size-4"></span>
+                                                        <span>My Profile</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--settings size-4"></span>
+                                                        <span>Settings</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--help-circle size-4"></span>
+                                                        <span>Help</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-300" />
+                                            <ul class="menu w-full p-2">
+                                                <li>
+                                                    <div>
+                                                        <span
+                                                            class="iconify lucide--arrow-left-right size-4"></span>
+                                                        <span>Switch Account</span>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <a
+                                                        class="text-error hover:bg-error/10"
+                                                        href="#">
+                                                        <span
+                                                            class="iconify lucide--log-out size-4"></span>
+                                                        <span>Logout</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div x-show="topbar === 'custom-background'" class="h-full">
+                            <div class="relative h-full w-full rounded-[inherit] px-4">
+                                <div class="absolute inset-0 overflow-hidden">
+                                    <div
+                                        class="absolute start-8 top-4 z-1 h-8 w-1/2 bg-blue-500/60 blur-[160px]"></div>
+                                    <div
+                                        class="absolute end-8 top-4 h-8 w-1/2 rounded-full bg-purple-500/60 blur-[160px]"></div>
+                                </div>
+                                <div
+                                    class="relative z-1 flex h-full w-full items-center justify-between">
+                                    <div class="flex items-center gap-3">
+                                        <label
+                                            class="btn btn-square btn-ghost btn-sm group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:hidden"
+                                            aria-label="Sidebar toggle"
+                                            for="layout-sidebar-toggle-trigger">
+                                            <span class="iconify lucide--menu size-5"></span>
+                                        </label>
+                                        <label
+                                            class="btn btn-square btn-ghost btn-sm hidden group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:flex"
+                                            aria-label="Leftmenu toggle"
+                                            for="layout-sidebar-hover-trigger">
+                                            <span class="iconify lucide--menu size-5"></span>
+                                        </label>
+                                        <div
+                                            class="btn btn-outline border-base-300 btn-sm max-sm:btn-square w-56 gap-2 sm:justify-start">
+                                            <span class="iconify lucide--search size-3.5"></span>
+                                            <p
+                                                class="text-base-content/60 text-sm font-normal max-sm:hidden">
+                                                Search or jump to...
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center">
+                                        <button
+                                            class="btn btn-square btn-ghost btn-sm me-3"
+                                            aria-label="Notifications">
+                                            <span class="iconify lucide--bell-ring size-5"></span>
+                                        </button>
+                                        <button
+                                            class="btn btn-circle btn-ghost btn-sm me-3"
+                                            aria-label="Apps">
+                                            <span
+                                                class="iconify lucide--component text-base-content/80 size-5.5 rotate-45"></span>
+                                        </button>
+                                        <div class="dropdown dropdown-bottom dropdown-center me-3">
+                                            <div tabindex="0" class="cursor-pointer">
+                                                <img
+                                                    alt="Avatar"
+                                                    class="rounded-box size-5.5 object-cover"
+                                                    src="https://flagcdn.com/us.svg" />
+                                            </div>
+                                            <div
+                                                tabindex="0"
+                                                class="dropdown-content bg-base-100 rounded-box mt-2 w-40 shadow">
+                                                <ul class="menu w-full p-2">
+                                                    <li>
+                                                        <a class="flex items-center gap-2" href="#">
+                                                            <img
+                                                                alt="Avatar"
+                                                                class="rounded-box size-4.5 cursor-pointer object-cover"
+                                                                src="https://flagcdn.com/us.svg" />
+                                                            <span>English</span>
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a class="flex items-center gap-2" href="#">
+                                                            <img
+                                                                alt="Avatar"
+                                                                class="rounded-box size-4.5 cursor-pointer object-cover"
+                                                                src="https://flagcdn.com/in.svg" />
+                                                            <span>Hindi</span>
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a class="flex items-center gap-2" href="#">
+                                                            <img
+                                                                alt="Avatar"
+                                                                class="rounded-box size-4.5 cursor-pointer object-cover"
+                                                                src="https://flagcdn.com/es.svg" />
+                                                            <span>Spanish</span>
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a class="flex items-center gap-2" href="#">
+                                                            <img
+                                                                alt="Avatar"
+                                                                class="rounded-box size-4.5 cursor-pointer object-cover"
+                                                                src="https://flagcdn.com/cn.svg" />
+                                                            <span>Chinese</span>
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a class="flex items-center gap-2" href="#">
+                                                            <img
+                                                                alt="Avatar"
+                                                                class="rounded-box size-4.5 cursor-pointer object-cover"
+                                                                src="https://flagcdn.com/rs.svg" />
+                                                            <span>Arabic</span>
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <div class="border-base-300 me-3 h-7 border-e"></div>
+                                        <div class="dropdown dropdown-bottom dropdown-end">
+                                            <div tabindex="0" class="cursor-pointer">
+                                                <div
+                                                    class="avatar bg-base-200 rounded-box size-7 overflow-hidden">
+                                                    <img
+                                                        alt="Avatar"
+                                                        src="./images/avatars/1.png" />
+                                                </div>
+                                            </div>
+                                            <div
+                                                tabindex="0"
+                                                class="dropdown-content bg-base-100 rounded-box mt-2 w-44 shadow">
+                                                <ul class="menu w-full p-2">
+                                                    <li>
+                                                        <a href="#">
+                                                            <span
+                                                                class="iconify lucide--user size-4"></span>
+                                                            <span>My Profile</span>
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a href="#">
+                                                            <span
+                                                                class="iconify lucide--settings size-4"></span>
+                                                            <span>Settings</span>
+                                                        </a>
+                                                    </li>
+                                                    <li>
+                                                        <a href="#">
+                                                            <span
+                                                                class="iconify lucide--help-circle size-4"></span>
+                                                            <span>Help</span>
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                                <hr class="border-base-300" />
+                                                <ul class="menu w-full p-2">
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--arrow-left-right size-4"></span>
+                                                            <span>Switch Account</span>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <a
+                                                            class="text-error hover:bg-error/10"
+                                                            href="#">
+                                                            <span
+                                                                class="iconify lucide--log-out size-4"></span>
+                                                            <span>Logout</span>
+                                                        </a>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="layout-content">
+                        <div class="flex items-center justify-between">
+                            <p class="text-lg font-medium">Layout Builder</p>
+                            <div class="breadcrumbs hidden p-0 text-sm sm:inline">
+                                <ul>
+                                    <li><a href="/dashboards-ecommerce">Nexus</a></li>
+                                    <li class="opacity-80">Layout Builder</li>
+                                </ul>
+                            </div>
+                        </div>
+                        <div
+                            class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 rounded-box mx-3 mt-3 flex items-center gap-2 px-4 py-2 font-medium">
+                                    <span class="iconify lucide--layout-panel-left size-4"></span>
+                                    Sidebar
+                                </div>
+                                <div class="space-y-0.5 p-3">
+                                    <template
+                                        x-for="[key, label] in Object.entries(sidebars)"
+                                        :key="key">
+                                        <div
+                                            :class="{ 'bg-base-200': key === sidebar }"
+                                            class="hover:bg-base-200 rounded-box flex cursor-pointer items-center gap-2 px-2.5 py-1"
+                                            x-on:click="sidebar = key">
+                                            <div class="w-5">
+                                                <span
+                                                    x-show="key === sidebar"
+                                                    class="iconify lucide--check block"></span>
+                                            </div>
+                                            <div x-text="label"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 rounded-box mx-3 mt-3 flex items-center gap-2 px-4 py-2 font-medium">
+                                    <span class="iconify lucide--layout-panel-top size-4"></span>
+                                    Topbar
+                                </div>
+                                <div class="space-y-0.5 p-3">
+                                    <template
+                                        x-for="[key, label] in Object.entries(topbars)"
+                                        :key="key">
+                                        <div
+                                            :class="{ 'bg-base-200': key === topbar }"
+                                            class="hover:bg-base-200 rounded-box flex cursor-pointer items-center gap-2 px-2.5 py-1"
+                                            x-on:click="topbar = key">
+                                            <div class="w-5">
+                                                <span
+                                                    x-show="key === topbar"
+                                                    class="iconify lucide--check block"></span>
+                                            </div>
+                                            <div x-text="label"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 rounded-box mx-3 mt-3 flex items-center gap-2 px-4 py-2 font-medium">
+                                    <span
+                                        class="iconify lucide--layout-panel-top size-4 rotate-180"></span>
+                                    Footer
+                                </div>
+                                <div class="space-y-0.5 p-3">
+                                    <template
+                                        x-for="[key, label] in Object.entries(footers)"
+                                        :key="key">
+                                        <div
+                                            :class="{ 'bg-base-200': key === footer }"
+                                            class="hover:bg-base-200 rounded-box flex cursor-pointer items-center gap-2 px-2.5 py-1"
+                                            x-on:click="footer = key">
+                                            <div class="w-5">
+                                                <span
+                                                    x-show="key === footer"
+                                                    class="iconify lucide--check block"></span>
+                                            </div>
+                                            <div x-text="label"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                        <div
+                            class="bg-base-100 rounded-box border-base-200 mt-8 max-w-md border p-5 xl:mt-12 2xl:mt-16">
+                            <p class="text-info font-medium">Note:</p>
+                            <p class="text-base-content/80 mt-1 text-sm">
+                                All layout components, including the
+                                <a
+                                    class="link link-hover text-primary"
+                                    href="/components-layouts-sidebar">
+                                    sidebar
+                                </a>
+                                ,
+                                <a
+                                    class="link link-hover text-primary"
+                                    href="/components-layouts-topbar">
+                                    topbar
+                                </a>
+                                and
+                                <a
+                                    class="link link-hover text-primary"
+                                    href="/components-layouts-footer">
+                                    footer
+                                </a>
+                                are available in the components section for easy access and
+                                customization.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="px-4 py-1">
+                        <div x-show="footer === 'minimal'" class="h-full">
+                            <div class="flex w-full items-center justify-center px-4 py-3">
+                                <span class="text-base-content/80 text-sm">
+                                    © 2025 Nexus. All rights reserved.
+                                </span>
+                            </div>
+                        </div>
+                        <div x-show="footer === 'social'" class="h-full">
+                            <div class="flex w-full items-center justify-between px-4 py-3">
+                                <span class="text-lg font-medium">Nexus</span>
+                                <span class="text-base-content/80 text-sm max-sm:hidden">
+                                    ©2025. All rights reserved.
+                                </span>
+                                <div class="flex items-center">
+                                    <button
+                                        class="btn btn-ghost btn-sm btn-circle"
+                                        aria-label="Github">
+                                        <span class="iconify hugeicons--github size-4.5"></span>
+                                    </button>
+                                    <button
+                                        class="btn btn-ghost btn-sm btn-circle"
+                                        aria-label="Twitter">
+                                        <span
+                                            class="iconify hugeicons--new-twitter size-4.5"></span>
+                                    </button>
+                                    <button
+                                        class="btn btn-ghost btn-sm btn-circle"
+                                        aria-label="Linkedin">
+                                        <span
+                                            class="iconify hugeicons--linkedin-02 size-4.5"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div x-show="footer === 'branding'" class="h-full">
+                            <div
+                                class="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3">
+                                <span class="text-base-content/80 text-sm">
+                                    © 2025 Nexus. All rights reserved
+                                </span>
+                                <span class="text-base-content/80 flex items-center gap-1 text-sm">
+                                    Built with
+                                    <span class="iconify lucide--heart text-red-600"></span>
+                                    daisyUI
+                                </span>
+                            </div>
+                        </div>
+                        <div x-show="footer === 'legal'" class="h-full">
+                            <div
+                                class="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3">
+                                <span class="text-base-content/80 text-sm">
+                                    © 2025 Nexus. All rights reserved
+                                </span>
+                                <div
+                                    class="flex flex-wrap items-center gap-0.5 text-xs *:px-2 *:py-1 *:opacity-70 *:transition-all *:hover:opacity-100 sm:text-sm">
+                                    <a href="#">Terms of Use</a>
+                                    <a href="#">Privacy Policy</a>
+                                    <a href="#">Legal &amp; Compliance</a>
+                                </div>
+                            </div>
+                        </div>
+                        <div x-show="footer === 'status'" class="h-full">
+                            <div
+                                class="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3">
+                                <div
+                                    class="border-base-300 bg-base-100 hover:bg-base-200 flex cursor-pointer items-center gap-2.5 rounded-full border px-2.5 py-1 shadow-xs transition-all">
+                                    <div class="status status-success"></div>
+                                    <p class="text-base-content/80 text-sm">
+                                        System running smoothly
+                                    </p>
+                                </div>
+                                <span class="text-base-content/80 text-sm">
+                                    © 2025 Nexus. All rights reserved
+                                </span>
+                            </div>
+                        </div>
+                        <div x-show="footer === 'support'" class="h-full">
+                            <div
+                                class="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3">
+                                <div class="flex items-center gap-2">
+                                    <button
+                                        class="btn btn-soft btn-primary btn-sm btn-circle"
+                                        aria-label="Call">
+                                        <span class="iconify lucide--headset size-4.5"></span>
+                                    </button>
+                                    <span class="text-lg font-medium">800-124-546</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <p
+                                        class="text-base-content/70 me-2 text-xs font-medium tracking-tight uppercase">
+                                        Follow
+                                    </p>
+                                    <button
+                                        class="btn btn-ghost btn-sm btn-circle"
+                                        aria-label="Github">
+                                        <span class="iconify hugeicons--github size-4.5"></span>
+                                    </button>
+                                    <button
+                                        class="btn btn-ghost btn-sm btn-circle"
+                                        aria-label="Twitter">
+                                        <span
+                                            class="iconify hugeicons--new-twitter size-4.5"></span>
+                                    </button>
+                                    <button
+                                        class="btn btn-ghost btn-sm btn-circle"
+                                        aria-label="Linkedin">
+                                        <span
+                                            class="iconify hugeicons--linkedin-02 size-4.5"></span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <div x-show="footer === 'options-1'" class="h-full">
+                            <div
+                                class="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3">
+                                <span class="text-base-content/80 text-sm">
+                                    © 2025 Nexus. All rights reserved
+                                </span>
+                                <div class="flex items-center gap-2 text-sm">
+                                    <span>English</span>
+                                    <div class="bg-base-content/15 size-1 rounded-full"></div>
+                                    <span
+                                        class="text-base-content/60 hover:text-base-content cursor-pointer transition-all">
+                                        Spanish
+                                    </span>
+                                    <div class="bg-base-content/15 size-1 rounded-full"></div>
+                                    <span
+                                        class="text-base-content/60 hover:text-base-content cursor-pointer transition-all">
+                                        Chinese
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                        <div x-show="footer === 'options-2'" class="h-full">
+                            <div
+                                class="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3">
+                                <span class="text-base-content/80 text-sm">
+                                    © 2025 Nexus. All rights reserved
+                                </span>
+                                <div class="flex items-center gap-2">
+                                    <div class="dropdown dropdown-top">
+                                        <div tabindex="0" role="button" class="btn btn-sm">
+                                            <span class="iconify lucide--globe size-4"></span>
+                                            English
+                                            <span
+                                                class="iconify lucide--chevron-down text-base-content/60 size-4"></span>
+                                        </div>
+                                        <ul
+                                            tabindex="0"
+                                            class="dropdown-content menu bg-base-100 rounded-box z-1 w-40 p-2 shadow-sm">
+                                            <li><a>English</a></li>
+                                            <li><a>Hindi</a></li>
+                                            <li><a>Spanish</a></li>
+                                            <li><a>Chinese</a></li>
+                                        </ul>
+                                    </div>
+                                    <div class="dropdown dropdown-top dropdown-end">
+                                        <div tabindex="0" role="button" class="btn btn-sm">
+                                            <span class="iconify lucide--dollar-sign size-4"></span>
+                                            USD
+                                            <span
+                                                class="iconify lucide--chevron-down text-base-content/60 size-4"></span>
+                                        </div>
+                                        <ul
+                                            tabindex="0"
+                                            class="dropdown-content menu bg-base-100 rounded-box z-1 w-40 p-2 shadow-sm">
+                                            <li><a>$ (USD)</a></li>
+                                            <li><a>₹ (INR)</a></li>
+                                            <li><a>€ (Euro)</a></li>
+                                            <li><a>¥ (Yuan)</a></li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div x-show="footer === 'custom-background'" class="h-full">
+                            <div class="bg-base-100 relative w-full overflow-hidden">
+                                <div
+                                    class="absolute -start-16 top-4 z-1 h-8 w-1/2 bg-blue-500/60 blur-[160px]"></div>
+                                <div
+                                    class="absolute -end-16 top-4 h-8 w-1/2 rounded-full bg-purple-500/60 blur-[160px]"></div>
+                                <div class="flex w-full items-center justify-between px-4 py-3">
+                                    <span class="text-lg font-medium">Nexus</span>
+                                    <span class="text-base-content/80 text-sm max-sm:hidden">
+                                        ©2025. All rights reserved.
+                                    </span>
+                                    <div class="flex items-center">
+                                        <button
+                                            class="btn btn-ghost btn-sm btn-circle"
+                                            aria-label="Github">
+                                            <span class="iconify hugeicons--github size-4.5"></span>
+                                        </button>
+                                        <button
+                                            class="btn btn-ghost btn-sm btn-circle"
+                                            aria-label="Twitter">
+                                            <span
+                                                class="iconify hugeicons--new-twitter size-4.5"></span>
+                                        </button>
+                                        <button
+                                            class="btn btn-ghost btn-sm btn-circle"
+                                            aria-label="Linkedin">
+                                            <span
+                                                class="iconify hugeicons--linkedin-02 size-4.5"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/simplebar/6.2.7/simplebar.min.js"></script>
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/simplebar/6.2.7/simplebar.css" />
+        <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+        <script src="./js/app.js"></script>
+    </body>
+</html>

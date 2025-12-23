@@ -1,0 +1,45 @@
+<form
+    x-data="useEmailFormValidator()"
+    x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+    novalidate
+    class="space-y-3">
+    <div class="space-y-1.5">
+        <div class="flex items-center justify-between gap-2">
+            <label class="label text-sm font-medium" for="optionalEmail">Optional Email</label>
+            <p class="text-base-content/60 text-end text-xs">Can empty</p>
+        </div>
+        <input
+            name="optionalEmail"
+            id="optionalEmail"
+            type="email"
+            @input="updateData('optionalEmail', $event.target.value)"
+            :data-error="hasError('optionalEmail')"
+            class="input data-error:input-error w-full"
+            placeholder="abc@mail.com" />
+        <p
+            :data-error="hasError('optionalEmail')"
+            class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+            x-text="getError('optionalEmail')"></p>
+    </div>
+    <div class="space-y-1.5">
+        <div class="flex items-center justify-between gap-2">
+            <label class="label text-sm font-medium" for="requiredEmail">Email Address</label>
+            <p class="text-base-content/60 text-end text-xs">* Required</p>
+        </div>
+        <input
+            name="requiredEmail"
+            id="requiredEmail"
+            type="email"
+            @input="updateData('requiredEmail', $event.target.value)"
+            :data-error="hasError('requiredEmail')"
+            class="input data-error:input-error w-full"
+            placeholder="abc@mail.com" />
+        <p
+            :data-error="hasError('requiredEmail')"
+            class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+            x-text="getError('requiredEmail')"></p>
+    </div>
+    <div class="text-end">
+        <button type="submit" class="btn btn-sm">Submit</button>
+    </div>
+</form>

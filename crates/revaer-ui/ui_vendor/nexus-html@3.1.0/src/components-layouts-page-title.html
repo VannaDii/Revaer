@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <load src="partials/components-layout/sidebar.html" />
+
+                <div id="components-layout-main">
+                    <load src="partials/components-layout/topbar.html" />
+
+                    <div id="components-layout-content">
+                        <div class="flex flex-col items-center justify-center space-y-0.5">
+                            <div
+                                class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                <div class="status status-sm bg-base-content/30"></div>
+                                Layouts
+                            </div>
+                            <p
+                                class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                Page Title
+                            </p>
+                            <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                Flexible page title layouts with support for actions, breadcrumbs,
+                                tabs, stats, or progress.
+                            </p>
+                        </div>
+                        <p class="text-base-content/60 mt-6 font-medium lg:mt-12">Demos</p>
+
+                        <div class="mt-6 space-y-6">
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Minimal
+                                </div>
+                                <div
+                                    class="to-base-200/20 text-base-content/25 flex h-24 w-full items-center justify-center bg-linear-to-b from-transparent">
+                                    Topbar
+                                </div>
+                                <div class="bg-base-100 rounded-box px-4 py-3 shadow">
+                                    <load src="partials/layouts/page-title/minimal.html" />
+                                </div>
+                                <div
+                                    class="to-base-200/20 text-base-content/25 flex h-32 w-full items-center justify-center bg-linear-to-t from-transparent">
+                                    Content
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Ecommerce
+                                </div>
+                                <div
+                                    class="to-base-200/20 text-base-content/25 flex h-24 w-full items-center justify-center bg-linear-to-b from-transparent">
+                                    Topbar
+                                </div>
+                                <div class="bg-base-100 rounded-box px-4 py-3 shadow">
+                                    <load src="partials/layouts/page-title/ecommerce.html" />
+                                </div>
+                                <div
+                                    class="to-base-200/20 text-base-content/25 flex h-32 w-full items-center justify-center bg-linear-to-t from-transparent">
+                                    Content
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Editor
+                                </div>
+                                <div
+                                    class="to-base-200/20 text-base-content/25 flex h-24 w-full items-center justify-center bg-linear-to-b from-transparent">
+                                    Topbar
+                                </div>
+                                <div class="bg-base-100 rounded-box px-4 py-3 shadow">
+                                    <load src="partials/layouts/page-title/editor.html" />
+                                </div>
+                                <div
+                                    class="to-base-200/20 text-base-content/25 flex h-32 w-full items-center justify-center bg-linear-to-t from-transparent">
+                                    Content
+                                </div>
+                            </div>
+
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Task
+                                </div>
+                                <div
+                                    class="to-base-200/20 text-base-content/25 flex h-24 w-full items-center justify-center bg-linear-to-b from-transparent">
+                                    Topbar
+                                </div>
+                                <div class="bg-base-100 rounded-box px-4 py-3 shadow">
+                                    <load src="partials/layouts/page-title/task.html" />
+                                </div>
+                                <div
+                                    class="to-base-200/20 text-base-content/25 flex h-32 w-full items-center justify-center bg-linear-to-t from-transparent">
+                                    Content
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Stepper
+                                </div>
+                                <div
+                                    class="to-base-200/20 text-base-content/25 flex h-24 w-full items-center justify-center bg-linear-to-b from-transparent">
+                                    Topbar
+                                </div>
+                                <div class="bg-base-100 rounded-box px-4 py-3 shadow">
+                                    <load src="partials/layouts/page-title/stepper.html" />
+                                </div>
+                                <div
+                                    class="to-base-200/20 text-base-content/25 flex h-32 w-full items-center justify-center bg-linear-to-t from-transparent">
+                                    Content
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Analytics
+                                </div>
+                                <div
+                                    class="to-base-200/20 text-base-content/25 flex h-24 w-full items-center justify-center bg-linear-to-b from-transparent">
+                                    Topbar
+                                </div>
+                                <div class="bg-base-100 rounded-box px-4 py-3 shadow">
+                                    <load src="partials/layouts/page-title/analytics.html" />
+                                </div>
+                                <div
+                                    class="to-base-200/20 text-base-content/25 flex h-32 w-full items-center justify-center bg-linear-to-t from-transparent">
+                                    Content
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Topbar & Title
+                                </div>
+                                <div class="bg-base-100 rounded-box shadow">
+                                    <load src="partials/layouts/page-title/topbar-title.html" />
+                                </div>
+                                <div
+                                    class="to-base-200/20 text-base-content/25 flex h-32 w-full items-center justify-center bg-linear-to-t from-transparent">
+                                    Content
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <load src="partials/components-layout/footer.html" />
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

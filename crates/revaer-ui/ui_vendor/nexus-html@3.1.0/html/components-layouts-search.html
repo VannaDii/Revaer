@@ -1,0 +1,2097 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <meta charset="UTF-8" />
+        <meta name="author" content="Denish Navadiya" />
+        <meta
+            name="keywords"
+            content="HTML, CSS, daisyui, tailwindcss, admin, client, dashboard, ui kit, component" />
+        <meta
+            name="description"
+            content="Start your next project with Nexus, designed for effortless customization to streamline your development process" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <link
+            rel="shortcut icon"
+            href="./images/favicon-dark.png"
+            media="(prefers-color-scheme: dark)" />
+        <link
+            rel="shortcut icon"
+            href="./images/favicon-light.png"
+            media="(prefers-color-scheme: light)" />
+
+        <script>
+            try {
+                const localStorageItem = localStorage.getItem("__NEXUS_CONFIG_v3.0__")
+                if (localStorageItem) {
+                    const theme = JSON.parse(localStorageItem).theme
+                    if (theme !== "system") {
+                        document.documentElement.setAttribute("data-theme", theme)
+                    }
+                }
+            } catch (err) {
+                console.log(err)
+            }
+        </script>
+
+        <link rel="stylesheet" href="./assets/app.css" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <div class="max-xl:hidden">
+                    <div
+                        class="border-base-300/80 bg-base-100 sticky top-0 bottom-0 flex h-screen w-64 min-w-64 flex-col border-s border-e border-dashed">
+                        <div
+                            class="border-base-300 flex h-16 min-h-16 items-center gap-4 border-b border-dashed px-5">
+                            <a href="./dashboards-ecommerce.html">
+                                <img
+                                    alt="logo-dark"
+                                    class="hidden h-5.5 dark:inline"
+                                    src="./images/logo/logo-dark.png" />
+                                <img
+                                    alt="logo-light"
+                                    class="h-5.5 dark:hidden"
+                                    src="./images/logo/logo-light.png" />
+                            </a>
+                            <hr class="border-base-300 h-6 border-e" />
+                            <p class="text-base-content/60 mt-0.5 text-lg font-medium">Design</p>
+                        </div>
+                        <div data-simplebar class="h-full min-h-0 grow">
+                            <div
+                                class="sidebar-menu-activation sidebar-menu mt-4 space-y-0.5 px-2.5 pb-4">
+                                <p class="menu-label px-2.5 pt-3 pb-1.5 first:pt-0">Base</p>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--shapes size-4"></span>
+                                        <span class="grow">Foundations</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-text.html">
+                                                <span class="grow">Text</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-display.html">
+                                                <span class="grow">Display</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-effects.html">
+                                                <span class="grow">Effects</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-foundations-shadows.html">
+                                                <span class="grow">Shadows</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--blocks size-4"></span>
+                                        <span class="grow">Blocks</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-blocks-stats.html">
+                                                <span class="grow">Dashboard Stats</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-blocks-prompt-bar.html">
+                                                <span class="grow">Prompt Bar</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span
+                                            class="iconify lucide--layout-panel-left size-4"></span>
+                                        <span class="grow">Layouts</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-skeleton.html">
+                                                <span class="grow">Skeleton</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-sidebar.html">
+                                                <span class="grow">Sidebar</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-topbar.html">
+                                                <span class="grow">Topbar</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-footer.html">
+                                                <span class="grow">Footer</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-profile-menu.html">
+                                                <span class="grow">Profile Menu</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-search.html">
+                                                <span class="grow">Search</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-notification.html">
+                                                <span class="grow">Notification</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-layouts-page-title.html">
+                                                <span class="grow">Page Title</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="menu-label px-2.5 pt-3 pb-1.5 first:pt-0">Dynamics</p>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--layers-3 size-4"></span>
+                                        <span class="grow">Interactions</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-carousel.html">
+                                                <span class="grow">Carousel</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-clipboard.html">
+                                                <span class="grow">Clipboard</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-datatables.html">
+                                                <span class="grow">Data Tables</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-fab.html">
+                                                <span class="grow">FAB</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-file-upload.html">
+                                                <span class="grow">File Upload</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-flatpickr.html">
+                                                <span class="grow">Flatpickr</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-form-validations.html">
+                                                <span class="grow">Form Validations</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-input-spinner.html">
+                                                <span class="grow">Input Spinner</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-password-meter.html">
+                                                <span class="grow">Password Meter</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-select.html">
+                                                <span class="grow">Select</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-sortable.html">
+                                                <span class="grow">Sortable</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-text-editor.html">
+                                                <span class="grow">Text Editor</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-interactions-wizard.html">
+                                                <span class="grow">Wizard</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--chart-bar size-4"></span>
+                                        <span class="grow">Apex Charts</span>
+                                        <span
+                                            class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-area.html">
+                                                <span class="grow">Area</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-bar.html">
+                                                <span class="grow">Bar</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-column.html">
+                                                <span class="grow">Column</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-line.html">
+                                                <span class="grow">Line</span>
+                                            </a>
+                                            <a
+                                                class="menu-item"
+                                                href="./components-apex-charts-pie.html">
+                                                <span class="grow">Pie</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-2">
+                            <a
+                                target="_blank"
+                                class="group rounded-box relative mx-2.5 block gap-3"
+                                href="/dashboards-ecommerce">
+                                <div
+                                    class="rounded-box absolute inset-0 bg-gradient-to-r from-transparent to-transparent transition-opacity duration-300 group-hover:opacity-0"></div>
+                                <div
+                                    class="from-primary to-secondary rounded-box absolute inset-0 bg-gradient-to-r opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                                <div class="relative flex h-10 items-center gap-3 px-3">
+                                    <i
+                                        class="iconify lucide--monitor-dot text-primary size-4.5 transition-all duration-300 group-hover:text-white"></i>
+                                    <p
+                                        class="from-primary to-secondary bg-gradient-to-r bg-clip-text font-medium text-transparent transition-all duration-300 group-hover:text-white">
+                                        Dashboard
+                                    </p>
+                                    <i
+                                        class="iconify lucide--chevron-right text-secondary ms-auto size-4.5 transition-all duration-300 group-hover:text-white"></i>
+                                </div>
+                            </a>
+                            <hr class="border-base-300 mt-2 border-dashed" />
+                            <a
+                                target="_blank"
+                                class="bg-base-200/60 hover:bg-base-200 rounded-box m-2.5 mb-2 flex cursor-pointer items-center gap-3 px-3.5 py-2 transition-all"
+                                href="https://nexus.daisyui.com/docs/">
+                                <span class="iconify lucide--book-open-text size-5"></span>
+                                <div class="grow -space-y-0.5">
+                                    <p class="text-sm font-medium">Documentation</p>
+                                    <p class="text-base-content/60 text-xs">Installations</p>
+                                </div>
+                                <span
+                                    class="iconify lucide--external-link text-base-content/60 size-4"></span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div id="components-layout-main">
+                    <div
+                        role="navigation"
+                        aria-label="Navbar"
+                        class="border-base-300/80 bg-base-100 sticky top-0 z-1 h-16 border-b border-dashed px-4 md:px-8 xl:px-12 2xl:px-20">
+                        <div class="flex h-full items-center justify-between px-0">
+                            <div class="flex items-center gap-5">
+                                <a
+                                    class="text-base-content/70 hover:text-base-content transition-all"
+                                    href="/dashboards-ecommerce">
+                                    Dashboard
+                                </a>
+                                <a class="font-medium" href="/components">Components</a>
+                            </div>
+                            <div class="inline-flex items-center gap-3">
+                                <button
+                                    aria-label="Toggle Theme"
+                                    class="btn btn-sm btn-circle btn-ghost relative overflow-hidden"
+                                    data-theme-control="toggle">
+                                    <span
+                                        class="iconify lucide--sun absolute size-4.5 -translate-y-4 opacity-0 transition-all duration-300 group-data-[theme=light]/html:translate-y-0 group-data-[theme=light]/html:opacity-100"></span>
+                                    <span
+                                        class="iconify lucide--moon absolute size-4.5 translate-y-4 opacity-0 transition-all duration-300 group-data-[theme=dark]/html:translate-y-0 group-data-[theme=dark]/html:opacity-100"></span>
+                                    <span
+                                        class="iconify lucide--palette absolute size-4.5 opacity-100 group-data-[theme=dark]/html:opacity-0 group-data-[theme=light]/html:opacity-0"></span>
+                                </button>
+
+                                <a
+                                    target="_blank"
+                                    class="btn from-primary to-secondary group/purchase text-primary-content btn-sm max-sm:btn-square relative gap-2 border-0 bg-linear-to-r text-sm"
+                                    href="https://daisyui.com/store/244268">
+                                    <span class="iconify lucide--shopping-cart size-4"></span>
+                                    <span class="max-sm:hidden">Buy Now</span>
+                                    <div
+                                        class="from-primary to-secondary absolute inset-x-0 top-1 -z-1 h-8 bg-linear-to-r opacity-40 blur-md transition-all duration-500 group-hover/purchase:opacity-60 group-hover/purchase:blur-lg"></div>
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="components-layout-content">
+                        <div class="flex flex-col items-center justify-center space-y-0.5">
+                            <div
+                                class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                <div class="status status-sm bg-base-content/30"></div>
+                                Layouts
+                            </div>
+                            <p
+                                class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                Search
+                            </p>
+                            <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                Showcasing multiple search interface patterns for modern web
+                                applications
+                            </p>
+                        </div>
+                        <div
+                            class="bg-base-200/40 rounded-box mt-6 flex items-center gap-3 px-5 py-4 lg:mt-12">
+                            <span class="iconify lucide--info text-base-content/70 size-4.5"></span>
+                            <p>
+                                <span class="me-1">Play with layouts using</span>
+                                <a target="_blank" class="text-primary" href="/layout-builder">
+                                    Layout Builder
+                                </a>
+                            </p>
+                        </div>
+                        <p class="text-base-content/60 mt-6 font-medium">Demos</p>
+
+                        <div class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Minimal
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <button
+                                        role="button"
+                                        class="btn btn-circle btn-soft"
+                                        aria-label="Notifications"
+                                        onclick="document.getElementById('search-modal-demo-1').showModal()">
+                                        <span class="iconify lucide--search size-5"></span>
+                                    </button>
+                                    <dialog id="search-modal-demo-1" class="modal p-0">
+                                        <div class="modal-box p-0">
+                                            <div
+                                                class="input border-base-300 w-full rounded-none border-0 border-b">
+                                                <span
+                                                    class="iconify lucide--search text-base-content/60 size-4.5"></span>
+                                                <input
+                                                    class="grow"
+                                                    placeholder="Search"
+                                                    aria-label="Search"
+                                                    type="search" />
+                                                <form method="dialog">
+                                                    <button
+                                                        class="btn btn-xs btn-circle btn-ghost"
+                                                        aria-label="Close">
+                                                        <span
+                                                            class="iconify lucide--x text-base-content/80 size-4"></span>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                            <ul class="menu w-full pt-0">
+                                                <li class="menu-title">Actions</li>
+                                                <li>
+                                                    <div>
+                                                        <span
+                                                            class="iconify lucide--folder-plus size-4.5"></span>
+                                                        <p class="grow text-sm">
+                                                            Create a new folder
+                                                        </p>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <div>
+                                                        <span
+                                                            class="iconify lucide--file-plus size-4.5"></span>
+                                                        <p class="grow text-sm">
+                                                            Upload new document
+                                                        </p>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <div>
+                                                        <span
+                                                            class="iconify lucide--user-plus size-4.5"></span>
+                                                        <p class="grow text-sm">
+                                                            Invite to project
+                                                        </p>
+                                                    </div>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-300 h-px border-dashed" />
+                                            <ul class="menu w-full pt-0">
+                                                <li class="menu-title">Quick Links</li>
+                                                <li>
+                                                    <div>
+                                                        <span
+                                                            class="iconify lucide--folders size-4.5"></span>
+                                                        <p class="grow text-sm">File Manager</p>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <div>
+                                                        <span
+                                                            class="iconify lucide--user size-4.5"></span>
+                                                        <p class="grow text-sm">Profile</p>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <div>
+                                                        <span
+                                                            class="iconify lucide--layout-dashboard size-4.5"></span>
+                                                        <p class="grow text-sm">Dashboard</p>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <div>
+                                                        <span
+                                                            class="iconify lucide--help-circle size-4.5"></span>
+                                                        <p class="grow text-sm">Support</p>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <div>
+                                                        <span
+                                                            class="iconify lucide--keyboard size-4.5"></span>
+                                                        <p class="grow text-sm">
+                                                            Keyboard Shortcuts
+                                                        </p>
+                                                    </div>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                        <form method="dialog" class="modal-backdrop">
+                                            <button>close</button>
+                                        </form>
+                                    </dialog>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Split
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <button
+                                        role="button"
+                                        class="btn btn-circle btn-soft"
+                                        aria-label="Notifications"
+                                        onclick="document.getElementById('search-modal-demo-2').showModal()">
+                                        <span class="iconify lucide--search size-5"></span>
+                                    </button>
+                                    <dialog id="search-modal-demo-2" class="modal p-0">
+                                        <div class="modal-box bg-transparent p-0 shadow-none">
+                                            <div class="bg-base-100 rounded-box">
+                                                <div class="input w-full border-0 !outline-none">
+                                                    <span
+                                                        class="iconify lucide--search text-base-content/60 size-4.5"></span>
+                                                    <input
+                                                        class="grow"
+                                                        placeholder="Search"
+                                                        aria-label="Search"
+                                                        type="search" />
+                                                    <form method="dialog">
+                                                        <button
+                                                            class="btn btn-xs btn-circle btn-ghost"
+                                                            aria-label="Close">
+                                                            <span
+                                                                class="iconify lucide--x text-base-content/80 size-4"></span>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                                <div
+                                                    class="border-base-300 flex items-center gap-3 border-t px-2 py-2">
+                                                    <div class="flex items-center gap-0.5">
+                                                        <div
+                                                            class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                            <span
+                                                                class="iconify lucide--arrow-up size-3.5"></span>
+                                                        </div>
+                                                        <div
+                                                            class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                            <span
+                                                                class="iconify lucide--arrow-down size-3.5"></span>
+                                                        </div>
+                                                        <p
+                                                            class="text-base-content/80 ms-1 text-sm">
+                                                            Navigate
+                                                        </p>
+                                                    </div>
+                                                    <div
+                                                        class="flex items-center gap-0.5 max-sm:hidden">
+                                                        <div
+                                                            class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                            <span
+                                                                class="iconify lucide--undo-2 size-3.5"></span>
+                                                        </div>
+                                                        <p
+                                                            class="text-base-content/80 ms-1 text-sm">
+                                                            Return
+                                                        </p>
+                                                    </div>
+                                                    <div class="flex items-center gap-0.5">
+                                                        <div
+                                                            class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                            <span
+                                                                class="iconify lucide--corner-down-left size-3.5"></span>
+                                                        </div>
+                                                        <p
+                                                            class="text-base-content/80 ms-1 text-sm">
+                                                            Open
+                                                        </p>
+                                                    </div>
+                                                    <div class="ms-auto flex items-center gap-0.5">
+                                                        <div
+                                                            class="border-base-300 bg-base-200 flex h-5 items-center justify-center rounded-sm border px-1 text-sm/none shadow-xs">
+                                                            esc
+                                                        </div>
+                                                        <p
+                                                            class="text-base-content/80 ms-1 text-sm">
+                                                            Close
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="bg-base-100 rounded-box mt-4">
+                                                <div class="px-5 py-3">
+                                                    <p
+                                                        class="text-base-content/80 text-sm font-medium">
+                                                        I'm looking for...
+                                                    </p>
+                                                    <div class="mt-2 flex flex-wrap gap-1.5">
+                                                        <div
+                                                            class="border-base-300 hover:bg-base-200 rounded-box cursor-pointer border px-2.5 py-1 text-sm/none">
+                                                            Writer
+                                                        </div>
+                                                        <div
+                                                            class="border-base-300 hover:bg-base-200 rounded-box cursor-pointer border px-2.5 py-1 text-sm/none">
+                                                            Editor
+                                                        </div>
+                                                        <div
+                                                            class="border-base-300 hover:bg-base-200 rounded-box cursor-pointer border px-2.5 py-1 text-sm/none">
+                                                            Explainer
+                                                        </div>
+                                                        <div
+                                                            class="border-base-300 hover:bg-base-200 rounded-box flex cursor-pointer items-center gap-1 border border-dashed px-2.5 py-1 text-sm/none">
+                                                            <span
+                                                                class="iconify lucide--plus size-3.5"></span>
+                                                            Action
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <hr class="border-base-300 h-px border-dashed" />
+                                                <ul class="menu w-full pt-1">
+                                                    <li class="menu-title">Talk to assistant</li>
+                                                    <li>
+                                                        <div class="group">
+                                                            <div
+                                                                class="from-primary to-primary/80 mask mask-squircle text-primary-content flex size-5 items-center justify-center bg-linear-to-b leading-none font-medium">
+                                                                R
+                                                            </div>
+                                                            <p class="grow text-sm">
+                                                                Research Buddy
+                                                            </p>
+                                                            <div
+                                                                class="flex translate-x-2 items-center gap-2.5 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100">
+                                                                <span
+                                                                    class="iconify lucide--star text-orange-500"></span>
+                                                                <div
+                                                                    class="flex items-center gap-0.5">
+                                                                    <div
+                                                                        class="border-base-300 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                                        <span
+                                                                            class="iconify lucide--corner-down-left size-3.5"></span>
+                                                                    </div>
+                                                                    <p
+                                                                        class="ms-1 text-sm opacity-80">
+                                                                        Select
+                                                                    </p>
+                                                                </div>
+                                                                <span
+                                                                    class="iconify lucide--ellipsis-vertical opacity-80"></span>
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div class="group">
+                                                            <div
+                                                                class="from-secondary to-secondary/80 mask mask-squircle text-secondary-content flex size-5 items-center justify-center bg-linear-to-b leading-none font-medium">
+                                                                T
+                                                            </div>
+                                                            <p class="grow text-sm">Task Planner</p>
+                                                            <div
+                                                                class="flex translate-x-2 items-center gap-2.5 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100">
+                                                                <span
+                                                                    class="iconify lucide--star text-orange-500"></span>
+                                                                <div
+                                                                    class="flex items-center gap-0.5">
+                                                                    <div
+                                                                        class="border-base-300 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                                        <span
+                                                                            class="iconify lucide--corner-down-left size-3.5"></span>
+                                                                    </div>
+                                                                    <p
+                                                                        class="ms-1 text-sm opacity-80">
+                                                                        Select
+                                                                    </p>
+                                                                </div>
+                                                                <span
+                                                                    class="iconify lucide--ellipsis-vertical opacity-80"></span>
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div class="group">
+                                                            <div
+                                                                class="from-success to-success/80 mask mask-squircle text-success-content flex size-5 items-center justify-center bg-linear-to-b leading-none font-medium">
+                                                                S
+                                                            </div>
+                                                            <p class="grow text-sm">
+                                                                Sparking Ideas
+                                                            </p>
+                                                            <div
+                                                                class="flex translate-x-2 items-center gap-2.5 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100">
+                                                                <span
+                                                                    class="iconify lucide--star text-orange-500"></span>
+                                                                <div
+                                                                    class="flex items-center gap-0.5">
+                                                                    <div
+                                                                        class="border-base-300 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                                        <span
+                                                                            class="iconify lucide--corner-down-left size-3.5"></span>
+                                                                    </div>
+                                                                    <p
+                                                                        class="ms-1 text-sm opacity-80">
+                                                                        Select
+                                                                    </p>
+                                                                </div>
+                                                                <span
+                                                                    class="iconify lucide--ellipsis-vertical opacity-80"></span>
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div class="group">
+                                                            <div
+                                                                class="from-warning to-warning/80 mask mask-squircle text-warning-content flex size-5 items-center justify-center bg-linear-to-b leading-none font-medium">
+                                                                D
+                                                            </div>
+                                                            <p class="grow text-sm">
+                                                                Docs Assistant
+                                                            </p>
+                                                            <div
+                                                                class="flex translate-x-2 items-center gap-2.5 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100">
+                                                                <span
+                                                                    class="iconify lucide--star text-orange-500"></span>
+                                                                <div
+                                                                    class="flex items-center gap-0.5">
+                                                                    <div
+                                                                        class="border-base-300 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                                        <span
+                                                                            class="iconify lucide--corner-down-left size-3.5"></span>
+                                                                    </div>
+                                                                    <p
+                                                                        class="ms-1 text-sm opacity-80">
+                                                                        Select
+                                                                    </p>
+                                                                </div>
+                                                                <span
+                                                                    class="iconify lucide--ellipsis-vertical opacity-80"></span>
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                                <hr class="border-base-300 h-px border-dashed" />
+                                                <ul class="menu w-full pt-1">
+                                                    <li
+                                                        class="menu-title flex flex-row items-center justify-between gap-2">
+                                                        <span>Tasks Manager</span>
+                                                        <span>Progress</span>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--notebook size-4"></span>
+                                                            <p class="grow text-sm">
+                                                                Creating an essay
+                                                            </p>
+                                                            <progress
+                                                                class="progress progress-primary h-1 w-30"
+                                                                value="60"
+                                                                max="100"></progress>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--message-circle size-4"></span>
+                                                            <p class="grow text-sm">
+                                                                Summarizing chat
+                                                            </p>
+                                                            <progress
+                                                                class="progress progress-secondary h-1 w-30"
+                                                                value="80"
+                                                                max="100"></progress>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--code size-4"></span>
+                                                            <p class="grow text-sm">
+                                                                Fixing syntax
+                                                            </p>
+                                                            <progress
+                                                                class="progress progress-accent h-1 w-30"
+                                                                value="35"
+                                                                max="100"></progress>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--book-open size-4"></span>
+                                                            <p class="grow text-sm">Reading docs</p>
+                                                            <progress
+                                                                class="progress progress-info h-1 w-30"
+                                                                value="90"
+                                                                max="100"></progress>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--lightbulb size-4"></span>
+                                                            <p class="grow text-sm">
+                                                                Generating ideas
+                                                            </p>
+                                                            <progress
+                                                                class="progress progress-warning h-1 w-30"
+                                                                value="50"
+                                                                max="100"></progress>
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                        </div>
+                                        <form method="dialog" class="modal-backdrop">
+                                            <button>close</button>
+                                        </form>
+                                    </dialog>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Smart
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <button
+                                        role="button"
+                                        class="btn btn-circle btn-soft"
+                                        aria-label="Notifications"
+                                        onclick="document.getElementById('search-modal-demo-3').showModal()">
+                                        <span class="iconify lucide--search size-5"></span>
+                                    </button>
+
+                                    <dialog id="search-modal-demo-3" class="modal p-0">
+                                        <div class="modal-box p-0">
+                                            <div
+                                                class="input border-base-300 w-full rounded-none border-0 border-b">
+                                                <span
+                                                    class="iconify lucide--search text-base-content/60 size-4.5"></span>
+                                                <input
+                                                    class="grow"
+                                                    placeholder="Search"
+                                                    aria-label="Search"
+                                                    type="search" />
+                                                <form method="dialog">
+                                                    <button
+                                                        class="btn btn-xs btn-circle btn-ghost"
+                                                        aria-label="Close">
+                                                        <span
+                                                            class="iconify lucide--x text-base-content/80 size-4"></span>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                            <ul class="menu w-full space-y-1.5 pt-1">
+                                                <li class="menu-title pb-0">Search Results</li>
+                                                <li>
+                                                    <div class="flex items-start gap-3">
+                                                        <div
+                                                            class="border-base-300 rounded-box flex items-center justify-center border p-1.5">
+                                                            <span
+                                                                class="iconify lucide--sparkles size-5"></span>
+                                                        </div>
+                                                        <div class="grow">
+                                                            <p class="leading-none font-medium">
+                                                                Generate Text
+                                                            </p>
+                                                            <p class="mt-1 text-sm/none opacity-80">
+                                                                Create content with natural language
+                                                                prompts.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <div class="flex items-start gap-3">
+                                                        <div
+                                                            class="border-base-300 rounded-box flex items-center justify-center border p-1.5">
+                                                            <span
+                                                                class="iconify lucide--image size-5"></span>
+                                                        </div>
+                                                        <div class="grow">
+                                                            <p class="leading-none font-medium">
+                                                                Create Image
+                                                            </p>
+                                                            <p class="mt-1 text-sm/none opacity-80">
+                                                                Turn your ideas into visual content
+                                                                instantly.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-300 h-px border-dashed" />
+                                            <ul class="menu w-full space-y-1.5 pt-1">
+                                                <li class="menu-title pb-0">Quick Links</li>
+                                                <li>
+                                                    <div class="flex items-start gap-3">
+                                                        <div
+                                                            class="border-base-300 rounded-box flex items-center justify-center border p-1.5">
+                                                            <span
+                                                                class="iconify lucide--bot size-5"></span>
+                                                        </div>
+                                                        <div class="grow">
+                                                            <p class="leading-none font-medium">
+                                                                Assistant
+                                                            </p>
+                                                            <p class="mt-1 text-sm/none opacity-80">
+                                                                Ask questions or get task
+                                                                suggestions fast.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <div class="flex items-start gap-3">
+                                                        <div
+                                                            class="border-base-300 rounded-box flex items-center justify-center border p-1.5">
+                                                            <span
+                                                                class="iconify lucide--clipboard-list size-5"></span>
+                                                        </div>
+                                                        <div class="grow">
+                                                            <p class="leading-none font-medium">
+                                                                My Tasks
+                                                            </p>
+                                                            <p class="mt-1 text-sm/none opacity-80">
+                                                                View and manage your recent work
+                                                                items.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <div class="flex items-start gap-3">
+                                                        <div
+                                                            class="border-base-300 rounded-box flex items-center justify-center border p-1.5">
+                                                            <span
+                                                                class="iconify lucide--bar-chart-3 size-5"></span>
+                                                        </div>
+                                                        <div class="grow">
+                                                            <p class="leading-none font-medium">
+                                                                Insights
+                                                            </p>
+                                                            <p class="mt-1 text-sm/none opacity-80">
+                                                                Review usage data, stats, and
+                                                                summaries.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <div class="flex items-start gap-3">
+                                                        <div
+                                                            class="border-base-300 rounded-box flex items-center justify-center border p-1.5">
+                                                            <span
+                                                                class="iconify lucide--settings size-5"></span>
+                                                        </div>
+                                                        <div class="grow">
+                                                            <p class="leading-none font-medium">
+                                                                Settings
+                                                            </p>
+                                                            <p class="mt-1 text-sm/none opacity-80">
+                                                                Update preferences, limits, and
+                                                                profile data.
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </li>
+                                            </ul>
+                                            <div class="mt-1 mb-3 flex items-center justify-center">
+                                                <button class="btn btn-soft btn-sm btn-primary">
+                                                    Expand results
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <form method="dialog" class="modal-backdrop">
+                                            <button>close</button>
+                                        </form>
+                                    </dialog>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Project
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <button
+                                        role="button"
+                                        class="btn btn-circle btn-soft"
+                                        aria-label="Notifications"
+                                        onclick="document.getElementById('search-modal-demo-4').showModal()">
+                                        <span class="iconify lucide--search size-5"></span>
+                                    </button>
+                                    <dialog id="search-modal-demo-4" class="modal p-0">
+                                        <div class="modal-box p-0">
+                                            <div
+                                                class="input border-base-300 w-full rounded-none border-0 border-b">
+                                                <span
+                                                    class="iconify lucide--search text-base-content/60 size-4.5"></span>
+                                                <input
+                                                    class="grow"
+                                                    placeholder="Search"
+                                                    aria-label="Search"
+                                                    type="search" />
+                                                <form method="dialog">
+                                                    <button
+                                                        class="btn btn-xs btn-circle btn-ghost"
+                                                        aria-label="Close">
+                                                        <span
+                                                            class="iconify lucide--x text-base-content/80 size-4"></span>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                            <div class="mt-3 px-4">
+                                                <p class="text-base-content/70 text-sm font-medium">
+                                                    Customize View
+                                                </p>
+                                                <div class="mt-2 flex flex-wrap items-center gap-2">
+                                                    <button class="btn btn-soft btn-sm">
+                                                        <span
+                                                            class="iconify lucide--users size-3.5"></span>
+                                                        Teams
+                                                        <span
+                                                            class="iconify lucide--chevron-down size-3.5 opacity-60"></span>
+                                                    </button>
+                                                    <button class="btn btn-soft btn-sm">
+                                                        <span
+                                                            class="iconify lucide--user-circle size-3.5"></span>
+                                                        Owner
+                                                        <span
+                                                            class="iconify lucide--chevron-down size-3.5 opacity-60"></span>
+                                                    </button>
+                                                    <button class="btn btn-soft btn-sm">
+                                                        <span
+                                                            class="iconify lucide--calendar size-3.5"></span>
+                                                        Date
+                                                        <span
+                                                            class="iconify lucide--chevron-down size-3.5 opacity-60"></span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            <ul class="menu w-full space-y-0.5 pt-1">
+                                                <li class="menu-title pb-0">Members</li>
+                                                <li>
+                                                    <div
+                                                        class="rounded-box hover:bg-base-200 flex cursor-pointer items-center gap-3 px-2 py-1 transition-all">
+                                                        <div class="avatar avatar-online size-10">
+                                                            <img
+                                                                class="from-primary/80 to-primary/60 mask mask-squircle bg-linear-to-b px-1 pt-1"
+                                                                alt="Olivia Carter"
+                                                                src="./images/avatars/1.png" />
+                                                        </div>
+                                                        <div class="grow">
+                                                            <p class="leading-none font-medium">
+                                                                Olivia Carter
+                                                            </p>
+                                                            <div
+                                                                class="mt-1 flex items-center gap-2 text-sm/none opacity-70">
+                                                                <span>
+                                                                    Editing project briefs and
+                                                                    content
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <span
+                                                            class="iconify lucide--chevron-right opacity-60"></span>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <div
+                                                        class="rounded-box hover:bg-base-200 flex cursor-pointer items-center gap-3 px-2 py-1 transition-all">
+                                                        <div class="avatar avatar-offline size-10">
+                                                            <img
+                                                                class="from-secondary/80 to-secondary/60 mask mask-squircle bg-linear-to-b px-1 pt-1"
+                                                                alt="Liam Mitchell"
+                                                                src="./images/avatars/2.png" />
+                                                        </div>
+                                                        <div class="grow">
+                                                            <p class="leading-none font-medium">
+                                                                Liam Mitchell
+                                                            </p>
+                                                            <div
+                                                                class="mt-1 flex items-center gap-2 text-sm/none opacity-70">
+                                                                <span>
+                                                                    Handling UI and visual designs
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <span
+                                                            class="iconify lucide--chevron-right opacity-60"></span>
+                                                    </div>
+                                                </li>
+                                                <li>
+                                                    <div
+                                                        class="rounded-box hover:bg-base-200 flex cursor-pointer items-center gap-3 px-2 py-1 transition-all">
+                                                        <div class="avatar avatar-online size-10">
+                                                            <img
+                                                                class="from-success/80 to-success/60 mask mask-squircle bg-linear-to-b px-1 pt-1"
+                                                                alt="Emma Johnson"
+                                                                src="./images/avatars/3.png" />
+                                                        </div>
+                                                        <div class="grow">
+                                                            <p class="leading-none font-medium">
+                                                                Emma Johnson
+                                                            </p>
+                                                            <div
+                                                                class="mt-1 flex items-center gap-2 text-sm/none opacity-70">
+                                                                <span>
+                                                                    Building core project features
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <span
+                                                            class="iconify lucide--chevron-right opacity-60"></span>
+                                                    </div>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-300 h-px border-dashed" />
+                                            <div class="mt-3">
+                                                <div class="px-4">
+                                                    <p
+                                                        class="text-base-content/70 text-sm font-medium">
+                                                        Actions / Create
+                                                    </p>
+                                                    <div
+                                                        class="mt-2 flex flex-wrap items-center gap-2">
+                                                        <button
+                                                            class="btn btn-outline btn-sm border-base-300">
+                                                            <span
+                                                                class="iconify lucide--users size-3.5"></span>
+                                                            Team
+                                                        </button>
+                                                        <button
+                                                            class="btn btn-outline btn-sm border-base-300">
+                                                            <span
+                                                                class="iconify lucide--user-plus size-3.5"></span>
+                                                            Member
+                                                        </button>
+                                                        <button
+                                                            class="btn btn-outline btn-sm border-base-300">
+                                                            <span
+                                                                class="iconify lucide--folder-plus size-3.5"></span>
+                                                            Project
+                                                        </button>
+                                                        <button
+                                                            class="btn btn-outline btn-sm border-base-300">
+                                                            <span
+                                                                class="iconify lucide--list-plus size-3.5"></span>
+                                                            Task
+                                                        </button>
+                                                        <button
+                                                            class="btn btn-outline btn-sm border-base-300">
+                                                            <span
+                                                                class="iconify lucide--calendar-plus size-3.5"></span>
+                                                            Event
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <ul class="menu w-full px-2 pt-2">
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--user-round-check size-4.5"></span>
+                                                            <p class="grow text-sm">Assign Task</p>
+                                                            <div
+                                                                class="kbd kbd-sm text-base-content">
+                                                                A
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--user-round-x size-4.5"></span>
+                                                            <p class="grow text-sm">
+                                                                Remove Assignment
+                                                            </p>
+                                                            <div
+                                                                class="kbd kbd-sm text-base-content">
+                                                                R
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                            </div>
+                                            <div
+                                                class="border-base-300 flex items-center gap-3 border-t px-4 py-3">
+                                                <div class="flex items-center gap-0.5">
+                                                    <div
+                                                        class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                        <span
+                                                            class="iconify lucide--arrow-up size-3.5"></span>
+                                                    </div>
+                                                    <div
+                                                        class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                        <span
+                                                            class="iconify lucide--arrow-down size-3.5"></span>
+                                                    </div>
+                                                    <p class="text-base-content/80 ms-1 text-sm">
+                                                        Navigate
+                                                    </p>
+                                                </div>
+                                                <div
+                                                    class="flex items-center gap-0.5 max-sm:hidden">
+                                                    <div
+                                                        class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                        <span
+                                                            class="iconify lucide--undo-2 size-3.5"></span>
+                                                    </div>
+                                                    <p class="text-base-content/80 ms-1 text-sm">
+                                                        Return
+                                                    </p>
+                                                </div>
+                                                <div class="flex items-center gap-0.5">
+                                                    <div
+                                                        class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                        <span
+                                                            class="iconify lucide--corner-down-left size-3.5"></span>
+                                                    </div>
+                                                    <p class="text-base-content/80 ms-1 text-sm">
+                                                        Open
+                                                    </p>
+                                                </div>
+                                                <div class="ms-auto flex items-center gap-0.5">
+                                                    <div
+                                                        class="border-base-300 bg-base-200 flex h-5 items-center justify-center rounded-sm border px-1 text-sm/none shadow-xs">
+                                                        esc
+                                                    </div>
+                                                    <p class="text-base-content/80 ms-1 text-sm">
+                                                        Close
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <form method="dialog" class="modal-backdrop">
+                                            <button>close</button>
+                                        </form>
+                                    </dialog>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Inline
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <div class="dropdown dropdown-bottom dropdown-end">
+                                        <div
+                                            tabindex="0"
+                                            class="input input-sm flex w-56 items-center gap-2 px-2">
+                                            <span
+                                                class="iconify lucide--search text-base-content/70 size-4"></span>
+                                            <input
+                                                aria-label="Search"
+                                                placeholder="Search projects, settings"
+                                                class="grow bg-transparent text-sm focus:outline-none"
+                                                type="text" />
+                                        </div>
+                                        <div
+                                            tabindex="0"
+                                            class="dropdown-content bg-base-100 rounded-box mt-1 w-56 shadow">
+                                            <ul class="menu menu-sm w-full p-1">
+                                                <li><p class="menu-title">Search results</p></li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--layout-dashboard size-4"></span>
+                                                        <span class="text-sm">
+                                                            Dashboard Overview
+                                                        </span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--users size-4"></span>
+                                                        <span class="text-sm">Team Directory</span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--settings size-4"></span>
+                                                        <span class="text-sm">
+                                                            Workspace Settings
+                                                        </span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                            <hr class="border-base-300 my-1 border-dashed" />
+                                            <ul class="menu menu-sm w-full p-1">
+                                                <li><p class="menu-title">Recent searches</p></li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--file-text size-4"></span>
+                                                        <span class="text-sm">
+                                                            Invoice template
+                                                        </span>
+                                                    </a>
+                                                </li>
+                                                <li>
+                                                    <a href="#">
+                                                        <span
+                                                            class="iconify lucide--folder size-4"></span>
+                                                        <span class="text-sm">Marketing Q3</span>
+                                                    </a>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    File
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <button
+                                        role="button"
+                                        class="btn btn-circle btn-soft"
+                                        aria-label="Notifications"
+                                        onclick="document.getElementById('search-modal-demo-2').showModal()">
+                                        <span class="iconify lucide--search size-5"></span>
+                                    </button>
+
+                                    <dialog id="search-modal-demo-2" class="modal p-0">
+                                        <div class="modal-box bg-transparent p-0 shadow-none">
+                                            <div class="bg-base-100 rounded-box">
+                                                <div class="input w-full border-0 !outline-none">
+                                                    <span
+                                                        class="iconify lucide--search text-base-content/60 size-4.5"></span>
+                                                    <input
+                                                        class="grow"
+                                                        placeholder="Search files, folders, or tags"
+                                                        aria-label="Search"
+                                                        type="search" />
+                                                    <form method="dialog">
+                                                        <button
+                                                            class="btn btn-xs btn-circle btn-ghost"
+                                                            aria-label="Close">
+                                                            <span
+                                                                class="iconify lucide--x text-base-content/80 size-4"></span>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                            <div class="bg-base-100 rounded-box mt-4">
+                                                <div class="px-5 py-3">
+                                                    <div class="mt-2 flex flex-wrap gap-2">
+                                                        <select class="select select-sm w-24">
+                                                            <option
+                                                                disabled=""
+                                                                value="-1"
+                                                                selected="">
+                                                                Sort by
+                                                            </option>
+                                                            <option>Name</option>
+                                                            <option>Last Modified</option>
+                                                            <option>Type</option>
+                                                        </select>
+                                                        <select class="select select-sm w-24">
+                                                            <option
+                                                                disabled=""
+                                                                value="-1"
+                                                                selected="">
+                                                                Type
+                                                            </option>
+                                                            <option>Documents</option>
+                                                            <option>Folders</option>
+                                                            <option>Shared</option>
+                                                        </select>
+                                                        <select class="select select-sm w-24">
+                                                            <option
+                                                                disabled=""
+                                                                value="-1"
+                                                                selected="">
+                                                                Owner
+                                                            </option>
+                                                            <option>Me</option>
+                                                            <option>Team</option>
+                                                            <option>External</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <ul class="menu menu-sm w-full pt-0">
+                                                    <li class="menu-title">Recent searches</li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--clock size-4 opacity-80"></span>
+                                                            <p class="text-sm">
+                                                                Quarterly Report.pdf
+                                                            </p>
+                                                            <span class="text-xs opacity-60">
+                                                                2 hours ago
+                                                            </span>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--clock size-4 opacity-80"></span>
+                                                            <p class="text-sm">Brand Guidelines</p>
+                                                            <span class="text-xs opacity-60">
+                                                                Today, 9:12 AM
+                                                            </span>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--clock size-4 opacity-80"></span>
+                                                            <p class="text-sm">Invoices Folder</p>
+                                                            <span class="text-xs opacity-60">
+                                                                Yesterday
+                                                            </span>
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                                <hr class="border-base-300 h-px border-dashed" />
+                                                <ul class="menu w-full pt-1">
+                                                    <li class="menu-title">Files &amp; Folders</li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--file-text size-4 opacity-80"></span>
+                                                            <p class="text-sm">
+                                                                Invoice_March2025.pdf
+                                                            </p>
+                                                            <div class="badge badge-sm gap-1.5">
+                                                                <span
+                                                                    class="iconify lucide--calendar size-3"></span>
+                                                                Finance
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--folder size-4 opacity-80"></span>
+                                                            <p class="text-sm">Marketing Assets</p>
+                                                            <div class="badge badge-sm gap-1.5">
+                                                                <span
+                                                                    class="iconify lucide--users size-3"></span>
+                                                                Shared
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--file-spreadsheet size-4 opacity-80"></span>
+                                                            <p class="text-sm">Q2_Expenses.xlsx</p>
+                                                            <div class="badge badge-sm gap-1.5">
+                                                                <span
+                                                                    class="iconify lucide--bar-chart size-3"></span>
+                                                                Reports
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--folder size-4 opacity-80"></span>
+                                                            <p class="text-sm">Archived Projects</p>
+                                                            <div class="badge badge-sm gap-1.5">
+                                                                <span
+                                                                    class="iconify lucide--archive size-3"></span>
+                                                                Internal
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify lucide--file-image size-4 opacity-80"></span>
+                                                            <p class="text-sm">
+                                                                UI_Screens_2025.png
+                                                            </p>
+                                                            <div class="badge badge-sm gap-1.5">
+                                                                <span
+                                                                    class="iconify lucide--brush size-3"></span>
+                                                                Design
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                                <div
+                                                    class="border-base-300 flex items-center gap-3 border-t p-3">
+                                                    <div class="flex items-center gap-0.5">
+                                                        <div
+                                                            class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                            <span
+                                                                class="iconify lucide--arrow-up size-3.5"></span>
+                                                        </div>
+                                                        <div
+                                                            class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                            <span
+                                                                class="iconify lucide--arrow-down size-3.5"></span>
+                                                        </div>
+                                                        <p
+                                                            class="text-base-content/80 ms-1 text-sm">
+                                                            Navigate
+                                                        </p>
+                                                    </div>
+                                                    <div class="flex items-center gap-0.5">
+                                                        <div
+                                                            class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                            <span
+                                                                class="iconify lucide--corner-down-left size-3.5"></span>
+                                                        </div>
+                                                        <p
+                                                            class="text-base-content/80 ms-1 text-sm">
+                                                            Open
+                                                        </p>
+                                                    </div>
+                                                    <div class="ms-auto flex items-center gap-0.5">
+                                                        <div
+                                                            class="border-base-300 bg-base-200 flex h-5 items-center justify-center rounded-sm border px-1 text-sm/none shadow-xs">
+                                                            esc
+                                                        </div>
+                                                        <p
+                                                            class="text-base-content/80 ms-1 text-sm">
+                                                            Close
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <form method="dialog" class="modal-backdrop">
+                                            <button>close</button>
+                                        </form>
+                                    </dialog>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Drawer
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <div class="drawer drawer-end">
+                                        <input
+                                            id="search-demo-7"
+                                            class="drawer-toggle"
+                                            type="checkbox" />
+                                        <div class="drawer-content">
+                                            <label
+                                                for="search-demo-7"
+                                                class="btn btn-circle btn-soft">
+                                                <span class="iconify lucide--search size-5"></span>
+                                            </label>
+                                        </div>
+                                        <div class="drawer-side">
+                                            <label
+                                                for="search-demo-7"
+                                                aria-label="close sidebar"
+                                                class="drawer-overlay"></label>
+                                            <div class="h-full w-xs p-2 sm:w-sm">
+                                                <div
+                                                    class="bg-base-100 rounded-box flex h-full flex-col overflow-auto">
+                                                    <div
+                                                        class="mt-4 flex items-center justify-between gap-3 px-4">
+                                                        <label
+                                                            for="search-demo-7"
+                                                            class="btn btn-xs btn-circle btn-ghost"
+                                                            aria-label="Go back">
+                                                            <span
+                                                                class="iconify lucide--chevron-left size-4"></span>
+                                                        </label>
+                                                        <input
+                                                            class="input input-sm grow"
+                                                            placeholder="Search products, orders, or tags"
+                                                            aria-label="Search"
+                                                            type="search" />
+                                                        <label
+                                                            for="search-demo-7"
+                                                            class="btn btn-xs btn-circle btn-ghost"
+                                                            aria-label="Clear search">
+                                                            <span
+                                                                class="iconify lucide--x size-4"></span>
+                                                        </label>
+                                                    </div>
+                                                    <div class="mt-4 px-5">
+                                                        <p
+                                                            class="text-base-content/70 text-sm font-medium">
+                                                            Filters applied
+                                                        </p>
+                                                        <div class="mt-2 flex items-center gap-2">
+                                                            <div class="badge badge-sm">
+                                                                Electronics
+                                                                <span
+                                                                    class="iconify lucide--x size-3"></span>
+                                                            </div>
+                                                            <div class="badge badge-sm">
+                                                                In Stock
+                                                                <span
+                                                                    class="iconify lucide--x size-3"></span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <ul class="menu mt-2 w-full p-0 px-2">
+                                                        <li class="menu-title">Products</li>
+                                                        <li>
+                                                            <div>
+                                                                <img
+                                                                    alt="Product image"
+                                                                    class="rounded-box size-9 object-cover"
+                                                                    src="./images/apps/ecommerce/products/1.jpg" />
+                                                                <div>
+                                                                    <p class="text-sm/none">
+                                                                        Running Shoes
+                                                                    </p>
+                                                                    <p
+                                                                        class="mt-1.5 text-xs/none opacity-60">
+                                                                        #Footwear
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </li>
+                                                        <li>
+                                                            <div>
+                                                                <img
+                                                                    alt="Product image"
+                                                                    class="rounded-box size-9 object-cover"
+                                                                    src="./images/apps/ecommerce/products/2.jpg" />
+                                                                <div>
+                                                                    <p class="text-sm/none">
+                                                                        Organic Body Oil
+                                                                    </p>
+                                                                    <p
+                                                                        class="mt-1.5 text-xs/none opacity-60">
+                                                                        #Skincare
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </li>
+                                                        <li>
+                                                            <div>
+                                                                <img
+                                                                    alt="Product image"
+                                                                    class="rounded-box size-9 object-cover"
+                                                                    src="./images/apps/ecommerce/products/3.jpg" />
+                                                                <div>
+                                                                    <p class="text-sm/none">
+                                                                        Mini Air Purifier
+                                                                    </p>
+                                                                    <p
+                                                                        class="mt-1.5 text-xs/none opacity-60">
+                                                                        #HomeTech
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </li>
+                                                        <li>
+                                                            <div>
+                                                                <img
+                                                                    alt="Product image"
+                                                                    class="rounded-box size-9 object-cover"
+                                                                    src="./images/apps/ecommerce/products/4.jpg" />
+                                                                <div>
+                                                                    <p class="text-sm/none">
+                                                                        Women's Sneakers
+                                                                    </p>
+                                                                    <p
+                                                                        class="mt-1.5 text-xs/none opacity-60">
+                                                                        #Footwear
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </li>
+                                                    </ul>
+                                                    <ul class="menu mt-2 w-full p-0 px-2">
+                                                        <li class="menu-title">Orders</li>
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--receipt size-4 opacity-80"></span>
+                                                                <p>Order #104562</p>
+                                                                <div
+                                                                    class="badge badge-soft badge-primary badge-sm">
+                                                                    Shipped
+                                                                </div>
+                                                            </div>
+                                                        </li>
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--receipt size-4 opacity-80"></span>
+                                                                <p>Order #104563</p>
+                                                                <div
+                                                                    class="badge badge-soft badge-warning badge-sm">
+                                                                    Pending
+                                                                </div>
+                                                            </div>
+                                                        </li>
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--receipt size-4 opacity-80"></span>
+                                                                <p>Order #104564</p>
+                                                                <div
+                                                                    class="badge badge-soft badge-success badge-sm">
+                                                                    Delivered
+                                                                </div>
+                                                            </div>
+                                                        </li>
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--receipt size-4 opacity-80"></span>
+                                                                <p>Order #104565</p>
+                                                                <div
+                                                                    class="badge badge-soft badge-error badge-sm">
+                                                                    Cancelled
+                                                                </div>
+                                                            </div>
+                                                        </li>
+                                                    </ul>
+                                                    <ul class="menu mt-2 w-full p-0 px-2">
+                                                        <li class="menu-title">Quick Actions</li>
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--plus-circle size-4"></span>
+                                                                <p class="grow text-sm">
+                                                                    Add New Product
+                                                                </p>
+                                                                <div
+                                                                    class="kbd kbd-sm text-base-content">
+                                                                    N
+                                                                </div>
+                                                            </div>
+                                                        </li>
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--archive size-4"></span>
+                                                                <p class="grow text-sm">
+                                                                    Update Stock
+                                                                </p>
+                                                                <div
+                                                                    class="kbd kbd-sm text-base-content">
+                                                                    U
+                                                                </div>
+                                                            </div>
+                                                        </li>
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--truck size-4"></span>
+                                                                <p class="grow text-sm">
+                                                                    Mark Order as Shipped
+                                                                </p>
+                                                                <div
+                                                                    class="kbd kbd-sm text-base-content">
+                                                                    S
+                                                                </div>
+                                                            </div>
+                                                        </li>
+                                                        <li>
+                                                            <div>
+                                                                <span
+                                                                    class="iconify lucide--x-circle size-4"></span>
+                                                                <p class="grow text-sm">
+                                                                    Cancel Order
+                                                                </p>
+                                                                <div
+                                                                    class="kbd kbd-sm text-base-content">
+                                                                    C
+                                                                </div>
+                                                            </div>
+                                                        </li>
+                                                    </ul>
+                                                    <div
+                                                        class="border-base-300 mt-auto flex items-center gap-4 border-t px-5 py-3">
+                                                        <div class="flex items-center gap-0.5">
+                                                            <div
+                                                                class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                                <span
+                                                                    class="iconify lucide--arrow-up size-3.5"></span>
+                                                            </div>
+                                                            <div
+                                                                class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                                <span
+                                                                    class="iconify lucide--arrow-down size-3.5"></span>
+                                                            </div>
+                                                            <p
+                                                                class="text-base-content/80 ms-1 text-sm">
+                                                                Navigate
+                                                            </p>
+                                                        </div>
+                                                        <div class="flex items-center gap-0.5">
+                                                            <div
+                                                                class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                                <span
+                                                                    class="iconify lucide--corner-down-left size-3.5"></span>
+                                                            </div>
+                                                            <p
+                                                                class="text-base-content/80 ms-1 text-sm">
+                                                                Select
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Documentation
+                                </div>
+                                <div class="flex items-center justify-center p-6">
+                                    <button
+                                        role="button"
+                                        class="btn btn-circle btn-soft"
+                                        aria-label="Notifications"
+                                        onclick="document.getElementById('search-modal-demo-8').showModal()">
+                                        <span class="iconify lucide--search size-5"></span>
+                                    </button>
+                                    <dialog id="search-modal-demo-8" class="modal p-0">
+                                        <div class="modal-box bg-transparent p-0 shadow-none">
+                                            <div class="bg-base-100 rounded-box">
+                                                <div class="input w-full border-0 !outline-none">
+                                                    <span
+                                                        class="iconify ri--search-line text-base-content/60 size-4.5"></span>
+                                                    <input
+                                                        class="grow"
+                                                        placeholder="Search docs, guides, or changelogs"
+                                                        aria-label="Search"
+                                                        type="search" />
+                                                    <form method="dialog">
+                                                        <button
+                                                            class="btn btn-xs btn-circle btn-ghost"
+                                                            aria-label="Close">
+                                                            <span
+                                                                class="iconify ri--close-line text-base-content/80 size-4.5"></span>
+                                                        </button>
+                                                    </form>
+                                                </div>
+                                            </div>
+                                            <div class="bg-base-100 rounded-box mt-4">
+                                                <div class="px-5 py-3">
+                                                    <div class="mt-2 flex flex-wrap gap-2">
+                                                        <select class="select select-sm w-28">
+                                                            <option
+                                                                disabled=""
+                                                                value="-1"
+                                                                selected="">
+                                                                Sort
+                                                            </option>
+                                                            <option>Relevance</option>
+                                                            <option>Updated</option>
+                                                            <option>Title</option>
+                                                        </select>
+                                                        <select class="select select-sm w-28">
+                                                            <option
+                                                                disabled=""
+                                                                value="-1"
+                                                                selected="">
+                                                                Category
+                                                            </option>
+                                                            <option>Getting Started</option>
+                                                            <option>API</option>
+                                                            <option>Troubleshooting</option>
+                                                        </select>
+                                                        <select class="select select-sm w-28">
+                                                            <option
+                                                                disabled=""
+                                                                value="-1"
+                                                                selected="">
+                                                                Author
+                                                            </option>
+                                                            <option>Docs Team</option>
+                                                            <option>Engineering</option>
+                                                            <option>External</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <ul class="menu menu-sm w-full pt-0">
+                                                    <li class="menu-title">Recent searches</li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify ri--time-line size-4 opacity-80"></span>
+                                                            <p class="text-sm">
+                                                                Authentication Setup
+                                                            </p>
+                                                            <span class="text-xs opacity-60">
+                                                                5 minutes ago
+                                                            </span>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify ri--time-line size-4 opacity-80"></span>
+                                                            <p class="text-sm">API Rate Limits</p>
+                                                            <span class="text-xs opacity-60">
+                                                                Today, 11:02 AM
+                                                            </span>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify ri--time-line size-4 opacity-80"></span>
+                                                            <p class="text-sm">Webhooks Guide</p>
+                                                            <span class="text-xs opacity-60">
+                                                                Yesterday
+                                                            </span>
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                                <hr class="border-base-300 h-px border-dashed" />
+                                                <ul class="menu w-full pt-1">
+                                                    <li class="menu-title">Documentation</li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify ri--file-text-line size-4 opacity-80"></span>
+                                                            <p class="text-sm">
+                                                                Getting Started with SDK
+                                                            </p>
+                                                            <div class="badge badge-sm gap-1.5">
+                                                                <span
+                                                                    class="iconify ri--stack-line size-3"></span>
+                                                                Setup
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify ri--code-line size-4 opacity-80"></span>
+                                                            <p class="text-sm">
+                                                                REST API Reference
+                                                            </p>
+                                                            <div class="badge badge-sm gap-1.5">
+                                                                <span
+                                                                    class="iconify ri--code-s-slash-line size-3"></span>
+                                                                API
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify ri--error-warning-line size-4 opacity-80"></span>
+                                                            <p class="text-sm">
+                                                                Error Codes Explained
+                                                            </p>
+                                                            <div class="badge badge-sm gap-1.5">
+                                                                <span
+                                                                    class="iconify ri--alert-line size-3"></span>
+                                                                Debug
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify ri--refresh-line size-4 opacity-80"></span>
+                                                            <p class="text-sm">Migration to v3</p>
+                                                            <div class="badge badge-sm gap-1.5">
+                                                                <span
+                                                                    class="iconify ri--refresh-line size-3"></span>
+                                                                Changelog
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                    <li>
+                                                        <div>
+                                                            <span
+                                                                class="iconify ri--computer-line size-4 opacity-80"></span>
+                                                            <p class="text-sm">
+                                                                Analytics Integration
+                                                            </p>
+                                                            <div class="badge badge-sm gap-1.5">
+                                                                <span
+                                                                    class="iconify ri--bar-chart-line size-3"></span>
+                                                                Guide
+                                                            </div>
+                                                        </div>
+                                                    </li>
+                                                </ul>
+                                                <div
+                                                    class="border-base-300 flex items-center gap-3 border-t p-3">
+                                                    <div class="flex items-center gap-0.5">
+                                                        <div
+                                                            class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                            <span
+                                                                class="iconify ri--arrow-up-line size-3.5"></span>
+                                                        </div>
+                                                        <div
+                                                            class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                            <span
+                                                                class="iconify ri--arrow-down-line size-3.5"></span>
+                                                        </div>
+                                                        <p
+                                                            class="text-base-content/80 ms-1 text-sm">
+                                                            Navigate
+                                                        </p>
+                                                    </div>
+                                                    <div class="flex items-center gap-0.5">
+                                                        <div
+                                                            class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                            <span
+                                                                class="iconify ri--login-box-line size-3.5"></span>
+                                                        </div>
+                                                        <p
+                                                            class="text-base-content/80 ms-1 text-sm">
+                                                            Open
+                                                        </p>
+                                                    </div>
+                                                    <div class="ms-auto flex items-center gap-0.5">
+                                                        <div
+                                                            class="border-base-300 bg-base-200 flex h-5 items-center justify-center rounded-sm border px-1 text-sm/none shadow-xs">
+                                                            esc
+                                                        </div>
+                                                        <p
+                                                            class="text-base-content/80 ms-1 text-sm">
+                                                            Close
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <form method="dialog" class="modal-backdrop">
+                                            <button>close</button>
+                                        </form>
+                                    </dialog>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div
+                        class="border-base-300/80 bg-base-100 border-t border-dashed px-4 py-4 md:px-8 xl:px-12 2xl:px-20">
+                        <div class="flex items-center justify-between px-0">
+                            <p>
+                                Built and designed with care by
+                                <a target="_blank" class="text-primary" href="https://withden.dev/">
+                                    Denish
+                                </a>
+                            </p>
+                            <a
+                                aria-label="Buy now"
+                                target="_blank"
+                                class="bg-primary text-primary-content group flex size-9 items-center gap-2 overflow-hidden rounded-full px-2.5 py-0.5 font-medium transition-all hover:w-26"
+                                href="https://daisyui.com/store/244268">
+                                <span class="iconify lucide--shopping-cart block size-4.5"></span>
+                                <span class="hidden text-sm text-nowrap group-hover:block">
+                                    Buy Now
+                                </span>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/simplebar/6.2.7/simplebar.min.js"></script>
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/simplebar/6.2.7/simplebar.css" />
+        <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+        <script src="./js/app.js"></script>
+    </body>
+</html>

@@ -1,0 +1,77 @@
+<div class="sidebar-menu relative flex h-full w-full flex-col py-3">
+    <label
+        for="layout-sidebar-hover-trigger"
+        title="Toggle sidebar hover"
+        class="btn btn-circle btn-ghost btn-sm text-base-content/50 absolute end-2 top-3.5 max-lg:hidden">
+        <span
+            class="iconify lucide--panel-left-close absolute size-4.5 opacity-100 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-0"></span>
+        <span
+            class="iconify lucide--panel-left-dashed absolute size-4.5 opacity-0 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-100"></span>
+    </label>
+    <div class="flex min-h-10 items-center gap-3 px-5">
+        <span class="text-xl font-semibold">ACME Inc</span>
+        <hr class="border-base-300 h-5 border-e" />
+        <p class="text-base-content/50 font-medium">Basic</p>
+    </div>
+    <div class="custom-scrollbar grow overflow-auto">
+        <div class="mt-3 space-y-0.5 px-2.5">
+            <a class="menu-item" href="#">
+                <span class="iconify lucide--home size-4"></span>
+                <p>Home</p>
+            </a>
+            <a class="menu-item" href="#">
+                <span class="iconify lucide--bar-chart-2 size-4"></span>
+                <p>Overview</p>
+            </a>
+        </div>
+        <p class="menu-label mt-4 px-5">Transactions</p>
+        <div class="mt-1 space-y-0.5 px-2.5">
+            <a class="menu-item" href="#">
+                <span class="iconify lucide--credit-card size-4"></span>
+                <p>Payment History</p>
+            </a>
+            <a class="menu-item" href="#">
+                <span class="iconify lucide--dollar-sign size-4"></span>
+                <p>Send Payment</p>
+            </a>
+            <a class="menu-item" href="#">
+                <span class="iconify lucide--repeat size-4"></span>
+                <p>Recurring Payments</p>
+            </a>
+        </div>
+        <p class="menu-label mt-4 px-5">Account</p>
+        <div class="mt-1 space-y-0.5 px-2.5">
+            <a class="menu-item" href="#">
+                <span class="iconify lucide--user size-4"></span>
+                <p>Profile</p>
+            </a>
+            <a class="menu-item" href="#">
+                <span class="iconify lucide--lock size-4"></span>
+                <p>Security</p>
+            </a>
+            <a class="menu-item" href="#">
+                <span class="iconify lucide--wallet size-4"></span>
+                <p>Wallet</p>
+            </a>
+        </div>
+    </div>
+    <div class="px-2.5 pt-4">
+        <a class="menu-item" href="#">
+            <span class="iconify lucide--settings size-4"></span>
+            <p>Settings</p>
+        </a>
+        <label class="menu-item menu-item-link">
+            <span class="iconify lucide--flask-conical size-4"></span>
+            <p class="grow">Test Mode</p>
+            <input
+                id="basic-test-mode"
+                class="toggle toggle-xs toggle-primary"
+                type="checkbox"
+                checked="" />
+        </label>
+        <a class="menu-item" href="#">
+            <span class="iconify lucide--log-out size-4"></span>
+            <p>Logout</p>
+        </a>
+    </div>
+</div>

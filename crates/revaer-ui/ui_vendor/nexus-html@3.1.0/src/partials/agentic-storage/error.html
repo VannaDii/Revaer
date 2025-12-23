@@ -1,0 +1,65 @@
+<div class="card bg-base-100 shadow">
+    <div class="flex items-center gap-3 px-4 py-2.5">
+        <span class="iconify lucide--folder-pen size-4"></span>
+        <p class="grow font-medium">Auto Rename Files</p>
+        <p class="text-base-content/40 text-xs font-medium max-sm:hidden">6 hours ago</p>
+        <div class="dropdown dropdown-bottom dropdown-end">
+            <div
+                tabindex="0"
+                role="button"
+                class="btn btn-ghost btn-circle btn-xs"
+                aria-label="Menu">
+                <span class="iconify lucide--more-vertical size-3.5"></span>
+            </div>
+            <div
+                tabindex="0"
+                class="dropdown-content bg-base-100 rounded-box mt-2 w-40 shadow transition-all hover:shadow-lg">
+                <ul class="menu w-full p-1.5">
+                    <li>
+                        <div>
+                            <span class="iconify lucide--sparkles size-4"></span>
+                            Enhance
+                        </div>
+                    </li>
+                    <li>
+                        <div>
+                            <span class="iconify lucide--brain size-4"></span>
+                            Insights
+                        </div>
+                    </li>
+                    <li>
+                        <div>
+                            <span class="iconify lucide--wand-2 size-4"></span>
+                            Auto Tag
+                        </div>
+                    </li>
+                </ul>
+                <hr class="border-base-300" />
+                <ul class="menu w-full p-1.5">
+                    <li>
+                        <div class="text-error hover:bg-error/10">
+                            <span class="iconify lucide--trash size-4"></span>
+                            Delete
+                        </div>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="border-base-300 border-t border-dashed px-4 py-2.5">
+        <p class="text-base-content/60 text-sm">Suggest cleaner file names based on content</p>
+        <p class="mt-3 font-medium">Name Conflict Detected</p>
+        <p class="text-base-content/80 mt-2 text-sm">
+            Duplicate file names detected in the folder. Please resolve to continue.
+        </p>
+    </div>
+    <div class="mt-auto flex items-end gap-2 px-4 pt-2 pb-4">
+        <div class="tooltip text-error tooltip-error" data-tip="Conflict Detected">
+            <span class="iconify lucide--triangle-alert block size-3.5"></span>
+        </div>
+        <button class="btn btn-sm ms-auto gap-2 border-none">
+            <span class="iconify lucide--list-todo size-4"></span>
+            See Duplicates
+        </button>
+    </div>
+</div>

@@ -1,0 +1,25 @@
+<form
+    x-data="useToggleFormValidator()"
+    x-on:submit="(e)=>{e.preventDefault();onSubmit()}"
+    novalidate
+    class="space-y-3">
+    <div class="space-y-1.5">
+        <div class="flex items-center gap-2">
+            <input
+                type="checkbox"
+                id="requiredToggle"
+                :data-error="hasError('requiredToggle')"
+                @change="updateData('requiredToggle', $event.target.checked)"
+                class="toggle toggle-sm"
+                name="requiredToggle" />
+            <label for="requiredToggle">I accept the terms and conditions</label>
+        </div>
+        <p
+            :data-error="hasError('requiredToggle')"
+            class="text-error max-h-0 text-sm opacity-0 transition-all duration-300 data-error:max-h-8 data-error:opacity-100"
+            x-text="getError('requiredToggle')"></p>
+    </div>
+    <div class="text-end">
+        <button type="submit" class="btn btn-sm">Submit</button>
+    </div>
+</form>

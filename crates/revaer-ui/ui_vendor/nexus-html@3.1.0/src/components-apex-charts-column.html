@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <load src="partials/components-layout/sidebar.html" />
+
+                <div id="components-layout-main">
+                    <load src="partials/components-layout/topbar.html" />
+
+                    <div id="components-layout-content">
+                        <div class="flex flex-col items-center justify-center space-y-0.5">
+                            <div
+                                class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                <div class="status status-sm bg-base-content/30"></div>
+                                Apexcharts
+                            </div>
+                            <p
+                                class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                Column Charts
+                            </p>
+                            <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                A versatile set of column charts for comparing values, ranges, and
+                                trends visually
+                            </p>
+                        </div>
+                        <div class="bg-base-200/40 rounded-box mt-6 px-5 py-4 lg:mt-12">
+                            <p class="text-base-content/60 font-medium">Usage guidelines</p>
+                            <p class="mt-1">
+                                <span class="me-1">- Plugin Documentation:</span>
+                                <a
+                                    href="https://apexcharts.com/javascript-chart-demos/area-charts/"
+                                    target="_blank"
+                                    class="text-primary">
+                                    Apexcharts
+                                </a>
+                            </p>
+                        </div>
+                        <p class="text-base-content/60 mt-6 font-medium">Demos</p>
+                        <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-2">
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Stacked Column
+                                </div>
+                                <div class="px-5 pt-5 pb-2">
+                                    <div id="stacked-column-chart"></div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Dumbbell Column
+                                </div>
+                                <div class="px-5 pt-5 pb-2">
+                                    <div id="dumbbell-column-chart"></div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Range Column
+                                </div>
+                                <div class="px-5 pt-5 pb-2">
+                                    <div id="range-column-chart"></div>
+                                </div>
+                            </div>
+                            <div class="card card-border bg-base-100">
+                                <div class="bg-base-200/30 rounded-t-box px-5 py-3 font-medium">
+                                    Negative Values Column
+                                </div>
+                                <div class="px-5 pt-5 pb-2">
+                                    <div id="negative-value-column-chart"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <load src="partials/components-layout/footer.html" />
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+
+        <link
+            rel="stylesheet"
+            href="https://cdn.jsdelivr.net/npm/apexcharts/dist/apexcharts.min.css" />
+        <script src="https://cdn.jsdelivr.net/npm/apexcharts/dist/apexcharts.min.js"></script>
+
+        <script src="/js/pages/charts/apex-column.js"></script>
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

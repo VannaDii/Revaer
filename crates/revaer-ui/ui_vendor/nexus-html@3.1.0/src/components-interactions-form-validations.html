@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en" class="group/html">
+    <head>
+        <title>Nexus (HTML - DaisyUI)</title>
+
+        <load src="partials/head.html" />
+    </head>
+
+    <body>
+        <!--  Start: Layout - Main -->
+
+        <div id="components-layout">
+            <div id="components-layout-container">
+                <load src="partials/components-layout/sidebar.html" />
+
+                <div id="components-layout-main">
+                    <load src="partials/components-layout/topbar.html" />
+
+                    <div id="components-layout-content">
+                        <div class="flex flex-col items-center justify-center space-y-0.5">
+                            <div
+                                class="text-base-content/80 border-base-300 flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs leading-none tracking-[0.2px]">
+                                <div class="status status-sm bg-base-content/30"></div>
+                                Interactions
+                            </div>
+                            <p
+                                class="from-base-content to-base-content/75 bg-linear-to-b bg-clip-text pb-1 text-3xl font-bold tracking-tight text-transparent lg:text-4xl 2xl:text-5xl">
+                                Form Validation
+                            </p>
+                            <p class="text-base-content/80 max-w-lg text-center max-md:text-sm">
+                                Flexible form validation with inputs, checkboxes, radios, toggles,
+                                selects, and custom controls
+                            </p>
+                        </div>
+                        <p class="text-base-content/60 mt-6 font-medium lg:mt-12">Demos</p>
+
+                        <div class="bg-base-100 card card-border mt-6">
+                            <div
+                                class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                <span class="iconify lucide--form-input size-4.5"></span>
+                                Form
+                            </div>
+                            <div class="p-5">
+                                <load src="partials/interactions/form-validation/form.html" />
+                            </div>
+                        </div>
+
+                        <p class="text-base-content/60 mt-6 font-medium">Form Elements</p>
+                        <div
+                            class="mt-6 grid grid-cols-1 gap-6 space-y-6 lg:grid-cols-2 xl:grid-cols-3">
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--text size-4.5"></span>
+                                    Text
+                                </div>
+                                <div class="p-5">
+                                    <load src="partials/interactions/form-validation/text.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--binary size-4.5"></span>
+                                    Number
+                                </div>
+                                <div class="p-5">
+                                    <load src="partials/interactions/form-validation/number.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--mail size-4.5"></span>
+                                    Email
+                                </div>
+                                <div class="p-5">
+                                    <load src="partials/interactions/form-validation/email.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--circle-dot size-4.5"></span>
+                                    Radio
+                                </div>
+                                <div class="p-5">
+                                    <load src="partials/interactions/form-validation/radio.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--square-check size-4.5"></span>
+                                    Checkbox
+                                </div>
+                                <div class="p-5">
+                                    <load
+                                        src="partials/interactions/form-validation/checkbox.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--toggle-right size-4.5"></span>
+                                    Toggle
+                                </div>
+                                <div class="p-5">
+                                    <load src="partials/interactions/form-validation/toggle.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--diamond size-4.5"></span>
+                                    Select
+                                </div>
+                                <div class="p-5">
+                                    <load src="partials/interactions/form-validation/select.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--settings-2 size-4.5"></span>
+                                    Range
+                                </div>
+                                <div class="p-5">
+                                    <load src="partials/interactions/form-validation/range.html" />
+                                </div>
+                            </div>
+                            <div class="bg-base-100 card card-border h-fit">
+                                <div
+                                    class="bg-base-200/30 flex items-center gap-2.5 px-5 py-3 font-medium">
+                                    <span class="iconify lucide--star size-4.5"></span>
+                                    Ratings
+                                </div>
+                                <div class="p-5">
+                                    <load
+                                        src="partials/interactions/form-validation/ratings.html" />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <load src="partials/components-layout/footer.html" />
+                </div>
+            </div>
+        </div>
+
+        <!--  End: Layout - Main -->
+        <script src="/js/components/form-validations.js" type="module"></script>
+
+        <load src="partials/footer-scripts.html" />
+    </body>
+</html>

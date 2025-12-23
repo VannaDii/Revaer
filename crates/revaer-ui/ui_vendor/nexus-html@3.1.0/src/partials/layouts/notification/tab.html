@@ -1,0 +1,111 @@
+<div class="dropdown dropdown-bottom sm:dropdown-end dropdown-center">
+    <div tabindex="0" role="button" class="btn btn-circle btn-soft" aria-label="Notifications">
+        <span class="iconify lucide--bell size-5"></span>
+    </div>
+    <div tabindex="0" class="dropdown-content bg-base-100 rounded-box mt-1 w-84 shadow">
+        <div class="bg-base-200/30 rounded-t-box border-base-200 border-b ps-4 pe-2 pt-3">
+            <div class="flex items-center justify-between">
+                <p class="font-medium">Notification</p>
+                <button class="btn btn-xs btn-circle btn-ghost" aria-label="Close">
+                    <span class="iconify lucide--x size-4"></span>
+                </button>
+            </div>
+            <div class="-ms-2 mt-2 -mb-px flex items-center justify-between">
+                <div role="tablist" class="tabs tabs-sm tabs-border">
+                    <div role="tab" class="tab tab-active gap-2 px-3 font-medium">
+                        <span>All</span>
+                        <div class="badge badge-sm">4</div>
+                    </div>
+                    <div role="tab" class="tab gap-2 px-3"><span>Team</span></div>
+                    <div role="tab" class="tab gap-2 px-3"><span>AI</span></div>
+                    <div role="tab" class="tab gap-2 px-3"><span>@mention</span></div>
+                </div>
+            </div>
+        </div>
+        <div class="hover:bg-base-200/20 relative flex items-start gap-3 p-4 transition-all">
+            <div class="avatar avatar-online size-12">
+                <img
+                    class="from-primary/80 to-primary/60 mask mask-squircle bg-linear-to-b px-1 pt-1"
+                    alt=""
+                    src="/images/avatars/2.png" />
+            </div>
+            <div class="grow">
+                <p class="text-sm leading-tight">Lena submitted a draft for review.</p>
+                <p class="text-base-content/60 text-xs">15 min ago</p>
+                <div class="mt-2 flex items-center gap-2">
+                    <button class="btn btn-sm btn-primary">Approve</button>
+                    <button class="btn btn-sm btn-outline border-base-300">Decline</button>
+                </div>
+            </div>
+            <div class="status status-primary absolute end-4 top-4 size-1.5"></div>
+        </div>
+        <hr class="border-base-300 border-dashed" />
+        <div class="hover:bg-base-200/20 flex items-start gap-3 p-4 transition-all">
+            <div class="avatar avatar-offline size-12">
+                <img
+                    class="from-secondary/80 to-secondary/60 mask mask-squircle bg-linear-to-b px-1 pt-1"
+                    alt=""
+                    src="/images/avatars/4.png" />
+            </div>
+            <div class="grow">
+                <p class="text-sm leading-tight">Kai mentioned you in a project.</p>
+                <p class="text-base-content/60 text-xs">22 min ago</p>
+                <div
+                    class="from-base-200 via-base-200/80 rounded-box mt-2 flex items-center justify-between gap-2 bg-linear-to-r to-transparent py-1 ps-2.5">
+                    <p class="text-sm">Check model inputs?</p>
+                    <button class="btn btn-xs btn-ghost text-xs">
+                        <span class="iconify lucide--reply size-3.5"></span>
+                        Reply
+                    </button>
+                </div>
+            </div>
+        </div>
+        <hr class="border-base-300 border-dashed" />
+        <div class="hover:bg-base-200/20 flex items-start gap-3 p-4 transition-all">
+            <div class="avatar size-12">
+                <img
+                    class="mask mask-squircle bg-linear-to-b from-orange-500/80 to-orange-500/60 px-1 pt-1"
+                    alt=""
+                    src="/images/avatars/5.png" />
+            </div>
+            <div class="grow">
+                <p class="text-sm leading-tight">Your latest results are ready</p>
+                <div
+                    class="border-base-200 rounded-box mt-2 flex items-center justify-between gap-2 border px-2.5 py-1.5">
+                    <p class="text-sm">
+                        Forecast Report
+                        <span class="text-base-content/60 text-xs">(12 MB)</span>
+                    </p>
+                    <button class="btn btn-xs btn-square btn-ghost text-xs">
+                        <span class="iconify lucide--arrow-down-to-line size-4"></span>
+                    </button>
+                </div>
+                <div
+                    class="border-base-200 rounded-box mt-2 flex items-center justify-between gap-2 border px-2.5 py-1.5">
+                    <p class="text-sm">
+                        Generated Summary
+                        <span class="text-base-content/60 text-xs">(354 KB)</span>
+                    </p>
+                    <button class="btn btn-xs btn-square btn-ghost text-xs">
+                        <span class="iconify lucide--arrow-down-to-line size-4"></span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <hr class="border-base-200" />
+        <div class="flex items-center justify-between px-2 py-2">
+            <button class="btn btn-sm btn-soft btn-primary">View All</button>
+            <div class="flex items-center gap-1">
+                <button class="btn btn-sm btn-square btn-ghost">
+                    <span class="iconify lucide--check-check size-4"></span>
+                </button>
+                <button class="btn btn-sm btn-square btn-ghost">
+                    <span class="iconify lucide--bell-ring size-4"></span>
+                </button>
+                <button class="btn btn-sm btn-square btn-ghost">
+                    <span class="iconify lucide--settings size-4"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+</div>

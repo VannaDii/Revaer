@@ -1,0 +1,81 @@
+<div class="flex h-full w-full items-center justify-between px-4">
+    <div class="flex items-center gap-0">
+        <label
+            class="btn btn-square btn-ghost btn-sm group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:hidden"
+            aria-label="Sidebar toggle"
+            for="layout-sidebar-toggle-trigger">
+            <span class="iconify lucide--menu size-5"></span>
+        </label>
+        <label
+            class="btn btn-square btn-ghost btn-sm hidden group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:flex"
+            aria-label="Leftmenu toggle"
+            for="layout-sidebar-hover-trigger">
+            <span class="iconify lucide--menu size-5"></span>
+        </label>
+        <div
+            class="*:rounded-box flex items-center gap-0.5 text-sm *:px-2.5 *:py-1 *:transition-all *:hover:opacity-70 max-md:hidden">
+            <a href="#">Dashboard</a>
+            <a href="#">Analytics</a>
+            <a href="#">Settings</a>
+            <a href="#">Users</a>
+            <a href="#">Reports</a>
+            <a href="#">Support</a>
+        </div>
+    </div>
+    <div class="flex items-center">
+        <button class="btn btn-circle btn-ghost btn-sm me-1" aria-label="Search">
+            <span class="iconify lucide--search text-base-content/80 size-5"></span>
+        </button>
+        <button class="btn btn-circle btn-ghost btn-sm me-1" aria-label="Notifications">
+            <span class="iconify lucide--bell-ring text-base-content/80 size-5"></span>
+        </button>
+        <button class="btn btn-circle btn-ghost btn-sm me-3" aria-label="Apps">
+            <span class="iconify lucide--component text-base-content/80 size-5.5 rotate-45"></span>
+        </button>
+        <div class="dropdown dropdown-bottom dropdown-end">
+            <div tabindex="0" class="cursor-pointer">
+                <div
+                    class="avatar bg-base-200 ring-success size-7 overflow-hidden rounded-full ring">
+                    <img alt="Avatar" src="/images/avatars/1.png" />
+                </div>
+            </div>
+            <div tabindex="0" class="dropdown-content bg-base-100 rounded-box mt-2 w-44 shadow">
+                <ul class="menu w-full p-2">
+                    <li>
+                        <a href="#">
+                            <span class="iconify lucide--user size-4"></span>
+                            <span>My Profile</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#">
+                            <span class="iconify lucide--settings size-4"></span>
+                            <span>Settings</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#">
+                            <span class="iconify lucide--help-circle size-4"></span>
+                            <span>Help</span>
+                        </a>
+                    </li>
+                </ul>
+                <hr class="border-base-300" />
+                <ul class="menu w-full p-2">
+                    <li>
+                        <div>
+                            <span class="iconify lucide--arrow-left-right size-4"></span>
+                            <span>Switch Account</span>
+                        </div>
+                    </li>
+                    <li>
+                        <a class="text-error hover:bg-error/10" href="#">
+                            <span class="iconify lucide--log-out size-4"></span>
+                            <span>Logout</span>
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>

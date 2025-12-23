@@ -1,0 +1,288 @@
+<div x-data="useAdvancedDatatables()">
+    <div class="border-base-200 flex items-center justify-between border-b border-dashed px-5 py-5">
+        <label class="input input-sm w-56">
+            <span class="iconify lucide--search text-base-content/70 size-4.5"></span>
+            <input
+                class="text-base placeholder:text-sm"
+                type="search"
+                x-model="search"
+                @input="updateSearch"
+                placeholder="Search by all fields" />
+        </label>
+        <div class="text-base-content/70 text-center text-sm max-md:hidden">
+            <template x-if="selectedCount > 0">
+                <p>
+                    <span class="text-base-content font-medium" x-text="selectedCount"></span>
+                    <span x-text="selectedCount === 1 ? ' row' : ' rows'"></span>
+                    selected out of
+                    <span class="text-base-content font-medium" x-text="totalCount"></span>
+                </p>
+            </template>
+
+            <template x-if="selectedCount === 0">
+                <span class="font-medium">Select a row</span>
+            </template>
+        </div>
+        <div class="flex items-center gap-2">
+            <div class="dropdown dropdown-bottom dropdown-end">
+                <div tabindex="0" role="button" class="btn btn-outline btn-sm border-base-300">
+                    <span class="iconify lucide--columns-3-cog size-4"></span>
+                    Columns
+                </div>
+
+                <div tabindex="0" class="dropdown-content bg-base-100 rounded-box w-44 shadow">
+                    <ul class="menu w-full">
+                        <template x-for="column in allLeafColumns" :key="column.id">
+                            <li @click="toggleColumn(column)">
+                                <div
+                                    class="group gap-2.5"
+                                    :data-visible="isColumnVisible(column) ? true : null">
+                                    <span
+                                        class="iconify lucide--check size-4 scale-50 opacity-0 transition-all duration-300 group-data-visible:scale-100 group-data-visible:opacity-100"></span>
+
+                                    <span
+                                        class="font-medium"
+                                        x-text="column.columnDef.header"></span>
+                                </div>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+            </div>
+            <div class="dropdown dropdown-bottom dropdown-end">
+                <div
+                    aria-label="More actions"
+                    tabindex="0"
+                    role="button"
+                    class="btn btn-outline btn-sm btn-square border-base-300">
+                    <span class="iconify lucide--ellipsis-vertical size-4"></span>
+                </div>
+
+                <div tabindex="0" class="dropdown-content bg-base-100 rounded-box w-44 shadow">
+                    <ul class="menu w-full">
+                        <li>
+                            <div>
+                                <span class="iconify lucide--refresh-cw size-4"></span>
+                                Refresh Data
+                            </div>
+                        </li>
+                        <li>
+                            <div>
+                                <span class="iconify lucide--calendar-range size-4"></span>
+                                Filter by Date
+                            </div>
+                        </li>
+                        <li>
+                            <div>
+                                <span class="iconify lucide--download size-4"></span>
+                                Export Rows
+                            </div>
+                        </li>
+                        <li>
+                            <div>
+                                <span class="iconify lucide--pie-chart size-4"></span>
+                                Report
+                            </div>
+                        </li>
+                        <li>
+                            <div>
+                                <span class="iconify lucide--clock size-4"></span>
+                                Recent Activity
+                            </div>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="table">
+            <thead>
+                <template x-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                    <tr>
+                        <th>
+                            <input
+                                aria-label="Select all rows"
+                                type="checkbox"
+                                class="checkbox checkbox-sm"
+                                :checked="table.getIsAllPageRowsSelected()"
+                                @change="toggleAllRowsSelected"
+                                x-effect="$el.indeterminate = isIndeterminateAllRowsSelected" />
+                        </th>
+                        <template x-for="header in headerGroup.headers" :key="header.id">
+                            <th
+                                x-show="!header.isPlaceholder"
+                                x-text="flexRender(header.column.columnDef.header, header.getContext())"></th>
+                        </template>
+                    </tr>
+                </template>
+            </thead>
+            <tbody>
+                <template x-if="!visibleRows.length">
+                    <tr>
+                        <td :colspan="columns.length" class="h-24 text-center">
+                            <p>
+                                No results.
+                                <span
+                                    @click="clearFilters"
+                                    class="text-primary cursor-pointer hover:underline">
+                                    Clear filters
+                                </span>
+                            </p>
+                        </td>
+                    </tr>
+                </template>
+                <template x-if="visibleRows.length">
+                    <template x-for="row in visibleRows" :key="row.id">
+                        <tr>
+                            <td>
+                                <input
+                                    aria-label="Select row"
+                                    type="checkbox"
+                                    class="checkbox checkbox-sm"
+                                    :checked="isRowSelected(row)"
+                                    @change="toggleSelectedRow(row)" />
+                            </td>
+                            <template x-for="cell in getVisibleCells(row)" :key="cell.id">
+                                <td>
+                                    <template x-if="cell.column.id === 'customerName'">
+                                        <div class="flex items-center gap-2">
+                                            <div class="avatar">
+                                                <div
+                                                    class="mask mask-squircle bg-base-200 h-9 w-9 px-0.5 pt-0.5">
+                                                    <img
+                                                        :src="cell.row.original.avatar"
+                                                        alt="Avatar" />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <p
+                                                    class="leading-none font-medium"
+                                                    x-text="cell.row.original.customerName"></p>
+                                                <p
+                                                    class="text-base-content/70 mt-0.5 text-xs/none"
+                                                    x-text="cell.row.original.email"></p>
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    <template x-if="cell.column.id === 'id'">
+                                        <span
+                                            class="text-base-content/70 font-mono text-xs uppercase"
+                                            x-text="'#' + cell.row.original.id"></span>
+                                    </template>
+
+                                    <template x-if="cell.column.id === 'status'">
+                                        <span
+                                            :class="{
+                  'badge badge-success badge-sm badge-soft': cell.row.original.status === 'success',
+                  'badge badge-info badge-sm badge-soft': cell.row.original.status === 'processing',
+                  'badge badge-error badge-sm badge-soft': cell.row.original.status === 'failed',
+                  'badge badge-ghost badge-sm': ['pending', null, undefined].includes(cell.row.original.status)
+                }"
+                                            x-text="cell.row.original.status.charAt(0).toUpperCase() + cell.row.original.status.slice(1)"></span>
+                                    </template>
+
+                                    <template x-if="cell.column.id === 'dateTime'">
+                                        <p class="space-x-1 whitespace-nowrap">
+                                            <span
+                                                x-text="new Date(cell.row.original.dateTime).toLocaleDateString('en-US', {
+                      day: 'numeric', month: 'short', year: '2-digit'
+                    })"></span>
+                                            <span
+                                                class="text-base-content/60 text-xs"
+                                                x-text="new Date(cell.row.original.dateTime).toLocaleTimeString([], {
+                        hour: '2-digit', minute: '2-digit'
+                      })"></span>
+                                        </p>
+                                    </template>
+
+                                    <template x-if="cell.column.id === 'amount'">
+                                        <span
+                                            class="text-base font-medium"
+                                            x-text="'\$ '+cell.row.original.amount"></span>
+                                    </template>
+
+                                    <template x-if="cell.column.id === 'actions'">
+                                        <div class="flex items-center gap-1.5">
+                                            <button
+                                                aria-label="Show"
+                                                class="btn btn-soft btn-xs btn-square"
+                                                @click="viewRow(cell.row)">
+                                                <span class="iconify lucide--eye size-3.5"></span>
+                                            </button>
+                                            <button
+                                                aria-label="Delete"
+                                                class="btn btn-soft btn-error btn-xs btn-square"
+                                                @click="deleteRow(cell.row)">
+                                                <span
+                                                    class="iconify lucide--trash-2 size-3.5"></span>
+                                            </button>
+                                        </div>
+                                    </template>
+
+                                    <template
+                                        x-if="!
+              ['id', 'customerName', 'status', 'dateTime', 'amount', 'actions'].includes(cell.column.id)">
+                                        <span
+                                            x-html="cell.column.columnDef.cell
+                ? cell.column.columnDef.cell(cell.getContext())
+                : cell.getValue()"></span>
+                                    </template>
+                                </td>
+                            </template>
+                        </tr>
+                    </template>
+                </template>
+            </tbody>
+        </table>
+    </div>
+    <div
+        class="border-base-200 flex flex-wrap items-center justify-between gap-2 border-t border-dashed p-5">
+        <div class="flex items-center gap-2">
+            <p class="text-base-content/70 text-sm max-md:hidden">Items per page</p>
+            <select
+                aria-label="Items per page"
+                class="select select-sm w-16"
+                @change="changePageSize(Number($event.target.value))">
+                <template x-for="size in pageSizes" :key="size">
+                    <option :value="size" :selected="size === pageSize" x-text="size"></option>
+                </template>
+            </select>
+        </div>
+
+        <p class="text-base-content/70 text-sm max-md:hidden">
+            Showing
+            <span class="text-base-content font-medium" x-text="`${start}–${end}`"></span>
+            out of
+            <span class="text-base-content font-medium" x-text="rowCount"></span>
+        </p>
+
+        <div class="join">
+            <button
+                class="btn btn-square btn-sm btn-outline border-base-300 join-item"
+                aria-label="Pagination controls"
+                :disabled="!table.getCanPreviousPage()"
+                @click="prevPage()">
+                <span class="iconify lucide--arrow-left"></span>
+            </button>
+
+            <input
+                aria-label="Page number"
+                type="number"
+                min="1"
+                :max="table.getPageCount()"
+                :value="pageIndex + 1"
+                @input="setPageIndex($event.target.value - 1)"
+                class="input input-sm join-item w-10 text-center" />
+
+            <button
+                class="btn btn-square btn-sm btn-outline border-base-300 join-item"
+                aria-label="Pagination controls"
+                :disabled="!table.getCanNextPage()"
+                @click="nextPage()">
+                <span class="iconify lucide--arrow-right"></span>
+            </button>
+        </div>
+    </div>
+</div>
