@@ -242,6 +242,13 @@
         ],
         "type": "object"
       },
+      "StorageMode": {
+        "enum": [
+          "sparse",
+          "allocate"
+        ],
+        "type": "string"
+      },
       "TorrentAction": {
         "properties": {
           "delete_data": {
@@ -288,27 +295,190 @@
         ],
         "type": "object"
       },
-      "TorrentCreateRequest": {
-        "type": "object",
+      "TorrentAuthorFileView": {
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
+          "path": {
+            "type": "string"
           },
-          "magnet": {
+          "size_bytes": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path",
+          "size_bytes"
+        ],
+        "type": "object"
+      },
+      "TorrentAuthorRequest": {
+        "properties": {
+          "comment": {
             "type": [
               "string",
               "null"
             ]
           },
-          "metainfo": {
+          "exclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "include": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "piece_length": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "private": {
+            "type": "boolean"
+          },
+          "root_path": {
+            "type": "string"
+          },
+          "skip_fluff": {
+            "type": "boolean"
+          },
+          "source": {
             "type": [
               "string",
               "null"
-            ],
-            "format": "byte"
+            ]
           },
-          "name": {
+          "trackers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "web_seeds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "root_path"
+        ],
+        "type": "object"
+      },
+      "TorrentAuthorResponse": {
+        "properties": {
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/TorrentAuthorFileView"
+            },
+            "type": "array"
+          },
+          "info_hash": {
+            "type": "string"
+          },
+          "magnet_uri": {
+            "type": "string"
+          },
+          "metainfo": {
+            "format": "byte",
+            "type": "string"
+          },
+          "piece_length": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "private": {
+            "type": "boolean"
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "total_size": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "trackers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "web_seeds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "metainfo",
+          "magnet_uri",
+          "info_hash",
+          "piece_length",
+          "total_size",
+          "files",
+          "warnings",
+          "trackers",
+          "web_seeds",
+          "private"
+        ],
+        "type": "object"
+      },
+      "TorrentCleanupPolicy": {
+        "properties": {
+          "remove_data": {
+            "type": "boolean"
+          },
+          "seed_ratio_limit": {
+            "format": "float",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "seed_time_limit": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "remove_data"
+        ],
+        "type": "object"
+      },
+      "TorrentCreateRequest": {
+        "properties": {
+          "auto_managed": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "category": {
             "type": [
               "string",
               "null"
@@ -320,9 +490,78 @@
               "null"
             ]
           },
-          "source": {
+          "download_dir": {
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "exclude": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "hash_check_sample_pct": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "include": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "magnet": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_connections": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "max_download_bps": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "max_upload_bps": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "metainfo": {
+            "format": "byte",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pex_enabled": {
+            "type": [
+              "boolean",
               "null"
             ]
           },
@@ -332,9 +571,57 @@
               "null"
             ]
           },
-          "download_dir": {
+          "queue_position": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "replace_trackers": {
+            "type": "boolean"
+          },
+          "replace_web_seeds": {
+            "type": "boolean"
+          },
+          "seed_mode": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "seed_ratio_limit": {
+            "format": "float",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "seed_time_limit": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "sequential": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "skip_fluff": {
+            "type": "boolean"
+          },
+          "source": {
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "start_paused": {
+            "type": [
+              "boolean",
               "null"
             ]
           },
@@ -348,31 +635,6 @@
               }
             ]
           },
-          "sequential": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "start_paused": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "seed_mode": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "hash_check_sample_pct": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
           "super_seeding": {
             "type": [
               "boolean",
@@ -380,108 +642,28 @@
             ]
           },
           "tags": {
-            "type": "array",
             "items": {
               "type": "string"
-            }
-          },
-          "category": {
-            "type": [
-              "string",
-              "null"
-            ]
+            },
+            "type": "array"
           },
           "trackers": {
-            "type": "array",
             "items": {
               "type": "string"
-            }
-          },
-          "replace_trackers": {
-            "type": "boolean"
-          },
-          "include": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "exclude": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "skip_fluff": {
-            "type": "boolean"
-          },
-          "max_download_bps": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "max_upload_bps": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "max_connections": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "seed_ratio_limit": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "float"
-          },
-          "seed_time_limit": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "auto_managed": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "queue_position": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "pex_enabled": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+            },
+            "type": "array"
           },
           "web_seeds": {
-            "type": "array",
             "items": {
               "type": "string"
-            }
-          },
-          "replace_web_seeds": {
-            "type": "boolean"
+            },
+            "type": "array"
           }
         },
         "required": [
           "id"
-        ]
+        ],
+        "type": "object"
       },
       "TorrentDetail": {
         "properties": {
@@ -570,6 +752,79 @@
         ],
         "type": "object"
       },
+      "TorrentLabelEntry": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/TorrentLabelPolicy"
+          }
+        },
+        "required": [
+          "name",
+          "policy"
+        ],
+        "type": "object"
+      },
+      "TorrentLabelPolicy": {
+        "properties": {
+          "auto_managed": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "cleanup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TorrentCleanupPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "download_dir": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "queue_position": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "rate_limit": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TorrentRateLimit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "seed_ratio_limit": {
+            "format": "float",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "seed_time_limit": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "TorrentListResponse": {
         "properties": {
           "next": {
@@ -588,6 +843,81 @@
         "required": [
           "torrents"
         ],
+        "type": "object"
+      },
+      "TorrentOptionsRequest": {
+        "properties": {
+          "auto_managed": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "connections_limit": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "paused": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "pex_enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "private": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "queue_position": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "seed_ratio_limit": {
+            "format": "float",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "seed_time_limit": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "source": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "super_seeding": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
         "type": "object"
       },
       "TorrentProgressView": {
@@ -718,13 +1048,12 @@
         "type": "object"
       },
       "TorrentSettingsView": {
-        "type": "object",
         "properties": {
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+          "auto_managed": {
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "category": {
             "type": [
@@ -732,17 +1061,53 @@
               "null"
             ]
           },
-          "trackers": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+          "cleanup": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TorrentCleanupPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "tracker_messages": {
-            "type": "object",
-            "additionalProperties": {
-              "type": "string"
-            }
+          "comment": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "connections_limit": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "download_dir": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "pex_enabled": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "private": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "queue_position": {
+            "format": "int32",
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "rate_limit": {
             "anyOf": [
@@ -754,34 +1119,42 @@
               }
             ]
           },
-          "connections_limit": {
+          "seed_mode": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "seed_ratio_limit": {
+            "format": "float",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "seed_time_limit": {
+            "format": "int64",
             "type": [
               "integer",
               "null"
-            ],
-            "format": "int32"
-          },
-          "download_dir": {
-            "type": [
-              "string",
-              "null"
             ]
           },
-          "comment": {
-            "type": [
-              "string",
-              "null"
+          "selection": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TorrentSelectionView"
+              },
+              {
+                "type": "null"
+              }
             ]
+          },
+          "sequential": {
+            "type": "boolean"
           },
           "source": {
             "type": [
               "string",
-              "null"
-            ]
-          },
-          "private": {
-            "type": [
-              "boolean",
               "null"
             ]
           },
@@ -795,92 +1168,49 @@
               }
             ]
           },
-          "use_partfile": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "sequential": {
-            "type": "boolean"
-          },
-          "selection": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TorrentSelectionView"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "super_seeding": {
             "type": [
               "boolean",
               "null"
             ]
           },
-          "seed_mode": {
-            "type": [
-              "boolean",
-              "null"
-            ]
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
-          "seed_ratio_limit": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "float"
+          "tracker_messages": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
           },
-          "seed_time_limit": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
+          "trackers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
-          "cleanup": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TorrentCleanupPolicy"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "auto_managed": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "queue_position": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "pex_enabled": {
+          "use_partfile": {
             "type": [
               "boolean",
               "null"
             ]
           },
           "web_seeds": {
-            "type": "array",
             "items": {
               "type": "string"
-            }
+            },
+            "type": "array"
           }
         },
         "required": [
           "tags",
           "trackers",
           "sequential"
-        ]
+        ],
+        "type": "object"
       },
       "TorrentStateView": {
         "properties": {
@@ -909,30 +1239,28 @@
         "type": "object"
       },
       "TorrentSummary": {
-        "type": "object",
         "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
+          "added_at": {
+            "format": "date-time",
+            "type": "string"
           },
-          "name": {
+          "category": {
             "type": [
               "string",
               "null"
             ]
           },
-          "state": {
-            "$ref": "#/components/schemas/TorrentStateView"
-          },
-          "progress": {
-            "$ref": "#/components/schemas/TorrentProgressView"
-          },
-          "rates": {
-            "$ref": "#/components/schemas/TorrentRatesView"
-          },
-          "library_path": {
+          "completed_at": {
+            "format": "date-time",
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "connections_limit": {
+            "format": "int32",
+            "type": [
+              "integer",
               "null"
             ]
           },
@@ -942,26 +1270,28 @@
               "null"
             ]
           },
-          "sequential": {
-            "type": "boolean"
+          "id": {
+            "format": "uuid",
+            "type": "string"
           },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+          "last_updated": {
+            "format": "date-time",
+            "type": "string"
           },
-          "category": {
+          "library_path": {
             "type": [
               "string",
               "null"
             ]
           },
-          "trackers": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "progress": {
+            "$ref": "#/components/schemas/TorrentProgressView"
           },
           "rate_limit": {
             "anyOf": [
@@ -973,27 +1303,26 @@
               }
             ]
           },
-          "connections_limit": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
+          "rates": {
+            "$ref": "#/components/schemas/TorrentRatesView"
           },
-          "added_at": {
-            "type": "string",
-            "format": "date-time"
+          "sequential": {
+            "type": "boolean"
           },
-          "completed_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
+          "state": {
+            "$ref": "#/components/schemas/TorrentStateView"
           },
-          "last_updated": {
-            "type": "string",
-            "format": "date-time"
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "trackers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "required": [
@@ -1006,337 +1335,8 @@
           "trackers",
           "added_at",
           "last_updated"
-        ]
-      },
-      "StorageMode": {
-        "type": "string",
-        "enum": [
-          "sparse",
-          "allocate"
-        ]
-      },
-      "TorrentCleanupPolicy": {
-        "type": "object",
-        "properties": {
-          "seed_ratio_limit": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "float"
-          },
-          "seed_time_limit": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "remove_data": {
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "remove_data"
-        ]
-      },
-      "TorrentLabelPolicy": {
-        "type": "object",
-        "properties": {
-          "download_dir": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "rate_limit": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TorrentRateLimit"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "queue_position": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "auto_managed": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "seed_ratio_limit": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "float"
-          },
-          "seed_time_limit": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          },
-          "cleanup": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TorrentCleanupPolicy"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        }
-      },
-      "TorrentLabelEntry": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "policy": {
-            "$ref": "#/components/schemas/TorrentLabelPolicy"
-          }
-        },
-        "required": [
-          "name",
-          "policy"
-        ]
-      },
-      "TorrentOptionsRequest": {
-        "type": "object",
-        "properties": {
-          "connections_limit": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "pex_enabled": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "comment": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "source": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "private": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "paused": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "super_seeding": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "auto_managed": {
-            "type": [
-              "boolean",
-              "null"
-            ]
-          },
-          "queue_position": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "seed_ratio_limit": {
-            "type": [
-              "number",
-              "null"
-            ],
-            "format": "float"
-          },
-          "seed_time_limit": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int64"
-          }
-        }
-      },
-      "TorrentAuthorRequest": {
-        "type": "object",
-        "properties": {
-          "root_path": {
-            "type": "string"
-          },
-          "trackers": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "web_seeds": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "include": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "exclude": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "skip_fluff": {
-            "type": "boolean"
-          },
-          "piece_length": {
-            "type": [
-              "integer",
-              "null"
-            ],
-            "format": "int32"
-          },
-          "private": {
-            "type": "boolean"
-          },
-          "comment": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "source": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "root_path"
-        ]
-      },
-      "TorrentAuthorFileView": {
-        "type": "object",
-        "properties": {
-          "path": {
-            "type": "string"
-          },
-          "size_bytes": {
-            "type": "integer",
-            "format": "int64"
-          }
-        },
-        "required": [
-          "path",
-          "size_bytes"
-        ]
-      },
-      "TorrentAuthorResponse": {
-        "type": "object",
-        "properties": {
-          "metainfo": {
-            "type": "string",
-            "format": "byte"
-          },
-          "magnet_uri": {
-            "type": "string"
-          },
-          "info_hash": {
-            "type": "string"
-          },
-          "piece_length": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "total_size": {
-            "type": "integer",
-            "format": "int64"
-          },
-          "files": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/TorrentAuthorFileView"
-            }
-          },
-          "warnings": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "trackers": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "web_seeds": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "private": {
-            "type": "boolean"
-          },
-          "comment": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "source": {
-            "type": [
-              "string",
-              "null"
-            ]
-          }
-        },
-        "required": [
-          "metainfo",
-          "magnet_uri",
-          "info_hash",
-          "piece_length",
-          "total_size",
-          "files",
-          "warnings",
-          "trackers",
-          "web_seeds",
-          "private"
-        ]
+        ],
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -1894,6 +1894,215 @@
         "summary": "Submit a torrent descriptor to the engine"
       }
     },
+    "/v1/torrents/categories": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TorrentLabelEntry"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Category list"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Torrent workflow unavailable"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "List torrent categories"
+      }
+    },
+    "/v1/torrents/categories/{name}": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TorrentLabelPolicy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TorrentLabelEntry"
+                }
+              }
+            },
+            "description": "Category updated"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid category payload"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Torrent workflow unavailable"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Create or update a torrent category"
+      }
+    },
+    "/v1/torrents/create": {
+      "post": {
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TorrentAuthorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TorrentAuthorResponse"
+                }
+              }
+            },
+            "description": "Torrent authored"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid authoring request"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Torrent workflow unavailable"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Author a new torrent from local files"
+      }
+    },
     "/v1/torrents/events": {
       "get": {
         "parameters": [
@@ -1970,6 +2179,143 @@
           }
         ],
         "summary": "Subscribe to torrent events via SSE"
+      }
+    },
+    "/v1/torrents/tags": {
+      "get": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TorrentLabelEntry"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Tag list"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Torrent workflow unavailable"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "List torrent tags"
+      }
+    },
+    "/v1/torrents/tags/{name}": {
+      "put": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TorrentLabelPolicy"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TorrentLabelEntry"
+                }
+              }
+            },
+            "description": "Tag updated"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid tag payload"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Torrent workflow unavailable"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Create or update a torrent tag"
       }
     },
     "/v1/torrents/{id}": {
@@ -2121,6 +2467,82 @@
         "summary": "Trigger a torrent control action"
       }
     },
+    "/v1/torrents/{id}/options": {
+      "patch": {
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TorrentOptionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Options update accepted"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Invalid option payload"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication failed"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Torrent workflow unavailable"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Update per-torrent options"
+      }
+    },
     "/v1/torrents/{id}/select": {
       "post": {
         "parameters": [
@@ -2195,428 +2617,6 @@
           }
         ],
         "summary": "Update a torrent's file selection"
-      }
-    },
-    "/v1/torrents/create": {
-      "post": {
-        "summary": "Author a new torrent from local files",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TorrentAuthorRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Torrent authored",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TorrentAuthorResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid authoring request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Torrent workflow unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/torrents/categories": {
-      "get": {
-        "summary": "List torrent categories",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Category list",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TorrentLabelEntry"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Torrent workflow unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/torrents/categories/{name}": {
-      "put": {
-        "summary": "Create or update a torrent category",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "name",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TorrentLabelPolicy"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Category updated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TorrentLabelEntry"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid category payload",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Torrent workflow unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/torrents/tags": {
-      "get": {
-        "summary": "List torrent tags",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Tag list",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/TorrentLabelEntry"
-                  }
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Torrent workflow unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/torrents/tags/{name}": {
-      "put": {
-        "summary": "Create or update a torrent tag",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "name",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TorrentLabelPolicy"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Tag updated",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TorrentLabelEntry"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid tag payload",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Torrent workflow unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/torrents/{id}/options": {
-      "patch": {
-        "summary": "Update per-torrent options",
-        "security": [
-          {
-            "ApiKeyAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "in": "path",
-            "name": "id",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TorrentOptionsRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "description": "Options update accepted"
-          },
-          "400": {
-            "description": "Invalid option payload",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Authentication failed",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "Torrent workflow unavailable",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
       }
     }
   },
