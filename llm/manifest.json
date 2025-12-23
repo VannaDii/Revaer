@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2025-12-18T17:02:53.953220907+00:00",
+  "generated": "2025-12-23T20:26:32.674653151+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -261,7 +261,7 @@
     {
       "id": "adr/027-choking-and-super-seeding",
       "title": "Choking Strategy And Super-Seeding Configuration",
-      "summary": "Status: Accepted Date: 2025-12-14 Context: TORRENT_GAPS requires configurable choke/unchoke strategy and super-seeding defaults. We must keep config/runtime/FFI/native paths aligned while preserving safe defaults. API and persistence need to surface new knobs without regressing existing behaviour. Decision: Added engine profile fields for choking (choking_algorithm, seed_choking_algorithm, strict_super_seeding, optimistic_unchoke_slots, max_queued_disk_bytes) and super_seeding. Normalise/validate values with guard-rail warnings; persist via a single stored-proc update path and migration 0006_choking_and_super_seeding.sql. Thread new options through runtime config, FFI structs, and native session (settings_pack + per-torrent flags). Per-torrent super_seeding overrides are stored with metadata. Updated API models/OpenAPI and added tests covering canonicalisation, clamping, and FFI planning. Consequences: Engine",
+      "summary": "Status: Accepted Date: 2025-12-14 Context: TORRENT_GAPS requires configurable choke/unchoke strategy and super-seeding defaults. We must keep config/runtime/FFI/native paths aligned while preserving safe defaults. API and persistence need to surface new knobs without regressing existing behaviour. Decision: Added engine profile fields for choking (choking_algorithm, seed_choking_algorithm, strict_super_seeding, optimistic_unchoke_slots, max_queued_disk_bytes) and super_seeding. Normalise/validate values with guard-rail warnings; persist via a single stored-proc update path and migration 0006_choking_and_super_seeding.sql (consolidated into 0001_db_init.sql per ADR 030). Thread new options through runtime config, FFI structs, and native session (settings_pack + per-torrent flags). Per-torrent super_seeding overrides are stored with metadata. Updated API models/OpenAPI and added tests covering canonicalisation,",
       "tags": [],
       "href": "/adr/027-choking-and-super-seeding/"
     },
@@ -271,6 +271,20 @@
       "summary": "Status: Accepted Date: 2025-12-17 Context: Libtorrent deprecation warnings and Phase 1 compatibility gaps required us to move away from deprecated tracker TLS fields and finish the qBittorrent façade. The façade needed tracker, peer, and properties endpoints so qBittorrent clients can query Revaer without custom plugins. Changes must comply with the AGENT.md gates (no unused code, warnings-as-errors, tests/coverage via just ci). Decision: Thread tracker TLS settings (trust store, verification flags, client cert/key) through config → runtime → FFI/native without using deprecated libtorrent fields, and cover with native tests. Expose qBittorrent-compatible endpoints for torrent properties, trackers, peer sync, categories, and tags; return",
       "tags": [],
       "href": "/adr/028-qbittorrent-parity-and-tracker-tls/"
+    },
+    {
+      "id": "adr/029-torrent-authoring-labels-and-metadata",
+      "title": "Torrent Authoring, Labels, and Metadata Updates",
+      "summary": "Status: Accepted Date: 2025-12-23 Context: Remaining torrent gaps required authoring support plus consistent comment/source/private visibility. Category/tag defaults and cleanup policies needed a shared storage path and validation. Changes must comply with AGENT.md (no dead code, tests, docs, OpenAPI sync). Decision: Expose a create-torrent authoring endpoint that routes through the workflow and libtorrent bindings. Surface comment/source/private fields in status/settings, allow comment updates only, and validate private tracker requirements on add. Persist label policies in app_profile.features, provide list/upsert endpoints for categories/tags, and apply policy defaults (including cleanup) on add. Consequences: API clients can author torrents, set label defaults, and observe comment/source/private metadata",
+      "tags": [],
+      "href": "/adr/029-torrent-authoring-labels-and-metadata/"
+    },
+    {
+      "id": "adr/030-migration-consolidation",
+      "title": "030 – Migration Consolidation for Initial Setup",
+      "summary": "Status: Accepted Date: 2025-12-23 Context: The project is unreleased and migration history does not need to remain split. A single init migration simplifies new environment bootstrap and reduces ordering drift. Decision: Collapse all SQL migrations in crates/revaer-data/migrations into 0001_db_init.sql. Remove the remaining numbered migration files after consolidation. Reset the local dev database in just db-start if the migration history no longer matches. Clean llvm-cov artifacts before coverage to keep just ci output free of stale-data warnings. Consequences: **Positive**: Fresh databases start from one deterministic migration; fewer files to track. **Trade-offs**: Historical migration boundaries are lost and existing dev databases must",
+      "tags": [],
+      "href": "/adr/030-migration-consolidation/"
     },
     {
       "id": "adr/index",
