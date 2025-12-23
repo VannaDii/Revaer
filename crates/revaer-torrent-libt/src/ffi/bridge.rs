@@ -177,6 +177,15 @@ pub mod ffi {
         verify_piece_hashes: bool,
     }
 
+    /// Snapshot of peer class configuration applied to the native session.
+    #[derive(Debug)]
+    struct EnginePeerClassState {
+        /// Peer class ids configured in the session.
+        configured_ids: Vec<u8>,
+        /// Default peer class ids applied to new torrents.
+        default_ids: Vec<u8>,
+    }
+
     /// Behavioural defaults applied to new torrents.
     #[derive(Debug)]
     struct EngineBehaviorOptions {
@@ -283,6 +292,23 @@ pub mod ffi {
         auth: TrackerAuthOptions,
     }
 
+    /// Peer class configuration forwarded to the native layer.
+    #[derive(Debug)]
+    struct PeerClassConfig {
+        /// Stable identifier for the class (0-31).
+        id: u8,
+        /// Human-readable label.
+        label: String,
+        /// Download bandwidth priority.
+        download_priority: u8,
+        /// Upload bandwidth priority.
+        upload_priority: u8,
+        /// Connection limit multiplier.
+        connection_limit_factor: u16,
+        /// Whether unchoke slots are ignored for this class.
+        ignore_unchoke_slots: bool,
+    }
+
     /// Runtime engine configuration forwarded to the native layer.
     #[derive(Debug)]
     struct EngineOptions {
@@ -296,6 +322,10 @@ pub mod ffi {
         behavior: EngineBehaviorOptions,
         /// Tracker settings.
         tracker: EngineTrackerOptions,
+        /// Peer class definitions.
+        peer_classes: Vec<PeerClassConfig>,
+        /// Default peer class ids applied to new torrents.
+        default_peer_classes: Vec<u8>,
     }
 
     /// Request payload for adding a torrent to the native session.
@@ -353,6 +383,18 @@ pub mod ffi {
         max_connections: i32,
         /// Flag indicating whether a per-torrent limit was supplied.
         has_max_connections: bool,
+        /// Optional comment override for the torrent metainfo.
+        comment: String,
+        /// Flag indicating whether a comment override was supplied.
+        has_comment: bool,
+        /// Optional source override for the torrent metainfo.
+        source: String,
+        /// Flag indicating whether a source override was supplied.
+        has_source: bool,
+        /// Optional private flag override for the torrent metainfo.
+        private_flag: bool,
+        /// Flag indicating whether a private override was supplied.
+        has_private: bool,
         /// Tags associated with the torrent.
         tags: Vec<String>,
         /// Additional trackers provided for this torrent.
@@ -365,6 +407,77 @@ pub mod ffi {
         replace_web_seeds: bool,
         /// Optional tracker authentication overrides.
         tracker_auth: TrackerAuthOptions,
+    }
+
+    /// Request payload for authoring a new `.torrent` metainfo payload.
+    #[derive(Debug)]
+    struct CreateTorrentRequest {
+        /// Source file or directory path.
+        root_path: String,
+        /// Trackers embedded in the metainfo.
+        trackers: Vec<String>,
+        /// Web seeds embedded in the metainfo.
+        web_seeds: Vec<String>,
+        /// Inclusion globs.
+        include: Vec<String>,
+        /// Exclusion globs.
+        exclude: Vec<String>,
+        /// Whether to drop fluff files.
+        skip_fluff: bool,
+        /// Requested piece length in bytes.
+        piece_length: u32,
+        /// Whether a piece length override was provided.
+        has_piece_length: bool,
+        /// Whether the torrent should be marked as private.
+        private_flag: bool,
+        /// Optional comment.
+        comment: String,
+        /// Whether a comment was provided.
+        has_comment: bool,
+        /// Optional source label.
+        source: String,
+        /// Whether a source label was provided.
+        has_source: bool,
+    }
+
+    /// File entry produced during torrent authoring.
+    #[derive(Debug)]
+    struct CreateTorrentFile {
+        /// Relative file path inside the torrent.
+        path: String,
+        /// File size in bytes.
+        size_bytes: u64,
+    }
+
+    /// Result payload returned by torrent authoring.
+    #[derive(Debug)]
+    struct CreateTorrentResult {
+        /// Bencoded metainfo payload.
+        metainfo: Vec<u8>,
+        /// Magnet URI derived from the metainfo.
+        magnet_uri: String,
+        /// Best available info hash string.
+        info_hash: String,
+        /// Effective piece length in bytes.
+        piece_length: u32,
+        /// Total payload size in bytes.
+        total_size: u64,
+        /// Files included in the torrent.
+        files: Vec<CreateTorrentFile>,
+        /// Warnings generated during authoring.
+        warnings: Vec<String>,
+        /// Effective tracker list.
+        trackers: Vec<String>,
+        /// Effective web seed list.
+        web_seeds: Vec<String>,
+        /// Private flag embedded in the metainfo.
+        private_flag: bool,
+        /// Comment embedded in the metainfo.
+        comment: String,
+        /// Source label embedded in the metainfo.
+        source: String,
+        /// Error message when authoring fails.
+        error: String,
     }
 
     /// Rate limit update applied globally or for a specific torrent.
@@ -414,6 +527,18 @@ pub mod ffi {
         queue_position: i32,
         /// Flag indicating whether queue position was provided.
         has_queue_position: bool,
+        /// Optional comment override for the torrent metainfo.
+        comment: String,
+        /// Flag indicating whether a comment override was supplied.
+        has_comment: bool,
+        /// Optional source override for the torrent metainfo.
+        source: String,
+        /// Flag indicating whether a source override was supplied.
+        has_source: bool,
+        /// Optional private flag override for the torrent metainfo.
+        private_flag: bool,
+        /// Flag indicating whether a private override was supplied.
+        has_private: bool,
     }
 
     /// Tracker list update for an existing torrent.
@@ -508,6 +633,14 @@ pub mod ffi {
         tracker_statuses: Vec<NativeTrackerStatus>,
         /// Optional component identifier for session errors.
         component: String,
+        /// Optional comment captured from metainfo.
+        comment: String,
+        /// Optional source label captured from metainfo.
+        source: String,
+        /// Private flag captured from metainfo.
+        private_flag: bool,
+        /// Whether a private flag was captured.
+        has_private: bool,
     }
 
     /// Event kinds surfaced by the native bridge.
@@ -610,6 +743,12 @@ pub mod ffi {
         /// Add a torrent to the session.
         #[must_use]
         fn add_torrent(self: Pin<&mut Session>, request: &AddTorrentRequest) -> String;
+        /// Create a new `.torrent` metainfo payload.
+        #[must_use]
+        fn create_torrent(
+            self: Pin<&mut Session>,
+            request: &CreateTorrentRequest,
+        ) -> CreateTorrentResult;
         /// Remove a torrent and optionally its data.
         #[must_use]
         fn remove_torrent(self: Pin<&mut Session>, id: &str, with_data: bool) -> String;
@@ -661,6 +800,9 @@ pub mod ffi {
         /// Inspect cache-related storage settings applied to the session.
         #[must_use]
         fn inspect_storage_state(self: &Session) -> EngineStorageState;
+        /// Inspect peer class configuration applied to the session.
+        #[must_use]
+        fn inspect_peer_class_state(self: &Session) -> EnginePeerClassState;
         /// Poll pending events from the session.
         #[must_use]
         fn poll_events(self: Pin<&mut Session>) -> Vec<NativeEvent>;

@@ -15,6 +15,15 @@ pub trait TorrentEngine: Send + Sync {
     /// Admit a new torrent into the underlying engine.
     async fn add_torrent(&self, request: AddTorrent) -> anyhow::Result<()>;
 
+    /// Author a new `.torrent` metainfo payload.
+    async fn create_torrent(
+        &self,
+        request: crate::model::TorrentAuthorRequest,
+    ) -> anyhow::Result<crate::model::TorrentAuthorResult> {
+        let _ = request;
+        bail!("torrent authoring not supported by this engine");
+    }
+
     /// Remove a torrent from the engine, optionally deleting data.
     async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> anyhow::Result<()>;
 
@@ -119,6 +128,15 @@ pub trait TorrentEngine: Send + Sync {
 pub trait TorrentWorkflow: Send + Sync {
     /// Admit a new torrent via the workflow façade.
     async fn add_torrent(&self, request: AddTorrent) -> anyhow::Result<()>;
+
+    /// Author a new `.torrent` metainfo payload.
+    async fn create_torrent(
+        &self,
+        request: crate::model::TorrentAuthorRequest,
+    ) -> anyhow::Result<crate::model::TorrentAuthorResult> {
+        let _ = request;
+        bail!("torrent authoring not supported");
+    }
 
     /// Remove a torrent via the workflow façade.
     async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> anyhow::Result<()>;
@@ -251,6 +269,12 @@ mod tests {
         let id = Uuid::new_v4();
         assert!(engine.pause_torrent(id).await.is_err());
         assert!(engine.resume_torrent(id).await.is_err());
+        assert!(
+            engine
+                .create_torrent(crate::model::TorrentAuthorRequest::default())
+                .await
+                .is_err()
+        );
         assert!(engine.reannounce(id).await.is_err());
         assert!(engine.recheck(id).await.is_err());
         assert!(engine.peers(id).await.is_err());

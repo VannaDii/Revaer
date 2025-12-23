@@ -8,8 +8,8 @@
 use crate::ffi::ffi;
 use crate::types::{
     DiskIoMode, EngineRuntimeConfig, IpFilterRule as RuntimeIpFilterRule, IpFilterRuntimeConfig,
-    OutgoingPortRange, TrackerAuthRuntime, TrackerProxyRuntime, TrackerProxyType,
-    TrackerRuntimeConfig,
+    OutgoingPortRange, PeerClassRuntimeConfig, TrackerAuthRuntime, TrackerProxyRuntime,
+    TrackerProxyType, TrackerRuntimeConfig,
 };
 
 /// Planned native engine options plus guard-rail warnings.
@@ -39,6 +39,8 @@ impl EngineOptionsPlan {
                 super_seeding: bool::from(config.super_seeding),
             },
             tracker: map_tracker_options(&config.tracker),
+            peer_classes: map_peer_classes(&config.peer_classes),
+            default_peer_classes: config.default_peer_classes.clone(),
         };
 
         Self { options, warnings }
@@ -221,6 +223,20 @@ fn map_tracker_options(config: &TrackerRuntimeConfig) -> ffi::EngineTrackerOptio
     }
 }
 
+fn map_peer_classes(classes: &[PeerClassRuntimeConfig]) -> Vec<ffi::PeerClassConfig> {
+    classes
+        .iter()
+        .map(|class| ffi::PeerClassConfig {
+            id: class.id,
+            label: class.label.clone(),
+            download_priority: class.download_priority,
+            upload_priority: class.upload_priority,
+            connection_limit_factor: class.connection_limit_factor,
+            ignore_unchoke_slots: class.ignore_unchoke_slots,
+        })
+        .collect()
+}
+
 fn map_proxy(proxy: Option<&TrackerProxyRuntime>) -> ffi::TrackerProxyOptions {
     proxy.map_or_else(
         || ffi::TrackerProxyOptions {
@@ -375,8 +391,9 @@ mod tests {
     use super::*;
     use crate::types::{
         ChokingAlgorithm, EncryptionPolicy, EngineRuntimeConfig,
-        IpFilterRule as RuntimeIpFilterRule, IpFilterRuntimeConfig, Ipv6Mode, SeedChokingAlgorithm,
-        StorageMode, TrackerProxyRuntime, TrackerProxyType, TrackerRuntimeConfig,
+        IpFilterRule as RuntimeIpFilterRule, IpFilterRuntimeConfig, Ipv6Mode,
+        PeerClassRuntimeConfig, SeedChokingAlgorithm, StorageMode, TrackerProxyRuntime,
+        TrackerProxyType, TrackerRuntimeConfig,
     };
 
     #[test]
@@ -436,6 +453,8 @@ mod tests {
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
             super_seeding: false.into(),
+            peer_classes: Vec::new(),
+            default_peer_classes: Vec::new(),
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);
@@ -459,7 +478,72 @@ mod tests {
 
     #[test]
     fn plan_preserves_valid_values() {
-        let config = EngineRuntimeConfig {
+        let config = runtime_config_with_valid_values();
+        let plan = EngineOptionsPlan::from_runtime_config(&config);
+        assert!(plan.warnings.is_empty());
+        assert!(plan.options.network.set_listen_port);
+        assert_eq!(plan.options.network.listen_port, 6_881);
+        assert_eq!(plan.options.limits.max_active, 16);
+        assert_eq!(plan.options.limits.download_rate_limit, 256_000);
+        assert_eq!(plan.options.limits.upload_rate_limit, 128_000);
+        assert_eq!(plan.options.limits.connections_limit, 200);
+        assert_eq!(plan.options.limits.connections_limit_per_torrent, 80);
+        assert_eq!(plan.options.limits.unchoke_slots, 40);
+        assert_eq!(plan.options.limits.half_open_limit, 10);
+        assert_eq!(plan.options.limits.choking_algorithm, 2);
+        assert_eq!(plan.options.limits.seed_choking_algorithm, 1);
+        assert!(plan.options.limits.strict_super_seeding);
+        assert!(plan.options.limits.has_optimistic_unchoke_slots);
+        assert_eq!(plan.options.limits.optimistic_unchoke_slots, 3);
+        assert!(plan.options.limits.has_max_queued_disk_bytes);
+        assert_eq!(plan.options.limits.max_queued_disk_bytes, 5_000_000);
+        assert!(plan.options.limits.has_stats_interval);
+        assert_eq!(plan.options.limits.stats_interval_ms, 1_500);
+        assert!(plan.options.behavior.sequential_default);
+        assert!(plan.options.behavior.super_seeding);
+        assert_eq!(plan.options.network.encryption_policy, 0);
+        assert!(plan.options.network.enable_lsd);
+        assert!(plan.options.network.enable_upnp);
+        assert!(plan.options.network.enable_natpmp);
+        assert!(plan.options.network.enable_pex);
+        assert!(plan.options.network.has_outgoing_port_range);
+        assert_eq!(plan.options.network.outgoing_port_min, 6_000);
+        assert_eq!(plan.options.network.outgoing_port_max, 6_100);
+        assert!(plan.options.network.has_peer_dscp);
+        assert_eq!(plan.options.network.peer_dscp, 32);
+        assert_eq!(
+            plan.options.network.dht_bootstrap_nodes,
+            vec!["router.bittorrent.com:6881".to_string()]
+        );
+        assert_eq!(
+            plan.options.network.dht_router_nodes,
+            vec!["dht.transmissionbt.com:6881".to_string()]
+        );
+    }
+
+    #[test]
+    fn map_peer_classes_preserves_fields() {
+        let classes = vec![PeerClassRuntimeConfig {
+            id: 7,
+            label: "vip".into(),
+            download_priority: 42,
+            upload_priority: 84,
+            connection_limit_factor: 150,
+            ignore_unchoke_slots: true,
+        }];
+
+        let mapped = map_peer_classes(&classes);
+        assert_eq!(mapped.len(), 1);
+        assert_eq!(mapped[0].id, 7);
+        assert_eq!(mapped[0].label, "vip");
+        assert_eq!(mapped[0].download_priority, 42);
+        assert_eq!(mapped[0].upload_priority, 84);
+        assert_eq!(mapped[0].connection_limit_factor, 150);
+        assert!(mapped[0].ignore_unchoke_slots);
+    }
+
+    fn runtime_config_with_valid_values() -> EngineRuntimeConfig {
+        EngineRuntimeConfig {
             download_root: "/data".into(),
             resume_dir: "/state".into(),
             storage_mode: StorageMode::Sparse,
@@ -517,48 +601,9 @@ mod tests {
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
             super_seeding: true.into(),
-        };
-
-        let plan = EngineOptionsPlan::from_runtime_config(&config);
-        assert!(plan.warnings.is_empty());
-        assert!(plan.options.network.set_listen_port);
-        assert_eq!(plan.options.network.listen_port, 6_881);
-        assert_eq!(plan.options.limits.max_active, 16);
-        assert_eq!(plan.options.limits.download_rate_limit, 256_000);
-        assert_eq!(plan.options.limits.upload_rate_limit, 128_000);
-        assert_eq!(plan.options.limits.connections_limit, 200);
-        assert_eq!(plan.options.limits.connections_limit_per_torrent, 80);
-        assert_eq!(plan.options.limits.unchoke_slots, 40);
-        assert_eq!(plan.options.limits.half_open_limit, 10);
-        assert_eq!(plan.options.limits.choking_algorithm, 2);
-        assert_eq!(plan.options.limits.seed_choking_algorithm, 1);
-        assert!(plan.options.limits.strict_super_seeding);
-        assert!(plan.options.limits.has_optimistic_unchoke_slots);
-        assert_eq!(plan.options.limits.optimistic_unchoke_slots, 3);
-        assert!(plan.options.limits.has_max_queued_disk_bytes);
-        assert_eq!(plan.options.limits.max_queued_disk_bytes, 5_000_000);
-        assert!(plan.options.limits.has_stats_interval);
-        assert_eq!(plan.options.limits.stats_interval_ms, 1_500);
-        assert!(plan.options.behavior.sequential_default);
-        assert!(plan.options.behavior.super_seeding);
-        assert_eq!(plan.options.network.encryption_policy, 0);
-        assert!(plan.options.network.enable_lsd);
-        assert!(plan.options.network.enable_upnp);
-        assert!(plan.options.network.enable_natpmp);
-        assert!(plan.options.network.enable_pex);
-        assert!(plan.options.network.has_outgoing_port_range);
-        assert_eq!(plan.options.network.outgoing_port_min, 6_000);
-        assert_eq!(plan.options.network.outgoing_port_max, 6_100);
-        assert!(plan.options.network.has_peer_dscp);
-        assert_eq!(plan.options.network.peer_dscp, 32);
-        assert_eq!(
-            plan.options.network.dht_bootstrap_nodes,
-            vec!["router.bittorrent.com:6881".to_string()]
-        );
-        assert_eq!(
-            plan.options.network.dht_router_nodes,
-            vec!["dht.transmissionbt.com:6881".to_string()]
-        );
+            peer_classes: Vec::new(),
+            default_peer_classes: Vec::new(),
+        }
     }
 
     #[test]
@@ -618,6 +663,8 @@ mod tests {
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
             super_seeding: false.into(),
+            peer_classes: Vec::new(),
+            default_peer_classes: Vec::new(),
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);
@@ -693,6 +740,8 @@ mod tests {
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
             super_seeding: false.into(),
+            peer_classes: Vec::new(),
+            default_peer_classes: Vec::new(),
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);
@@ -762,6 +811,8 @@ mod tests {
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
             super_seeding: false.into(),
+            peer_classes: Vec::new(),
+            default_peer_classes: Vec::new(),
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);
@@ -827,6 +878,8 @@ mod tests {
             tracker,
             ip_filter: None,
             super_seeding: false.into(),
+            peer_classes: Vec::new(),
+            default_peer_classes: Vec::new(),
         }
     }
 
@@ -975,6 +1028,8 @@ mod tests {
                 last_updated_at: Some("2024-01-01T00:00:00Z".into()),
             }),
             super_seeding: false.into(),
+            peer_classes: Vec::new(),
+            default_peer_classes: Vec::new(),
         };
 
         let plan = EngineOptionsPlan::from_runtime_config(&config);

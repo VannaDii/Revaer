@@ -6,9 +6,18 @@ use uuid::Uuid;
 #[cfg(target_arch = "wasm32")]
 use web_sys::File;
 
+const BYTES_PER_GB: f64 = 1024.0 * 1024.0 * 1024.0;
+const TWO_POW_32: f64 = 4_294_967_296.0;
+
+fn bytes_to_gb(bytes: u64) -> f64 {
+    let high = u32::try_from(bytes >> 32).unwrap_or(0);
+    let low = u32::try_from(bytes & 0xFFFF_FFFF).unwrap_or(0);
+    ((f64::from(high) * TWO_POW_32) + f64::from(low)) / BYTES_PER_GB
+}
+
 /// Dashboard snapshot used by the UI and API client.
 #[allow(missing_docs)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DashboardSnapshot {
     pub download_bps: u64,
     pub upload_bps: u64,
@@ -26,7 +35,7 @@ pub struct DashboardSnapshot {
 
 /// Disk usage per path for the dashboard view.
 #[allow(missing_docs)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PathUsage {
     pub label: &'static str,
     pub used_gb: u32,
@@ -35,7 +44,7 @@ pub struct PathUsage {
 
 /// Event entry displayed in the dashboard recent events list.
 #[allow(missing_docs)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DashboardEvent {
     pub label: &'static str,
     pub detail: &'static str,
@@ -44,7 +53,7 @@ pub struct DashboardEvent {
 
 /// Event severity kinds for dashboard events.
 #[allow(dead_code, missing_docs)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EventKind {
     Info,
     Warning,
@@ -53,7 +62,7 @@ pub enum EventKind {
 
 /// Tracker health aggregates.
 #[allow(missing_docs)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrackerHealth {
     pub ok: u16,
     pub warn: u16,
@@ -62,7 +71,7 @@ pub struct TrackerHealth {
 
 /// Queue status aggregates.
 #[allow(missing_docs)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QueueStatus {
     pub active: u16,
     pub paused: u16,
@@ -72,7 +81,7 @@ pub struct QueueStatus {
 
 /// VPN state summary for the dashboard.
 #[allow(missing_docs)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VpnState {
     pub state: String,
     pub message: String,
@@ -81,7 +90,7 @@ pub struct VpnState {
 
 /// Toast variants used across the UI.
 #[allow(missing_docs)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ToastKind {
     Info,
     Success,
@@ -90,7 +99,7 @@ pub enum ToastKind {
 
 /// Toast payload used by the host and app state.
 #[allow(missing_docs)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Toast {
     pub id: u64,
     pub message: String,
@@ -99,7 +108,7 @@ pub struct Toast {
 
 /// Navigation labels supplied by the router shell.
 #[allow(missing_docs)]
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct NavLabels {
     pub dashboard: String,
     pub torrents: String,
@@ -123,7 +132,7 @@ pub enum SseState {
 
 /// Dialog confirmation kinds for torrent actions.
 #[allow(missing_docs)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConfirmKind {
     Delete,
     DeleteData,
@@ -158,8 +167,8 @@ impl PartialEq for AddTorrentInput {
 #[derive(Clone, Debug, PartialEq)]
 pub struct FileNode {
     pub name: String,
-    pub size_gb: f32,
-    pub completed_gb: f32,
+    pub size_gb: f64,
+    pub completed_gb: f64,
     pub priority: String,
     pub wanted: bool,
     pub children: Vec<FileNode>,
@@ -180,7 +189,7 @@ pub struct PeerRow {
 
 /// Tracker row for detail pane.
 #[allow(missing_docs)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrackerRow {
     pub url: String,
     pub status: String,
@@ -190,7 +199,7 @@ pub struct TrackerRow {
 
 /// Event row for detail pane.
 #[allow(missing_docs)]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EventRow {
     pub timestamp: String,
     pub level: String,
@@ -203,7 +212,7 @@ pub struct EventRow {
 pub struct Metadata {
     pub hash: String,
     pub magnet: String,
-    pub size_gb: f32,
+    pub size_gb: f64,
     pub piece_count: u32,
     pub piece_size_mb: u32,
 }
@@ -523,8 +532,8 @@ impl From<TorrentDetail> for DetailData {
             .into_iter()
             .map(|file| FileNode {
                 name: file.path,
-                size_gb: file.size_bytes as f32 / (1024.0 * 1024.0 * 1024.0),
-                completed_gb: file.completed_bytes as f32 / (1024.0 * 1024.0 * 1024.0),
+                size_gb: bytes_to_gb(file.size_bytes),
+                completed_gb: bytes_to_gb(file.completed_bytes),
                 priority: file.priority,
                 wanted: file.wanted,
                 children: vec![],
@@ -571,7 +580,7 @@ impl From<TorrentDetail> for DetailData {
             metadata: Metadata {
                 hash: detail.hash,
                 magnet: detail.magnet,
-                size_gb: detail.size_bytes as f32 / (1024.0 * 1024.0 * 1024.0),
+                size_gb: bytes_to_gb(detail.size_bytes),
                 piece_count: detail.piece_count,
                 piece_size_mb: detail.piece_size_bytes / 1024 / 1024,
             },

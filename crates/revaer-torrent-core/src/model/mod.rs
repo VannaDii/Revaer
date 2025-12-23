@@ -53,6 +53,14 @@ pub struct AddTorrent {
 pub struct AddTorrentOptions {
     /// Friendly name to display before metadata is fetched.
     pub name_hint: Option<String>,
+    /// Optional comment override for torrent metadata.
+    pub comment: Option<String>,
+    /// Optional source override for torrent metadata.
+    pub source: Option<String>,
+    /// Optional private flag override for torrent metadata.
+    pub private: Option<bool>,
+    /// Optional category assigned to the torrent.
+    pub category: Option<String>,
     /// Optional override for the download root within the engine profile.
     pub download_dir: Option<String>,
     /// Optional storage allocation mode override.
@@ -102,6 +110,77 @@ pub struct AddTorrentOptions {
     /// Arbitrary labels propagated to downstream consumers.
     #[serde(default)]
     pub tags: Vec<String>,
+    /// Optional cleanup policy applied after seeding goals are met.
+    pub cleanup: Option<TorrentCleanupPolicy>,
+}
+
+/// Request payload for authoring a new `.torrent` metainfo document.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TorrentAuthorRequest {
+    /// Local path to the source file or directory.
+    pub root_path: String,
+    #[serde(default)]
+    /// Optional tracker URLs to embed.
+    pub trackers: Vec<String>,
+    #[serde(default)]
+    /// Optional web seed URLs to embed.
+    pub web_seeds: Vec<String>,
+    #[serde(default)]
+    /// Optional file selection rules applied during authoring.
+    pub file_rules: FileSelectionRules,
+    /// Optional piece length override in bytes.
+    pub piece_length: Option<u32>,
+    #[serde(default)]
+    /// Whether the torrent should be marked as private.
+    pub private: bool,
+    #[serde(default)]
+    /// Optional comment embedded in the metainfo.
+    pub comment: Option<String>,
+    #[serde(default)]
+    /// Optional source label embedded in the metainfo.
+    pub source: Option<String>,
+}
+
+/// File entry included in a newly authored torrent.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TorrentAuthorFile {
+    /// Relative file path within the torrent.
+    pub path: String,
+    /// File size in bytes.
+    pub size_bytes: u64,
+}
+
+/// Result of a torrent authoring request.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct TorrentAuthorResult {
+    /// Bencoded metainfo bytes.
+    pub metainfo: Vec<u8>,
+    /// Magnet URI generated from the metainfo.
+    pub magnet_uri: String,
+    /// Best available info hash string.
+    pub info_hash: String,
+    /// Effective piece length in bytes.
+    pub piece_length: u32,
+    /// Total size of the payload in bytes.
+    pub total_size: u64,
+    #[serde(default)]
+    /// Files included in the torrent.
+    pub files: Vec<TorrentAuthorFile>,
+    #[serde(default)]
+    /// Warnings generated during authoring.
+    pub warnings: Vec<String>,
+    #[serde(default)]
+    /// Effective tracker list.
+    pub trackers: Vec<String>,
+    #[serde(default)]
+    /// Effective web seed list.
+    pub web_seeds: Vec<String>,
+    /// Private flag embedded in the metainfo.
+    pub private: bool,
+    /// Comment embedded in the metainfo.
+    pub comment: Option<String>,
+    /// Source label embedded in the metainfo.
+    pub source: Option<String>,
 }
 
 /// Storage allocation strategies supported by the engine.
@@ -132,6 +211,12 @@ pub struct TorrentOptionsUpdate {
     pub connections_limit: Option<i32>,
     /// Optional override for peer exchange enablement.
     pub pex_enabled: Option<bool>,
+    /// Optional comment update for torrent metadata.
+    pub comment: Option<String>,
+    /// Optional source update for torrent metadata.
+    pub source: Option<String>,
+    /// Optional private flag update for torrent metadata.
+    pub private: Option<bool>,
     /// Optional pause toggle applied post-admission.
     pub paused: Option<bool>,
     /// Optional toggle for super-seeding.
@@ -197,6 +282,37 @@ pub struct TorrentRateLimit {
     pub download_bps: Option<u64>,
     /// Maximum upload rate in bytes per second.
     pub upload_bps: Option<u64>,
+}
+
+/// Cleanup policy applied after seeding thresholds are satisfied.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct TorrentCleanupPolicy {
+    /// Optional share ratio threshold that triggers cleanup.
+    pub seed_ratio_limit: Option<f64>,
+    /// Optional seeding time threshold (seconds) that triggers cleanup.
+    pub seed_time_limit: Option<u64>,
+    #[serde(default)]
+    /// Whether torrent data should be deleted during cleanup.
+    pub remove_data: bool,
+}
+
+/// Policy defaults applied based on category or tag labels.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct TorrentLabelPolicy {
+    /// Optional download directory override.
+    pub download_dir: Option<String>,
+    /// Optional per-torrent rate limits.
+    pub rate_limit: Option<TorrentRateLimit>,
+    /// Optional queue position override.
+    pub queue_position: Option<i32>,
+    /// Optional auto-managed toggle override.
+    pub auto_managed: Option<bool>,
+    /// Optional share ratio stop threshold.
+    pub seed_ratio_limit: Option<f64>,
+    /// Optional seeding time stop threshold in seconds.
+    pub seed_time_limit: Option<u64>,
+    /// Optional cleanup policy applied after seeding goals.
+    pub cleanup: Option<TorrentCleanupPolicy>,
 }
 
 /// Selection rules applied to the torrent's file set after metadata discovery.
@@ -383,6 +499,12 @@ pub struct TorrentStatus {
     pub library_path: Option<String>,
     /// Download directory assigned to the torrent.
     pub download_dir: Option<String>,
+    /// Optional comment embedded in the torrent metainfo.
+    pub comment: Option<String>,
+    /// Optional source label embedded in the torrent metainfo.
+    pub source: Option<String>,
+    /// Private flag from the torrent metainfo, when known.
+    pub private: Option<bool>,
     /// Whether sequential mode is active.
     pub sequential: bool,
     /// Timestamp when the torrent was added.
@@ -404,6 +526,9 @@ impl Default for TorrentStatus {
             files: None,
             library_path: None,
             download_dir: None,
+            comment: None,
+            source: None,
+            private: None,
             sequential: false,
             added_at: Utc::now(),
             completed_at: None,
@@ -454,6 +579,12 @@ pub enum EngineEvent {
         name: Option<String>,
         /// Optional updated download directory.
         download_dir: Option<String>,
+        /// Optional updated comment.
+        comment: Option<String>,
+        /// Optional updated source label.
+        source: Option<String>,
+        /// Optional updated private flag.
+        private: Option<bool>,
     },
     /// Resume data became available.
     ResumeData {

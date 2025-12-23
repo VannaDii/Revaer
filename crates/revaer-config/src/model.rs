@@ -247,6 +247,9 @@ pub struct EngineProfile {
     pub dht_router_nodes: Vec<String>,
     /// IP filter and blocklist configuration payload.
     pub ip_filter: Value,
+    /// Peer class configuration for the engine profile.
+    #[serde(default)]
+    pub peer_classes: Value,
 }
 
 impl EngineProfile {

@@ -1,0 +1,33 @@
+# 030 – Migration Consolidation for Initial Setup
+
+- Status: Accepted
+- Date: 2025-12-23
+- Context:
+  - The project is unreleased and migration history does not need to remain split.
+  - A single init migration simplifies new environment bootstrap and reduces ordering drift.
+- Decision:
+  - Collapse all SQL migrations in `crates/revaer-data/migrations` into `0001_db_init.sql`.
+  - Remove the remaining numbered migration files after consolidation.
+  - Reset the local dev database in `just db-start` if the migration history no longer matches.
+  - Clean llvm-cov artifacts before coverage to keep `just ci` output free of stale-data warnings.
+- Consequences:
+  - **Positive**: Fresh databases start from one deterministic migration; fewer files to track.
+  - **Trade-offs**: Historical migration boundaries are lost and existing dev databases must be rebuilt.
+  - **Trade-offs**: Local dev databases will be dropped automatically when migrations are mismatched.
+- Follow-up:
+  - Add new incremental migrations as needed after release.
+  - Keep the single init file aligned with stored-proc changes.
+- Motivation:
+  - The repository is unreleased, so consolidation avoids maintaining redundant migration files.
+- Design notes:
+  - Preserve migration order by concatenating files with section headers.
+  - Keep the init file self-contained for `sqlx` execution.
+- Tests (coverage summary):
+  - `just ci` run clean (fmt, lint, udeps, audit, deny, test, cov).
+- Observability:
+  - No new telemetry changes.
+- Risk & Rollback:
+  - Risk: local databases with existing migrations must be dropped and recreated.
+  - Roll back by restoring the previous migration file set from version control.
+- Dependency rationale:
+  - No new crates or features added.

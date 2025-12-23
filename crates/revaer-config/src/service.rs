@@ -823,6 +823,7 @@ fn map_engine_profile_row(row: EngineProfileRow) -> EngineProfile {
         dht_bootstrap_nodes: row.dht_bootstrap_nodes,
         dht_router_nodes: row.dht_router_nodes,
         ip_filter: row.ip_filter,
+        peer_classes: row.peer_classes,
         anonymous_mode: row.privacy.anonymous_mode().into(),
         force_proxy: row.privacy.force_proxy().into(),
         prefer_rc4: row.privacy.prefer_rc4().into(),
@@ -1076,6 +1077,7 @@ async fn persist_engine_profile(
             dht_bootstrap_nodes: &serde_json::to_value(&profile.dht_bootstrap_nodes)?,
             dht_router_nodes: &serde_json::to_value(&profile.dht_router_nodes)?,
             ip_filter: &profile.ip_filter,
+            peer_classes: &profile.peer_classes,
             listen_interfaces: &serde_json::to_value(&profile.listen_interfaces)?,
             ipv6_mode: &profile.ipv6_mode,
             privacy: data_config::PrivacyToggleSet::from_flags([

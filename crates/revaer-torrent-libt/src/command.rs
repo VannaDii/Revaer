@@ -1,7 +1,10 @@
 use crate::types::EngineRuntimeConfig;
 use revaer_torrent_core::{
     AddTorrent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentRateLimit,
-    model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
+    model::{
+        TorrentAuthorRequest, TorrentAuthorResult, TorrentOptionsUpdate, TorrentTrackersUpdate,
+        TorrentWebSeedsUpdate,
+    },
 };
 use tokio::sync::oneshot;
 use uuid::Uuid;
@@ -12,6 +15,13 @@ use uuid::Uuid;
 pub enum EngineCommand {
     /// Add a torrent to the session.
     Add(Box<AddTorrent>),
+    /// Author a new `.torrent` metainfo payload.
+    CreateTorrent {
+        /// Authoring request parameters.
+        request: TorrentAuthorRequest,
+        /// Channel used to return the authoring result.
+        respond_to: oneshot::Sender<anyhow::Result<TorrentAuthorResult>>,
+    },
     /// Remove a torrent from the session, optionally deleting its data.
     Remove {
         /// Unique torrent identifier.

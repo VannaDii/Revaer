@@ -27,11 +27,14 @@ use tracing::{error, warn};
 use uuid::Uuid;
 
 use revaer_events::{Event as CoreEvent, TorrentState};
-use revaer_torrent_core::{RemoveTorrent, TorrentRateLimit, TorrentStatus};
+use revaer_torrent_core::{RemoveTorrent, TorrentLabelPolicy, TorrentRateLimit, TorrentStatus};
 
 use crate::app::state::{ApiState, COMPAT_SESSION_TTL};
 use crate::http::errors::ApiError;
-use crate::http::torrents::handlers::dispatch_torrent_add;
+use crate::http::torrents::handlers::dispatch_torrent_add_with_catalog;
+use crate::http::torrents::labels::{
+    load_label_catalog, normalize_label_name, update_label_catalog,
+};
 use crate::http::torrents::{TorrentHandles, TorrentMetadata, normalize_trackers};
 use crate::models::TorrentCreateRequest;
 
@@ -465,10 +468,10 @@ pub(crate) async fn torrents_properties(
             .map_or(-1, |eta| i64::try_from(eta).unwrap_or(-1)),
         super_seeding: metadata.super_seeding.unwrap_or(false),
         force_start: false,
-        private: false,
-        comment: String::new(),
+        private: status.private.unwrap_or(false),
+        comment: status.comment.clone().unwrap_or_default(),
         tags: metadata.tags.join(","),
-        category: String::new(),
+        category: metadata.category.clone().unwrap_or_default(),
     };
 
     Ok(Json(properties))
@@ -534,12 +537,12 @@ pub(crate) async fn torrents_add(
         return Err(ApiError::bad_request("urls parameter is required"));
     };
 
-    let handles = state
-        .torrent
-        .as_ref()
-        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
-
     let tags = parse_tags(form.tags.as_deref());
+    let catalog = if tags.is_empty() {
+        None
+    } else {
+        Some(load_label_catalog(state.as_ref()).await?)
+    };
     let mut added = 0usize;
 
     for magnet in urls.lines().map(str::trim).filter(|v| !v.is_empty()) {
@@ -553,10 +556,17 @@ pub(crate) async fn torrents_add(
         };
 
         let trackers = normalize_trackers(&request.trackers)?;
-        dispatch_torrent_add(Some(handles), &request, trackers.clone(), Vec::new()).await?;
+        let add_request = dispatch_torrent_add_with_catalog(
+            state.as_ref(),
+            &request,
+            trackers,
+            Vec::new(),
+            catalog.as_ref(),
+        )
+        .await?;
         state.set_metadata(
             request.id,
-            TorrentMetadata::from_request(&request, trackers, Vec::new()),
+            TorrentMetadata::from_options(&add_request.options),
         );
         added += 1;
     }
@@ -635,23 +645,54 @@ pub(crate) async fn list_categories(
     headers: HeaderMap,
 ) -> Result<Json<HashMap<String, QbCategory>>, ApiError> {
     ensure_session(&state, &headers)?;
-    Ok(Json(HashMap::new()))
+    let catalog = load_label_catalog(state.as_ref()).await?;
+    let mut categories = HashMap::new();
+    for (name, policy) in catalog.categories {
+        let save_path = policy.download_dir.unwrap_or_default();
+        categories.insert(name.clone(), QbCategory { name, save_path });
+    }
+    Ok(Json(categories))
 }
 
 #[derive(Deserialize)]
 pub(crate) struct CreateCategoryForm {
     #[serde(rename = "category")]
-    _category: Option<String>,
+    category: Option<String>,
     #[serde(rename = "savePath")]
-    _save_path: Option<String>,
+    save_path: Option<String>,
 }
 
 pub(crate) async fn create_category(
     State(state): State<Arc<ApiState>>,
     headers: HeaderMap,
-    Form(_form): Form<CreateCategoryForm>,
+    Form(form): Form<CreateCategoryForm>,
 ) -> Result<Response, ApiError> {
     ensure_session(&state, &headers)?;
+    let Some(name) = form.category.as_deref() else {
+        return Err(ApiError::bad_request("category is required"));
+    };
+    let normalized = normalize_label_name("category", name)?;
+    let download_dir = form
+        .save_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(ToString::to_string);
+    update_label_catalog(
+        state.as_ref(),
+        "compat_qb",
+        "torrent_category_upsert",
+        |catalog| {
+            catalog.upsert_category(
+                &normalized,
+                TorrentLabelPolicy {
+                    download_dir,
+                    ..TorrentLabelPolicy::default()
+                },
+            )
+        },
+    )
+    .await?;
     Ok(ok_plain())
 }
 
@@ -660,21 +701,41 @@ pub(crate) async fn list_tags(
     headers: HeaderMap,
 ) -> Result<Json<Vec<String>>, ApiError> {
     ensure_session(&state, &headers)?;
-    Ok(Json(Vec::new()))
+    let catalog = load_label_catalog(state.as_ref()).await?;
+    let mut tags: Vec<String> = catalog.tags.into_keys().collect();
+    tags.sort();
+    Ok(Json(tags))
 }
 
 #[derive(Deserialize)]
 pub(crate) struct CreateTagsForm {
     #[serde(rename = "tags")]
-    _tags: Option<String>,
+    tags: Option<String>,
 }
 
 pub(crate) async fn create_tags(
     State(state): State<Arc<ApiState>>,
     headers: HeaderMap,
-    Form(_form): Form<CreateTagsForm>,
+    Form(form): Form<CreateTagsForm>,
 ) -> Result<Response, ApiError> {
     ensure_session(&state, &headers)?;
+    let tags = parse_tags(form.tags.as_deref());
+    if tags.is_empty() {
+        return Err(ApiError::bad_request("tags are required"));
+    }
+    update_label_catalog(
+        state.as_ref(),
+        "compat_qb",
+        "torrent_tag_upsert",
+        |catalog| {
+            for tag in tags {
+                let normalized = normalize_label_name("tag", &tag)?;
+                catalog.upsert_tag(&normalized, TorrentLabelPolicy::default())?;
+            }
+            Ok(())
+        },
+    )
+    .await?;
     Ok(ok_plain())
 }
 
@@ -801,7 +862,7 @@ fn qb_entry(status: &TorrentStatus, metadata: &TorrentMetadata) -> QbTorrentEntr
     QbTorrentEntry {
         added_on,
         completion_on,
-        category: String::new(),
+        category: metadata.category.clone().unwrap_or_default(),
         dlspeed: i64::try_from(status.rates.download_bps).unwrap_or(i64::MAX),
         upspeed: i64::try_from(status.rates.upload_bps).unwrap_or(i64::MAX),
         downloaded: i64::try_from(status.progress.bytes_downloaded).unwrap_or(i64::MAX),
@@ -987,7 +1048,8 @@ mod tests {
         response::IntoResponse,
     };
     use revaer_config::{
-        ApiKeyAuth, AppProfile, AppliedChanges, ConfigSnapshot, SettingsChangeset, SetupToken,
+        ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigSnapshot, SettingsChangeset,
+        SetupToken,
     };
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
@@ -1217,7 +1279,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn categories_and_tags_endpoints_return_empty() -> Result<()> {
+    async fn categories_and_tags_endpoints_round_trip() -> Result<()> {
         let state = test_state();
         let sid = state.issue_qb_session();
         let headers = header_with_sid(&sid);
@@ -1236,22 +1298,34 @@ mod tests {
             State(Arc::clone(&state)),
             headers.clone(),
             Form(CreateCategoryForm {
-                _category: Some("movies".into()),
-                _save_path: Some("/downloads".into()),
+                category: Some("movies".into()),
+                save_path: Some("/downloads".into()),
             }),
         )
         .await
         .expect("create category");
 
         create_tags(
-            State(state),
+            State(Arc::clone(&state)),
             headers,
             Form(CreateTagsForm {
-                _tags: Some("alpha,beta".into()),
+                tags: Some("alpha,beta".into()),
             }),
         )
         .await
         .expect("create tags");
+
+        let Json(categories) = list_categories(State(Arc::clone(&state)), header_with_sid(&sid))
+            .await
+            .expect("categories should resolve");
+        assert_eq!(categories.len(), 1);
+        let entry = categories.get("movies").expect("category entry");
+        assert_eq!(entry.save_path, "/downloads");
+
+        let Json(tags) = list_tags(State(state), header_with_sid(&sid))
+            .await
+            .expect("tags should resolve");
+        assert_eq!(tags, vec!["alpha".to_string(), "beta".to_string()]);
 
         Ok(())
     }
@@ -1266,7 +1340,7 @@ mod tests {
     }
 
     fn test_state() -> Arc<ApiState> {
-        let config: Arc<dyn ConfigFacade> = Arc::new(TestConfig);
+        let config: Arc<dyn ConfigFacade> = Arc::new(TestConfig::default());
         Arc::new(ApiState::new(
             config,
             Metrics::new().expect("metrics init"),
@@ -1280,7 +1354,7 @@ mod tests {
         statuses: Vec<TorrentStatus>,
         metadata: Vec<(Uuid, TorrentMetadata)>,
     ) -> Arc<ApiState> {
-        let config: Arc<dyn ConfigFacade> = Arc::new(TestConfig);
+        let config: Arc<dyn ConfigFacade> = Arc::new(TestConfig::default());
         let handles =
             TorrentHandles::new(Arc::new(StubWorkflow), Arc::new(StubInspector { statuses }));
         let state = Arc::new(ApiState::new(
@@ -1296,13 +1370,25 @@ mod tests {
         state
     }
 
-    #[derive(Clone)]
-    struct TestConfig;
+    #[derive(Clone, Default)]
+    struct TestConfig {
+        features: Arc<tokio::sync::Mutex<Value>>,
+    }
 
     #[async_trait]
     impl ConfigFacade for TestConfig {
         async fn get_app_profile(&self) -> Result<AppProfile> {
-            Err(anyhow!("not implemented in tests"))
+            Ok(AppProfile {
+                id: Uuid::new_v4(),
+                instance_name: "compat".to_string(),
+                mode: AppMode::Active,
+                version: 1,
+                http_port: 8080,
+                bind_addr: std::net::IpAddr::from([127, 0, 0, 1]),
+                telemetry: serde_json::json!({}),
+                features: self.features.lock().await.clone(),
+                immutable_keys: serde_json::json!([]),
+            })
         }
 
         async fn issue_setup_token(&self, _ttl: Duration, _issued_by: &str) -> Result<SetupToken> {
@@ -1321,9 +1407,19 @@ mod tests {
             &self,
             _actor: &str,
             _reason: &str,
-            _changeset: SettingsChangeset,
+            changeset: SettingsChangeset,
         ) -> Result<AppliedChanges> {
-            Err(anyhow!("not implemented in tests"))
+            if let Some(app_profile) = changeset.app_profile.as_ref()
+                && let Some(features) = app_profile.get("features")
+            {
+                *self.features.lock().await = features.clone();
+            }
+            Ok(AppliedChanges {
+                revision: 1,
+                app_profile: Some(self.get_app_profile().await?),
+                engine_profile: None,
+                fs_policy: None,
+            })
         }
 
         async fn snapshot(&self) -> Result<ConfigSnapshot> {

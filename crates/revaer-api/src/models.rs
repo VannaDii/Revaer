@@ -12,9 +12,13 @@ use uuid::Uuid;
 use revaer_events::TorrentState;
 use revaer_torrent_core::{
     AddTorrentOptions, FilePriority, FilePriorityOverride, FileSelectionRules, FileSelectionUpdate,
-    PeerChoke, PeerInterest, PeerSnapshot, StorageMode, TorrentRateLimit, TorrentSource,
-    TorrentStatus,
-    model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
+    PeerChoke, PeerInterest, PeerSnapshot, StorageMode, TorrentCleanupPolicy, TorrentLabelPolicy,
+    TorrentRateLimit, TorrentSource, TorrentStatus,
+    model::{
+        TorrentAuthorRequest as CoreTorrentAuthorRequest,
+        TorrentAuthorResult as CoreTorrentAuthorResult, TorrentOptionsUpdate,
+        TorrentTrackersUpdate, TorrentWebSeedsUpdate,
+    },
 };
 
 /// RFC9457-compatible problem document surfaced on validation/runtime errors.
@@ -211,6 +215,9 @@ pub struct TorrentSettingsView {
     #[serde(default)]
     /// Tags associated with the torrent.
     pub tags: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Optional category assigned to the torrent.
+    pub category: Option<String>,
     #[serde(default)]
     /// Trackers recorded for the torrent.
     pub trackers: Vec<String>,
@@ -226,6 +233,15 @@ pub struct TorrentSettingsView {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Download directory applied at admission time.
     pub download_dir: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Comment captured from the torrent metainfo.
+    pub comment: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Source label captured from the torrent metainfo.
+    pub source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Private flag captured from the torrent metainfo.
+    pub private: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Storage allocation mode applied to the torrent.
     pub storage_mode: Option<StorageMode>,
@@ -249,6 +265,9 @@ pub struct TorrentSettingsView {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Optional seeding time stop threshold in seconds.
     pub seed_time_limit: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Optional cleanup policy applied after seeding thresholds are met.
+    pub cleanup: Option<TorrentCleanupPolicy>,
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Whether the torrent is auto-managed by the queue.
     pub auto_managed: Option<bool>,
@@ -287,6 +306,9 @@ pub struct TorrentSummary {
     #[serde(default)]
     /// Tags associated with the torrent.
     pub tags: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Optional category assigned to the torrent.
+    pub category: Option<String>,
     #[serde(default)]
     /// Tracker URLs recorded for the torrent.
     pub trackers: Vec<String>,
@@ -305,6 +327,16 @@ pub struct TorrentSummary {
     pub last_updated: DateTime<Utc>,
 }
 
+/// Policy entry describing a category or tag label.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TorrentLabelEntry {
+    /// Label name.
+    pub name: String,
+    #[serde(default)]
+    /// Policy defaults applied when the label is used.
+    pub policy: TorrentLabelPolicy,
+}
+
 impl From<TorrentStatus> for TorrentSummary {
     fn from(status: TorrentStatus) -> Self {
         Self {
@@ -317,6 +349,7 @@ impl From<TorrentStatus> for TorrentSummary {
             download_dir: status.download_dir.clone(),
             sequential: status.sequential,
             tags: Vec::new(),
+            category: None,
             trackers: Vec::new(),
             rate_limit: None,
             connections_limit: None,
@@ -333,11 +366,13 @@ impl TorrentSummary {
     pub fn with_metadata(
         mut self,
         tags: Vec<String>,
+        category: Option<String>,
         trackers: Vec<String>,
         rate_limit: Option<revaer_torrent_core::TorrentRateLimit>,
         connections_limit: Option<i32>,
     ) -> Self {
         self.tags = tags;
+        self.category = category;
         self.trackers = trackers;
         self.rate_limit = rate_limit;
         self.connections_limit = connections_limit;
@@ -367,11 +402,15 @@ impl From<TorrentStatus> for TorrentDetail {
             .map(|items| items.into_iter().map(TorrentFileView::from).collect());
         let settings = TorrentSettingsView {
             tags: Vec::new(),
+            category: None,
             trackers: Vec::new(),
             tracker_messages: std::collections::HashMap::new(),
             rate_limit: None,
             connections_limit: None,
             download_dir: status.download_dir.clone(),
+            comment: status.comment.clone(),
+            source: status.source.clone(),
+            private: status.private,
             storage_mode: None,
             use_partfile: None,
             sequential: status.sequential,
@@ -380,6 +419,7 @@ impl From<TorrentStatus> for TorrentDetail {
             seed_mode: None,
             seed_ratio_limit: None,
             seed_time_limit: None,
+            cleanup: None,
             auto_managed: None,
             queue_position: None,
             pex_enabled: None,
@@ -419,6 +459,15 @@ pub struct TorrentCreateRequest {
     /// Friendly display name override.
     pub name: Option<String>,
     #[serde(default)]
+    /// Optional comment override for torrent metadata.
+    pub comment: Option<String>,
+    #[serde(default)]
+    /// Optional source override for torrent metadata.
+    pub source: Option<String>,
+    #[serde(default)]
+    /// Optional private flag override for torrent metadata.
+    pub private: Option<bool>,
+    #[serde(default)]
     /// Optional download directory to stage content.
     pub download_dir: Option<String>,
     #[serde(default)]
@@ -442,6 +491,9 @@ pub struct TorrentCreateRequest {
     #[serde(default)]
     /// Tags to associate with the torrent immediately.
     pub tags: Vec<String>,
+    #[serde(default)]
+    /// Optional category assigned to the torrent.
+    pub category: Option<String>,
     #[serde(default)]
     /// Additional tracker URLs to register.
     pub trackers: Vec<String>,
@@ -493,8 +545,25 @@ impl TorrentCreateRequest {
     /// Translate the client payload into the engine-facing [`AddTorrentOptions`].
     #[must_use]
     pub fn to_options(&self) -> AddTorrentOptions {
+        let tags = self
+            .tags
+            .iter()
+            .map(|tag| tag.trim())
+            .filter(|tag| !tag.is_empty())
+            .map(ToString::to_string)
+            .collect();
+        let category = self
+            .category
+            .as_ref()
+            .map(|value| value.trim())
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string);
         AddTorrentOptions {
             name_hint: self.name.clone(),
+            comment: self.comment.clone(),
+            source: self.source.clone(),
+            private: self.private,
+            category,
             download_dir: self.download_dir.clone(),
             storage_mode: self.storage_mode,
             sequential: self.sequential,
@@ -524,7 +593,8 @@ impl TorrentCreateRequest {
             web_seeds: self.web_seeds.clone(),
             replace_web_seeds: self.replace_web_seeds,
             tracker_auth: None,
-            tags: self.tags.clone(),
+            tags,
+            cleanup: None,
             trackers: Vec::new(),
             replace_trackers: self.replace_trackers,
         }
@@ -550,6 +620,134 @@ impl TorrentCreateRequest {
                 },
                 |magnet| Some(TorrentSource::magnet(magnet.to_string())),
             )
+    }
+}
+
+/// JSON body accepted by `POST /v1/torrents/create` to author a new torrent file.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+pub struct TorrentAuthorRequest {
+    /// Local filesystem path to a file or directory to hash.
+    pub root_path: String,
+    #[serde(default)]
+    /// Tracker URLs to embed in the metainfo.
+    pub trackers: Vec<String>,
+    #[serde(default)]
+    /// Web seed URLs to embed in the metainfo.
+    pub web_seeds: Vec<String>,
+    #[serde(default)]
+    /// Glob patterns that should be included.
+    pub include: Vec<String>,
+    #[serde(default)]
+    /// Glob patterns that should be excluded.
+    pub exclude: Vec<String>,
+    #[serde(default)]
+    /// Whether the skip-fluff preset should be applied.
+    pub skip_fluff: bool,
+    #[serde(default)]
+    /// Optional piece length override in bytes.
+    pub piece_length: Option<u32>,
+    #[serde(default)]
+    /// Whether to mark the torrent as private.
+    pub private: bool,
+    #[serde(default)]
+    /// Optional comment embedded in the metainfo.
+    pub comment: Option<String>,
+    #[serde(default)]
+    /// Optional source label embedded in the metainfo.
+    pub source: Option<String>,
+}
+
+impl TorrentAuthorRequest {
+    /// Translate the request payload into a core authoring request.
+    #[must_use]
+    pub fn to_core(&self) -> CoreTorrentAuthorRequest {
+        CoreTorrentAuthorRequest {
+            root_path: self.root_path.clone(),
+            trackers: self.trackers.clone(),
+            web_seeds: self.web_seeds.clone(),
+            file_rules: FileSelectionRules {
+                include: self.include.clone(),
+                exclude: self.exclude.clone(),
+                skip_fluff: self.skip_fluff,
+            },
+            piece_length: self.piece_length,
+            private: self.private,
+            comment: self.comment.clone(),
+            source: self.source.clone(),
+        }
+    }
+}
+
+/// File entry returned in a torrent authoring response.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TorrentAuthorFileView {
+    /// Relative file path inside the torrent.
+    pub path: String,
+    /// File size in bytes.
+    pub size_bytes: u64,
+}
+
+/// Response returned by `POST /v1/torrents/create`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TorrentAuthorResponse {
+    /// Base64-encoded metainfo payload.
+    pub metainfo: String,
+    /// Magnet URI derived from the metainfo.
+    pub magnet_uri: String,
+    /// Best available info hash string.
+    pub info_hash: String,
+    /// Effective piece length in bytes.
+    pub piece_length: u32,
+    /// Total payload size in bytes.
+    pub total_size: u64,
+    #[serde(default)]
+    /// Files included in the torrent.
+    pub files: Vec<TorrentAuthorFileView>,
+    #[serde(default)]
+    /// Warnings generated during authoring.
+    pub warnings: Vec<String>,
+    #[serde(default)]
+    /// Trackers embedded in the metainfo.
+    pub trackers: Vec<String>,
+    #[serde(default)]
+    /// Web seeds embedded in the metainfo.
+    pub web_seeds: Vec<String>,
+    /// Private flag embedded in the metainfo.
+    pub private: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Comment embedded in the metainfo.
+    pub comment: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Source label embedded in the metainfo.
+    pub source: Option<String>,
+}
+
+impl TorrentAuthorResponse {
+    #[must_use]
+    /// Convert the core authoring result into an API response payload.
+    pub fn from_core(result: CoreTorrentAuthorResult) -> Self {
+        let files = result
+            .files
+            .into_iter()
+            .map(|file| TorrentAuthorFileView {
+                path: file.path,
+                size_bytes: file.size_bytes,
+            })
+            .collect();
+        Self {
+            metainfo: general_purpose::STANDARD.encode(result.metainfo),
+            magnet_uri: result.magnet_uri,
+            info_hash: result.info_hash,
+            piece_length: result.piece_length,
+            total_size: result.total_size,
+            files,
+            warnings: result.warnings,
+            trackers: result.trackers,
+            web_seeds: result.web_seeds,
+            private: result.private,
+            comment: result.comment,
+            source: result.source,
+        }
     }
 }
 
@@ -591,6 +789,15 @@ pub struct TorrentOptionsRequest {
     /// Optional override for peer exchange behaviour.
     pub pex_enabled: Option<bool>,
     #[serde(default)]
+    /// Optional comment update for torrent metadata.
+    pub comment: Option<String>,
+    #[serde(default)]
+    /// Optional source update for torrent metadata.
+    pub source: Option<String>,
+    #[serde(default)]
+    /// Optional private flag update for torrent metadata.
+    pub private: Option<bool>,
+    #[serde(default)]
     /// Optional toggle to pause or resume the torrent.
     pub paused: Option<bool>,
     #[serde(default)]
@@ -619,6 +826,9 @@ impl TorrentOptionsRequest {
                 .connections_limit
                 .and_then(|value| if value > 0 { Some(value) } else { None }),
             pex_enabled: self.pex_enabled,
+            comment: self.comment.clone(),
+            source: self.source.clone(),
+            private: self.private,
             paused: self.paused,
             super_seeding: self.super_seeding,
             auto_managed: self.auto_managed,
@@ -633,6 +843,9 @@ impl TorrentOptionsRequest {
     pub const fn is_empty(&self) -> bool {
         self.connections_limit.is_none()
             && self.pex_enabled.is_none()
+            && self.comment.is_none()
+            && self.source.is_none()
+            && self.private.is_none()
             && self.paused.is_none()
             && self.super_seeding.is_none()
             && self.auto_managed.is_none()
@@ -895,6 +1108,9 @@ mod tests {
             }]),
             library_path: Some("/library/movie".to_string()),
             download_dir: Some("/downloads/movie".to_string()),
+            comment: Some("note".to_string()),
+            source: Some("source".to_string()),
+            private: Some(true),
             sequential: true,
             added_at: Utc.timestamp_millis_opt(0).unwrap(),
             completed_at: Some(Utc.timestamp_millis_opt(1_000).unwrap()),
@@ -903,6 +1119,7 @@ mod tests {
 
         let summary = TorrentSummary::from(status.clone()).with_metadata(
             vec!["tag".to_string()],
+            Some("movies".to_string()),
             vec!["tracker".to_string()],
             Some(revaer_torrent_core::TorrentRateLimit {
                 download_bps: Some(5_000),
@@ -913,6 +1130,7 @@ mod tests {
         assert_eq!(summary.id, torrent_id);
         assert_eq!(summary.state.kind, TorrentStateKind::Completed);
         assert_eq!(summary.tags, vec!["tag".to_string()]);
+        assert_eq!(summary.category.as_deref(), Some("movies"));
         assert_eq!(summary.trackers, vec!["tracker".to_string()]);
         assert_eq!(
             summary.rate_limit.and_then(|limit| limit.download_bps),
@@ -958,6 +1176,9 @@ mod tests {
         let request = TorrentOptionsRequest {
             connections_limit: Some(0),
             pex_enabled: Some(false),
+            comment: None,
+            source: None,
+            private: None,
             paused: Some(true),
             super_seeding: Some(true),
             auto_managed: Some(false),

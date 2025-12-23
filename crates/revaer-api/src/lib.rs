@@ -53,7 +53,7 @@ mod tests {
         list_torrents, select_torrent,
     };
     use crate::http::torrents::{
-        StatusEntry, TorrentListQuery, TorrentMetadata, decode_cursor_token,
+        StatusEntry, TorrentListQuery, TorrentMetadata, TorrentMetadataSeed, decode_cursor_token,
         detail_from_components, encode_cursor_from_entry, normalise_lower, parse_state_filter,
         split_comma_separated, summary_from_components,
     };
@@ -327,6 +327,7 @@ mod tests {
                 dht_bootstrap_nodes: Vec::new(),
                 dht_router_nodes: Vec::new(),
                 ip_filter: Value::Null,
+                peer_classes: Value::Null,
                 outgoing_port_min: None,
                 outgoing_port_max: None,
                 peer_dscp: None,
@@ -341,7 +342,7 @@ mod tests {
                     http_port: 7070,
                     bind_addr: IpAddr::from_str("127.0.0.1").expect("ip"),
                     telemetry: Value::Null,
-                    features: Value::Null,
+                    features: json!({}),
                     immutable_keys: Value::Null,
                 },
                 engine_profile: engine_profile.clone(),
@@ -1398,6 +1399,9 @@ mod tests {
             files: None,
             library_path: None,
             download_dir: None,
+            comment: None,
+            source: None,
+            private: None,
             sequential: false,
             added_at: now,
             completed_at: None,
@@ -1502,6 +1506,9 @@ mod tests {
             files: None,
             library_path: None,
             download_dir: Some("/downloads".to_string()),
+            comment: None,
+            source: None,
+            private: None,
             sequential: true,
             added_at: now,
             completed_at: None,
@@ -1593,7 +1600,15 @@ mod tests {
             ..TorrentCreateRequest::default()
         };
 
-        let err = dispatch_torrent_add(None, &request, Vec::new(), Vec::new())
+        let config = MockConfig::new();
+        let state = ApiState::new(
+            config.shared(),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            None,
+        );
+        let err = dispatch_torrent_add(&state, &request, Vec::new(), Vec::new())
             .await
             .expect_err("expected workflow to be unavailable");
         assert_eq!(err.status, StatusCode::SERVICE_UNAVAILABLE);
@@ -1617,7 +1632,15 @@ mod tests {
         let inspector_trait: Arc<dyn TorrentInspector> = workflow.clone();
         let handles = TorrentHandles::new(workflow_trait, inspector_trait);
 
-        dispatch_torrent_add(Some(&handles), &request, Vec::new(), Vec::new())
+        let config = MockConfig::new();
+        let state = ApiState::new(
+            config.shared(),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            Some(handles),
+        );
+        dispatch_torrent_add(&state, &request, Vec::new(), Vec::new())
             .await
             .expect("torrent creation should succeed");
         let recorded_entry = {
@@ -1663,23 +1686,28 @@ mod tests {
             files: None,
             library_path: Some("/library/demo".to_string()),
             download_dir: None,
+            comment: None,
+            source: None,
+            private: None,
             sequential: false,
             added_at: now,
             completed_at: Some(now),
             last_updated: now,
         };
-        let metadata = TorrentMetadata::new(
-            vec!["tagA".to_string(), "tagB".to_string()],
-            vec!["http://tracker".to_string()],
-            Vec::new(),
-            Some(revaer_torrent_core::TorrentRateLimit {
+        let metadata = TorrentMetadata::new(TorrentMetadataSeed {
+            tags: vec!["tagA".to_string(), "tagB".to_string()],
+            category: None,
+            trackers: vec!["http://tracker".to_string()],
+            web_seeds: Vec::new(),
+            rate_limit: Some(revaer_torrent_core::TorrentRateLimit {
                 download_bps: Some(1_000),
                 upload_bps: None,
             }),
-            None,
-            revaer_torrent_core::FileSelectionUpdate::default(),
-            status.download_dir.clone(),
-        );
+            connections_limit: None,
+            selection: revaer_torrent_core::FileSelectionUpdate::default(),
+            download_dir: status.download_dir.clone(),
+            cleanup: None,
+        });
         let summary = summary_from_components(status, metadata);
         assert_eq!(summary.tags, vec!["tagA".to_string(), "tagB".to_string()]);
         assert_eq!(summary.trackers, vec!["http://tracker".to_string()]);
@@ -1737,15 +1765,17 @@ mod tests {
         };
         let entry = StatusEntry {
             status: status.clone(),
-            metadata: TorrentMetadata::new(
-                vec![],
-                vec![],
-                Vec::new(),
-                None,
-                None,
-                revaer_torrent_core::FileSelectionUpdate::default(),
-                status.download_dir.clone(),
-            ),
+            metadata: TorrentMetadata::new(TorrentMetadataSeed {
+                tags: vec![],
+                category: None,
+                trackers: vec![],
+                web_seeds: Vec::new(),
+                rate_limit: None,
+                connections_limit: None,
+                selection: revaer_torrent_core::FileSelectionUpdate::default(),
+                download_dir: status.download_dir.clone(),
+                cleanup: None,
+            }),
         };
 
         let encoded = encode_cursor_from_entry(&entry).expect("cursor encoding should succeed");
@@ -2124,23 +2154,28 @@ mod tests {
             files: None,
             library_path: Some("/library/demo".to_string()),
             download_dir: None,
+            comment: None,
+            source: None,
+            private: None,
             sequential: false,
             added_at: now,
             completed_at: Some(now),
             last_updated: now,
         };
-        let metadata = TorrentMetadata::new(
-            vec!["tag".to_string()],
-            vec!["http://tracker".to_string()],
-            Vec::new(),
-            Some(revaer_torrent_core::TorrentRateLimit {
+        let metadata = TorrentMetadata::new(TorrentMetadataSeed {
+            tags: vec!["tag".to_string()],
+            category: None,
+            trackers: vec!["http://tracker".to_string()],
+            web_seeds: Vec::new(),
+            rate_limit: Some(revaer_torrent_core::TorrentRateLimit {
                 download_bps: Some(10),
                 upload_bps: None,
             }),
-            None,
-            revaer_torrent_core::FileSelectionUpdate::default(),
-            status.download_dir.clone(),
-        );
+            connections_limit: None,
+            selection: revaer_torrent_core::FileSelectionUpdate::default(),
+            download_dir: status.download_dir.clone(),
+            cleanup: None,
+        });
 
         let detail = detail_from_components(status, metadata);
         assert_eq!(detail.summary.tags, vec!["tag".to_string()]);

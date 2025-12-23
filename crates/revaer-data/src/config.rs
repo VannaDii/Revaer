@@ -17,7 +17,7 @@ pub const SETTINGS_CHANNEL: &str = "revaer_settings_changed";
 ///
 /// Returns an error when migration execution fails.
 pub async fn run_migrations(pool: &PgPool) -> Result<()> {
-    // Migrations cover both configuration and tracker normalization state.
+    // Migrations cover configuration, tracker normalization, and peer class state.
     let migrator = sqlx::migrate!("./migrations");
     migrator
         .run(pool)
@@ -418,6 +418,8 @@ pub struct EngineProfileRow {
     pub dht_router_nodes: Vec<String>,
     /// IP filter configuration payload.
     pub ip_filter: Value,
+    /// Peer class configuration payload.
+    pub peer_classes: Value,
     /// Listen interface overrides.
     pub listen_interfaces: Vec<String>,
     /// IPv6 policy flag.
@@ -519,6 +521,7 @@ impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
                 "dht_router_nodes",
             )?,
             ip_filter: row.try_get("ip_filter")?,
+            peer_classes: row.try_get("peer_classes")?,
             listen_interfaces: parse_string_array(
                 &row.try_get("listen_interfaces")?,
                 "listen_interfaces",
@@ -1426,6 +1429,8 @@ pub struct EngineProfileUpdate<'a> {
     pub dht_router_nodes: &'a Value,
     /// IP filter configuration payload.
     pub ip_filter: &'a Value,
+    /// Peer class configuration payload.
+    pub peer_classes: &'a Value,
     /// Listen interface overrides.
     pub listen_interfaces: &'a Value,
     /// IPv6 policy flag.
@@ -1465,7 +1470,7 @@ where
     E: Executor<'e, Database = Postgres>,
 {
     sqlx::query(
-        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _seed_ratio_limit => $9, _seed_time_limit => $10, _sequential_default => $11, _auto_managed => $12, _auto_manage_prefer_seeds => $13, _dont_count_slow_torrents => $14, _super_seeding => $15, _choking_algorithm => $16, _seed_choking_algorithm => $17, _strict_super_seeding => $18, _optimistic_unchoke_slots => $19, _max_queued_disk_bytes => $20, _resume_dir => $21, _download_root => $22, _storage_mode => $23, _use_partfile => $24, _cache_size => $25, _cache_expiry => $26, _coalesce_reads => $27, _coalesce_writes => $28, _use_disk_cache_pool => $29, _disk_read_mode => $30, _disk_write_mode => $31, _verify_piece_hashes => $32, _tracker => $33, _lsd => $34, _upnp => $35, _natpmp => $36, _pex => $37, _dht_bootstrap_nodes => $38, _dht_router_nodes => $39, _ip_filter => $40, _listen_interfaces => $41, _ipv6_mode => $42, _anonymous_mode => $43, _force_proxy => $44, _prefer_rc4 => $45, _allow_multiple_connections_per_ip => $46, _enable_outgoing_utp => $47, _enable_incoming_utp => $48, _outgoing_port_min => $49, _outgoing_port_max => $50, _peer_dscp => $51, _connections_limit => $52, _connections_limit_per_torrent => $53, _unchoke_slots => $54, _half_open_limit => $55, _alt_speed => $56, _stats_interval_ms => $57)",
+        "SELECT revaer_config.update_engine_profile(_id => $1, _implementation => $2, _listen_port => $3, _dht => $4, _encryption => $5, _max_active => $6, _max_download_bps => $7, _max_upload_bps => $8, _seed_ratio_limit => $9, _seed_time_limit => $10, _sequential_default => $11, _auto_managed => $12, _auto_manage_prefer_seeds => $13, _dont_count_slow_torrents => $14, _super_seeding => $15, _choking_algorithm => $16, _seed_choking_algorithm => $17, _strict_super_seeding => $18, _optimistic_unchoke_slots => $19, _max_queued_disk_bytes => $20, _resume_dir => $21, _download_root => $22, _storage_mode => $23, _use_partfile => $24, _cache_size => $25, _cache_expiry => $26, _coalesce_reads => $27, _coalesce_writes => $28, _use_disk_cache_pool => $29, _disk_read_mode => $30, _disk_write_mode => $31, _verify_piece_hashes => $32, _tracker => $33, _lsd => $34, _upnp => $35, _natpmp => $36, _pex => $37, _dht_bootstrap_nodes => $38, _dht_router_nodes => $39, _ip_filter => $40, _listen_interfaces => $41, _ipv6_mode => $42, _anonymous_mode => $43, _force_proxy => $44, _prefer_rc4 => $45, _allow_multiple_connections_per_ip => $46, _enable_outgoing_utp => $47, _enable_incoming_utp => $48, _outgoing_port_min => $49, _outgoing_port_max => $50, _peer_dscp => $51, _connections_limit => $52, _connections_limit_per_torrent => $53, _unchoke_slots => $54, _half_open_limit => $55, _alt_speed => $56, _stats_interval_ms => $57, _peer_classes => $58)",
         )
     .bind(profile.id)
     .bind(profile.implementation)
@@ -1524,6 +1529,7 @@ where
     .bind(profile.half_open_limit)
     .bind(profile.alt_speed)
     .bind(profile.stats_interval_ms)
+    .bind(profile.peer_classes)
     .execute(executor)
     .await
     .context("failed to update engine_profile via unified procedure")?;

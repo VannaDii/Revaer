@@ -29,6 +29,15 @@ pub trait LibTorrentSession: Send {
     ///
     /// Returns an error if the native bridge rejects the request.
     async fn add_torrent(&mut self, request: &AddTorrent) -> Result<()>;
+    /// Author a new `.torrent` metainfo payload.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if authoring fails.
+    async fn create_torrent(
+        &mut self,
+        request: &revaer_torrent_core::model::TorrentAuthorRequest,
+    ) -> Result<revaer_torrent_core::model::TorrentAuthorResult>;
     /// Remove a torrent from the session.
     ///
     /// # Errors

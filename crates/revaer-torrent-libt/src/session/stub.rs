@@ -6,6 +6,7 @@ use revaer_events::TorrentState;
 use revaer_torrent_core::{
     AddTorrent, EngineEvent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, StorageMode,
     TorrentRateLimit,
+    model::{TorrentAuthorFile, TorrentAuthorRequest, TorrentAuthorResult},
 };
 use serde_json::json;
 use uuid::Uuid;
@@ -30,6 +31,9 @@ struct StubTorrent {
     rate_limit: TorrentRateLimit,
     sequential: bool,
     state: TorrentState,
+    comment: Option<String>,
+    source: Option<String>,
+    private: Option<bool>,
     download_dir: Option<String>,
     storage_mode: Option<StorageMode>,
     use_partfile: Option<bool>,
@@ -65,6 +69,9 @@ impl StubTorrent {
             rate_limit: request.options.rate_limit.clone(),
             sequential: request.options.sequential.unwrap_or(false),
             state: initial_state,
+            comment: request.options.comment.clone(),
+            source: request.options.source.clone(),
+            private: request.options.private,
             download_dir: request.options.download_dir.clone(),
             storage_mode: request.options.storage_mode,
             use_partfile: None,
@@ -172,9 +179,40 @@ impl LibTorrentSession for StubSession {
             torrent_id: request.id,
             name: request.options.name_hint.clone(),
             download_dir,
+            comment: request.options.comment.clone(),
+            source: request.options.source.clone(),
+            private: request.options.private,
         });
         self.refresh_resume(request.id);
         Ok(())
+    }
+
+    async fn create_torrent(
+        &mut self,
+        request: &TorrentAuthorRequest,
+    ) -> Result<TorrentAuthorResult> {
+        if request.root_path.trim().is_empty() {
+            return Err(anyhow!("root_path is required"));
+        }
+
+        let files = vec![TorrentAuthorFile {
+            path: request.root_path.clone(),
+            size_bytes: 0,
+        }];
+        Ok(TorrentAuthorResult {
+            metainfo: b"stub".to_vec(),
+            magnet_uri: "magnet:?xt=urn:btih:stub".to_string(),
+            info_hash: "stub".to_string(),
+            piece_length: request.piece_length.unwrap_or(16_384),
+            total_size: 0,
+            files,
+            warnings: Vec::new(),
+            trackers: request.trackers.clone(),
+            web_seeds: request.web_seeds.clone(),
+            private: request.private,
+            comment: request.comment.clone(),
+            source: request.source.clone(),
+        })
     }
 
     async fn remove_torrent(&mut self, id: Uuid, _options: &RemoveTorrent) -> Result<()> {
@@ -253,6 +291,15 @@ impl LibTorrentSession for StubSession {
         }
         if let Some(pex_enabled) = options.pex_enabled {
             torrent.pex_enabled = Some(pex_enabled);
+        }
+        if options.comment.is_some() {
+            torrent.comment.clone_from(&options.comment);
+        }
+        if options.source.is_some() {
+            torrent.source.clone_from(&options.source);
+        }
+        if options.private.is_some() {
+            torrent.private = options.private;
         }
         if let Some(super_seeding) = options.super_seeding {
             torrent.super_seeding = Some(super_seeding);
@@ -361,6 +408,9 @@ impl LibTorrentSession for StubSession {
             torrent_id: id,
             name: None,
             download_dir: Some(download_dir.to_string()),
+            comment: None,
+            source: None,
+            private: None,
         });
         self.refresh_resume(id);
         Ok(())

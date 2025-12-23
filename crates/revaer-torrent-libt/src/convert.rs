@@ -60,6 +60,9 @@ pub(crate) fn map_native_event(id: Option<Uuid>, event: NativeEvent) -> Vec<Engi
                 torrent_id,
                 name: (!event.name.is_empty()).then_some(event.name),
                 download_dir: (!event.download_dir.is_empty()).then_some(event.download_dir),
+                comment: (!event.comment.is_empty()).then_some(event.comment),
+                source: (!event.source.is_empty()).then_some(event.source),
+                private: event.has_private.then_some(event.private_flag),
             }]
         }
         NativeEventKind::ResumeData => {
@@ -221,6 +224,10 @@ mod tests {
             message: "listen failed".to_string(),
             tracker_statuses: Vec::new(),
             component: "network".to_string(),
+            comment: String::new(),
+            source: String::new(),
+            private_flag: false,
+            has_private: false,
         };
 
         let events = map_native_event(None, native);
@@ -259,6 +266,10 @@ mod tests {
                 message: "failed to resolve".to_string(),
             }],
             component: String::new(),
+            comment: String::new(),
+            source: String::new(),
+            private_flag: false,
+            has_private: false,
         };
 
         let events = map_native_event(Some(uuid::Uuid::nil()), native);

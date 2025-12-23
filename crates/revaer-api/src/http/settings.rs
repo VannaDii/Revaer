@@ -209,6 +209,7 @@ mod tests {
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             ip_filter: json!({}),
+            peer_classes: json!({}),
             outgoing_port_min: None,
             outgoing_port_max: None,
             peer_dscp: None,

@@ -259,7 +259,10 @@ pub(crate) fn dummy_payload(tick: u64, tid: Uuid, tid_other: Uuid) -> Value {
             "data": {
                 "torrent_id": tid,
                 "download_dir": format!("/downloads/relocated-{tick}"),
-                "name": format!("demo-{tick}")
+                "name": format!("demo-{tick}"),
+                "comment": format!("note-{tick}"),
+                "source": "revaer",
+                "private": tick & 1 == 0
             }
         }),
         _ => json!({
@@ -394,6 +397,8 @@ mod tests {
         assert_eq!(state["data"]["status"], "moving");
         let metadata = dummy_payload(8, tid, tid_other);
         assert_eq!(metadata["data"]["download_dir"], "/downloads/relocated-8");
+        assert_eq!(metadata["data"]["comment"], "note-8");
+        assert_eq!(metadata["data"]["private"], true);
         let jobs = dummy_payload(9, tid, tid_other);
         assert_eq!(jobs["data"]["message"], "disk full");
     }

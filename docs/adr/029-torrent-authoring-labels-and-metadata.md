@@ -1,0 +1,34 @@
+# Torrent Authoring, Labels, and Metadata Updates
+
+- Status: Accepted
+- Date: 2025-12-23
+- Context:
+  - Remaining torrent gaps required authoring support plus consistent comment/source/private visibility.
+  - Category/tag defaults and cleanup policies needed a shared storage path and validation.
+  - Changes must comply with AGENT.md (no dead code, tests, docs, OpenAPI sync).
+- Decision:
+  - Expose a create-torrent authoring endpoint that routes through the workflow and libtorrent bindings.
+  - Surface comment/source/private fields in status/settings, allow comment updates only, and validate private tracker requirements on add.
+  - Persist label policies in `app_profile.features`, provide list/upsert endpoints for categories/tags, and apply policy defaults (including cleanup) on add.
+- Consequences:
+  - API clients can author torrents, set label defaults, and observe comment/source/private metadata consistently.
+  - Cleanup rules can remove torrents after ratio/time thresholds, with policy validation guarding invalid inputs.
+  - OpenAPI gains new schemas and endpoints to document authoring and label management.
+- Follow-up:
+  - Extend UI/CLI to manage label policies and expose authoring workflows.
+  - Evaluate adding per-label retention summaries once cleanup automation is in daily use.
+- Motivation:
+  - Close the remaining torrent authoring/label gaps and make metadata updates visible to API clients.
+- Design notes:
+  - Label policies are applied as defaults so explicit request options always win.
+  - Private torrents require trackers; source/private updates are rejected to align with libtorrent constraints.
+- Tests (coverage summary):
+  - Added API tests for metadata visibility and comment updates, plus worker tests for metadata update events and cleanup.
+  - Native authoring test asserts comment/source propagation.
+  - `just ci` run clean (fmt, lint, udeps, audit, deny, test, cov).
+- Observability:
+  - No new metrics; metadata updates reuse existing event streams.
+- Risk & Rollback:
+  - Risk: misconfigured label cleanup could remove torrents earlier than expected. Roll back by removing label policies and reverting cleanup enforcement.
+- Dependency rationale:
+  - No new crates or feature flags were added.

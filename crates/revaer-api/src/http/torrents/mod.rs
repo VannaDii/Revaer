@@ -12,10 +12,12 @@ use uuid::Uuid;
 use crate::http::errors::ApiError;
 use crate::models::{TorrentDetail, TorrentSelectionView, TorrentStateKind, TorrentSummary};
 use revaer_torrent_core::{
-    FileSelectionUpdate, TorrentInspector, TorrentRateLimit, TorrentStatus, TorrentWorkflow,
+    AddTorrentOptions, FileSelectionUpdate, TorrentCleanupPolicy, TorrentInspector,
+    TorrentRateLimit, TorrentStatus, TorrentWorkflow,
 };
 
 pub mod handlers;
+pub(crate) mod labels;
 
 /// Handle pair that exposes torrent workflow and inspection capabilities to the
 /// HTTP layer.
@@ -52,6 +54,7 @@ impl TorrentHandles {
 #[derive(Clone, Debug, Default)]
 pub(crate) struct TorrentMetadata {
     pub(crate) tags: Vec<String>,
+    pub(crate) category: Option<String>,
     pub(crate) trackers: Vec<String>,
     pub(crate) tracker_messages: std::collections::HashMap<String, String>,
     pub(crate) web_seeds: Vec<String>,
@@ -63,6 +66,7 @@ pub(crate) struct TorrentMetadata {
     pub(crate) download_dir: Option<String>,
     pub(crate) seed_ratio_limit: Option<f64>,
     pub(crate) seed_time_limit: Option<u64>,
+    pub(crate) cleanup: Option<TorrentCleanupPolicy>,
     pub(crate) auto_managed: Option<bool>,
     pub(crate) queue_position: Option<i32>,
     pub(crate) pex_enabled: Option<bool>,
@@ -70,19 +74,36 @@ pub(crate) struct TorrentMetadata {
     pub(crate) replace_web_seeds: bool,
 }
 
+#[derive(Clone, Debug, Default)]
+pub(crate) struct TorrentMetadataSeed {
+    pub(crate) tags: Vec<String>,
+    pub(crate) category: Option<String>,
+    pub(crate) trackers: Vec<String>,
+    pub(crate) web_seeds: Vec<String>,
+    pub(crate) rate_limit: Option<TorrentRateLimit>,
+    pub(crate) connections_limit: Option<i32>,
+    pub(crate) selection: FileSelectionUpdate,
+    pub(crate) download_dir: Option<String>,
+    pub(crate) cleanup: Option<TorrentCleanupPolicy>,
+}
+
 impl TorrentMetadata {
     #[must_use]
-    pub(crate) fn new(
-        tags: Vec<String>,
-        trackers: Vec<String>,
-        web_seeds: Vec<String>,
-        rate_limit: Option<TorrentRateLimit>,
-        connections_limit: Option<i32>,
-        selection: FileSelectionUpdate,
-        download_dir: Option<String>,
-    ) -> Self {
+    pub(crate) fn new(seed: TorrentMetadataSeed) -> Self {
+        let TorrentMetadataSeed {
+            tags,
+            category,
+            trackers,
+            web_seeds,
+            rate_limit,
+            connections_limit,
+            selection,
+            download_dir,
+            cleanup,
+        } = seed;
         Self {
             tags,
+            category,
             trackers,
             tracker_messages: std::collections::HashMap::new(),
             web_seeds,
@@ -94,6 +115,7 @@ impl TorrentMetadata {
             download_dir,
             seed_ratio_limit: None,
             seed_time_limit: None,
+            cleanup,
             auto_managed: None,
             queue_position: None,
             pex_enabled: None,
@@ -103,44 +125,42 @@ impl TorrentMetadata {
     }
 
     #[must_use]
-    pub(crate) fn from_request(
-        request: &crate::models::TorrentCreateRequest,
-        trackers: Vec<String>,
-        web_seeds: Vec<String>,
-    ) -> Self {
-        let rate_limit = rate_limit_from_limits(request.max_download_bps, request.max_upload_bps);
-        let connections_limit = request.max_connections.filter(|value| *value > 0);
+    pub(crate) fn from_options(options: &AddTorrentOptions) -> Self {
+        let rate_limit = rate_limit_from_limits(
+            options.rate_limit.download_bps,
+            options.rate_limit.upload_bps,
+        );
+        let connections_limit = options.connections_limit.filter(|value| *value > 0);
         let selection = FileSelectionUpdate {
-            include: request.include.clone(),
-            exclude: request.exclude.clone(),
-            skip_fluff: request.skip_fluff,
+            include: options.file_rules.include.clone(),
+            exclude: options.file_rules.exclude.clone(),
+            skip_fluff: options.file_rules.skip_fluff,
             priorities: Vec::new(),
         };
-        Self::new(
-            request.tags.clone(),
-            trackers,
-            web_seeds,
+        Self::new(TorrentMetadataSeed {
+            tags: options.tags.clone(),
+            category: options.category.clone(),
+            trackers: options.trackers.clone(),
+            web_seeds: options.web_seeds.clone(),
             rate_limit,
             connections_limit,
             selection,
-            request.download_dir.clone(),
-        )
-        .with_additional_flags(request)
+            download_dir: options.download_dir.clone(),
+            cleanup: options.cleanup.clone(),
+        })
+        .with_additional_flags(options)
     }
 
-    const fn with_additional_flags(
-        mut self,
-        request: &crate::models::TorrentCreateRequest,
-    ) -> Self {
-        self.super_seeding = request.super_seeding;
-        self.seed_mode = request.seed_mode;
-        self.seed_ratio_limit = request.seed_ratio_limit;
-        self.seed_time_limit = request.seed_time_limit;
-        self.auto_managed = request.auto_managed;
-        self.queue_position = request.queue_position;
-        self.pex_enabled = request.pex_enabled;
-        self.replace_trackers = request.replace_trackers;
-        self.replace_web_seeds = request.replace_web_seeds;
+    const fn with_additional_flags(mut self, options: &AddTorrentOptions) -> Self {
+        self.super_seeding = options.super_seeding;
+        self.seed_mode = options.seed_mode;
+        self.seed_ratio_limit = options.seed_ratio_limit;
+        self.seed_time_limit = options.seed_time_limit;
+        self.auto_managed = options.auto_managed;
+        self.queue_position = options.queue_position;
+        self.pex_enabled = options.pex_enabled;
+        self.replace_trackers = options.replace_trackers;
+        self.replace_web_seeds = options.replace_web_seeds;
         self
     }
 
@@ -189,6 +209,7 @@ pub(crate) fn summary_from_components(
 ) -> TorrentSummary {
     TorrentSummary::from(status).with_metadata(
         metadata.tags,
+        metadata.category,
         metadata.trackers,
         metadata.rate_limit,
         metadata.connections_limit,
@@ -203,6 +224,7 @@ pub(crate) fn detail_from_components(
     let mut detail = TorrentDetail::from(status);
     let TorrentMetadata {
         tags,
+        category,
         trackers,
         web_seeds,
         rate_limit,
@@ -213,6 +235,7 @@ pub(crate) fn detail_from_components(
         seed_mode,
         seed_ratio_limit,
         seed_time_limit,
+        cleanup,
         auto_managed,
         queue_position,
         pex_enabled,
@@ -222,12 +245,14 @@ pub(crate) fn detail_from_components(
     } = metadata;
     detail.summary = detail.summary.with_metadata(
         tags.clone(),
+        category.clone(),
         trackers.clone(),
         rate_limit.clone(),
         connections_limit,
     );
     if let Some(settings) = detail.settings.as_mut() {
         settings.tags = tags;
+        settings.category = category;
         settings.trackers = trackers;
         settings.tracker_messages = tracker_messages;
         settings.rate_limit = rate_limit;
@@ -237,6 +262,7 @@ pub(crate) fn detail_from_components(
         settings.seed_mode = seed_mode;
         settings.seed_ratio_limit = seed_ratio_limit;
         settings.seed_time_limit = seed_time_limit;
+        settings.cleanup = cleanup;
         settings.auto_managed = auto_managed;
         settings.queue_position = queue_position;
         settings.pex_enabled = pex_enabled;
@@ -387,28 +413,33 @@ mod tests {
             files: None,
             library_path: None,
             download_dir: Some("/downloads/demo".into()),
+            comment: None,
+            source: None,
+            private: None,
             sequential: true,
             added_at: Utc.timestamp_millis_opt(0).unwrap(),
             completed_at: None,
             last_updated: Utc.timestamp_millis_opt(0).unwrap(),
         };
-        let metadata = TorrentMetadata::new(
-            vec!["tagA".to_string()],
-            vec!["https://tracker.example/announce".to_string()],
-            Vec::new(),
-            Some(TorrentRateLimit {
+        let metadata = TorrentMetadata::new(TorrentMetadataSeed {
+            tags: vec!["tagA".to_string()],
+            category: None,
+            trackers: vec!["https://tracker.example/announce".to_string()],
+            web_seeds: Vec::new(),
+            rate_limit: Some(TorrentRateLimit {
                 download_bps: Some(1_024),
                 upload_bps: None,
             }),
-            None,
-            FileSelectionUpdate {
+            connections_limit: None,
+            selection: FileSelectionUpdate {
                 include: vec!["**/*.mkv".to_string()],
                 exclude: Vec::new(),
                 skip_fluff: true,
                 priorities: Vec::new(),
             },
-            status.download_dir.clone(),
-        );
+            download_dir: status.download_dir.clone(),
+            cleanup: None,
+        });
 
         let detail = detail_from_components(status, metadata);
         assert_eq!(detail.summary.tags, vec!["tagA".to_string()]);
@@ -458,8 +489,9 @@ mod tests {
 
         let trackers =
             normalize_trackers(&request.trackers).expect("trackers should normalise for test");
-        let mut metadata =
-            TorrentMetadata::from_request(&request, trackers, request.web_seeds.clone());
+        let mut options = request.to_options();
+        options.trackers = trackers;
+        let mut metadata = TorrentMetadata::from_options(&options);
         assert_eq!(metadata.tags, vec!["demo".to_string()]);
         assert_eq!(
             metadata.trackers,

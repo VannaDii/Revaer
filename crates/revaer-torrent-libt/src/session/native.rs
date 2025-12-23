@@ -9,7 +9,8 @@ use crate::types::EngineRuntimeConfig;
 use ffi::SourceKind;
 use revaer_torrent_core::{
     AddTorrent, EngineEvent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentRateLimit,
-    TorrentSource, model::TrackerAuth,
+    TorrentSource,
+    model::{TorrentAuthorFile, TorrentAuthorRequest, TorrentAuthorResult, TrackerAuth},
 };
 use tracing::warn;
 
@@ -41,6 +42,14 @@ impl NativeSession {
             .as_ref()
             .expect("native session must be initialized")
             .inspect_storage_state()
+    }
+
+    #[cfg(all(test, feature = "libtorrent"))]
+    fn inspect_peer_class_state(&self) -> ffi::EnginePeerClassState {
+        self.inner
+            .as_ref()
+            .expect("native session must be initialized")
+            .inspect_peer_class_state()
     }
 }
 
@@ -94,6 +103,49 @@ fn map_tracker_auth(auth: Option<&TrackerAuth>) -> ffi::TrackerAuthOptions {
         has_username: auth.username.is_some(),
         has_password: auth.password.is_some(),
         has_cookie: auth.cookie.is_some(),
+    }
+}
+
+fn map_author_request(request: &TorrentAuthorRequest) -> ffi::CreateTorrentRequest {
+    ffi::CreateTorrentRequest {
+        root_path: request.root_path.clone(),
+        trackers: request.trackers.clone(),
+        web_seeds: request.web_seeds.clone(),
+        include: request.file_rules.include.clone(),
+        exclude: request.file_rules.exclude.clone(),
+        skip_fluff: request.file_rules.skip_fluff,
+        piece_length: request.piece_length.unwrap_or_default(),
+        has_piece_length: request.piece_length.is_some(),
+        private_flag: request.private,
+        comment: request.comment.clone().unwrap_or_default(),
+        has_comment: request.comment.is_some(),
+        source: request.source.clone().unwrap_or_default(),
+        has_source: request.source.is_some(),
+    }
+}
+
+fn map_author_result(result: ffi::CreateTorrentResult) -> TorrentAuthorResult {
+    let files = result
+        .files
+        .into_iter()
+        .map(|file| TorrentAuthorFile {
+            path: file.path,
+            size_bytes: file.size_bytes,
+        })
+        .collect();
+    TorrentAuthorResult {
+        metainfo: result.metainfo,
+        magnet_uri: result.magnet_uri,
+        info_hash: result.info_hash,
+        piece_length: result.piece_length,
+        total_size: result.total_size,
+        files,
+        warnings: result.warnings,
+        trackers: result.trackers,
+        web_seeds: result.web_seeds,
+        private: result.private_flag,
+        comment: (!result.comment.is_empty()).then_some(result.comment),
+        source: (!result.source.is_empty()).then_some(result.source),
     }
 }
 
@@ -204,6 +256,8 @@ pub(super) mod test_support {
                 tracker: TrackerRuntimeConfig::default(),
                 ip_filter: None,
                 super_seeding: false.into(),
+                peer_classes: Vec::new(),
+                default_peer_classes: Vec::new(),
             }
         }
 
@@ -253,6 +307,12 @@ impl LibTorrentSession for NativeSession {
             has_super_seeding: request.options.super_seeding.is_some(),
             max_connections: 0,
             has_max_connections: false,
+            comment: request.options.comment.clone().unwrap_or_default(),
+            has_comment: request.options.comment.is_some(),
+            source: request.options.source.clone().unwrap_or_default(),
+            has_source: request.options.source.is_some(),
+            private_flag: request.options.private.unwrap_or(false),
+            has_private: request.options.private.is_some(),
             tags: request.options.tags.clone(),
             trackers: request.options.trackers.clone(),
             replace_trackers: request.options.replace_trackers,
@@ -275,6 +335,19 @@ impl LibTorrentSession for NativeSession {
         let session = self.inner.pin_mut();
         let result = session.add_torrent(&add_request);
         Self::map_error(result)
+    }
+
+    async fn create_torrent(
+        &mut self,
+        request: &TorrentAuthorRequest,
+    ) -> Result<TorrentAuthorResult> {
+        let create_request = map_author_request(request);
+        let session = self.inner.pin_mut();
+        let result = session.create_torrent(&create_request);
+        if !result.error.is_empty() {
+            return Err(anyhow!(result.error));
+        }
+        Ok(map_author_result(result))
     }
 
     async fn remove_torrent(&mut self, id: Uuid, options: &RemoveTorrent) -> Result<()> {
@@ -367,6 +440,12 @@ impl LibTorrentSession for NativeSession {
             has_auto_managed: false,
             queue_position: 0,
             has_queue_position: false,
+            comment: String::new(),
+            has_comment: false,
+            source: String::new(),
+            has_source: false,
+            private_flag: false,
+            has_private: false,
         };
 
         if let Some(limit) = options.connections_limit
@@ -390,6 +469,18 @@ impl LibTorrentSession for NativeSession {
         if let Some(queue_position) = options.queue_position {
             request.queue_position = queue_position;
             request.has_queue_position = true;
+        }
+        if let Some(comment) = options.comment.as_deref() {
+            request.comment = comment.to_string();
+            request.has_comment = true;
+        }
+        if let Some(source) = options.source.as_deref() {
+            request.source = source.to_string();
+            request.has_source = true;
+        }
+        if let Some(private_flag) = options.private {
+            request.private_flag = private_flag;
+            request.has_private = true;
         }
 
         let session = self.inner.pin_mut();
@@ -506,8 +597,11 @@ mod tests {
     use super::test_support::NativeSessionHarness;
     use super::*;
     use crate::ffi::ffi::{NativeEvent, NativeEventKind, NativeTorrentState};
-    use crate::types::{IpFilterRule, IpFilterRuntimeConfig, Ipv6Mode};
-    use revaer_torrent_core::{AddTorrent, AddTorrentOptions, EngineEvent, TorrentSource};
+    use crate::types::{IpFilterRule, IpFilterRuntimeConfig, Ipv6Mode, PeerClassRuntimeConfig};
+    use revaer_torrent_core::{
+        AddTorrent, AddTorrentOptions, EngineEvent, FileSelectionRules, TorrentSource,
+        model::TorrentAuthorRequest,
+    };
     use std::{convert::TryFrom, fs, path::Path, time::Duration};
     use tokio::time::sleep;
     use uuid::Uuid;
@@ -781,6 +875,57 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn native_session_applies_peer_classes() -> Result<()> {
+        let mut harness = NativeSessionHarness::new()?;
+        let mut config = harness.runtime_config();
+        config.peer_classes = vec![PeerClassRuntimeConfig {
+            id: 3,
+            label: "vip".into(),
+            download_priority: 10,
+            upload_priority: 20,
+            connection_limit_factor: 150,
+            ignore_unchoke_slots: true,
+        }];
+        config.default_peer_classes = vec![3];
+
+        harness.session.apply_config(&config).await?;
+        let snapshot = harness.session.inspect_peer_class_state();
+        assert_eq!(snapshot.configured_ids, vec![3]);
+        assert_eq!(snapshot.default_ids, vec![3]);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn native_session_authors_torrent_from_file() -> Result<()> {
+        let mut harness = NativeSessionHarness::new()?;
+        let config = harness.runtime_config();
+        harness.session.apply_config(&config).await?;
+
+        let file_path = harness.download_path().join("demo.txt");
+        fs::write(&file_path, b"revaer")?;
+
+        let request = TorrentAuthorRequest {
+            root_path: file_path.to_string_lossy().into_owned(),
+            trackers: vec!["https://tracker.example/announce".to_string()],
+            web_seeds: Vec::new(),
+            file_rules: FileSelectionRules::default(),
+            piece_length: Some(16_384),
+            private: true,
+            comment: Some("note".to_string()),
+            source: Some("source".to_string()),
+        };
+
+        let result = harness.session.create_torrent(&request).await?;
+        assert!(!result.metainfo.is_empty());
+        assert!(result.magnet_uri.contains("magnet:?"));
+        assert_eq!(result.files.len(), 1);
+        assert!(result.private);
+        assert_eq!(result.comment.as_deref(), Some("note"));
+        assert_eq!(result.source.as_deref(), Some("source"));
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn native_session_applies_disk_cache_settings() -> Result<()> {
         #[derive(Copy, Clone)]
         struct StorageFlags(u8);
@@ -864,6 +1009,10 @@ mod tests {
                 message: String::new(),
                 tracker_statuses: Vec::new(),
                 component: String::new(),
+                comment: String::new(),
+                source: String::new(),
+                private_flag: false,
+                has_private: false,
             },
         );
 
@@ -900,6 +1049,10 @@ mod tests {
                 message: String::new(),
                 tracker_statuses: Vec::new(),
                 component: String::new(),
+                comment: String::new(),
+                source: String::new(),
+                private_flag: false,
+                has_private: false,
             },
         );
 

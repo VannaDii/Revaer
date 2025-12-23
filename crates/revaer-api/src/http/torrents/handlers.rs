@@ -16,15 +16,16 @@ use crate::app::state::ApiState;
 use crate::http::constants::{DEFAULT_PAGE_SIZE, MAX_METAINFO_BYTES, MAX_PAGE_SIZE};
 use crate::http::errors::ApiError;
 use crate::models::{
-    TorrentAction, TorrentCreateRequest, TorrentDetail, TorrentListResponse, TorrentOptionsRequest,
-    TorrentPeer, TorrentSelectionRequest, TorrentStateKind, TorrentSummary,
-    TorrentTrackersRemoveRequest, TorrentTrackersRequest, TorrentTrackersResponse,
-    TorrentWebSeedsRequest, TrackerView,
+    TorrentAction, TorrentAuthorRequest, TorrentAuthorResponse, TorrentCreateRequest,
+    TorrentDetail, TorrentLabelEntry, TorrentListResponse, TorrentOptionsRequest, TorrentPeer,
+    TorrentSelectionRequest, TorrentStateKind, TorrentSummary, TorrentTrackersRemoveRequest,
+    TorrentTrackersRequest, TorrentTrackersResponse, TorrentWebSeedsRequest, TrackerView,
 };
 use revaer_events::Event as CoreEvent;
 use revaer_torrent_core::model::TorrentTrackersUpdate;
 use revaer_torrent_core::{
-    AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentSource, TorrentStatus,
+    AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentLabelPolicy, TorrentRateLimit,
+    TorrentSource, TorrentStatus,
 };
 
 use super::{
@@ -32,6 +33,10 @@ use super::{
     decode_cursor_token, detail_from_components, encode_cursor_from_entry, normalise_lower,
     normalize_trackers, normalize_web_seeds, parse_state_filter, split_comma_separated,
     summary_from_components,
+};
+use crate::http::torrents::labels::{
+    TorrentLabelCatalog, apply_label_policies, load_label_catalog, normalize_label_name,
+    update_label_catalog,
 };
 
 pub(crate) async fn create_torrent(
@@ -51,22 +56,142 @@ pub(crate) async fn create_torrent(
     let trackers = normalize_trackers(&request.trackers)?;
     let web_seeds = normalize_web_seeds(&request.web_seeds)?;
 
-    dispatch_torrent_add(
-        state.torrent.as_ref(),
-        &request,
-        trackers.clone(),
-        web_seeds.clone(),
-    )
-    .await?;
+    let add_request =
+        dispatch_torrent_add(state.as_ref(), &request, trackers.clone(), web_seeds).await?;
     state.set_metadata(
         request.id,
-        TorrentMetadata::from_request(&request, trackers.clone(), web_seeds),
+        TorrentMetadata::from_options(&add_request.options),
     );
     let torrent_name = request.name.as_deref().unwrap_or("<unspecified>");
     info!(torrent_id = %request.id, torrent_name = %torrent_name, "torrent submission requested");
     state.update_torrent_metrics().await;
 
     Ok(StatusCode::ACCEPTED)
+}
+
+pub(crate) async fn create_torrent_authoring(
+    State(state): State<Arc<ApiState>>,
+    Extension(context): Extension<crate::http::auth::AuthContext>,
+    Json(request): Json<TorrentAuthorRequest>,
+) -> Result<Json<TorrentAuthorResponse>, ApiError> {
+    match context {
+        crate::http::auth::AuthContext::ApiKey { .. } => {}
+        crate::http::auth::AuthContext::SetupToken(_) => {
+            return Err(ApiError::unauthorized(
+                "setup authentication context cannot manage torrents",
+            ));
+        }
+    }
+
+    if request.root_path.trim().is_empty() {
+        return Err(ApiError::bad_request("root_path is required"));
+    }
+
+    let trackers = normalize_trackers(&request.trackers)?;
+    let web_seeds = normalize_web_seeds(&request.web_seeds)?;
+    if request.private && trackers.is_empty() {
+        return Err(ApiError::bad_request(
+            "private torrents require at least one tracker",
+        ));
+    }
+
+    let mut core_request = request.to_core();
+    core_request.trackers = trackers;
+    core_request.web_seeds = web_seeds;
+    core_request.piece_length = request.piece_length.filter(|value| *value > 0);
+
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+    let result = handles
+        .workflow()
+        .create_torrent(core_request)
+        .await
+        .map_err(|err| {
+            error!(error = %err, "failed to author torrent");
+            ApiError::bad_request(err.to_string())
+        })?;
+    Ok(Json(TorrentAuthorResponse::from_core(result)))
+}
+
+pub(crate) async fn list_torrent_categories(
+    State(state): State<Arc<ApiState>>,
+    Extension(context): Extension<crate::http::auth::AuthContext>,
+) -> Result<Json<Vec<TorrentLabelEntry>>, ApiError> {
+    let _ = require_api_key(context)?;
+    let catalog = load_label_catalog(state.as_ref()).await?;
+    let mut entries: Vec<TorrentLabelEntry> = catalog
+        .categories
+        .into_iter()
+        .map(|(name, policy)| TorrentLabelEntry { name, policy })
+        .collect();
+    entries.sort_by(|left, right| left.name.cmp(&right.name));
+    Ok(Json(entries))
+}
+
+pub(crate) async fn upsert_torrent_category(
+    State(state): State<Arc<ApiState>>,
+    Extension(context): Extension<crate::http::auth::AuthContext>,
+    AxumPath(name): AxumPath<String>,
+    Json(policy): Json<TorrentLabelPolicy>,
+) -> Result<Json<TorrentLabelEntry>, ApiError> {
+    let key_id = require_api_key(context)?;
+    let normalized = normalize_label_name("category", &name)?;
+    let catalog = update_label_catalog(
+        state.as_ref(),
+        &key_id,
+        "torrent_category_upsert",
+        |catalog| catalog.upsert_category(&normalized, policy),
+    )
+    .await?;
+    let policy = catalog
+        .categories
+        .get(&normalized)
+        .cloned()
+        .ok_or_else(|| ApiError::internal("failed to persist torrent category"))?;
+    Ok(Json(TorrentLabelEntry {
+        name: normalized,
+        policy,
+    }))
+}
+
+pub(crate) async fn list_torrent_tags(
+    State(state): State<Arc<ApiState>>,
+    Extension(context): Extension<crate::http::auth::AuthContext>,
+) -> Result<Json<Vec<TorrentLabelEntry>>, ApiError> {
+    let _ = require_api_key(context)?;
+    let catalog = load_label_catalog(state.as_ref()).await?;
+    let mut entries: Vec<TorrentLabelEntry> = catalog
+        .tags
+        .into_iter()
+        .map(|(name, policy)| TorrentLabelEntry { name, policy })
+        .collect();
+    entries.sort_by(|left, right| left.name.cmp(&right.name));
+    Ok(Json(entries))
+}
+
+pub(crate) async fn upsert_torrent_tag(
+    State(state): State<Arc<ApiState>>,
+    Extension(context): Extension<crate::http::auth::AuthContext>,
+    AxumPath(name): AxumPath<String>,
+    Json(policy): Json<TorrentLabelPolicy>,
+) -> Result<Json<TorrentLabelEntry>, ApiError> {
+    let key_id = require_api_key(context)?;
+    let normalized = normalize_label_name("tag", &name)?;
+    let catalog = update_label_catalog(state.as_ref(), &key_id, "torrent_tag_upsert", |catalog| {
+        catalog.upsert_tag(&normalized, policy)
+    })
+    .await?;
+    let policy = catalog
+        .tags
+        .get(&normalized)
+        .cloned()
+        .ok_or_else(|| ApiError::internal("failed to persist torrent tag"))?;
+    Ok(Json(TorrentLabelEntry {
+        name: normalized,
+        policy,
+    }))
 }
 
 pub(crate) async fn delete_torrent(
@@ -347,6 +472,12 @@ pub(crate) async fn update_torrent_options(
 
     if request.is_empty() {
         return Err(ApiError::bad_request("no torrent options provided"));
+    }
+
+    if request.source.is_some() || request.private.is_some() {
+        return Err(ApiError::bad_request(
+            "source/private updates are not supported",
+        ));
     }
 
     let handles = state
@@ -716,24 +847,43 @@ fn paginate_entries(
 }
 
 pub(crate) async fn dispatch_torrent_add(
-    handles: Option<&TorrentHandles>,
+    state: &ApiState,
     request: &TorrentCreateRequest,
     trackers: Vec<String>,
     web_seeds: Vec<String>,
-) -> Result<(), ApiError> {
-    let handles =
-        handles.ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+) -> Result<AddTorrent, ApiError> {
+    let catalog = if request.category.is_some() || !request.tags.is_empty() {
+        Some(load_label_catalog(state).await?)
+    } else {
+        None
+    };
+    dispatch_torrent_add_with_catalog(state, request, trackers, web_seeds, catalog.as_ref()).await
+}
 
-    let add_request = build_add_torrent(request, trackers, web_seeds)?;
+pub(in crate::http) async fn dispatch_torrent_add_with_catalog(
+    state: &ApiState,
+    request: &TorrentCreateRequest,
+    trackers: Vec<String>,
+    web_seeds: Vec<String>,
+    catalog: Option<&TorrentLabelCatalog>,
+) -> Result<AddTorrent, ApiError> {
+    let handles = state
+        .torrent
+        .as_ref()
+        .ok_or_else(|| ApiError::service_unavailable("torrent workflow not configured"))?;
+
+    let add_request = build_add_torrent(request, trackers, web_seeds, catalog)?;
 
     handles
         .workflow()
-        .add_torrent(add_request)
+        .add_torrent(add_request.clone())
         .await
         .map_err(|err| {
             error!(error = %err, "failed to add torrent through workflow");
             ApiError::internal("failed to add torrent")
-        })
+        })?;
+
+    Ok(add_request)
 }
 
 pub(crate) async fn dispatch_torrent_remove(
@@ -753,10 +903,11 @@ pub(crate) async fn dispatch_torrent_remove(
         })
 }
 
-pub(crate) fn build_add_torrent(
+fn build_add_torrent(
     request: &TorrentCreateRequest,
     trackers: Vec<String>,
     web_seeds: Vec<String>,
+    catalog: Option<&TorrentLabelCatalog>,
 ) -> Result<AddTorrent, ApiError> {
     let magnet = request
         .magnet
@@ -807,6 +958,12 @@ pub(crate) fn build_add_torrent(
         ));
     }
 
+    if matches!(request.private, Some(true)) && request.replace_trackers && trackers.is_empty() {
+        return Err(ApiError::bad_request(
+            "private torrents require at least one tracker when replace_trackers is enabled",
+        ));
+    }
+
     let prefer_metainfo =
         matches!(request.seed_mode, Some(true)) || request.hash_check_sample_pct.unwrap_or(0) > 0;
 
@@ -834,12 +991,24 @@ pub(crate) fn build_add_torrent(
     options.replace_trackers = request.replace_trackers;
     options.web_seeds = web_seeds;
     options.replace_web_seeds = request.replace_web_seeds;
+    if let Some(catalog) = catalog {
+        apply_label_policies(catalog, &mut options);
+    }
 
     Ok(AddTorrent {
         id: request.id,
         source,
         options,
     })
+}
+
+fn require_api_key(context: crate::http::auth::AuthContext) -> Result<String, ApiError> {
+    match context {
+        crate::http::auth::AuthContext::ApiKey { key_id } => Ok(key_id),
+        crate::http::auth::AuthContext::SetupToken(_) => Err(ApiError::unauthorized(
+            "setup authentication context cannot manage torrents",
+        )),
+    }
 }
 
 #[cfg(test)]
@@ -851,10 +1020,13 @@ mod tests {
     use revaer_telemetry::Metrics;
     use revaer_torrent_core::{
         AddTorrent, FileSelectionUpdate, PeerChoke, PeerInterest, PeerSnapshot, RemoveTorrent,
-        TorrentRateLimit, TorrentStatus,
-        model::{PieceDeadline, TorrentTrackersUpdate},
+        TorrentCleanupPolicy, TorrentLabelPolicy, TorrentRateLimit, TorrentStatus,
+        model::{
+            PieceDeadline, TorrentAuthorFile, TorrentAuthorResult, TorrentOptionsUpdate,
+            TorrentTrackersUpdate,
+        },
     };
-    use serde_json::json;
+    use serde_json::{Value, json};
     use std::collections::HashMap;
     use std::time::Duration;
     use tokio::sync::Mutex as AsyncMutex;
@@ -870,7 +1042,7 @@ mod tests {
             ..TorrentCreateRequest::default()
         };
 
-        let err = build_add_torrent(&request, Vec::new(), Vec::new())
+        let err = build_add_torrent(&request, Vec::new(), Vec::new(), None)
             .expect_err("negative ratio rejected");
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
     }
@@ -887,7 +1059,7 @@ mod tests {
             ..TorrentCreateRequest::default()
         };
 
-        let err = build_add_torrent(&request, Vec::new(), Vec::new())
+        let err = build_add_torrent(&request, Vec::new(), Vec::new(), None)
             .expect_err("sample requires seed mode");
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
     }
@@ -904,7 +1076,7 @@ mod tests {
             ..TorrentCreateRequest::default()
         };
 
-        let err = build_add_torrent(&request, Vec::new(), Vec::new())
+        let err = build_add_torrent(&request, Vec::new(), Vec::new(), None)
             .expect_err("sample over 100 is rejected");
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
     }
@@ -920,8 +1092,25 @@ mod tests {
             ..TorrentCreateRequest::default()
         };
 
-        let err = build_add_torrent(&request, Vec::new(), Vec::new())
+        let err = build_add_torrent(&request, Vec::new(), Vec::new(), None)
             .expect_err("negative queue position rejected");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+    }
+
+    #[test]
+    fn build_add_torrent_rejects_private_without_trackers() {
+        let request = TorrentCreateRequest {
+            id: Uuid::new_v4(),
+            magnet: Some(
+                "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567".to_string(),
+            ),
+            private: Some(true),
+            replace_trackers: true,
+            ..TorrentCreateRequest::default()
+        };
+
+        let err = build_add_torrent(&request, Vec::new(), Vec::new(), None)
+            .expect_err("private torrents require trackers when replacing");
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
     }
 
@@ -936,8 +1125,262 @@ mod tests {
             ..TorrentCreateRequest::default()
         };
 
-        let result = build_add_torrent(&request, Vec::new(), Vec::new());
+        let result = build_add_torrent(&request, Vec::new(), Vec::new(), None);
         assert!(result.is_ok(), "v2 magnet should be accepted");
+    }
+
+    #[test]
+    fn build_add_torrent_applies_category_policy() {
+        let request = TorrentCreateRequest {
+            id: Uuid::new_v4(),
+            magnet: Some("magnet:?xt=urn:btih:abc".to_string()),
+            category: Some("movies".to_string()),
+            ..TorrentCreateRequest::default()
+        };
+
+        let mut catalog = TorrentLabelCatalog::default();
+        catalog.categories.insert(
+            "movies".to_string(),
+            TorrentLabelPolicy {
+                download_dir: Some("/downloads/movies".to_string()),
+                rate_limit: Some(TorrentRateLimit {
+                    download_bps: Some(1_000),
+                    upload_bps: Some(2_000),
+                }),
+                queue_position: Some(3),
+                cleanup: Some(TorrentCleanupPolicy {
+                    seed_ratio_limit: Some(1.5),
+                    seed_time_limit: None,
+                    remove_data: true,
+                }),
+                ..TorrentLabelPolicy::default()
+            },
+        );
+
+        let add = build_add_torrent(&request, Vec::new(), Vec::new(), Some(&catalog))
+            .expect("policy should apply");
+        assert_eq!(
+            add.options.download_dir.as_deref(),
+            Some("/downloads/movies")
+        );
+        assert_eq!(add.options.rate_limit.download_bps, Some(1_000));
+        assert_eq!(add.options.rate_limit.upload_bps, Some(2_000));
+        assert_eq!(add.options.queue_position, Some(3));
+        assert_eq!(
+            add.options.cleanup,
+            Some(TorrentCleanupPolicy {
+                seed_ratio_limit: Some(1.5),
+                seed_time_limit: None,
+                remove_data: true,
+            })
+        );
+    }
+
+    #[test]
+    fn build_add_torrent_applies_tag_policy_without_overrides() {
+        let request = TorrentCreateRequest {
+            id: Uuid::new_v4(),
+            magnet: Some("magnet:?xt=urn:btih:def".to_string()),
+            tags: vec!["tv".to_string()],
+            max_upload_bps: Some(500),
+            ..TorrentCreateRequest::default()
+        };
+
+        let mut catalog = TorrentLabelCatalog::default();
+        catalog.tags.insert(
+            "tv".to_string(),
+            TorrentLabelPolicy {
+                rate_limit: Some(TorrentRateLimit {
+                    download_bps: Some(100),
+                    upload_bps: Some(200),
+                }),
+                auto_managed: Some(false),
+                ..TorrentLabelPolicy::default()
+            },
+        );
+
+        let add = build_add_torrent(&request, Vec::new(), Vec::new(), Some(&catalog))
+            .expect("policy should apply");
+        assert_eq!(add.options.rate_limit.download_bps, Some(100));
+        assert_eq!(add.options.rate_limit.upload_bps, Some(500));
+        assert_eq!(add.options.auto_managed, Some(false));
+    }
+
+    fn sample_author_result() -> TorrentAuthorResult {
+        TorrentAuthorResult {
+            metainfo: b"payload".to_vec(),
+            magnet_uri: "magnet:?xt=urn:btih:demo".to_string(),
+            info_hash: "deadbeef".to_string(),
+            piece_length: 16_384,
+            total_size: 42,
+            files: vec![TorrentAuthorFile {
+                path: "demo.mkv".to_string(),
+                size_bytes: 42,
+            }],
+            warnings: vec!["clamped piece length".to_string()],
+            trackers: vec!["https://tracker.example/announce".to_string()],
+            web_seeds: vec!["https://seed.example/file".to_string()],
+            private: true,
+            comment: Some("note".to_string()),
+            source: Some("source".to_string()),
+        }
+    }
+
+    #[derive(Default)]
+    struct AuthoringWorkflow {
+        created: AsyncMutex<Vec<revaer_torrent_core::model::TorrentAuthorRequest>>,
+    }
+
+    #[async_trait::async_trait]
+    impl revaer_torrent_core::TorrentWorkflow for AuthoringWorkflow {
+        async fn add_torrent(&self, _: AddTorrent) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn create_torrent(
+            &self,
+            request: revaer_torrent_core::model::TorrentAuthorRequest,
+        ) -> anyhow::Result<TorrentAuthorResult> {
+            self.created.lock().await.push(request);
+            Ok(sample_author_result())
+        }
+
+        async fn remove_torrent(&self, _: Uuid, _: RemoveTorrent) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl revaer_torrent_core::TorrentInspector for AuthoringWorkflow {
+        async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+            Ok(Vec::new())
+        }
+
+        async fn get(&self, _: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+            Ok(None)
+        }
+
+        async fn peers(&self, _: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+            Ok(Vec::new())
+        }
+    }
+
+    struct StaticInspector {
+        status: TorrentStatus,
+    }
+
+    #[async_trait::async_trait]
+    impl revaer_torrent_core::TorrentInspector for StaticInspector {
+        async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+            Ok(vec![self.status.clone()])
+        }
+
+        async fn get(&self, id: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+            Ok((id == self.status.id).then(|| self.status.clone()))
+        }
+
+        async fn peers(&self, _: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+            Ok(Vec::new())
+        }
+    }
+
+    #[tokio::test]
+    async fn create_torrent_authoring_dispatches_and_returns_payload() {
+        let workflow = Arc::new(AuthoringWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = Arc::new(ApiState::new(
+            Arc::new(DummyConfig),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            Some(handles),
+        ));
+
+        let request = TorrentAuthorRequest {
+            root_path: "/data/demo".to_string(),
+            trackers: vec![
+                "https://tracker.example/announce".to_string(),
+                "https://tracker.example/announce".to_string(),
+            ],
+            web_seeds: vec!["https://seed.example/file".to_string()],
+            include: vec!["*.mkv".to_string()],
+            exclude: Vec::new(),
+            skip_fluff: true,
+            piece_length: Some(0),
+            private: true,
+            comment: Some("note".to_string()),
+            source: Some("source".to_string()),
+        };
+
+        let Json(response) = create_torrent_authoring(
+            State(state),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            Json(request.clone()),
+        )
+        .await
+        .expect("authoring should succeed");
+
+        assert_eq!(response.magnet_uri, "magnet:?xt=urn:btih:demo");
+        assert_eq!(response.info_hash, "deadbeef");
+        assert_eq!(response.piece_length, 16_384);
+        assert_eq!(response.total_size, 42);
+        assert_eq!(response.files.len(), 1);
+        assert!(
+            response
+                .warnings
+                .iter()
+                .any(|entry| entry.contains("clamped"))
+        );
+        assert!(response.private);
+
+        let recorded = {
+            let recorded = workflow.created.lock().await;
+            assert_eq!(recorded.len(), 1);
+            recorded[0].clone()
+        };
+        assert_eq!(recorded.root_path, request.root_path);
+        assert_eq!(
+            recorded.trackers,
+            vec!["https://tracker.example/announce".to_string()]
+        );
+        assert_eq!(
+            recorded.web_seeds,
+            vec!["https://seed.example/file".to_string()]
+        );
+        assert_eq!(recorded.piece_length, None);
+        assert!(recorded.file_rules.skip_fluff);
+    }
+
+    #[tokio::test]
+    async fn get_torrent_exposes_comment_source_private() {
+        let torrent_id = Uuid::new_v4();
+        let status = TorrentStatus {
+            id: torrent_id,
+            comment: Some("note".to_string()),
+            source: Some("source".to_string()),
+            private: Some(true),
+            ..TorrentStatus::default()
+        };
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let inspector = Arc::new(StaticInspector { status });
+        let handles = TorrentHandles::new(workflow, inspector);
+        let state = Arc::new(ApiState::new(
+            Arc::new(DummyConfig),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            Some(handles),
+        ));
+
+        let Json(detail) = get_torrent(State(state), AxumPath(torrent_id))
+            .await
+            .expect("detail should resolve");
+        let settings = detail.settings.expect("settings available");
+        assert_eq!(settings.comment.as_deref(), Some("note"));
+        assert_eq!(settings.source.as_deref(), Some("source"));
+        assert_eq!(settings.private, Some(true));
     }
 
     #[tokio::test]
@@ -1010,6 +1453,39 @@ mod tests {
         assert_eq!(peers[0].endpoint, "192.0.2.1:6881");
         assert!(peers[0].interest.local);
         assert!(peers[0].interest.remote);
+    }
+
+    #[tokio::test]
+    async fn update_torrent_options_accepts_comment_updates() {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = Arc::new(ApiState::new(
+            Arc::new(DummyConfig),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            Some(handles),
+        ));
+        let torrent_id = Uuid::new_v4();
+
+        let response = update_torrent_options(
+            State(state),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(torrent_id),
+            Json(TorrentOptionsRequest {
+                comment: Some("note".to_string()),
+                ..TorrentOptionsRequest::default()
+            }),
+        )
+        .await
+        .expect("update should succeed");
+
+        assert_eq!(response, StatusCode::ACCEPTED);
+        let updates = workflow.take_options_updates().await;
+        assert_eq!(updates.len(), 1);
+        assert_eq!(updates[0].comment.as_deref(), Some("note"));
     }
 
     #[tokio::test]
@@ -1133,6 +1609,7 @@ mod tests {
     #[derive(Default)]
     struct RecordingWorkflow {
         tracker_updates: AsyncMutex<Vec<TorrentTrackersUpdate>>,
+        options_updates: AsyncMutex<Vec<TorrentOptionsUpdate>>,
         moves: AsyncMutex<Vec<(Uuid, String)>>,
         peers: AsyncMutex<HashMap<Uuid, Vec<PeerSnapshot>>>,
         deadlines: AsyncMutex<Vec<(Uuid, PieceDeadline)>>,
@@ -1171,8 +1648,9 @@ mod tests {
         async fn update_options(
             &self,
             _: Uuid,
-            _: revaer_torrent_core::model::TorrentOptionsUpdate,
+            update: revaer_torrent_core::model::TorrentOptionsUpdate,
         ) -> anyhow::Result<()> {
+            self.options_updates.lock().await.push(update);
             Ok(())
         }
 
@@ -1252,6 +1730,13 @@ mod tests {
             moves
         }
 
+        async fn take_options_updates(&self) -> Vec<TorrentOptionsUpdate> {
+            let mut guard = self.options_updates.lock().await;
+            let updates = guard.clone();
+            guard.clear();
+            updates
+        }
+
         async fn take_deadlines(&self) -> Vec<(Uuid, PieceDeadline)> {
             let mut guard = self.deadlines.lock().await;
             let updates = guard.clone();
@@ -1322,5 +1807,144 @@ mod tests {
                 rate_limit: None,
             }))
         }
+    }
+
+    #[derive(Clone, Default)]
+    struct LabelConfig {
+        features: Arc<AsyncMutex<Value>>,
+    }
+
+    #[async_trait::async_trait]
+    impl crate::config::ConfigFacade for LabelConfig {
+        async fn get_app_profile(&self) -> anyhow::Result<AppProfile> {
+            Ok(AppProfile {
+                id: Uuid::new_v4(),
+                instance_name: "labels".to_string(),
+                mode: AppMode::Active,
+                version: 1,
+                http_port: 8080,
+                bind_addr: std::net::IpAddr::from([127, 0, 0, 1]),
+                telemetry: json!({}),
+                features: self.features.lock().await.clone(),
+                immutable_keys: json!([]),
+            })
+        }
+
+        async fn issue_setup_token(
+            &self,
+            _: Duration,
+            _: &str,
+        ) -> anyhow::Result<revaer_config::SetupToken> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
+
+        async fn validate_setup_token(&self, _: &str) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn consume_setup_token(&self, _: &str) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn apply_changeset(
+            &self,
+            _: &str,
+            _: &str,
+            changeset: SettingsChangeset,
+        ) -> anyhow::Result<revaer_config::AppliedChanges> {
+            if let Some(app_profile) = changeset.app_profile.as_ref()
+                && let Some(features) = app_profile.get("features")
+            {
+                *self.features.lock().await = features.clone();
+            }
+            Ok(revaer_config::AppliedChanges {
+                revision: 1,
+                app_profile: Some(self.get_app_profile().await?),
+                engine_profile: None,
+                fs_policy: None,
+            })
+        }
+
+        async fn snapshot(&self) -> anyhow::Result<revaer_config::ConfigSnapshot> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
+
+        async fn authenticate_api_key(
+            &self,
+            _: &str,
+            _: &str,
+        ) -> anyhow::Result<Option<ApiKeyAuth>> {
+            Ok(Some(ApiKeyAuth {
+                key_id: "key".to_string(),
+                label: Some("label".to_string()),
+                rate_limit: None,
+            }))
+        }
+    }
+
+    #[tokio::test]
+    async fn torrent_label_endpoints_round_trip() {
+        let config: Arc<dyn crate::config::ConfigFacade> = Arc::new(LabelConfig::default());
+        let state = Arc::new(ApiState::new(
+            config,
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            None,
+        ));
+        let context = crate::http::auth::AuthContext::ApiKey {
+            key_id: "key".to_string(),
+        };
+
+        let Json(categories) =
+            list_torrent_categories(State(Arc::clone(&state)), Extension(context.clone()))
+                .await
+                .expect("categories should list");
+        assert!(categories.is_empty());
+
+        let Json(category) = upsert_torrent_category(
+            State(Arc::clone(&state)),
+            Extension(context.clone()),
+            AxumPath("movies".to_string()),
+            Json(TorrentLabelPolicy {
+                download_dir: Some("/downloads/movies".to_string()),
+                auto_managed: Some(false),
+                ..TorrentLabelPolicy::default()
+            }),
+        )
+        .await
+        .expect("category upsert");
+        assert_eq!(category.name, "movies");
+        assert_eq!(
+            category.policy.download_dir.as_deref(),
+            Some("/downloads/movies")
+        );
+        assert_eq!(category.policy.auto_managed, Some(false));
+
+        let Json(tags) = list_torrent_tags(State(Arc::clone(&state)), Extension(context.clone()))
+            .await
+            .expect("tags should list");
+        assert!(tags.is_empty());
+
+        let Json(tag) = upsert_torrent_tag(
+            State(Arc::clone(&state)),
+            Extension(context.clone()),
+            AxumPath("alpha".to_string()),
+            Json(TorrentLabelPolicy::default()),
+        )
+        .await
+        .expect("tag upsert");
+        assert_eq!(tag.name, "alpha");
+
+        let Json(categories) =
+            list_torrent_categories(State(Arc::clone(&state)), Extension(context.clone()))
+                .await
+                .expect("categories should list");
+        assert_eq!(categories.len(), 1);
+
+        let Json(tags) = list_torrent_tags(State(state), Extension(context))
+            .await
+            .expect("tags should list");
+        assert_eq!(tags.len(), 1);
     }
 }

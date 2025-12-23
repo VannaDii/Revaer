@@ -133,7 +133,11 @@ impl RuntimeStore {
             .eta_seconds
             .map(|eta| i64::try_from(eta).unwrap_or(i64::MAX));
 
-        let payload = Json(json!({}));
+        let payload = Json(json!({
+            "comment": status.comment,
+            "source": status.source,
+            "private": status.private,
+        }));
         let files_json = files.map(Json);
         let state_message_ref = state_message.as_deref();
         let name = status.name.as_deref();
@@ -204,6 +208,19 @@ impl RuntimeStore {
                 _ => None,
             };
 
+            let payload = row
+                .try_get::<Json<Value>, _>("payload")
+                .map_or_else(|_| json!({}), |Json(value)| value);
+            let comment = payload
+                .get("comment")
+                .and_then(|value| value.as_str())
+                .map(ToString::to_string);
+            let source = payload
+                .get("source")
+                .and_then(|value| value.as_str())
+                .map(ToString::to_string);
+            let private = payload.get("private").and_then(serde_json::Value::as_bool);
+
             statuses.push(TorrentStatus {
                 id: row.try_get("torrent_id")?,
                 name: row.try_get("name")?,
@@ -229,6 +246,9 @@ impl RuntimeStore {
                 files,
                 library_path: row.try_get("library_path")?,
                 download_dir: row.try_get("download_dir")?,
+                comment,
+                source,
+                private,
                 sequential: row.try_get("sequential")?,
                 added_at: row.try_get("added_at")?,
                 completed_at: row.try_get("completed_at")?,

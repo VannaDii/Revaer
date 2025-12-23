@@ -58,6 +58,12 @@ pub enum Event {
         name: Option<String>,
         /// Optional updated download directory.
         download_dir: Option<String>,
+        /// Optional updated comment.
+        comment: Option<String>,
+        /// Optional updated source label.
+        source: Option<String>,
+        /// Optional updated private flag.
+        private: Option<bool>,
     },
     /// Torrent was removed from the catalog.
     TorrentRemoved {
@@ -146,107 +152,109 @@ mod tests {
     use super::*;
 
     #[test]
-    fn event_kind_maps_variants() {
-        let events = vec![
-            (
-                Event::TorrentAdded {
-                    torrent_id: Uuid::nil(),
-                    name: "demo".into(),
-                },
-                "torrent_added",
-            ),
-            (
-                Event::FilesDiscovered {
-                    torrent_id: Uuid::nil(),
-                    files: vec![],
-                },
-                "files_discovered",
-            ),
-            (
-                Event::Progress {
-                    torrent_id: Uuid::nil(),
-                    bytes_downloaded: 1,
-                    bytes_total: 2,
-                },
-                "progress",
-            ),
-            (
-                Event::StateChanged {
-                    torrent_id: Uuid::nil(),
-                    state: TorrentState::Queued,
-                },
-                "state_changed",
-            ),
-            (
-                Event::Completed {
-                    torrent_id: Uuid::nil(),
-                    library_path: "/tmp".into(),
-                },
-                "completed",
-            ),
-            (
-                Event::MetadataUpdated {
-                    torrent_id: Uuid::nil(),
-                    name: Some("demo".into()),
-                    download_dir: Some("/downloads/demo".into()),
-                },
-                "metadata_updated",
-            ),
-            (
-                Event::TorrentRemoved {
-                    torrent_id: Uuid::nil(),
-                },
-                "torrent_removed",
-            ),
-            (
-                Event::FsopsStarted {
-                    torrent_id: Uuid::nil(),
-                },
-                "fsops_started",
-            ),
-            (
-                Event::FsopsProgress {
-                    torrent_id: Uuid::nil(),
-                    step: "extract".into(),
-                },
-                "fsops_progress",
-            ),
-            (
-                Event::FsopsCompleted {
-                    torrent_id: Uuid::nil(),
-                },
-                "fsops_completed",
-            ),
-            (
-                Event::FsopsFailed {
-                    torrent_id: Uuid::nil(),
-                    message: "err".into(),
-                },
-                "fsops_failed",
-            ),
-            (
-                Event::SettingsChanged {
-                    description: "desc".into(),
-                },
-                "settings_changed",
-            ),
-            (
-                Event::HealthChanged {
-                    degraded: vec!["x".into()],
-                },
-                "health_changed",
-            ),
-            (
-                Event::SelectionReconciled {
-                    torrent_id: Uuid::nil(),
-                    reason: "policy".into(),
-                },
-                "selection_reconciled",
-            ),
-        ];
-        for (event, expected) in events {
-            assert_eq!(event.kind(), expected);
-        }
+    fn event_kind_maps_torrent_variants() {
+        assert_event_kind(
+            &Event::TorrentAdded {
+                torrent_id: Uuid::nil(),
+                name: "demo".into(),
+            },
+            "torrent_added",
+        );
+        assert_event_kind(
+            &Event::FilesDiscovered {
+                torrent_id: Uuid::nil(),
+                files: vec![],
+            },
+            "files_discovered",
+        );
+        assert_event_kind(
+            &Event::Progress {
+                torrent_id: Uuid::nil(),
+                bytes_downloaded: 1,
+                bytes_total: 2,
+            },
+            "progress",
+        );
+        assert_event_kind(
+            &Event::StateChanged {
+                torrent_id: Uuid::nil(),
+                state: TorrentState::Queued,
+            },
+            "state_changed",
+        );
+        assert_event_kind(
+            &Event::Completed {
+                torrent_id: Uuid::nil(),
+                library_path: "/tmp".into(),
+            },
+            "completed",
+        );
+        assert_event_kind(
+            &Event::MetadataUpdated {
+                torrent_id: Uuid::nil(),
+                name: Some("demo".into()),
+                download_dir: Some("/downloads/demo".into()),
+                comment: None,
+                source: None,
+                private: None,
+            },
+            "metadata_updated",
+        );
+        assert_event_kind(
+            &Event::TorrentRemoved {
+                torrent_id: Uuid::nil(),
+            },
+            "torrent_removed",
+        );
+    }
+
+    #[test]
+    fn event_kind_maps_system_variants() {
+        assert_event_kind(
+            &Event::FsopsStarted {
+                torrent_id: Uuid::nil(),
+            },
+            "fsops_started",
+        );
+        assert_event_kind(
+            &Event::FsopsProgress {
+                torrent_id: Uuid::nil(),
+                step: "extract".into(),
+            },
+            "fsops_progress",
+        );
+        assert_event_kind(
+            &Event::FsopsCompleted {
+                torrent_id: Uuid::nil(),
+            },
+            "fsops_completed",
+        );
+        assert_event_kind(
+            &Event::FsopsFailed {
+                torrent_id: Uuid::nil(),
+                message: "err".into(),
+            },
+            "fsops_failed",
+        );
+        assert_event_kind(
+            &Event::SettingsChanged {
+                description: "desc".into(),
+            },
+            "settings_changed",
+        );
+        assert_event_kind(
+            &Event::HealthChanged {
+                degraded: vec!["x".into()],
+            },
+            "health_changed",
+        );
+        assert_event_kind(
+            &Event::SelectionReconciled {
+                torrent_id: Uuid::nil(),
+                reason: "policy".into(),
+            },
+            "selection_reconciled",
+        );
     }
 
     #[test]
@@ -261,6 +269,10 @@ mod tests {
         };
         assert_eq!(envelope.id, 42);
         assert_eq!(envelope.event, event);
+    }
+
+    fn assert_event_kind(event: &Event, expected: &str) {
+        assert_eq!(event.kind(), expected);
     }
 }
 

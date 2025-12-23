@@ -8,7 +8,7 @@
   - API and persistence need to surface new knobs without regressing existing behaviour.
 - Decision:
   - Added engine profile fields for choking (`choking_algorithm`, `seed_choking_algorithm`, `strict_super_seeding`, `optimistic_unchoke_slots`, `max_queued_disk_bytes`) and `super_seeding`.
-  - Normalise/validate values with guard-rail warnings; persist via a single stored-proc update path and migration `0006_choking_and_super_seeding.sql`.
+  - Normalise/validate values with guard-rail warnings; persist via a single stored-proc update path and migration `0006_choking_and_super_seeding.sql` (consolidated into `0001_db_init.sql` per ADR 030).
   - Thread new options through runtime config, FFI structs, and native session (`settings_pack` + per-torrent flags). Per-torrent `super_seeding` overrides are stored with metadata.
   - Updated API models/OpenAPI and added tests covering canonicalisation, clamping, and FFI planning.
 - Consequences:

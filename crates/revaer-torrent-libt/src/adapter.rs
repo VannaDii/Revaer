@@ -11,7 +11,10 @@ use crate::worker;
 use revaer_events::EventBus;
 use revaer_torrent_core::{
     AddTorrent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentEngine, TorrentRateLimit,
-    model::{PieceDeadline, TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
+    model::{
+        PieceDeadline, TorrentAuthorRequest, TorrentAuthorResult, TorrentOptionsUpdate,
+        TorrentTrackersUpdate, TorrentWebSeedsUpdate,
+    },
 };
 
 const COMMAND_BUFFER: usize = 128;
@@ -75,6 +78,17 @@ impl TorrentEngine for LibtorrentEngine {
     async fn add_torrent(&self, request: AddTorrent) -> Result<()> {
         self.send_command(EngineCommand::Add(Box::new(request)))
             .await
+    }
+
+    async fn create_torrent(&self, request: TorrentAuthorRequest) -> Result<TorrentAuthorResult> {
+        let (respond_to, rx) = oneshot::channel();
+        self.send_command(EngineCommand::CreateTorrent {
+            request,
+            respond_to,
+        })
+        .await?;
+        rx.await
+            .map_err(|err| anyhow!("torrent authoring response dropped: {err}"))?
     }
 
     async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> Result<()> {
@@ -223,6 +237,8 @@ mod tests {
             encryption: EncryptionPolicy::Prefer,
             tracker: TrackerRuntimeConfig::default(),
             ip_filter: None,
+            peer_classes: Vec::new(),
+            default_peer_classes: Vec::new(),
         }
     }
 

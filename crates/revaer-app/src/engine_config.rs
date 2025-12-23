@@ -6,7 +6,7 @@
 //! - Keeps encryption mapping centralised to avoid drift between API/config/runtime layers.
 
 use revaer_config::engine_profile::{
-    AltSpeedConfig, ChokingAlgorithm, DiskIoMode, SeedChokingAlgorithm,
+    AltSpeedConfig, ChokingAlgorithm, DiskIoMode, PeerClassesConfig, SeedChokingAlgorithm,
     StorageMode as ConfigStorageMode,
 };
 use revaer_config::{
@@ -23,6 +23,7 @@ use revaer_torrent_libt::{
         AltSpeedRuntimeConfig as RuntimeAltSpeedConfig,
         AltSpeedSchedule as RuntimeAltSpeedSchedule, ChokingAlgorithm as RuntimeChokingAlgorithm,
         DiskIoMode as RuntimeDiskIoMode, OutgoingPortRange as RuntimeOutgoingPortRange,
+        PeerClassRuntimeConfig as RuntimePeerClassConfig,
         SeedChokingAlgorithm as RuntimeSeedChokingAlgorithm, StorageMode as RuntimeStorageMode,
     },
 };
@@ -118,6 +119,8 @@ impl EngineRuntimePlan {
             encryption: map_encryption_policy(effective.network.encryption),
             tracker,
             ip_filter,
+            peer_classes: map_peer_classes(&effective.peer_classes),
+            default_peer_classes: effective.peer_classes.default.clone(),
             super_seeding: bool::from(effective.behavior.super_seeding).into(),
         };
 
@@ -244,6 +247,21 @@ fn map_tracker_auth(config: TrackerAuthConfig) -> TrackerAuthRuntime {
     }
 }
 
+fn map_peer_classes(config: &PeerClassesConfig) -> Vec<RuntimePeerClassConfig> {
+    config
+        .classes
+        .iter()
+        .map(|class| RuntimePeerClassConfig {
+            id: class.id,
+            label: class.label.clone(),
+            download_priority: class.download_priority,
+            upload_priority: class.upload_priority,
+            connection_limit_factor: class.connection_limit_factor,
+            ignore_unchoke_slots: class.ignore_unchoke_slots,
+        })
+        .collect()
+}
+
 const fn map_ipv6_mode(mode: EngineIpv6Mode) -> RuntimeIpv6Mode {
     match mode {
         EngineIpv6Mode::Disabled => RuntimeIpv6Mode::Disabled,
@@ -364,6 +382,7 @@ mod tests {
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             ip_filter: json!({}),
+            peer_classes: json!({}),
         };
         let plan = EngineRuntimePlan::from_profile(&profile);
 
@@ -455,6 +474,7 @@ mod tests {
             dht_bootstrap_nodes: vec!["router.bittorrent.com:6881".into()],
             dht_router_nodes: vec!["dht.transmissionbt.com:6881".into()],
             ip_filter: json!({}),
+            peer_classes: json!({}),
         };
 
         let require = EngineRuntimePlan::from_profile(&base);
@@ -548,6 +568,7 @@ mod tests {
                 "etag": "etag-1",
                 "last_updated_at": "2024-01-01T00:00:00Z"
             }),
+            peer_classes: json!({}),
         };
 
         let plan = EngineRuntimePlan::from_profile(&profile);
@@ -632,6 +653,7 @@ mod tests {
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             ip_filter: json!({}),
+            peer_classes: json!({}),
         };
 
         let plan = EngineRuntimePlan::from_profile(&profile);
@@ -706,6 +728,7 @@ mod tests {
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             ip_filter: json!({}),
+            peer_classes: json!({}),
         };
 
         let plan = EngineRuntimePlan::from_profile(&profile);

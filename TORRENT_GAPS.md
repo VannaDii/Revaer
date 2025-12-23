@@ -210,13 +210,13 @@
     -   [x] FsOps integration: ensure storage layout (partfiles/temp paths) is compatible with post-processing/moves; document expectations.
     -   [x] API/docs/tests: expose safe storage choices; tests to ensure storage options are honored and FsOps can operate on outputs.
 
--   [ ] Peer class/priority tagging supported
+-   [x] Peer class/priority tagging supported
 
-    -   [ ] Config/DB: allow defining peer classes and per-torrent class assignments; validate class IDs/ratios.
-    -   [ ] Runtime/bridge: add peer class info to `EngineRuntimeConfig`/`EngineOptions` and per-torrent options.
-    -   [ ] Native: use libtorrent peer classes (`peer_class_type_filter`, `set_peer_class_filter`, `set_peer_class_type_filter`) and `torrent_handle::set_peer_classes` to set per-peer/per-torrent priorities.
-    -   [ ] API/docs: expose only if needed; document complexity and defaults.
-    -   [ ] Tests: unit tests for class mapping; native test that class assignments apply without error.
+    -   [x] Config/DB: allow defining peer classes and per-torrent class assignments; validate class IDs/ratios.
+    -   [x] Runtime/bridge: add peer class info to `EngineRuntimeConfig`/`EngineOptions` and per-torrent options.
+    -   [x] Native: use libtorrent peer classes (`peer_class_type_filter`, `set_peer_class_filter`, `set_peer_class_type_filter`) and `torrent_handle::set_peer_classes` to set per-peer/per-torrent priorities.
+    -   [x] API/docs: expose only if needed; document complexity and defaults.
+    -   [x] Tests: unit tests for class mapping; native test that class assignments apply without error.
 
 -   [x] Peer view and diagnostics exposed
 
@@ -262,26 +262,26 @@
     -   [x] Native: confirm libtorrent is built with v2 support and accepts hybrid torrents; adjust event mapping if v2-specific metadata arises.
     -   [x] Tests: feature-gated native test adding a v2/hybrid torrent to ensure admission succeeds.
 
--   [ ] Torrent creation (authoring) supported
+-   [x] Torrent creation (authoring) supported
 
-    -   [ ] API: add create-torrent endpoint to build `.torrent`/magnet from local files/dirs with options (piece size, private flag, trackers, web seeds, comment, source).
-    -   [ ] Worker/bridge: introduce command to invoke libtorrent create_torrent; marshal options; return metainfo/magnet.
-    -   [ ] Native: expose create-torrent path via FFI using `lt::create_torrent` + bencode; handle file traversal safely.
-    -   [ ] Tests: API + native tests creating torrents with various options; ensure outputs validate.
+    -   [x] API: add create-torrent endpoint to build `.torrent`/magnet from local files/dirs with options (piece size, private flag, trackers, web seeds, comment, source).
+    -   [x] Worker/bridge: introduce command to invoke libtorrent create_torrent; marshal options; return metainfo/magnet.
+    -   [x] Native: expose create-torrent path via FFI using `lt::create_torrent` + bencode; handle file traversal safely.
+    -   [x] Tests: API + native tests creating torrents with various options; ensure outputs validate.
 
--   [ ] Comments/source/private flag visibility and updates
+-   [x] Comments/source/private flag visibility and updates
 
-    -   [ ] API: surface per-torrent comment/source/private flag in details; allow updates where safe.
-    -   [ ] Worker/bridge: carry comment/source/private flag through add and update paths; for private flag, respect tracker requirements.
-    -   [ ] Native: apply comment/source/private settings via libtorrent structures on add and, where supported, updates.
-    -   [ ] Tests: API + native tests ensuring fields are exposed and updates apply where allowed.
+    -   [x] API: surface per-torrent comment/source/private flag in details; allow updates where safe.
+    -   [x] Worker/bridge: carry comment/source/private flag through add and update paths; for private flag, respect tracker requirements.
+    -   [x] Native: apply comment/source/private settings via libtorrent structures on add and, where supported, updates.
+    -   [x] Tests: API + native tests ensuring fields are exposed and updates apply where allowed.
 
--   [ ] Categories/tags with policy and cleanup
+-   [x] Categories/tags with policy and cleanup
 
-    -   [ ] Domain/API: support categories/tags/labels on torrents; endpoints to list/create/update categories/tags.
-    -   [ ] Policy: allow per-category/tag defaults (paths, rate limits, queue priority, auto-cleanup after ratio/time).
-    -   [ ] Worker/FsOps: apply category/tag-derived settings on add; integrate cleanup policy (remove after criteria) and FsOps paths.
-    -   [ ] Tests: API + worker tests for category/tag behavior; cleanup policy tested against ratio/time thresholds.
+    -   [x] Domain/API: support categories/tags/labels on torrents; endpoints to list/create/update categories/tags.
+    -   [x] Policy: allow per-category/tag defaults (paths, rate limits, queue priority, auto-cleanup after ratio/time).
+    -   [x] Worker/FsOps: apply category/tag-derived settings on add; integrate cleanup policy (remove after criteria) and FsOps paths.
+    -   [x] Tests: API + worker tests for category/tag behavior; cleanup policy tested against ratio/time thresholds.
 
 -   [x] qB-style API surface parity (if required)
 

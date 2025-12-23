@@ -113,7 +113,7 @@ mod tests {
             http_port: 3000,
             bind_addr: "127.0.0.1".parse().expect("bind addr"),
             telemetry: serde_json::json!({}),
-            features: serde_json::json!([]),
+            features: serde_json::json!({}),
             immutable_keys: serde_json::json!([]),
         }
     }
@@ -174,6 +174,7 @@ mod tests {
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             ip_filter: serde_json::json!({}),
+            peer_classes: serde_json::json!({}),
             outgoing_port_min: None,
             outgoing_port_max: None,
             peer_dscp: None,

@@ -13,6 +13,8 @@ namespace revaer {
 struct SessionOptions;
 struct EngineOptions;
 struct AddTorrentRequest;
+struct CreateTorrentRequest;
+struct CreateTorrentResult;
 struct LimitRequest;
 struct UpdateOptionsRequest;
 struct UpdateTrackersRequest;
@@ -21,6 +23,7 @@ struct MoveTorrentRequest;
 struct SelectionRules;
 struct NativeEvent;
 struct EngineStorageState;
+struct EnginePeerClassState;
 struct NativePeerInfo;
 struct NativePeerInfo;
 
@@ -31,6 +34,7 @@ public:
 
     ::rust::String apply_engine_profile(const EngineOptions& options);
     ::rust::String add_torrent(const AddTorrentRequest& request);
+    CreateTorrentResult create_torrent(const CreateTorrentRequest& request);
     ::rust::String remove_torrent(::rust::Str id, bool with_data);
     ::rust::String pause_torrent(::rust::Str id);
     ::rust::String resume_torrent(::rust::Str id);
@@ -46,6 +50,7 @@ public:
     ::rust::String recheck(::rust::Str id);
     ::rust::String set_piece_deadline(::rust::Str id, std::uint32_t piece, std::int32_t deadline_ms, bool has_deadline);
     [[nodiscard]] EngineStorageState inspect_storage_state() const;
+    [[nodiscard]] EnginePeerClassState inspect_peer_class_state() const;
     rust::Vec<NativePeerInfo> list_peers(::rust::Str id);
     rust::Vec<NativeEvent> poll_events();
 

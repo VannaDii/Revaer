@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use revaer_torrent_core::{
-    FilePriorityOverride, FileSelectionRules, StorageMode, TorrentRateLimit,
+    FilePriorityOverride, FileSelectionRules, StorageMode, TorrentCleanupPolicy, TorrentRateLimit,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -63,11 +63,26 @@ pub struct StoredTorrentMetadata {
     /// Tags provided at admission time.
     pub tags: Vec<String>,
     #[serde(default)]
+    /// Optional category assigned at admission time.
+    pub category: Option<String>,
+    #[serde(default)]
+    /// Optional comment captured from torrent metainfo.
+    pub comment: Option<String>,
+    #[serde(default)]
+    /// Optional source label captured from torrent metainfo.
+    pub source: Option<String>,
+    #[serde(default)]
+    /// Private flag captured from torrent metainfo.
+    pub private: Option<bool>,
+    #[serde(default)]
     /// Optional per-torrent peer connection cap recorded at admission.
     pub connections_limit: Option<i32>,
     #[serde(default)]
     /// Optional per-torrent rate caps recorded at admission.
     pub rate_limit: Option<TorrentRateLimit>,
+    #[serde(default)]
+    /// Optional cleanup policy recorded at admission.
+    pub cleanup: Option<TorrentCleanupPolicy>,
     #[serde(default)]
     /// Optional share ratio threshold recorded at admission.
     pub seed_ratio_limit: Option<f64>,
@@ -299,9 +314,18 @@ mod tests {
             web_seeds: vec!["https://seed.example/file".into()],
             replace_web_seeds: false,
             tags: vec!["movies".into(), "hd".into()],
+            category: Some("cinema".into()),
+            comment: Some("release notes".into()),
+            source: Some("revaer".into()),
+            private: Some(true),
             rate_limit: Some(TorrentRateLimit {
                 download_bps: Some(10_000),
                 upload_bps: Some(5_000),
+            }),
+            cleanup: Some(TorrentCleanupPolicy {
+                seed_ratio_limit: Some(2.0),
+                seed_time_limit: Some(7_200),
+                remove_data: true,
             }),
             connections_limit: None,
             seed_ratio_limit: Some(1.0),

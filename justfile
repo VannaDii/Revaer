@@ -44,9 +44,18 @@ udeps:
     fi
 
 audit:
-    if ! command -v cargo-audit >/dev/null 2>&1; then \
-        cargo install cargo-audit --locked; \
-    fi
+    required_audit_version="0.22.0"; \
+    install_audit() { \
+        cargo install cargo-audit --locked --force --version "${required_audit_version}"; \
+    }; \
+    if command -v cargo-audit >/dev/null 2>&1; then \
+        installed_version="$(cargo audit -V | awk 'NR==1 {print $2}')"; \
+        if ! python3 -c 'import sys; parse=lambda v:[int(p) for p in v.split(".")] if v else [0]; inst=parse(sys.argv[1] if len(sys.argv)>1 else ""); req=parse(sys.argv[2] if len(sys.argv)>2 else ""); length=max(len(inst), len(req)); inst+= [0]*(length-len(inst)); req+= [0]*(length-len(req)); sys.exit(0 if inst>=req else 1)' "$installed_version" "$required_audit_version"; then \
+            install_audit; \
+        fi; \
+    else \
+        install_audit; \
+    fi; \
     ignore_args=""; \
     if [ -f .secignore ]; then \
         while IFS= read -r advisory; do \
@@ -59,8 +68,17 @@ audit:
     cargo audit --deny warnings $ignore_args
 
 deny:
-    if ! command -v cargo-deny >/dev/null 2>&1; then \
-        cargo install cargo-deny --locked; \
+    required_deny_version="0.18.9"; \
+    install_deny() { \
+        cargo install cargo-deny --locked --force --version "${required_deny_version}"; \
+    }; \
+    if command -v cargo-deny >/dev/null 2>&1; then \
+        installed_version="$(cargo deny --version | awk 'NR==1 {print $2}')"; \
+        if ! python3 -c 'import sys; parse=lambda v:[int(p) for p in v.split(".")] if v else [0]; inst=parse(sys.argv[1] if len(sys.argv)>1 else ""); req=parse(sys.argv[2] if len(sys.argv)>2 else ""); length=max(len(inst), len(req)); inst+= [0]*(length-len(inst)); req+= [0]*(length-len(req)); sys.exit(0 if inst>=req else 1)' "$installed_version" "$required_deny_version"; then \
+            install_deny; \
+        fi; \
+    else \
+        install_deny; \
     fi
     cargo deny check
 
@@ -69,6 +87,7 @@ cov:
         cargo install cargo-llvm-cov --locked; \
     fi
     rustup component add llvm-tools-preview
+    cargo llvm-cov clean --workspace
     REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}" \
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
         cargo llvm-cov --workspace --fail-under-lines 80
@@ -223,7 +242,15 @@ db-start:
         cargo install sqlx-cli --no-default-features --features postgres; \
     fi; \
     DATABASE_URL="${db_url}" sqlx database create --database-url "${db_url}" 2>/dev/null || true; \
-    DATABASE_URL="${db_url}" sqlx migrate run --database-url "${db_url}" --source crates/revaer-data/migrations
+    if ! DATABASE_URL="${db_url}" sqlx migrate run --database-url "${db_url}" --source crates/revaer-data/migrations; then \
+        if echo "${db_url}" | grep -Eq '@(localhost|127\\.0\\.0\\.1)(:|/)'; then \
+            echo "Migration history mismatch; resetting local database..."; \
+            DATABASE_URL="${db_url}" sqlx database reset -y --database-url "${db_url}" --source crates/revaer-data/migrations; \
+        else \
+            echo "Migration history mismatch for ${db_url}; refusing to reset non-local database."; \
+            exit 1; \
+        fi; \
+    fi
 
 # Seed the dev database with a default API key and sensible defaults for local runs.
 db-seed:

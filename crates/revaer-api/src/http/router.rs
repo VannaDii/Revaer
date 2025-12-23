@@ -10,7 +10,7 @@ use axum::{
     Router,
     http::{HeaderName, Method, Request, header::CONTENT_TYPE},
     middleware,
-    routing::{get, patch, post},
+    routing::{get, patch, post, put},
 };
 use revaer_config::ConfigService;
 use revaer_events::EventBus;
@@ -39,9 +39,10 @@ use crate::http::setup::{setup_complete, setup_start};
 use crate::http::sse::stream_events;
 use crate::http::telemetry::HttpMetricsLayer;
 use crate::http::torrents::handlers::{
-    action_torrent, create_torrent, delete_torrent, get_torrent, list_torrent_peers,
-    list_torrent_trackers, list_torrents, remove_torrent_trackers, select_torrent,
-    update_torrent_options, update_torrent_trackers, update_torrent_web_seeds,
+    action_torrent, create_torrent, create_torrent_authoring, delete_torrent, get_torrent,
+    list_torrent_categories, list_torrent_peers, list_torrent_tags, list_torrent_trackers,
+    list_torrents, remove_torrent_trackers, select_torrent, update_torrent_options,
+    update_torrent_trackers, update_torrent_web_seeds, upsert_torrent_category, upsert_torrent_tag,
 };
 use crate::openapi::OpenApiDependencies;
 
@@ -183,17 +184,28 @@ impl ApiServer {
     }
 
     fn build_router(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
-        let require_setup = middleware::from_fn_with_state(state.clone(), require_setup_token);
-        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+        Self::public_routes()
+            .merge(Self::admin_routes(state))
+            .merge(Self::v1_routes(state))
+    }
 
+    fn public_routes() -> Router<Arc<ApiState>> {
         Router::new()
             .route("/health", get(health))
             .route("/health/full", get(health_full))
             .route("/.well-known/revaer.json", get(well_known))
+            .route("/metrics", get(metrics))
             .route(
-                "/v1/dashboard",
-                get(dashboard).route_layer(require_api.clone()),
+                "/docs/openapi.json",
+                get(crate::http::docs::openapi_document_handler),
             )
+    }
+
+    fn admin_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_setup = middleware::from_fn_with_state(state.clone(), require_setup_token);
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
             .route("/admin/setup/start", post(setup_start))
             .route(
                 "/admin/setup/complete",
@@ -204,16 +216,30 @@ impl ApiServer {
                 patch(settings_patch).route_layer(require_api.clone()),
             )
             .route(
-                "/v1/config",
-                get(get_config_snapshot)
-                    .patch(settings_patch)
-                    .route_layer(require_api.clone()),
-            )
-            .route(
                 "/admin/torrents",
                 get(list_torrents)
                     .post(create_torrent)
                     .route_layer(require_api.clone()),
+            )
+            .route(
+                "/admin/torrents/categories",
+                get(list_torrent_categories).route_layer(require_api.clone()),
+            )
+            .route(
+                "/admin/torrents/categories/{name}",
+                put(upsert_torrent_category).route_layer(require_api.clone()),
+            )
+            .route(
+                "/admin/torrents/tags",
+                get(list_torrent_tags).route_layer(require_api.clone()),
+            )
+            .route(
+                "/admin/torrents/tags/{name}",
+                put(upsert_torrent_tag).route_layer(require_api.clone()),
+            )
+            .route(
+                "/admin/torrents/create",
+                post(create_torrent_authoring).route_layer(require_api.clone()),
             )
             .route(
                 "/admin/torrents/{id}",
@@ -223,13 +249,49 @@ impl ApiServer {
             )
             .route(
                 "/admin/torrents/{id}/peers",
-                get(list_torrent_peers).route_layer(require_api.clone()),
+                get(list_torrent_peers).route_layer(require_api),
+            )
+    }
+
+    fn v1_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
+            .route(
+                "/v1/dashboard",
+                get(dashboard).route_layer(require_api.clone()),
+            )
+            .route(
+                "/v1/config",
+                get(get_config_snapshot)
+                    .patch(settings_patch)
+                    .route_layer(require_api.clone()),
             )
             .route(
                 "/v1/torrents",
                 get(list_torrents)
                     .post(create_torrent)
                     .route_layer(require_api.clone()),
+            )
+            .route(
+                "/v1/torrents/categories",
+                get(list_torrent_categories).route_layer(require_api.clone()),
+            )
+            .route(
+                "/v1/torrents/categories/{name}",
+                put(upsert_torrent_category).route_layer(require_api.clone()),
+            )
+            .route(
+                "/v1/torrents/tags",
+                get(list_torrent_tags).route_layer(require_api.clone()),
+            )
+            .route(
+                "/v1/torrents/tags/{name}",
+                put(upsert_torrent_tag).route_layer(require_api.clone()),
+            )
+            .route(
+                "/v1/torrents/create",
+                post(create_torrent_authoring).route_layer(require_api.clone()),
             )
             .route(
                 "/v1/torrents/{id}",
@@ -273,11 +335,6 @@ impl ApiServer {
             .route(
                 "/v1/torrents/events",
                 get(stream_events).route_layer(require_api),
-            )
-            .route("/metrics", get(metrics))
-            .route(
-                "/docs/openapi.json",
-                get(crate::http::docs::openapi_document_handler),
             )
     }
 

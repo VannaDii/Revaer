@@ -89,6 +89,8 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
         encryption: EncryptionPolicy::Prefer,
         tracker: TrackerRuntimeConfig::default(),
         ip_filter: None,
+        peer_classes: Vec::new(),
+        default_peer_classes: Vec::new(),
         super_seeding: false.into(),
     };
     engine

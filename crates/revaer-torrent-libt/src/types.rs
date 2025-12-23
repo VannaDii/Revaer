@@ -138,6 +138,10 @@ pub struct EngineRuntimeConfig {
     pub tracker: TrackerRuntimeConfig,
     /// IP filter and optional remote blocklist configuration.
     pub ip_filter: Option<IpFilterRuntimeConfig>,
+    /// Custom peer classes configured for the session.
+    pub peer_classes: Vec<PeerClassRuntimeConfig>,
+    /// Default peer class ids applied to new torrents when no override is given.
+    pub default_peer_classes: Vec<u8>,
 }
 
 /// IPv6 preference policy applied at runtime.
@@ -171,6 +175,23 @@ pub enum StorageMode {
     Sparse,
     /// Pre-allocate full files.
     Allocate,
+}
+
+/// Peer class definition propagated to the native layer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PeerClassRuntimeConfig {
+    /// Stable identifier for the class (0-31).
+    pub id: u8,
+    /// Optional human-readable label.
+    pub label: String,
+    /// Download bandwidth priority (1-255).
+    pub download_priority: u8,
+    /// Upload bandwidth priority (1-255).
+    pub upload_priority: u8,
+    /// Connection limit factor applied to this class.
+    pub connection_limit_factor: u16,
+    /// Whether to ignore unchoke slot limits for this class.
+    pub ignore_unchoke_slots: bool,
 }
 
 /// Disk IO cache policy for reads and writes.

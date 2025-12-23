@@ -41,6 +41,8 @@ pub struct EngineProfileEffective {
     pub alt_speed: AltSpeedConfig,
     /// Tracker configuration payload (validated to an object).
     pub tracker: Value,
+    /// Peer class configuration applied to the engine.
+    pub peer_classes: PeerClassesConfig,
     /// Guard-rail or normalisation warnings applied to the profile.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub warnings: Vec<String>,
@@ -501,6 +503,56 @@ pub struct TrackerConfig {
     pub auth: Option<TrackerAuthConfig>,
 }
 
+/// Peer class definition applied to the engine session.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PeerClassConfig {
+    /// Stable class identifier (0–31).
+    pub id: u8,
+    /// Optional human-readable label.
+    pub label: String,
+    /// Download bandwidth allocation priority (1–255).
+    pub download_priority: u8,
+    /// Upload bandwidth allocation priority (1–255).
+    pub upload_priority: u8,
+    /// Connection limit factor applied to this class (percentage multiplier).
+    pub connection_limit_factor: u16,
+    /// Whether unchoke slots should be ignored for this class.
+    #[serde(default)]
+    pub ignore_unchoke_slots: bool,
+}
+
+impl Default for PeerClassConfig {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            label: "class_0".to_string(),
+            download_priority: 1,
+            upload_priority: 1,
+            connection_limit_factor: 100,
+            ignore_unchoke_slots: false,
+        }
+    }
+}
+
+/// Aggregated peer class configuration including defaults.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct PeerClassesConfig {
+    /// Class definitions keyed by id.
+    #[serde(default)]
+    pub classes: Vec<PeerClassConfig>,
+    /// Default class ids applied when none are specified.
+    #[serde(default)]
+    pub default: Vec<u8>,
+}
+
+impl PeerClassesConfig {
+    /// Convert the typed configuration into a JSON payload for persistence.
+    #[must_use]
+    pub fn to_value(&self) -> Value {
+        json!(self)
+    }
+}
+
 impl TrackerConfig {
     /// Convert the typed config into a JSON object for persistence/effective views.
     #[must_use]
@@ -650,6 +702,7 @@ pub(crate) fn validate_engine_profile_patch(
             .outgoing_ports
             .map(|range| i32::from(range.end)),
         peer_dscp: effective.network.peer_dscp.map(i32::from),
+        peer_classes: effective.peer_classes.to_value(),
     };
     let mutated = touched || stored != *current;
 
@@ -678,6 +731,7 @@ fn normalize_engine_profile_with_warnings(
     let tracker = sanitize_tracker(&profile.tracker, &mut warnings);
     let (dht_bootstrap_nodes, dht_router_nodes) = sanitize_dht_endpoints(profile, &mut warnings);
     let ip_filter = sanitize_ip_filter(&profile.ip_filter, &mut warnings);
+    let peer_classes = sanitize_peer_classes(&profile.peer_classes, &mut warnings);
     let (outgoing_ports, peer_dscp) = sanitize_network_overrides(profile, &mut warnings);
     let encryption = canonical_encryption(&profile.encryption, &mut warnings);
     let tracker_proxy_present = serde_json::from_value::<TrackerConfig>(tracker.clone())
@@ -727,6 +781,7 @@ fn normalize_engine_profile_with_warnings(
         },
         alt_speed,
         tracker,
+        peer_classes,
         warnings,
     }
 }
@@ -1136,6 +1191,9 @@ fn apply_field(
     if let Some(applied) = apply_tracker_field(working, key, value)? {
         return Ok(applied);
     }
+    if let Some(applied) = apply_peer_class_field(working, key, value, warnings)? {
+        return Ok(applied);
+    }
     Err(ConfigError::UnknownField {
         section: "engine_profile".to_string(),
         field: key.to_string(),
@@ -1175,6 +1233,29 @@ fn apply_privacy_field(
         _ => None,
     };
     Ok(applied)
+}
+
+fn apply_peer_class_field(
+    working: &mut EngineProfile,
+    key: &str,
+    value: &Value,
+    warnings: &mut Vec<String>,
+) -> Result<Option<bool>, ConfigError> {
+    if key != "peer_classes" {
+        return Ok(None);
+    }
+    if !value.is_object() {
+        return Err(ConfigError::InvalidField {
+            section: "engine_profile".to_string(),
+            field: "peer_classes".to_string(),
+            message: "peer_classes must be an object".to_string(),
+        });
+    }
+    let sanitized = sanitize_peer_classes(value, warnings).to_value();
+    Ok(Some(assign_if_changed(
+        &mut working.peer_classes,
+        sanitized,
+    )))
 }
 
 fn apply_network_field(
@@ -2778,6 +2859,154 @@ fn sanitize_tracker(value: &Value, warnings: &mut Vec<String>) -> Value {
     }
 }
 
+fn sanitize_peer_classes(value: &Value, warnings: &mut Vec<String>) -> PeerClassesConfig {
+    let Some(map) = value.as_object() else {
+        warnings.push("peer_classes must be an object; ignoring payload".to_string());
+        return PeerClassesConfig::default();
+    };
+
+    let classes = collect_peer_class_entries(map, warnings);
+    let default = collect_default_peer_classes(map, &classes, warnings);
+
+    PeerClassesConfig { classes, default }
+}
+
+fn collect_peer_class_entries(
+    map: &Map<String, Value>,
+    warnings: &mut Vec<String>,
+) -> Vec<PeerClassConfig> {
+    let mut classes = Vec::new();
+    if let Some(entries) = map.get("classes").and_then(Value::as_array) {
+        for entry in entries {
+            if let Some(class) = parse_peer_class_entry(entry, warnings) {
+                classes.push(class);
+            }
+        }
+    }
+
+    let mut seen = HashSet::new();
+    classes.retain(|class| seen.insert(class.id));
+    classes.sort_by_key(|class| class.id);
+    classes
+}
+
+fn parse_peer_class_entry(entry: &Value, warnings: &mut Vec<String>) -> Option<PeerClassConfig> {
+    let Some(obj) = entry.as_object() else {
+        warnings.push("peer_classes.classes entry must be an object; skipping".to_string());
+        return None;
+    };
+    let Some(id_value) = obj.get("id").and_then(Value::as_i64) else {
+        warnings.push("peer_classes.classes entry missing id; skipping".to_string());
+        return None;
+    };
+    if !(0..=31).contains(&id_value) {
+        warnings.push(format!(
+            "peer_classes id {id_value} out of range 0..31; skipping entry"
+        ));
+        return None;
+    }
+    let Ok(id) = u8::try_from(id_value) else {
+        warnings.push(format!(
+            "peer_classes id {id_value} could not be represented as u8; skipping entry"
+        ));
+        return None;
+    };
+
+    let label = obj
+        .get("label")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let download_priority =
+        clamp_priority(obj.get("download_priority"), "download_priority", warnings);
+    let upload_priority = clamp_priority(obj.get("upload_priority"), "upload_priority", warnings);
+    let connection_limit_factor =
+        sanitize_connection_limit_factor(obj.get("connection_limit_factor"), warnings);
+    let ignore_unchoke_slots = obj
+        .get("ignore_unchoke_slots")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
+    let label = if label.is_empty() {
+        format!("class_{id}")
+    } else {
+        label
+    };
+
+    Some(PeerClassConfig {
+        id,
+        label,
+        download_priority,
+        upload_priority,
+        connection_limit_factor,
+        ignore_unchoke_slots,
+    })
+}
+
+fn sanitize_connection_limit_factor(value: Option<&Value>, warnings: &mut Vec<String>) -> u16 {
+    value
+        .and_then(Value::as_i64)
+        .map(|raw| raw.max(1))
+        .map_or(100, |raw| {
+            u16::try_from(raw).unwrap_or_else(|_| {
+                warnings.push(format!(
+                    "peer_classes.connection_limit_factor {raw} out of range; clamping to u16::MAX"
+                ));
+                u16::MAX
+            })
+        })
+}
+
+fn collect_default_peer_classes(
+    map: &Map<String, Value>,
+    classes: &[PeerClassConfig],
+    warnings: &mut Vec<String>,
+) -> Vec<u8> {
+    let mut defaults = Vec::new();
+    if let Some(entries) = map.get("default").and_then(Value::as_array) {
+        for entry in entries {
+            if let Some(id) = entry.as_i64() {
+                if (0..=31).contains(&id) {
+                    let Ok(id_u8) = u8::try_from(id) else {
+                        warnings.push(format!(
+                            "peer_classes.default entry {id} could not be represented as u8; skipping"
+                        ));
+                        continue;
+                    };
+                    if classes.iter().any(|class| class.id == id_u8) {
+                        defaults.push(id_u8);
+                    } else {
+                        warnings.push(format!(
+                            "peer_classes.default contains undefined id {id}; skipping"
+                        ));
+                    }
+                } else {
+                    warnings.push(format!(
+                        "peer_classes.default contains invalid or undefined id {id}; skipping"
+                    ));
+                }
+            }
+        }
+    }
+    defaults.sort_unstable();
+    defaults.dedup();
+    defaults
+}
+
+fn clamp_priority(value: Option<&Value>, field: &str, warnings: &mut Vec<String>) -> u8 {
+    match value.and_then(Value::as_i64) {
+        Some(priority) if (1..=255).contains(&priority) => u8::try_from(priority).unwrap_or(1),
+        Some(priority) => {
+            warnings.push(format!(
+                "peer_classes.{field} {priority} out of range 1..255; clamping to 1"
+            ));
+            1
+        }
+        None => 1,
+    }
+}
+
 fn assign_if_changed<T>(target: &mut T, value: T) -> bool
 where
     T: PartialEq + Clone,
@@ -2856,6 +3085,7 @@ mod tests {
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             ip_filter: json!({}),
+            peer_classes: json!({}),
         }
     }
 
@@ -2997,6 +3227,31 @@ mod tests {
         assert!(mutation.effective.network.enable_upnp.is_enabled());
         assert!(mutation.effective.network.enable_natpmp.is_enabled());
         assert!(mutation.effective.network.enable_pex.is_enabled());
+    }
+
+    #[test]
+    fn peer_classes_are_sanitized_and_sorted() {
+        let profile = sample_profile();
+        let patch = json!({
+            "peer_classes": {
+                "classes": [
+                    { "id": 2, "label": "gold", "download_priority": 5, "upload_priority": 6, "connection_limit_factor": 150, "ignore_unchoke_slots": true },
+                    { "id": 1, "label": " ", "download_priority": 300, "upload_priority": 0, "connection_limit_factor": 0 }
+                ],
+                "default": [2, 99, 1]
+            }
+        });
+        let result = validate_engine_profile_patch(&profile, &patch, &HashSet::new())
+            .expect("peer_classes patch valid");
+        let effective = result.effective.peer_classes;
+        assert_eq!(effective.classes.len(), 2);
+        assert_eq!(effective.classes[0].id, 1);
+        assert_eq!(effective.classes[0].label, "class_1");
+        assert_eq!(effective.classes[0].download_priority, 1);
+        assert_eq!(effective.classes[0].upload_priority, 1);
+        assert_eq!(effective.classes[1].id, 2);
+        assert!(effective.classes[1].ignore_unchoke_slots);
+        assert_eq!(effective.default, vec![1, 2]);
     }
 
     #[test]

@@ -3,12 +3,12 @@
 
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::engine_config::EngineRuntimePlan;
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::{Client, header::IF_NONE_MATCH};
@@ -25,10 +25,13 @@ use revaer_torrent_core::{
     AddTorrent, FilePriority, FileSelectionUpdate, RemoveTorrent, TorrentEngine, TorrentFile,
     TorrentInspector, TorrentProgress, TorrentRateLimit, TorrentRates, TorrentStatus,
     TorrentWorkflow,
-    model::{PeerSnapshot, TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
+    model::{
+        PeerSnapshot, TorrentAuthorRequest, TorrentAuthorResult, TorrentOptionsUpdate,
+        TorrentTrackersUpdate, TorrentWebSeedsUpdate,
+    },
 };
 use revaer_torrent_libt::{IpFilterRule as RuntimeIpFilterRule, IpFilterRuntimeConfig};
-use serde_json::json;
+use serde_json::{Value, json};
 use tokio::{sync::RwLock, task::JoinHandle};
 use tokio_stream::StreamExt;
 use tracing::{error, info, warn};
@@ -145,6 +148,16 @@ where
         self.engine.add_torrent(request).await
     }
 
+    /// Author a new `.torrent` metainfo payload via the engine.
+    pub(crate) async fn create_torrent(
+        &self,
+        request: TorrentAuthorRequest,
+    ) -> Result<TorrentAuthorResult> {
+        self.ensure_authoring_path_allowed(&request.root_path)
+            .await?;
+        self.engine.create_torrent(request).await
+    }
+
     /// Apply the filesystem policy to a completed torrent.
     pub(crate) async fn apply_fsops(&self, torrent_id: Uuid) -> Result<()> {
         let policy = self.fs_policy.read().await.clone();
@@ -163,6 +176,12 @@ where
             source_path: &source_path,
             policy: &policy,
         })
+    }
+
+    async fn ensure_authoring_path_allowed(&self, root: &str) -> Result<()> {
+        let policy = self.fs_policy.read().await.clone();
+        let root_path = PathBuf::from(root);
+        enforce_allow_paths(&root_path, &policy.allow_paths)
     }
 
     async fn handle_event(&self, event: &Event) -> Result<()> {
@@ -661,6 +680,13 @@ where
         Self::add_torrent(self, request).await
     }
 
+    async fn create_torrent(
+        &self,
+        request: TorrentAuthorRequest,
+    ) -> anyhow::Result<TorrentAuthorResult> {
+        Self::create_torrent(self, request).await
+    }
+
     async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> anyhow::Result<()> {
         Self::remove_torrent(self, id, options).await
     }
@@ -794,6 +820,9 @@ impl TorrentCatalog {
             files: None,
             library_path: None,
             download_dir: None,
+            comment: None,
+            source: None,
+            private: None,
             sequential: false,
             added_at: now,
             completed_at: None,
@@ -845,12 +874,18 @@ impl TorrentCatalog {
                 torrent_id,
                 name,
                 download_dir,
+                comment,
+                source,
+                private,
             } => {
                 Self::record_metadata(
                     entries,
                     *torrent_id,
                     name.as_deref(),
                     download_dir.as_deref(),
+                    comment.as_deref(),
+                    source.as_deref(),
+                    *private,
                 );
             }
             Event::TorrentRemoved { torrent_id } => {
@@ -884,6 +919,9 @@ impl TorrentCatalog {
         entry.state = TorrentState::Queued;
         entry.progress = TorrentProgress::default();
         entry.library_path = None;
+        entry.comment = None;
+        entry.source = None;
+        entry.private = None;
         entry.rates = TorrentRates::default();
         entry.added_at = now;
         entry.last_updated = now;
@@ -894,6 +932,9 @@ impl TorrentCatalog {
         torrent_id: Uuid,
         name: Option<&str>,
         download_dir: Option<&str>,
+        comment: Option<&str>,
+        source: Option<&str>,
+        private: Option<bool>,
     ) {
         let entry = Self::ensure_entry(entries, torrent_id);
         if let Some(name) = name {
@@ -901,6 +942,15 @@ impl TorrentCatalog {
         }
         if let Some(download_dir) = download_dir {
             entry.download_dir = Some(download_dir.to_owned());
+        }
+        if let Some(comment) = comment {
+            entry.comment = Some(comment.to_owned());
+        }
+        if let Some(source) = source {
+            entry.source = Some(source.to_owned());
+        }
+        if private.is_some() {
+            entry.private = private;
         }
         entry.last_updated = Utc::now();
     }
@@ -1014,6 +1064,52 @@ const fn bytes_to_f64(value: u64) -> f64 {
     }
 }
 
+fn enforce_allow_paths(root: &Path, allow_paths: &Value) -> Result<()> {
+    let allows = parse_path_list(allow_paths)?;
+    if allows.is_empty() {
+        return Ok(());
+    }
+
+    if allows.iter().any(|allow| root.starts_with(allow)) {
+        return Ok(());
+    }
+
+    let root_abs = root.canonicalize().unwrap_or_else(|_| root.to_path_buf());
+    for allow in &allows {
+        let allow_abs = allow.canonicalize().unwrap_or_else(|_| allow.clone());
+        if root_abs.starts_with(&allow_abs) {
+            return Ok(());
+        }
+    }
+
+    ensure!(
+        false,
+        "authoring root {} is not permitted by fs policy allow_paths",
+        root_abs.display()
+    );
+    Ok(())
+}
+
+fn parse_path_list(value: &Value) -> Result<Vec<PathBuf>> {
+    match value {
+        Value::Array(entries) => entries
+            .iter()
+            .map(|entry| match entry {
+                Value::String(path) if !path.trim().is_empty() => Ok(PathBuf::from(path)),
+                Value::String(_) => Err(anyhow!("allow path entries cannot be empty")),
+                other => Err(anyhow!(
+                    "allow path entries must be strings (found {other:?})"
+                )),
+            })
+            .collect(),
+        Value::Null => Ok(Vec::new()),
+        Value::Object(obj) if obj.is_empty() => Ok(Vec::new()),
+        other => Err(anyhow!(
+            "allow_paths must be an array of strings (found {other:?})"
+        )),
+    }
+}
+
 #[cfg(test)]
 mod orchestrator_tests {
     use super::*;
@@ -1121,6 +1217,7 @@ mod orchestrator_tests {
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             ip_filter: json!({}),
+            peer_classes: json!({}),
             outgoing_port_min: None,
             outgoing_port_max: None,
             peer_dscp: None,
@@ -1404,6 +1501,7 @@ mod engine_refresh_tests {
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
             ip_filter: json!({}),
+            peer_classes: json!({}),
             outgoing_port_min: None,
             outgoing_port_max: None,
             peer_dscp: None,
@@ -1660,7 +1758,10 @@ mod engine_refresh_tests {
             event_torrent_id(&Event::MetadataUpdated {
                 torrent_id: id,
                 name: None,
-                download_dir: Some("/downloads/demo".into())
+                download_dir: Some("/downloads/demo".into()),
+                comment: None,
+                source: None,
+                private: None,
             }),
             Some(id)
         );

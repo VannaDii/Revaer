@@ -17,18 +17,11 @@
 //! Binary entrypoint that wires the Revaer services together and launches the
 //! async orchestrators.
 
-#[cfg(feature = "libtorrent")]
-pub mod orchestrator;
-
-/// Application bootstrap wiring.
-pub mod bootstrap;
-/// Engine profile normalisation and runtime mapping.
-#[cfg(feature = "libtorrent")]
-pub mod engine_config;
 use anyhow::Result;
+use revaer_app::run_app;
 
 /// Bootstraps the Revaer application and blocks until shutdown.
 #[tokio::main]
 async fn main() -> Result<()> {
-    bootstrap::run_app().await
+    run_app().await
 }
