@@ -1,0 +1,13 @@
+[package]
+name = "asset_sync"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+authors = ["Revaer Contributors"]
+publish = false
+
+[dependencies]
+anyhow = { workspace = true }
+fs_extra = "1.3"
+sha2 = "0.10"
+walkdir = { workspace = true }

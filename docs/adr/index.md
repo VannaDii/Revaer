@@ -33,6 +33,7 @@ ADR documents capture the rationale behind significant technical decisions.
 - [028](028-qbittorrent-parity-and-tracker-tls.md) – qBittorrent parity and tracker TLS wiring
 - [029](029-torrent-authoring-labels-and-metadata.md) – Torrent authoring, labels, and metadata updates
 - [030](030-migration-consolidation.md) – Migration consolidation for initial setup
+- [031](031-ui-asset-sync.md) – UI Nexus asset sync tooling
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

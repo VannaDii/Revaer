@@ -1,0 +1,27 @@
+# UI Nexus Asset Sync Tooling
+
+- Status: Accepted
+- Date: 2025-12-23
+- Context:
+  - The UI consumes Nexus HTML/CSS/JS as vendored, compiled assets with no JS toolchain in dev/CI.
+  - We need deterministic sync of vendor CSS, images, and JS into `crates/revaer-ui/static/` so Trunk can serve them.
+  - Output consistency must be verifiable in CI without relying on external asset pipelines.
+- Decision:
+  - Add a Rust CLI tool (`asset_sync`) that copies Nexus assets into `static/nexus`, validates the CSS, and writes a lock file.
+  - Wire the tool into `just` so `dev`, `build`, and CI checks always run the sync first.
+  - Update the UI entry HTML to copy the full static directory and load Nexus `app.css` directly.
+- Dependency rationale:
+  - `anyhow`: simplify CLI error propagation in the binary entrypoint; alternative was manual error mapping.
+  - `fs_extra`: reliable directory copy with overwrite semantics; alternative was a bespoke recursive copy.
+  - `sha2`: compute SHA-256 for `ASSET_LOCK.txt`; no standard library equivalent exists.
+  - `walkdir`: collect deterministic file counts/bytes for lock metadata; alternative was manual recursion.
+- Test coverage summary:
+  - Added unit tests for successful sync + lock creation and CSS validation failures in `crates/revaer-ui/tools/asset_sync/src/lib.rs`.
+- Observability updates:
+  - None. The tool reports failures via exit status and error messages.
+- Risk & rollback plan:
+  - Risk: incorrect vendor paths or corrupted outputs. Mitigation: sanity-check the CSS and lock file.
+  - Rollback: rerun `just sync-assets` or revert `static/nexus` changes in version control.
+- Follow-up:
+  - Ensure CI runs `just check-assets` on changes touching `ui_vendor` or `static/nexus`.
+  - Revisit the sync paths if the Nexus vendor layout changes.

@@ -25,7 +25,7 @@ test-features-min:
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
         cargo --config 'build.rustflags=["-Dwarnings"]' test -p revaer-app --no-default-features
 
-build:
+build: sync-assets
     cargo build --workspace --all-targets --all-features
 
 build-release:
@@ -111,7 +111,7 @@ ci:
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}"
     export REVAER_TEST_DATABASE_URL DATABASE_URL
     just db-start
-    just fmt lint udeps audit deny test test-features-min cov
+    just fmt lint check-assets udeps audit deny ui-build test test-features-min cov
 
 docker-build:
     platforms="${PLATFORMS:-linux/amd64,linux/arm64}"; \
@@ -141,21 +141,27 @@ docker-scan:
     fi
     trivy image --exit-code 1 --severity HIGH,CRITICAL revaer:ci
 
-ui-serve:
+sync-assets:
+    cargo run -p asset_sync
+
+check-assets: sync-assets
+    git diff --exit-code -- static/nexus
+
+ui-serve: sync-assets
     rustup target add wasm32-unknown-unknown
     if ! command -v trunk >/dev/null 2>&1; then \
         cargo install trunk; \
     fi
     cd crates/revaer-ui && trunk serve --open
 
-ui-build:
+ui-build: sync-assets
     rustup target add wasm32-unknown-unknown
     if ! command -v trunk >/dev/null 2>&1; then \
         cargo install trunk; \
     fi
     cd crates/revaer-ui && trunk build --release
 
-dev:
+dev: sync-assets
     just db-start
     db_url="${DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"; \
     for port in 7070 8080; do \

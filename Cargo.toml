@@ -14,6 +14,7 @@ members = [
     "crates/revaer-data",
     "crates/revaer-test-support",
     "crates/revaer-ui",
+    "crates/revaer-ui/tools/asset_sync",
 ]
 resolver = "2"
 

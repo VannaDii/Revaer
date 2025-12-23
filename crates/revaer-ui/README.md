@@ -15,6 +15,14 @@ Rust + Yew implementation of the Phase 1 Web UI. The crate builds to WebAssembly
    ```
    This reads `Trunk.toml`, builds `revaer-ui` for `wasm32-unknown-unknown`, and watches for changes.
 
+## Frontend Asset & Component Policy
+
+- Client-side JS files are allowed at runtime, but no npm/node/yarn/pnpm/vite/tailwind CLI is permitted in dev, CI, or release pipelines.
+- Nexus is treated as a vendored compiled asset kit; consume `app.css` and vendor JS as static files.
+- Component structure follows atomic design in `src/components/daisy/{atoms,molecules,organisms,templates}`; page-level views live under `src/features/*/view.rs`.
+- For new UI components, consult DaisyUI Blueprint and the Nexus HTML templates; if they differ, Nexus markup wins for visual parity.
+- JS-dependent Nexus behaviors must be gated behind an explicit prop (for example, `enable_js`) and documented; prefer small, deterministic Yew interactions when possible.
+
 ## Layout Highlights
 
 - Breakpoints: xs (0–479), sm (480–767), md (768–1023), lg (1024–1439), xl (1440–1919), 2xl (1920+).
