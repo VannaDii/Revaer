@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-d907f44c.js";
+            window.path_to_searchindex_js = "../searchindex-1b56cd91.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-285d88ed.js"></script>
@@ -189,8 +189,8 @@ export REVAER_NATIVE_IT=1
 # Run the full gate (preferred)
 just ci
 
-# Or target only the libtorrent crate tests
-cargo test -p revaer-torrent-libt --all-features
+# Or target only the libtorrent native suite
+just test-native
 </code></pre>
 <p>CI note: add a matrix job that sets <code>REVAER_NATIVE_IT=1</code> and points <code>DOCKER_HOST</code> at the runner’s daemon to ensure the native path stays covered.</p>
 

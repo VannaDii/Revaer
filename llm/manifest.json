@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2025-12-23T20:26:32.674653151+00:00",
+  "generated": "2025-12-24T19:39:02.187874234+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -287,6 +287,76 @@
       "href": "/adr/030-migration-consolidation/"
     },
     {
+      "id": "adr/031-ui-asset-sync",
+      "title": "UI Nexus Asset Sync Tooling",
+      "summary": "Status: Accepted Date: 2025-12-23 Context: The UI consumes Nexus HTML/CSS/JS as vendored, compiled assets with no JS toolchain in dev/CI. We need deterministic sync of vendor CSS, images, and JS into crates/revaer-ui/static/ so Trunk can serve them. Output consistency must be verifiable in CI without relying on external asset pipelines. Decision: Add a Rust CLI tool (asset_sync) that copies Nexus assets into static/nexus, validates the CSS, and writes a lock file. Wire the tool into just so dev, build, and CI checks always run the sync first. Update the UI entry HTML to copy the full static directory and load",
+      "tags": [],
+      "href": "/adr/031-ui-asset-sync/"
+    },
+    {
+      "id": "adr/032-torrent-ffi-audit-closeout",
+      "title": "Torrent FFI Audit Closeout",
+      "summary": "Status: Accepted Date: 2025-12-23 Context: The torrent FFI audit identified drift between API/runtime/FFI/native behavior (metadata updates, seed limits, proxy handling, IPv6 mode) and missing CI coverage for native tests. The engine must remain a thin wrapper around libtorrent; unsupported knobs must be rejected early, and native settings must be auditable. Decision: Reject unsupported metadata and per-torrent seed limit updates at the API boundary. Remove Rust-side seeding enforcement and rely on native session settings only. Enforce libtorrent version checks at build time and fail when unsupported. Add native settings inspection hooks and native integration tests for proxy auth, seed limits, and",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/032-torrent-ffi-audit-closeout/"
+    },
+    {
+      "id": "adr/033-ui-sse-auth-setup",
+      "title": "UI SSE + Auth/Setup Wiring",
+      "summary": "Status: Accepted Date: 2025-12-24 Context: Motivation: finalize first-run setup gating and SSE updates while keeping auth headers on every request. Constraints: EventSource cannot set headers; SSE must fall back cleanly; avoid new dependencies. Decision: Implement a fetch-stream SSE runner with AbortController, bounded backoff, and fallback endpoint selection. Parse SSE frames into typed envelopes when possible and throttle list refreshes when updates are incomplete. Keep auth/setup flow in app state and attach API key or Basic auth for SSE streams. Alternatives considered: EventSource with query param auth, periodic polling, or WebSockets (rejected for header limitations or higher complexity). Consequences: Positive outcomes:",
+      "tags": [],
+      "href": "/adr/033-ui-sse-auth-setup/"
+    },
+    {
+      "id": "adr/034-ui-sse-store-apiclient",
+      "title": "UI SSE normalization, progress coalescing, and ApiClient singleton",
+      "summary": "Status: Accepted Date: 2025-12-24 Context: The UI SSE pipeline needed legacy payload normalization, replay support, and render-friendly progress handling. App state was still split across use_state, and API clients were being constructed per call. The dashboard checklist requires a single SSE reducer path and a singleton ApiClient via context. Decision: Normalize SSE payloads into UiEventEnvelope and route all updates through one reducer path in the app shell. Persist and replay Last-Event-ID, add SSE query filters derived from store state, and coalesce progress updates on a fixed cadence. Introduce an ApiCtx context that owns a single ApiClient instance with mutable auth",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/034-ui-sse-store-apiclient/"
+    },
+    {
+      "id": "adr/035-advisory-rustsec-2021-0065",
+      "title": "Advisory RUSTSEC-2021-0065 Temporary Ignore",
+      "summary": "Status: Accepted Date: 2025-12-24 Context: The UI depends on yewdux, which transitively pulls anymap and triggers advisory RUSTSEC-2021-0065 (unmaintained). There is no maintained replacement for anymap within the pinned yewdux 0.9.x line, and upgrading yewdux would require a Yew major upgrade. cargo-audit is configured to deny warnings, so ignoring the advisory requires explicit documentation and a remediation plan. Decision: Add RUSTSEC-2021-0065 to .secignore while yewdux requires anymap. Track yewdux upgrades or alternatives that remove anymap and remove the ignore when available. No runtime mitigation is required beyond limiting use to the UI state store. Consequences: CI remains green while upstream",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/035-advisory-rustsec-2021-0065/"
+    },
+    {
+      "id": "adr/036-asset-sync-test-stability",
+      "title": "Asset sync test stability under parallel runs",
+      "summary": "Status: Accepted Date: 2025-12-24 Context: cargo llvm-cov runs tests in parallel and surfaced a flaky asset_sync test. The temp directory helper used timestamp-based names that could collide under parallel execution. CI requires just ci (including coverage) to pass reliably without intermittent failures. Decision: Replace the time-based temp directory naming with a process id + atomic counter. Retry on AlreadyExists to ensure unique per-test directories without new dependencies. Consequences: Asset sync tests are deterministic under parallel runners and coverage instrumentation. No new crates or runtime behavior changes. Follow-up: None.",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/036-asset-sync-test-stability/"
+    },
+    {
       "id": "adr/index",
       "title": "Architecture Decision Records",
       "summary": "ADR documents capture the rationale behind significant technical decisions.",
@@ -441,7 +511,7 @@
     {
       "id": "platform/native-tests",
       "title": "Native Libtorrent Integration Tests",
-      "summary": "These tests are opt-in (gated by REVAER_NATIVE_IT) to keep the default matrix deterministic; include them explicitly in feature-matrix runs. To run the feature-gated native libtorrent integration suite locally: export DOCKER_HOST=${DOCKER_HOST:-unix:///Users/vanna/.colima/default/docker.sock} export REVAER_NATIVE_IT=1 just ci cargo test -p revaer-torrent-libt --all-features CI note: add a matrix job that sets REVAER_NATIVE_IT=1 and points DOCKER_HOST at the runner’s daemon to ensure the native path stays covered.",
+      "summary": "These tests are opt-in (gated by REVAER_NATIVE_IT) to keep the default matrix deterministic; include them explicitly in feature-matrix runs. To run the feature-gated native libtorrent integration suite locally: export DOCKER_HOST=${DOCKER_HOST:-unix:///Users/vanna/.colima/default/docker.sock} export REVAER_NATIVE_IT=1 just ci just test-native CI note: add a matrix job that sets REVAER_NATIVE_IT=1 and points DOCKER_HOST at the runner’s daemon to ensure the native path stays covered.",
       "tags": [],
       "href": "/platform/native-tests/"
     },

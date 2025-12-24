@@ -36,7 +36,7 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-d907f44c.js";
+            window.path_to_searchindex_js = "searchindex-1b56cd91.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-285d88ed.js"></script>
@@ -1115,8 +1115,8 @@ export REVAER_NATIVE_IT=1
 # Run the full gate (preferred)
 just ci
 
-# Or target only the libtorrent crate tests
-cargo test -p revaer-torrent-libt --all-features
+# Or target only the libtorrent native suite
+just test-native
 </code></pre>
 <p>CI note: add a matrix job that sets <code>REVAER_NATIVE_IT=1</code> and points <code>DOCKER_HOST</code> at the runner’s daemon to ensure the native path stays covered.</p>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -1185,6 +1185,12 @@ cargo test -p revaer-torrent-libt --all-features
 <li><a href="adr/028-qbittorrent-parity-and-tracker-tls.html">028</a> – qBittorrent parity and tracker TLS wiring</li>
 <li><a href="adr/029-torrent-authoring-labels-and-metadata.html">029</a> – Torrent authoring, labels, and metadata updates</li>
 <li><a href="adr/030-migration-consolidation.html">030</a> – Migration consolidation for initial setup</li>
+<li><a href="adr/031-ui-asset-sync.html">031</a> – UI Nexus asset sync tooling</li>
+<li><a href="adr/032-torrent-ffi-audit-closeout.html">032</a> – Torrent FFI audit closeout</li>
+<li><a href="adr/033-ui-sse-auth-setup.html">033</a> – UI SSE + auth/setup wiring</li>
+<li><a href="adr/034-ui-sse-store-apiclient.html">034</a> – UI SSE normalization and ApiClient singleton</li>
+<li><a href="adr/035-advisory-rustsec-2021-0065.html">035</a> – Advisory RUSTSEC-2021-0065 temporary ignore</li>
+<li><a href="adr/036-asset-sync-test-stability.html">036</a> – Asset sync test stability under parallel runs</li>
 </ul>
 <h2 id="suggested-workflow"><a class="header" href="#suggested-workflow">Suggested Workflow</a></h2>
 <ol>
