@@ -1,4 +1,4 @@
-use crate::types::EngineRuntimeConfig;
+use crate::types::{EngineRuntimeConfig, EngineSettingsSnapshot};
 use anyhow::Result;
 use async_trait::async_trait;
 use revaer_torrent_core::{
@@ -157,6 +157,12 @@ pub trait LibTorrentSession: Send {
     ///
     /// Returns an error if the configuration cannot be applied.
     async fn apply_config(&mut self, config: &EngineRuntimeConfig) -> Result<()>;
+    /// Inspect applied native session settings.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if settings cannot be retrieved.
+    async fn inspect_settings(&mut self) -> Result<EngineSettingsSnapshot>;
 }
 
 /// Construct a libtorrent session using the native bindings when available.

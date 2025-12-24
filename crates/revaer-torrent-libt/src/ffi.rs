@@ -35,8 +35,8 @@ mod tests {
         assert_eq!(limits, 104, "{sizes}");
         assert_eq!(storage, 88, "{sizes}");
         assert_eq!(behavior, 5, "{sizes}");
-        assert_eq!(proxy, 80, "{sizes}");
-        assert_eq!(tracker, 496, "{sizes}");
-        assert_eq!(options, 896, "{sizes}");
+        assert_eq!(proxy, 128, "{sizes}");
+        assert_eq!(tracker, 544, "{sizes}");
+        assert_eq!(options, 944, "{sizes}");
     }
 }

@@ -79,6 +79,7 @@ fn build_network_options(
         set_listen_port,
         listen_interfaces,
         has_listen_interfaces,
+        ipv6_mode: config.ipv6_mode.as_u8(),
         enable_dht: config.enable_dht,
         enable_lsd: bool::from(config.enable_lsd),
         enable_upnp: bool::from(config.enable_upnp),
@@ -241,20 +242,28 @@ fn map_proxy(proxy: Option<&TrackerProxyRuntime>) -> ffi::TrackerProxyOptions {
     proxy.map_or_else(
         || ffi::TrackerProxyOptions {
             host: String::new(),
+            username: String::new(),
+            password: String::new(),
             username_secret: String::new(),
             password_secret: String::new(),
             port: 0,
             kind: 0,
             proxy_peers: false,
+            has_username: false,
+            has_password: false,
             has_proxy: false,
         },
         |proxy| ffi::TrackerProxyOptions {
             host: proxy.host.clone(),
+            username: proxy.username.clone().unwrap_or_default(),
+            password: proxy.password.clone().unwrap_or_default(),
             username_secret: proxy.username_secret.clone().unwrap_or_default(),
             password_secret: proxy.password_secret.clone().unwrap_or_default(),
             port: proxy.port,
             kind: map_proxy_kind(proxy.kind),
             proxy_peers: proxy.proxy_peers,
+            has_username: proxy.username.is_some(),
+            has_password: proxy.password.is_some(),
             has_proxy: true,
         },
     )
@@ -901,6 +910,8 @@ mod tests {
             proxy: Some(TrackerProxyRuntime {
                 host: "proxy.example".into(),
                 port: 8080,
+                username: Some("proxy-user".into()),
+                password: Some("proxy-pass".into()),
                 username_secret: Some("user".into()),
                 password_secret: Some("pass".into()),
                 kind: TrackerProxyType::Socks5,
@@ -948,6 +959,10 @@ mod tests {
         assert!(tracker.proxy.has_proxy);
         assert_eq!(tracker.proxy.host, "proxy.example");
         assert_eq!(tracker.proxy.port, 8080);
+        assert!(tracker.proxy.has_username);
+        assert!(tracker.proxy.has_password);
+        assert_eq!(tracker.proxy.username, "proxy-user");
+        assert_eq!(tracker.proxy.password, "proxy-pass");
         assert_eq!(tracker.proxy.username_secret, "user");
         assert_eq!(tracker.proxy.password_secret, "pass");
         assert!(tracker.proxy.proxy_peers);

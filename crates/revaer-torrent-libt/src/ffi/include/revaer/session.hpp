@@ -24,6 +24,7 @@ struct SelectionRules;
 struct NativeEvent;
 struct EngineStorageState;
 struct EnginePeerClassState;
+struct EngineSettingsState;
 struct NativePeerInfo;
 struct NativePeerInfo;
 
@@ -51,6 +52,7 @@ public:
     ::rust::String set_piece_deadline(::rust::Str id, std::uint32_t piece, std::int32_t deadline_ms, bool has_deadline);
     [[nodiscard]] EngineStorageState inspect_storage_state() const;
     [[nodiscard]] EnginePeerClassState inspect_peer_class_state() const;
+    [[nodiscard]] EngineSettingsState inspect_settings_state() const;
     rust::Vec<NativePeerInfo> list_peers(::rust::Str id);
     rust::Vec<NativeEvent> poll_events();
 

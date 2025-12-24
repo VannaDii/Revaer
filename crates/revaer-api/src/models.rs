@@ -818,6 +818,33 @@ pub struct TorrentOptionsRequest {
 }
 
 impl TorrentOptionsRequest {
+    /// Reject unsupported metadata mutations for post-add updates.
+    #[must_use]
+    pub const fn unsupported_metadata_message(&self) -> Option<&'static str> {
+        if self.comment.is_some() {
+            return Some("comment updates are not supported post-add");
+        }
+        if self.source.is_some() {
+            return Some("source updates are not supported post-add");
+        }
+        if self.private.is_some() {
+            return Some("private flag updates are not supported post-add");
+        }
+        None
+    }
+
+    /// Reject unsupported per-torrent seeding overrides.
+    #[must_use]
+    pub const fn unsupported_seed_limit_message(&self) -> Option<&'static str> {
+        if self.seed_ratio_limit.is_some() {
+            return Some("seed_ratio_limit overrides are not supported per-torrent");
+        }
+        if self.seed_time_limit.is_some() {
+            return Some("seed_time_limit overrides are not supported per-torrent");
+        }
+        None
+    }
+
     /// Translate the request payload into a domain update.
     #[must_use]
     pub fn to_update(&self) -> TorrentOptionsUpdate {

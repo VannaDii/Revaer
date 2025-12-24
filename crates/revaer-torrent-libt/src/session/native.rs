@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::convert::{map_native_event, map_priority};
 use crate::ffi::ffi;
-use crate::types::EngineRuntimeConfig;
+use crate::types::{EngineRuntimeConfig, EngineSettingsSnapshot};
 use ffi::SourceKind;
 use revaer_torrent_core::{
     AddTorrent, EngineEvent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentRateLimit,
@@ -33,6 +33,28 @@ impl NativeSession {
             Ok(())
         } else {
             Err(anyhow!(message))
+        }
+    }
+
+    fn map_settings_snapshot(snapshot: ffi::EngineSettingsState) -> EngineSettingsSnapshot {
+        fn option_string(value: String) -> Option<String> {
+            if value.is_empty() { None } else { Some(value) }
+        }
+
+        EngineSettingsSnapshot {
+            listen_interfaces: snapshot.listen_interfaces,
+            proxy_username: option_string(snapshot.proxy_username),
+            proxy_password: option_string(snapshot.proxy_password),
+            share_ratio_limit: if snapshot.share_ratio_limit < 0 {
+                None
+            } else {
+                Some(snapshot.share_ratio_limit)
+            },
+            seed_time_limit: if snapshot.seed_time_limit < 0 {
+                None
+            } else {
+                Some(snapshot.seed_time_limit)
+            },
         }
     }
 
@@ -576,6 +598,12 @@ impl LibTorrentSession for NativeSession {
         let session = self.inner.pin_mut();
         let result = session.apply_engine_profile(&plan.options);
         Self::map_error(result)
+    }
+
+    async fn inspect_settings(&mut self) -> Result<EngineSettingsSnapshot> {
+        let session = self.inner.pin_mut();
+        let snapshot = session.inspect_settings_state();
+        Ok(Self::map_settings_snapshot(snapshot))
     }
 
     async fn poll_events(&mut self) -> Result<Vec<EngineEvent>> {

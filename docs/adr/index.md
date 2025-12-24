@@ -34,6 +34,7 @@ ADR documents capture the rationale behind significant technical decisions.
 - [029](029-torrent-authoring-labels-and-metadata.md) – Torrent authoring, labels, and metadata updates
 - [030](030-migration-consolidation.md) – Migration consolidation for initial setup
 - [031](031-ui-asset-sync.md) – UI Nexus asset sync tooling
+- [032](032-torrent-ffi-audit-closeout.md) – Torrent FFI audit closeout
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

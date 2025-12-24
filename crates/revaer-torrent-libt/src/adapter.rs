@@ -6,7 +6,7 @@ use uuid::Uuid;
 
 use crate::command::EngineCommand;
 use crate::store::FastResumeStore;
-use crate::types::EngineRuntimeConfig;
+use crate::types::{EngineRuntimeConfig, EngineSettingsSnapshot};
 use crate::worker;
 use revaer_events::EventBus;
 use revaer_torrent_core::{
@@ -52,6 +52,19 @@ impl LibtorrentEngine {
     pub async fn apply_runtime_config(&self, config: EngineRuntimeConfig) -> Result<()> {
         self.send_command(EngineCommand::ApplyConfig(Box::new(config)))
             .await
+    }
+
+    /// Inspect applied native settings for integration tests.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the settings snapshot cannot be retrieved.
+    pub async fn inspect_settings(&self) -> Result<EngineSettingsSnapshot> {
+        let (respond_to, rx) = oneshot::channel();
+        self.send_command(EngineCommand::InspectSettings { respond_to })
+            .await?;
+        rx.await
+            .map_err(|err| anyhow!("settings snapshot response dropped: {err}"))?
     }
 
     fn build(events: EventBus, store: Option<FastResumeStore>) -> Result<Self> {

@@ -1541,7 +1541,7 @@ BEGIN
         connections_limit_per_torrent = _connections_limit_per_torrent,
         unchoke_slots = _unchoke_slots,
         half_open_limit = _half_open_limit,
-        alt_speed = _alt_speed
+        alt_speed = revaer_config.normalize_alt_speed(_alt_speed)
     WHERE id = _id;
 
     PERFORM revaer_config.persist_tracker_config(_id, _tracker);
@@ -1972,6 +1972,240 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql STABLE;
 
+CREATE OR REPLACE FUNCTION revaer_config.normalize_weekday_label(_label TEXT)
+RETURNS TEXT AS
+$$
+BEGIN
+    CASE lower(btrim(_label))
+        WHEN 'mon', 'monday' THEN RETURN 'mon';
+        WHEN 'tue', 'tues', 'tuesday' THEN RETURN 'tue';
+        WHEN 'wed', 'wednesday' THEN RETURN 'wed';
+        WHEN 'thu', 'thur', 'thurs', 'thursday' THEN RETURN 'thu';
+        WHEN 'fri', 'friday' THEN RETURN 'fri';
+        WHEN 'sat', 'saturday' THEN RETURN 'sat';
+        WHEN 'sun', 'sunday' THEN RETURN 'sun';
+        ELSE RETURN NULL;
+    END CASE;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION revaer_config.weekday_order(_label TEXT)
+RETURNS INTEGER AS
+$$
+BEGIN
+    CASE _label
+        WHEN 'mon' THEN RETURN 1;
+        WHEN 'tue' THEN RETURN 2;
+        WHEN 'wed' THEN RETURN 3;
+        WHEN 'thu' THEN RETURN 4;
+        WHEN 'fri' THEN RETURN 5;
+        WHEN 'sat' THEN RETURN 6;
+        WHEN 'sun' THEN RETURN 7;
+        ELSE RETURN 0;
+    END CASE;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION revaer_config.parse_alt_speed_minutes(_value TEXT)
+RETURNS INTEGER AS
+$$
+DECLARE
+    trimmed TEXT;
+    hours INTEGER;
+    minutes INTEGER;
+BEGIN
+    trimmed := btrim(_value);
+    IF trimmed IS NULL OR trimmed = '' THEN
+        RETURN NULL;
+    END IF;
+    IF trimmed !~ '^\d{2}:\d{2}$' THEN
+        RETURN NULL;
+    END IF;
+    hours := split_part(trimmed, ':', 1)::INTEGER;
+    minutes := split_part(trimmed, ':', 2)::INTEGER;
+    IF hours < 0 OR hours > 23 OR minutes < 0 OR minutes > 59 THEN
+        RETURN NULL;
+    END IF;
+    RETURN hours * 60 + minutes;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION revaer_config.format_alt_speed_minutes(_minutes INTEGER)
+RETURNS TEXT AS
+$$
+DECLARE
+    hours INTEGER;
+    mins INTEGER;
+BEGIN
+    hours := _minutes / 60;
+    mins := _minutes % 60;
+    RETURN lpad(hours::TEXT, 2, '0') || ':' || lpad(mins::TEXT, 2, '0');
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION revaer_config.normalize_alt_speed_schedule(_schedule JSONB)
+RETURNS JSONB AS
+$$
+DECLARE
+    day_entry JSONB;
+    day_label TEXT;
+    canonical TEXT;
+    days TEXT[] := ARRAY[]::TEXT[];
+    start_text TEXT;
+    end_text TEXT;
+    start_minutes INTEGER;
+    end_minutes INTEGER;
+BEGIN
+    IF _schedule IS NULL OR _schedule = 'null'::jsonb THEN
+        RETURN NULL;
+    END IF;
+    IF jsonb_typeof(_schedule) <> 'object' THEN
+        RETURN NULL;
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM jsonb_object_keys(_schedule) AS key
+        WHERE key NOT IN ('days', 'start', 'end')
+    ) THEN
+        RETURN NULL;
+    END IF;
+    IF NOT (_schedule ? 'days') THEN
+        RETURN NULL;
+    END IF;
+    IF jsonb_typeof(_schedule->'days') <> 'array' THEN
+        RETURN NULL;
+    END IF;
+    FOR day_entry IN SELECT value FROM jsonb_array_elements(_schedule->'days')
+    LOOP
+        IF jsonb_typeof(day_entry) <> 'string' THEN
+            RETURN NULL;
+        END IF;
+        day_label := btrim(day_entry::TEXT, '"');
+        day_label := btrim(day_label);
+        IF day_label = '' THEN
+            CONTINUE;
+        END IF;
+        canonical := revaer_config.normalize_weekday_label(day_label);
+        IF canonical IS NULL THEN
+            RETURN NULL;
+        END IF;
+        IF array_position(days, canonical) IS NULL THEN
+            days := array_append(days, canonical);
+        END IF;
+    END LOOP;
+    IF array_length(days, 1) IS NULL THEN
+        RETURN NULL;
+    END IF;
+
+    start_text := _schedule->>'start';
+    end_text := _schedule->>'end';
+    IF start_text IS NULL OR end_text IS NULL THEN
+        RETURN NULL;
+    END IF;
+    start_minutes := revaer_config.parse_alt_speed_minutes(start_text);
+    end_minutes := revaer_config.parse_alt_speed_minutes(end_text);
+    IF start_minutes IS NULL OR end_minutes IS NULL THEN
+        RETURN NULL;
+    END IF;
+    IF start_minutes = end_minutes THEN
+        RETURN NULL;
+    END IF;
+
+    SELECT array_agg(day ORDER BY revaer_config.weekday_order(day))
+    INTO days
+    FROM unnest(days) AS day;
+
+    RETURN jsonb_build_object(
+        'days', to_jsonb(days),
+        'start', revaer_config.format_alt_speed_minutes(start_minutes),
+        'end', revaer_config.format_alt_speed_minutes(end_minutes)
+    );
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+CREATE OR REPLACE FUNCTION revaer_config.normalize_alt_speed(_alt_speed JSONB)
+RETURNS JSONB AS
+$$
+DECLARE
+    download_bps BIGINT;
+    upload_bps BIGINT;
+    schedule JSONB;
+    download_text TEXT;
+    upload_text TEXT;
+BEGIN
+    IF _alt_speed IS NULL OR _alt_speed = 'null'::jsonb THEN
+        RETURN '{}'::jsonb;
+    END IF;
+    IF jsonb_typeof(_alt_speed) <> 'object' THEN
+        RETURN '{}'::jsonb;
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM jsonb_object_keys(_alt_speed) AS key
+        WHERE key NOT IN ('download_bps', 'upload_bps', 'schedule')
+    ) THEN
+        RETURN '{}'::jsonb;
+    END IF;
+
+    IF _alt_speed ? 'download_bps' THEN
+        IF jsonb_typeof(_alt_speed->'download_bps') = 'null' THEN
+            download_bps := NULL;
+        ELSIF jsonb_typeof(_alt_speed->'download_bps') <> 'number' THEN
+            RETURN '{}'::jsonb;
+        ELSE
+            download_text := _alt_speed->>'download_bps';
+            IF download_text !~ '^-?\d+$' THEN
+                RETURN '{}'::jsonb;
+            END IF;
+            download_bps := download_text::BIGINT;
+        END IF;
+    END IF;
+
+    IF _alt_speed ? 'upload_bps' THEN
+        IF jsonb_typeof(_alt_speed->'upload_bps') = 'null' THEN
+            upload_bps := NULL;
+        ELSIF jsonb_typeof(_alt_speed->'upload_bps') <> 'number' THEN
+            RETURN '{}'::jsonb;
+        ELSE
+            upload_text := _alt_speed->>'upload_bps';
+            IF upload_text !~ '^-?\d+$' THEN
+                RETURN '{}'::jsonb;
+            END IF;
+            upload_bps := upload_text::BIGINT;
+        END IF;
+    END IF;
+
+    IF download_bps IS NOT NULL THEN
+        IF download_bps <= 0 THEN
+            download_bps := NULL;
+        ELSIF download_bps > 5000000000 THEN
+            download_bps := 5000000000;
+        END IF;
+    END IF;
+    IF upload_bps IS NOT NULL THEN
+        IF upload_bps <= 0 THEN
+            upload_bps := NULL;
+        ELSIF upload_bps > 5000000000 THEN
+            upload_bps := 5000000000;
+        END IF;
+    END IF;
+
+    schedule := revaer_config.normalize_alt_speed_schedule(_alt_speed->'schedule');
+    IF schedule IS NULL THEN
+        RETURN '{}'::jsonb;
+    END IF;
+    IF download_bps IS NULL AND upload_bps IS NULL THEN
+        RETURN '{}'::jsonb;
+    END IF;
+
+    RETURN jsonb_strip_nulls(jsonb_build_object(
+        'download_bps', download_bps,
+        'upload_bps', upload_bps,
+        'schedule', schedule
+    ));
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
 CREATE OR REPLACE FUNCTION revaer_config.update_engine_profile(
     _id UUID,
     _implementation TEXT,
@@ -2054,7 +2288,7 @@ BEGIN
         connections_limit_per_torrent = _connections_limit_per_torrent,
         unchoke_slots = _unchoke_slots,
         half_open_limit = _half_open_limit,
-        alt_speed = _alt_speed
+        alt_speed = revaer_config.normalize_alt_speed(_alt_speed)
     WHERE id = _id;
 
     PERFORM revaer_config.persist_tracker_config(_id, _tracker);
@@ -2482,7 +2716,7 @@ BEGIN
         connections_limit_per_torrent = _connections_limit_per_torrent,
         unchoke_slots = _unchoke_slots,
         half_open_limit = _half_open_limit,
-        alt_speed = _alt_speed
+        alt_speed = revaer_config.normalize_alt_speed(_alt_speed)
     WHERE id = _id;
 
     PERFORM revaer_config.persist_tracker_config(_id, _tracker);
@@ -2808,7 +3042,7 @@ BEGIN
         connections_limit_per_torrent = _connections_limit_per_torrent,
         unchoke_slots = _unchoke_slots,
         half_open_limit = _half_open_limit,
-        alt_speed = _alt_speed,
+        alt_speed = revaer_config.normalize_alt_speed(_alt_speed),
         stats_interval_ms = _stats_interval_ms
     WHERE id = _id;
 
@@ -3531,7 +3765,7 @@ BEGIN
         connections_limit_per_torrent = _connections_limit_per_torrent,
         unchoke_slots = _unchoke_slots,
         half_open_limit = _half_open_limit,
-        alt_speed = _alt_speed,
+        alt_speed = revaer_config.normalize_alt_speed(_alt_speed),
         stats_interval_ms = _stats_interval_ms
     WHERE id = _id;
 
@@ -3868,7 +4102,7 @@ BEGIN
         connections_limit_per_torrent = _connections_limit_per_torrent,
         unchoke_slots = _unchoke_slots,
         half_open_limit = _half_open_limit,
-        alt_speed = _alt_speed,
+        alt_speed = revaer_config.normalize_alt_speed(_alt_speed),
         stats_interval_ms = _stats_interval_ms
     WHERE id = _id;
     PERFORM revaer_config.persist_tracker_config(_id, _tracker);
@@ -4254,7 +4488,7 @@ BEGIN
         connections_limit_per_torrent = _connections_limit_per_torrent,
         unchoke_slots = _unchoke_slots,
         half_open_limit = _half_open_limit,
-        alt_speed = _alt_speed,
+        alt_speed = revaer_config.normalize_alt_speed(_alt_speed),
         stats_interval_ms = _stats_interval_ms
     WHERE id = _id;
     PERFORM revaer_config.persist_tracker_config(_id, _tracker);
@@ -4776,7 +5010,7 @@ BEGIN
         connections_limit_per_torrent = _connections_limit_per_torrent,
         unchoke_slots = _unchoke_slots,
         half_open_limit = _half_open_limit,
-        alt_speed = _alt_speed,
+        alt_speed = revaer_config.normalize_alt_speed(_alt_speed),
         stats_interval_ms = _stats_interval_ms
     WHERE id = _id;
 

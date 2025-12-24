@@ -24,7 +24,7 @@ pub(crate) struct ApiError {
     pub(crate) status: StatusCode,
     pub(crate) kind: &'static str,
     title: &'static str,
-    detail: Option<String>,
+    pub(crate) detail: Option<String>,
     pub(crate) invalid_params: Option<Vec<ProblemInvalidParam>>,
     pub(crate) rate_limit: Option<ErrorRateLimitContext>,
 }

@@ -2497,7 +2497,12 @@ fn parse_proxy(value: Option<&Value>) -> Result<Option<TrackerProxyConfig>, Conf
         .and_then(Value::as_str)
         .map(|value| match value {
             "http" => Ok(TrackerProxyType::Http),
-            "https" => Ok(TrackerProxyType::Https),
+            "https" => Err(ConfigError::InvalidField {
+                section: "engine_profile".to_string(),
+                field: "tracker.proxy.kind".to_string(),
+                message: "Https proxy type is not supported by the linked libtorrent version"
+                    .to_string(),
+            }),
             "socks5" => Ok(TrackerProxyType::Socks5),
             other => Err(ConfigError::InvalidField {
                 section: "engine_profile".to_string(),
@@ -3322,6 +3327,23 @@ mod tests {
         let missing_port = json!({"proxy": {"host": "proxy"}}); // port missing
         let err = normalize_tracker_payload(&missing_port).unwrap_err();
         assert!(err.to_string().contains("port"));
+    }
+
+    #[test]
+    fn tracker_proxy_rejects_https_kind() {
+        let payload = json!({
+            "proxy": {
+                "host": "proxy.local",
+                "port": 8080,
+                "kind": "https"
+            }
+        });
+
+        let err = normalize_tracker_payload(&payload).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("Https proxy type is not supported by the linked libtorrent version")
+        );
     }
 
     #[test]

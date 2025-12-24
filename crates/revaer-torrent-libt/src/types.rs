@@ -144,6 +144,21 @@ pub struct EngineRuntimeConfig {
     pub default_peer_classes: Vec<u8>,
 }
 
+/// Snapshot of applied settings that must be validated in native integration tests.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct EngineSettingsSnapshot {
+    /// Effective listen interfaces configured in the native session.
+    pub listen_interfaces: String,
+    /// Proxy username applied to the session, if any.
+    pub proxy_username: Option<String>,
+    /// Proxy password applied to the session, if any.
+    pub proxy_password: Option<String>,
+    /// Share ratio limit applied to the session (scaled by 1000).
+    pub share_ratio_limit: Option<i32>,
+    /// Seed time limit applied to the session in seconds.
+    pub seed_time_limit: Option<i32>,
+}
+
 /// IPv6 preference policy applied at runtime.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Ipv6Mode {
@@ -331,6 +346,10 @@ pub struct TrackerProxyRuntime {
     pub host: String,
     /// Proxy port.
     pub port: u16,
+    /// Plain username resolved from secrets.
+    pub username: Option<String>,
+    /// Plain password resolved from secrets.
+    pub password: Option<String>,
     /// Optional username secret reference.
     pub username_secret: Option<String>,
     /// Optional password secret reference.

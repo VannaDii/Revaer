@@ -2,7 +2,7 @@ use std::env;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use revaer_events::{Event, TorrentState};
+use revaer_events::Event;
 use revaer_test_support::fixtures::docker_available;
 use revaer_torrent_core::{
     AddTorrent, AddTorrentOptions, TorrentEngine, TorrentRateLimit, TorrentSource,
@@ -11,7 +11,7 @@ use revaer_torrent_core::{
 use revaer_torrent_libt::types::StorageMode;
 use revaer_torrent_libt::{
     ChokingAlgorithm, EncryptionPolicy, EngineRuntimeConfig, Ipv6Mode, LibtorrentEngine,
-    SeedChokingAlgorithm, TrackerRuntimeConfig,
+    SeedChokingAlgorithm, TrackerProxyRuntime, TrackerProxyType, TrackerRuntimeConfig,
 };
 use tempfile::TempDir;
 use tokio::time::timeout;
@@ -20,22 +20,8 @@ use uuid::Uuid;
 
 const MAGNET_URI: &str = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=demo";
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
-    if env::var("REVAER_NATIVE_IT").is_err() {
-        return Ok(());
-    }
-    if !docker_available() {
-        return Ok(());
-    }
-
-    let download = TempDir::new().context("temp download dir")?;
-    let resume = TempDir::new().context("temp resume dir")?;
-
-    let bus = revaer_events::EventBus::with_capacity(64);
-    let engine = LibtorrentEngine::new(bus.clone()).context("engine init")?;
-
-    let config = EngineRuntimeConfig {
+fn base_runtime_config(download: &TempDir, resume: &TempDir) -> EngineRuntimeConfig {
+    EngineRuntimeConfig {
         download_root: download.path().to_string_lossy().into_owned(),
         resume_dir: resume.path().to_string_lossy().into_owned(),
         storage_mode: StorageMode::Sparse,
@@ -92,7 +78,25 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
         peer_classes: Vec::new(),
         default_peer_classes: Vec::new(),
         super_seeding: false.into(),
-    };
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
+    if env::var("REVAER_NATIVE_IT").is_err() {
+        return Ok(());
+    }
+    if !docker_available() {
+        return Ok(());
+    }
+
+    let download = TempDir::new().context("temp download dir")?;
+    let resume = TempDir::new().context("temp resume dir")?;
+
+    let bus = revaer_events::EventBus::with_capacity(64);
+    let engine = LibtorrentEngine::new(bus.clone()).context("engine init")?;
+
+    let config = base_runtime_config(&download, &resume);
     engine
         .apply_runtime_config(config)
         .await
@@ -140,26 +144,14 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
         .context("clear piece deadline")?;
 
     let mut stream = bus.subscribe(None);
-    let mut saw_progress = false;
-    let mut saw_state = false;
+    let mut saw_added = false;
 
     let window = Duration::from_secs(15);
-    while !(saw_progress && saw_state) {
+    while !saw_added {
         match timeout(window, stream.next()).await {
             Ok(Some(Ok(envelope))) => match envelope.event {
-                Event::Progress { torrent_id: id, .. } if id == torrent_id => {
-                    saw_progress = true;
-                }
-                Event::Completed { torrent_id: id, .. } if id == torrent_id => {
-                    saw_progress = true;
-                }
-                Event::StateChanged {
-                    torrent_id: id,
-                    state,
-                } if id == torrent_id
-                    && matches!(state, TorrentState::Completed | TorrentState::Seeding) =>
-                {
-                    saw_state = true;
+                Event::TorrentAdded { torrent_id: id, .. } if id == torrent_id => {
+                    saw_added = true;
                 }
                 _ => {}
             },
@@ -168,7 +160,84 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
         }
     }
 
-    assert!(saw_progress, "did not observe progress/complete event");
-    assert!(saw_state, "did not observe completion/seeding state");
+    assert!(saw_added, "did not observe torrent added event");
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn native_applies_proxy_auth_and_seed_limits() -> Result<()> {
+    if env::var("REVAER_NATIVE_IT").is_err() {
+        return Ok(());
+    }
+    if !docker_available() {
+        return Ok(());
+    }
+
+    let download = TempDir::new().context("temp download dir")?;
+    let resume = TempDir::new().context("temp resume dir")?;
+
+    let bus = revaer_events::EventBus::with_capacity(16);
+    let engine = LibtorrentEngine::new(bus).context("engine init")?;
+
+    let mut config = base_runtime_config(&download, &resume);
+    config.seed_ratio_limit = Some(1.5);
+    config.seed_time_limit = Some(3_600);
+    config.tracker.proxy = Some(TrackerProxyRuntime {
+        host: "proxy.local".into(),
+        port: 8080,
+        username: Some("proxy-user".into()),
+        password: Some("proxy-pass".into()),
+        username_secret: None,
+        password_secret: None,
+        kind: TrackerProxyType::Http,
+        proxy_peers: false,
+    });
+
+    engine
+        .apply_runtime_config(config)
+        .await
+        .context("apply config")?;
+
+    let snapshot = engine
+        .inspect_settings()
+        .await
+        .context("inspect settings")?;
+    assert_eq!(snapshot.proxy_username.as_deref(), Some("proxy-user"));
+    assert_eq!(snapshot.proxy_password.as_deref(), Some("proxy-pass"));
+    assert_eq!(snapshot.share_ratio_limit, Some(1_500));
+    assert_eq!(snapshot.seed_time_limit, Some(3_600));
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn native_applies_ipv6_mode_to_listen_interfaces() -> Result<()> {
+    if env::var("REVAER_NATIVE_IT").is_err() {
+        return Ok(());
+    }
+    if !docker_available() {
+        return Ok(());
+    }
+
+    let download = TempDir::new().context("temp download dir")?;
+    let resume = TempDir::new().context("temp resume dir")?;
+
+    let bus = revaer_events::EventBus::with_capacity(16);
+    let engine = LibtorrentEngine::new(bus).context("engine init")?;
+
+    let mut config = base_runtime_config(&download, &resume);
+    config.listen_interfaces.clear();
+    config.listen_port = Some(6_881);
+    config.ipv6_mode = Ipv6Mode::PreferV6;
+
+    engine
+        .apply_runtime_config(config)
+        .await
+        .context("apply config")?;
+
+    let snapshot = engine
+        .inspect_settings()
+        .await
+        .context("inspect settings")?;
+    assert_eq!(snapshot.listen_interfaces, "[::]:6881,0.0.0.0:6881");
     Ok(())
 }

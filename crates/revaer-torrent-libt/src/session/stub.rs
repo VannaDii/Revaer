@@ -12,7 +12,7 @@ use serde_json::json;
 use uuid::Uuid;
 
 use super::LibTorrentSession;
-use crate::types::EngineRuntimeConfig;
+use crate::types::{EngineRuntimeConfig, EngineSettingsSnapshot};
 use revaer_torrent_core::{FilePriorityOverride, FileSelectionRules};
 
 /// In-memory test double for the libtorrent session interface.
@@ -31,9 +31,6 @@ struct StubTorrent {
     rate_limit: TorrentRateLimit,
     sequential: bool,
     state: TorrentState,
-    comment: Option<String>,
-    source: Option<String>,
-    private: Option<bool>,
     download_dir: Option<String>,
     storage_mode: Option<StorageMode>,
     use_partfile: Option<bool>,
@@ -69,17 +66,14 @@ impl StubTorrent {
             rate_limit: request.options.rate_limit.clone(),
             sequential: request.options.sequential.unwrap_or(false),
             state: initial_state,
-            comment: request.options.comment.clone(),
-            source: request.options.source.clone(),
-            private: request.options.private,
             download_dir: request.options.download_dir.clone(),
             storage_mode: request.options.storage_mode,
             use_partfile: None,
             connections_limit: request.options.connections_limit,
             seed_mode: request.options.seed_mode,
             hash_check_sample_pct: request.options.hash_check_sample_pct,
-            seed_ratio_limit: request.options.seed_ratio_limit,
-            seed_time_limit: request.options.seed_time_limit,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
             resume_payload: None,
             auto_managed: request.options.auto_managed,
             queue_position: request.options.queue_position,
@@ -292,23 +286,8 @@ impl LibTorrentSession for StubSession {
         if let Some(pex_enabled) = options.pex_enabled {
             torrent.pex_enabled = Some(pex_enabled);
         }
-        if options.comment.is_some() {
-            torrent.comment.clone_from(&options.comment);
-        }
-        if options.source.is_some() {
-            torrent.source.clone_from(&options.source);
-        }
-        if options.private.is_some() {
-            torrent.private = options.private;
-        }
         if let Some(super_seeding) = options.super_seeding {
             torrent.super_seeding = Some(super_seeding);
-        }
-        if options.seed_ratio_limit.is_some() {
-            torrent.seed_ratio_limit = options.seed_ratio_limit;
-        }
-        if options.seed_time_limit.is_some() {
-            torrent.seed_time_limit = options.seed_time_limit;
         }
         if let Some(auto_managed) = options.auto_managed {
             torrent.auto_managed = Some(auto_managed);
@@ -432,7 +411,12 @@ impl LibTorrentSession for StubSession {
         Ok(std::mem::take(&mut self.pending_events))
     }
 
-    async fn apply_config(&mut self, _config: &EngineRuntimeConfig) -> Result<()> {
+    async fn apply_config(&mut self, config: &EngineRuntimeConfig) -> Result<()> {
+        let _ = config;
         Ok(())
+    }
+
+    async fn inspect_settings(&mut self) -> Result<EngineSettingsSnapshot> {
+        Ok(EngineSettingsSnapshot::default())
     }
 }

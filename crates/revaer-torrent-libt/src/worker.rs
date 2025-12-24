@@ -88,9 +88,6 @@ struct Worker {
     storage_mode: StorageMode,
     use_partfile: bool,
     per_torrent_limits: HashMap<Uuid, TorrentRateLimit>,
-    seed_ratio_default: Option<f64>,
-    seed_time_limit_default: Option<Duration>,
-    seeding_goals: HashMap<Uuid, SeedingGoal>,
     cleanup_goals: HashMap<Uuid, CleanupGoal>,
     alt_speed: Option<AltSpeedPlan>,
 }
@@ -138,14 +135,6 @@ struct AltSpeedPlan {
 }
 
 #[derive(Debug, Clone)]
-struct SeedingGoal {
-    ratio_limit: Option<f64>,
-    time_limit: Option<Duration>,
-    seeding_since: Option<Instant>,
-    satisfied: bool,
-}
-
-#[derive(Debug, Clone)]
 struct CleanupGoal {
     ratio_limit: Option<f64>,
     time_limit: Option<Duration>,
@@ -156,7 +145,6 @@ struct CleanupGoal {
 
 #[derive(Debug)]
 enum PendingAction {
-    PauseForSeedingGoal(Uuid),
     RemoveForCleanup { id: Uuid, remove_data: bool },
 }
 
@@ -175,7 +163,10 @@ impl Worker {
             match store_ref.load_all() {
                 Ok(states) => {
                     for state in states {
-                        if let Some(metadata) = state.metadata {
+                        if let Some(mut metadata) = state.metadata {
+                            // Per-torrent seed limits are not supported; clear stored overrides.
+                            metadata.seed_ratio_limit = None;
+                            metadata.seed_time_limit = None;
                             resume_cache.insert(state.torrent_id, metadata);
                         } else {
                             selection_reconciliations.push((
@@ -213,9 +204,6 @@ impl Worker {
             storage_mode: StorageMode::Sparse,
             use_partfile: true,
             per_torrent_limits: HashMap::new(),
-            seed_ratio_default: None,
-            seed_time_limit_default: None,
-            seeding_goals: HashMap::new(),
             cleanup_goals: HashMap::new(),
             alt_speed: None,
         };
@@ -288,6 +276,10 @@ impl Worker {
                 let result = self.session.peers(id).await;
                 let _ = respond_to.send(result);
             }
+            EngineCommand::InspectSettings { respond_to } => {
+                let result = self.session.inspect_settings().await;
+                let _ = respond_to.send(result);
+            }
         }
 
         self.flush_session_events().await
@@ -316,6 +308,9 @@ impl Worker {
             );
         }
 
+        request.options.seed_ratio_limit = None;
+        request.options.seed_time_limit = None;
+
         self.session.add_torrent(&request).await?;
         self.apply_fastresume_if_present(request.id).await;
 
@@ -336,12 +331,6 @@ impl Worker {
         self.publish_reconciliations(request.id, reconciliation_reasons);
         self.emit_add_event(&request);
 
-        let seed_ratio_limit = request.options.seed_ratio_limit.or(self.seed_ratio_default);
-        let seed_time_limit = request
-            .options
-            .seed_time_limit
-            .map(Duration::from_secs)
-            .or(self.seed_time_limit_default);
         let storage_mode = request.options.storage_mode.unwrap_or(self.storage_mode);
 
         self.persist_add_metadata(
@@ -369,8 +358,8 @@ impl Worker {
                 tags: request.options.tags.clone(),
                 connections_limit: request.options.connections_limit,
                 rate_limit: rate_limit_for_metadata(&request.options.rate_limit),
-                seed_ratio_limit,
-                seed_time_limit: seed_time_limit.map(|value| value.as_secs()),
+                seed_ratio_limit: None,
+                seed_time_limit: None,
                 auto_managed: request.options.auto_managed,
                 queue_position: request.options.queue_position,
                 pex_enabled: request.options.pex_enabled,
@@ -379,7 +368,6 @@ impl Worker {
         );
         self.apply_initial_rate_limit(request.id, &request.options.rate_limit)
             .await?;
-        self.register_seeding_goal(request.id, seed_ratio_limit, seed_time_limit);
         self.register_cleanup_goal(request.id, request.options.cleanup.clone());
         Ok(())
     }
@@ -431,12 +419,6 @@ impl Worker {
                 && let Some(limit) = &stored.rate_limit
             {
                 request.options.rate_limit = limit.clone();
-            }
-            if request.options.seed_ratio_limit.is_none() {
-                request.options.seed_ratio_limit = stored.seed_ratio_limit;
-            }
-            if request.options.seed_time_limit.is_none() {
-                request.options.seed_time_limit = stored.seed_time_limit;
             }
             if request.options.seed_mode.is_none() {
                 request.options.seed_mode = stored.seed_mode;
@@ -658,7 +640,6 @@ impl Worker {
         self.fastresume_payloads.remove(&id);
         self.progress_last_emit.remove(&id);
         self.per_torrent_limits.remove(&id);
-        self.seeding_goals.remove(&id);
         self.cleanup_goals.remove(&id);
         if store_ok {
             self.mark_recovered("resume_store");
@@ -745,35 +726,21 @@ impl Worker {
         options: TorrentOptionsUpdate,
     ) -> Result<()> {
         let paused = options.paused;
+        let options = TorrentOptionsUpdate {
+            comment: None,
+            source: None,
+            private: None,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
+            ..options
+        };
         self.session.update_options(id, &options).await?;
-        let metadata_event =
-            if options.comment.is_some() || options.source.is_some() || options.private.is_some() {
-                Some(Event::MetadataUpdated {
-                    torrent_id: id,
-                    name: None,
-                    download_dir: None,
-                    comment: options.comment.clone(),
-                    source: options.source.clone(),
-                    private: options.private,
-                })
-            } else {
-                None
-            };
         self.update_metadata(id, |meta| {
             if let Some(limit) = options.connections_limit {
                 meta.connections_limit = (limit > 0).then_some(limit);
             }
             if let Some(pex_enabled) = options.pex_enabled {
                 meta.pex_enabled = Some(pex_enabled);
-            }
-            if options.comment.is_some() {
-                meta.comment.clone_from(&options.comment);
-            }
-            if options.source.is_some() {
-                meta.source.clone_from(&options.source);
-            }
-            if options.private.is_some() {
-                meta.private = options.private;
             }
             if let Some(super_seeding) = options.super_seeding {
                 meta.super_seeding = Some(super_seeding);
@@ -784,18 +751,6 @@ impl Worker {
             if let Some(queue_position) = options.queue_position {
                 meta.queue_position = Some(queue_position);
             }
-            if let Some(seed_ratio_limit) = options.seed_ratio_limit {
-                meta.seed_ratio_limit = Some(seed_ratio_limit);
-            }
-            if let Some(seed_time_limit) = options.seed_time_limit {
-                meta.seed_time_limit = Some(seed_time_limit);
-            }
-        });
-        if let Some(event) = metadata_event {
-            let _ = self.events.publish(event);
-        }
-        let (ratio_limit, time_limit) = self.resume_cache.get(&id).map_or((None, None), |meta| {
-            (meta.seed_ratio_limit, meta.seed_time_limit)
         });
         if let Some(paused_flag) = paused {
             if paused_flag {
@@ -806,7 +761,6 @@ impl Worker {
                 info!(torrent_id = %id, "torrent resumed via options update");
             }
         }
-        self.register_seeding_goal(id, ratio_limit, time_limit.map(Duration::from_secs));
         debug!(
             torrent_id = %id,
             connections_limit = ?options.connections_limit,
@@ -815,8 +769,6 @@ impl Worker {
             super_seeding = ?options.super_seeding,
             auto_managed = ?options.auto_managed,
             queue_position = ?options.queue_position,
-            seed_ratio_limit = ?options.seed_ratio_limit,
-            seed_time_limit = ?options.seed_time_limit,
             "updated per-torrent options"
         );
         Ok(())
@@ -929,11 +881,6 @@ impl Worker {
         self.storage_mode = config.storage_mode.into();
         self.use_partfile = bool::from(config.use_partfile);
         self.alt_speed = config.alt_speed.clone().and_then(alt_speed_plan);
-        self.seed_ratio_default = config.seed_ratio_limit;
-        self.seed_time_limit_default = config
-            .seed_time_limit
-            .and_then(|seconds| u64::try_from(seconds).ok())
-            .map(Duration::from_secs);
         info!(
             download_root = %config.download_root,
             resume_dir = %config.resume_dir,
@@ -1104,7 +1051,6 @@ impl Worker {
         rates: &TorrentRates,
         actions: &mut Vec<PendingAction>,
     ) {
-        self.evaluate_seeding_goal(torrent_id, rates.ratio, actions);
         self.evaluate_cleanup_goal(torrent_id, rates.ratio, actions);
         self.verify_rate_limits(torrent_id, rates);
         if !self.should_emit_progress(torrent_id) {
@@ -1123,7 +1069,6 @@ impl Worker {
     }
 
     fn handle_state_changed(&mut self, torrent_id: Uuid, state: TorrentState) {
-        self.update_seeding_state(torrent_id, &state);
         self.update_cleanup_state(torrent_id, &state);
         let failed = matches!(&state, TorrentState::Failed { .. });
         let _ = self
@@ -1140,8 +1085,6 @@ impl Worker {
         library_path: String,
         actions: &mut Vec<PendingAction>,
     ) {
-        self.update_seeding_state(torrent_id, &TorrentState::Completed);
-        self.evaluate_seeding_goal(torrent_id, 0.0, actions);
         self.update_cleanup_state(torrent_id, &TorrentState::Completed);
         self.evaluate_cleanup_goal(torrent_id, 0.0, actions);
         let _ = self.events.publish(Event::StateChanged {
@@ -1245,27 +1188,6 @@ impl Worker {
         }
     }
 
-    fn register_seeding_goal(
-        &mut self,
-        torrent_id: Uuid,
-        ratio_limit: Option<f64>,
-        time_limit: Option<Duration>,
-    ) {
-        if ratio_limit.is_none() && time_limit.is_none() {
-            self.seeding_goals.remove(&torrent_id);
-            return;
-        }
-        self.seeding_goals.insert(
-            torrent_id,
-            SeedingGoal {
-                ratio_limit,
-                time_limit,
-                seeding_since: None,
-                satisfied: false,
-            },
-        );
-    }
-
     fn register_cleanup_goal(
         &mut self,
         torrent_id: Uuid,
@@ -1291,25 +1213,6 @@ impl Worker {
         );
     }
 
-    fn update_seeding_state(&mut self, torrent_id: Uuid, state: &TorrentState) {
-        if let Some(goal) = self.seeding_goals.get_mut(&torrent_id) {
-            match state {
-                TorrentState::Completed | TorrentState::Seeding => {
-                    if goal.seeding_since.is_none() {
-                        goal.seeding_since = Some(Instant::now());
-                    }
-                }
-                TorrentState::Downloading
-                | TorrentState::Queued
-                | TorrentState::FetchingMetadata
-                | TorrentState::Stopped
-                | TorrentState::Failed { .. } => {
-                    goal.seeding_since = None;
-                }
-            }
-        }
-    }
-
     fn update_cleanup_state(&mut self, torrent_id: Uuid, state: &TorrentState) {
         if let Some(goal) = self.cleanup_goals.get_mut(&torrent_id) {
             match state {
@@ -1325,31 +1228,6 @@ impl Worker {
                 | TorrentState::Failed { .. } => {
                     goal.seeding_since = None;
                 }
-            }
-        }
-    }
-
-    fn evaluate_seeding_goal(
-        &mut self,
-        torrent_id: Uuid,
-        ratio: f64,
-        actions: &mut Vec<PendingAction>,
-    ) {
-        if let Some(goal) = self.seeding_goals.get_mut(&torrent_id) {
-            if goal.satisfied || goal.seeding_since.is_none() {
-                return;
-            }
-            let ratio_met = goal
-                .ratio_limit
-                .is_some_and(|limit| ratio.is_finite() && ratio >= limit);
-            let time_met = goal.time_limit.is_some_and(|limit| {
-                goal.seeding_since
-                    .is_some_and(|since| since.elapsed() >= limit)
-            });
-
-            if ratio_met || time_met {
-                goal.satisfied = true;
-                actions.push(PendingAction::PauseForSeedingGoal(torrent_id));
             }
         }
     }
@@ -1384,17 +1262,6 @@ impl Worker {
 
     fn enqueue_time_based_goals(&mut self, actions: &mut Vec<PendingAction>) {
         let now = Instant::now();
-        for (id, goal) in &mut self.seeding_goals {
-            if goal.satisfied {
-                continue;
-            }
-            if let (Some(limit), Some(started)) = (goal.time_limit, goal.seeding_since)
-                && now.duration_since(started) >= limit
-            {
-                goal.satisfied = true;
-                actions.push(PendingAction::PauseForSeedingGoal(*id));
-            }
-        }
         for (id, goal) in &mut self.cleanup_goals {
             if goal.satisfied {
                 continue;
@@ -1415,13 +1282,6 @@ impl Worker {
         let mut seen = HashSet::new();
         for action in actions {
             match action {
-                PendingAction::PauseForSeedingGoal(id) => {
-                    if !seen.insert(id) {
-                        continue;
-                    }
-                    self.session.pause_torrent(id).await?;
-                    info!(torrent_id = %id, "seeding goal reached; pausing torrent");
-                }
                 PendingAction::RemoveForCleanup { id, remove_data } => {
                     if !seen.insert(id) {
                         continue;
@@ -1660,6 +1520,7 @@ mod tests {
         command::EngineCommand,
         session::StubSession,
         store::{FastResumeStore, StoredTorrentMetadata},
+        types::EngineSettingsSnapshot,
     };
     use anyhow::Result;
     use async_trait::async_trait;
@@ -1796,6 +1657,10 @@ mod tests {
 
         async fn apply_config(&mut self, _config: &EngineRuntimeConfig) -> Result<()> {
             Ok(())
+        }
+
+        async fn inspect_settings(&mut self) -> Result<EngineSettingsSnapshot> {
+            Ok(EngineSettingsSnapshot::default())
         }
 
         async fn set_piece_deadline(
@@ -1979,7 +1844,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn update_options_adjusts_metadata_and_goals() -> Result<()> {
+    async fn update_options_adjusts_metadata() -> Result<()> {
         let bus = EventBus::with_capacity(8);
         let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
         let mut worker = Worker::new(bus, session, None);
@@ -2006,8 +1871,8 @@ mod tests {
             super_seeding: Some(true),
             auto_managed: Some(false),
             queue_position: Some(3),
-            seed_ratio_limit: Some(1.5),
-            seed_time_limit: Some(900),
+            seed_ratio_limit: None,
+            seed_time_limit: None,
         };
         worker
             .handle(EngineCommand::UpdateOptions {
@@ -2026,20 +1891,11 @@ mod tests {
         assert_eq!(metadata.super_seeding, Some(true));
         assert_eq!(metadata.auto_managed, Some(false));
         assert_eq!(metadata.queue_position, Some(3));
-        assert_eq!(metadata.seed_ratio_limit, Some(1.5));
-        assert_eq!(metadata.seed_time_limit, Some(900));
-
-        let goal = worker
-            .seeding_goals
-            .get(&torrent_id)
-            .expect("goal recorded");
-        assert_eq!(goal.ratio_limit, Some(1.5));
-        assert_eq!(goal.time_limit, Some(Duration::from_secs(900)));
         Ok(())
     }
 
     #[tokio::test]
-    async fn update_options_emits_metadata_updates_for_comment() -> Result<()> {
+    async fn update_options_ignores_comment_updates() -> Result<()> {
         let bus = EventBus::with_capacity(8);
         let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
         let mut worker = Worker::new(bus.clone(), session, None);
@@ -2072,12 +1928,7 @@ mod tests {
         let mut saw_metadata = false;
         for _ in 0..5 {
             match next_event_with_timeout(&mut stream, 50).await {
-                Some(Event::MetadataUpdated {
-                    torrent_id: id,
-                    comment,
-                    ..
-                }) if id == torrent_id => {
-                    assert_eq!(comment.as_deref(), Some("note"));
+                Some(Event::MetadataUpdated { torrent_id: id, .. }) if id == torrent_id => {
                     saw_metadata = true;
                     break;
                 }
@@ -2085,13 +1936,13 @@ mod tests {
                 None => break,
             }
         }
-        assert!(saw_metadata, "expected metadata update for comment");
+        assert!(!saw_metadata, "comment updates should be ignored");
 
         let stored = worker
             .resume_cache
             .get(&torrent_id)
             .and_then(|meta| meta.comment.as_deref());
-        assert_eq!(stored, Some("note"));
+        assert!(stored.is_none());
         Ok(())
     }
 
@@ -3085,51 +2936,6 @@ mod tests {
         assert!(!is_alt_speed_active(&schedule, tuesday));
     }
 
-    #[tokio::test]
-    async fn seeding_goals_pause_when_ratio_exceeded() -> Result<()> {
-        let bus = EventBus::with_capacity(8);
-        let session: Box<dyn LibTorrentSession> = Box::new(StubSession::default());
-        let mut worker = Worker::new(bus.clone(), session, None);
-        let torrent_id = Uuid::new_v4();
-        let mut stream = bus.subscribe(None);
-
-        let request = AddTorrent {
-            id: torrent_id,
-            source: TorrentSource::magnet(
-                "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567",
-            ),
-            options: AddTorrentOptions {
-                seed_ratio_limit: Some(0.8),
-                ..AddTorrentOptions::default()
-            },
-        };
-        worker.handle_add(request).await?;
-
-        // Drain initial events from the add flow.
-        while next_event_with_timeout(&mut stream, 10).await.is_some() {}
-
-        worker.update_seeding_state(torrent_id, &TorrentState::Completed);
-        let mut actions = Vec::new();
-        worker.evaluate_seeding_goal(torrent_id, 0.85, &mut actions);
-        worker.apply_actions(actions).await?;
-        worker.flush_session_events().await?;
-
-        let mut paused = false;
-        while let Some(event) = next_event_with_timeout(&mut stream, 20).await {
-            if let Event::StateChanged {
-                torrent_id: id,
-                state: TorrentState::Stopped,
-            } = event
-                && id == torrent_id
-            {
-                paused = true;
-                break;
-            }
-        }
-        assert!(paused, "torrent should pause after hitting seeding goal");
-        Ok(())
-    }
-
     struct ErrorSession;
 
     #[async_trait::async_trait]
@@ -3232,6 +3038,10 @@ mod tests {
 
         async fn apply_config(&mut self, _config: &EngineRuntimeConfig) -> Result<()> {
             Ok(())
+        }
+
+        async fn inspect_settings(&mut self) -> Result<EngineSettingsSnapshot> {
+            Ok(EngineSettingsSnapshot::default())
         }
 
         async fn poll_events(&mut self) -> Result<Vec<EngineEvent>> {

@@ -474,10 +474,12 @@ pub(crate) async fn update_torrent_options(
         return Err(ApiError::bad_request("no torrent options provided"));
     }
 
-    if request.source.is_some() || request.private.is_some() {
-        return Err(ApiError::bad_request(
-            "source/private updates are not supported",
-        ));
+    if let Some(message) = request.unsupported_metadata_message() {
+        return Err(ApiError::bad_request(message));
+    }
+
+    if let Some(message) = request.unsupported_seed_limit_message() {
+        return Err(ApiError::bad_request(message));
     }
 
     let handles = state
@@ -508,12 +510,6 @@ pub(crate) async fn update_torrent_options(
         }
         if let Some(queue_position) = update.queue_position {
             metadata.queue_position = Some(queue_position);
-        }
-        if let Some(seed_ratio_limit) = update.seed_ratio_limit {
-            metadata.seed_ratio_limit = Some(seed_ratio_limit);
-        }
-        if let Some(seed_time_limit) = update.seed_time_limit {
-            metadata.seed_time_limit = Some(seed_time_limit);
         }
     });
     info!(torrent_id = %id, "torrent options update requested");
@@ -929,11 +925,15 @@ fn build_add_torrent(
         None
     };
 
-    if let Some(ratio) = request.seed_ratio_limit
-        && (ratio < 0.0 || !ratio.is_finite())
-    {
+    if request.seed_ratio_limit.is_some() {
         return Err(ApiError::bad_request(
-            "seed_ratio_limit must be a non-negative number",
+            "seed_ratio_limit overrides are not supported per-torrent",
+        ));
+    }
+
+    if request.seed_time_limit.is_some() {
+        return Err(ApiError::bad_request(
+            "seed_time_limit overrides are not supported per-torrent",
         ));
     }
 
@@ -1032,19 +1032,43 @@ mod tests {
     use tokio::sync::Mutex as AsyncMutex;
 
     #[test]
-    fn build_add_torrent_rejects_negative_seed_ratio() {
+    fn build_add_torrent_rejects_seed_ratio_override() {
         let request = TorrentCreateRequest {
             id: Uuid::new_v4(),
             magnet: Some(
                 "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567".to_string(),
             ),
-            seed_ratio_limit: Some(-1.0),
+            seed_ratio_limit: Some(1.5),
             ..TorrentCreateRequest::default()
         };
 
         let err = build_add_torrent(&request, Vec::new(), Vec::new(), None)
-            .expect_err("negative ratio rejected");
+            .expect_err("seed ratio overrides rejected");
         assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            err.detail.as_deref(),
+            Some("seed_ratio_limit overrides are not supported per-torrent")
+        );
+    }
+
+    #[test]
+    fn build_add_torrent_rejects_seed_time_override() {
+        let request = TorrentCreateRequest {
+            id: Uuid::new_v4(),
+            magnet: Some(
+                "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567".to_string(),
+            ),
+            seed_time_limit: Some(1_800),
+            ..TorrentCreateRequest::default()
+        };
+
+        let err = build_add_torrent(&request, Vec::new(), Vec::new(), None)
+            .expect_err("seed time overrides rejected");
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            err.detail.as_deref(),
+            Some("seed_time_limit overrides are not supported per-torrent")
+        );
     }
 
     #[test]
@@ -1456,7 +1480,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn update_torrent_options_accepts_comment_updates() {
+    async fn update_torrent_options_rejects_comment_updates() {
         let workflow = Arc::new(RecordingWorkflow::default());
         let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
         let state = Arc::new(ApiState::new(
@@ -1468,7 +1492,7 @@ mod tests {
         ));
         let torrent_id = Uuid::new_v4();
 
-        let response = update_torrent_options(
+        let err = update_torrent_options(
             State(state),
             Extension(crate::http::auth::AuthContext::ApiKey {
                 key_id: "key".into(),
@@ -1480,12 +1504,159 @@ mod tests {
             }),
         )
         .await
-        .expect("update should succeed");
+        .expect_err("comment updates rejected");
 
-        assert_eq!(response, StatusCode::ACCEPTED);
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            err.detail.as_deref(),
+            Some("comment updates are not supported post-add")
+        );
         let updates = workflow.take_options_updates().await;
-        assert_eq!(updates.len(), 1);
-        assert_eq!(updates[0].comment.as_deref(), Some("note"));
+        assert!(updates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn update_torrent_options_rejects_source_updates() {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = Arc::new(ApiState::new(
+            Arc::new(DummyConfig),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            Some(handles),
+        ));
+        let torrent_id = Uuid::new_v4();
+
+        let err = update_torrent_options(
+            State(state),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(torrent_id),
+            Json(TorrentOptionsRequest {
+                source: Some("source".to_string()),
+                ..TorrentOptionsRequest::default()
+            }),
+        )
+        .await
+        .expect_err("source updates rejected");
+
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            err.detail.as_deref(),
+            Some("source updates are not supported post-add")
+        );
+        let updates = workflow.take_options_updates().await;
+        assert!(updates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn update_torrent_options_rejects_private_updates() {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = Arc::new(ApiState::new(
+            Arc::new(DummyConfig),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            Some(handles),
+        ));
+        let torrent_id = Uuid::new_v4();
+
+        let err = update_torrent_options(
+            State(state),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(torrent_id),
+            Json(TorrentOptionsRequest {
+                private: Some(true),
+                ..TorrentOptionsRequest::default()
+            }),
+        )
+        .await
+        .expect_err("private updates rejected");
+
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            err.detail.as_deref(),
+            Some("private flag updates are not supported post-add")
+        );
+        let updates = workflow.take_options_updates().await;
+        assert!(updates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn update_torrent_options_rejects_seed_ratio_override() {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = Arc::new(ApiState::new(
+            Arc::new(DummyConfig),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            Some(handles),
+        ));
+        let torrent_id = Uuid::new_v4();
+
+        let err = update_torrent_options(
+            State(state),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(torrent_id),
+            Json(TorrentOptionsRequest {
+                seed_ratio_limit: Some(1.25),
+                ..TorrentOptionsRequest::default()
+            }),
+        )
+        .await
+        .expect_err("seed ratio updates rejected");
+
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            err.detail.as_deref(),
+            Some("seed_ratio_limit overrides are not supported per-torrent")
+        );
+        let updates = workflow.take_options_updates().await;
+        assert!(updates.is_empty());
+    }
+
+    #[tokio::test]
+    async fn update_torrent_options_rejects_seed_time_override() {
+        let workflow = Arc::new(RecordingWorkflow::default());
+        let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
+        let state = Arc::new(ApiState::new(
+            Arc::new(DummyConfig),
+            Metrics::new().expect("metrics"),
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            Some(handles),
+        ));
+        let torrent_id = Uuid::new_v4();
+
+        let err = update_torrent_options(
+            State(state),
+            Extension(crate::http::auth::AuthContext::ApiKey {
+                key_id: "key".into(),
+            }),
+            AxumPath(torrent_id),
+            Json(TorrentOptionsRequest {
+                seed_time_limit: Some(1_200),
+                ..TorrentOptionsRequest::default()
+            }),
+        )
+        .await
+        .expect_err("seed time updates rejected");
+
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert_eq!(
+            err.detail.as_deref(),
+            Some("seed_time_limit overrides are not supported per-torrent")
+        );
+        let updates = workflow.take_options_updates().await;
+        assert!(updates.is_empty());
     }
 
     #[tokio::test]

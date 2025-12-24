@@ -14,8 +14,8 @@ export REVAER_NATIVE_IT=1
 # Run the full gate (preferred)
 just ci
 
-# Or target only the libtorrent crate tests
-cargo test -p revaer-torrent-libt --all-features
+# Or target only the libtorrent native suite
+just test-native
 ```
 
 CI note: add a matrix job that sets `REVAER_NATIVE_IT=1` and points `DOCKER_HOST` at the runner’s daemon to ensure the native path stays covered.

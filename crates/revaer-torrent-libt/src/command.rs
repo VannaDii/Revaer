@@ -1,4 +1,4 @@
-use crate::types::EngineRuntimeConfig;
+use crate::types::{EngineRuntimeConfig, EngineSettingsSnapshot};
 use revaer_torrent_core::{
     AddTorrent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentRateLimit,
     model::{
@@ -115,5 +115,10 @@ pub enum EngineCommand {
         piece: u32,
         /// Deadline in milliseconds; when absent the deadline is cleared.
         deadline_ms: Option<u32>,
+    },
+    /// Inspect applied native session settings for integration tests.
+    InspectSettings {
+        /// Channel used to return the settings snapshot.
+        respond_to: oneshot::Sender<anyhow::Result<EngineSettingsSnapshot>>,
     },
 }

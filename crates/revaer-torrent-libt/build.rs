@@ -1,5 +1,6 @@
 use std::env;
-use std::path::PathBuf;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 const MIN_VERSION: &str = "2.0.10";
 
@@ -16,6 +17,7 @@ fn main() {
     bridge.include(&include_dir);
 
     if let Some((include, lib)) = bundled_paths() {
+        ensure_header_version(&include);
         bridge.include(&include);
         println!("cargo:rustc-link-search=native={}", lib.display());
         emit_link_libs(vec!["torrent-rasterbar".to_string()]);
@@ -38,21 +40,31 @@ fn main() {
         }
     }
 
-    if let Some(path) = env::var_os("LIBTORRENT_INCLUDE_DIR") {
-        bridge.include(PathBuf::from(path));
+    let include_override = env::var_os("LIBTORRENT_INCLUDE_DIR").map(PathBuf::from);
+    if let Some(path) = include_override.as_ref() {
+        bridge.include(path);
     }
 
     let mut libs: Vec<String> = Vec::new();
-    if let Some(path) = env::var_os("LIBTORRENT_LIB_DIR") {
-        println!(
-            "cargo:rustc-link-search=native={}",
-            PathBuf::from(&path).display()
-        );
+    let lib_dir_override = env::var_os("LIBTORRENT_LIB_DIR").map(PathBuf::from);
+    if let Some(path) = lib_dir_override.as_ref() {
+        println!("cargo:rustc-link-search=native={}", path.display());
         libs.push("torrent-rasterbar".to_string());
-    } else if let Ok(libtorrent) = pkg_config::Config::new()
-        .atleast_version(MIN_VERSION)
-        .probe("libtorrent-rasterbar")
-    {
+    }
+
+    if let Some(include_dir) = include_override.as_ref() {
+        ensure_header_version(include_dir);
+    } else if lib_dir_override.is_some() {
+        panic!("LIBTORRENT_INCLUDE_DIR must be set to verify libtorrent version");
+    }
+
+    if libs.is_empty() {
+        let libtorrent = pkg_config::Config::new()
+            .atleast_version(MIN_VERSION)
+            .probe("libtorrent-rasterbar")
+            .unwrap_or_else(|err| {
+                panic!("libtorrent-rasterbar >= {MIN_VERSION} not found via pkg-config: {err}")
+            });
         let include_paths = libtorrent.include_paths;
         for path in include_paths {
             bridge.include(path);
@@ -66,9 +78,6 @@ fn main() {
             println!("cargo:rustc-link-lib={lib}");
         }
         libs.extend(pkg_libs);
-    } else {
-        // Fallback to default library name if pkg-config lookup failed.
-        libs.push("torrent-rasterbar".to_string());
     }
 
     bridge.compile("revaer-libtorrent");
@@ -98,4 +107,52 @@ fn emit_reruns() {
     println!("cargo:rerun-if-changed=src/ffi/bridge.rs");
     println!("cargo:rerun-if-changed=src/ffi/include/revaer/session.hpp");
     println!("cargo:rerun-if-changed=src/ffi/session.cpp");
+}
+
+fn ensure_header_version(include_dir: &Path) {
+    let header = include_dir.join("libtorrent").join("version.hpp");
+    let contents = fs::read_to_string(&header).unwrap_or_else(|err| {
+        panic!(
+            "failed to read libtorrent version header at {}: {err}",
+            header.display()
+        )
+    });
+
+    let major = parse_define(&contents, "LIBTORRENT_VERSION_MAJOR")
+        .unwrap_or_else(|| panic!("missing LIBTORRENT_VERSION_MAJOR in {}", header.display()));
+    let minor = parse_define(&contents, "LIBTORRENT_VERSION_MINOR")
+        .unwrap_or_else(|| panic!("missing LIBTORRENT_VERSION_MINOR in {}", header.display()));
+    let patch = parse_define(&contents, "LIBTORRENT_VERSION_TINY")
+        .unwrap_or_else(|| panic!("missing LIBTORRENT_VERSION_TINY in {}", header.display()));
+
+    let required = parse_min_version();
+    if (major, minor, patch) < required {
+        panic!("libtorrent version {major}.{minor}.{patch} is below required {MIN_VERSION}");
+    }
+}
+
+fn parse_define(contents: &str, name: &str) -> Option<u32> {
+    contents.lines().find_map(|line| {
+        let trimmed = line.trim_start();
+        if !trimmed.starts_with("#define") {
+            return None;
+        }
+        let mut parts = trimmed.split_whitespace();
+        let _ = parts.next()?;
+        let key = parts.next()?;
+        let value = parts.next()?;
+        if key == name {
+            value.parse::<u32>().ok()
+        } else {
+            None
+        }
+    })
+}
+
+fn parse_min_version() -> (u32, u32, u32) {
+    let mut parts = MIN_VERSION.split('.');
+    let major = parts.next().unwrap_or_default().parse().unwrap_or(0);
+    let minor = parts.next().unwrap_or_default().parse().unwrap_or(0);
+    let patch = parts.next().unwrap_or_default().parse().unwrap_or(0);
+    (major, minor, patch)
 }

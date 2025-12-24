@@ -17,6 +17,12 @@ test:
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
         cargo --config 'build.rustflags=["-Dwarnings"]' test --workspace --all-features
 
+test-native:
+    REVAER_NATIVE_IT=1 \
+    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}" \
+    DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
+        cargo --config 'build.rustflags=["-Dwarnings"]' test -p revaer-torrent-libt --all-features
+
 test-features-min:
     REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}" \
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \

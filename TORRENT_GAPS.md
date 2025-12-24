@@ -295,202 +295,202 @@
     -   [x] Bridge/native: expose `set_piece_deadline`/`reset_piece_deadline` and read-ahead knobs through FFI; guard usage to streaming paths.
     -   [x] Tests: native test that deadlines apply without breaking transfers.
 
--   [ ] Codex Task: Close audit findings and enforce “thin native wrapper” invariants
+-   [x] Codex Task: Close audit findings and enforce “thin native wrapper” invariants
 
--   [ ] Deliverables
+-   [x] Deliverables
 
-    -   [ ] 1. Apply fixes (code + tests + CI) so the audit becomes PASS.
-    -   [ ] 2. Regenerate report as: ARTIFACTS/TORRENT_FFI_AUDIT_REPORT.md with Status: PASS (or list remaining failures with exact diffs needed).
+    -   [x] 1. Apply fixes (code + tests + CI) so the audit becomes PASS.
+    -   [x] 2. Regenerate report as: ARTIFACTS/TORRENT_FFI_AUDIT_REPORT.md with Status: PASS (or list remaining failures with exact diffs needed).
 
--   [ ] Phase 1 — Fix the drift items (no Revaer-only semantics)
+-   [x] Phase 1 — Fix the drift items (no Revaer-only semantics)
 
--   [ ] 1. Reject unsupported metadata updates at the API layer
+-   [x] 1. Reject unsupported metadata updates at the API layer
 
--   [ ] Decision: thin wrapper; no Revaer-only updates.
+-   [x] Decision: thin wrapper; no Revaer-only updates.
 
--   [ ] Action:
+-   [x] Action:
 
-    -   [ ] • In crates/revaer-api/src/models.rs (and any request parsing / validators used by PATCH):
-    -   [ ] • Reject comment, source, and private updates before the worker/FFI call.
-    -   [ ] • Error should be a clean 4xx with a deterministic message, e.g.:
-    -   [ ] • \"comment updates are not supported post-add\"
-    -   [ ] • \"source updates are not supported post-add\"
-    -   [ ] • \"private flag updates are not supported post-add\"
-    -   [ ] • Ensure worker does not mutate stored metadata for these fields in the update path.
+    -   [x] • In crates/revaer-api/src/models.rs (and any request parsing / validators used by PATCH):
+    -   [x] • Reject comment, source, and private updates before the worker/FFI call.
+    -   [x] • Error should be a clean 4xx with a deterministic message, e.g.:
+    -   [x] • \"comment updates are not supported post-add\"
+    -   [x] • \"source updates are not supported post-add\"
+    -   [x] • \"private flag updates are not supported post-add\"
+    -   [x] • Ensure worker does not mutate stored metadata for these fields in the update path.
 
--   [ ] Verification:
+-   [x] Verification:
 
-    -   [ ] • Add API tests asserting:
-    -   [ ] • PATCH including those fields returns 4xx.
-    -   [ ] • No native call is invoked (if you have a test seam; otherwise assert no state mutation).
+    -   [x] • Add API tests asserting:
+    -   [x] • PATCH including those fields returns 4xx.
+    -   [x] • No native call is invoked (if you have a test seam; otherwise assert no state mutation).
 
--   [ ] 2. Remove Rust-side seeding enforcement (native-only)
+-   [x] 2. Remove Rust-side seeding enforcement (native-only)
 
--   [ ] Decision: only supported if libtorrent can enforce; otherwise reject per-torrent overrides.
+-   [x] Decision: only supported if libtorrent can enforce; otherwise reject per-torrent overrides.
 
--   [ ] Action A — Delete policy enforcement
+-   [x] Action A — Delete policy enforcement
 
-    -   [ ] • Remove Rust worker seeding goal logic from:
-    -   [ ] • crates/revaer-torrent-libt/src/worker.rs
-    -   [ ] • Specifically anything like register_seeding_goal, evaluate_seeding_goal, PauseForSeedingGoal, etc.
-    -   [ ] • Ensure no “pause because ratio/time met” exists in Rust.
+    -   [x] • Remove Rust worker seeding goal logic from:
+    -   [x] • crates/revaer-torrent-libt/src/worker.rs
+    -   [x] • Specifically anything like register_seeding_goal, evaluate_seeding_goal, PauseForSeedingGoal, etc.
+    -   [x] • Ensure no “pause because ratio/time met” exists in Rust.
 
--   [ ] Action B — Enforce via libtorrent
+-   [x] Action B — Enforce via libtorrent
 
-    -   [ ] • Confirm global/profile seeding limits are applied via lt::settings_pack:
-    -   [ ] • share_ratio_limit
-    -   [ ] • seed_time_limit
-    -   [ ] • If your “per-torrent overrides” exist in Rust types:
-    -   [ ] • Only keep them if libtorrent has per-torrent handle APIs to enforce them.
-    -   [ ] • If libtorrent does not have per-torrent enforcement, then:
-    -   [ ] • Reject per-torrent seed ratio/time fields at API (POST add + PATCH) with 4xx
-    -   [ ] • Keep only global profile limits
+    -   [x] • Confirm global/profile seeding limits are applied via lt::settings_pack:
+    -   [x] • share_ratio_limit
+    -   [x] • seed_time_limit
+    -   [x] • If your “per-torrent overrides” exist in Rust types:
+    -   [x] • Only keep them if libtorrent has per-torrent handle APIs to enforce them.
+    -   [x] • If libtorrent does not have per-torrent enforcement, then:
+    -   [x] • Reject per-torrent seed ratio/time fields at API (POST add + PATCH) with 4xx
+    -   [x] • Keep only global profile limits
 
--   [ ] How Codex must decide per-torrent support:
+-   [x] How Codex must decide per-torrent support:
 
-    -   [ ] • Search libtorrent headers in your build environment for per-torrent seed controls:
-    -   [ ] • torrent_handle methods related to ratio/time
-    -   [ ] • OR documented setting names usable via your name-based set\_\*\_setting(...) helpers
-    -   [ ] • If no real native mechanism exists, you must reject per-torrent overrides.
+    -   [x] • Search libtorrent headers in your build environment for per-torrent seed controls:
+    -   [x] • torrent_handle methods related to ratio/time
+    -   [x] • OR documented setting names usable via your name-based set\_\*\_setting(...) helpers
+    -   [x] • If no real native mechanism exists, you must reject per-torrent overrides.
 
--   [ ] Verification:
+-   [x] Verification:
 
-    -   [ ] • Tests:
-    -   [ ] • A native integration test confirming global profile share_ratio_limit/seed_time_limit are applied (inspect runtime/effective config).
-    -   [ ] • If per-torrent overrides are rejected: API tests for POST/PATCH rejection.
-    -   [ ] • If per-torrent overrides are supported: native IT proving they change runtime behavior / applied state.
+    -   [x] • Tests:
+    -   [x] • A native integration test confirming global profile share_ratio_limit/seed_time_limit are applied (inspect runtime/effective config).
+    -   [x] • If per-torrent overrides are rejected: API tests for POST/PATCH rejection.
+    -   [x] • If per-torrent overrides are supported: native IT proving they change runtime behavior / applied state.
 
--   [ ] 3. Fix HTTPS proxy support correctly (only if libtorrent actually supports it)
+-   [x] 3. Fix HTTPS proxy support correctly (only if libtorrent actually supports it)
 
--   [ ] Decision: support HTTPS proxy only if libtorrent has a distinct proxy type.
+-   [x] Decision: support HTTPS proxy only if libtorrent has a distinct proxy type.
 
--   [ ] Action:
+-   [x] Action:
 
-    -   [ ] • In crates/revaer-torrent-libt/src/ffi/session.cpp:
-    -   [ ] • Replace the “HTTPS coerced to HTTP” switch with correct mapping.
-    -   [ ] • Codex must prove support exists by locating the proxy enum(s) in libtorrent headers:
-    -   [ ] • If there is a distinct https proxy type in lt::settings_pack (or equivalent):
-    -   [ ] • Map your Https to it.
-    -   [ ] • If there is no distinct HTTPS proxy type:
-    -   [ ] • Do not silently coerce.
-    -   [ ] • Instead: fail validation earlier (config validator) with a clear error:
-    -   [ ] • \"Https proxy type is not supported by the linked libtorrent version\"
-    -   [ ] • Update docs/tests accordingly.
+    -   [x] • In crates/revaer-torrent-libt/src/ffi/session.cpp:
+    -   [x] • Replace the “HTTPS coerced to HTTP” switch with correct mapping.
+    -   [x] • Codex must prove support exists by locating the proxy enum(s) in libtorrent headers:
+    -   [x] • If there is a distinct https proxy type in lt::settings_pack (or equivalent):
+    -   [x] • Map your Https to it.
+    -   [x] • If there is no distinct HTTPS proxy type:
+    -   [x] • Do not silently coerce.
+    -   [x] • Instead: fail validation earlier (config validator) with a clear error:
+    -   [x] • \"Https proxy type is not supported by the linked libtorrent version\"
+    -   [x] • Update docs/tests accordingly.
 
--   [ ] Verification:
+-   [x] Verification:
 
-    -   [ ] • Unit test mapping: Https never becomes Http.
-    -   [ ] • Native IT: apply profile with proxy kind Https:
-    -   [ ] • If supported: verify correct native setting is applied.
-    -   [ ] • If unsupported: API/config update must reject.
+    -   [x] • Unit test mapping: Https never becomes Http.
+    -   [x] • Native IT: apply profile with proxy kind Https:
+    -   [x] • If supported: verify correct native setting is applied.
+    -   [x] • If unsupported: API/config update must reject.
 
--   [ ] 4. Apply proxy auth secrets end-to-end
+-   [x] 4. Apply proxy auth secrets end-to-end
 
--   [ ] Decision: support proxy auth via libtorrent settings.
+-   [x] Decision: support proxy auth via libtorrent settings.
 
--   [ ] Action:
+-   [x] Action:
 
-    -   [ ] • Ensure orchestrator resolves proxy auth secret refs:
-    -   [ ] • username_secret, password_secret for proxy config
-    -   [ ] • Do not confuse with tracker HTTP auth/cookies (separate)
-    -   [ ] • In crates/revaer-torrent-libt/src/ffi/session.cpp:
-    -   [ ] • Set:
-    -   [ ] • proxy_username
-    -   [ ] • proxy_password
-    -   [ ] • alongside proxy_hostname and proxy_port
+    -   [x] • Ensure orchestrator resolves proxy auth secret refs:
+    -   [x] • username_secret, password_secret for proxy config
+    -   [x] • Do not confuse with tracker HTTP auth/cookies (separate)
+    -   [x] • In crates/revaer-torrent-libt/src/ffi/session.cpp:
+    -   [x] • Set:
+    -   [x] • proxy_username
+    -   [x] • proxy_password
+    -   [x] • alongside proxy_hostname and proxy_port
 
--   [ ] Verification:
+-   [x] Verification:
 
-    -   [ ] • Unit test: secret resolution populates runtime plan fields.
-    -   [ ] • Native IT: apply profile with proxy creds and assert settings pack includes username/password (via your inspect or debug surface).
+    -   [x] • Unit test: secret resolution populates runtime plan fields.
+    -   [x] • Native IT: apply profile with proxy creds and assert settings pack includes username/password (via your inspect or debug surface).
 
--   [ ] 5. Implement ipv6_mode natively (only with clean mapping)
+-   [x] 5. Implement ipv6_mode natively (only with clean mapping)
 
--   [ ] Decision: implement ipv6_mode in native.
+-   [x] Decision: implement ipv6_mode in native.
 
--   [ ] Action:
+-   [x] Action:
 
-    -   [ ] • First determine the mapping target in libtorrent:
-    -   [ ] • Prefer name-based settings (consistent with your “avoid deprecated enums” posture).
-    -   [ ] • Codex must locate appropriate setting names or APIs for IPv6 preference/behavior.
-    -   [ ] • Update:
-    -   [ ] • crates/revaer-torrent-libt/src/ffi/bridge.rs to carry ipv6_mode in EngineNetworkOptions
-    -   [ ] • crates/revaer-torrent-libt/src/ffi/session.cpp to apply it
-    -   [ ] • If the only real control is “listen on v6 interfaces” (via listen_interfaces), then implement ipv6_mode as:
-    -   [ ] • A deterministic transform of listen interfaces (e.g., add/remove [::] bindings) in one place, and ensure inspect explains the derived behavior.
-    -   [ ] • Do not keep ipv6_mode as a “phantom effective field” that native ignores.
+    -   [x] • First determine the mapping target in libtorrent:
+    -   [x] • Prefer name-based settings (consistent with your “avoid deprecated enums” posture).
+    -   [x] • Codex must locate appropriate setting names or APIs for IPv6 preference/behavior.
+    -   [x] • Update:
+    -   [x] • crates/revaer-torrent-libt/src/ffi/bridge.rs to carry ipv6_mode in EngineNetworkOptions
+    -   [x] • crates/revaer-torrent-libt/src/ffi/session.cpp to apply it
+    -   [x] • If the only real control is “listen on v6 interfaces” (via listen_interfaces), then implement ipv6_mode as:
+    -   [x] • A deterministic transform of listen interfaces (e.g., add/remove [::] bindings) in one place, and ensure inspect explains the derived behavior.
+    -   [x] • Do not keep ipv6_mode as a “phantom effective field” that native ignores.
 
--   [ ] Verification:
+-   [x] Verification:
 
-    -   [ ] • Native IT: set ipv6_mode and assert applied native behavior (settings or derived listen interfaces) matches inspect/effective output.
+    -   [x] • Native IT: set ipv6_mode and assert applied native behavior (settings or derived listen interfaces) matches inspect/effective output.
 
--   [ ] 6. DB alt_speed validation parity
+-   [x] 6. DB alt_speed validation parity
 
--   [ ] Action:
+-   [x] Action:
 
-    -   [ ] • In stored proc / SQL update path (e.g. crates/revaer-data/migrations/0001_db_init.sql or wherever proc lives):
-    -   [ ] • Validate/normalize alt_speed JSON exactly like Rust (sanitize_alt_speed semantics).
-    -   [ ] • If you already have a shared validator module pattern, route alt_speed through it.
+    -   [x] • In stored proc / SQL update path (e.g. crates/revaer-data/migrations/0001_db_init.sql or wherever proc lives):
+    -   [x] • Validate/normalize alt_speed JSON exactly like Rust (sanitize_alt_speed semantics).
+    -   [x] • If you already have a shared validator module pattern, route alt_speed through it.
 
--   [ ] Verification:
+-   [x] Verification:
 
-    -   [ ] • DB-level test (or migration test harness) that invalid alt_speed payload fails or is normalized identically to Rust.
+    -   [x] • DB-level test (or migration test harness) that invalid alt_speed payload fails or is normalized identically to Rust.
 
--   [ ] 7. Hard fail build if libtorrent version can’t be proven
+-   [x] 7. Hard fail build if libtorrent version can’t be proven
 
--   [ ] Decision: hard fail without verified >= MIN_VERSION.
+-   [x] Decision: hard fail without verified >= MIN_VERSION.
 
--   [ ] Action:
+-   [x] Action:
 
-    -   [ ] • In crates/revaer-torrent-libt/build.rs:
-    -   [ ] • Remove the unversioned fallback (libs.push(\"torrent-rasterbar\")) unless you have an explicit “vendored/bundled libtorrent” override path that also proves version.
-    -   [ ] • Build should fail with a clear error if pkg-config cannot confirm version.
+    -   [x] • In crates/revaer-torrent-libt/build.rs:
+    -   [x] • Remove the unversioned fallback (libs.push(\"torrent-rasterbar\")) unless you have an explicit “vendored/bundled libtorrent” override path that also proves version.
+    -   [x] • Build should fail with a clear error if pkg-config cannot confirm version.
 
--   [ ] Verification:
+-   [x] Verification:
 
-    -   [ ] • Add a build-script test if you have infrastructure; otherwise include a compile-time guard / error path message and ensure CI uses pkg-config path.
+    -   [x] • Add a build-script test if you have infrastructure; otherwise include a compile-time guard / error path message and ensure CI uses pkg-config path.
 
--   [ ] 8. Run native integration tests in CI on every PR
+-   [x] 8. Run native integration tests in CI on every PR
 
--   [ ] Decision: mandatory.
+-   [x] Decision: mandatory.
 
--   [ ] Action:
+-   [x] Action:
 
-    -   [ ] • Update .github/workflows/ci.yml:
-    -   [ ] • Add a job/matrix leg that:
-    -   [ ] • installs libtorrent deps (libtorrent-rasterbar-dev, etc.)
-    -   [ ] • sets REVAER_NATIVE_IT=1
-    -   [ ] • runs the native integration suite
-    -   [ ] • Ensure Docker availability if your native IT depends on it (or remove that dependency).
+    -   [x] • Update .github/workflows/ci.yml:
+    -   [x] • Add a job/matrix leg that:
+    -   [x] • installs libtorrent deps (libtorrent-rasterbar-dev, etc.)
+    -   [x] • sets REVAER_NATIVE_IT=1
+    -   [x] • runs the native integration suite
+    -   [x] • Ensure Docker availability if your native IT depends on it (or remove that dependency).
 
--   [ ] Verification:
+-   [x] Verification:
 
-    -   [ ] • CI must fail if native IT fails.
-    -   [ ] • Codex must confirm the job actually executes (not skipped by conditions).
+    -   [x] • CI must fail if native IT fails.
+    -   [x] • Codex must confirm the job actually executes (not skipped by conditions).
 
--   [ ] Phase 2 — Re-run audit and ensure PASS
+-   [x] Phase 2 — Re-run audit and ensure PASS
 
--   [ ] After implementing the above, Codex must:
+-   [x] After implementing the above, Codex must:
 
-    -   [ ] 1. Re-run ripgrep audits for:
+    -   [x] 1. Re-run ripgrep audits for:
 
-    -   [ ] • phantom fields (present in effective profile but never applied)
-    -   [ ] • silent coercions (Https→Http class bugs)
-    -   [ ] • Rust-side implementations of libtorrent semantics (especially seeding enforcement)
+    -   [x] • phantom fields (present in effective profile but never applied)
+    -   [x] • silent coercions (Https→Http class bugs)
+    -   [x] • Rust-side implementations of libtorrent semantics (especially seeding enforcement)
 
-    -   [ ] 2. Re-run full test suite:
+    -   [x] 2. Re-run full test suite:
 
-    -   [ ] • cargo test --workspace
-    -   [ ] • cargo test -p revaer-torrent-libt --features native-tests (or your actual feature flag)
-    -   [ ] • plus the integration suite invoked by REVAER_NATIVE_IT=1
+    -   [x] • cargo test --workspace
+    -   [x] • cargo test -p revaer-torrent-libt --features native-tests (or your actual feature flag)
+    -   [x] • plus the integration suite invoked by REVAER_NATIVE_IT=1
 
-    -   [ ] 3. Re-emit ARTIFACTS/TORRENT_FFI_AUDIT_REPORT.md with:
+    -   [x] 3. Re-emit ARTIFACTS/TORRENT_FFI_AUDIT_REPORT.md with:
 
-    -   [ ] • Status: PASS
-    -   [ ] • Counts all zero, or only MINOR with explicit approval rationale (but avoid that unless you’ve decided it’s acceptable).
+    -   [x] • Status: PASS
+    -   [x] • Counts all zero, or only MINOR with explicit approval rationale (but avoid that unless you’ve decided it’s acceptable).
 
--   [ ] One explicit rule Codex must enforce in the report
+-   [x] One explicit rule Codex must enforce in the report
 
--   [ ] No “effective config” field may exist unless either:
-    -   [ ] • it is applied to libtorrent natively, OR
-    -   [ ] • it is explicitly derived from a native-applied field and clearly labeled as derived (not an independent knob)
+-   [x] No “effective config” field may exist unless either:
+    -   [x] • it is applied to libtorrent natively, OR
+    -   [x] • it is explicitly derived from a native-applied field and clearly labeled as derived (not an independent knob)

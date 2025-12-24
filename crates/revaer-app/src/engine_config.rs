@@ -223,6 +223,8 @@ fn map_proxy_config(config: TrackerProxyConfig) -> TrackerProxyRuntime {
     TrackerProxyRuntime {
         host: config.host,
         port: config.port,
+        username: None,
+        password: None,
         username_secret: config.username_secret,
         password_secret: config.password_secret,
         kind: map_proxy_kind(config.kind),

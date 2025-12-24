@@ -14,8 +14,7 @@ use chrono::{DateTime, Utc};
 use reqwest::{Client, header::IF_NONE_MATCH};
 use revaer_config::engine_profile::canonicalize_ip_filter_entry;
 use revaer_config::{
-    ConfigService, EngineProfile, FsPolicy, IpFilterConfig, IpFilterRule, SettingsChangeset,
-    SettingsFacade,
+    EngineProfile, FsPolicy, IpFilterConfig, IpFilterRule, SettingsChangeset, SettingsFacade,
 };
 use revaer_events::{DiscoveredFile, Event, EventBus, TorrentState};
 use revaer_fsops::{FsOpsRequest, FsOpsService};
@@ -108,7 +107,7 @@ where
     engine_profile: Arc<RwLock<EngineProfile>>,
     catalog: Arc<TorrentCatalog>,
     runtime: Option<RuntimeStore>,
-    config: Option<ConfigService>,
+    config: Option<Arc<dyn SettingsFacade>>,
     http: Client,
     ip_filter_cache: RwLock<Option<IpFilterCache>>,
 }
@@ -127,7 +126,7 @@ where
         fs_policy: FsPolicy,
         engine_profile: EngineProfile,
         runtime: Option<RuntimeStore>,
-        config: Option<ConfigService>,
+        config: Option<Arc<dyn SettingsFacade>>,
     ) -> Self {
         Self {
             engine,
@@ -256,6 +255,7 @@ where
         let mut plan = EngineRuntimePlan::from_profile(&profile);
         self.refresh_ip_filter(&mut plan).await?;
         self.resolve_tracker_auth(&mut plan).await?;
+        self.resolve_proxy_auth(&mut plan).await?;
         for warning in &plan.effective.warnings {
             warn!(%warning, "engine profile guard rail applied");
         }
@@ -351,7 +351,11 @@ where
 
         if let Some(config) = &self.config
             && let Err(err) = self
-                .persist_ip_filter_metadata(config, &previous, &plan.effective.network.ip_filter)
+                .persist_ip_filter_metadata(
+                    config.as_ref(),
+                    &previous,
+                    &plan.effective.network.ip_filter,
+                )
                 .await
         {
             warn!(
@@ -402,6 +406,44 @@ where
             match config.get_secret(secret).await? {
                 Some(value) => auth.cookie = Some(value),
                 None => warnings.push(format!("tracker.auth.cookie_secret '{secret}' is not set")),
+            }
+        }
+
+        if !warnings.is_empty() {
+            plan.effective.warnings.extend(warnings);
+        }
+
+        Ok(())
+    }
+
+    async fn resolve_proxy_auth(&self, plan: &mut EngineRuntimePlan) -> Result<()> {
+        let Some(config) = &self.config else {
+            return Ok(());
+        };
+        let Some(proxy) = plan.runtime.tracker.proxy.as_mut() else {
+            return Ok(());
+        };
+
+        let mut warnings = Vec::new();
+
+        if proxy.username.is_none()
+            && let Some(secret) = &proxy.username_secret
+        {
+            match config.get_secret(secret).await? {
+                Some(value) => proxy.username = Some(value),
+                None => warnings.push(format!(
+                    "tracker.proxy.username_secret '{secret}' is not set"
+                )),
+            }
+        }
+        if proxy.password.is_none()
+            && let Some(secret) = &proxy.password_secret
+        {
+            match config.get_secret(secret).await? {
+                Some(value) => proxy.password = Some(value),
+                None => warnings.push(format!(
+                    "tracker.proxy.password_secret '{secret}' is not set"
+                )),
             }
         }
 
@@ -501,7 +543,7 @@ where
 
     async fn persist_ip_filter_metadata(
         &self,
-        config: &ConfigService,
+        config: &dyn SettingsFacade,
         previous: &IpFilterConfig,
         updated: &IpFilterConfig,
     ) -> Result<()> {
@@ -635,7 +677,7 @@ pub(crate) async fn spawn_libtorrent_orchestrator(
     fs_policy: FsPolicy,
     engine_profile: EngineProfile,
     deps: LibtorrentOrchestratorDeps,
-    config: Option<ConfigService>,
+    config: Option<Arc<dyn SettingsFacade>>,
 ) -> Result<(
     Arc<LibtorrentEngine>,
     Arc<TorrentOrchestrator<LibtorrentEngine>>,
@@ -1340,11 +1382,13 @@ mod orchestrator_tests {
 #[cfg(test)]
 mod engine_refresh_tests {
     use super::*;
+    use revaer_config::{AppProfile, SetupToken};
     use revaer_events::EventBus;
     use revaer_torrent_core::{
         AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentWorkflow,
     };
     use serde_json::json;
+    use std::collections::HashMap;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
     use tokio::sync::RwLock;
@@ -1422,6 +1466,55 @@ mod engine_refresh_tests {
         async fn apply_engine_plan(&self, plan: &EngineRuntimePlan) -> Result<()> {
             self.applied.write().await.push(plan.clone());
             Ok(())
+        }
+    }
+
+    struct StubConfig {
+        secrets: HashMap<String, String>,
+    }
+
+    #[async_trait]
+    impl SettingsFacade for StubConfig {
+        async fn get_app_profile(&self) -> Result<AppProfile> {
+            Err(anyhow!("not implemented"))
+        }
+
+        async fn get_engine_profile(&self) -> Result<EngineProfile> {
+            Err(anyhow!("not implemented"))
+        }
+
+        async fn get_fs_policy(&self) -> Result<FsPolicy> {
+            Err(anyhow!("not implemented"))
+        }
+
+        async fn get_secret(&self, name: &str) -> Result<Option<String>> {
+            Ok(self.secrets.get(name).cloned())
+        }
+
+        async fn subscribe_changes(&self) -> Result<revaer_config::SettingsStream> {
+            Err(anyhow!("not implemented"))
+        }
+
+        async fn apply_changeset(
+            &self,
+            _actor: &str,
+            _reason: &str,
+            _changeset: SettingsChangeset,
+        ) -> Result<revaer_config::AppliedChanges> {
+            Ok(revaer_config::AppliedChanges {
+                revision: 0,
+                app_profile: None,
+                engine_profile: None,
+                fs_policy: None,
+            })
+        }
+
+        async fn issue_setup_token(&self, _ttl: Duration, _issued_by: &str) -> Result<SetupToken> {
+            Err(anyhow!("not implemented"))
+        }
+
+        async fn consume_setup_token(&self, _token: &str) -> Result<()> {
+            Err(anyhow!("not implemented"))
         }
     }
 
@@ -1562,6 +1655,62 @@ mod engine_refresh_tests {
         );
         assert_eq!(recorded_limits[0].1.download_bps, Some(1_500_000));
         assert_eq!(recorded_limits[0].1.upload_bps, Some(750_000));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_engine_profile_resolves_proxy_secrets() -> Result<()> {
+        let engine = Arc::new(RecordingEngine::default());
+        let bus = EventBus::new();
+        let metrics = Metrics::new()?;
+        let fsops = FsOpsService::new(bus.clone(), metrics);
+        let secrets = HashMap::from([
+            ("PROXY_USER".to_string(), "proxy-user".to_string()),
+            ("PROXY_PASS".to_string(), "proxy-pass".to_string()),
+        ]);
+        let config: Arc<dyn SettingsFacade> = Arc::new(StubConfig { secrets });
+
+        let mut profile = engine_profile("proxy-auth");
+        profile.tracker = json!({
+            "proxy": {
+                "host": "proxy.local",
+                "port": 8080,
+                "kind": "socks5",
+                "username_secret": "PROXY_USER",
+                "password_secret": "PROXY_PASS"
+            }
+        });
+
+        let orchestrator = Arc::new(TorrentOrchestrator::new(
+            Arc::clone(&engine),
+            fsops,
+            bus,
+            sample_fs_policy(),
+            profile.clone(),
+            None,
+            Some(config),
+        ));
+
+        orchestrator
+            .update_engine_profile(profile)
+            .await
+            .expect("profile update");
+
+        let applied = engine
+            .applied
+            .read()
+            .await
+            .last()
+            .cloned()
+            .expect("runtime config applied");
+        let proxy = applied
+            .runtime
+            .tracker
+            .proxy
+            .as_ref()
+            .expect("proxy config present");
+        assert_eq!(proxy.username.as_deref(), Some("proxy-user"));
+        assert_eq!(proxy.password.as_deref(), Some("proxy-pass"));
         Ok(())
     }
 

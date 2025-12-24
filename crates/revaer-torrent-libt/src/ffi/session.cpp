@@ -397,6 +397,14 @@ int get_int_setting(const lt::settings_pack& pack, const char* name, int fallbac
     return pack.get_int(index);
 }
 
+std::string get_str_setting(const lt::settings_pack& pack, const char* name) {
+    const int index = lt::setting_by_name(name);
+    if (index < 0) {
+        return {};
+    }
+    return pack.get_str(index);
+}
+
 bool set_int_setting(lt::settings_pack& pack, const char* name, int value) {
     const int index = lt::setting_by_name(name);
     if (index < 0) {
@@ -416,10 +424,7 @@ bool set_str_setting(lt::settings_pack& pack, const char* name, const std::strin
 }
 
 void set_strict_super_seeding(lt::settings_pack& pack, bool value) {
-    if (set_bool_setting(pack, "strict_super_seeding", value)) {
-        return;
-    }
-    set_bool_setting(pack, "deprecated_strict_super_seeding", value);
+    set_bool_setting(pack, "strict_super_seeding", value);
 }
 }  // namespace
 
@@ -487,8 +492,17 @@ public:
                 pack.set_str(lt::settings_pack::listen_interfaces, combined);
                 pack.set_int(lt::settings_pack::max_retry_port_bind, 0);
             } else if (options.network.set_listen_port && options.network.listen_port > 0) {
-                pack.set_str(lt::settings_pack::listen_interfaces,
-                             "0.0.0.0:" + std::to_string(options.network.listen_port));
+                const auto port = std::to_string(options.network.listen_port);
+                if (options.network.ipv6_mode == 1) {
+                    pack.set_str(lt::settings_pack::listen_interfaces,
+                                 "0.0.0.0:" + port + ",[::]:" + port);
+                } else if (options.network.ipv6_mode == 2) {
+                    pack.set_str(lt::settings_pack::listen_interfaces,
+                                 "[::]:" + port + ",0.0.0.0:" + port);
+                } else {
+                    pack.set_str(lt::settings_pack::listen_interfaces,
+                                 "0.0.0.0:" + port);
+                }
                 pack.set_int(lt::settings_pack::max_retry_port_bind, 0);
             } else if (options.tracker.has_listen_interface) {
                 pack.set_int(lt::settings_pack::max_retry_port_bind, 0);
@@ -724,24 +738,41 @@ public:
                 pack.set_int(lt::settings_pack::proxy_port, options.tracker.proxy.port);
                 pack.set_bool(lt::settings_pack::proxy_peer_connections,
                               options.tracker.proxy.proxy_peers);
+                if (options.tracker.proxy.has_username) {
+                    pack.set_str(lt::settings_pack::proxy_username,
+                                 to_std_string(options.tracker.proxy.username));
+                } else {
+                    pack.set_str(lt::settings_pack::proxy_username, std::string{});
+                }
+                if (options.tracker.proxy.has_password) {
+                    pack.set_str(lt::settings_pack::proxy_password,
+                                 to_std_string(options.tracker.proxy.password));
+                } else {
+                    pack.set_str(lt::settings_pack::proxy_password, std::string{});
+                }
+                const bool has_auth =
+                    options.tracker.proxy.has_username || options.tracker.proxy.has_password;
                 int proxy_type = lt::settings_pack::http;
                 switch (options.tracker.proxy.kind) {
                     case 0:
-                        proxy_type = lt::settings_pack::http;
+                        proxy_type =
+                            has_auth ? lt::settings_pack::http_pw : lt::settings_pack::http;
                         break;
                     case 1:
-                        proxy_type = lt::settings_pack::http;
-                        break;
+                        return ::rust::String(
+                            "Https proxy type is not supported by the linked libtorrent version");
                     case 2:
-                        proxy_type = lt::settings_pack::socks5;
+                        proxy_type =
+                            has_auth ? lt::settings_pack::socks5_pw : lt::settings_pack::socks5;
                         break;
                     default:
-                        proxy_type = lt::settings_pack::http;
-                        break;
+                        return ::rust::String("unsupported proxy type");
                 }
                 pack.set_int(lt::settings_pack::proxy_type, proxy_type);
             } else {
                 pack.set_int(lt::settings_pack::proxy_type, lt::settings_pack::none);
+                pack.set_str(lt::settings_pack::proxy_username, std::string{});
+                pack.set_str(lt::settings_pack::proxy_password, std::string{});
             }
 
             if (options.network.has_ip_filter) {
@@ -1979,6 +2010,18 @@ public:
         return state;
     }
 
+    EngineSettingsState inspect_settings_state() const {
+        const auto settings = session_->get_settings();
+        EngineSettingsState snapshot{};
+        snapshot.listen_interfaces =
+            ::rust::String(get_str_setting(settings, "listen_interfaces"));
+        snapshot.proxy_username = ::rust::String(get_str_setting(settings, "proxy_username"));
+        snapshot.proxy_password = ::rust::String(get_str_setting(settings, "proxy_password"));
+        snapshot.share_ratio_limit = get_int_setting(settings, "share_ratio_limit", -1);
+        snapshot.seed_time_limit = get_int_setting(settings, "seed_time_limit", -1);
+        return snapshot;
+    }
+
 private:
     template <typename Fn>
     ::rust::String mutate_handle(const std::string& id, Fn&& fn) {
@@ -2255,6 +2298,10 @@ EngineStorageState Session::inspect_storage_state() const {
 
 EnginePeerClassState Session::inspect_peer_class_state() const {
     return impl_->inspect_peer_class_state();
+}
+
+EngineSettingsState Session::inspect_settings_state() const {
+    return impl_->inspect_settings_state();
 }
 
 rust::Vec<NativeEvent> Session::poll_events() {

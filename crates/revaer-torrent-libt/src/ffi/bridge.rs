@@ -25,6 +25,8 @@ pub mod ffi {
         listen_interfaces: Vec<String>,
         /// Whether explicit listen interfaces were provided.
         has_listen_interfaces: bool,
+        /// IPv6 preference policy.
+        ipv6_mode: u8,
         /// Whether to enable DHT.
         enable_dht: bool,
         /// Whether to enable local service discovery.
@@ -186,6 +188,21 @@ pub mod ffi {
         default_ids: Vec<u8>,
     }
 
+    /// Snapshot of applied settings used by native integration tests.
+    #[derive(Debug)]
+    struct EngineSettingsState {
+        /// Effective listen interfaces configured in the session.
+        listen_interfaces: String,
+        /// Proxy username applied to the session.
+        proxy_username: String,
+        /// Proxy password applied to the session.
+        proxy_password: String,
+        /// Share ratio limit applied to the session (scaled by 1000).
+        share_ratio_limit: i32,
+        /// Seed time limit applied to the session in seconds.
+        seed_time_limit: i32,
+    }
+
     /// Behavioural defaults applied to new torrents.
     #[derive(Debug)]
     struct EngineBehaviorOptions {
@@ -206,6 +223,10 @@ pub mod ffi {
     struct TrackerProxyOptions {
         /// Proxy host.
         host: String,
+        /// Plain username resolved from secrets.
+        username: String,
+        /// Plain password resolved from secrets.
+        password: String,
         /// Secret reference for proxy username when provided.
         username_secret: String,
         /// Secret reference for proxy password when provided.
@@ -216,6 +237,10 @@ pub mod ffi {
         kind: u8,
         /// Whether peer connections should also use the proxy.
         proxy_peers: bool,
+        /// Flag indicating whether a username was provided.
+        has_username: bool,
+        /// Flag indicating whether a password was provided.
+        has_password: bool,
         /// Flag indicating whether a proxy configuration was supplied.
         has_proxy: bool,
     }
@@ -803,6 +828,9 @@ pub mod ffi {
         /// Inspect peer class configuration applied to the session.
         #[must_use]
         fn inspect_peer_class_state(self: &Session) -> EnginePeerClassState;
+        /// Inspect applied session settings used by native integration tests.
+        #[must_use]
+        fn inspect_settings_state(self: &Session) -> EngineSettingsState;
         /// Poll pending events from the session.
         #[must_use]
         fn poll_events(self: Pin<&mut Session>) -> Vec<NativeEvent>;
