@@ -218,6 +218,15 @@ pub enum FsopsStatus {
     Failed,
 }
 
+/// Compact filesystem-processing badge for list rows.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FsopsBadge {
+    /// Current filesystem processing status.
+    pub status: FsopsStatus,
+    /// Optional detail to surface (step or error message).
+    pub detail: Option<String>,
+}
+
 /// Current torrents slice stored in the app state.
 #[derive(Clone, Debug, PartialEq, Default)]
 pub struct TorrentsState {
@@ -442,6 +451,21 @@ pub fn select_torrent_progress_slice(
         eta: row.eta.clone(),
         upload_bps: row.upload_bps,
         download_bps: row.download_bps,
+    })
+}
+
+/// Read the filesystem-processing badge for a torrent row.
+#[must_use]
+pub fn select_fsops_badge(state: &TorrentsState, id: &Uuid) -> Option<FsopsBadge> {
+    let fsops = state.fsops_by_id.get(id)?;
+    let detail = match fsops.status {
+        FsopsStatus::Failed => fsops.error.clone(),
+        FsopsStatus::InProgress => fsops.step.clone(),
+        FsopsStatus::Completed => None,
+    };
+    Some(FsopsBadge {
+        status: fsops.status.clone(),
+        detail,
     })
 }
 

@@ -11,7 +11,7 @@ use crate::features::torrents::state::{TorrentsPaging, TorrentsQueryModel};
 use crate::models::{
     AddTorrentInput, DashboardSnapshot, DetailData, ProblemDetails, QueueStatus,
     TorrentAction as ApiTorrentAction, TorrentCreateRequest, TorrentDetail, TorrentLabelEntry,
-    TorrentListResponse, TrackerHealth, VpnState,
+    TorrentLabelPolicy, TorrentListResponse, TrackerHealth, VpnState,
 };
 use base64::{Engine as _, engine::general_purpose};
 use gloo::file::futures::read_as_bytes;
@@ -225,6 +225,42 @@ impl ApiClient {
 
     pub(crate) async fn fetch_tags(&self) -> Result<Vec<TorrentLabelEntry>, ApiError> {
         self.get_json("/v1/torrents/tags").await
+    }
+
+    pub(crate) async fn upsert_category(
+        &self,
+        name: &str,
+        policy: &TorrentLabelPolicy,
+    ) -> Result<TorrentLabelEntry, ApiError> {
+        let encoded = urlencoding::encode(name);
+        let req = Request::put(&format!(
+            "{}/v1/torrents/categories/{}",
+            self.base_url.trim_end_matches('/'),
+            encoded
+        ));
+        let req = self.apply_auth(req)?;
+        let req = req
+            .json(policy)
+            .map_err(|err| ApiError::client(format!("encode category policy: {err}")))?;
+        self.send_json(req).await
+    }
+
+    pub(crate) async fn upsert_tag(
+        &self,
+        name: &str,
+        policy: &TorrentLabelPolicy,
+    ) -> Result<TorrentLabelEntry, ApiError> {
+        let encoded = urlencoding::encode(name);
+        let req = Request::put(&format!(
+            "{}/v1/torrents/tags/{}",
+            self.base_url.trim_end_matches('/'),
+            encoded
+        ));
+        let req = self.apply_auth(req)?;
+        let req = req
+            .json(policy)
+            .map_err(|err| ApiError::client(format!("encode tag policy: {err}")))?;
+        self.send_json(req).await
     }
 
     pub(crate) async fn perform_action(

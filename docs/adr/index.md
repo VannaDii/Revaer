@@ -42,6 +42,7 @@ ADR documents capture the rationale behind significant technical decisions.
 - [037](037-ui-row-slices-system-rates.md) – UI row slices and system-rate store wiring
 - [038](038-ui-api-models-filters-paging.md) – UI shared API models and torrent query paging state
 - [039](039-ui-store-api-rate-limit.md) – UI store, API coverage, and rate-limit retries
+- [040](040-ui-labels-policy.md) – UI label policy editor and API wiring
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

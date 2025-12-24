@@ -9,8 +9,8 @@ use crate::core::logic::{
 use crate::core::store::AppStore;
 use crate::features::torrents::actions::TorrentAction;
 use crate::features::torrents::state::{
-    SelectionSet, TorrentProgressSlice, TorrentRow, TorrentRowBase, select_is_selected,
-    select_torrent_progress_slice, select_torrent_row_base,
+    FsopsBadge, FsopsStatus, SelectionSet, TorrentProgressSlice, TorrentRow, TorrentRowBase,
+    select_fsops_badge, select_is_selected, select_torrent_progress_slice, select_torrent_row_base,
 };
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::{AddTorrentInput, ConfirmKind};
@@ -444,10 +444,12 @@ fn torrent_row_item(props: &TorrentRowItemProps) -> Html {
     let base = use_selector(move |store: &AppStore| select_torrent_row_base(&store.torrents, &id));
     let progress =
         use_selector(move |store: &AppStore| select_torrent_progress_slice(&store.torrents, &id));
+    let fsops = use_selector(move |store: &AppStore| select_fsops_badge(&store.torrents, &id));
     let checked = use_selector(move |store: &AppStore| select_is_selected(&store.torrents, &id));
 
     let base = (*base).clone();
     let progress = (*progress).clone();
+    let fsops = (*fsops).clone();
     let checked = *checked;
 
     let Some(base) = base else {
@@ -461,6 +463,7 @@ fn torrent_row_item(props: &TorrentRowItemProps) -> Html {
         render_mobile_row(
             &base,
             &progress,
+            fsops.as_ref(),
             props.active,
             checked,
             props.on_select.clone(),
@@ -474,6 +477,7 @@ fn torrent_row_item(props: &TorrentRowItemProps) -> Html {
         render_row(
             &base,
             &progress,
+            fsops.as_ref(),
             props.active,
             checked,
             props.on_select.clone(),
@@ -489,6 +493,7 @@ fn torrent_row_item(props: &TorrentRowItemProps) -> Html {
 fn render_row(
     base: &TorrentRowBase,
     progress: &TorrentProgressSlice,
+    fsops: Option<&FsopsBadge>,
     selected: bool,
     checked: bool,
     on_select: Callback<Uuid>,
@@ -551,6 +556,7 @@ fn render_row(
         let id = base.id;
         Callback::from(move |_| on_action.emit((TorrentAction::Delete { with_data: true }, id)))
     };
+    let fsops_label = fsops_label(&bundle, fsops);
     html! {
         <article class={classes!("torrent-row", if selected { Some("selected") } else { None })} aria-selected={selected.to_string()}>
             <div class="row-checkbox">
@@ -572,6 +578,13 @@ fn render_row(
                 </div>
                 <div class="status">
                     <span class={classes!("pill", status_class(&progress.status))}>{progress.status.clone()}</span>
+                    {if let Some(label) = fsops_label {
+                        html! {
+                            <span class={classes!("pill", fsops_class(fsops), "subtle")} title={fsops.and_then(|badge| badge.detail.clone()).unwrap_or_default()}>
+                                {label}
+                            </span>
+                        }
+                    } else { html!{} }}
                     <div class="progress">
                         <div class="bar" style={format!("width: {:.1}%", progress.progress * 100.0)}></div>
                         <span class="muted">{format!("{:.1}%", progress.progress * 100.0)}</span>
@@ -635,6 +648,7 @@ fn render_row(
 fn render_mobile_row(
     base: &TorrentRowBase,
     progress: &TorrentProgressSlice,
+    fsops: Option<&FsopsBadge>,
     selected: bool,
     checked: bool,
     on_select: Callback<Uuid>,
@@ -692,6 +706,7 @@ fn render_mobile_row(
         let id = base.id;
         Callback::from(move |_| on_action.emit((TorrentAction::Delete { with_data: true }, id)))
     };
+    let fsops_label = fsops_label(&bundle, fsops);
     html! {
         <article class={classes!("torrent-row", "mobile", if selected { Some("selected") } else { None })} aria-selected={selected.to_string()}>
             <header class="title">
@@ -711,7 +726,16 @@ fn render_mobile_row(
                     <strong>{base.name.clone()}</strong>
                     <p class="muted ellipsis">{base.tracker.clone()}</p>
                 </div>
-                <span class={classes!("pill", status_class(&progress.status))}>{progress.status.clone()}</span>
+                <div class="status-stack">
+                    <span class={classes!("pill", status_class(&progress.status))}>{progress.status.clone()}</span>
+                    {if let Some(label) = fsops_label {
+                        html! {
+                            <span class={classes!("pill", fsops_class(fsops), "subtle")} title={fsops.and_then(|badge| badge.detail.clone()).unwrap_or_default()}>
+                                {label}
+                            </span>
+                        }
+                    } else { html!{} }}
+                </div>
             </header>
             <div class="progress">
                 <div class="bar" style={format!("width: {:.1}%", progress.progress * 100.0)}></div>
@@ -763,6 +787,25 @@ fn status_class(status: &str) -> &'static str {
         "error" => "error",
         _ => "muted",
     }
+}
+
+fn fsops_class(fsops: Option<&FsopsBadge>) -> &'static str {
+    match fsops.map(|badge| &badge.status) {
+        Some(FsopsStatus::InProgress) => "warn",
+        Some(FsopsStatus::Completed) => "ok",
+        Some(FsopsStatus::Failed) => "error",
+        None => "muted",
+    }
+}
+
+fn fsops_label(bundle: &TranslationBundle, fsops: Option<&FsopsBadge>) -> Option<String> {
+    let label = match fsops.map(|badge| &badge.status) {
+        Some(FsopsStatus::InProgress) => bundle.text("torrents.fsops_in_progress", "FSOps"),
+        Some(FsopsStatus::Completed) => bundle.text("torrents.fsops_done", "FSOps done"),
+        Some(FsopsStatus::Failed) => bundle.text("torrents.fsops_failed", "FSOps failed"),
+        None => return None,
+    };
+    Some(label)
 }
 
 fn action_banner_message(bundle: &TranslationBundle, action: &TorrentAction, name: &str) -> String {

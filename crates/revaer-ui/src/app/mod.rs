@@ -17,6 +17,8 @@ use crate::core::store::{
 };
 use crate::core::theme::ThemeMode;
 use crate::core::ui::{Density, UiMode};
+use crate::features::labels::state::LabelKind;
+use crate::features::labels::view::LabelsPage;
 use crate::features::torrents::actions::{TorrentAction, success_message};
 use crate::features::torrents::state::{
     ProgressPatch, SelectionSet, TorrentRow, TorrentsPaging, TorrentsQueryModel,
@@ -47,7 +49,7 @@ use yew::prelude::*;
 use yew_router::prelude::*;
 use yewdux::prelude::{Dispatch, use_selector};
 
-mod api;
+pub(crate) mod api;
 mod preferences;
 mod routes;
 mod sse;
@@ -1041,8 +1043,8 @@ pub fn revaer_app() -> Html {
                                         <TorrentView breakpoint={*breakpoint} visible_ids={visible_ids.clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_bulk_action={on_bulk_action.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={add_busy_value} search={search.clone()} on_search={set_search.clone()} selected_id={Uuid::parse_str(&id).ok()} selected_ids={selected_ids_value.clone()} on_set_selected={on_set_selected.clone()} selected_detail={selected_detail_value.clone()} on_select_detail={on_select_detail.clone()} />
                                     </div>
                                 },
-                                Route::Categories => html! { <Placeholder title={bundle.text("placeholder.categories_title", "Categories")} body={bundle.text("placeholder.categories_body", "Category policy editor")} /> },
-                                Route::Tags => html! { <Placeholder title={bundle.text("placeholder.tags_title", "Tags")} body={bundle.text("placeholder.tags_body", "Tag management")} /> },
+                                Route::Categories => html! { <LabelsPage kind={LabelKind::Category} /> },
+                                Route::Tags => html! { <LabelsPage kind={LabelKind::Tag} /> },
                                 Route::Settings => html! { <Placeholder title={bundle.text("placeholder.settings_title", "Settings")} body={bundle.text("placeholder.settings_body", "Engine profile and paths")} /> },
                                 Route::Health => html! { <Placeholder title={bundle.text("placeholder.health_title", "Health")} body={bundle.text("placeholder.health_body", "Service status and diagnostics")} /> },
                                 Route::NotFound => html! { <Placeholder title={bundle.text("placeholder.not_found_title", "Not found")} body={bundle.text("placeholder.not_found_body", "Use navigation to return to a supported view.")} /> },

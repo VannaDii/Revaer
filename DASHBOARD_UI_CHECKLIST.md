@@ -44,7 +44,7 @@
   - [x] torrents.filters: TorrentsQueryModel (mirrors URL query)
   - [x] torrents.paging: { cursor, next_cursor, limit, is_loading }
   - [x] torrents.details_by_id: HashMap<Uuid, Rc<TorrentDetailState>> (optional cache; keep large vectors here, not in row state)
-  - [ ] torrents.fsops_by_id: HashMap<Uuid, Rc<FsopsState>> (separate map; row derives a small badge slice)
+  - [x] torrents.fsops_by_id: HashMap<Uuid, Rc<FsopsState>> (separate map; row derives a small badge slice)
 - [ ] Implement selectors for row-level subscription:
   - [x] select_visible_ids()
   - [x] select_torrent_row(id) (for drawer)
@@ -74,8 +74,8 @@
 - [x] Endpoints: POST /v1/torrents/{id}/action.
 - [ ] Endpoints: PATCH /v1/torrents/{id}/options.
 - [ ] Endpoints: POST /v1/torrents/{id}/select.
-- [ ] Endpoints: GET /v1/torrents/categories; PUT /v1/torrents/categories/{name}.
-- [ ] Endpoints: GET /v1/torrents/tags; PUT /v1/torrents/tags/{name}.
+- [x] Endpoints: GET /v1/torrents/categories; PUT /v1/torrents/categories/{name}.
+- [x] Endpoints: GET /v1/torrents/tags; PUT /v1/torrents/tags/{name}.
 - [ ] Endpoints: POST /v1/torrents/create.
 - [x] Endpoints: GET /v1/torrents/events (SSE).
 - [x] Centralize error parsing with ProblemDetails; display status/title/detail consistently.
@@ -129,9 +129,9 @@
 - [ ] Provide shortcuts to manage categories and tags.
 
 ## 12) Categories and Tags pages (policy management)
-- [ ] Categories list and editor: list existing, create/update via PUT with TorrentLabelPolicy fields.
-- [ ] Categories editor: structured form with Advanced section for rarely used policy fields.
-- [ ] Tags list and editor: same pattern as categories.
+- [x] Categories list and editor: list existing, create/update via PUT with TorrentLabelPolicy fields.
+- [x] Categories editor: structured form with Advanced section for rarely used policy fields.
+- [x] Tags list and editor: same pattern as categories.
 
 ## 13) Health page (operator-facing)
 - [ ] Show /health basic status.

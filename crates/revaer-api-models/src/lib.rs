@@ -26,17 +26,16 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use revaer_events::TorrentState;
-pub use revaer_torrent_core::TorrentLabelPolicy;
 use revaer_torrent_core::{
     AddTorrentOptions, FilePriority, FilePriorityOverride, FileSelectionRules, FileSelectionUpdate,
-    PeerChoke, PeerInterest, PeerSnapshot, StorageMode, TorrentCleanupPolicy, TorrentRateLimit,
-    TorrentSource, TorrentStatus,
+    PeerChoke, PeerInterest, PeerSnapshot, StorageMode, TorrentSource, TorrentStatus,
     model::{
         TorrentAuthorRequest as CoreTorrentAuthorRequest,
         TorrentAuthorResult as CoreTorrentAuthorResult, TorrentOptionsUpdate,
         TorrentTrackersUpdate, TorrentWebSeedsUpdate,
     },
 };
+pub use revaer_torrent_core::{TorrentCleanupPolicy, TorrentLabelPolicy, TorrentRateLimit};
 
 /// RFC9457-compatible problem document surfaced on validation/runtime errors.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
