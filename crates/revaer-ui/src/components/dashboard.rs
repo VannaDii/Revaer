@@ -1,3 +1,4 @@
+use crate::core::store::SystemRates;
 use crate::features::torrents::state::TorrentRow;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::{DashboardSnapshot, EventKind};
@@ -7,6 +8,7 @@ use yew::prelude::*;
 #[derive(Properties, PartialEq)]
 pub(crate) struct DashboardProps {
     pub snapshot: DashboardSnapshot,
+    pub system_rates: SystemRates,
     pub mode: UiMode,
     pub density: Density,
     pub torrents: Vec<TorrentRow>,
@@ -48,7 +50,7 @@ pub(crate) fn dashboard_panel(props: &DashboardProps) -> Html {
                     <div class="metric-top">
                         <div>
                             <p class="metric-label">{tf("dashboard.up", "Global upload")}</p>
-                            <h2 class="metric-value">{format_speed(props.snapshot.upload_bps)}</h2>
+                        <h2 class="metric-value">{format_speed(props.system_rates.upload_bps)}</h2>
                         </div>
                         {arrow_icon(true)}
                     </div>
@@ -56,7 +58,7 @@ pub(crate) fn dashboard_panel(props: &DashboardProps) -> Html {
                     <div class="progress-wrap">
                         <span class="progress-label">{tf("dashboard.live", "Live")}</span>
                         <div class="progress-track">
-                            <div class="progress-bar accent" style={format!("width: {:.1}%", load_pct(props.snapshot.upload_bps))} />
+                            <div class="progress-bar accent" style={format!("width: {:.1}%", load_pct(props.system_rates.upload_bps))} />
                         </div>
                     </div>
                 </div>
@@ -64,7 +66,7 @@ pub(crate) fn dashboard_panel(props: &DashboardProps) -> Html {
                     <div class="metric-top">
                         <div>
                             <p class="metric-label">{tf("dashboard.down", "Global download")}</p>
-                            <h2 class="metric-value">{format_speed(props.snapshot.download_bps)}</h2>
+                        <h2 class="metric-value">{format_speed(props.system_rates.download_bps)}</h2>
                         </div>
                         {arrow_icon(false)}
                     </div>
@@ -72,7 +74,7 @@ pub(crate) fn dashboard_panel(props: &DashboardProps) -> Html {
                     <div class="progress-wrap">
                         <span class="progress-label">{tf("dashboard.live", "Live")}</span>
                         <div class="progress-track">
-                            <div class="progress-bar primary" style={format!("width: {:.1}%", load_pct(props.snapshot.download_bps))} />
+                            <div class="progress-bar primary" style={format!("width: {:.1}%", load_pct(props.system_rates.download_bps))} />
                         </div>
                     </div>
                 </div>

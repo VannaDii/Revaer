@@ -39,6 +39,9 @@ ADR documents capture the rationale behind significant technical decisions.
 - [034](034-ui-sse-store-apiclient.md) – UI SSE normalization and ApiClient singleton
 - [035](035-advisory-rustsec-2021-0065.md) – Advisory RUSTSEC-2021-0065 temporary ignore
 - [036](036-asset-sync-test-stability.md) – Asset sync test stability under parallel runs
+- [037](037-ui-row-slices-system-rates.md) – UI row slices and system-rate store wiring
+- [038](038-ui-api-models-filters-paging.md) – UI shared API models and torrent query paging state
+- [039](039-ui-store-api-rate-limit.md) – UI store, API coverage, and rate-limit retries
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

@@ -1,7 +1,6 @@
-//! Shared DTOs matching the Phase 1 API and SSE payloads.
+//! Shared UI view models plus re-exports of API DTOs.
 
-use serde::{Deserialize, Serialize};
-use uuid::Uuid;
+pub use revaer_api_models::*;
 
 #[cfg(target_arch = "wasm32")]
 use web_sys::File;
@@ -13,6 +12,10 @@ fn bytes_to_gb(bytes: u64) -> f64 {
     let high = u32::try_from(bytes >> 32).unwrap_or(0);
     let low = u32::try_from(bytes & 0xFFFF_FFFF).unwrap_or(0);
     ((f64::from(high) * TWO_POW_32) + f64::from(low)) / BYTES_PER_GB
+}
+
+fn format_file_priority(priority: impl std::fmt::Debug) -> String {
+    format!("{priority:?}").to_lowercase()
 }
 
 /// Dashboard snapshot used by the UI and API client.
@@ -364,186 +367,39 @@ pub fn demo_snapshot() -> DashboardSnapshot {
     }
 }
 
-/// Minimal torrent summary returned from the Phase 1 API.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TorrentSummary {
-    /// Stable torrent identifier.
-    pub id: Uuid,
-    /// Display name for the torrent payload.
-    pub name: String,
-    /// Current status string from the engine.
-    pub status: String,
-    /// Completion percentage in the range 0.0–1.0.
-    pub progress: f32,
-    /// Optional ETA in seconds; `None` when unknown.
-    pub eta_seconds: Option<u64>,
-    /// Upload ratio as reported by the engine.
-    pub ratio: f32,
-    /// Arbitrary labels applied to the torrent.
-    pub tags: Vec<String>,
-    /// Tracker URL, if present.
-    pub tracker: Option<String>,
-    /// Save path for the torrent contents.
-    pub save_path: Option<String>,
-    /// Category assigned by the user or client.
-    pub category: Option<String>,
-    /// Total payload size in bytes.
-    pub size_bytes: u64,
-    /// Current download speed in bytes per second.
-    pub download_bps: u64,
-    /// Current upload speed in bytes per second.
-    pub upload_bps: u64,
-    /// Optional RFC3339 timestamp when the torrent was added.
-    pub added_at: Option<String>,
-    /// Optional RFC3339 timestamp when the torrent completed.
-    pub completed_at: Option<String>,
-}
-
-/// File entry within a torrent payload.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TorrentFile {
-    /// File path relative to the torrent root.
-    pub path: String,
-    /// Total file size in bytes.
-    pub size_bytes: u64,
-    /// Completed bytes downloaded.
-    pub completed_bytes: u64,
-    /// Engine priority label for the file.
-    pub priority: String,
-    /// Whether the file is wanted for download.
-    pub wanted: bool,
-}
-
-/// Peer information for swarm diagnostics.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Peer {
-    /// Peer IP address.
-    pub ip: String,
-    /// Client string (e.g., qBittorrent).
-    pub client: String,
-    /// Raw flag string from the tracker.
-    pub flags: String,
-    /// Optional country code for geo display.
-    pub country: Option<String>,
-    /// Download speed from this peer in bytes per second.
-    pub download_bps: u64,
-    /// Upload speed to this peer in bytes per second.
-    pub upload_bps: u64,
-    /// Completion percentage for the peer payload.
-    pub progress: f32,
-}
-
-/// Tracker status record used in the UI.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Tracker {
-    /// Tracker announce URL.
-    pub url: String,
-    /// Current tracker status string.
-    pub status: String,
-    /// Next announce time in RFC3339, when available.
-    pub next_announce_at: Option<String>,
-    /// Last error message, if any.
-    pub last_error: Option<String>,
-    /// Timestamp for last error, if reported.
-    pub last_error_at: Option<String>,
-}
-
-/// Event log entry for torrent detail views.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct DetailEvent {
-    /// Timestamp string (RFC3339 or time-of-day).
-    pub timestamp: String,
-    /// Severity level (info/warn/error).
-    pub level: String,
-    /// Human-readable message.
-    pub message: String,
-}
-
-/// Detailed torrent view including files, peers, trackers, and metadata.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct TorrentDetail {
-    /// Torrent identifier.
-    pub id: Uuid,
-    /// Display name.
-    pub name: String,
-    /// File tree for the torrent.
-    pub files: Vec<TorrentFile>,
-    /// Peers connected to the torrent.
-    pub peers: Vec<Peer>,
-    /// Tracker list with announce metadata.
-    pub trackers: Vec<Tracker>,
-    /// Event log for the torrent lifecycle.
-    pub events: Vec<DetailEvent>,
-    /// Info hash for the torrent.
-    pub hash: String,
-    /// Magnet URI representation.
-    pub magnet: String,
-    /// Total payload size in bytes.
-    pub size_bytes: u64,
-    /// Total piece count.
-    pub piece_count: u32,
-    /// Piece size in bytes.
-    pub piece_size_bytes: u32,
-}
-
 impl From<TorrentDetail> for DetailData {
     fn from(detail: TorrentDetail) -> Self {
         let files = detail
             .files
+            .unwrap_or_default()
             .into_iter()
             .map(|file| FileNode {
                 name: file.path,
                 size_gb: bytes_to_gb(file.size_bytes),
-                completed_gb: bytes_to_gb(file.completed_bytes),
-                priority: file.priority,
-                wanted: file.wanted,
+                completed_gb: bytes_to_gb(file.bytes_completed),
+                priority: format_file_priority(file.priority),
+                wanted: file.selected,
                 children: vec![],
             })
             .collect();
-        let peers = detail
-            .peers
-            .into_iter()
-            .map(|peer| PeerRow {
-                ip: peer.ip,
-                client: peer.client,
-                flags: peer.flags,
-                country: peer.country.unwrap_or_default(),
-                download_bps: peer.download_bps,
-                upload_bps: peer.upload_bps,
-                progress: peer.progress,
-            })
-            .collect();
-        let trackers = detail
-            .trackers
-            .into_iter()
-            .map(|tracker| TrackerRow {
-                url: tracker.url,
-                status: tracker.status,
-                next_announce: tracker.next_announce_at.unwrap_or_else(|| "-".to_string()),
-                last_error: tracker.last_error,
-            })
-            .collect();
-        let events = detail
-            .events
-            .into_iter()
-            .map(|event| EventRow {
-                timestamp: event.timestamp,
-                level: event.level,
-                message: event.message,
-            })
-            .collect();
+        let name = detail
+            .summary
+            .name
+            .clone()
+            .unwrap_or_else(|| "<unspecified>".to_string());
+        let size_gb = bytes_to_gb(detail.summary.progress.bytes_total);
         Self {
-            name: detail.name,
+            name,
             files,
-            peers,
-            trackers,
-            events,
+            peers: Vec::new(),
+            trackers: Vec::new(),
+            events: Vec::new(),
             metadata: Metadata {
-                hash: detail.hash,
-                magnet: detail.magnet,
-                size_gb: bytes_to_gb(detail.size_bytes),
-                piece_count: detail.piece_count,
-                piece_size_mb: detail.piece_size_bytes / 1024 / 1024,
+                hash: "-".to_string(),
+                magnet: "-".to_string(),
+                size_gb,
+                piece_count: 0,
+                piece_size_mb: 0,
             },
         }
     }

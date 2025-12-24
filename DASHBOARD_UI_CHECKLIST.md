@@ -30,56 +30,56 @@
 
 ## 5) State management and rendering performance (yewdux)
 - [ ] Adopt yewdux for all shared UI/data state; avoid use_reducer + ContextProvider for shared data.
-- [ ] Define a single normalized AppStore with domain sub-structs:
-  - [ ] auth (configured, setup status, auth method, key/user presence, last auth error)
-  - [ ] ui (theme, toasts, modal/drawer state, FAB open, busy flags)
-  - [ ] torrents (normalized maps, filters, paging, selection, details cache)
-  - [ ] labels (categories/tags caches)
-  - [ ] health (basic/full snapshots)
-  - [ ] system (system rates, SSE connection status)
+- [x] Define a single normalized AppStore with domain sub-structs:
+  - [x] auth (configured, setup status, auth method, key/user presence, last auth error)
+  - [x] ui (theme, toasts, modal/drawer state, FAB open, busy flags)
+  - [x] torrents (normalized maps, filters, paging, selection, details cache)
+  - [x] labels (categories/tags caches)
+  - [x] health (basic/full snapshots)
+  - [x] system (system rates, SSE connection status)
 - [ ] Normalize torrent data:
   - [x] torrents.by_id: HashMap<Uuid, Rc<TorrentRowState>>
   - [x] torrents.visible_ids: Vec<Uuid> (render list by IDs only)
   - [x] torrents.selected: HashSet<Uuid> (bulk)
-  - [ ] torrents.filters: TorrentsQueryModel (mirrors URL query)
-  - [ ] torrents.paging: { cursor, next_cursor, limit, is_loading }
+  - [x] torrents.filters: TorrentsQueryModel (mirrors URL query)
+  - [x] torrents.paging: { cursor, next_cursor, limit, is_loading }
   - [x] torrents.details_by_id: HashMap<Uuid, Rc<TorrentDetailState>> (optional cache; keep large vectors here, not in row state)
   - [ ] torrents.fsops_by_id: HashMap<Uuid, Rc<FsopsState>> (separate map; row derives a small badge slice)
 - [ ] Implement selectors for row-level subscription:
   - [x] select_visible_ids()
   - [x] select_torrent_row(id) (for drawer)
-  - [ ] select_torrent_progress_slice(id) (for list rows; minimal fields only)
-  - [ ] select_is_selected(id) (for bulk checkbox)
-  - [ ] select_system_rates() and select_sse_status()
+  - [x] select_torrent_progress_slice(id) (for list rows; minimal fields only)
+  - [x] select_is_selected(id) (for bulk checkbox)
+  - [x] select_system_rates() and select_sse_status()
 - [x] Ensure selector return values are cheap and stable:
   - [x] Use Rc/Arc for row models and replace only the changed row pointer on updates.
   - [x] Derive/implement PartialEq so unchanged slices do not trigger re-render.
   - [x] Keep visible_ids as IDs; do not copy full row structs into list state.
-- [ ] Row list components must subscribe only to progress/state slices, not full TorrentRowState, unless rendering the drawer.
+- [x] Row list components must subscribe only to progress/state slices, not full TorrentRowState, unless rendering the drawer.
 
 ## 6) API client layer (singleton + shared domain types)
 - [x] Implement a single ApiClient instance (created once) and share via a lightweight context ApiCtx.
 - [x] Enforce: no component constructs its own API client; all API calls go through the singleton.
 - [x] Restrict API calls to page controllers/services (effects/hooks/modules), not atoms/molecules.
 - [x] Atoms and molecules must never perform API calls or dispatch side effects.
-- [ ] ApiClient must use existing domain types from shared backend crates (models, enums, request/response types); do not recreate parallel UI-only types.
-- [ ] Prefer re-exporting or directly depending on shared crates for:
-  - [ ] TorrentSummary, TorrentDetail, TorrentSettingsView, TorrentFile, TorrentLabelPolicy
-  - [ ] EventEnvelope, Event, TorrentState, related enums
+- [x] ApiClient must use existing domain types from shared backend crates (models, enums, request/response types); do not recreate parallel UI-only types.
+- [x] Prefer re-exporting or directly depending on shared crates for:
+  - [x] TorrentSummary, TorrentDetail, TorrentSettingsView, TorrentFile, TorrentLabelPolicy
+  - [x] EventEnvelope, Event, TorrentState, related enums
 - [ ] Build only minimal transport/adaptation glue (headers, auth, pagination, SSE), not duplicate schemas.
-- [ ] Endpoints: GET /health, GET /health/full.
-- [ ] Endpoints: GET /metrics (optional viewer).
-- [ ] Endpoints: GET /v1/torrents, POST /v1/torrents.
-- [ ] Endpoints: GET /v1/torrents/{id}.
-- [ ] Endpoints: POST /v1/torrents/{id}/action.
+- [x] Endpoints: GET /health, GET /health/full.
+- [x] Endpoints: GET /metrics (optional viewer).
+- [x] Endpoints: GET /v1/torrents, POST /v1/torrents.
+- [x] Endpoints: GET /v1/torrents/{id}.
+- [x] Endpoints: POST /v1/torrents/{id}/action.
 - [ ] Endpoints: PATCH /v1/torrents/{id}/options.
 - [ ] Endpoints: POST /v1/torrents/{id}/select.
 - [ ] Endpoints: GET /v1/torrents/categories; PUT /v1/torrents/categories/{name}.
 - [ ] Endpoints: GET /v1/torrents/tags; PUT /v1/torrents/tags/{name}.
 - [ ] Endpoints: POST /v1/torrents/create.
-- [ ] Endpoints: GET /v1/torrents/events (SSE).
-- [ ] Centralize error parsing with ProblemDetails; display status/title/detail consistently.
-- [ ] Implement rate limit handling (429) with user-visible backoff messaging and safe retry.
+- [x] Endpoints: GET /v1/torrents/events (SSE).
+- [x] Centralize error parsing with ProblemDetails; display status/title/detail consistently.
+- [x] Implement rate limit handling (429) with user-visible backoff messaging and safe retry.
 
 ## 7) SVG and icon system (reuse + consistency)
 - [ ] Encapsulate every SVG as a Yew component under atoms/icons/*.

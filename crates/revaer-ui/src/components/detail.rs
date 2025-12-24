@@ -199,53 +199,67 @@ fn render_file(node: &FileNode, depth: usize, wanted_label: &str) -> Html {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::{Peer, TorrentDetail, TorrentFile, Tracker};
+    use crate::models::{
+        TorrentDetail, TorrentFileView, TorrentProgressView, TorrentRatesView, TorrentStateKind,
+        TorrentStateView, TorrentSummary,
+    };
+    use chrono::{DateTime, Utc};
+    use serde_json::json;
     use uuid::Uuid;
 
     #[test]
     fn detail_conversion_maps_sizes_and_events() {
+        let now = DateTime::<Utc>::from_timestamp(1_700_000_000, 0).expect("timestamp");
+        let file: TorrentFileView = serde_json::from_value(json!({
+            "index": 0,
+            "path": "a.mkv",
+            "size_bytes": 1_073_741_824,
+            "bytes_completed": 536_870_912,
+            "priority": "high",
+            "selected": true
+        }))
+        .expect("file decode");
         let detail = TorrentDetail {
-            id: Uuid::nil(),
-            name: "demo".into(),
-            files: vec![TorrentFile {
-                path: "a.mkv".into(),
-                size_bytes: 1_073_741_824,
-                completed_bytes: 536_870_912,
-                priority: "high".into(),
-                wanted: true,
-            }],
-            peers: vec![Peer {
-                ip: "1.1.1.1".into(),
-                client: "qB".into(),
-                flags: "D".into(),
-                country: Some("US".into()),
-                download_bps: 42,
-                upload_bps: 7,
-                progress: 0.5,
-            }],
-            trackers: vec![Tracker {
-                url: "udp://tracker".into(),
-                status: "ok".into(),
-                next_announce_at: Some("soon".into()),
-                last_error: None,
-                last_error_at: None,
-            }],
-            events: vec![DetailEvent {
-                timestamp: "now".into(),
-                level: "info".into(),
-                message: "started".into(),
-            }],
-            hash: "h".into(),
-            magnet: "m".into(),
-            size_bytes: 1_073_741_824,
-            piece_count: 2,
-            piece_size_bytes: 512 * 1024,
+            summary: TorrentSummary {
+                id: Uuid::nil(),
+                name: Some("demo".into()),
+                state: TorrentStateView {
+                    kind: TorrentStateKind::Downloading,
+                    failure_message: None,
+                },
+                progress: TorrentProgressView {
+                    bytes_downloaded: 536_870_912,
+                    bytes_total: 1_073_741_824,
+                    percent_complete: 50.0,
+                    eta_seconds: None,
+                },
+                rates: TorrentRatesView {
+                    download_bps: 42,
+                    upload_bps: 7,
+                    ratio: 1.2,
+                },
+                library_path: None,
+                download_dir: Some("/downloads".into()),
+                sequential: false,
+                tags: vec![],
+                category: None,
+                trackers: vec![],
+                rate_limit: None,
+                connections_limit: None,
+                added_at: now,
+                completed_at: None,
+                last_updated: now,
+            },
+            settings: None,
+            files: Some(vec![file]),
         };
         let mapped: DetailData = detail.into();
         assert_eq!(mapped.files.first().unwrap().completed_gb, 0.5);
-        assert_eq!(mapped.peers.first().unwrap().country, "US");
-        assert_eq!(mapped.trackers.first().unwrap().next_announce, "soon");
-        assert_eq!(mapped.events.len(), 1);
+        assert_eq!(mapped.files.first().unwrap().priority, "high");
+        assert!(mapped.peers.is_empty());
+        assert!(mapped.trackers.is_empty());
+        assert!(mapped.events.is_empty());
         assert_eq!(mapped.metadata.piece_size_mb, 0);
+        assert_eq!(mapped.metadata.hash, "-");
     }
 }

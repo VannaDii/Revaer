@@ -1,6 +1,6 @@
 //! Pure UI helpers extracted from components for non-wasm testing.
 
-use crate::features::torrents::state::{SelectionSet, TorrentRow};
+use crate::features::torrents::state::{SelectionSet, TorrentsPaging, TorrentsQueryModel};
 use uuid::Uuid;
 
 /// Layout mode for the torrent list based on breakpoint.
@@ -67,11 +67,11 @@ pub fn toggle_selection(selected: &SelectionSet, id: &Uuid) -> SelectionSet {
 
 /// Select all rows or clear when already fully selected.
 #[must_use]
-pub fn select_all_or_clear(selected: &SelectionSet, rows: &[TorrentRow]) -> SelectionSet {
-    if selected.len() == rows.len() {
+pub fn select_all_or_clear(selected: &SelectionSet, ids: &[Uuid]) -> SelectionSet {
+    if selected.len() == ids.len() {
         SelectionSet::default()
     } else {
-        rows.iter().map(|row| row.id).collect()
+        ids.iter().copied().collect()
     }
 }
 
@@ -362,25 +362,47 @@ pub fn build_sse_url(base_url: &str, endpoint: SseEndpoint, query: Option<&SseQu
     url
 }
 
-/// Build the torrents list path from search/regex flags.
+/// Build the torrents list path from filters and paging state.
 #[must_use]
-pub fn build_torrents_path(search: &Option<String>, regex: bool) -> String {
-    search.as_ref().filter(|s| !s.is_empty()).map_or_else(
-        || {
-            if regex {
-                "/v1/torrents?regex=true".to_string()
-            } else {
-                "/v1/torrents".to_string()
-            }
-        },
-        |query| {
-            let encoded = urlencoding::encode(query);
-            format!(
-                "/v1/torrents?search={encoded}{}",
-                if regex { "&regex=true" } else { "" }
-            )
-        },
-    )
+pub fn build_torrents_path(filters: &TorrentsQueryModel, paging: &TorrentsPaging) -> String {
+    const DEFAULT_LIMIT: u32 = 50;
+    let mut params = Vec::new();
+    if !filters.name.trim().is_empty() {
+        params.push(format!("name={}", urlencoding::encode(filters.name.trim())));
+    }
+    if let Some(state) = filters.state.as_ref().filter(|s| !s.trim().is_empty()) {
+        params.push(format!("state={}", urlencoding::encode(state.trim())));
+    }
+    if !filters.tags.is_empty() {
+        let tags = filters
+            .tags
+            .iter()
+            .map(|tag| tag.trim())
+            .filter(|tag| !tag.is_empty())
+            .collect::<Vec<_>>()
+            .join(",");
+        if !tags.is_empty() {
+            params.push(format!("tags={}", urlencoding::encode(&tags)));
+        }
+    }
+    if let Some(tracker) = filters.tracker.as_ref().filter(|t| !t.trim().is_empty()) {
+        params.push(format!("tracker={}", urlencoding::encode(tracker.trim())));
+    }
+    if let Some(extension) = filters.extension.as_ref().filter(|e| !e.trim().is_empty()) {
+        let normalized = extension.trim_start_matches('.');
+        params.push(format!("extension={}", urlencoding::encode(normalized)));
+    }
+    if let Some(cursor) = paging.cursor.as_ref().filter(|c| !c.trim().is_empty()) {
+        params.push(format!("cursor={}", urlencoding::encode(cursor.trim())));
+    }
+    if paging.limit != DEFAULT_LIMIT || paging.cursor.is_some() {
+        params.push(format!("limit={}", paging.limit));
+    }
+    if params.is_empty() {
+        "/v1/torrents".to_string()
+    } else {
+        format!("/v1/torrents?{}", params.join("&"))
+    }
 }
 
 /// Column planning for responsive tables. Returns visible vs overflow columns.
@@ -430,25 +452,6 @@ pub fn compute_window(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::features::torrents::state::TorrentRow;
-
-    fn row(id: Uuid) -> TorrentRow {
-        TorrentRow {
-            id,
-            name: "n".into(),
-            status: "s".into(),
-            progress: 0.0,
-            eta: None,
-            ratio: 0.0,
-            tags: vec![],
-            tracker: String::new(),
-            path: String::new(),
-            category: String::new(),
-            size_bytes: 0,
-            upload_bps: 0,
-            download_bps: 0,
-        }
-    }
 
     #[test]
     fn toggle_selection_adds_and_removes() {
@@ -462,11 +465,11 @@ mod tests {
 
     #[test]
     fn select_all_clears_when_full() {
-        let rows = vec![row(Uuid::from_u128(1)), row(Uuid::from_u128(2))];
+        let ids = vec![Uuid::from_u128(1), Uuid::from_u128(2)];
         let empty = SelectionSet::default();
-        let all = select_all_or_clear(&empty, &rows);
+        let all = select_all_or_clear(&empty, &ids);
         assert_eq!(all.len(), 2);
-        let cleared = select_all_or_clear(&all, &rows);
+        let cleared = select_all_or_clear(&all, &ids);
         assert!(cleared.is_empty());
     }
 
@@ -564,13 +567,25 @@ mod tests {
 
     #[test]
     fn torrent_path_builder_handles_modes() {
+        let filters = TorrentsQueryModel::default();
+        let paging = TorrentsPaging::default();
         assert_eq!(
-            build_torrents_path(&None, false),
+            build_torrents_path(&filters, &paging),
             "/v1/torrents".to_string()
         );
+        let filters = TorrentsQueryModel {
+            name: "abc".into(),
+            tags: vec!["one".into(), "two".into()],
+            ..TorrentsQueryModel::default()
+        };
+        let paging = TorrentsPaging {
+            cursor: Some("cursor".into()),
+            limit: 75,
+            ..TorrentsPaging::default()
+        };
         assert_eq!(
-            build_torrents_path(&Some("abc".into()), true),
-            "/v1/torrents?search=abc&regex=true"
+            build_torrents_path(&filters, &paging),
+            "/v1/torrents?name=abc&tags=one%2Ctwo&cursor=cursor&limit=75"
         );
     }
 

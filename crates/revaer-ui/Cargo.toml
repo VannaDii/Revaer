@@ -17,9 +17,11 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 uuid = { workspace = true, features = ["js"] }
 urlencoding = "2.1"
+base64.workspace = true
 yew = { version = "0.20", features = ["csr"] }
 yew-router = "0.17"
 yewdux = "0.9.0"
+revaer-api-models = { path = "../revaer-api-models" }
 revaer-events = { path = "../revaer-events" }
 gloo = { version = "0.8", features = ["timers", "storage", "console", "dialogs", "events", "file", "render"] }
 gloo-net = { version = "0.2", features = ["http"] }
@@ -58,3 +60,6 @@ web-sys = { version = "0.3", features = [
     "TextDecoderOptions",
     "Window",
 ] }
+
+[dev-dependencies]
+chrono.workspace = true

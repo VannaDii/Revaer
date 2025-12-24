@@ -1,6 +1,6 @@
 //! Shared torrent models and pure state transformations for testing outside wasm.
 
-use crate::models::{DetailData, TorrentSummary};
+use crate::models::{DetailData, TorrentStateKind, TorrentStateView, TorrentSummary};
 use std::collections::hash_map::RandomState;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -16,11 +16,11 @@ pub struct TorrentRow {
     /// Torrent status string.
     pub status: String,
     /// Completion percentage in the range 0.0–1.0.
-    pub progress: f32,
+    pub progress: f64,
     /// Human-readable ETA or en dash when unknown.
     pub eta: Option<String>,
     /// Current ratio for the torrent.
-    pub ratio: f32,
+    pub ratio: f64,
     /// Any labels applied to the torrent.
     pub tags: Vec<String>,
     /// Tracker URL (empty if missing).
@@ -51,34 +51,172 @@ impl TorrentRow {
 
 impl From<TorrentSummary> for TorrentRow {
     fn from(value: TorrentSummary) -> Self {
+        let progress = clamp_f64(value.progress.percent_complete / 100.0);
         Self {
             id: value.id,
-            name: value.name,
-            status: value.status,
-            progress: value.progress,
-            eta: value.eta_seconds.map(|eta| {
+            name: value.name.unwrap_or_else(|| "<unspecified>".to_string()),
+            status: format_state_view(&value.state),
+            progress,
+            eta: value.progress.eta_seconds.map(|eta| {
                 if eta == 0 {
                     "–".to_string()
                 } else {
                     format!("{eta}s")
                 }
             }),
-            ratio: value.ratio,
+            ratio: clamp_f64(value.rates.ratio),
             tags: value.tags,
-            tracker: value.tracker.unwrap_or_default(),
-            path: value.save_path.unwrap_or_default(),
+            tracker: value.trackers.first().cloned().unwrap_or_default(),
+            path: value
+                .download_dir
+                .or(value.library_path)
+                .unwrap_or_default(),
             category: value
                 .category
                 .unwrap_or_else(|| "uncategorized".to_string()),
-            size_bytes: value.size_bytes,
-            upload_bps: value.upload_bps,
-            download_bps: value.download_bps,
+            size_bytes: value.progress.bytes_total,
+            upload_bps: value.rates.upload_bps,
+            download_bps: value.rates.download_bps,
         }
     }
 }
 
+const fn clamp_f64(value: f64) -> f64 {
+    if !value.is_finite() {
+        return 0.0;
+    }
+    value.max(0.0)
+}
+
+fn format_state_view(state: &TorrentStateView) -> String {
+    let label = match state.kind {
+        TorrentStateKind::Queued => "queued",
+        TorrentStateKind::FetchingMetadata => "fetching_metadata",
+        TorrentStateKind::Downloading => "downloading",
+        TorrentStateKind::Seeding => "seeding",
+        TorrentStateKind::Completed => "completed",
+        TorrentStateKind::Failed => "failed",
+        TorrentStateKind::Stopped => "stopped",
+    };
+    if matches!(state.kind, TorrentStateKind::Failed)
+        && let Some(message) = state.failure_message.as_ref()
+    {
+        return format!("failed: {message}");
+    }
+    label.to_string()
+}
+
+/// Static metadata slice for list rows.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TorrentRowBase {
+    /// Stable torrent identifier.
+    pub id: Uuid,
+    /// Display name for the torrent payload.
+    pub name: String,
+    /// Tracker URL (empty if missing).
+    pub tracker: String,
+    /// Any labels applied to the torrent.
+    pub tags: Vec<String>,
+    /// Save path (empty if missing).
+    pub path: String,
+    /// Category (default `uncategorized` when missing).
+    pub category: String,
+    /// Total payload size in bytes.
+    pub size_bytes: u64,
+    /// Upload ratio as reported by the engine.
+    pub ratio: f64,
+}
+
+impl TorrentRowBase {
+    /// Human-friendly size rounded to two decimal places.
+    #[must_use]
+    pub fn size_label(&self) -> String {
+        const BYTES_PER_GIB: u64 = 1024 * 1024 * 1024;
+        let hundredths = self.size_bytes.saturating_mul(100) / BYTES_PER_GIB;
+        let whole = hundredths / 100;
+        let frac = hundredths % 100;
+        format!("{whole}.{frac:02} GB")
+    }
+}
+
+/// Fast-changing slice for progress and throughput values.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TorrentProgressSlice {
+    /// Torrent status string.
+    pub status: String,
+    /// Completion percentage in the range 0.0–1.0.
+    pub progress: f64,
+    /// Human-readable ETA or en dash when unknown.
+    pub eta: Option<String>,
+    /// Upload throughput in bytes per second.
+    pub upload_bps: u64,
+    /// Download throughput in bytes per second.
+    pub download_bps: u64,
+}
+
 /// Selection set used for bulk torrent actions.
 pub type SelectionSet = HashSet<Uuid, RandomState>;
+
+/// Query model mirrored into the URL and request query params.
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
+pub struct TorrentsQueryModel {
+    /// Search by name (substring).
+    pub name: String,
+    /// Optional lifecycle state filter.
+    pub state: Option<String>,
+    /// Optional tag filters.
+    pub tags: Vec<String>,
+    /// Optional tracker filter.
+    pub tracker: Option<String>,
+    /// Optional file extension filter.
+    pub extension: Option<String>,
+}
+
+/// Paging state for the torrent list.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TorrentsPaging {
+    /// Cursor used for the next list request.
+    pub cursor: Option<String>,
+    /// Cursor for the next page, returned by the API.
+    pub next_cursor: Option<String>,
+    /// Page size limit for list requests.
+    pub limit: u32,
+    /// Busy flag for list requests.
+    pub is_loading: bool,
+}
+
+impl Default for TorrentsPaging {
+    fn default() -> Self {
+        Self {
+            cursor: None,
+            next_cursor: None,
+            limit: 50,
+            is_loading: false,
+        }
+    }
+}
+
+/// Filesystem post-processing snapshot for a torrent.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FsopsState {
+    /// Current filesystem processing status.
+    pub status: FsopsStatus,
+    /// Optional last step label.
+    pub step: Option<String>,
+    /// Optional error message.
+    pub error: Option<String>,
+}
+
+/// Status variants for filesystem processing.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FsopsStatus {
+    /// Filesystem processing is in progress.
+    InProgress,
+    /// Filesystem processing completed successfully.
+    Completed,
+    /// Filesystem processing failed.
+    Failed,
+}
 
 /// Current torrents slice stored in the app state.
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -91,21 +229,14 @@ pub struct TorrentsState {
     pub selected: SelectionSet,
     /// Cached torrent detail data for the drawer.
     pub details_by_id: HashMap<Uuid, Rc<DetailData>>,
+    /// Filesystem processing state per torrent.
+    pub fsops_by_id: HashMap<Uuid, Rc<FsopsState>>,
     /// Active filter state used for fetching and SSE filtering.
-    pub filters: TorrentFilters,
+    pub filters: TorrentsQueryModel,
+    /// Pagination state for list requests.
+    pub paging: TorrentsPaging,
     /// Current drawer selection id.
     pub selected_id: Option<Uuid>,
-}
-
-/// Filter state for the torrents list.
-#[derive(Clone, Debug, PartialEq, Eq, Default)]
-pub struct TorrentFilters {
-    /// Search query string.
-    pub search: String,
-    /// Regex search toggle.
-    pub regex: bool,
-    /// Optional state filter.
-    pub state: Option<String>,
 }
 
 /// Minimal progress update for coalesced SSE events.
@@ -114,7 +245,7 @@ pub struct ProgressPatch {
     /// Torrent id to update.
     pub id: Uuid,
     /// Completion ratio (0.0-1.0).
-    pub progress: f32,
+    pub progress: f64,
     /// Optional ETA in seconds.
     pub eta_seconds: Option<u64>,
     /// Optional download rate in bytes/sec.
@@ -128,6 +259,9 @@ pub fn set_rows(state: &mut TorrentsState, rows: Vec<TorrentRow>) {
     state.visible_ids = rows.iter().map(|row| row.id).collect();
     state.by_id = rows.into_iter().map(|row| (row.id, Rc::new(row))).collect();
     state.selected.retain(|id| state.by_id.contains_key(id));
+    state
+        .fsops_by_id
+        .retain(|id, _| state.by_id.contains_key(id));
     if let Some(id) = state.selected_id
         && !state.by_id.contains_key(&id)
     {
@@ -198,11 +332,60 @@ pub fn update_metadata(
     state.by_id.insert(id, Rc::new(next));
 }
 
+/// Record filesystem processing start for a torrent.
+pub fn update_fsops_started(state: &mut TorrentsState, id: Uuid) {
+    state.fsops_by_id.insert(
+        id,
+        Rc::new(FsopsState {
+            status: FsopsStatus::InProgress,
+            step: None,
+            error: None,
+        }),
+    );
+}
+
+/// Record filesystem processing progress for a torrent.
+pub fn update_fsops_progress(state: &mut TorrentsState, id: Uuid, step: String) {
+    state.fsops_by_id.insert(
+        id,
+        Rc::new(FsopsState {
+            status: FsopsStatus::InProgress,
+            step: Some(step),
+            error: None,
+        }),
+    );
+}
+
+/// Record filesystem processing completion for a torrent.
+pub fn update_fsops_completed(state: &mut TorrentsState, id: Uuid) {
+    state.fsops_by_id.insert(
+        id,
+        Rc::new(FsopsState {
+            status: FsopsStatus::Completed,
+            step: None,
+            error: None,
+        }),
+    );
+}
+
+/// Record filesystem processing failure for a torrent.
+pub fn update_fsops_failed(state: &mut TorrentsState, id: Uuid, message: String) {
+    state.fsops_by_id.insert(
+        id,
+        Rc::new(FsopsState {
+            status: FsopsStatus::Failed,
+            step: None,
+            error: Some(message),
+        }),
+    );
+}
+
 /// Remove a torrent row from the list state.
 pub fn remove_row(state: &mut TorrentsState, id: Uuid) {
     state.by_id.remove(&id);
     state.visible_ids.retain(|row_id| *row_id != id);
     state.details_by_id.remove(&id);
+    state.fsops_by_id.remove(&id);
     state.selected.remove(&id);
     if state.selected_id == Some(id) {
         state.selected_id = None;
@@ -230,6 +413,44 @@ pub fn select_visible_rows(state: &TorrentsState) -> Vec<TorrentRow> {
         .collect()
 }
 
+/// Read the static metadata slice for a torrent row.
+#[must_use]
+pub fn select_torrent_row_base(state: &TorrentsState, id: &Uuid) -> Option<TorrentRowBase> {
+    let row = state.by_id.get(id)?;
+    Some(TorrentRowBase {
+        id: row.id,
+        name: row.name.clone(),
+        tracker: row.tracker.clone(),
+        tags: row.tags.clone(),
+        path: row.path.clone(),
+        category: row.category.clone(),
+        size_bytes: row.size_bytes,
+        ratio: row.ratio,
+    })
+}
+
+/// Read the progress slice for a torrent row.
+#[must_use]
+pub fn select_torrent_progress_slice(
+    state: &TorrentsState,
+    id: &Uuid,
+) -> Option<TorrentProgressSlice> {
+    let row = state.by_id.get(id)?;
+    Some(TorrentProgressSlice {
+        status: row.status.clone(),
+        progress: row.progress,
+        eta: row.eta.clone(),
+        upload_bps: row.upload_bps,
+        download_bps: row.download_bps,
+    })
+}
+
+/// Check if a torrent id is selected for bulk actions.
+#[must_use]
+pub fn select_is_selected(state: &TorrentsState, id: &Uuid) -> bool {
+    state.selected.contains(id)
+}
+
 /// Read a row by id.
 #[must_use]
 pub fn select_torrent_row(state: &TorrentsState, id: &Uuid) -> Option<Rc<TorrentRow>> {
@@ -251,7 +472,7 @@ pub fn select_selected_detail(state: &TorrentsState) -> Option<DetailData> {
 pub fn apply_progress(
     rows: &[TorrentRow],
     id: Uuid,
-    progress: f32,
+    progress: f64,
     eta_seconds: Option<u64>,
     download_bps: Option<u64>,
     upload_bps: Option<u64>,
@@ -349,9 +570,11 @@ mod tests {
     use super::*;
     use crate::features::torrents::actions::{TorrentAction, success_message};
     use crate::i18n::{LocaleCode, TranslationBundle};
+    use crate::models::{TorrentProgressView, TorrentRatesView};
+    use chrono::{DateTime, Utc};
     use uuid::Uuid;
 
-    const EPSILON: f32 = 0.000_1;
+    const EPSILON: f64 = 0.000_1;
     const GIB: u64 = 1_073_741_824;
 
     fn base_row(id: Uuid) -> TorrentRow {
@@ -433,27 +656,59 @@ mod tests {
 
     #[test]
     fn summary_conversion_maps_sizes() {
+        let now = DateTime::<Utc>::from_timestamp(1_700_000_000, 0).expect("timestamp");
         let summary = TorrentSummary {
             id: Uuid::nil(),
-            name: "demo".into(),
-            status: "paused".into(),
-            progress: 1.0,
-            eta_seconds: None,
-            ratio: 1.1,
+            name: Some("demo".into()),
+            state: TorrentStateView {
+                kind: TorrentStateKind::Stopped,
+                failure_message: None,
+            },
+            progress: TorrentProgressView {
+                bytes_downloaded: GIB,
+                bytes_total: GIB,
+                percent_complete: 100.0,
+                eta_seconds: None,
+            },
+            rates: TorrentRatesView {
+                download_bps: 3,
+                upload_bps: 4,
+                ratio: 1.1,
+            },
+            library_path: None,
+            download_dir: Some("/p".into()),
+            sequential: false,
             tags: vec!["tag".into()],
-            tracker: Some("t".into()),
-            save_path: Some("/p".into()),
             category: Some("movies".into()),
-            size_bytes: GIB,
-            download_bps: 3,
-            upload_bps: 4,
-            added_at: None,
+            trackers: vec!["t".into()],
+            rate_limit: None,
+            connections_limit: None,
+            added_at: now,
             completed_at: None,
+            last_updated: now,
         };
         let row: TorrentRow = summary.into();
         assert_eq!(row.size_bytes, GIB);
         assert_eq!(row.size_label(), "1.00 GB");
         assert_eq!(row.tracker, "t");
         assert_eq!(row.path, "/p");
+    }
+
+    #[test]
+    fn selectors_split_base_and_progress() {
+        let id = Uuid::from_u128(42);
+        let mut state = TorrentsState::default();
+        set_rows(&mut state, vec![base_row(id)]);
+        state.selected.insert(id);
+
+        let base = select_torrent_row_base(&state, &id).expect("base slice");
+        assert_eq!(base.name, "alpha");
+        assert_eq!(base.tracker, "t1");
+
+        let progress = select_torrent_progress_slice(&state, &id).expect("progress slice");
+        assert_eq!(progress.status, "downloading");
+        assert_eq!(progress.download_bps, 0);
+
+        assert!(select_is_selected(&state, &id));
     }
 }

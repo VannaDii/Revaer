@@ -1,0 +1,19 @@
+[package]
+name = "revaer-api-models"
+version = "0.1.0"
+edition = "2024"
+rust-version.workspace = true
+description = "Shared HTTP DTOs for the Revaer API"
+
+publish = false
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+
+[dependencies]
+base64.workspace = true
+chrono.workspace = true
+serde.workspace = true
+uuid.workspace = true
+revaer-events = { path = "../revaer-events" }
+revaer-torrent-core = { path = "../revaer-torrent-core" }

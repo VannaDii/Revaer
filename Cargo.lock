@@ -2657,6 +2657,7 @@ dependencies = [
  "chrono",
  "futures-core",
  "futures-util",
+ "revaer-api-models",
  "revaer-config",
  "revaer-events",
  "revaer-telemetry",
@@ -2669,6 +2670,18 @@ dependencies = [
  "tower-http",
  "tracing",
  "url",
+ "uuid",
+]
+
+[[package]]
+name = "revaer-api-models"
+version = "0.1.0"
+dependencies = [
+ "base64",
+ "chrono",
+ "revaer-events",
+ "revaer-torrent-core",
+ "serde",
  "uuid",
 ]
 
@@ -2881,11 +2894,14 @@ name = "revaer-ui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64",
+ "chrono",
  "console_error_panic_hook",
  "gloo",
  "gloo-net 0.2.6",
  "gloo-timers",
  "js-sys",
+ "revaer-api-models",
  "revaer-events",
  "serde",
  "serde_json",

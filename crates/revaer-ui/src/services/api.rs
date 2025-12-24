@@ -6,16 +6,19 @@ use std::rc::Rc;
 
 use crate::core::auth::{AuthState, LocalAuth};
 use crate::core::logic::build_torrents_path;
-use crate::features::torrents::actions::TorrentAction;
-use crate::features::torrents::state::TorrentRow;
+use crate::features::torrents::actions::TorrentAction as UiTorrentAction;
+use crate::features::torrents::state::{TorrentsPaging, TorrentsQueryModel};
 use crate::models::{
-    AddTorrentInput, DashboardSnapshot, DetailData, QueueStatus, TorrentDetail, TorrentSummary,
-    TrackerHealth, VpnState,
+    AddTorrentInput, DashboardSnapshot, DetailData, ProblemDetails, QueueStatus,
+    TorrentAction as ApiTorrentAction, TorrentCreateRequest, TorrentDetail, TorrentLabelEntry,
+    TorrentListResponse, TrackerHealth, VpnState,
 };
+use base64::{Engine as _, engine::general_purpose};
+use gloo::file::futures::read_as_bytes;
 use gloo_net::http::{Request, Response};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use serde_json::json;
-use web_sys::FormData;
+use uuid::Uuid;
 use web_sys::window;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -34,6 +37,10 @@ impl ApiError {
             detail: Some(detail.into()),
             retry_after_secs: None,
         }
+    }
+
+    pub(crate) const fn is_rate_limited(&self) -> bool {
+        self.status == 429
     }
 }
 
@@ -58,17 +65,43 @@ impl fmt::Display for ApiError {
 impl std::error::Error for ApiError {}
 
 #[derive(Clone, Debug, Deserialize)]
-struct ProblemDetails {
-    #[serde(rename = "type")]
-    _kind: String,
-    title: String,
-    status: u16,
-    detail: Option<String>,
+pub(crate) struct HealthComponentResponse {
+    pub status: String,
+    pub revision: Option<i64>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 pub(crate) struct HealthResponse {
+    pub status: String,
     pub mode: String,
+    pub database: HealthComponentResponse,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct HealthMetricsResponse {
+    pub config_watch_latency_ms: i64,
+    pub config_apply_latency_ms: i64,
+    pub config_update_failures_total: u64,
+    pub config_watch_slow_total: u64,
+    pub guardrail_violations_total: u64,
+    pub rate_limit_throttled_total: u64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct TorrentHealthResponse {
+    pub active: i64,
+    pub queue_depth: i64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct FullHealthResponse {
+    pub status: String,
+    pub mode: String,
+    pub revision: i64,
+    pub build: String,
+    pub degraded: Vec<String>,
+    pub metrics: HealthMetricsResponse,
+    pub torrent: TorrentHealthResponse,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -135,9 +168,35 @@ impl ApiClient {
         }
     }
 
+    async fn send_text(&self, req: Request) -> Result<String, ApiError> {
+        let response = req
+            .send()
+            .await
+            .map_err(|err| ApiError::client(format!("request failed: {err}")))?;
+        if response.ok() {
+            response
+                .text()
+                .await
+                .map_err(|err| ApiError::client(format!("invalid text: {err}")))
+        } else {
+            Err(api_error_from_response(response).await)
+        }
+    }
+
     pub(crate) async fn fetch_health(&self) -> Result<HealthResponse, ApiError> {
         let req = Request::get(&format!("{}{}", self.base_url, "/health"));
         self.send_json(req).await
+    }
+
+    pub(crate) async fn fetch_health_full(&self) -> Result<FullHealthResponse, ApiError> {
+        let req = Request::get(&format!("{}{}", self.base_url, "/health/full"));
+        self.send_json(req).await
+    }
+
+    pub(crate) async fn fetch_metrics(&self) -> Result<String, ApiError> {
+        let req = Request::get(&format!("{}{}", self.base_url, "/metrics"));
+        let req = self.apply_auth(req)?;
+        self.send_text(req).await
     }
 
     pub(crate) async fn setup_start(&self) -> Result<SetupStartResponse, ApiError> {
@@ -160,16 +219,24 @@ impl ApiClient {
         self.send_json(req).await
     }
 
+    pub(crate) async fn fetch_categories(&self) -> Result<Vec<TorrentLabelEntry>, ApiError> {
+        self.get_json("/v1/torrents/categories").await
+    }
+
+    pub(crate) async fn fetch_tags(&self) -> Result<Vec<TorrentLabelEntry>, ApiError> {
+        self.get_json("/v1/torrents/tags").await
+    }
+
     pub(crate) async fn perform_action(
         &self,
         id: &str,
-        action: TorrentAction,
+        action: UiTorrentAction,
     ) -> Result<(), ApiError> {
         let api_action = match action {
-            TorrentAction::Pause => ApiTorrentAction::Pause,
-            TorrentAction::Resume => ApiTorrentAction::Resume,
-            TorrentAction::Recheck => ApiTorrentAction::Recheck,
-            TorrentAction::Delete { with_data } => ApiTorrentAction::Remove {
+            UiTorrentAction::Pause => ApiTorrentAction::Pause,
+            UiTorrentAction::Resume => ApiTorrentAction::Resume,
+            UiTorrentAction::Recheck => ApiTorrentAction::Recheck,
+            UiTorrentAction::Delete { with_data } => ApiTorrentAction::Remove {
                 delete_data: with_data,
             },
         };
@@ -187,11 +254,10 @@ impl ApiClient {
 
     pub(crate) async fn fetch_torrents(
         &self,
-        search: Option<String>,
-        regex: bool,
-    ) -> Result<Vec<TorrentRow>, ApiError> {
-        let data: Vec<TorrentSummary> = self.get_json(&build_torrents_path(&search, regex)).await?;
-        Ok(data.into_iter().map(TorrentRow::from).collect())
+        filters: &TorrentsQueryModel,
+        paging: &TorrentsPaging,
+    ) -> Result<TorrentListResponse, ApiError> {
+        self.get_json(&build_torrents_path(filters, paging)).await
     }
 
     pub(crate) async fn fetch_dashboard(&self) -> Result<DashboardSnapshot, ApiError> {
@@ -235,7 +301,7 @@ impl ApiClient {
         })
     }
 
-    pub(crate) async fn add_torrent(&self, input: AddTorrentInput) -> Result<TorrentRow, ApiError> {
+    pub(crate) async fn add_torrent(&self, input: AddTorrentInput) -> Result<Uuid, ApiError> {
         if let Some(file) = input.file {
             self.add_torrent_file(file, input.category, input.tags, input.save_path)
                 .await
@@ -258,29 +324,26 @@ impl ApiClient {
         category: Option<String>,
         tags: Option<Vec<String>>,
         save_path: Option<String>,
-    ) -> Result<TorrentRow, ApiError> {
-        #[derive(Serialize)]
-        struct Body {
-            source: String,
-            category: Option<String>,
-            tags: Option<Vec<String>>,
-            save_path: Option<String>,
-        }
+    ) -> Result<Uuid, ApiError> {
+        let id = Uuid::new_v4();
+        let request = TorrentCreateRequest {
+            id,
+            magnet: Some(source),
+            download_dir: save_path,
+            tags: tags.unwrap_or_default(),
+            category,
+            ..TorrentCreateRequest::default()
+        };
         let req = Request::post(&format!(
             "{}/v1/torrents",
             self.base_url.trim_end_matches('/')
         ));
         let req = self.apply_auth(req)?;
         let req = req
-            .json(&Body {
-                source,
-                category,
-                tags,
-                save_path,
-            })
+            .json(&request)
             .map_err(|err| ApiError::client(format!("encode add payload: {err}")))?;
-        let summary: TorrentSummary = self.send_json(req).await?;
-        Ok(summary.into())
+        self.send_empty(req).await?;
+        Ok(id)
     }
 
     async fn add_torrent_file(
@@ -289,37 +352,32 @@ impl ApiClient {
         category: Option<String>,
         tags: Option<Vec<String>>,
         save_path: Option<String>,
-    ) -> Result<TorrentRow, ApiError> {
-        let form = FormData::new().map_err(|_| ApiError::client("form-data failed"))?;
-        form.append_with_blob_and_filename("file", &file, &file.name())
-            .map_err(|_| ApiError::client("attach file"))?;
-        if let Some(cat) = category {
-            let _ = form.append_with_str("category", &cat);
-        }
-        if let Some(tags) = tags {
-            let _ = form.append_with_str("tags", &tags.join(","));
-        }
-        if let Some(path) = save_path {
-            let _ = form.append_with_str("save_path", &path);
-        }
+    ) -> Result<Uuid, ApiError> {
+        let id = Uuid::new_v4();
+        let blob = gloo::file::Blob::from(file);
+        let bytes = read_as_bytes(&blob)
+            .await
+            .map_err(|err| ApiError::client(format!("read torrent file: {err}")))?;
+        let metainfo = general_purpose::STANDARD.encode(bytes);
+        let request = TorrentCreateRequest {
+            id,
+            metainfo: Some(metainfo),
+            download_dir: save_path,
+            tags: tags.unwrap_or_default(),
+            category,
+            ..TorrentCreateRequest::default()
+        };
         let req = Request::post(&format!(
             "{}/v1/torrents",
             self.base_url.trim_end_matches('/')
-        ))
-        .body(form);
+        ));
         let req = self.apply_auth(req)?;
-        let summary: TorrentSummary = self.send_json(req).await?;
-        Ok(summary.into())
+        let req = req
+            .json(&request)
+            .map_err(|err| ApiError::client(format!("encode add payload: {err}")))?;
+        self.send_empty(req).await?;
+        Ok(id)
     }
-}
-
-#[derive(Clone, Debug, Serialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
-enum ApiTorrentAction {
-    Pause,
-    Resume,
-    Remove { delete_data: bool },
-    Recheck,
 }
 
 fn basic_auth_header(auth: &LocalAuth) -> Result<String, ApiError> {

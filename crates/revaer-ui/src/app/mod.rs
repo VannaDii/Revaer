@@ -11,14 +11,17 @@ use crate::core::auth::{AuthMode, AuthState};
 use crate::core::breakpoints::Breakpoint;
 use crate::core::events::UiEventEnvelope;
 use crate::core::logic::{SseView, build_sse_query};
-use crate::core::store::{AppModeState, AppStore, SseApplyOutcome, apply_sse_envelope};
+use crate::core::store::{
+    AppModeState, AppStore, HealthMetricsSnapshot, HealthSnapshot, SseApplyOutcome, SystemRates,
+    TorrentHealthSnapshot, apply_sse_envelope, select_sse_status, select_system_rates,
+};
 use crate::core::theme::ThemeMode;
 use crate::core::ui::{Density, UiMode};
 use crate::features::torrents::actions::{TorrentAction, success_message};
 use crate::features::torrents::state::{
-    ProgressPatch, SelectionSet, apply_progress_patch, remove_row, select_selected_detail,
-    select_visible_ids, select_visible_rows, set_rows, set_selected, set_selected_id,
-    upsert_detail,
+    ProgressPatch, SelectionSet, TorrentRow, TorrentsPaging, TorrentsQueryModel,
+    apply_progress_patch, remove_row, select_selected_detail, select_visible_ids,
+    select_visible_rows, set_rows, set_selected, set_selected_id, upsert_detail,
 };
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode, TranslationBundle};
 use crate::models::{
@@ -29,6 +32,7 @@ use gloo::events::EventListener;
 use gloo::storage::{LocalStorage, Storage};
 use gloo::utils::window;
 use gloo_timers::callback::{Interval, Timeout};
+use gloo_timers::future::TimeoutFuture;
 use preferences::{
     DENSITY_KEY, LOCALE_KEY, MODE_KEY, THEME_KEY, allow_anonymous, api_base_url, load_auth_mode,
     load_auth_state, load_density, load_locale, load_mode, load_theme, persist_auth_state,
@@ -50,7 +54,6 @@ mod sse;
 
 #[function_component(RevaerApp)]
 pub fn revaer_app() -> Html {
-    let theme = use_state(load_theme);
     let mode = use_state(load_mode);
     let density = use_state(load_density);
     let locale = use_state(load_locale);
@@ -59,9 +62,7 @@ pub fn revaer_app() -> Html {
     let dispatch = Dispatch::<AppStore>::new();
     let api_ctx = use_memo(|_| ApiCtx::new(api_base_url()), ());
     let dashboard = use_state(demo_snapshot);
-    let toasts = use_state(Vec::<Toast>::new);
     let toast_id = use_state(|| 0u64);
-    let add_busy = use_state(|| false);
     let sse_handle = use_mut_ref(|| None as Option<SseHandle>);
     let sse_reset = use_state(|| 0u32);
     let refresh_timer = use_mut_ref(|| None as Option<Timeout>);
@@ -90,13 +91,21 @@ pub fn revaer_app() -> Html {
     let setup_expires = use_selector(|store: &AppStore| store.auth.setup_expires_at.clone());
     let setup_error = use_selector(|store: &AppStore| store.auth.setup_error.clone());
     let setup_busy = use_selector(|store: &AppStore| store.auth.setup_busy);
+    let theme = use_selector(|store: &AppStore| store.ui.theme);
+    let toasts = use_selector(|store: &AppStore| store.ui.toasts.clone());
+    let add_busy = use_selector(|store: &AppStore| store.ui.busy.add_torrent);
     let torrents_rows = use_selector(|store: &AppStore| select_visible_rows(&store.torrents));
     let visible_ids = use_selector(|store: &AppStore| select_visible_ids(&store.torrents));
     let selected_id = use_selector(|store: &AppStore| store.torrents.selected_id);
     let selected_ids = use_selector(|store: &AppStore| store.torrents.selected.clone());
     let selected_detail = use_selector(|store: &AppStore| select_selected_detail(&store.torrents));
     let filters = use_selector(|store: &AppStore| store.torrents.filters.clone());
-    let sse_state = use_selector(|store: &AppStore| store.system.sse_state.clone());
+    let paging_request = use_selector(|store: &AppStore| {
+        let paging = &store.torrents.paging;
+        (paging.cursor.clone(), paging.limit)
+    });
+    let system_rates = use_selector(select_system_rates);
+    let sse_state = use_selector(select_sse_status);
 
     let auth_mode = *auth_mode;
     let auth_state_value = (*auth_state).clone();
@@ -105,14 +114,17 @@ pub fn revaer_app() -> Html {
     let setup_expires_value = (*setup_expires).clone();
     let setup_error_value = (*setup_error).clone();
     let setup_busy_value = *setup_busy;
+    let theme_value = *theme;
+    let toasts_value = (*toasts).clone();
+    let add_busy_value = *add_busy;
     let torrents_rows = (*torrents_rows).clone();
     let visible_ids = (*visible_ids).clone();
     let selected_id_value = *selected_id;
     let selected_ids_value = (*selected_ids).clone();
     let selected_detail_value = (*selected_detail).clone();
     let filters_value = (*filters).clone();
-    let search = filters_value.search.clone();
-    let regex = filters_value.regex;
+    let search = filters_value.name.clone();
+    let system_rates_value = *system_rates;
     let sse_state_value = (*sse_state).clone();
 
     let current_route = use_route::<Route>().unwrap_or(Route::Torrents);
@@ -121,6 +133,19 @@ pub fn revaer_app() -> Html {
         _ => None,
     };
 
+    {
+        let dispatch = dispatch.clone();
+        use_effect_with_deps(
+            move |_| {
+                let theme = load_theme();
+                dispatch.reduce_mut(|store| {
+                    store.ui.theme = theme;
+                });
+                || ()
+            },
+            (),
+        );
+    }
     {
         let theme = *theme;
         use_effect_with_deps(
@@ -170,6 +195,12 @@ pub fn revaer_app() -> Html {
                         Ok(health) => {
                             dispatch.reduce_mut(|store| {
                                 store.auth.setup_error = None;
+                                store.health.basic = Some(HealthSnapshot {
+                                    status: health.status.clone(),
+                                    mode: health.mode.clone(),
+                                    database_status: Some(health.database.status),
+                                    database_revision: health.database.revision,
+                                });
                                 store.auth.app_mode = if health.mode == "setup" {
                                     AppModeState::Setup
                                 } else {
@@ -181,6 +212,7 @@ pub fn revaer_app() -> Html {
                             dispatch.reduce_mut(|store| {
                                 store.auth.setup_error = Some(format!("{err}"));
                                 store.auth.app_mode = AppModeState::Active;
+                                store.health.basic = None;
                             });
                         }
                     }
@@ -188,6 +220,66 @@ pub fn revaer_app() -> Html {
                 || ()
             },
             (),
+        );
+    }
+    {
+        let dispatch = dispatch.clone();
+        let api_ctx = (*api_ctx).clone();
+        use_effect_with_deps(
+            move |route| {
+                if matches!(route, Route::Health) {
+                    let dispatch = dispatch.clone();
+                    let client = api_ctx.client.clone();
+                    yew::platform::spawn_local(async move {
+                        let full = client.fetch_health_full().await;
+                        let metrics = client.fetch_metrics().await;
+                        dispatch.reduce_mut(|store| {
+                            store.health.metrics_text = metrics.ok();
+                            match full {
+                                Ok(full) => {
+                                    store.health.full =
+                                        Some(crate::core::store::FullHealthSnapshot {
+                                            status: full.status,
+                                            mode: full.mode,
+                                            revision: full.revision,
+                                            build: full.build,
+                                            degraded: full.degraded,
+                                            metrics: HealthMetricsSnapshot {
+                                                config_watch_latency_ms: full
+                                                    .metrics
+                                                    .config_watch_latency_ms,
+                                                config_apply_latency_ms: full
+                                                    .metrics
+                                                    .config_apply_latency_ms,
+                                                config_update_failures_total: full
+                                                    .metrics
+                                                    .config_update_failures_total,
+                                                config_watch_slow_total: full
+                                                    .metrics
+                                                    .config_watch_slow_total,
+                                                guardrail_violations_total: full
+                                                    .metrics
+                                                    .guardrail_violations_total,
+                                                rate_limit_throttled_total: full
+                                                    .metrics
+                                                    .rate_limit_throttled_total,
+                                            },
+                                            torrent: TorrentHealthSnapshot {
+                                                active: full.torrent.active,
+                                                queue_depth: full.torrent.queue_depth,
+                                            },
+                                        });
+                                }
+                                Err(_) => {
+                                    store.health.full = None;
+                                }
+                            }
+                        });
+                    });
+                }
+                || ()
+            },
+            current_route.clone(),
         );
     }
 
@@ -275,13 +367,22 @@ pub fn revaer_app() -> Html {
     }
     {
         let dashboard = dashboard.clone();
+        let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
         use_effect_with_deps(
             move |auth_state| {
                 if auth_state.as_ref().is_some() {
                     let dashboard_client = api_ctx.client.clone();
+                    let dispatch = dispatch.clone();
                     yew::platform::spawn_local(async move {
                         if let Ok(snapshot) = dashboard_client.fetch_dashboard().await {
+                            let rates = SystemRates {
+                                download_bps: snapshot.download_bps,
+                                upload_bps: snapshot.upload_bps,
+                            };
+                            dispatch.reduce_mut(|store| {
+                                store.system.rates = rates;
+                            });
                             dashboard.set(snapshot);
                         }
                     });
@@ -294,40 +395,90 @@ pub fn revaer_app() -> Html {
     {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
-        let filters = filters.clone();
-        let auth_state = auth_state.clone();
         use_effect_with_deps(
-            move |(filters, auth_state)| {
+            move |auth_state| {
+                if auth_state.as_ref().is_some() {
+                    let dispatch = dispatch.clone();
+                    let client = api_ctx.client.clone();
+                    yew::platform::spawn_local(async move {
+                        let categories = client.fetch_categories().await;
+                        let tags = client.fetch_tags().await;
+                        dispatch.reduce_mut(|store| {
+                            if let Ok(entries) = categories {
+                                store.labels.categories = entries
+                                    .into_iter()
+                                    .map(|entry| (entry.name.clone(), entry))
+                                    .collect();
+                            }
+                            if let Ok(entries) = tags {
+                                store.labels.tags = entries
+                                    .into_iter()
+                                    .map(|entry| (entry.name.clone(), entry))
+                                    .collect();
+                            }
+                        });
+                    });
+                } else {
+                    dispatch.reduce_mut(|store| {
+                        store.labels.categories.clear();
+                        store.labels.tags.clear();
+                    });
+                }
+                || ()
+            },
+            auth_state.clone(),
+        );
+    }
+    {
+        let dispatch = dispatch.clone();
+        let api_ctx = (*api_ctx).clone();
+        let filters = filters.clone();
+        let paging_request = paging_request.clone();
+        let auth_state = auth_state.clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
+        use_effect_with_deps(
+            move |(filters, paging_request, auth_state)| {
                 let auth_state = (**auth_state).clone();
                 let filters = (**filters).clone();
+                let (cursor, limit) = &**paging_request;
+                let paging = TorrentsPaging {
+                    cursor: cursor.clone(),
+                    next_cursor: None,
+                    limit: *limit,
+                    is_loading: false,
+                };
                 let dispatch = dispatch.clone();
                 let client = api_ctx.client.clone();
+                let toast_id = toast_id.clone();
+                let bundle = bundle.clone();
+                dispatch.reduce_mut(|store| {
+                    store.torrents.paging.is_loading = true;
+                });
                 yew::platform::spawn_local(async move {
                     if auth_state.is_some() {
-                        let search = if filters.search.trim().is_empty() {
-                            None
-                        } else {
-                            Some(filters.search.clone())
-                        };
-                        match client.fetch_torrents(search, filters.regex).await {
-                            Ok(list) if !list.is_empty() => {
-                                dispatch.reduce_mut(|store| {
-                                    set_rows(&mut store.torrents, list);
-                                });
-                            }
-                            _ => dispatch.reduce_mut(|store| {
-                                set_rows(&mut store.torrents, demo_rows());
-                            }),
-                        }
+                        fetch_torrent_list_with_retry(
+                            client,
+                            dispatch.clone(),
+                            toast_id,
+                            bundle,
+                            filters,
+                            paging,
+                        )
+                        .await;
                     } else {
                         dispatch.reduce_mut(|store| {
                             set_rows(&mut store.torrents, demo_rows());
+                            store.torrents.paging.next_cursor = None;
                         });
                     }
+                    dispatch.reduce_mut(|store| {
+                        store.torrents.paging.is_loading = false;
+                    });
                 });
                 || ()
             },
-            (filters.clone(), auth_state.clone()),
+            (filters.clone(), paging_request.clone(), auth_state.clone()),
         );
     }
 
@@ -335,6 +486,8 @@ pub fn revaer_app() -> Html {
         let refresh_timer = refresh_timer.clone();
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
         Callback::from(move |_| {
             if refresh_timer.borrow().is_some() {
                 return;
@@ -342,28 +495,31 @@ pub fn revaer_app() -> Html {
             let refresh_timer_handle = refresh_timer.clone();
             let dispatch = dispatch.clone();
             let client = api_ctx.client.clone();
+            let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
             let handle = Timeout::new(1200, move || {
                 refresh_timer_handle.borrow_mut().take();
                 let state = dispatch.get();
                 let auth_state = state.auth.state.clone();
                 let filters = state.torrents.filters.clone();
+                let paging = state.torrents.paging.clone();
                 if auth_state.is_none() {
                     dispatch.reduce_mut(|store| {
                         set_rows(&mut store.torrents, demo_rows());
+                        store.torrents.paging.next_cursor = None;
                     });
                     return;
                 }
-                let search = if filters.search.trim().is_empty() {
-                    None
-                } else {
-                    Some(filters.search.clone())
-                };
                 yew::platform::spawn_local(async move {
-                    if let Ok(list) = client.fetch_torrents(search, filters.regex).await {
-                        dispatch.reduce_mut(|store| {
-                            set_rows(&mut store.torrents, list);
-                        });
-                    }
+                    fetch_torrent_list_with_retry(
+                        client,
+                        dispatch.clone(),
+                        toast_id,
+                        bundle,
+                        filters,
+                        paging,
+                    )
+                    .await;
                 });
             });
             *refresh_timer.borrow_mut() = Some(handle);
@@ -386,32 +542,45 @@ pub fn revaer_app() -> Html {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
         let selected_id = selected_id.clone();
+        let auth_state = auth_state.clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
         use_effect_with_deps(
-            move |selected_id| {
+            move |(selected_id, auth_state)| {
                 let cleanup = || ();
+                let auth_state = (**auth_state).clone();
                 if let Some(id) = **selected_id {
                     if !dispatch.get().torrents.details_by_id.contains_key(&id) {
                         let dispatch = dispatch.clone();
                         let client = api_ctx.client.clone();
+                        let toast_id = toast_id.clone();
+                        let bundle = bundle.clone();
                         yew::platform::spawn_local(async move {
-                            match client.fetch_torrent_detail(&id.to_string()).await {
-                                Ok(detail) => dispatch.reduce_mut(|store| {
-                                    upsert_detail(&mut store.torrents, id, detail);
-                                }),
-                                Err(_) => {
-                                    if let Some(detail) = demo_detail(&id.to_string()) {
-                                        dispatch.reduce_mut(|store| {
-                                            upsert_detail(&mut store.torrents, id, detail);
-                                        });
-                                    }
+                            if auth_state.is_some() {
+                                if let Some(detail) = fetch_torrent_detail_with_retry(
+                                    client,
+                                    dispatch.clone(),
+                                    toast_id,
+                                    bundle,
+                                    id,
+                                )
+                                .await
+                                {
+                                    dispatch.reduce_mut(|store| {
+                                        upsert_detail(&mut store.torrents, id, detail);
+                                    });
                                 }
+                            } else if let Some(detail) = demo_detail(&id.to_string()) {
+                                dispatch.reduce_mut(|store| {
+                                    upsert_detail(&mut store.torrents, id, detail);
+                                });
                             }
                         });
                     }
                 }
                 cleanup
             },
-            selected_id.clone(),
+            (selected_id.clone(), auth_state.clone()),
         );
     }
     {
@@ -461,7 +630,6 @@ pub fn revaer_app() -> Html {
         let dispatch = dispatch.clone();
         let auth_state = auth_state.clone();
         let progress_buffer = progress_buffer.clone();
-        let dashboard_state = dashboard.clone();
         let schedule_refresh = schedule_refresh.clone();
         let sse_query = sse_query.clone();
         let sse_reset = *sse_reset;
@@ -483,14 +651,12 @@ pub fn revaer_app() -> Html {
                     let on_event = {
                         let dispatch = dispatch.clone();
                         let progress_buffer = progress_buffer.clone();
-                        let dashboard_state = dashboard_state.clone();
                         let schedule_refresh = schedule_refresh.clone();
                         Callback::from(move |envelope: UiEventEnvelope| {
                             handle_sse_envelope(
                                 envelope,
                                 &dispatch,
                                 &progress_buffer,
-                                &dashboard_state,
                                 &schedule_refresh,
                             );
                         })
@@ -599,14 +765,15 @@ pub fn revaer_app() -> Html {
     }
 
     let toggle_theme = {
-        let theme = theme.clone();
+        let dispatch = dispatch.clone();
         Callback::from(move |_| {
-            let next = if *theme == ThemeMode::Light {
-                ThemeMode::Dark
-            } else {
-                ThemeMode::Light
-            };
-            theme.set(next);
+            dispatch.reduce_mut(|store| {
+                store.ui.theme = if store.ui.theme == ThemeMode::Light {
+                    ThemeMode::Dark
+                } else {
+                    ThemeMode::Light
+                };
+            });
         })
     };
 
@@ -622,15 +789,9 @@ pub fn revaer_app() -> Html {
         let dispatch = dispatch.clone();
         Callback::from(move |value: String| {
             dispatch.reduce_mut(|store| {
-                store.torrents.filters.search = value;
-            });
-        })
-    };
-    let toggle_regex = {
-        let dispatch = dispatch.clone();
-        Callback::from(move |_| {
-            dispatch.reduce_mut(|store| {
-                store.torrents.filters.regex = !store.torrents.filters.regex;
+                store.torrents.filters.name = value;
+                store.torrents.paging.cursor = None;
+                store.torrents.paging.next_cursor = None;
             });
         })
     };
@@ -657,81 +818,73 @@ pub fn revaer_app() -> Html {
         })
     };
     let dismiss_toast = {
-        let toasts = toasts.clone();
+        let dispatch = dispatch.clone();
         Callback::from(move |id: u64| {
-            toasts.set(
-                (*toasts)
-                    .iter()
-                    .cloned()
-                    .filter(|toast| toast.id != id)
-                    .collect(),
-            );
+            dispatch.reduce_mut(|store| {
+                store.ui.toasts.retain(|toast| toast.id != id);
+            });
         })
     };
     let on_add_torrent = {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
-        let toasts = toasts.clone();
         let toast_id = toast_id.clone();
-        let add_busy = add_busy.clone();
-        let filters = filters.clone();
         let bundle = (*bundle).clone();
         Callback::from(move |input: AddTorrentInput| {
             let client = api_ctx.client.clone();
             let dispatch = dispatch.clone();
-            let toasts = toasts.clone();
             let toast_id = toast_id.clone();
-            let add_busy = add_busy.clone();
-            let filters = (*filters).clone();
             let bundle = bundle.clone();
-            add_busy.set(true);
+            dispatch.reduce_mut(|store| {
+                store.ui.busy.add_torrent = true;
+            });
             yew::platform::spawn_local(async move {
                 match client.add_torrent(input).await {
-                    Ok(row) => {
+                    Ok(_id) => {
                         push_toast(
-                            &toasts,
+                            &dispatch,
                             &toast_id,
                             ToastKind::Success,
-                            format!("{} {}", bundle.text("toast.add_success", ""), row.name),
+                            bundle.text("toast.add_success", "Torrent added"),
                         );
-                        let search = if filters.search.trim().is_empty() {
-                            None
-                        } else {
-                            Some(filters.search.clone())
+                        let (filters, paging) = {
+                            let state = dispatch.get();
+                            (
+                                state.torrents.filters.clone(),
+                                state.torrents.paging.clone(),
+                            )
                         };
-                        match client.fetch_torrents(search, filters.regex).await {
-                            Ok(list) => dispatch.reduce_mut(|store| {
-                                set_rows(&mut store.torrents, list);
-                            }),
-                            Err(err) => push_toast(
-                                &toasts,
-                                &toast_id,
-                                ToastKind::Info,
-                                format!("{} {err}", bundle.text("toast.add_refresh_failed", "")),
-                            ),
-                        }
+                        fetch_torrent_list_with_retry(
+                            client,
+                            dispatch.clone(),
+                            toast_id.clone(),
+                            bundle.clone(),
+                            filters,
+                            paging,
+                        )
+                        .await;
                     }
                     Err(err) => push_toast(
-                        &toasts,
+                        &dispatch,
                         &toast_id,
                         ToastKind::Error,
                         format!("{} {err}", bundle.text("toast.add_failed", "")),
                     ),
                 }
-                add_busy.set(false);
+                dispatch.reduce_mut(|store| {
+                    store.ui.busy.add_torrent = false;
+                });
             });
         })
     };
     let on_action = {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
-        let toasts = toasts.clone();
         let toast_id = toast_id.clone();
         let bundle = (*bundle).clone();
         Callback::from(move |(action, id): (TorrentAction, Uuid)| {
             let client = api_ctx.client.clone();
             let dispatch = dispatch.clone();
-            let toasts = toasts.clone();
             let toast_id = toast_id.clone();
             let bundle = bundle.clone();
             yew::platform::spawn_local(async move {
@@ -753,14 +906,14 @@ pub fn revaer_app() -> Html {
                             });
                         }
                         push_toast(
-                            &toasts,
+                            &dispatch,
                             &toast_id,
                             ToastKind::Success,
                             success_message(&bundle, &action, &display_name),
                         );
                     }
                     Err(err) => push_toast(
-                        &toasts,
+                        &dispatch,
                         &toast_id,
                         ToastKind::Error,
                         format!(
@@ -775,13 +928,11 @@ pub fn revaer_app() -> Html {
     let on_bulk_action = {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
-        let toasts = toasts.clone();
         let toast_id = toast_id.clone();
         let bundle = (*bundle).clone();
         Callback::from(move |(action, ids): (TorrentAction, Vec<Uuid>)| {
             let client = api_ctx.client.clone();
             let dispatch = dispatch.clone();
-            let toasts = toasts.clone();
             let toast_id = toast_id.clone();
             let bundle = bundle.clone();
             yew::platform::spawn_local(async move {
@@ -798,7 +949,7 @@ pub fn revaer_app() -> Html {
                         });
                     if let Err(err) = client.perform_action(&id_str, action.clone()).await {
                         push_toast(
-                            &toasts,
+                            &dispatch,
                             &toast_id,
                             ToastKind::Error,
                             format!(
@@ -816,7 +967,7 @@ pub fn revaer_app() -> Html {
                     });
                 }
                 push_toast(
-                    &toasts,
+                    &dispatch,
                     &toast_id,
                     ToastKind::Success,
                     format!("{} {}", bundle.text("toast.bulk_done", ""), ids.len()),
@@ -862,7 +1013,7 @@ pub fn revaer_app() -> Html {
             <ContextProvider<TranslationBundle> context={(*bundle_ctx).clone()}>
                 <BrowserRouter>
                     <AppShell
-                        theme={*theme}
+                        theme={theme_value}
                         on_toggle_theme={toggle_theme}
                         mode={*mode}
                         on_mode_change={set_mode}
@@ -880,14 +1031,14 @@ pub fn revaer_app() -> Html {
                                 Route::Home => html! { <Redirect<Route> to={Route::Torrents} /> },
                                 Route::Torrents => html! {
                                     <div class="torrents-stack">
-                                        <DashboardPanel snapshot={(*dashboard).clone()} mode={*mode} density={*density} torrents={torrents_rows.clone()} />
-                                        <TorrentView breakpoint={*breakpoint} torrents={torrents_rows.clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_bulk_action={on_bulk_action.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={*add_busy} search={search.clone()} regex={regex} on_search={set_search.clone()} on_toggle_regex={toggle_regex.clone()} selected_id={selected_id_value} selected_ids={selected_ids_value.clone()} on_set_selected={on_set_selected.clone()} selected_detail={selected_detail_value.clone()} on_select_detail={on_select_detail.clone()} />
+                                        <DashboardPanel snapshot={(*dashboard).clone()} system_rates={system_rates_value} mode={*mode} density={*density} torrents={torrents_rows.clone()} />
+                                        <TorrentView breakpoint={*breakpoint} visible_ids={visible_ids.clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_bulk_action={on_bulk_action.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={add_busy_value} search={search.clone()} on_search={set_search.clone()} selected_id={selected_id_value} selected_ids={selected_ids_value.clone()} on_set_selected={on_set_selected.clone()} selected_detail={selected_detail_value.clone()} on_select_detail={on_select_detail.clone()} />
                                     </div>
                                 },
                                 Route::TorrentDetail { id } => html! {
                                     <div class="torrents-stack">
-                                        <DashboardPanel snapshot={(*dashboard).clone()} mode={*mode} density={*density} torrents={torrents_rows.clone()} />
-                                        <TorrentView breakpoint={*breakpoint} torrents={torrents_rows.clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_bulk_action={on_bulk_action.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={*add_busy} search={search.clone()} regex={regex} on_search={set_search.clone()} on_toggle_regex={toggle_regex.clone()} selected_id={Uuid::parse_str(&id).ok()} selected_ids={selected_ids_value.clone()} on_set_selected={on_set_selected.clone()} selected_detail={selected_detail_value.clone()} on_select_detail={on_select_detail.clone()} />
+                                        <DashboardPanel snapshot={(*dashboard).clone()} system_rates={system_rates_value} mode={*mode} density={*density} torrents={torrents_rows.clone()} />
+                                        <TorrentView breakpoint={*breakpoint} visible_ids={visible_ids.clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_bulk_action={on_bulk_action.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={add_busy_value} search={search.clone()} on_search={set_search.clone()} selected_id={Uuid::parse_str(&id).ok()} selected_ids={selected_ids_value.clone()} on_set_selected={on_set_selected.clone()} selected_detail={selected_detail_value.clone()} on_select_detail={on_select_detail.clone()} />
                                     </div>
                                 },
                                 Route::Categories => html! { <Placeholder title={bundle.text("placeholder.categories_title", "Categories")} body={bundle.text("placeholder.categories_body", "Category policy editor")} /> },
@@ -898,7 +1049,7 @@ pub fn revaer_app() -> Html {
                             }
                         }} />
                     </AppShell>
-                    <ToastHost toasts={(*toasts).clone()} on_dismiss={dismiss_toast.clone()} />
+                    <ToastHost toasts={toasts_value.clone()} on_dismiss={dismiss_toast.clone()} />
                     <SseOverlay state={sse_state_value.clone()} on_retry={trigger_sse_reconnect} network_mode={bundle_sse.text("shell.network_remote", "")} />
                     {if app_mode_value == AppModeState::Setup {
                         html! {
@@ -958,21 +1109,163 @@ struct PlaceholderProps {
     pub body: String,
 }
 
+async fn fetch_torrent_list_with_retry(
+    client: std::rc::Rc<crate::services::api::ApiClient>,
+    dispatch: Dispatch<AppStore>,
+    toast_id: UseStateHandle<u64>,
+    bundle: TranslationBundle,
+    filters: TorrentsQueryModel,
+    paging: TorrentsPaging,
+) {
+    match client.fetch_torrents(&filters, &paging).await {
+        Ok(list) => apply_torrent_list(&dispatch, list),
+        Err(err) if err.is_rate_limited() => {
+            if let Some(delay) = err.retry_after_secs {
+                push_toast(
+                    &dispatch,
+                    &toast_id,
+                    ToastKind::Info,
+                    format!(
+                        "{} {}s",
+                        bundle.text("toast.rate_limited", "Rate limited, retrying in"),
+                        delay
+                    ),
+                );
+                TimeoutFuture::new(retry_delay_ms(delay)).await;
+                match client.fetch_torrents(&filters, &paging).await {
+                    Ok(list) => apply_torrent_list(&dispatch, list),
+                    Err(err) => push_toast(
+                        &dispatch,
+                        &toast_id,
+                        ToastKind::Error,
+                        format!(
+                            "{} {err}",
+                            bundle.text("toast.list_failed", "Failed to load torrents.")
+                        ),
+                    ),
+                }
+            } else {
+                push_toast(
+                    &dispatch,
+                    &toast_id,
+                    ToastKind::Error,
+                    format!(
+                        "{} {err}",
+                        bundle.text("toast.list_failed", "Failed to load torrents.")
+                    ),
+                );
+            }
+        }
+        Err(err) => push_toast(
+            &dispatch,
+            &toast_id,
+            ToastKind::Error,
+            format!(
+                "{} {err}",
+                bundle.text("toast.list_failed", "Failed to load torrents.")
+            ),
+        ),
+    }
+}
+
+async fn fetch_torrent_detail_with_retry(
+    client: std::rc::Rc<crate::services::api::ApiClient>,
+    dispatch: Dispatch<AppStore>,
+    toast_id: UseStateHandle<u64>,
+    bundle: TranslationBundle,
+    id: Uuid,
+) -> Option<crate::models::DetailData> {
+    let id_str = id.to_string();
+    match client.fetch_torrent_detail(&id_str).await {
+        Ok(detail) => Some(detail),
+        Err(err) if err.is_rate_limited() => {
+            if let Some(delay) = err.retry_after_secs {
+                push_toast(
+                    &dispatch,
+                    &toast_id,
+                    ToastKind::Info,
+                    format!(
+                        "{} {}s",
+                        bundle.text("toast.rate_limited", "Rate limited, retrying in"),
+                        delay
+                    ),
+                );
+                TimeoutFuture::new(retry_delay_ms(delay)).await;
+                match client.fetch_torrent_detail(&id_str).await {
+                    Ok(detail) => Some(detail),
+                    Err(err) => {
+                        push_toast(
+                            &dispatch,
+                            &toast_id,
+                            ToastKind::Error,
+                            format!(
+                                "{} {err}",
+                                bundle
+                                    .text("toast.detail_failed", "Failed to load torrent details.")
+                            ),
+                        );
+                        None
+                    }
+                }
+            } else {
+                push_toast(
+                    &dispatch,
+                    &toast_id,
+                    ToastKind::Error,
+                    format!(
+                        "{} {err}",
+                        bundle.text("toast.detail_failed", "Failed to load torrent details.")
+                    ),
+                );
+                None
+            }
+        }
+        Err(err) => {
+            push_toast(
+                &dispatch,
+                &toast_id,
+                ToastKind::Error,
+                format!(
+                    "{} {err}",
+                    bundle.text("toast.detail_failed", "Failed to load torrent details.")
+                ),
+            );
+            None
+        }
+    }
+}
+
+fn apply_torrent_list(dispatch: &Dispatch<AppStore>, list: crate::models::TorrentListResponse) {
+    let rows = list.torrents.into_iter().map(TorrentRow::from).collect();
+    dispatch.reduce_mut(|store| {
+        set_rows(&mut store.torrents, rows);
+        store.torrents.paging.next_cursor = list.next;
+    });
+}
+
+fn retry_delay_ms(delay_secs: u64) -> u32 {
+    let millis = delay_secs.saturating_mul(1_000);
+    match u32::try_from(millis) {
+        Ok(value) => value,
+        Err(_) => u32::MAX,
+    }
+}
+
 fn push_toast(
-    toasts: &UseStateHandle<Vec<Toast>>,
+    dispatch: &Dispatch<AppStore>,
     next_id: &UseStateHandle<u64>,
     kind: ToastKind,
     message: String,
 ) {
     let id = **next_id + 1;
     next_id.set(id);
-    let mut list = (**toasts).clone();
-    list.push(Toast { id, message, kind });
-    if list.len() > 4 {
-        let drain = list.len() - 4;
-        list.drain(0..drain);
-    }
-    toasts.set(list);
+    dispatch.reduce_mut(|store| {
+        store.ui.toasts.push(Toast { id, message, kind });
+        if store.ui.toasts.len() > 4 {
+            let drain = store.ui.toasts.len() - 4;
+            store.ui.toasts.drain(0..drain);
+        }
+    });
 }
 
 fn apply_breakpoint(bp: Breakpoint) {
@@ -1008,22 +1301,10 @@ fn current_breakpoint() -> Breakpoint {
     crate::breakpoints::for_width(width)
 }
 
-fn update_system_rates(
-    state: &UseStateHandle<crate::models::DashboardSnapshot>,
-    download_bps: u64,
-    upload_bps: u64,
-) -> crate::models::DashboardSnapshot {
-    let mut snapshot = (**state).clone();
-    snapshot.download_bps = download_bps;
-    snapshot.upload_bps = upload_bps;
-    snapshot
-}
-
 fn handle_sse_envelope(
     envelope: UiEventEnvelope,
     dispatch: &Dispatch<AppStore>,
     progress_buffer: &Rc<RefCell<HashMap<Uuid, ProgressPatch>>>,
-    dashboard: &UseStateHandle<crate::models::DashboardSnapshot>,
     schedule_refresh: &Callback<()>,
 ) {
     let mut outcome = None;
@@ -1043,7 +1324,13 @@ fn handle_sse_envelope(
             download_bps,
             upload_bps,
         } => {
-            dashboard.set(update_system_rates(dashboard, download_bps, upload_bps));
+            let rates = SystemRates {
+                download_bps,
+                upload_bps,
+            };
+            dispatch.reduce_mut(|store| {
+                store.system.rates = rates;
+            });
         }
     }
 }

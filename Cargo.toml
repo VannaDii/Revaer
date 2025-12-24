@@ -2,6 +2,7 @@
 members = [
     "crates/revaer-app",
     "crates/revaer-api",
+    "crates/revaer-api-models",
     "crates/revaer-cli",
     "crates/revaer-config",
     "crates/revaer-fsops",
