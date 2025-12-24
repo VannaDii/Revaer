@@ -1,8 +1,7 @@
 //! Pure UI helpers extracted from components for non-wasm testing.
 
-use crate::features::torrents::state::TorrentRow;
-use std::collections::BTreeSet;
-use std::fmt::Write;
+use crate::features::torrents::state::{SelectionSet, TorrentRow};
+use uuid::Uuid;
 
 /// Layout mode for the torrent list based on breakpoint.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -58,21 +57,21 @@ pub struct AddPayload {
 
 /// Toggle the presence of an id in the selection set.
 #[must_use]
-pub fn toggle_selection(selected: &BTreeSet<String>, id: &str) -> BTreeSet<String> {
+pub fn toggle_selection(selected: &SelectionSet, id: &Uuid) -> SelectionSet {
     let mut next = selected.clone();
     if !next.remove(id) {
-        next.insert(id.to_string());
+        next.insert(*id);
     }
     next
 }
 
 /// Select all rows or clear when already fully selected.
 #[must_use]
-pub fn select_all_or_clear(selected: &BTreeSet<String>, rows: &[TorrentRow]) -> BTreeSet<String> {
+pub fn select_all_or_clear(selected: &SelectionSet, rows: &[TorrentRow]) -> SelectionSet {
     if selected.len() == rows.len() {
-        BTreeSet::new()
+        SelectionSet::default()
     } else {
-        rows.iter().map(|row| row.id.clone()).collect()
+        rows.iter().map(|row| row.id).collect()
     }
 }
 
@@ -230,12 +229,135 @@ pub fn parse_tags(raw: &str) -> Option<Vec<String>> {
     }
 }
 
-/// Build the SSE URL with optional `api_key` query.
+/// Supported SSE endpoints for the UI.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SseEndpoint {
+    /// Primary torrents SSE endpoint.
+    Primary,
+    /// Legacy fallback endpoint.
+    Fallback,
+}
+
+/// SSE view contexts that influence filter selection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SseView {
+    /// List view updates only.
+    List,
+    /// Detail drawer focused updates.
+    Detail,
+}
+
+/// Structured SSE query parameters for filtering.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SseQuery {
+    /// Optional torrent filter (comma-separated UUIDs).
+    pub torrent: Option<String>,
+    /// Optional event filter (comma-separated kinds).
+    pub event: Option<String>,
+    /// Optional state filter (comma-separated states).
+    pub state: Option<String>,
+}
+
+impl SseQuery {
+    const fn is_empty(&self) -> bool {
+        self.torrent.is_none() && self.event.is_none() && self.state.is_none()
+    }
+}
+
+/// Build SSE query parameters from UI state.
 #[must_use]
-pub fn build_sse_url(base_url: &str, api_key: &Option<String>) -> String {
-    let mut url = format!("{}/v1/events/stream", base_url.trim_end_matches('/'));
-    if let Some(key) = api_key {
-        let _ = write!(url, "?api_key={key}");
+pub fn build_sse_query(
+    visible_ids: &[Uuid],
+    selected_id: Option<Uuid>,
+    state_filter: Option<String>,
+    view: SseView,
+) -> SseQuery {
+    const ID_CAP: usize = 120;
+    let torrent_ids = selected_id.map_or_else(
+        || {
+            if visible_ids.len() <= ID_CAP {
+                visible_ids.to_vec()
+            } else {
+                Vec::new()
+            }
+        },
+        |id| vec![id],
+    );
+
+    let torrent = if torrent_ids.is_empty() {
+        None
+    } else {
+        Some(
+            torrent_ids
+                .iter()
+                .map(Uuid::to_string)
+                .collect::<Vec<_>>()
+                .join(","),
+        )
+    };
+
+    let mut kinds = base_event_kinds().to_vec();
+    if view == SseView::Detail {
+        kinds.extend(detail_event_kinds());
+    }
+    let event = Some(kinds.join(","));
+
+    SseQuery {
+        torrent,
+        event,
+        state: state_filter,
+    }
+}
+
+const fn base_event_kinds() -> [&'static str; 8] {
+    [
+        "torrent_added",
+        "torrent_removed",
+        "progress",
+        "state_changed",
+        "completed",
+        "metadata_updated",
+        "settings_changed",
+        "health_changed",
+    ]
+}
+
+const fn detail_event_kinds() -> [&'static str; 6] {
+    [
+        "files_discovered",
+        "selection_reconciled",
+        "fsops_started",
+        "fsops_progress",
+        "fsops_completed",
+        "fsops_failed",
+    ]
+}
+
+/// Build the SSE URL for the requested endpoint.
+#[must_use]
+pub fn build_sse_url(base_url: &str, endpoint: SseEndpoint, query: Option<&SseQuery>) -> String {
+    let base = base_url.trim_end_matches('/');
+    let mut url = match endpoint {
+        SseEndpoint::Primary => format!("{base}/v1/torrents/events"),
+        SseEndpoint::Fallback => format!("{base}/v1/events/stream"),
+    };
+    if let Some(query) = query
+        && !query.is_empty()
+    {
+        let mut params = Vec::new();
+        if let Some(torrent) = &query.torrent {
+            params.push(format!("torrent={}", urlencoding::encode(torrent)));
+        }
+        if let Some(event) = &query.event {
+            params.push(format!("event={}", urlencoding::encode(event)));
+        }
+        if let Some(state) = &query.state {
+            params.push(format!("state={}", urlencoding::encode(state)));
+        }
+        if !params.is_empty() {
+            url.push('?');
+            url.push_str(&params.join("&"));
+        }
     }
     url
 }
@@ -310,9 +432,9 @@ mod tests {
     use super::*;
     use crate::features::torrents::state::TorrentRow;
 
-    fn row(id: &str) -> TorrentRow {
+    fn row(id: Uuid) -> TorrentRow {
         TorrentRow {
-            id: id.to_string(),
+            id,
             name: "n".into(),
             status: "s".into(),
             progress: 0.0,
@@ -330,17 +452,18 @@ mod tests {
 
     #[test]
     fn toggle_selection_adds_and_removes() {
-        let set = BTreeSet::new();
-        let added = toggle_selection(&set, "1");
-        assert!(added.contains("1"));
-        let removed = toggle_selection(&added, "1");
+        let id = Uuid::from_u128(1);
+        let set = SelectionSet::default();
+        let added = toggle_selection(&set, &id);
+        assert!(added.contains(&id));
+        let removed = toggle_selection(&added, &id);
         assert!(removed.is_empty());
     }
 
     #[test]
     fn select_all_clears_when_full() {
-        let rows = vec![row("1"), row("2")];
-        let empty = BTreeSet::new();
+        let rows = vec![row(Uuid::from_u128(1)), row(Uuid::from_u128(2))];
+        let empty = SelectionSet::default();
         let all = select_all_or_clear(&empty, &rows);
         assert_eq!(all.len(), 2);
         let cleared = select_all_or_clear(&all, &rows);
@@ -452,14 +575,14 @@ mod tests {
     }
 
     #[test]
-    fn sse_url_includes_key_when_present() {
+    fn sse_url_respects_endpoints() {
         assert_eq!(
-            build_sse_url("http://x", &None),
-            "http://x/v1/events/stream"
+            build_sse_url("http://x", SseEndpoint::Primary, None),
+            "http://x/v1/torrents/events"
         );
         assert_eq!(
-            build_sse_url("http://x/", &Some("k".into())),
-            "http://x/v1/events/stream?api_key=k"
+            build_sse_url("http://x/", SseEndpoint::Fallback, None),
+            "http://x/v1/events/stream"
         );
     }
 

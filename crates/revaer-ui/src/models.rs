@@ -16,138 +16,179 @@ fn bytes_to_gb(bytes: u64) -> f64 {
 }
 
 /// Dashboard snapshot used by the UI and API client.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DashboardSnapshot {
+    /// Aggregate download throughput in bytes per second.
     pub download_bps: u64,
+    /// Aggregate upload throughput in bytes per second.
     pub upload_bps: u64,
+    /// Count of active torrents.
     pub active: u32,
+    /// Count of paused torrents.
     pub paused: u32,
+    /// Count of completed torrents.
     pub completed: u32,
+    /// Total disk capacity (GB).
     pub disk_total_gb: u32,
+    /// Used disk capacity (GB).
     pub disk_used_gb: u32,
+    /// Disk usage breakdown per path.
     pub paths: Vec<PathUsage>,
+    /// Recent dashboard event entries.
     pub recent_events: Vec<DashboardEvent>,
+    /// Tracker health summary.
     pub tracker_health: TrackerHealth,
+    /// Queue status snapshot.
     pub queue: QueueStatus,
+    /// VPN state summary.
     pub vpn: VpnState,
 }
 
 /// Disk usage per path for the dashboard view.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PathUsage {
+    /// Display label for the path (e.g., mount point).
     pub label: &'static str,
+    /// Used space in GB.
     pub used_gb: u32,
+    /// Total space in GB.
     pub total_gb: u32,
 }
 
 /// Event entry displayed in the dashboard recent events list.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DashboardEvent {
+    /// Short label for the event.
     pub label: &'static str,
+    /// Secondary detail text for the event.
     pub detail: &'static str,
+    /// Severity classification.
     pub kind: EventKind,
 }
 
 /// Event severity kinds for dashboard events.
-#[allow(dead_code, missing_docs)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum EventKind {
+    /// Informational event.
     Info,
+    /// Warning event.
     Warning,
+    /// Error event.
     Error,
 }
 
 /// Tracker health aggregates.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrackerHealth {
+    /// Count of healthy trackers.
     pub ok: u16,
+    /// Count of warning trackers.
     pub warn: u16,
+    /// Count of errored trackers.
     pub error: u16,
 }
 
 /// Queue status aggregates.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct QueueStatus {
+    /// Number of active torrents.
     pub active: u16,
+    /// Number of paused torrents.
     pub paused: u16,
+    /// Number of queued torrents.
     pub queued: u16,
+    /// Pending queue depth.
     pub depth: u16,
 }
 
 /// VPN state summary for the dashboard.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct VpnState {
+    /// Current VPN state label.
     pub state: String,
+    /// Status message for the VPN.
     pub message: String,
+    /// Last change timestamp.
     pub last_change: String,
 }
 
 /// Toast variants used across the UI.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ToastKind {
+    /// Informational toast.
     Info,
+    /// Success toast.
     Success,
+    /// Error toast.
     Error,
 }
 
 /// Toast payload used by the host and app state.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Toast {
+    /// Monotonic toast identifier.
     pub id: u64,
+    /// Display message for the toast.
     pub message: String,
+    /// Severity classification.
     pub kind: ToastKind,
 }
 
 /// Navigation labels supplied by the router shell.
-#[allow(missing_docs)]
 #[derive(Clone, PartialEq, Eq)]
 pub struct NavLabels {
-    pub dashboard: String,
+    /// Torrents nav label.
     pub torrents: String,
-    pub search: String,
-    pub jobs: String,
+    /// Categories nav label.
+    pub categories: String,
+    /// Tags nav label.
+    pub tags: String,
+    /// Settings nav label.
     pub settings: String,
-    pub logs: String,
+    /// Health nav label.
+    pub health: String,
 }
 
 /// SSE connection state shared across shell/status components.
-#[allow(missing_docs)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SseState {
+    /// SSE connection is live.
     Connected,
+    /// SSE connection is retrying.
     Reconnecting {
+        /// Seconds until the next retry attempt.
         retry_in_secs: u8,
-        last_event: &'static str,
-        reason: &'static str,
+        /// Identifier for the last event seen.
+        last_event: String,
+        /// Human-readable reason for reconnect.
+        reason: String,
     },
 }
 
 /// Dialog confirmation kinds for torrent actions.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ConfirmKind {
+    /// Confirm deletion without data removal.
     Delete,
+    /// Confirm deletion with data removal.
     DeleteData,
+    /// Confirm recheck action.
     Recheck,
 }
 
 /// Torrent add payload accepted by the API and UI.
 #[cfg(target_arch = "wasm32")]
-#[allow(missing_docs)]
 #[derive(Clone, Debug)]
 pub struct AddTorrentInput {
+    /// Magnet or URL input.
     pub value: Option<String>,
+    /// Optional torrent file payload.
     pub file: Option<File>,
+    /// Optional initial category.
     pub category: Option<String>,
+    /// Optional initial tag list.
     pub tags: Option<Vec<String>>,
+    /// Optional initial save path.
     pub save_path: Option<String>,
 }
 
@@ -163,69 +204,94 @@ impl PartialEq for AddTorrentInput {
 }
 
 /// Torrent detail view node representation.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct FileNode {
+    /// File or folder name.
     pub name: String,
+    /// Total size in GB.
     pub size_gb: f64,
+    /// Completed size in GB.
     pub completed_gb: f64,
+    /// Priority label for the node.
     pub priority: String,
+    /// Whether the node is selected for download.
     pub wanted: bool,
+    /// Nested child nodes.
     pub children: Vec<FileNode>,
 }
 
 /// Peer row for detail pane.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct PeerRow {
+    /// Peer IP address.
     pub ip: String,
+    /// Client identification string.
     pub client: String,
+    /// Peer flags string.
     pub flags: String,
+    /// Country code for the peer.
     pub country: String,
+    /// Download rate from the peer in bytes per second.
     pub download_bps: u64,
+    /// Upload rate to the peer in bytes per second.
     pub upload_bps: u64,
+    /// Completion percentage for the peer.
     pub progress: f32,
 }
 
 /// Tracker row for detail pane.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TrackerRow {
+    /// Tracker announce URL.
     pub url: String,
+    /// Tracker status string.
     pub status: String,
+    /// Next announce time or summary.
     pub next_announce: String,
+    /// Optional last error message.
     pub last_error: Option<String>,
 }
 
 /// Event row for detail pane.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EventRow {
+    /// Timestamp label.
     pub timestamp: String,
+    /// Severity level label.
     pub level: String,
+    /// Event description.
     pub message: String,
 }
 
 /// Metadata section for detail pane.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Metadata {
+    /// Info hash.
     pub hash: String,
+    /// Magnet URI.
     pub magnet: String,
+    /// Total size in GB.
     pub size_gb: f64,
+    /// Piece count.
     pub piece_count: u32,
+    /// Piece size in MB.
     pub piece_size_mb: u32,
 }
 
 /// Aggregated detail data used by the UI.
-#[allow(missing_docs)]
 #[derive(Clone, Debug, PartialEq)]
 pub struct DetailData {
+    /// Display name.
     pub name: String,
+    /// File tree listing.
     pub files: Vec<FileNode>,
+    /// Peer list snapshot.
     pub peers: Vec<PeerRow>,
+    /// Tracker list snapshot.
     pub trackers: Vec<TrackerRow>,
+    /// Recent event log entries.
     pub events: Vec<EventRow>,
+    /// Metadata summary.
     pub metadata: Metadata,
 }
 
@@ -380,111 +446,6 @@ pub struct Tracker {
     pub last_error: Option<String>,
     /// Timestamp for last error, if reported.
     pub last_error_at: Option<String>,
-}
-
-/// Server-Sent Event payloads emitted by the backend.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "kind", content = "data")]
-pub enum SseEvent {
-    /// Progress update for a torrent.
-    #[serde(rename = "torrent_progress")]
-    TorrentProgress {
-        /// Target torrent identifier.
-        torrent_id: Uuid,
-        /// New progress value (0.0–1.0).
-        progress: f32,
-        /// Optional ETA in seconds.
-        eta_seconds: Option<u64>,
-        /// Download rate in bytes per second.
-        download_bps: u64,
-        /// Upload rate in bytes per second.
-        upload_bps: u64,
-    },
-    /// State change for a torrent.
-    #[serde(rename = "torrent_state")]
-    TorrentState {
-        /// Target torrent identifier.
-        torrent_id: Uuid,
-        /// New torrent status string.
-        status: String,
-        /// Optional reason for the status change.
-        reason: Option<String>,
-    },
-    /// Rate update for a torrent.
-    #[serde(rename = "torrent_rates")]
-    TorrentRates {
-        /// Target torrent identifier.
-        torrent_id: Uuid,
-        /// Download rate in bytes per second.
-        download_bps: u64,
-        /// Upload rate in bytes per second.
-        upload_bps: u64,
-    },
-    /// Notification that a torrent was added.
-    #[serde(rename = "torrent_added")]
-    TorrentAdded {
-        /// Newly added torrent identifier.
-        torrent_id: Uuid,
-    },
-    /// Notification that a torrent was removed.
-    #[serde(rename = "torrent_removed")]
-    TorrentRemoved {
-        /// Removed torrent identifier.
-        torrent_id: Uuid,
-    },
-    /// Job queue update.
-    #[serde(rename = "jobs_update")]
-    JobsUpdate {
-        /// Current job queue snapshot.
-        jobs: Vec<Job>,
-    },
-    /// VPN state update.
-    #[serde(rename = "vpn_state")]
-    VpnState {
-        /// VPN state string.
-        state: String,
-        /// VPN status message suitable for UI display.
-        message: String,
-        /// Last change timestamp in RFC3339.
-        last_change: String,
-    },
-    /// Aggregate system throughput.
-    #[serde(rename = "system_rates")]
-    SystemRates {
-        /// Aggregate download throughput in bytes per second.
-        download_bps: u64,
-        /// Aggregate upload throughput in bytes per second.
-        upload_bps: u64,
-    },
-    /// Queue status snapshot.
-    #[serde(rename = "queue_status")]
-    QueueStatus {
-        /// Active torrents count.
-        active: u32,
-        /// Paused torrents count.
-        paused: u32,
-        /// Queued torrents count.
-        queued: u32,
-        /// Queue depth (pending work).
-        depth: u32,
-    },
-}
-
-/// Background job metadata for the queue view.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Job {
-    /// Job identifier.
-    pub id: Uuid,
-    /// Optional torrent identifier the job relates to.
-    pub torrent_id: Option<Uuid>,
-    /// Job kind (e.g., hash check).
-    pub kind: String,
-    /// Current job status string.
-    pub status: String,
-    /// Optional details or failure context.
-    pub detail: Option<String>,
-    /// Last update timestamp in RFC3339.
-    pub updated_at: String,
 }
 
 /// Event log entry for torrent detail views.

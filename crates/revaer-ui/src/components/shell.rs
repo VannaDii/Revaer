@@ -44,13 +44,16 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
         ThemeMode::Dark => t("shell.theme.dark"),
     };
     let current_label = match props.active {
-        Route::Dashboard => props.nav.dashboard.clone(),
-        Route::Torrents => props.nav.torrents.clone(),
-        Route::Search => props.nav.search.clone(),
-        Route::Jobs => props.nav.jobs.clone(),
+        Route::Home | Route::Torrents | Route::TorrentDetail { .. } => props.nav.torrents.clone(),
+        Route::Categories => props.nav.categories.clone(),
+        Route::Tags => props.nav.tags.clone(),
         Route::Settings => props.nav.settings.clone(),
-        Route::Logs => props.nav.logs.clone(),
+        Route::Health => props.nav.health.clone(),
         Route::NotFound => "Not found".into(),
+    };
+    let nav_active = match props.active {
+        Route::Home | Route::TorrentDetail { .. } => Route::Torrents,
+        _ => props.active.clone(),
     };
 
     html! {
@@ -65,12 +68,11 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                     </div>
                 </div>
                 <ul class="menu nav-list">
-                    {nav_item(Route::Dashboard, &props.nav.dashboard, props.active.clone(), close_nav.clone())}
-                    {nav_item(Route::Torrents, &props.nav.torrents, props.active.clone(), close_nav.clone())}
-                    {nav_item(Route::Search, &props.nav.search, props.active.clone(), close_nav.clone())}
-                    {nav_item(Route::Jobs, &props.nav.jobs, props.active.clone(), close_nav.clone())}
-                    {nav_item(Route::Settings, &props.nav.settings, props.active.clone(), close_nav.clone())}
-                    {nav_item(Route::Logs, &props.nav.logs, props.active.clone(), close_nav)}
+                    {nav_item(Route::Torrents, &props.nav.torrents, nav_active.clone(), close_nav.clone())}
+                    {nav_item(Route::Categories, &props.nav.categories, nav_active.clone(), close_nav.clone())}
+                    {nav_item(Route::Tags, &props.nav.tags, nav_active.clone(), close_nav.clone())}
+                    {nav_item(Route::Settings, &props.nav.settings, nav_active.clone(), close_nav.clone())}
+                    {nav_item(Route::Health, &props.nav.health, nav_active, close_nav)}
                 </ul>
                 <div class="sidebar-footer">
                     <div class="sidebar-group">
@@ -107,7 +109,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                         <h2>{current_label}</h2>
                     </div>
                     <div class="top-actions">
-                        <SseBadge state={props.sse_state} />
+                        <SseBadge state={props.sse_state.clone()} />
                         <button class="ghost icon-btn" onclick={{
                             let cb = props.on_sse_retry.clone();
                             Callback::from(move |_| cb.emit(()))
@@ -147,27 +149,21 @@ fn nav_item(route: Route, label: &str, active: Route, on_select: Callback<()>) -
 
 fn nav_icon(route: &Route) -> Html {
     match route {
-        Route::Dashboard => html! {
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 4h7v7H4zM13 4h7v5h-7zM13 11h7v9h-7zM4 13h7v7H4z" fill="currentColor" />
-            </svg>
-        },
-        Route::Torrents => html! {
+        Route::Home | Route::Torrents | Route::TorrentDetail { .. } => html! {
             <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M4 7l8-4 8 4v10l-8 4-8-4z" fill="none" stroke="currentColor" stroke-width="2" />
                 <path d="M8 12l4 2 4-2" fill="none" stroke="currentColor" stroke-width="2" />
             </svg>
         },
-        Route::Search => html! {
+        Route::Categories => html! {
             <svg viewBox="0 0 24 24" aria-hidden="true">
-                <circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="2" fill="none" />
-                <path d="M16 16l4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                <path d="M4 6h16v4H4zM4 14h10v4H4z" fill="none" stroke="currentColor" stroke-width="2" />
             </svg>
         },
-        Route::Jobs => html! {
+        Route::Tags => html! {
             <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M5 6h14v12H5z" fill="none" stroke="currentColor" stroke-width="2" />
-                <path d="M9 10h6M9 14h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                <path d="M4 8l8-4 8 4-8 12z" fill="none" stroke="currentColor" stroke-width="2" />
+                <circle cx="12" cy="10" r="1.5" fill="currentColor" />
             </svg>
         },
         Route::Settings => html! {
@@ -176,10 +172,9 @@ fn nav_icon(route: &Route) -> Html {
                 <path d="M4 12h2M18 12h2M12 4v2M12 18v2M6 6l1.5 1.5M16.5 16.5 18 18M18 6l-1.5 1.5M6 18l1.5-1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
         },
-        Route::Logs => html! {
+        Route::Health => html! {
             <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M5 5h14v14H5z" fill="none" stroke="currentColor" stroke-width="2" />
-                <path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+                <path d="M5 12h4l2-4 3 8 2-4h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
             </svg>
         },
         Route::NotFound => html! {

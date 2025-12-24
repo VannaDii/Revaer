@@ -38,30 +38,30 @@
   - [ ] health (basic/full snapshots)
   - [ ] system (system rates, SSE connection status)
 - [ ] Normalize torrent data:
-  - [ ] torrents.by_id: HashMap<Uuid, Rc<TorrentRowState>>
-  - [ ] torrents.visible_ids: Vec<Uuid> (render list by IDs only)
-  - [ ] torrents.selected: HashSet<Uuid> (bulk)
+  - [x] torrents.by_id: HashMap<Uuid, Rc<TorrentRowState>>
+  - [x] torrents.visible_ids: Vec<Uuid> (render list by IDs only)
+  - [x] torrents.selected: HashSet<Uuid> (bulk)
   - [ ] torrents.filters: TorrentsQueryModel (mirrors URL query)
   - [ ] torrents.paging: { cursor, next_cursor, limit, is_loading }
-  - [ ] torrents.details_by_id: HashMap<Uuid, Rc<TorrentDetailState>> (optional cache; keep large vectors here, not in row state)
+  - [x] torrents.details_by_id: HashMap<Uuid, Rc<TorrentDetailState>> (optional cache; keep large vectors here, not in row state)
   - [ ] torrents.fsops_by_id: HashMap<Uuid, Rc<FsopsState>> (separate map; row derives a small badge slice)
 - [ ] Implement selectors for row-level subscription:
-  - [ ] select_visible_ids()
-  - [ ] select_torrent_row(id) (for drawer)
+  - [x] select_visible_ids()
+  - [x] select_torrent_row(id) (for drawer)
   - [ ] select_torrent_progress_slice(id) (for list rows; minimal fields only)
   - [ ] select_is_selected(id) (for bulk checkbox)
   - [ ] select_system_rates() and select_sse_status()
-- [ ] Ensure selector return values are cheap and stable:
-  - [ ] Use Rc/Arc for row models and replace only the changed row pointer on updates.
-  - [ ] Derive/implement PartialEq so unchanged slices do not trigger re-render.
-  - [ ] Keep visible_ids as IDs; do not copy full row structs into list state.
+- [x] Ensure selector return values are cheap and stable:
+  - [x] Use Rc/Arc for row models and replace only the changed row pointer on updates.
+  - [x] Derive/implement PartialEq so unchanged slices do not trigger re-render.
+  - [x] Keep visible_ids as IDs; do not copy full row structs into list state.
 - [ ] Row list components must subscribe only to progress/state slices, not full TorrentRowState, unless rendering the drawer.
 
 ## 6) API client layer (singleton + shared domain types)
-- [ ] Implement a single ApiClient instance (created once) and share via a lightweight context ApiCtx.
-- [ ] Enforce: no component constructs its own API client; all API calls go through the singleton.
-- [ ] Restrict API calls to page controllers/services (effects/hooks/modules), not atoms/molecules.
-- [ ] Atoms and molecules must never perform API calls or dispatch side effects.
+- [x] Implement a single ApiClient instance (created once) and share via a lightweight context ApiCtx.
+- [x] Enforce: no component constructs its own API client; all API calls go through the singleton.
+- [x] Restrict API calls to page controllers/services (effects/hooks/modules), not atoms/molecules.
+- [x] Atoms and molecules must never perform API calls or dispatch side effects.
 - [ ] ApiClient must use existing domain types from shared backend crates (models, enums, request/response types); do not recreate parallel UI-only types.
 - [ ] Prefer re-exporting or directly depending on shared crates for:
   - [ ] TorrentSummary, TorrentDetail, TorrentSettingsView, TorrentFile, TorrentLabelPolicy
@@ -139,27 +139,27 @@
 - [ ] Optional: /metrics viewer with copy button.
 
 ## 14) Live updates over SSE (robust, header-capable, envelope-first)
-- [ ] Implement SSE using fetch streaming and manual SSE parsing (EventSource cannot set headers).
-- [ ] Attach x-revaer-api-key to SSE requests.
-- [ ] Endpoint discovery: primary /v1/torrents/events.
-- [ ] Fallback: attempt /v1/events/stream if primary 404s.
-- [ ] Parse SSE fields: event, id, retry, data.
-- [ ] Treat the canonical payload as EventEnvelope { id, timestamp, event } JSON; decode this first.
-- [ ] Back-compat decode: if envelope parse fails, attempt { kind, data } dummy payload mapping to an internal envelope shape.
-- [ ] All SSE events must be normalized into a single internal EventEnvelope shape and applied through a single reducer path.
-- [ ] Persist and send Last-Event-ID header for replay; store last numeric event id after successful envelope decode.
-- [ ] Build SSE query filters from UI state:
-  - [ ] torrent = comma-separated visible IDs when count is below a safe cap; otherwise omit.
-  - [ ] event = kinds relevant to current view (list vs drawer).
-  - [ ] state only when a state filter is active.
-- [ ] Implement a progress coalescer:
-  - [ ] Buffer incoming progress patches per torrent ID in a non-reactive buffer.
-  - [ ] Flush buffered progress into yewdux store on a fixed cadence (50-100ms).
-  - [ ] Apply flush by replacing only the affected Rc<TorrentRowState> entries.
-  - [ ] Apply non-progress events immediately (add/remove/state change/metadata/fsops/files/selection/system/health).
-  - [ ] If an event cannot be decoded/applied, trigger a throttled targeted refresh (do not refetch everything per message).
-- [ ] Progress coalescing is mandatory to cap render frequency under high event volume.
-- [ ] UI: show "Live" indicator when connected and subtle warning when reconnecting/backing off.
+- [x] Implement SSE using fetch streaming and manual SSE parsing (EventSource cannot set headers).
+- [x] Attach x-revaer-api-key to SSE requests.
+- [x] Endpoint discovery: primary /v1/torrents/events.
+- [x] Fallback: attempt /v1/events/stream if primary 404s.
+- [x] Parse SSE fields: event, id, retry, data.
+- [x] Treat the canonical payload as EventEnvelope { id, timestamp, event } JSON; decode this first.
+- [x] Back-compat decode: if envelope parse fails, attempt { kind, data } dummy payload mapping to an internal envelope shape.
+- [x] All SSE events must be normalized into a single internal EventEnvelope shape and applied through a single reducer path.
+- [x] Persist and send Last-Event-ID header for replay; store last numeric event id after successful envelope decode.
+- [x] Build SSE query filters from UI state:
+  - [x] torrent = comma-separated visible IDs when count is below a safe cap; otherwise omit.
+  - [x] event = kinds relevant to current view (list vs drawer).
+  - [x] state only when a state filter is active.
+- [x] Implement a progress coalescer:
+  - [x] Buffer incoming progress patches per torrent ID in a non-reactive buffer.
+  - [x] Flush buffered progress into yewdux store on a fixed cadence (50-100ms).
+  - [x] Apply flush by replacing only the affected Rc<TorrentRowState> entries.
+  - [x] Apply non-progress events immediately (add/remove/state change/metadata/fsops/files/selection/system/health).
+  - [x] If an event cannot be decoded/applied, trigger a throttled targeted refresh (do not refetch everything per message).
+- [x] Progress coalescing is mandatory to cap render frequency under high event volume.
+- [x] UI: show "Live" indicator when connected and subtle warning when reconnecting/backing off.
 
 ## 15) Not in scope guardrails
 - [ ] Do not implement qBittorrent compatibility endpoints.

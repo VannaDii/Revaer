@@ -1,0 +1,26 @@
+# UI SSE + Auth/Setup Wiring
+
+- Status: Accepted
+- Date: 2025-12-24
+- Context:
+  - Motivation: finalize first-run setup gating and SSE updates while keeping auth headers on every request.
+  - Constraints: EventSource cannot set headers; SSE must fall back cleanly; avoid new dependencies.
+- Decision:
+  - Implement a fetch-stream SSE runner with AbortController, bounded backoff, and fallback endpoint selection.
+  - Parse SSE frames into typed envelopes when possible and throttle list refreshes when updates are incomplete.
+  - Keep auth/setup flow in app state and attach API key or Basic auth for SSE streams.
+  - Alternatives considered: EventSource with query param auth, periodic polling, or WebSockets (rejected for header limitations or higher complexity).
+- Consequences:
+  - Positive outcomes: authenticated SSE support, deterministic reconnection behavior, and bounded refresh churn.
+  - Risks or trade-offs: dual payload parsing adds complexity; throttled refresh can delay UI updates slightly.
+- Follow-up:
+  - Implementation tasks: align torrent DTOs with OpenAPI and expand feature modules for torrents/dashboard.
+  - Review checkpoints: validate SSE reconnection on auth changes and fallback path coverage.
+- Test coverage summary:
+  - Added parser unit tests for frame boundaries and multiline data handling.
+- Observability updates:
+  - UI-only change; no new server-side telemetry.
+- Risk & rollback plan:
+  - Revert to previous EventSource-based flow or disable SSE refresh on regressions.
+- Dependency rationale:
+  - No new crates added; only web-sys feature flags expanded. Alternative considered: gloo-net streaming APIs (insufficient for manual SSE parsing).

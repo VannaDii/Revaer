@@ -9,7 +9,10 @@
     "search": "Search",
     "jobs": "Jobs / Post-processing",
     "settings": "Settings",
-    "logs": "Logs"
+    "logs": "Logs",
+    "categories": "Categories",
+    "tags": "Tags",
+    "health": "Health"
   },
   "mode": {
     "simple": "Simple",
@@ -165,13 +168,31 @@
   },
   "auth": {
     "error_required": "API key required for remote mode",
+    "error_local_required": "Username and password are required",
     "title": "API access required",
     "body": "Enter your API key to connect. Remote mode always requires a key; LAN mode may allow anonymous if enabled by the backend.",
+    "tab": {
+      "api_key": "API key",
+      "local": "Local auth"
+    },
     "label": "API Key",
     "placeholder": "revaer_api_key",
+    "local_user": "Username",
+    "local_user_placeholder": "admin",
+    "local_pass": "Password",
+    "local_pass_placeholder": "password",
     "allow_anon": "LAN mode detected: leave blank to continue anonymously.",
     "use_anon": "Use anonymous (if allowed)",
     "submit": "Continue"
+  },
+  "setup": {
+    "title": "Initial setup required",
+    "body": "Issue a one-time setup token, then confirm to activate this instance.",
+    "token_label": "Setup token",
+    "token_placeholder": "setup_1234",
+    "expires_prefix": "Expires at",
+    "issue_token": "Issue token",
+    "complete": "Complete setup"
   },
   "sse": {
     "title": "SSE disconnected",
@@ -206,8 +227,14 @@
   "placeholder": {
     "jobs_title": "Jobs / Post-processing",
     "jobs_body": "Job states, watch folder errors, SSE updates",
+    "categories_title": "Categories",
+    "categories_body": "Manage category policies and defaults for incoming torrents.",
+    "tags_title": "Tags",
+    "tags_body": "Create tags and apply default rate limits or cleanup rules.",
     "settings_title": "Settings",
     "settings_body": "Engine profile, paths, roles, remote mode",
+    "health_title": "Health",
+    "health_body": "Service status, degraded components, and build details.",
     "logs_title": "Logs",
     "logs_body": "Streaming event log with filters",
     "not_found_title": "Not found",

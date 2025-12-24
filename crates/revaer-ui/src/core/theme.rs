@@ -24,43 +24,43 @@ pub const PRIMARY: Palette = Palette {
     shades: &[
         ColorToken {
             name: "50",
-            hex: "#E7EFF4",
+            hex: "#F9E6FF",
         },
         ColorToken {
             name: "100",
-            hex: "#C2D6E4",
+            hex: "#F1C8FF",
         },
         ColorToken {
             name: "200",
-            hex: "#9CBBD3",
+            hex: "#E1A1FF",
         },
         ColorToken {
             name: "300",
-            hex: "#76A0C2",
+            hex: "#CF74F5",
         },
         ColorToken {
             name: "400",
-            hex: "#4F85B1",
+            hex: "#B94AE1",
         },
         ColorToken {
             name: "500",
-            hex: "#265D81",
+            hex: "#901CBB",
         },
         ColorToken {
             name: "600",
-            hex: "#1F4D6A",
+            hex: "#7A18A6",
         },
         ColorToken {
             name: "700",
-            hex: "#183C52",
+            hex: "#631387",
         },
         ColorToken {
             name: "800",
-            hex: "#112B3A",
+            hex: "#4C0F68",
         },
         ColorToken {
             name: "900",
-            hex: "#0A1B23",
+            hex: "#350A4A",
         },
     ],
 };
@@ -71,43 +71,43 @@ pub const SECONDARY: Palette = Palette {
     shades: &[
         ColorToken {
             name: "50",
-            hex: "#F0EBF5",
+            hex: "#F5D9F4",
         },
         ColorToken {
             name: "100",
-            hex: "#DAD1E7",
+            hex: "#E5A0E4",
         },
         ColorToken {
             name: "200",
-            hex: "#C3B5D8",
+            hex: "#C664C8",
         },
         ColorToken {
             name: "300",
-            hex: "#A997C7",
+            hex: "#A93BB1",
         },
         ColorToken {
             name: "400",
-            hex: "#8E78B4",
+            hex: "#8A1D92",
         },
         ColorToken {
             name: "500",
-            hex: "#775A96",
+            hex: "#6A0071",
         },
         ColorToken {
             name: "600",
-            hex: "#60497A",
+            hex: "#54005A",
         },
         ColorToken {
             name: "700",
-            hex: "#4C3962",
+            hex: "#400044",
         },
         ColorToken {
             name: "800",
-            hex: "#372A48",
+            hex: "#2C002F",
         },
         ColorToken {
             name: "900",
-            hex: "#241C2F",
+            hex: "#1A001B",
         },
     ],
 };
@@ -118,43 +118,43 @@ pub const ACCENT: Palette = Palette {
     shades: &[
         ColorToken {
             name: "50",
-            hex: "#E6F2FB",
+            hex: "#FCE6FB",
         },
         ColorToken {
             name: "100",
-            hex: "#C0DFF8",
+            hex: "#F8C2F3",
         },
         ColorToken {
             name: "200",
-            hex: "#97C8F2",
+            hex: "#F093EA",
         },
         ColorToken {
             name: "300",
-            hex: "#6DAFEC",
+            hex: "#E45DE0",
         },
         ColorToken {
             name: "400",
-            hex: "#4497E4",
+            hex: "#D33AD1",
         },
         ColorToken {
             name: "500",
-            hex: "#258BD3",
+            hex: "#C42AC3",
         },
         ColorToken {
             name: "600",
-            hex: "#1F78B5",
+            hex: "#A61FA6",
         },
         ColorToken {
             name: "700",
-            hex: "#196391",
+            hex: "#871787",
         },
         ColorToken {
             name: "800",
-            hex: "#134C6C",
+            hex: "#671169",
         },
         ColorToken {
             name: "900",
-            hex: "#0D3549",
+            hex: "#490B4B",
         },
     ],
 };
@@ -169,47 +169,47 @@ pub const NEUTRALS_LIGHT: Palette = Palette {
         },
         ColorToken {
             name: "100",
-            hex: "#F8F9FA",
+            hex: "#FBFAFF",
         },
         ColorToken {
             name: "150",
-            hex: "#F1F3F5",
+            hex: "#F4F1FF",
         },
         ColorToken {
             name: "200",
-            hex: "#E9ECEF",
+            hex: "#EDE8FF",
         },
         ColorToken {
             name: "250",
-            hex: "#DFE3E6",
+            hex: "#E2DBF7",
         },
         ColorToken {
             name: "300",
-            hex: "#DEE2E6",
+            hex: "#D7D1F0",
         },
         ColorToken {
             name: "400",
-            hex: "#CED4DA",
+            hex: "#C3BDE3",
         },
         ColorToken {
             name: "500",
-            hex: "#ADB5BD",
+            hex: "#A79CC9",
         },
         ColorToken {
             name: "600",
-            hex: "#6C757D",
+            hex: "#7C72A1",
         },
         ColorToken {
             name: "700",
-            hex: "#495057",
+            hex: "#5C5380",
         },
         ColorToken {
             name: "800",
-            hex: "#343A40",
+            hex: "#3C355C",
         },
         ColorToken {
             name: "900",
-            hex: "#212529",
+            hex: "#201A3B",
         },
     ],
 };
@@ -220,55 +220,55 @@ pub const NEUTRALS_DARK: Palette = Palette {
     shades: &[
         ColorToken {
             name: "background",
-            hex: "#121417",
+            hex: "#000030",
         },
         ColorToken {
             name: "surface",
-            hex: "#1A1C20",
+            hex: "#07073B",
         },
         ColorToken {
             name: "surface-raised",
-            hex: "#1F2226",
+            hex: "#0C0C46",
         },
         ColorToken {
             name: "border",
-            hex: "#2B2F34",
+            hex: "#1C1C5B",
         },
         ColorToken {
             name: "text-primary",
-            hex: "#F8F9FA",
+            hex: "#F3EDFF",
         },
         ColorToken {
             name: "text-secondary",
-            hex: "#C8CDD2",
+            hex: "#C8BFE9",
         },
         ColorToken {
             name: "text-muted",
-            hex: "#959DA6",
+            hex: "#9187B8",
         },
         ColorToken {
             name: "primary-500",
-            hex: "#4F85B1",
+            hex: "#901CBB",
         },
         ColorToken {
             name: "primary-700",
-            hex: "#2F526F",
+            hex: "#5D0F7A",
         },
         ColorToken {
             name: "secondary-500",
-            hex: "#A997C7",
+            hex: "#6A0071",
         },
         ColorToken {
             name: "secondary-700",
-            hex: "#6C5387",
+            hex: "#3E0042",
         },
         ColorToken {
             name: "accent-500",
-            hex: "#4497E4",
+            hex: "#C42AC3",
         },
         ColorToken {
             name: "accent-700",
-            hex: "#1E5984",
+            hex: "#8F1F8E",
         },
     ],
 };

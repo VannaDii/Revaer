@@ -1,5 +1,10 @@
 //! HTTP client helpers (REST).
 
+use std::cell::RefCell;
+use std::fmt;
+use std::rc::Rc;
+
+use crate::core::auth::{AuthState, LocalAuth};
 use crate::core::logic::build_torrents_path;
 use crate::features::torrents::actions::TorrentAction;
 use crate::features::torrents::state::TorrentRow;
@@ -7,77 +12,190 @@ use crate::models::{
     AddTorrentInput, DashboardSnapshot, DetailData, QueueStatus, TorrentDetail, TorrentSummary,
     TrackerHealth, VpnState,
 };
-use gloo_net::http::Request;
-use serde::Serialize;
+use gloo_net::http::{Request, Response};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 use web_sys::FormData;
+use web_sys::window;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct ApiError {
+    pub status: u16,
+    pub title: String,
+    pub detail: Option<String>,
+    pub retry_after_secs: Option<u64>,
+}
+
+impl ApiError {
+    fn client(detail: impl Into<String>) -> Self {
+        Self {
+            status: 0,
+            title: "client_error".to_string(),
+            detail: Some(detail.into()),
+            retry_after_secs: None,
+        }
+    }
+}
+
+impl fmt::Display for ApiError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match (self.status, self.retry_after_secs, &self.detail) {
+            (429, Some(delay), Some(detail)) => {
+                write!(f, "429 {} (retry in {}s): {}", self.title, delay, detail)
+            }
+            (429, Some(delay), None) => {
+                write!(f, "429 {} (retry in {}s)", self.title, delay)
+            }
+            (_, _, Some(detail)) if self.status != 0 => {
+                write!(f, "{} {}: {}", self.status, self.title, detail)
+            }
+            (_, _, _) if self.status != 0 => write!(f, "{} {}", self.status, self.title),
+            _ => write!(f, "{}", self.detail.as_deref().unwrap_or("client error")),
+        }
+    }
+}
+
+impl std::error::Error for ApiError {}
+
+#[derive(Clone, Debug, Deserialize)]
+struct ProblemDetails {
+    #[serde(rename = "type")]
+    _kind: String,
+    title: String,
+    status: u16,
+    detail: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct HealthResponse {
+    pub mode: String,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub(crate) struct SetupStartResponse {
+    pub token: String,
+    pub expires_at: String,
+}
 
 #[derive(Clone, Debug)]
 pub(crate) struct ApiClient {
-    pub base_url: String,
-    pub api_key: Option<String>,
+    base_url: String,
+    auth: Rc<RefCell<Option<AuthState>>>,
 }
 
 impl ApiClient {
-    pub(crate) fn new(base_url: impl Into<String>, api_key: Option<String>) -> Self {
+    pub(crate) fn new(base_url: impl Into<String>) -> Self {
         Self {
             base_url: base_url.into(),
-            api_key,
+            auth: Rc::new(RefCell::new(None)),
         }
     }
 
-    async fn get_json<T: for<'de> serde::Deserialize<'de>>(&self, path: &str) -> anyhow::Result<T> {
-        let mut req = Request::get(&format!("{}{}", self.base_url, path));
-        if let Some(key) = &self.api_key {
-            req = req.header("x-revaer-api-key", key);
-        }
-        Ok(req.send().await?.json::<T>().await?)
+    pub(crate) fn set_auth(&self, auth: Option<AuthState>) {
+        *self.auth.borrow_mut() = auth;
     }
 
-    async fn post_empty(&self, path: &str) -> anyhow::Result<()> {
-        let mut req = Request::post(&format!("{}{}", self.base_url, path));
-        if let Some(key) = &self.api_key {
-            req = req.header("x-revaer-api-key", key);
+    fn apply_auth(&self, req: Request) -> Result<Request, ApiError> {
+        match self.auth.borrow().as_ref() {
+            Some(AuthState::ApiKey(key)) if !key.trim().is_empty() => {
+                Ok(req.header("x-revaer-api-key", key))
+            }
+            Some(AuthState::Local(auth)) => {
+                let header = basic_auth_header(auth)?;
+                Ok(req.header("Authorization", &header))
+            }
+            _ => Ok(req),
         }
-        req.send().await?;
-        Ok(())
+    }
+
+    async fn send_json<T: for<'de> Deserialize<'de>>(&self, req: Request) -> Result<T, ApiError> {
+        let response = req
+            .send()
+            .await
+            .map_err(|err| ApiError::client(format!("request failed: {err}")))?;
+        if response.ok() {
+            response
+                .json::<T>()
+                .await
+                .map_err(|err| ApiError::client(format!("invalid JSON: {err}")))
+        } else {
+            Err(api_error_from_response(response).await)
+        }
+    }
+
+    async fn send_empty(&self, req: Request) -> Result<(), ApiError> {
+        let response = req
+            .send()
+            .await
+            .map_err(|err| ApiError::client(format!("request failed: {err}")))?;
+        if response.ok() {
+            Ok(())
+        } else {
+            Err(api_error_from_response(response).await)
+        }
+    }
+
+    pub(crate) async fn fetch_health(&self) -> Result<HealthResponse, ApiError> {
+        let req = Request::get(&format!("{}{}", self.base_url, "/health"));
+        self.send_json(req).await
+    }
+
+    pub(crate) async fn setup_start(&self) -> Result<SetupStartResponse, ApiError> {
+        let req = Request::post(&format!("{}{}", self.base_url, "/admin/setup/start"));
+        self.send_json(req).await
+    }
+
+    pub(crate) async fn setup_complete(&self, token: &str) -> Result<(), ApiError> {
+        let mut req = Request::post(&format!("{}{}", self.base_url, "/admin/setup/complete"));
+        req = req.header("x-revaer-setup-token", token);
+        let req = req
+            .json(&json!({}))
+            .map_err(|err| ApiError::client(format!("setup payload failed: {err}")))?;
+        self.send_empty(req).await
+    }
+
+    async fn get_json<T: for<'de> Deserialize<'de>>(&self, path: &str) -> Result<T, ApiError> {
+        let req = Request::get(&format!("{}{}", self.base_url, path));
+        let req = self.apply_auth(req)?;
+        self.send_json(req).await
     }
 
     pub(crate) async fn perform_action(
         &self,
         id: &str,
         action: TorrentAction,
-    ) -> anyhow::Result<()> {
-        match action {
-            TorrentAction::Pause => self.post_empty(&format!("/v1/torrents/{id}/pause")).await,
-            TorrentAction::Resume => self.post_empty(&format!("/v1/torrents/{id}/resume")).await,
-            TorrentAction::Recheck => self.post_empty(&format!("/v1/torrents/{id}/recheck")).await,
-            TorrentAction::Delete { with_data } => {
-                let path = if with_data {
-                    format!("/v1/torrents/{id}?with_data=true")
-                } else {
-                    format!("/v1/torrents/{id}")
-                };
-                let mut req = Request::delete(&format!("{}{}", self.base_url, path));
-                if let Some(key) = &self.api_key {
-                    req = req.header("x-revaer-api-key", key);
-                }
-                req.send().await?;
-                Ok(())
-            }
-        }
+    ) -> Result<(), ApiError> {
+        let api_action = match action {
+            TorrentAction::Pause => ApiTorrentAction::Pause,
+            TorrentAction::Resume => ApiTorrentAction::Resume,
+            TorrentAction::Recheck => ApiTorrentAction::Recheck,
+            TorrentAction::Delete { with_data } => ApiTorrentAction::Remove {
+                delete_data: with_data,
+            },
+        };
+        let req = Request::post(&format!(
+            "{}/v1/torrents/{}/action",
+            self.base_url.trim_end_matches('/'),
+            id
+        ));
+        let req = self.apply_auth(req)?;
+        let req = req
+            .json(&api_action)
+            .map_err(|err| ApiError::client(format!("action payload failed: {err}")))?;
+        self.send_empty(req).await
     }
 
     pub(crate) async fn fetch_torrents(
         &self,
         search: Option<String>,
         regex: bool,
-    ) -> anyhow::Result<Vec<TorrentRow>> {
+    ) -> Result<Vec<TorrentRow>, ApiError> {
         let data: Vec<TorrentSummary> = self.get_json(&build_torrents_path(&search, regex)).await?;
         Ok(data.into_iter().map(TorrentRow::from).collect())
     }
 
-    pub(crate) async fn fetch_dashboard(&self) -> anyhow::Result<DashboardSnapshot> {
-        #[derive(serde::Deserialize)]
+    pub(crate) async fn fetch_dashboard(&self) -> Result<DashboardSnapshot, ApiError> {
+        #[derive(Deserialize)]
         struct DashboardDto {
             download_bps: u64,
             upload_bps: u64,
@@ -117,7 +235,7 @@ impl ApiClient {
         })
     }
 
-    pub(crate) async fn add_torrent(&self, input: AddTorrentInput) -> anyhow::Result<TorrentRow> {
+    pub(crate) async fn add_torrent(&self, input: AddTorrentInput) -> Result<TorrentRow, ApiError> {
         if let Some(file) = input.file {
             self.add_torrent_file(file, input.category, input.tags, input.save_path)
                 .await
@@ -125,11 +243,11 @@ impl ApiClient {
             self.add_torrent_text(source, input.category, input.tags, input.save_path)
                 .await
         } else {
-            Err(anyhow::anyhow!("No torrent payload provided"))
+            Err(ApiError::client("no torrent payload provided"))
         }
     }
 
-    pub(crate) async fn fetch_torrent_detail(&self, id: &str) -> anyhow::Result<DetailData> {
+    pub(crate) async fn fetch_torrent_detail(&self, id: &str) -> Result<DetailData, ApiError> {
         let detail: TorrentDetail = self.get_json(&format!("/v1/torrents/{id}")).await?;
         Ok(DetailData::from(detail))
     }
@@ -140,7 +258,7 @@ impl ApiClient {
         category: Option<String>,
         tags: Option<Vec<String>>,
         save_path: Option<String>,
-    ) -> anyhow::Result<TorrentRow> {
+    ) -> Result<TorrentRow, ApiError> {
         #[derive(Serialize)]
         struct Body {
             source: String,
@@ -148,20 +266,21 @@ impl ApiClient {
             tags: Option<Vec<String>>,
             save_path: Option<String>,
         }
-        let mut req = Request::post(&format!(
+        let req = Request::post(&format!(
             "{}/v1/torrents",
             self.base_url.trim_end_matches('/')
         ));
-        if let Some(key) = &self.api_key {
-            req = req.header("x-revaer-api-key", key);
-        }
-        let resp = req.json(&Body {
-            source,
-            category,
-            tags,
-            save_path,
-        })?;
-        Ok(resp.send().await?.json::<TorrentSummary>().await?.into())
+        let req = self.apply_auth(req)?;
+        let req = req
+            .json(&Body {
+                source,
+                category,
+                tags,
+                save_path,
+            })
+            .map_err(|err| ApiError::client(format!("encode add payload: {err}")))?;
+        let summary: TorrentSummary = self.send_json(req).await?;
+        Ok(summary.into())
     }
 
     async fn add_torrent_file(
@@ -170,10 +289,10 @@ impl ApiClient {
         category: Option<String>,
         tags: Option<Vec<String>>,
         save_path: Option<String>,
-    ) -> anyhow::Result<TorrentRow> {
-        let form = FormData::new().map_err(|_| anyhow::anyhow!("form-data failed"))?;
+    ) -> Result<TorrentRow, ApiError> {
+        let form = FormData::new().map_err(|_| ApiError::client("form-data failed"))?;
         form.append_with_blob_and_filename("file", &file, &file.name())
-            .map_err(|err| anyhow::anyhow!("attach file: {:?}", err))?;
+            .map_err(|_| ApiError::client("attach file"))?;
         if let Some(cat) = category {
             let _ = form.append_with_str("category", &cat);
         }
@@ -183,14 +302,54 @@ impl ApiClient {
         if let Some(path) = save_path {
             let _ = form.append_with_str("save_path", &path);
         }
-        let mut req = Request::post(&format!(
+        let req = Request::post(&format!(
             "{}/v1/torrents",
             self.base_url.trim_end_matches('/')
         ))
         .body(form);
-        if let Some(key) = &self.api_key {
-            req = req.header("x-revaer-api-key", key);
-        }
-        Ok(req.send().await?.json::<TorrentSummary>().await?.into())
+        let req = self.apply_auth(req)?;
+        let summary: TorrentSummary = self.send_json(req).await?;
+        Ok(summary.into())
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum ApiTorrentAction {
+    Pause,
+    Resume,
+    Remove { delete_data: bool },
+    Recheck,
+}
+
+fn basic_auth_header(auth: &LocalAuth) -> Result<String, ApiError> {
+    let raw = format!("{}:{}", auth.username, auth.password);
+    let window = window().ok_or_else(|| ApiError::client("window unavailable"))?;
+    let encoded = window
+        .btoa(&raw)
+        .map_err(|_| ApiError::client("basic auth encoding failed"))?;
+    Ok(format!("Basic {}", encoded))
+}
+
+async fn api_error_from_response(response: Response) -> ApiError {
+    let retry_after = response
+        .headers()
+        .get("Retry-After")
+        .and_then(|value| value.parse::<u64>().ok());
+    if let Ok(problem) = response.json::<ProblemDetails>().await {
+        return ApiError {
+            status: problem.status,
+            title: problem.title,
+            detail: problem.detail,
+            retry_after_secs: retry_after,
+        };
+    }
+
+    let detail = response.text().await.ok().filter(|text| !text.is_empty());
+    ApiError {
+        status: response.status(),
+        title: response.status_text(),
+        detail,
+        retry_after_secs: retry_after,
     }
 }

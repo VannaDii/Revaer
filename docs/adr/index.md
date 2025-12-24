@@ -35,6 +35,10 @@ ADR documents capture the rationale behind significant technical decisions.
 - [030](030-migration-consolidation.md) – Migration consolidation for initial setup
 - [031](031-ui-asset-sync.md) – UI Nexus asset sync tooling
 - [032](032-torrent-ffi-audit-closeout.md) – Torrent FFI audit closeout
+- [033](033-ui-sse-auth-setup.md) – UI SSE + auth/setup wiring
+- [034](034-ui-sse-store-apiclient.md) – UI SSE normalization and ApiClient singleton
+- [035](035-advisory-rustsec-2021-0065.md) – Advisory RUSTSEC-2021-0065 temporary ignore
+- [036](036-asset-sync-test-stability.md) – Asset sync test stability under parallel runs
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

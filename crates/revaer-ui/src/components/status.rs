@@ -18,12 +18,12 @@ pub(crate) fn sse_overlay(props: &SseProps) -> Html {
         return html! {};
     }
 
-    let (retry_in_secs, last_event, reason) = match props.state {
+    let (retry_in_secs, last_event, reason) = match &props.state {
         SseState::Reconnecting {
             retry_in_secs,
             last_event,
             reason,
-        } => (retry_in_secs, last_event, reason),
+        } => (*retry_in_secs, last_event.as_str(), reason.as_str()),
         SseState::Connected => (0, "", ""),
     };
 
@@ -64,7 +64,7 @@ pub(crate) fn sse_badge(props: &SseBadgeProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
     let t = |key: &str| bundle.text(key, "");
-    match props.state {
+    match &props.state {
         SseState::Connected => html! { <span class="pill live">{t("sse.badge")}</span> },
         SseState::Reconnecting { retry_in_secs, .. } => html! {
             <span class="pill warn">{format!("{} ({retry_in_secs}s)", t("sse.badge_reconnecting"))}</span>

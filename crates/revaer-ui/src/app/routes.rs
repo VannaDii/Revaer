@@ -4,17 +4,19 @@ use yew_router::prelude::*;
 #[derive(Clone, Routable, PartialEq, Eq, Debug)]
 pub(crate) enum Route {
     #[at("/")]
-    Dashboard,
+    Home,
     #[at("/torrents")]
     Torrents,
-    #[at("/search")]
-    Search,
-    #[at("/jobs")]
-    Jobs,
+    #[at("/torrents/:id")]
+    TorrentDetail { id: String },
+    #[at("/categories")]
+    Categories,
+    #[at("/tags")]
+    Tags,
     #[at("/settings")]
     Settings,
-    #[at("/logs")]
-    Logs,
+    #[at("/health")]
+    Health,
     #[not_found]
     #[at("/404")]
     NotFound,

@@ -1,3 +1,4 @@
+use crate::app::Route;
 use crate::components::detail::DetailView;
 use crate::components::virtual_list::VirtualList;
 use crate::core::breakpoints::Breakpoint;
@@ -6,37 +7,40 @@ use crate::core::logic::{
     toggle_selection,
 };
 use crate::features::torrents::actions::TorrentAction;
-use crate::features::torrents::state::TorrentRow;
+use crate::features::torrents::state::{SelectionSet, TorrentRow};
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
-use crate::models::{AddTorrentInput, ConfirmKind, demo_detail};
-use crate::services::api::ApiClient;
+use crate::models::{AddTorrentInput, ConfirmKind};
 use crate::{Density, UiMode};
-use std::collections::BTreeSet;
+use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::closure::Closure;
 use web_sys::{DragEvent, File, HtmlElement, KeyboardEvent};
 use yew::prelude::*;
+use yew_router::prelude::use_navigator;
 
 #[derive(Properties, PartialEq)]
 pub(crate) struct TorrentProps {
     /// Current responsive breakpoint for layout decisions.
     pub breakpoint: Breakpoint,
-    /// API base URL for detail and add flows.
-    pub base_url: String,
-    /// Optional API key for authenticated calls.
-    pub api_key: Option<String>,
     pub torrents: Vec<TorrentRow>,
     pub density: Density,
     pub mode: UiMode,
     pub on_density_change: Callback<Density>,
-    pub on_bulk_action: Callback<(TorrentAction, Vec<String>)>,
-    pub on_action: Callback<(TorrentAction, String)>,
+    pub on_bulk_action: Callback<(TorrentAction, Vec<Uuid>)>,
+    pub on_action: Callback<(TorrentAction, Uuid)>,
     pub on_add: Callback<AddTorrentInput>,
     pub add_busy: bool,
     pub search: String,
     pub regex: bool,
     pub on_search: Callback<String>,
     pub on_toggle_regex: Callback<()>,
+    pub selected_id: Option<Uuid>,
+    pub selected_ids: SelectionSet,
+    pub on_set_selected: Callback<SelectionSet>,
+    /// Selected detail payload for the drawer.
+    pub selected_detail: Option<crate::models::DetailData>,
+    /// Request a detail refresh for a torrent id.
+    pub on_select_detail: Callback<Uuid>,
 }
 
 #[function_component(TorrentView)]
@@ -46,12 +50,11 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     let bundle_for_t = bundle.clone();
     let bundle = bundle.clone();
     let t = move |key: &str| bundle_for_t.text(key, "");
-    let selected = use_state(|| demo_detail("1"));
     let selected_idx = use_state(|| 0usize);
-    let selected_ids = use_state(BTreeSet::<String>::new);
     let action_banner = use_state(|| None as Option<String>);
     let confirm = use_state(|| None as Option<ConfirmKind>);
     let search_ref = use_node_ref();
+    let navigator = use_navigator();
     let is_mobile = props
         .breakpoint
         .max_width
@@ -75,7 +78,8 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     };
     let is_mobile = crate::core::logic::layout_for_breakpoint(props.breakpoint)
         == crate::core::logic::LayoutMode::Card;
-    let selected_id = props.torrents.get(*selected_idx).map(|row| row.id.clone());
+    let selected_id = props.torrents.get(*selected_idx).map(|row| row.id);
+    let selected_ids = props.selected_ids.clone();
     let selected_count = selected_ids.len();
     let pause_selected = {
         let on_action = props.on_action.clone();
@@ -106,27 +110,35 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     };
 
     let on_select = {
-        let selected = selected.clone();
         let selected_idx = selected_idx.clone();
-        let base_url = props.base_url.clone();
-        let api_key = props.api_key.clone();
-        let selected_ids = selected_ids.clone();
         let torrents_list = props.torrents.clone();
-        Callback::from(move |id: String| {
-            selected_ids.set(toggle_selection(&selected_ids, &id));
+        let navigator = navigator.clone();
+        let on_select_detail = props.on_select_detail.clone();
+        Callback::from(move |id: Uuid| {
             if let Some(idx) = torrents_list.iter().position(|row| row.id == id) {
                 selected_idx.set(idx);
             }
-            let selected = selected.clone();
-            let client = ApiClient::new(base_url.clone(), api_key.clone());
-            yew::platform::spawn_local(async move {
-                match client.fetch_torrent_detail(&id).await {
-                    Ok(detail) => selected.set(Some(detail)),
-                    Err(_) => selected.set(demo_detail(&id)),
-                }
-            });
+            if let Some(navigator) = navigator.clone() {
+                navigator.push(&Route::TorrentDetail { id: id.to_string() });
+            }
+            on_select_detail.emit(id);
         })
     };
+
+    {
+        let selected_idx = selected_idx.clone();
+        use_effect_with_deps(
+            move |(selected_id, torrents)| {
+                if let Some(id) = selected_id.clone() {
+                    if let Some(idx) = torrents.iter().position(|row| row.id == id) {
+                        selected_idx.set(idx);
+                    }
+                }
+                || ()
+            },
+            (props.selected_id.clone(), props.torrents.clone()),
+        );
+    }
 
     // Keyboard shortcuts: j/k navigation, space pause/resume, delete/shift+delete confirmations, p recheck, / focus search.
     {
@@ -166,7 +178,7 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                                 ) {
                                     selected_idx.set(next);
                                     if let Some(row) = torrents.get(next) {
-                                        on_select.emit(row.id.clone());
+                                        on_select.emit(row.id);
                                     }
                                 }
                             }
@@ -178,14 +190,14 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                                 ) {
                                     selected_idx.set(next);
                                     if let Some(row) = torrents.get(next) {
-                                        on_select.emit(row.id.clone());
+                                        on_select.emit(row.id);
                                     }
                                 }
                             }
                             ShortcutOutcome::TogglePauseResume => {
                                 if let Some(row) = torrents.get(*selected_idx) {
                                     action_banner.set(Some(bundle.text("toast.pause", "")));
-                                    on_action.emit((TorrentAction::Pause, row.id.clone()));
+                                    on_action.emit((TorrentAction::Pause, row.id));
                                 }
                             }
                             ShortcutOutcome::ClearSearch => {
@@ -259,9 +271,10 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                 <div class="bulk-actions">
                     <button class="ghost" onclick={{
                         let selected_ids = selected_ids.clone();
+                        let on_set_selected = props.on_set_selected.clone();
                         let torrents = props.torrents.clone();
                         Callback::from(move |_| {
-                            selected_ids.set(select_all_or_clear(&selected_ids, &torrents));
+                            on_set_selected.emit(select_all_or_clear(&selected_ids, &torrents));
                         })
                     }}>
                         {t("torrents.select_all")}
@@ -344,8 +357,9 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                         props.breakpoint.max_width.unwrap_or(props.breakpoint.min_width);
                     let (visible_cols, overflow_cols) = plan_columns(width_hint);
                     let selected_ids_for_toggle = selected_ids.clone();
-                    let toggle_select = Callback::from(move |id: String| {
-                        selected_ids_for_toggle.set(toggle_selection(&selected_ids_for_toggle, &id));
+                    let on_set_selected = props.on_set_selected.clone();
+                    let toggle_select = Callback::from(move |id: Uuid| {
+                        on_set_selected.emit(toggle_selection(&selected_ids_for_toggle, &id));
                     });
                     let selected_ids_for_render = selected_ids.clone();
                     Callback::from(move |idx: usize| {
@@ -382,8 +396,11 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                 }}
             />
 
-            <DetailView data={(*selected).clone()} />
-            <MobileActionRow on_action={props.on_action.clone()} selected={props.torrents.get(*selected_idx).map(|t| t.id.clone())} />
+            <DetailView data={props.selected_detail.clone()} />
+            <MobileActionRow
+                on_action={props.on_action.clone()}
+                selected={props.torrents.get(*selected_idx).map(|t| t.id)}
+            />
             <ActionBanner message={(*action_banner).clone()} />
             <ConfirmDialog
                 kind={(*confirm).clone()}
@@ -406,7 +423,7 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                                 ConfirmKind::DeleteData => TorrentAction::Delete { with_data: true },
                                 ConfirmKind::Recheck => TorrentAction::Recheck,
                             };
-                            on_action.emit((action.clone(), row.id.clone()));
+                            on_action.emit((action.clone(), row.id));
                             action_banner
                                 .set(Some(action_banner_message(&bundle, &action, &row.name)));
                         }
@@ -421,9 +438,9 @@ fn render_row(
     row: &TorrentRow,
     selected: bool,
     checked: bool,
-    on_select: Callback<String>,
-    on_toggle: Callback<String>,
-    on_action: Callback<(TorrentAction, String)>,
+    on_select: Callback<Uuid>,
+    on_toggle: Callback<Uuid>,
+    on_action: Callback<(TorrentAction, Uuid)>,
     bundle: TranslationBundle,
     visible_cols: &[&str],
     overflow_cols: &[&str],
@@ -457,30 +474,28 @@ fn render_row(
     }
     let select = {
         let on_select = on_select.clone();
-        let id = row.id.to_string();
-        Callback::from(move |_| on_select.emit(id.clone()))
+        let id = row.id;
+        Callback::from(move |_| on_select.emit(id))
     };
     let pause = {
         let on_action = on_action.clone();
-        let id = row.id.clone();
-        Callback::from(move |_| on_action.emit((TorrentAction::Pause, id.clone())))
+        let id = row.id;
+        Callback::from(move |_| on_action.emit((TorrentAction::Pause, id)))
     };
     let resume = {
         let on_action = on_action.clone();
-        let id = row.id.clone();
-        Callback::from(move |_| on_action.emit((TorrentAction::Resume, id.clone())))
+        let id = row.id;
+        Callback::from(move |_| on_action.emit((TorrentAction::Resume, id)))
     };
     let recheck = {
         let on_action = on_action.clone();
-        let id = row.id.clone();
-        Callback::from(move |_| on_action.emit((TorrentAction::Recheck, id.clone())))
+        let id = row.id;
+        Callback::from(move |_| on_action.emit((TorrentAction::Recheck, id)))
     };
     let delete_data = {
         let on_action = on_action.clone();
-        let id = row.id.clone();
-        Callback::from(move |_| {
-            on_action.emit((TorrentAction::Delete { with_data: true }, id.clone()))
-        })
+        let id = row.id;
+        Callback::from(move |_| on_action.emit((TorrentAction::Delete { with_data: true }, id)))
     };
     html! {
         <article class={classes!("torrent-row", if selected { Some("selected") } else { None })} aria-selected={selected.to_string()}>
@@ -491,8 +506,8 @@ fn render_row(
                     checked={checked}
                     onclick={{
                         let on_toggle = on_toggle.clone();
-                        let id = row.id.clone();
-                        Callback::from(move |_| on_toggle.emit(id.clone()))
+                        let id = row.id;
+                        Callback::from(move |_| on_toggle.emit(id))
                     }}
                 />
             </div>
@@ -567,9 +582,9 @@ fn render_mobile_row(
     row: &TorrentRow,
     selected: bool,
     checked: bool,
-    on_select: Callback<String>,
-    on_toggle: Callback<String>,
-    on_action: Callback<(TorrentAction, String)>,
+    on_select: Callback<Uuid>,
+    on_toggle: Callback<Uuid>,
+    on_action: Callback<(TorrentAction, Uuid)>,
     bundle: TranslationBundle,
     visible_cols: &[&str],
     overflow_cols: &[&str],
@@ -603,25 +618,23 @@ fn render_mobile_row(
     }
     let select = {
         let on_select = on_select.clone();
-        let id = row.id.to_string();
-        Callback::from(move |_| on_select.emit(id.clone()))
+        let id = row.id;
+        Callback::from(move |_| on_select.emit(id))
     };
     let pause = {
         let on_action = on_action.clone();
-        let id = row.id.clone();
-        Callback::from(move |_| on_action.emit((TorrentAction::Pause, id.clone())))
+        let id = row.id;
+        Callback::from(move |_| on_action.emit((TorrentAction::Pause, id)))
     };
     let resume = {
         let on_action = on_action.clone();
-        let id = row.id.clone();
-        Callback::from(move |_| on_action.emit((TorrentAction::Resume, id.clone())))
+        let id = row.id;
+        Callback::from(move |_| on_action.emit((TorrentAction::Resume, id)))
     };
     let delete_data = {
         let on_action = on_action.clone();
-        let id = row.id.clone();
-        Callback::from(move |_| {
-            on_action.emit((TorrentAction::Delete { with_data: true }, id.clone()))
-        })
+        let id = row.id;
+        Callback::from(move |_| on_action.emit((TorrentAction::Delete { with_data: true }, id)))
     };
     html! {
         <article class={classes!("torrent-row", "mobile", if selected { Some("selected") } else { None })} aria-selected={selected.to_string()}>
@@ -633,8 +646,8 @@ fn render_mobile_row(
                         checked={checked}
                         onclick={{
                             let on_toggle = on_toggle.clone();
-                            let id = row.id.clone();
-                            Callback::from(move |_| on_toggle.emit(id.clone()))
+                            let id = row.id;
+                            Callback::from(move |_| on_toggle.emit(id))
                         }}
                     />
                 </div>
@@ -922,28 +935,28 @@ fn mobile_action_row(props: &MobileActionProps) -> Html {
     let t = |key: &str| bundle.text(key, "");
     let pause = {
         let on_action = props.on_action.clone();
-        let id = props.selected.clone();
+        let id = props.selected;
         Callback::from(move |_| {
-            if let Some(id) = &id {
-                on_action.emit((TorrentAction::Pause, id.clone()));
+            if let Some(id) = id {
+                on_action.emit((TorrentAction::Pause, id));
             }
         })
     };
     let resume = {
         let on_action = props.on_action.clone();
-        let id = props.selected.clone();
+        let id = props.selected;
         Callback::from(move |_| {
-            if let Some(id) = &id {
-                on_action.emit((TorrentAction::Resume, id.clone()));
+            if let Some(id) = id {
+                on_action.emit((TorrentAction::Resume, id));
             }
         })
     };
     let delete = {
         let on_action = props.on_action.clone();
-        let id = props.selected.clone();
+        let id = props.selected;
         Callback::from(move |_| {
-            if let Some(id) = &id {
-                on_action.emit((TorrentAction::Delete { with_data: false }, id.clone()));
+            if let Some(id) = id {
+                on_action.emit((TorrentAction::Delete { with_data: false }, id));
             }
         })
     };
@@ -1023,8 +1036,8 @@ pub(crate) struct BannerProps {
 
 #[derive(Properties, PartialEq)]
 pub(crate) struct MobileActionProps {
-    pub on_action: Callback<(TorrentAction, String)>,
-    pub selected: Option<String>,
+    pub on_action: Callback<(TorrentAction, Uuid)>,
+    pub selected: Option<Uuid>,
 }
 
 #[function_component(ActionBanner)]
@@ -1049,7 +1062,7 @@ pub(crate) fn demo_rows() -> Vec<TorrentRow> {
     const GIB: u64 = 1_073_741_824;
     vec![
         TorrentRow {
-            id: "1".into(),
+            id: Uuid::from_u128(1),
             name: "Foundation.S02E08.2160p.WEB-DL.DDP5.1.Atmos.HDR10".into(),
             status: "downloading".into(),
             progress: 0.41,
@@ -1067,7 +1080,7 @@ pub(crate) fn demo_rows() -> Vec<TorrentRow> {
             download_bps: 82_000_000,
         },
         TorrentRow {
-            id: "2".into(),
+            id: Uuid::from_u128(2),
             name: "The.Expanse.S01E05.1080p.BluRay.DTS.x264".into(),
             status: "seeding".into(),
             progress: 1.0,
@@ -1085,7 +1098,7 @@ pub(crate) fn demo_rows() -> Vec<TorrentRow> {
             download_bps: 0,
         },
         TorrentRow {
-            id: "3".into(),
+            id: Uuid::from_u128(3),
             name: "Dune.Part.One.2021.2160p.REMUX.DV.DTS-HD.MA.7.1".into(),
             status: "paused".into(),
             progress: 0.77,
@@ -1103,7 +1116,7 @@ pub(crate) fn demo_rows() -> Vec<TorrentRow> {
             download_bps: 0,
         },
         TorrentRow {
-            id: "4".into(),
+            id: Uuid::from_u128(4),
             name: "Ubuntu-24.04.1-live-server-amd64.iso".into(),
             status: "checking".into(),
             progress: 0.13,
@@ -1118,7 +1131,7 @@ pub(crate) fn demo_rows() -> Vec<TorrentRow> {
             download_bps: 12_000_000,
         },
         TorrentRow {
-            id: "5".into(),
+            id: Uuid::from_u128(5),
             name: "Arcane.S02E02.1080p.NF.WEB-DL.DDP5.1.Atmos.x264".into(),
             status: "downloading".into(),
             progress: 0.63,

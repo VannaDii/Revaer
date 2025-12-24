@@ -348,7 +348,9 @@ fn write_lock(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::{SystemTime, UNIX_EPOCH};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static TEMP_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
     fn css_fixture() -> String {
         let mut css = String::from("/* test */\n.btn { display: inline-flex; }\n");
@@ -365,14 +367,17 @@ mod tests {
 
     impl TempRoot {
         fn new() -> Self {
-            let mut path = std::env::temp_dir();
-            let nanos = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_nanos();
-            path.push(format!("asset-sync-test-{nanos}"));
-            fs::create_dir_all(&path).expect("create temp root");
-            Self { path }
+            let pid = std::process::id();
+            loop {
+                let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+                let mut path = std::env::temp_dir();
+                path.push(format!("asset-sync-test-{pid}-{counter}"));
+                match fs::create_dir(&path) {
+                    Ok(()) => return Self { path },
+                    Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {}
+                    Err(err) => panic!("create temp root: {err}"),
+                }
+            }
         }
     }
 

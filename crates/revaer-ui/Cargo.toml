@@ -19,6 +19,8 @@ uuid = { workspace = true, features = ["js"] }
 urlencoding = "2.1"
 yew = { version = "0.20", features = ["csr"] }
 yew-router = "0.17"
+yewdux = "0.9.0"
+revaer-events = { path = "../revaer-events" }
 gloo = { version = "0.8", features = ["timers", "storage", "console", "dialogs", "events", "file", "render"] }
 gloo-net = { version = "0.2", features = ["http"] }
 gloo-timers = { version = "0.2", features = ["futures"] }
@@ -30,11 +32,12 @@ wasm-bindgen-futures = "0.4"
 anyhow = { workspace = true }
 console_error_panic_hook = "0.1"
 web-sys = { version = "0.3", features = [
+    "AbortController",
+    "AbortSignal",
+    "Headers",
     "Document",
     "DragEvent",
     "DataTransfer",
-    "EventSource",
-    "EventSourceInit",
     "Element",
     "File",
     "FileList",
@@ -44,6 +47,14 @@ web-sys = { version = "0.3", features = [
     "InputEvent",
     "MediaQueryList",
     "Navigator",
+    "ReadableStream",
+    "ReadableStreamDefaultReader",
+    "ReadableStreamReadResult",
+    "Request",
+    "RequestInit",
+    "Response",
     "Storage",
+    "TextDecoder",
+    "TextDecoderOptions",
     "Window",
 ] }
