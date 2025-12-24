@@ -17,6 +17,7 @@ use crate::core::store::{
 };
 use crate::core::theme::ThemeMode;
 use crate::core::ui::{Density, UiMode};
+use crate::features::health::view::HealthPage;
 use crate::features::labels::state::LabelKind;
 use crate::features::labels::view::LabelsPage;
 use crate::features::torrents::actions::{TorrentAction, success_message};
@@ -45,6 +46,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
+use wasm_bindgen_futures::JsFuture;
 use yew::prelude::*;
 use yew_router::prelude::*;
 use yewdux::prelude::{Dispatch, use_selector};
@@ -827,6 +829,35 @@ pub fn revaer_app() -> Html {
             });
         })
     };
+    let on_copy_metrics = {
+        let dispatch = dispatch.clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
+        Callback::from(move |text: String| {
+            let dispatch = dispatch.clone();
+            let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
+            yew::platform::spawn_local(async move {
+                match copy_text_to_clipboard(text).await {
+                    Ok(()) => push_toast(
+                        &dispatch,
+                        &toast_id,
+                        ToastKind::Success,
+                        bundle.text("toast.metrics_copied", "Metrics copied"),
+                    ),
+                    Err(err) => push_toast(
+                        &dispatch,
+                        &toast_id,
+                        ToastKind::Error,
+                        format!(
+                            "{} {err}",
+                            bundle.text("toast.metrics_copy_failed", "Failed to copy metrics.")
+                        ),
+                    ),
+                }
+            });
+        })
+    };
     let on_add_torrent = {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
@@ -1046,7 +1077,7 @@ pub fn revaer_app() -> Html {
                                 Route::Categories => html! { <LabelsPage kind={LabelKind::Category} /> },
                                 Route::Tags => html! { <LabelsPage kind={LabelKind::Tag} /> },
                                 Route::Settings => html! { <Placeholder title={bundle.text("placeholder.settings_title", "Settings")} body={bundle.text("placeholder.settings_body", "Engine profile and paths")} /> },
-                                Route::Health => html! { <Placeholder title={bundle.text("placeholder.health_title", "Health")} body={bundle.text("placeholder.health_body", "Service status and diagnostics")} /> },
+                                Route::Health => html! { <HealthPage on_copy_metrics={on_copy_metrics.clone()} /> },
                                 Route::NotFound => html! { <Placeholder title={bundle.text("placeholder.not_found_title", "Not found")} body={bundle.text("placeholder.not_found_body", "Use navigation to return to a supported view.")} /> },
                             }
                         }} />
@@ -1268,6 +1299,15 @@ fn push_toast(
             store.ui.toasts.drain(0..drain);
         }
     });
+}
+
+async fn copy_text_to_clipboard(text: String) -> Result<(), String> {
+    let clipboard = window().navigator().clipboard();
+    let promise = clipboard.write_text(&text);
+    JsFuture::from(promise)
+        .await
+        .map_err(|_| "Clipboard write failed".to_string())?;
+    Ok(())
 }
 
 fn apply_breakpoint(bp: Breakpoint) {

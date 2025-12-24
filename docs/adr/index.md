@@ -43,6 +43,8 @@ ADR documents capture the rationale behind significant technical decisions.
 - [038](038-ui-api-models-filters-paging.md) – UI shared API models and torrent query paging state
 - [039](039-ui-store-api-rate-limit.md) – UI store, API coverage, and rate-limit retries
 - [040](040-ui-labels-policy.md) – UI label policy editor and API wiring
+- [041](041-ui-health-shortcuts.md) – UI health view and label shortcuts
+- [042](042-ui-metrics-copy.md) – UI metrics copy button
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

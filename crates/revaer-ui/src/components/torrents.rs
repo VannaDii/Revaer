@@ -21,7 +21,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::closure::Closure;
 use web_sys::{DragEvent, File, HtmlElement, KeyboardEvent};
 use yew::prelude::*;
-use yew_router::prelude::use_navigator;
+use yew_router::prelude::{Link, use_navigator};
 use yewdux::prelude::use_selector;
 
 #[derive(Properties, PartialEq)]
@@ -1022,6 +1022,17 @@ fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                         })
                     }} />
                 </label>
+                <div class="label-shortcuts">
+                    <span class="muted">{bundle.text("torrents.manage_labels", "Manage labels")}</span>
+                    <div class="chip-group">
+                        <Link<Route> to={Route::Categories} classes="chip ghost">
+                            {bundle.text("torrents.manage_categories", "Categories")}
+                        </Link<Route>>
+                        <Link<Route> to={Route::Tags} classes="chip ghost">
+                            {bundle.text("torrents.manage_tags", "Tags")}
+                        </Link<Route>>
+                    </div>
+                </div>
             </div>
         </div>
     }

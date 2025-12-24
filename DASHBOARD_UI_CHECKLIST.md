@@ -12,7 +12,7 @@
 
 ## 3) Shell and routing (atomic composition)
 - [ ] Implement AppShell template: sidebar + topbar + main outlet; preserve Nexus layout structure.
-- [ ] Routes: Torrents (default), Categories, Tags, Settings, Health.
+- [x] Routes: Torrents (default), Categories, Tags, Settings, Health.
 - [ ] Torrents route supports deep linking to selected torrent (open details drawer) via URL state.
 
 ## 4) Authentication and first-run flow
@@ -126,7 +126,7 @@
 - [ ] Add torrent modal allows initial tags/category and initial rate limits if supported.
 - [ ] Create torrent modal wired to POST /v1/torrents/create.
 - [ ] Create torrent modal provides copy buttons for magnet/metainfo.
-- [ ] Provide shortcuts to manage categories and tags.
+- [x] Provide shortcuts to manage categories and tags.
 
 ## 12) Categories and Tags pages (policy management)
 - [x] Categories list and editor: list existing, create/update via PUT with TorrentLabelPolicy fields.
@@ -134,9 +134,9 @@
 - [x] Tags list and editor: same pattern as categories.
 
 ## 13) Health page (operator-facing)
-- [ ] Show /health basic status.
-- [ ] Show /health/full: degraded components, version/build info, and any torrent snapshot fields.
-- [ ] Optional: /metrics viewer with copy button.
+- [x] Show /health basic status.
+- [x] Show /health/full: degraded components, version/build info, and any torrent snapshot fields.
+- [x] Optional: /metrics viewer with copy button.
 
 ## 14) Live updates over SSE (robust, header-capable, envelope-first)
 - [x] Implement SSE using fetch streaming and manual SSE parsing (EventSource cannot set headers).
