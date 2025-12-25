@@ -3,9 +3,16 @@ use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::{DetailData, FileNode};
 use yew::prelude::*;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct FileSelectionChange {
+    pub path: String,
+    pub wanted: bool,
+}
+
 #[derive(Properties, PartialEq)]
 pub(crate) struct DetailProps {
     pub data: Option<DetailData>,
+    pub on_toggle_file: Callback<FileSelectionChange>,
 }
 
 #[function_component(DetailView)]
@@ -60,7 +67,10 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
                         <p class="muted">{t("detail.files.body")}</p>
                     </header>
                     <div class="file-tree">
-                        {for detail.files.iter().map(|node| render_file(node, 0, &wanted_label))}
+                        {for detail
+                            .files
+                            .iter()
+                            .map(|node| render_file(node, 0, &wanted_label, &props.on_toggle_file))}
                     </div>
                 </section>
 
@@ -158,9 +168,26 @@ fn log_level(level: &str) -> &'static str {
     }
 }
 
-fn render_file(node: &FileNode, depth: usize, wanted_label: &str) -> Html {
+fn render_file(
+    node: &FileNode,
+    depth: usize,
+    wanted_label: &str,
+    on_toggle_file: &Callback<FileSelectionChange>,
+) -> Html {
     let indent = depth * 12;
     let has_children = !node.children.is_empty();
+    let on_toggle = {
+        let on_toggle = on_toggle_file.clone();
+        let path = node.name.clone();
+        Callback::from(move |event: Event| {
+            if let Some(input) = event.target_dyn_into::<web_sys::HtmlInputElement>() {
+                on_toggle.emit(FileSelectionChange {
+                    path: path.clone(),
+                    wanted: input.checked(),
+                });
+            }
+        })
+    };
     let summary = html! {
         <div class="file-row">
             <div class="file-main">
@@ -175,7 +202,12 @@ fn render_file(node: &FileNode, depth: usize, wanted_label: &str) -> Html {
             <div class="file-actions">
                 <span class="pill subtle">{node.priority.clone()}</span>
                 <label class="switch">
-                    <input type="checkbox" checked={node.wanted} aria-label={wanted_label.to_string()} />
+                    <input
+                        type="checkbox"
+                        checked={node.wanted}
+                        aria-label={wanted_label.to_string()}
+                        onchange={on_toggle}
+                    />
                     <span class="slider"></span>
                 </label>
             </div>
@@ -187,7 +219,10 @@ fn render_file(node: &FileNode, depth: usize, wanted_label: &str) -> Html {
             <details open={depth == 0}>
                 <summary>{summary}</summary>
                 <div class="file-children">
-                    {for node.children.iter().map(|child| render_file(child, depth + 1, wanted_label))}
+                    {for node
+                        .children
+                        .iter()
+                        .map(|child| render_file(child, depth + 1, wanted_label, on_toggle_file))}
                 </div>
             </details>
         }

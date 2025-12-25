@@ -1,5 +1,5 @@
 use crate::app::Route;
-use crate::components::detail::DetailView;
+use crate::components::detail::{DetailView, FileSelectionChange};
 use crate::components::virtual_list::VirtualList;
 use crate::core::breakpoints::Breakpoint;
 use crate::core::logic::{
@@ -45,6 +45,8 @@ pub(crate) struct TorrentProps {
     pub selected_detail: Option<crate::models::DetailData>,
     /// Request a detail refresh for a torrent id.
     pub on_select_detail: Callback<Uuid>,
+    /// Request a file selection update for a torrent.
+    pub on_update_selection: Callback<(Uuid, FileSelectionChange)>,
 }
 
 #[function_component(TorrentView)]
@@ -116,6 +118,15 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
         Callback::from(move |_| {
             if let Some(id) = selected_id {
                 on_action.emit((TorrentAction::Delete { with_data: false }, id));
+            }
+        })
+    };
+    let on_toggle_file = {
+        let selected_id = props.selected_id;
+        let on_update_selection = props.on_update_selection.clone();
+        Callback::from(move |change: FileSelectionChange| {
+            if let Some(id) = selected_id {
+                on_update_selection.emit((id, change));
             }
         })
     };
@@ -387,7 +398,7 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                 }}
             />
 
-            <DetailView data={props.selected_detail.clone()} />
+            <DetailView data={props.selected_detail.clone()} on_toggle_file={on_toggle_file} />
             <MobileActionRow
                 on_action={props.on_action.clone()}
                 selected={props.visible_ids.get(*selected_idx).copied()}

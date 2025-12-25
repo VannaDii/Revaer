@@ -1,6 +1,6 @@
 //! Shared torrent models and pure state transformations for testing outside wasm.
 
-use crate::models::{DetailData, TorrentStateKind, TorrentStateView, TorrentSummary};
+use crate::models::{DetailData, FileNode, TorrentStateKind, TorrentStateView, TorrentSummary};
 use std::collections::hash_map::RandomState;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -286,6 +286,31 @@ pub const fn set_selected_id(state: &mut TorrentsState, id: Option<Uuid>) {
 /// Upsert torrent detail payload.
 pub fn upsert_detail(state: &mut TorrentsState, id: Uuid, detail: DetailData) {
     state.details_by_id.insert(id, Rc::new(detail));
+}
+
+/// Update file selection state for a cached detail payload.
+pub fn update_detail_file_selection(state: &mut TorrentsState, id: Uuid, path: &str, wanted: bool) {
+    let Some(current) = state.details_by_id.get(&id) else {
+        return;
+    };
+    let mut next = (**current).clone();
+    if update_file_nodes(&mut next.files, path, wanted) {
+        state.details_by_id.insert(id, Rc::new(next));
+    }
+}
+
+fn update_file_nodes(nodes: &mut [FileNode], path: &str, wanted: bool) -> bool {
+    let mut changed = false;
+    for node in nodes {
+        if node.name == path && node.wanted != wanted {
+            node.wanted = wanted;
+            changed = true;
+        }
+        if !node.children.is_empty() && update_file_nodes(&mut node.children, path, wanted) {
+            changed = true;
+        }
+    }
+    changed
 }
 
 /// Apply a coalesced progress patch to the list state.

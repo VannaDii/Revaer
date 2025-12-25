@@ -1,3 +1,4 @@
+use crate::components::atoms::icons::{ArrowDirection, ArrowIcon, ChevronRightIcon, IconVariant};
 use crate::core::store::SystemRates;
 use crate::features::torrents::state::TorrentRow;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
@@ -141,9 +142,7 @@ pub(crate) fn dashboard_panel(props: &DashboardProps) -> Html {
                 <div class="panel card-bleed vpn-card">
                     <div class="panel-head">
                         <div class="chip chip-ghost">{"V1"}</div>
-                        <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true">
-                            <path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" />
-                        </svg>
+                        <ChevronRightIcon class={classes!("chevron")} size={18} />
                     </div>
                     <div class="vpn-state">
                         <p class="eyebrow">{tf("dashboard.vpn", "VPN")}</p>
@@ -315,18 +314,23 @@ fn status_class(status: &str) -> &'static str {
 }
 
 fn arrow_icon(up: bool) -> Html {
-    if up {
-        html! {
-            <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 4l6 6h-4v6h-4v-6H6z" fill="currentColor" />
-            </svg>
-        }
+    let direction = if up {
+        ArrowDirection::Up
     } else {
-        html! {
-            <svg class="metric-icon" viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 20l-6-6h4V8h4v6h4z" fill="currentColor" />
-            </svg>
-        }
+        ArrowDirection::Down
+    };
+    let variant = if up {
+        IconVariant::Solid
+    } else {
+        IconVariant::Outline
+    };
+    html! {
+        <ArrowIcon
+            direction={direction}
+            variant={variant}
+            class={classes!("metric-icon")}
+            size={18}
+        />
     }
 }
 

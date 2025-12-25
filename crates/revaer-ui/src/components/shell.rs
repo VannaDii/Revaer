@@ -1,6 +1,10 @@
 use crate::UiMode;
 use crate::app::Route;
 use crate::breakpoints::Breakpoint;
+use crate::components::atoms::IconButton;
+use crate::components::atoms::icons::{
+    CategoriesIcon, HealthIcon, NotFoundIcon, RevaerLogoIcon, SettingsIcon, TagsIcon, TorrentsIcon,
+};
 use crate::components::status::SseBadge;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::{NavLabels, SseState};
@@ -110,16 +114,26 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                     </div>
                     <div class="top-actions">
                         <SseBadge state={props.sse_state.clone()} />
-                        <button class="ghost icon-btn" onclick={{
+                        <IconButton
+                            aria_label={t("shell.simulate_sse")}
+                            onclick={{
                             let cb = props.on_sse_retry.clone();
                             Callback::from(move |_| cb.emit(()))
-                        }} aria-label={t("shell.simulate_sse")}>{"↻"}</button>
+                            }}
+                        >
+                            {"↻"}
+                        </IconButton>
                         <span class="pill subtle">{format!("BP {}", props.breakpoint.name)}</span>
                         <span class="pill subtle">{props.network_mode.clone()}</span>
-                        <button class="ghost icon-btn" onclick={{
+                        <IconButton
+                            aria_label={t("shell.toggle_theme")}
+                            onclick={{
                             let cb = props.on_toggle_theme.clone();
                             Callback::from(move |_| cb.emit(()))
-                        }} aria-label={t("shell.toggle_theme")}>{"🌓"}</button>
+                            }}
+                        >
+                            {"🌓"}
+                        </IconButton>
                     </div>
                 </header>
                 <main>
@@ -149,50 +163,19 @@ fn nav_item(route: Route, label: &str, active: Route, on_select: Callback<()>) -
 
 fn nav_icon(route: &Route) -> Html {
     match route {
-        Route::Home | Route::Torrents | Route::TorrentDetail { .. } => html! {
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 7l8-4 8 4v10l-8 4-8-4z" fill="none" stroke="currentColor" stroke-width="2" />
-                <path d="M8 12l4 2 4-2" fill="none" stroke="currentColor" stroke-width="2" />
-            </svg>
-        },
-        Route::Categories => html! {
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 6h16v4H4zM4 14h10v4H4z" fill="none" stroke="currentColor" stroke-width="2" />
-            </svg>
-        },
-        Route::Tags => html! {
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 8l8-4 8 4-8 12z" fill="none" stroke="currentColor" stroke-width="2" />
-                <circle cx="12" cy="10" r="1.5" fill="currentColor" />
-            </svg>
-        },
-        Route::Settings => html! {
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M12 8a4 4 0 100 8 4 4 0 000-8z" stroke="currentColor" stroke-width="2" fill="none" />
-                <path d="M4 12h2M18 12h2M12 4v2M12 18v2M6 6l1.5 1.5M16.5 16.5 18 18M18 6l-1.5 1.5M6 18l1.5-1.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-            </svg>
-        },
-        Route::Health => html! {
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M5 12h4l2-4 3 8 2-4h3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-            </svg>
-        },
-        Route::NotFound => html! {
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 4h16v16H4z" fill="none" stroke="currentColor" stroke-width="2" />
-                <path d="M8 8l8 8M16 8l-8 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-            </svg>
-        },
+        Route::Home | Route::Torrents | Route::TorrentDetail { .. } => {
+            html! { <TorrentsIcon size={18} /> }
+        }
+        Route::Categories => html! { <CategoriesIcon size={18} /> },
+        Route::Tags => html! { <TagsIcon size={18} /> },
+        Route::Settings => html! { <SettingsIcon size={18} /> },
+        Route::Health => html! { <HealthIcon size={18} /> },
+        Route::NotFound => html! { <NotFoundIcon size={18} /> },
     }
 }
 
 fn reaver_mark() -> Html {
     html! {
-        <svg viewBox="0 0 64 64" class="reaver-logo" aria-hidden="true">
-            <path
-                d="M18 14h18c7.2 0 12 4.8 12 11.2 0 5.6-3.6 9.6-8.8 10.8L44 50H33.6l-4.4-12H26V50H18zm18 16c3.2 0 5-1.6 5-4s-1.8-4-5-4H26v8z"
-                fill="currentColor"
-            />
-        </svg>
+        <RevaerLogoIcon class={classes!("reaver-logo")} size={28} />
     }
 }

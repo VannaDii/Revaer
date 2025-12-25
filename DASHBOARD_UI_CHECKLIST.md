@@ -72,8 +72,8 @@
 - [x] Endpoints: GET /v1/torrents, POST /v1/torrents.
 - [x] Endpoints: GET /v1/torrents/{id}.
 - [x] Endpoints: POST /v1/torrents/{id}/action.
-- [ ] Endpoints: PATCH /v1/torrents/{id}/options.
-- [ ] Endpoints: POST /v1/torrents/{id}/select.
+- [x] Endpoints: PATCH /v1/torrents/{id}/options.
+- [x] Endpoints: POST /v1/torrents/{id}/select.
 - [x] Endpoints: GET /v1/torrents/categories; PUT /v1/torrents/categories/{name}.
 - [x] Endpoints: GET /v1/torrents/tags; PUT /v1/torrents/tags/{name}.
 - [ ] Endpoints: POST /v1/torrents/create.
@@ -82,10 +82,10 @@
 - [x] Implement rate limit handling (429) with user-visible backoff messaging and safe retry.
 
 ## 7) SVG and icon system (reuse + consistency)
-- [ ] Encapsulate every SVG as a Yew component under atoms/icons/*.
-- [ ] Icon component props: size, class, optional title, optional variant (outline/solid) when relevant.
-- [ ] Build IconButton and standardize hover/active/focus states with DaisyUI Blueprint patterns.
-- [ ] Replace all inline SVG usage in pages/components with the icon components.
+- [x] Encapsulate every SVG as a Yew component under atoms/icons/*.
+- [x] Icon component props: size, class, optional title, optional variant (outline/solid) when relevant.
+- [x] Build IconButton and standardize hover/active/focus states with DaisyUI Blueprint patterns.
+- [x] Replace all inline SVG usage in pages/components with the icon components.
 
 ## 8) Rust UI component library (atomic + props discipline)
 - [ ] Build primitives: Buttons (variants, sizes, loading, icon slots), IconButton.

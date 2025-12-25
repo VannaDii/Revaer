@@ -46,6 +46,8 @@ ADR documents capture the rationale behind significant technical decisions.
 - [041](041-ui-health-shortcuts.md) – UI health view and label shortcuts
 - [042](042-ui-metrics-copy.md) – UI metrics copy button
 - [043](043-ui-settings-bypass-auth.md) – UI settings bypass local auth toggle
+- [044](044-ui-api-client-options-selection.md) – UI ApiClient torrent options/selection endpoints
+- [045](045-ui-icon-system.md) – UI icon components and icon button standardization
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

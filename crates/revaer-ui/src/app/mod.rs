@@ -2,6 +2,7 @@ use crate::app::api::ApiCtx;
 use crate::app::sse::{SseHandle, connect_sse};
 use crate::components::auth::AuthPrompt;
 use crate::components::dashboard::DashboardPanel;
+use crate::components::detail::FileSelectionChange;
 use crate::components::setup::SetupPrompt;
 use crate::components::shell::AppShell;
 use crate::components::status::SseOverlay;
@@ -25,11 +26,13 @@ use crate::features::torrents::actions::{TorrentAction, success_message};
 use crate::features::torrents::state::{
     ProgressPatch, SelectionSet, TorrentRow, TorrentsPaging, TorrentsQueryModel,
     apply_progress_patch, remove_row, select_selected_detail, select_visible_ids,
-    select_visible_rows, set_rows, set_selected, set_selected_id, upsert_detail,
+    select_visible_rows, set_rows, set_selected, set_selected_id, update_detail_file_selection,
+    upsert_detail,
 };
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode, TranslationBundle};
 use crate::models::{
-    AddTorrentInput, NavLabels, SseState, Toast, ToastKind, demo_detail, demo_snapshot,
+    AddTorrentInput, NavLabels, SseState, Toast, ToastKind, TorrentSelectionRequest, demo_detail,
+    demo_snapshot,
 };
 use crate::services::sse::SseDecodeError;
 use gloo::events::EventListener;
@@ -1031,6 +1034,67 @@ pub fn revaer_app() -> Html {
             });
         })
     };
+    let on_update_selection = {
+        let dispatch = dispatch.clone();
+        let api_ctx = (*api_ctx).clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
+        Callback::from(move |(id, change): (Uuid, FileSelectionChange)| {
+            let client = api_ctx.client.clone();
+            let dispatch = dispatch.clone();
+            let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
+            dispatch.reduce_mut(|store| {
+                update_detail_file_selection(&mut store.torrents, id, &change.path, change.wanted);
+            });
+            let request = TorrentSelectionRequest {
+                include: if change.wanted {
+                    vec![change.path.clone()]
+                } else {
+                    Vec::new()
+                },
+                exclude: if change.wanted {
+                    Vec::new()
+                } else {
+                    vec![change.path.clone()]
+                },
+                skip_fluff: None,
+                priorities: Vec::new(),
+            };
+            yew::platform::spawn_local(async move {
+                if let Err(err) = client
+                    .update_torrent_selection(&id.to_string(), &request)
+                    .await
+                {
+                    push_toast(
+                        &dispatch,
+                        &toast_id,
+                        ToastKind::Error,
+                        format!(
+                            "{} {err}",
+                            bundle.text(
+                                "toast.file_selection_failed",
+                                "Failed to update file selection."
+                            )
+                        ),
+                    );
+                    if let Some(detail) = fetch_torrent_detail_with_retry(
+                        client,
+                        dispatch.clone(),
+                        toast_id,
+                        bundle,
+                        id,
+                    )
+                    .await
+                    {
+                        dispatch.reduce_mut(|store| {
+                            upsert_detail(&mut store.torrents, id, detail);
+                        });
+                    }
+                }
+            });
+        })
+    };
 
     let locale_selector = {
         let locale = locale.clone();
@@ -1080,13 +1144,13 @@ pub fn revaer_app() -> Html {
                                 Route::Torrents => html! {
                                     <div class="torrents-stack">
                                         <DashboardPanel snapshot={(*dashboard).clone()} system_rates={system_rates_value} mode={*mode} density={*density} torrents={torrents_rows.clone()} />
-                                        <TorrentView breakpoint={*breakpoint} visible_ids={visible_ids.clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_bulk_action={on_bulk_action.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={add_busy_value} search={search.clone()} on_search={set_search.clone()} selected_id={selected_id_value} selected_ids={selected_ids_value.clone()} on_set_selected={on_set_selected.clone()} selected_detail={selected_detail_value.clone()} on_select_detail={on_select_detail.clone()} />
+                                        <TorrentView breakpoint={*breakpoint} visible_ids={visible_ids.clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_bulk_action={on_bulk_action.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={add_busy_value} search={search.clone()} on_search={set_search.clone()} selected_id={selected_id_value} selected_ids={selected_ids_value.clone()} on_set_selected={on_set_selected.clone()} selected_detail={selected_detail_value.clone()} on_select_detail={on_select_detail.clone()} on_update_selection={on_update_selection.clone()} />
                                     </div>
                                 },
                                 Route::TorrentDetail { id } => html! {
                                     <div class="torrents-stack">
                                         <DashboardPanel snapshot={(*dashboard).clone()} system_rates={system_rates_value} mode={*mode} density={*density} torrents={torrents_rows.clone()} />
-                                        <TorrentView breakpoint={*breakpoint} visible_ids={visible_ids.clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_bulk_action={on_bulk_action.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={add_busy_value} search={search.clone()} on_search={set_search.clone()} selected_id={Uuid::parse_str(&id).ok()} selected_ids={selected_ids_value.clone()} on_set_selected={on_set_selected.clone()} selected_detail={selected_detail_value.clone()} on_select_detail={on_select_detail.clone()} />
+                                        <TorrentView breakpoint={*breakpoint} visible_ids={visible_ids.clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_bulk_action={on_bulk_action.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={add_busy_value} search={search.clone()} on_search={set_search.clone()} selected_id={Uuid::parse_str(&id).ok()} selected_ids={selected_ids_value.clone()} on_set_selected={on_set_selected.clone()} selected_detail={selected_detail_value.clone()} on_select_detail={on_select_detail.clone()} on_update_selection={on_update_selection.clone()} />
                                     </div>
                                 },
                                 Route::Categories => html! { <LabelsPage kind={LabelKind::Category} /> },

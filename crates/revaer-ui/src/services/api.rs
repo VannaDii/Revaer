@@ -11,7 +11,8 @@ use crate::features::torrents::state::{TorrentsPaging, TorrentsQueryModel};
 use crate::models::{
     AddTorrentInput, DashboardSnapshot, DetailData, ProblemDetails, QueueStatus,
     TorrentAction as ApiTorrentAction, TorrentCreateRequest, TorrentDetail, TorrentLabelEntry,
-    TorrentLabelPolicy, TorrentListResponse, TrackerHealth, VpnState,
+    TorrentLabelPolicy, TorrentListResponse, TorrentOptionsRequest, TorrentSelectionRequest,
+    TrackerHealth, VpnState,
 };
 use base64::{Engine as _, engine::general_purpose};
 use gloo::file::futures::read_as_bytes;
@@ -270,24 +271,44 @@ impl ApiClient {
         id: &str,
         action: UiTorrentAction,
     ) -> Result<(), ApiError> {
-        let api_action = match action {
-            UiTorrentAction::Pause => ApiTorrentAction::Pause,
-            UiTorrentAction::Resume => ApiTorrentAction::Resume,
-            UiTorrentAction::Recheck => ApiTorrentAction::Recheck,
-            UiTorrentAction::Delete { with_data } => ApiTorrentAction::Remove {
-                delete_data: with_data,
-            },
-        };
-        let req = Request::post(&format!(
-            "{}/v1/torrents/{}/action",
-            self.base_url.trim_end_matches('/'),
-            id
-        ));
-        let req = self.apply_auth(req)?;
-        let req = req
-            .json(&api_action)
-            .map_err(|err| ApiError::client(format!("action payload failed: {err}")))?;
-        self.send_empty(req).await
+        match action {
+            UiTorrentAction::Pause | UiTorrentAction::Resume => {
+                let paused = matches!(action, UiTorrentAction::Pause);
+                let request = TorrentOptionsRequest {
+                    paused: Some(paused),
+                    ..TorrentOptionsRequest::default()
+                };
+                self.update_torrent_options(id, &request).await
+            }
+            UiTorrentAction::Recheck => {
+                let api_action = ApiTorrentAction::Recheck;
+                let req = Request::post(&format!(
+                    "{}/v1/torrents/{}/action",
+                    self.base_url.trim_end_matches('/'),
+                    id
+                ));
+                let req = self.apply_auth(req)?;
+                let req = req
+                    .json(&api_action)
+                    .map_err(|err| ApiError::client(format!("action payload failed: {err}")))?;
+                self.send_empty(req).await
+            }
+            UiTorrentAction::Delete { with_data } => {
+                let api_action = ApiTorrentAction::Remove {
+                    delete_data: with_data,
+                };
+                let req = Request::post(&format!(
+                    "{}/v1/torrents/{}/action",
+                    self.base_url.trim_end_matches('/'),
+                    id
+                ));
+                let req = self.apply_auth(req)?;
+                let req = req
+                    .json(&api_action)
+                    .map_err(|err| ApiError::client(format!("action payload failed: {err}")))?;
+                self.send_empty(req).await
+            }
+        }
     }
 
     pub(crate) async fn fetch_torrents(
@@ -354,6 +375,40 @@ impl ApiClient {
     pub(crate) async fn fetch_torrent_detail(&self, id: &str) -> Result<DetailData, ApiError> {
         let detail: TorrentDetail = self.get_json(&format!("/v1/torrents/{id}")).await?;
         Ok(DetailData::from(detail))
+    }
+
+    pub(crate) async fn update_torrent_options(
+        &self,
+        id: &str,
+        request: &TorrentOptionsRequest,
+    ) -> Result<(), ApiError> {
+        let req = Request::patch(&format!(
+            "{}/v1/torrents/{}/options",
+            self.base_url.trim_end_matches('/'),
+            id
+        ));
+        let req = self.apply_auth(req)?;
+        let req = req
+            .json(request)
+            .map_err(|err| ApiError::client(format!("encode options payload: {err}")))?;
+        self.send_empty(req).await
+    }
+
+    pub(crate) async fn update_torrent_selection(
+        &self,
+        id: &str,
+        request: &TorrentSelectionRequest,
+    ) -> Result<(), ApiError> {
+        let req = Request::post(&format!(
+            "{}/v1/torrents/{}/select",
+            self.base_url.trim_end_matches('/'),
+            id
+        ));
+        let req = self.apply_auth(req)?;
+        let req = req
+            .json(request)
+            .map_err(|err| ApiError::client(format!("encode selection payload: {err}")))?;
+        self.send_empty(req).await
     }
 
     async fn add_torrent_text(

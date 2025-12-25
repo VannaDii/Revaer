@@ -1,3 +1,4 @@
+pub(crate) mod atoms;
 pub(crate) mod auth;
 pub(crate) mod dashboard;
 pub(crate) mod detail;
