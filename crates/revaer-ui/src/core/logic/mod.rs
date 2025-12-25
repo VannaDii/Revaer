@@ -40,6 +40,8 @@ pub enum AddInputError {
     Empty,
     /// Value is neither magnet nor URL.
     Invalid,
+    /// Rate limit input is not a valid integer.
+    RateInvalid,
 }
 
 /// Validated add request payload without file handle.
@@ -53,6 +55,10 @@ pub struct AddPayload {
     pub tags: Option<Vec<String>>,
     /// Optional save path.
     pub save_path: Option<String>,
+    /// Optional download rate limit in bytes per second.
+    pub max_download_bps: Option<u64>,
+    /// Optional upload rate limit in bytes per second.
+    pub max_upload_bps: Option<u64>,
 }
 
 /// Toggle the presence of an id in the selection set.
@@ -121,9 +127,15 @@ pub fn build_add_payload(
     category: &str,
     tags: &str,
     save_path: &str,
+    max_download_bps: &str,
+    max_upload_bps: &str,
     file_present: bool,
 ) -> Result<AddPayload, AddInputError> {
     validate_add_input(value, file_present)?;
+    let max_download_bps =
+        parse_rate_input(max_download_bps).map_err(|_| AddInputError::RateInvalid)?;
+    let max_upload_bps =
+        parse_rate_input(max_upload_bps).map_err(|_| AddInputError::RateInvalid)?;
     let tags_parsed = parse_tags(tags);
     let category_val = if category.trim().is_empty() {
         None
@@ -144,6 +156,8 @@ pub fn build_add_payload(
         category: category_val,
         tags: tags_parsed,
         save_path: save_val,
+        max_download_bps,
+        max_upload_bps,
     })
 }
 
@@ -170,8 +184,30 @@ pub fn format_rate(value: u64) -> String {
     }
 }
 
+/// Human-friendly byte formatter using binary units.
+#[must_use]
+pub fn format_bytes(value: u64) -> String {
+    const KIB: u64 = 1024;
+    const MIB: u64 = 1024 * 1024;
+    const GIB: u64 = 1024 * 1024 * 1024;
+    if value >= GIB {
+        let whole = value / GIB;
+        let tenths = (value % GIB) * 10 / GIB;
+        format!("{whole}.{tenths} GiB")
+    } else if value >= MIB {
+        let whole = value / MIB;
+        let tenths = (value % MIB) * 10 / MIB;
+        format!("{whole}.{tenths} MiB")
+    } else if value >= KIB {
+        let whole = value / KIB;
+        let tenths = (value % KIB) * 10 / KIB;
+        format!("{whole}.{tenths} KiB")
+    } else {
+        format!("{value} B")
+    }
+}
+
 /// Rate input parsing errors.
-#[cfg(any(test, target_arch = "wasm32"))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum RateInputError {
     /// Provided value was not a valid integer.
@@ -182,7 +218,6 @@ pub(crate) enum RateInputError {
 ///
 /// # Errors
 /// Returns [`RateInputError::Invalid`] if the input is not a valid integer.
-#[cfg(any(test, target_arch = "wasm32"))]
 pub(crate) fn parse_rate_input(value: &str) -> Result<Option<u64>, RateInputError> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
@@ -611,8 +646,16 @@ mod tests {
 
     #[test]
     fn build_add_payload_parses_tags_and_fields() {
-        let payload =
-            build_add_payload("magnet:?xt=urn:btih:abc", "tv", "4k, hevc", "/data", false).unwrap();
+        let payload = build_add_payload(
+            "magnet:?xt=urn:btih:abc",
+            "tv",
+            "4k, hevc",
+            "/data",
+            "",
+            "",
+            false,
+        )
+        .unwrap();
         assert_eq!(payload.category.as_deref(), Some("tv"));
         assert_eq!(payload.save_path.as_deref(), Some("/data"));
         assert_eq!(
@@ -622,11 +665,27 @@ mod tests {
     }
 
     #[test]
+    fn build_add_payload_rejects_invalid_rates() {
+        assert_eq!(
+            build_add_payload("magnet:?xt=urn:btih:abc", "", "", "", "oops", "", false),
+            Err(AddInputError::RateInvalid)
+        );
+    }
+
+    #[test]
     fn rate_formatting_scales_units() {
         assert_eq!(format_rate(512), "512 B/s");
         assert_eq!(format_rate(2048), "2.0 KiB/s");
         assert!(format_rate(5_242_880).contains("MiB"));
         assert!(format_rate(2_147_483_648).contains("GiB"));
+    }
+
+    #[test]
+    fn byte_formatting_scales_units() {
+        assert_eq!(format_bytes(512), "512 B");
+        assert_eq!(format_bytes(2048), "2.0 KiB");
+        assert!(format_bytes(5_242_880).contains("MiB"));
+        assert!(format_bytes(2_147_483_648).contains("GiB"));
     }
 
     #[test]

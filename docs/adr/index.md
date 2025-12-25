@@ -51,6 +51,8 @@ ADR documents capture the rationale behind significant technical decisions.
 - [046](046-ui-torrent-filters-pagination.md) – UI torrent filters, pagination, and URL sync
 - [047](047-ui-torrent-updated-column.md) – UI torrent list updated timestamp column
 - [048](048-ui-torrent-actions-bulk-controls.md) – UI torrent row actions, bulk controls, and rate/remove dialogs
+- [049](049-ui-detail-overview-files-options.md) – UI detail drawer overview/files/options
+- [050](050-ui-torrent-fab-create-modals.md) – UI torrent FAB, add modal, and create-torrent authoring flow
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

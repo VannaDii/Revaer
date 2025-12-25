@@ -8,12 +8,14 @@ use crate::core::auth::{AuthMode, AuthState};
 #[cfg(target_arch = "wasm32")]
 use crate::core::events::{UiEvent, UiEventEnvelope};
 use crate::core::theme::ThemeMode;
+use crate::core::ui::{Density, UiMode};
 use crate::features::torrents::state::TorrentsState;
 #[cfg(target_arch = "wasm32")]
 use crate::features::torrents::state::{
     ProgressPatch, remove_row, update_fsops_completed, update_fsops_failed, update_fsops_progress,
     update_fsops_started, update_metadata, update_status,
 };
+use crate::i18n::{DEFAULT_LOCALE, LocaleCode};
 use crate::models::{SseState, Toast, TorrentLabelEntry};
 #[cfg(target_arch = "wasm32")]
 use revaer_events::{Event as CoreEvent, TorrentState as CoreTorrentState};
@@ -64,6 +66,12 @@ pub struct AuthSlice {
 pub struct UiSlice {
     /// Current theme selection.
     pub theme: ThemeMode,
+    /// Current UI mode (simple/advanced).
+    pub mode: UiMode,
+    /// Density selection for list layouts.
+    pub density: Density,
+    /// Active locale selection.
+    pub locale: LocaleCode,
     /// Active toast notifications.
     pub toasts: Vec<Toast>,
     /// Modal/drawer/FAB open states.
@@ -76,6 +84,9 @@ impl Default for UiSlice {
     fn default() -> Self {
         Self {
             theme: ThemeMode::Dark,
+            mode: UiMode::Simple,
+            density: Density::Normal,
+            locale: DEFAULT_LOCALE,
             toasts: Vec::new(),
             panels: UiPanels::default(),
             busy: UiBusyState::default(),
@@ -99,6 +110,8 @@ pub struct UiPanels {
 pub struct UiBusyState {
     /// True while an add-torrent request is in flight.
     pub add_torrent: bool,
+    /// True while a create-torrent request is in flight.
+    pub create_torrent: bool,
 }
 
 /// Cached category/tag label policies.

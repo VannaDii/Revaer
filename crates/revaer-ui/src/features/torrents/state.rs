@@ -1,6 +1,9 @@
 //! Shared torrent models and pure state transformations for testing outside wasm.
 
-use crate::models::{DetailData, FileNode, TorrentStateKind, TorrentStateView, TorrentSummary};
+use crate::models::{
+    FilePriority, TorrentAuthorResponse, TorrentDetail, TorrentFileView, TorrentOptionsRequest,
+    TorrentSelectionView, TorrentSettingsView, TorrentStateKind, TorrentStateView, TorrentSummary,
+};
 use std::collections::hash_map::RandomState;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
@@ -242,7 +245,7 @@ pub struct TorrentsState {
     /// Multi-select set for bulk actions.
     pub selected: SelectionSet,
     /// Cached torrent detail data for the drawer.
-    pub details_by_id: HashMap<Uuid, Rc<DetailData>>,
+    pub details_by_id: HashMap<Uuid, Rc<TorrentDetail>>,
     /// Filesystem processing state per torrent.
     pub fsops_by_id: HashMap<Uuid, Rc<FsopsState>>,
     /// Active filter state used for fetching and SSE filtering.
@@ -251,6 +254,10 @@ pub struct TorrentsState {
     pub paging: TorrentsPaging,
     /// Current drawer selection id.
     pub selected_id: Option<Uuid>,
+    /// Last create-torrent authoring response.
+    pub create_result: Option<TorrentAuthorResponse>,
+    /// Last create-torrent error message.
+    pub create_error: Option<String>,
 }
 
 /// Minimal progress update for coalesced SSE events.
@@ -304,33 +311,127 @@ pub const fn set_selected_id(state: &mut TorrentsState, id: Option<Uuid>) {
 }
 
 /// Upsert torrent detail payload.
-pub fn upsert_detail(state: &mut TorrentsState, id: Uuid, detail: DetailData) {
+pub fn upsert_detail(state: &mut TorrentsState, id: Uuid, detail: TorrentDetail) {
     state.details_by_id.insert(id, Rc::new(detail));
 }
 
 /// Update file selection state for a cached detail payload.
-pub fn update_detail_file_selection(state: &mut TorrentsState, id: Uuid, path: &str, wanted: bool) {
+pub fn update_detail_file_selection(
+    state: &mut TorrentsState,
+    id: Uuid,
+    index: u32,
+    selected: bool,
+) {
     let Some(current) = state.details_by_id.get(&id) else {
         return;
     };
     let mut next = (**current).clone();
-    if update_file_nodes(&mut next.files, path, wanted) {
+    let changed = next
+        .files
+        .as_mut()
+        .is_some_and(|files| update_file_selected(files, index, selected));
+    if changed {
         state.details_by_id.insert(id, Rc::new(next));
     }
 }
 
-fn update_file_nodes(nodes: &mut [FileNode], path: &str, wanted: bool) -> bool {
+/// Update file priority for a cached detail payload.
+pub fn update_detail_file_priority(
+    state: &mut TorrentsState,
+    id: Uuid,
+    index: u32,
+    priority: FilePriority,
+) {
+    let Some(current) = state.details_by_id.get(&id) else {
+        return;
+    };
+    let mut next = (**current).clone();
+    let changed = next
+        .files
+        .as_mut()
+        .is_some_and(|files| update_file_priority(files, index, priority));
+    if changed {
+        state.details_by_id.insert(id, Rc::new(next));
+    }
+}
+
+/// Update skip-fluff selection state for a cached detail payload.
+pub fn update_detail_skip_fluff(state: &mut TorrentsState, id: Uuid, skip_fluff: bool) {
+    let Some(current) = state.details_by_id.get(&id) else {
+        return;
+    };
+    let mut next = (**current).clone();
+    let settings = next
+        .settings
+        .get_or_insert_with(TorrentSettingsView::default);
+    let selection = selection_mut(settings);
+    if selection.skip_fluff != skip_fluff {
+        selection.skip_fluff = skip_fluff;
+        state.details_by_id.insert(id, Rc::new(next));
+    }
+}
+
+/// Apply an options update to the cached detail payload.
+pub fn update_detail_options(state: &mut TorrentsState, id: Uuid, request: &TorrentOptionsRequest) {
+    let Some(current) = state.details_by_id.get(&id) else {
+        return;
+    };
+    let mut next = (**current).clone();
     let mut changed = false;
-    for node in nodes {
-        if node.name == path && node.wanted != wanted {
-            node.wanted = wanted;
-            changed = true;
-        }
-        if !node.children.is_empty() && update_file_nodes(&mut node.children, path, wanted) {
+    let settings = next
+        .settings
+        .get_or_insert_with(TorrentSettingsView::default);
+    if let Some(limit) = request.connections_limit {
+        settings.connections_limit = Some(limit);
+        changed = true;
+    }
+    if let Some(enabled) = request.pex_enabled {
+        settings.pex_enabled = Some(enabled);
+        changed = true;
+    }
+    if let Some(enabled) = request.super_seeding {
+        settings.super_seeding = Some(enabled);
+        changed = true;
+    }
+    if let Some(enabled) = request.auto_managed {
+        settings.auto_managed = Some(enabled);
+        changed = true;
+    }
+    if let Some(position) = request.queue_position {
+        settings.queue_position = Some(position);
+        changed = true;
+    }
+    if changed {
+        state.details_by_id.insert(id, Rc::new(next));
+    }
+}
+
+fn update_file_selected(files: &mut [TorrentFileView], index: u32, selected: bool) -> bool {
+    let mut changed = false;
+    for file in files {
+        if file.index == index && file.selected != selected {
+            file.selected = selected;
             changed = true;
         }
     }
     changed
+}
+
+fn update_file_priority(files: &mut [TorrentFileView], index: u32, priority: FilePriority) -> bool {
+    let mut changed = false;
+    for file in files {
+        if file.index == index && file.priority != priority {
+            file.priority = priority;
+            changed = true;
+        }
+    }
+    changed
+}
+
+fn selection_mut(settings: &mut TorrentSettingsView) -> &mut TorrentSelectionView {
+    settings
+        .selection
+        .get_or_insert_with(TorrentSelectionView::default)
 }
 
 /// Apply a coalesced progress patch to the list state.
@@ -529,7 +630,7 @@ pub fn select_torrent_row(state: &TorrentsState, id: &Uuid) -> Option<Rc<Torrent
 
 /// Read the selected detail payload for the drawer.
 #[must_use]
-pub fn select_selected_detail(state: &TorrentsState) -> Option<DetailData> {
+pub fn select_selected_detail(state: &TorrentsState) -> Option<TorrentDetail> {
     let id = state.selected_id?;
     state
         .details_by_id
@@ -640,7 +741,10 @@ mod tests {
     use super::*;
     use crate::features::torrents::actions::{TorrentAction, success_message};
     use crate::i18n::{LocaleCode, TranslationBundle};
-    use crate::models::{TorrentProgressView, TorrentRatesView};
+    use crate::models::{
+        TorrentDetail, TorrentFileView, TorrentOptionsRequest, TorrentProgressView,
+        TorrentRatesView, TorrentSelectionView, TorrentSettingsView,
+    };
     use chrono::{DateTime, Utc};
     use uuid::Uuid;
 
@@ -663,6 +767,64 @@ mod tests {
             size_bytes: GIB,
             upload_bps: 0,
             download_bps: 0,
+        }
+    }
+
+    fn base_detail(id: Uuid) -> TorrentDetail {
+        let now = DateTime::<Utc>::from_timestamp(1_700_000_000, 0).expect("timestamp");
+        TorrentDetail {
+            summary: TorrentSummary {
+                id,
+                name: Some("demo".into()),
+                state: TorrentStateView {
+                    kind: TorrentStateKind::Downloading,
+                    failure_message: None,
+                },
+                progress: TorrentProgressView {
+                    bytes_downloaded: 0,
+                    bytes_total: GIB,
+                    percent_complete: 0.0,
+                    eta_seconds: None,
+                },
+                rates: TorrentRatesView {
+                    download_bps: 0,
+                    upload_bps: 0,
+                    ratio: 0.0,
+                },
+                library_path: None,
+                download_dir: Some("/data".into()),
+                sequential: false,
+                tags: vec![],
+                category: None,
+                trackers: vec![],
+                rate_limit: None,
+                connections_limit: None,
+                added_at: now,
+                completed_at: None,
+                last_updated: now,
+            },
+            settings: Some(TorrentSettingsView {
+                selection: Some(TorrentSelectionView::default()),
+                ..TorrentSettingsView::default()
+            }),
+            files: Some(vec![
+                TorrentFileView {
+                    index: 0,
+                    path: "a.mkv".into(),
+                    size_bytes: GIB,
+                    bytes_completed: 0,
+                    priority: FilePriority::Normal,
+                    selected: true,
+                },
+                TorrentFileView {
+                    index: 1,
+                    path: "b.mkv".into(),
+                    size_bytes: GIB,
+                    bytes_completed: 0,
+                    priority: FilePriority::Low,
+                    selected: true,
+                },
+            ]),
         }
     }
 
@@ -800,5 +962,77 @@ mod tests {
         assert_eq!(progress.download_bps, 0);
 
         assert!(select_is_selected(&state, &id));
+    }
+
+    #[test]
+    fn update_detail_file_selection_updates_cached_files() {
+        let id = Uuid::from_u128(10);
+        let detail = base_detail(id);
+        let mut state = TorrentsState::default();
+        upsert_detail(&mut state, id, detail);
+        update_detail_file_selection(&mut state, id, 1, false);
+        let files = state
+            .details_by_id
+            .get(&id)
+            .and_then(|detail| detail.files.as_ref())
+            .expect("files");
+        assert!(!files.iter().find(|file| file.index == 1).unwrap().selected);
+    }
+
+    #[test]
+    fn update_detail_file_priority_updates_cached_files() {
+        let id = Uuid::from_u128(11);
+        let detail = base_detail(id);
+        let mut state = TorrentsState::default();
+        upsert_detail(&mut state, id, detail);
+        update_detail_file_priority(&mut state, id, 0, FilePriority::High);
+        let files = state
+            .details_by_id
+            .get(&id)
+            .and_then(|detail| detail.files.as_ref())
+            .expect("files");
+        assert_eq!(
+            files.iter().find(|file| file.index == 0).unwrap().priority,
+            FilePriority::High
+        );
+    }
+
+    #[test]
+    fn update_detail_skip_fluff_updates_selection() {
+        let id = Uuid::from_u128(12);
+        let detail = base_detail(id);
+        let mut state = TorrentsState::default();
+        upsert_detail(&mut state, id, detail);
+        update_detail_skip_fluff(&mut state, id, true);
+        let selection = state
+            .details_by_id
+            .get(&id)
+            .and_then(|detail| detail.settings.as_ref())
+            .and_then(|settings| settings.selection.as_ref())
+            .expect("selection");
+        assert!(selection.skip_fluff);
+    }
+
+    #[test]
+    fn update_detail_options_updates_settings_fields() {
+        let id = Uuid::from_u128(13);
+        let detail = base_detail(id);
+        let mut state = TorrentsState::default();
+        upsert_detail(&mut state, id, detail);
+        let request = TorrentOptionsRequest {
+            connections_limit: Some(150),
+            pex_enabled: Some(true),
+            queue_position: Some(3),
+            ..TorrentOptionsRequest::default()
+        };
+        update_detail_options(&mut state, id, &request);
+        let settings = state
+            .details_by_id
+            .get(&id)
+            .and_then(|detail| detail.settings.as_ref())
+            .expect("settings");
+        assert_eq!(settings.connections_limit, Some(150));
+        assert_eq!(settings.pex_enabled, Some(true));
+        assert_eq!(settings.queue_position, Some(3));
     }
 }

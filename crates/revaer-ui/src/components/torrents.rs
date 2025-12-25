@@ -1,5 +1,7 @@
 use crate::app::Route;
+use crate::components::action_menu::{ActionMenuItem, render_action_menu};
 use crate::components::detail::{DetailView, FileSelectionChange};
+use crate::components::torrent_modals::{AddTorrentPanel, CopyKind, CreateTorrentPanel};
 use crate::components::virtual_list::VirtualList;
 use crate::core::breakpoints::Breakpoint;
 use crate::core::logic::{
@@ -13,15 +15,18 @@ use crate::features::torrents::state::{
     select_fsops_badge, select_is_selected, select_torrent_progress_slice, select_torrent_row_base,
 };
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
-use crate::models::{AddTorrentInput, ConfirmKind};
+use crate::models::{
+    AddTorrentInput, ConfirmKind, TorrentAuthorRequest, TorrentAuthorResponse, TorrentDetail,
+    TorrentOptionsRequest,
+};
 use crate::{Density, UiMode};
 use std::rc::Rc;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::closure::Closure;
-use web_sys::{DragEvent, File, HtmlElement, KeyboardEvent, MouseEvent};
+use web_sys::{HtmlElement, KeyboardEvent, MouseEvent};
 use yew::prelude::*;
-use yew_router::prelude::{Link, use_navigator};
+use yew_router::prelude::use_navigator;
 use yewdux::prelude::use_selector;
 
 #[derive(Properties, PartialEq)]
@@ -36,6 +41,18 @@ pub(crate) struct TorrentProps {
     pub on_action: Callback<(TorrentAction, Uuid)>,
     pub on_add: Callback<AddTorrentInput>,
     pub add_busy: bool,
+    /// Latest create-torrent result (if any).
+    pub create_result: Option<TorrentAuthorResponse>,
+    /// Latest create-torrent error message.
+    pub create_error: Option<String>,
+    /// True when a create-torrent request is in flight.
+    pub create_busy: bool,
+    /// Create a new torrent file via authoring.
+    pub on_create: Callback<TorrentAuthorRequest>,
+    /// Reset create-torrent result/error state.
+    pub on_reset_create: Callback<()>,
+    /// Copy payload from the create-torrent result panel.
+    pub on_copy_payload: Callback<(CopyKind, String)>,
     pub search: String,
     pub on_search: Callback<String>,
     /// Current state filter value.
@@ -64,11 +81,13 @@ pub(crate) struct TorrentProps {
     pub selected_ids: SelectionSet,
     pub on_set_selected: Callback<SelectionSet>,
     /// Selected detail payload for the drawer.
-    pub selected_detail: Option<crate::models::DetailData>,
+    pub selected_detail: Option<TorrentDetail>,
     /// Request a detail refresh for a torrent id.
     pub on_select_detail: Callback<Uuid>,
     /// Request a file selection update for a torrent.
     pub on_update_selection: Callback<(Uuid, FileSelectionChange)>,
+    /// Request a torrent options update for a torrent.
+    pub on_update_options: Callback<(Uuid, TorrentOptionsRequest)>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -108,6 +127,9 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     let confirm = use_state(|| None as Option<ConfirmKind>);
     let remove_target = use_state(|| None as Option<ActionTarget>);
     let rate_target = use_state(|| None as Option<ActionTarget>);
+    let show_add_modal = use_state(|| false);
+    let show_create_modal = use_state(|| false);
+    let fab_open = use_state(|| false);
     let search_ref = use_node_ref();
     let navigator = use_navigator();
     let is_mobile = props
@@ -171,16 +193,6 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
             }
         })
     };
-    let on_toggle_file = {
-        let selected_id = props.selected_id;
-        let on_update_selection = props.on_update_selection.clone();
-        Callback::from(move |change: FileSelectionChange| {
-            if let Some(id) = selected_id {
-                on_update_selection.emit((id, change));
-            }
-        })
-    };
-
     let on_select = {
         let selected_idx = selected_idx.clone();
         let visible_ids = props.visible_ids.clone();
@@ -208,6 +220,61 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
         let rate_target = rate_target.clone();
         Callback::from(move |target: ActionTarget| {
             rate_target.set(Some(target));
+        })
+    };
+    let on_prompt_rate_detail = {
+        let on_prompt_rate = on_prompt_rate.clone();
+        Callback::from(move |(id, label): (Uuid, String)| {
+            on_prompt_rate.emit(ActionTarget::single(id, label));
+        })
+    };
+    let on_prompt_remove_detail = {
+        let on_prompt_remove = on_prompt_remove.clone();
+        Callback::from(move |(id, label): (Uuid, String)| {
+            on_prompt_remove.emit(ActionTarget::single(id, label));
+        })
+    };
+    let close_add_modal = {
+        let show_add_modal = show_add_modal.clone();
+        Callback::from(move |_| show_add_modal.set(false))
+    };
+    let close_create_modal = {
+        let show_create_modal = show_create_modal.clone();
+        let on_reset_create = props.on_reset_create.clone();
+        Callback::from(move |_| {
+            show_create_modal.set(false);
+            on_reset_create.emit(());
+        })
+    };
+    let open_add_modal = {
+        let show_add_modal = show_add_modal.clone();
+        let fab_open = fab_open.clone();
+        Callback::from(move |_| {
+            show_add_modal.set(true);
+            fab_open.set(false);
+        })
+    };
+    let open_create_modal = {
+        let show_create_modal = show_create_modal.clone();
+        let fab_open = fab_open.clone();
+        let on_reset_create = props.on_reset_create.clone();
+        Callback::from(move |_| {
+            on_reset_create.emit(());
+            show_create_modal.set(true);
+            fab_open.set(false);
+        })
+    };
+    let toggle_fab = {
+        let fab_open = fab_open.clone();
+        Callback::from(move |_| fab_open.set(!*fab_open))
+    };
+    let stop_propagation = Callback::from(|event: MouseEvent| event.stop_propagation());
+    let submit_add = {
+        let on_add = props.on_add.clone();
+        let show_add_modal = show_add_modal.clone();
+        Callback::from(move |input: AddTorrentInput| {
+            on_add.emit(input);
+            show_add_modal.set(false);
         })
     };
 
@@ -615,11 +682,9 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                     <button class="ghost" onclick={pause_selected}>{t("toolbar.pause")}</button>
                     <button class="ghost" onclick={resume_selected}>{t("toolbar.resume")}</button>
                     <button class="ghost danger" onclick={delete_selected}>{t("toolbar.delete")}</button>
-                    <button class="solid">{t("toolbar.add")}</button>
+                    <button class="solid" onclick={open_add_modal.clone()}>{t("toolbar.add")}</button>
                 </div>
             </header>
-
-            <AddTorrentPanel on_submit={props.on_add.clone()} pending={props.add_busy} />
 
             <VirtualList
                 class={classes!("torrent-table", "virtualized")}
@@ -687,7 +752,14 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                 html! {}
             }}
 
-            <DetailView data={props.selected_detail.clone()} on_toggle_file={on_toggle_file} />
+            <DetailView
+                data={props.selected_detail.clone()}
+                on_action={props.on_action.clone()}
+                on_prompt_rate={on_prompt_rate_detail}
+                on_prompt_remove={on_prompt_remove_detail}
+                on_update_selection={props.on_update_selection.clone()}
+                on_update_options={props.on_update_options.clone()}
+            />
             <MobileActionRow
                 on_action={props.on_action.clone()}
                 on_prompt_remove={on_prompt_remove.clone()}
@@ -695,6 +767,57 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                 selected={props.visible_ids.get(*selected_idx).copied()}
                 selected_label={selected_name.clone()}
             />
+            {if *show_add_modal {
+                html! {
+                    <div class="modal-overlay" onclick={close_add_modal.clone()}>
+                        <div class="card modal-card" onclick={stop_propagation.clone()}>
+                            <div class="modal-header">
+                                <div>
+                                    <h3>{t("torrents.add_title")}</h3>
+                                    <p class="muted">{t("torrents.add_subtitle")}</p>
+                                </div>
+                                <button class="ghost" onclick={close_add_modal.clone()} aria-label={t("torrents.close_modal")}>{"✕"}</button>
+                            </div>
+                            <AddTorrentPanel on_submit={submit_add.clone()} pending={props.add_busy} />
+                        </div>
+                    </div>
+                }
+            } else { html! {} }}
+            {if *show_create_modal {
+                html! {
+                    <div class="modal-overlay" onclick={close_create_modal.clone()}>
+                        <div class={classes!("card", "modal-card", "modal-card-wide")} onclick={stop_propagation.clone()}>
+                            <div class="modal-header">
+                                <div>
+                                    <h3>{t("torrents.create_title")}</h3>
+                                    <p class="muted">{t("torrents.create_subtitle")}</p>
+                                </div>
+                                <button class="ghost" onclick={close_create_modal.clone()} aria-label={t("torrents.close_modal")}>{"✕"}</button>
+                            </div>
+                            <CreateTorrentPanel
+                                on_submit={props.on_create.clone()}
+                                on_copy={props.on_copy_payload.clone()}
+                                pending={props.create_busy}
+                                result={props.create_result.clone()}
+                                error={props.create_error.clone()}
+                            />
+                        </div>
+                    </div>
+                }
+            } else { html! {} }}
+            <div class={classes!("fab-dial", if *fab_open { "open" } else { "" })}>
+                <div class="fab-actions">
+                    <button class="fab-action" onclick={open_add_modal.clone()}>
+                        {t("torrents.fab_add")}
+                    </button>
+                    <button class="fab-action" onclick={open_create_modal.clone()}>
+                        {t("torrents.fab_create")}
+                    </button>
+                </div>
+                <button class="fab-button" onclick={toggle_fab} aria-label={t("torrents.fab_toggle")}>
+                    <span class="fab-icon">{if *fab_open { "✕" } else { "+" }}</span>
+                </button>
+            </div>
             <ActionBanner message={(*action_banner).clone()} />
             <ConfirmDialog
                 kind={(*confirm).clone()}
@@ -1311,49 +1434,6 @@ fn fsops_label(bundle: &TranslationBundle, fsops: Option<&FsopsBadge>) -> Option
     Some(label)
 }
 
-struct ActionMenuItem {
-    label: String,
-    on_click: Callback<MouseEvent>,
-    class: Option<&'static str>,
-}
-
-impl ActionMenuItem {
-    fn new(label: String, on_click: Callback<MouseEvent>) -> Self {
-        Self {
-            label,
-            on_click,
-            class: None,
-        }
-    }
-
-    fn danger(label: String, on_click: Callback<MouseEvent>) -> Self {
-        Self {
-            label,
-            on_click,
-            class: Some("danger"),
-        }
-    }
-}
-
-fn render_action_menu(bundle: &TranslationBundle, items: Vec<ActionMenuItem>) -> Html {
-    if items.is_empty() {
-        return html! {};
-    }
-    html! {
-        <details class="row-menu">
-            <summary class="ghost">{bundle.text("torrents.more", "More…")}</summary>
-            <div class="menu">
-                {for items.into_iter().map(|item| {
-                    let class = classes!("ghost", item.class);
-                    html! {
-                        <button type="button" class={class} onclick={item.on_click}>{item.label}</button>
-                    }
-                })}
-            </div>
-        </details>
-    }
-}
-
 fn is_interactive_target(event: &MouseEvent) -> bool {
     let Some(target) = event.target() else {
         return false;
@@ -1427,195 +1507,6 @@ mod tests {
         let bundle = TranslationBundle::new(DEFAULT_LOCALE);
         let msg = action_banner_message(&bundle, &TorrentAction::Pause, "alpha");
         assert!(msg.contains(&bundle.text("torrents.banner.pause", "")));
-    }
-}
-
-#[derive(Properties, PartialEq)]
-pub(crate) struct AddTorrentProps {
-    pub on_submit: Callback<AddTorrentInput>,
-    pub pending: bool,
-}
-
-#[function_component(AddTorrentPanel)]
-fn add_torrent_panel(props: &AddTorrentProps) -> Html {
-    let bundle = use_context::<TranslationBundle>()
-        .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let t = |key: &str| bundle.text(key, "");
-    let bundle_for_submit = bundle.clone();
-    let bundle_for_drop = bundle.clone();
-    let input_value = use_state(String::new);
-    let category = use_state(String::new);
-    let tags = use_state(String::new);
-    let save_path = use_state(String::new);
-    let file = use_state(|| None as Option<File>);
-    let error = use_state(|| None as Option<String>);
-    let drag_over = use_state(|| false);
-
-    let submit = {
-        let input_value = input_value.clone();
-        let category = category.clone();
-        let tags = tags.clone();
-        let save_path = save_path.clone();
-        let file = file.clone();
-        let error = error.clone();
-        let on_submit = props.on_submit.clone();
-        let bundle = bundle_for_submit.clone();
-        Callback::from(move |_| {
-            let value = input_value.trim().to_string();
-            let has_file = (*file).is_some();
-            let payload = match crate::core::logic::build_add_payload(
-                &value, &category, &tags, &save_path, has_file,
-            ) {
-                Ok(payload) => {
-                    error.set(None);
-                    payload
-                }
-                Err(crate::core::logic::AddInputError::Empty) => {
-                    error.set(Some(bundle.text("torrents.error.empty", "")));
-                    return;
-                }
-                Err(crate::core::logic::AddInputError::Invalid) => {
-                    error.set(Some(bundle.text("torrents.error.invalid", "")));
-                    return;
-                }
-            };
-            on_submit.emit(AddTorrentInput {
-                value: payload.value,
-                file: (*file).clone(),
-                category: payload.category,
-                tags: payload.tags,
-                save_path: payload.save_path,
-            });
-        })
-    };
-
-    let on_input = {
-        let input_value = input_value.clone();
-        Callback::from(move |e: InputEvent| {
-            if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
-                input_value.set(input.value());
-            }
-        })
-    };
-
-    let on_drop = {
-        let drag_over = drag_over.clone();
-        let error = error.clone();
-        let input_value = input_value.clone();
-        let file_state = file.clone();
-        let bundle = bundle_for_drop.clone();
-        Callback::from(move |event: DragEvent| {
-            event.prevent_default();
-            drag_over.set(false);
-            if let Some(files) = event.data_transfer().and_then(|dt| dt.files()) {
-                if files.length() == 0 {
-                    return;
-                }
-                let Some(file) = files.get(0) else {
-                    return;
-                };
-                let name = file.name();
-                if !name.ends_with(".torrent") {
-                    error.set(Some(bundle.text("torrents.error.file_type", "")));
-                } else {
-                    error.set(None);
-                    file_state.set(Some(file));
-                    input_value.set(name);
-                }
-            }
-        })
-    };
-
-    let on_drag_over = {
-        let drag_over = drag_over.clone();
-        Callback::from(move |event: DragEvent| {
-            event.prevent_default();
-            drag_over.set(true);
-        })
-    };
-
-    let on_drag_leave = {
-        let drag_over = drag_over.clone();
-        Callback::from(move |_event: DragEvent| {
-            drag_over.set(false);
-        })
-    };
-
-    html! {
-        <div class="add-panel">
-            <div
-                class={classes!("drop-zone", if *drag_over { "drag-over" } else { "" })}
-                role="button"
-                aria-label={t("torrents.upload_label")}
-                ondrop={on_drop}
-                ondragover={on_drag_over}
-                ondragleave={on_drag_leave}
-            >
-                <p><strong>{t("torrents.drop_help")}</strong></p>
-                <p class="muted">{t("torrents.drop_sub")}</p>
-                <div class="inputs">
-                    <input aria-label={t("torrents.add_placeholder")} placeholder={t("torrents.add_placeholder")} value={(*input_value).clone()} oninput={on_input} />
-                    <button class="solid" onclick={submit.clone()} disabled={props.pending}>
-                        {if props.pending { t("torrents.adding") } else { t("toolbar.add") }}
-                    </button>
-                </div>
-                {if let Some(err) = &*error {
-                    html! { <p class="error-text">{err}</p> }
-                } else if let Some(f) = &*file {
-                    html! { <p class="muted">{format!("{} {}", t("torrents.ready_prefix"), f.name())}</p> }
-                } else { html! {} }}
-            </div>
-            <div class="pre-flight">
-                <div class="watch-folder">
-                    <strong>{t("torrents.watch_folder")}</strong>
-                    <p class="muted">{t("torrents.watch_folder_body")}</p>
-                </div>
-                <label>
-                    <span>{t("torrents.category")}</span>
-                    <input placeholder={t("torrents.category_placeholder")} value={(*category).clone()} oninput={{
-                        let category = category.clone();
-                        Callback::from(move |e: InputEvent| {
-                            if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                category.set(input.value());
-                            }
-                        })
-                    }} />
-                </label>
-                <label>
-                    <span>{t("torrents.tags")}</span>
-                    <input placeholder={t("torrents.tags_placeholder")} value={(*tags).clone()} oninput={{
-                        let tags = tags.clone();
-                        Callback::from(move |e: InputEvent| {
-                            if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                tags.set(input.value());
-                            }
-                        })
-                    }} />
-                </label>
-                <label>
-                    <span>{t("torrents.save_path")}</span>
-                    <input placeholder={t("torrents.save_path_placeholder")} value={(*save_path).clone()} oninput={{
-                        let save_path = save_path.clone();
-                        Callback::from(move |e: InputEvent| {
-                            if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                save_path.set(input.value());
-                            }
-                        })
-                    }} />
-                </label>
-                <div class="label-shortcuts">
-                    <span class="muted">{bundle.text("torrents.manage_labels", "Manage labels")}</span>
-                    <div class="chip-group">
-                        <Link<Route> to={Route::Categories} classes="chip ghost">
-                            {bundle.text("torrents.manage_categories", "Categories")}
-                        </Link<Route>>
-                        <Link<Route> to={Route::Tags} classes="chip ghost">
-                            {bundle.text("torrents.manage_tags", "Tags")}
-                        </Link<Route>>
-                    </div>
-                </div>
-            </div>
-        </div>
     }
 }
 

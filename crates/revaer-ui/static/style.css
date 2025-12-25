@@ -1072,6 +1072,105 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid var(--border);
 }
 
+.file-input-hidden {
+  display: none;
+}
+
+.modal-card .add-panel,
+.modal-card .create-panel {
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.create-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.create-form {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.create-form label {
+  display: grid;
+  gap: 4px;
+}
+
+.create-form input,
+.create-form textarea {
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.inline-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.create-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.create-result {
+  display: grid;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.create-result h4 {
+  margin: 0;
+}
+
+.result-row {
+  display: grid;
+  gap: 6px;
+}
+
+.result-label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.result-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.result-row textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.result-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.mono {
+  font-family: "Sora", "Space Grotesk", monospace;
+  word-break: break-all;
+}
+
+.result-warnings ul {
+  padding-left: 18px;
+}
+
 .pill {
   display: inline-flex;
   align-items: center;
@@ -1468,6 +1567,91 @@ button:focus-visible {
   padding: 16px;
   width: min(420px, 90vw);
   box-shadow: var(--shadow);
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  display: grid;
+  place-items: center;
+  z-index: 65;
+}
+
+.modal-card {
+  width: min(780px, 92vw);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  animation: fade-rise 0.2s ease;
+}
+
+.modal-card-wide {
+  width: min(960px, 94vw);
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.fab-dial {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  display: grid;
+  gap: 10px;
+  align-items: center;
+  z-index: 55;
+}
+
+.fab-actions {
+  display: grid;
+  gap: 8px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(8px);
+  transition: all 0.2s ease;
+}
+
+.fab-dial.open .fab-actions {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.fab-button {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(135deg, var(--primary-500), var(--accent-500));
+  box-shadow: 0 16px 30px rgba(10, 10, 40, 0.5);
+  font-size: 28px;
+  display: grid;
+  place-items: center;
+}
+
+.fab-action {
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  font-size: 14px;
+}
+
+.fab-action:hover {
+  border-color: var(--border-strong);
 }
 
 .action-banner {

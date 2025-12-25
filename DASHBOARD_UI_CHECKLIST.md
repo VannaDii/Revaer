@@ -6,9 +6,9 @@
 - [ ] Use DaisyUI Blueprint MCP as the canonical reference for DaisyUI v5 component patterns, variants, accessibility, and form layout; if Nexus markup differs, Nexus wins for visual parity unless intentionally standardizing.
 
 ## 2) Theme + palette (from the logo)
-- [ ] Establish a Revaer theme that leans into dark navy/purple with magenta-purple accent.
-- [ ] Use token guidance from the logo: background ~#000030 to #000040; accent ~#6A0071; primary ~#901CBB; highlight ~#C42AC3.
-- [ ] Apply tokens via DaisyUI theme variables or theme selection plus minimal overrides; keep contrast readable for table/list UIs.
+- [x] Establish a Revaer theme that leans into dark navy/purple with magenta-purple accent.
+- [x] Use token guidance from the logo: background ~#000030 to #000040; accent ~#6A0071; primary ~#901CBB; highlight ~#C42AC3.
+- [x] Apply tokens via DaisyUI theme variables or theme selection plus minimal overrides; keep contrast readable for table/list UIs.
 
 ## 3) Shell and routing (atomic composition)
 - [x] Implement AppShell template: sidebar + topbar + main outlet; preserve Nexus layout structure.
@@ -76,7 +76,7 @@
 - [x] Endpoints: POST /v1/torrents/{id}/select.
 - [x] Endpoints: GET /v1/torrents/categories; PUT /v1/torrents/categories/{name}.
 - [x] Endpoints: GET /v1/torrents/tags; PUT /v1/torrents/tags/{name}.
-- [ ] Endpoints: POST /v1/torrents/create.
+- [x] Endpoints: POST /v1/torrents/create.
 - [x] Endpoints: GET /v1/torrents/events (SSE).
 - [x] Centralize error parsing with ProblemDetails; display status/title/detail consistently.
 - [x] Implement rate limit handling (429) with user-visible backoff messaging and safe retry.
@@ -98,7 +98,7 @@
 - [ ] Every component exposes all configurables as props: labels, counts, state, href, ids, optional sections, variants, and an extra class hook.
 
 ## 9) Torrents list page (main screen)
-- [ ] Layout: Nexus dashboard styling, list-based view, with filter bar and FAB.
+- [x] Layout: Nexus dashboard styling, list-based view, with filter bar and FAB.
 - [x] Filters in URL query: query text (name), state, tags, tracker, extension.
 - [x] Pagination: limit and cursor; provide Load more using next cursor.
 - [x] Columns (TorrentSummary): name, state, progress, down/up rate, ratio, tags, trackers, updated timestamp.
@@ -113,19 +113,19 @@
 - [x] Bulk actions: sequential on/off, rate set, remove (confirm + optional delete_data).
 
 ## 10) Torrent details drawer (tabs: Overview, Files, Options)
-- [ ] Overview: summary fields + same actions; show last error if present.
-- [ ] Files tab: render TorrentFile list; include/exclude and priority edits.
-- [ ] Files tab: updates via POST /v1/torrents/{id}/select (support skip_fluff toggle if desired).
-- [ ] Options tab: render TorrentSettingsView; only editable fields that map to PATCH /v1/torrents/{id}/options.
-- [ ] Options tab: read-only settings shown as static rows (no fake toggles).
-- [ ] Details caching discipline: keep large file vectors/settings off the hot row model; update drawer from details_by_id.
+- [x] Overview: summary fields + same actions; show last error if present.
+- [x] Files tab: render TorrentFile list; include/exclude and priority edits.
+- [x] Files tab: updates via POST /v1/torrents/{id}/select (support skip_fluff toggle if desired).
+- [x] Options tab: render TorrentSettingsView; only editable fields that map to PATCH /v1/torrents/{id}/options.
+- [x] Options tab: read-only settings shown as static rows (no fake toggles).
+- [x] Details caching discipline: keep large file vectors/settings off the hot row model; update drawer from details_by_id.
 
 ## 11) FAB actions (Torrents screen)
-- [ ] Add torrent modal supports magnet or metainfo_b64.
-- [ ] Add torrent modal always generates id client-side (UUID v4).
-- [ ] Add torrent modal allows initial tags/category and initial rate limits if supported.
-- [ ] Create torrent modal wired to POST /v1/torrents/create.
-- [ ] Create torrent modal provides copy buttons for magnet/metainfo.
+- [x] Add torrent modal supports magnet or metainfo_b64.
+- [x] Add torrent modal always generates id client-side (UUID v4).
+- [x] Add torrent modal allows initial tags/category and initial rate limits if supported.
+- [x] Create torrent modal wired to POST /v1/torrents/create.
+- [x] Create torrent modal provides copy buttons for magnet/metainfo.
 - [x] Provide shortcuts to manage categories and tags.
 
 ## 12) Categories and Tags pages (policy management)

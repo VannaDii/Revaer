@@ -18,6 +18,7 @@ serde_json = { workspace = true }
 uuid = { workspace = true, features = ["js"] }
 urlencoding = "2.1"
 base64.workspace = true
+chrono.workspace = true
 yew = { version = "0.20", features = ["csr"] }
 yew-router = "0.17"
 yewdux = "0.9.0"
@@ -63,4 +64,3 @@ web-sys = { version = "0.3", features = [
 ] }
 
 [dev-dependencies]
-chrono.workspace = true

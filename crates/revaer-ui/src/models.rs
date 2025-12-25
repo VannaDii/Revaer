@@ -5,19 +5,6 @@ pub use revaer_api_models::*;
 #[cfg(target_arch = "wasm32")]
 use web_sys::File;
 
-const BYTES_PER_GB: f64 = 1024.0 * 1024.0 * 1024.0;
-const TWO_POW_32: f64 = 4_294_967_296.0;
-
-fn bytes_to_gb(bytes: u64) -> f64 {
-    let high = u32::try_from(bytes >> 32).unwrap_or(0);
-    let low = u32::try_from(bytes & 0xFFFF_FFFF).unwrap_or(0);
-    ((f64::from(high) * TWO_POW_32) + f64::from(low)) / BYTES_PER_GB
-}
-
-fn format_file_priority(priority: impl std::fmt::Debug) -> String {
-    format!("{priority:?}").to_lowercase()
-}
-
 /// Dashboard snapshot used by the UI and API client.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DashboardSnapshot {
@@ -193,6 +180,10 @@ pub struct AddTorrentInput {
     pub tags: Option<Vec<String>>,
     /// Optional initial save path.
     pub save_path: Option<String>,
+    /// Optional download rate limit in bytes per second.
+    pub max_download_bps: Option<u64>,
+    /// Optional upload rate limit in bytes per second.
+    pub max_upload_bps: Option<u64>,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -202,100 +193,10 @@ impl PartialEq for AddTorrentInput {
             && self.category == other.category
             && self.tags == other.tags
             && self.save_path == other.save_path
+            && self.max_download_bps == other.max_download_bps
+            && self.max_upload_bps == other.max_upload_bps
             && self.file.as_ref().map(|f| f.name()) == other.file.as_ref().map(|f| f.name())
     }
-}
-
-/// Torrent detail view node representation.
-#[derive(Clone, Debug, PartialEq)]
-pub struct FileNode {
-    /// File or folder name.
-    pub name: String,
-    /// Total size in GB.
-    pub size_gb: f64,
-    /// Completed size in GB.
-    pub completed_gb: f64,
-    /// Priority label for the node.
-    pub priority: String,
-    /// Whether the node is selected for download.
-    pub wanted: bool,
-    /// Nested child nodes.
-    pub children: Vec<FileNode>,
-}
-
-/// Peer row for detail pane.
-#[derive(Clone, Debug, PartialEq)]
-pub struct PeerRow {
-    /// Peer IP address.
-    pub ip: String,
-    /// Client identification string.
-    pub client: String,
-    /// Peer flags string.
-    pub flags: String,
-    /// Country code for the peer.
-    pub country: String,
-    /// Download rate from the peer in bytes per second.
-    pub download_bps: u64,
-    /// Upload rate to the peer in bytes per second.
-    pub upload_bps: u64,
-    /// Completion percentage for the peer.
-    pub progress: f32,
-}
-
-/// Tracker row for detail pane.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct TrackerRow {
-    /// Tracker announce URL.
-    pub url: String,
-    /// Tracker status string.
-    pub status: String,
-    /// Next announce time or summary.
-    pub next_announce: String,
-    /// Optional last error message.
-    pub last_error: Option<String>,
-}
-
-/// Event row for detail pane.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct EventRow {
-    /// Timestamp label.
-    pub timestamp: String,
-    /// Severity level label.
-    pub level: String,
-    /// Event description.
-    pub message: String,
-}
-
-/// Metadata section for detail pane.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Metadata {
-    /// Info hash.
-    pub hash: String,
-    /// Magnet URI.
-    pub magnet: String,
-    /// Total size in GB.
-    pub size_gb: f64,
-    /// Piece count.
-    pub piece_count: u32,
-    /// Piece size in MB.
-    pub piece_size_mb: u32,
-}
-
-/// Aggregated detail data used by the UI.
-#[derive(Clone, Debug, PartialEq)]
-pub struct DetailData {
-    /// Display name.
-    pub name: String,
-    /// File tree listing.
-    pub files: Vec<FileNode>,
-    /// Peer list snapshot.
-    pub peers: Vec<PeerRow>,
-    /// Tracker list snapshot.
-    pub trackers: Vec<TrackerRow>,
-    /// Recent event log entries.
-    pub events: Vec<EventRow>,
-    /// Metadata summary.
-    pub metadata: Metadata,
 }
 
 /// Demo snapshot used by the initial UI shell.
@@ -367,144 +268,141 @@ pub fn demo_snapshot() -> DashboardSnapshot {
     }
 }
 
-impl From<TorrentDetail> for DetailData {
-    fn from(detail: TorrentDetail) -> Self {
-        let files = detail
-            .files
-            .unwrap_or_default()
-            .into_iter()
-            .map(|file| FileNode {
-                name: file.path,
-                size_gb: bytes_to_gb(file.size_bytes),
-                completed_gb: bytes_to_gb(file.bytes_completed),
-                priority: format_file_priority(file.priority),
-                wanted: file.selected,
-                children: vec![],
-            })
-            .collect();
-        let name = detail
-            .summary
-            .name
-            .clone()
-            .unwrap_or_else(|| "<unspecified>".to_string());
-        let size_gb = bytes_to_gb(detail.summary.progress.bytes_total);
-        Self {
-            name,
-            files,
-            peers: Vec::new(),
-            trackers: Vec::new(),
-            events: Vec::new(),
-            metadata: Metadata {
-                hash: "-".to_string(),
-                magnet: "-".to_string(),
-                size_gb,
-                piece_count: 0,
-                piece_size_mb: 0,
-            },
+/// Demo detail record used by the torrent view.
+#[must_use]
+pub fn demo_detail(id: &str) -> Option<TorrentDetail> {
+    use chrono::Utc;
+    use uuid::Uuid;
+
+    let parsed = Uuid::parse_str(id).ok();
+    let name = demo_detail_name(parsed);
+    let id = parsed.unwrap_or_else(Uuid::nil);
+    let now = Utc::now();
+    Some(TorrentDetail {
+        summary: demo_detail_summary(id, name, now),
+        settings: Some(demo_detail_settings()),
+        files: Some(demo_detail_files()),
+    })
+}
+
+const DEMO_GIB: u64 = 1_073_741_824;
+
+fn demo_detail_name(parsed: Option<uuid::Uuid>) -> &'static str {
+    match parsed {
+        Some(value) if value == uuid::Uuid::from_u128(2) => {
+            "The.Expanse.S01E05.1080p.BluRay.DTS.x264"
         }
+        Some(value) if value == uuid::Uuid::from_u128(3) => {
+            "Dune.Part.One.2021.2160p.REMUX.DV.DTS-HD.MA.7.1"
+        }
+        Some(value) if value == uuid::Uuid::from_u128(4) => "Ubuntu-24.04.1-live-server-amd64.iso",
+        Some(value) if value == uuid::Uuid::from_u128(5) => {
+            "Arcane.S02E02.1080p.NF.WEB-DL.DDP5.1.Atmos.x264"
+        }
+        _ => "Foundation.S02E08.2160p.WEB-DL.DDP5.1.Atmos.HDR10",
     }
 }
 
-/// Demo detail record used by the torrent view.
-#[must_use]
-pub fn demo_detail(id: &str) -> Option<DetailData> {
-    let name = match id {
-        "2" => "The.Expanse.S01E05.1080p.BluRay.DTS.x264",
-        "3" => "Dune.Part.One.2021.2160p.REMUX.DV.DTS-HD.MA.7.1",
-        "4" => "Ubuntu-24.04.1-live-server-amd64.iso",
-        "5" => "Arcane.S02E02.1080p.NF.WEB-DL.DDP5.1.Atmos.x264",
-        _ => "Foundation.S02E08.2160p.WEB-DL.DDP5.1.Atmos.HDR10",
-    };
-
-    Some(DetailData {
-        name: name.to_string(),
-        files: vec![
-            FileNode {
-                name: "Foundation.S02E08.mkv".to_string(),
-                size_gb: 14.2,
-                completed_gb: 6.1,
-                priority: "high".to_string(),
-                wanted: true,
-                children: vec![],
-            },
-            FileNode {
-                name: "Extras".to_string(),
-                size_gb: 3.2,
-                completed_gb: 1.4,
-                priority: "normal".to_string(),
-                wanted: true,
-                children: vec![
-                    FileNode {
-                        name: "Featurette-01.mkv".to_string(),
-                        size_gb: 1.1,
-                        completed_gb: 1.1,
-                        priority: "normal".to_string(),
-                        wanted: true,
-                        children: vec![],
-                    },
-                    FileNode {
-                        name: "Interview-01.mkv".to_string(),
-                        size_gb: 0.9,
-                        completed_gb: 0.2,
-                        priority: "low".to_string(),
-                        wanted: false,
-                        children: vec![],
-                    },
-                ],
-            },
-        ],
-        peers: vec![
-            PeerRow {
-                ip: "203.0.113.24".to_string(),
-                client: "qBittorrent 4.6".to_string(),
-                flags: "DIXE".to_string(),
-                country: "CA".to_string(),
-                download_bps: 8_400_000,
-                upload_bps: 650_000,
-                progress: 0.54,
-            },
-            PeerRow {
-                ip: "198.51.100.18".to_string(),
-                client: "Transmission 4.0".to_string(),
-                flags: "UXE".to_string(),
-                country: "US".to_string(),
-                download_bps: 2_200_000,
-                upload_bps: 90_000,
-                progress: 0.31,
-            },
-        ],
-        trackers: vec![
-            TrackerRow {
-                url: "udp://tracker.example:6969".to_string(),
-                status: "online".to_string(),
-                next_announce: "in 3m".to_string(),
-                last_error: None,
-            },
-            TrackerRow {
-                url: "http://tracker.down/announce".to_string(),
-                status: "error".to_string(),
-                next_announce: "retrying".to_string(),
-                last_error: Some("502 Bad Gateway".to_string()),
-            },
-        ],
-        events: vec![
-            EventRow {
-                timestamp: "12:04:11".to_string(),
-                level: "info".to_string(),
-                message: "Resumed torrent after pause".to_string(),
-            },
-            EventRow {
-                timestamp: "12:03:55".to_string(),
-                level: "warn".to_string(),
-                message: "Tracker timed out; will retry".to_string(),
-            },
-        ],
-        metadata: Metadata {
-            hash: "123456ABCDEF".into(),
-            magnet: "magnet:?xt=urn:btih:123456ABCDEF".into(),
-            size_gb: 14.2,
-            piece_count: 1120,
-            piece_size_mb: 8,
+fn demo_detail_summary(
+    id: uuid::Uuid,
+    name: &str,
+    now: chrono::DateTime<chrono::Utc>,
+) -> TorrentSummary {
+    let total_bytes = 18_u64 * DEMO_GIB;
+    let downloaded = total_bytes.saturating_mul(41) / 100;
+    TorrentSummary {
+        id,
+        name: Some(name.to_string()),
+        state: TorrentStateView {
+            kind: TorrentStateKind::Downloading,
+            failure_message: None,
         },
-    })
+        progress: TorrentProgressView {
+            bytes_downloaded: downloaded,
+            bytes_total: total_bytes,
+            percent_complete: 41.0,
+            eta_seconds: Some(720),
+        },
+        rates: TorrentRatesView {
+            download_bps: 82_000_000,
+            upload_bps: 1_200_000,
+            ratio: 0.12,
+        },
+        library_path: None,
+        download_dir: Some("/data/incomplete/foundation-s02e08".into()),
+        sequential: false,
+        tags: vec!["4K", "HDR10", "hevc"]
+            .into_iter()
+            .map(str::to_string)
+            .collect(),
+        category: Some("tv".into()),
+        trackers: vec!["tracker.hypothetical.org".into()],
+        rate_limit: None,
+        connections_limit: Some(200),
+        added_at: now,
+        completed_at: None,
+        last_updated: now,
+    }
+}
+
+fn demo_detail_settings() -> TorrentSettingsView {
+    TorrentSettingsView {
+        tags: vec!["4K".into(), "HDR10".into(), "hevc".into()],
+        category: Some("tv".into()),
+        trackers: vec!["tracker.hypothetical.org".into()],
+        tracker_messages: std::collections::HashMap::new(),
+        rate_limit: None,
+        connections_limit: Some(200),
+        download_dir: Some("/data/incomplete/foundation-s02e08".into()),
+        comment: None,
+        source: None,
+        private: None,
+        storage_mode: None,
+        use_partfile: Some(true),
+        sequential: false,
+        selection: Some(TorrentSelectionView {
+            include: Vec::new(),
+            exclude: Vec::new(),
+            skip_fluff: true,
+            priorities: Vec::new(),
+        }),
+        super_seeding: Some(false),
+        seed_mode: Some(false),
+        seed_ratio_limit: None,
+        seed_time_limit: None,
+        cleanup: None,
+        auto_managed: Some(true),
+        queue_position: Some(7),
+        pex_enabled: Some(true),
+        web_seeds: vec!["https://cdn.example.org/foundation/".into()],
+    }
+}
+
+fn demo_detail_files() -> Vec<TorrentFileView> {
+    vec![
+        TorrentFileView {
+            index: 0,
+            path: "Foundation.S02E08.mkv".to_string(),
+            size_bytes: 14 * DEMO_GIB,
+            bytes_completed: 6 * DEMO_GIB,
+            priority: FilePriority::High,
+            selected: true,
+        },
+        TorrentFileView {
+            index: 1,
+            path: "Extras/Featurette-01.mkv".to_string(),
+            size_bytes: DEMO_GIB,
+            bytes_completed: DEMO_GIB,
+            priority: FilePriority::Normal,
+            selected: true,
+        },
+        TorrentFileView {
+            index: 2,
+            path: "Extras/Interview-01.mkv".to_string(),
+            size_bytes: DEMO_GIB,
+            bytes_completed: 200_000_000,
+            priority: FilePriority::Low,
+            selected: false,
+        },
+    ]
 }

@@ -9,10 +9,10 @@ use crate::core::logic::build_torrents_path;
 use crate::features::torrents::actions::TorrentAction as UiTorrentAction;
 use crate::features::torrents::state::{TorrentsPaging, TorrentsQueryModel};
 use crate::models::{
-    AddTorrentInput, DashboardSnapshot, DetailData, ProblemDetails, QueueStatus,
-    TorrentAction as ApiTorrentAction, TorrentCreateRequest, TorrentDetail, TorrentLabelEntry,
-    TorrentLabelPolicy, TorrentListResponse, TorrentOptionsRequest, TorrentSelectionRequest,
-    TrackerHealth, VpnState,
+    AddTorrentInput, DashboardSnapshot, ProblemDetails, QueueStatus,
+    TorrentAction as ApiTorrentAction, TorrentAuthorRequest, TorrentAuthorResponse,
+    TorrentCreateRequest, TorrentDetail, TorrentLabelEntry, TorrentLabelPolicy,
+    TorrentListResponse, TorrentOptionsRequest, TorrentSelectionRequest, TrackerHealth, VpnState,
 };
 use base64::{Engine as _, engine::general_purpose};
 use gloo::file::futures::read_as_bytes;
@@ -389,20 +389,57 @@ impl ApiClient {
     }
 
     pub(crate) async fn add_torrent(&self, input: AddTorrentInput) -> Result<Uuid, ApiError> {
-        if let Some(file) = input.file {
-            self.add_torrent_file(file, input.category, input.tags, input.save_path)
-                .await
-        } else if let Some(source) = input.value {
-            self.add_torrent_text(source, input.category, input.tags, input.save_path)
-                .await
+        let AddTorrentInput {
+            value,
+            file,
+            category,
+            tags,
+            save_path,
+            max_download_bps,
+            max_upload_bps,
+        } = input;
+        if let Some(file) = file {
+            self.add_torrent_file(
+                file,
+                category,
+                tags,
+                save_path,
+                max_download_bps,
+                max_upload_bps,
+            )
+            .await
+        } else if let Some(source) = value {
+            self.add_torrent_text(
+                source,
+                category,
+                tags,
+                save_path,
+                max_download_bps,
+                max_upload_bps,
+            )
+            .await
         } else {
             Err(ApiError::client("no torrent payload provided"))
         }
     }
 
-    pub(crate) async fn fetch_torrent_detail(&self, id: &str) -> Result<DetailData, ApiError> {
-        let detail: TorrentDetail = self.get_json(&format!("/v1/torrents/{id}")).await?;
-        Ok(DetailData::from(detail))
+    pub(crate) async fn create_torrent(
+        &self,
+        request: &TorrentAuthorRequest,
+    ) -> Result<TorrentAuthorResponse, ApiError> {
+        let req = Request::post(&format!(
+            "{}/v1/torrents/create",
+            self.base_url.trim_end_matches('/')
+        ));
+        let req = self.apply_auth(req)?;
+        let req = req
+            .json(request)
+            .map_err(|err| ApiError::client(format!("encode create payload: {err}")))?;
+        self.send_json(req).await
+    }
+
+    pub(crate) async fn fetch_torrent_detail(&self, id: &str) -> Result<TorrentDetail, ApiError> {
+        self.get_json(&format!("/v1/torrents/{id}")).await
     }
 
     pub(crate) async fn update_torrent_options(
@@ -445,6 +482,8 @@ impl ApiClient {
         category: Option<String>,
         tags: Option<Vec<String>>,
         save_path: Option<String>,
+        max_download_bps: Option<u64>,
+        max_upload_bps: Option<u64>,
     ) -> Result<Uuid, ApiError> {
         let id = Uuid::new_v4();
         let request = TorrentCreateRequest {
@@ -453,6 +492,8 @@ impl ApiClient {
             download_dir: save_path,
             tags: tags.unwrap_or_default(),
             category,
+            max_download_bps,
+            max_upload_bps,
             ..TorrentCreateRequest::default()
         };
         let req = Request::post(&format!(
@@ -473,6 +514,8 @@ impl ApiClient {
         category: Option<String>,
         tags: Option<Vec<String>>,
         save_path: Option<String>,
+        max_download_bps: Option<u64>,
+        max_upload_bps: Option<u64>,
     ) -> Result<Uuid, ApiError> {
         let id = Uuid::new_v4();
         let blob = gloo::file::Blob::from(file);
@@ -486,6 +529,8 @@ impl ApiClient {
             download_dir: save_path,
             tags: tags.unwrap_or_default(),
             category,
+            max_download_bps,
+            max_upload_bps,
             ..TorrentCreateRequest::default()
         };
         let req = Request::post(&format!(

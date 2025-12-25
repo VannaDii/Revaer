@@ -7,6 +7,7 @@ use crate::components::setup::SetupPrompt;
 use crate::components::shell::AppShell;
 use crate::components::status::SseOverlay;
 use crate::components::toast::ToastHost;
+use crate::components::torrent_modals::CopyKind;
 use crate::components::torrents::{TorrentView, demo_rows};
 use crate::core::auth::{AuthMode, AuthState};
 use crate::core::breakpoints::Breakpoint;
@@ -28,12 +29,13 @@ use crate::features::torrents::actions::{TorrentAction, success_message};
 use crate::features::torrents::state::{
     ProgressPatch, SelectionSet, TorrentRow, TorrentsPaging, TorrentsQueryModel, append_rows,
     apply_progress_patch, remove_row, select_selected_detail, select_visible_ids,
-    select_visible_rows, set_rows, set_selected, set_selected_id, update_detail_file_selection,
-    upsert_detail,
+    select_visible_rows, set_rows, set_selected, set_selected_id, update_detail_file_priority,
+    update_detail_file_selection, update_detail_options, update_detail_skip_fluff, upsert_detail,
 };
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode, TranslationBundle};
 use crate::models::{
-    AddTorrentInput, NavLabels, SseState, Toast, ToastKind, TorrentSelectionRequest, demo_detail,
+    AddTorrentInput, FilePriorityOverride, NavLabels, SseState, Toast, ToastKind,
+    TorrentAuthorRequest, TorrentOptionsRequest, TorrentSelectionRequest, demo_detail,
     demo_snapshot,
 };
 use crate::services::sse::SseDecodeError;
@@ -65,9 +67,6 @@ mod sse;
 
 #[function_component(RevaerApp)]
 pub fn revaer_app() -> Html {
-    let mode = use_state(load_mode);
-    let density = use_state(load_density);
-    let locale = use_state(load_locale);
     let breakpoint = use_state(current_breakpoint);
     let allow_anon = allow_anonymous();
     let dispatch = Dispatch::<AppStore>::new();
@@ -79,6 +78,9 @@ pub fn revaer_app() -> Html {
     let refresh_timer = use_mut_ref(|| None as Option<Timeout>);
     let progress_buffer = use_mut_ref(|| HashMap::<Uuid, ProgressPatch>::new());
     let progress_flush = use_mut_ref(|| None as Option<Interval>);
+    let mode = use_selector(|store: &AppStore| store.ui.mode);
+    let density = use_selector(|store: &AppStore| store.ui.density);
+    let locale = use_selector(|store: &AppStore| store.ui.locale);
     let bundle = {
         let locale = *locale;
         use_memo(move |_| TranslationBundle::new(locale), locale)
@@ -106,11 +108,14 @@ pub fn revaer_app() -> Html {
     let theme = use_selector(|store: &AppStore| store.ui.theme);
     let toasts = use_selector(|store: &AppStore| store.ui.toasts.clone());
     let add_busy = use_selector(|store: &AppStore| store.ui.busy.add_torrent);
+    let create_busy = use_selector(|store: &AppStore| store.ui.busy.create_torrent);
     let torrents_rows = use_selector(|store: &AppStore| select_visible_rows(&store.torrents));
     let visible_ids = use_selector(|store: &AppStore| select_visible_ids(&store.torrents));
     let selected_id = use_selector(|store: &AppStore| store.torrents.selected_id);
     let selected_ids = use_selector(|store: &AppStore| store.torrents.selected.clone());
     let selected_detail = use_selector(|store: &AppStore| select_selected_detail(&store.torrents));
+    let create_result = use_selector(|store: &AppStore| store.torrents.create_result.clone());
+    let create_error = use_selector(|store: &AppStore| store.torrents.create_error.clone());
     let filters = use_selector(|store: &AppStore| store.torrents.filters.clone());
     let paging_state = use_selector(|store: &AppStore| store.torrents.paging.clone());
     let paging_limit = use_selector(|store: &AppStore| store.torrents.paging.limit);
@@ -126,13 +131,18 @@ pub fn revaer_app() -> Html {
     let setup_error_value = (*setup_error).clone();
     let setup_busy_value = *setup_busy;
     let theme_value = *theme;
+    let mode_value = *mode;
+    let density_value = *density;
     let toasts_value = (*toasts).clone();
     let add_busy_value = *add_busy;
+    let create_busy_value = *create_busy;
     let torrents_rows = (*torrents_rows).clone();
     let visible_ids = (*visible_ids).clone();
     let selected_id_value = *selected_id;
     let selected_ids_value = (*selected_ids).clone();
     let selected_detail_value = (*selected_detail).clone();
+    let create_result_value = (*create_result).clone();
+    let create_error_value = (*create_error).clone();
     let filters_value = (*filters).clone();
     let paging_state_value = (*paging_state).clone();
     let search = filters_value.name.clone();
@@ -210,8 +220,14 @@ pub fn revaer_app() -> Html {
         use_effect_with_deps(
             move |_| {
                 let theme = load_theme();
+                let mode = load_mode();
+                let density = load_density();
+                let locale = load_locale();
                 dispatch.reduce_mut(|store| {
                     store.ui.theme = theme;
+                    store.ui.mode = mode;
+                    store.ui.density = density;
+                    store.ui.locale = locale;
                 });
                 || ()
             },
@@ -791,12 +807,12 @@ pub fn revaer_app() -> Html {
         });
     }
     {
-        let mode = mode.clone();
+        let mode = *mode;
         use_effect_with_deps(
             move |mode| {
                 LocalStorage::set(
                     MODE_KEY,
-                    match **mode {
+                    match *mode {
                         UiMode::Simple => "simple",
                         UiMode::Advanced => "advanced",
                     },
@@ -804,16 +820,16 @@ pub fn revaer_app() -> Html {
                 .ok();
                 || ()
             },
-            mode.clone(),
+            mode,
         );
     }
     {
-        let density = density.clone();
+        let density = *density;
         use_effect_with_deps(
             move |density| {
                 LocalStorage::set(
                     DENSITY_KEY,
-                    match **density {
+                    match *density {
                         Density::Compact => "compact",
                         Density::Normal => "normal",
                         Density::Comfy => "comfy",
@@ -822,18 +838,18 @@ pub fn revaer_app() -> Html {
                 .ok();
                 || ()
             },
-            density.clone(),
+            density,
         );
     }
     {
-        let locale = locale.clone();
+        let locale = *locale;
         use_effect_with_deps(
             move |locale| {
                 LocalStorage::set(LOCALE_KEY, locale.code()).ok();
-                apply_direction(TranslationBundle::new(**locale).rtl());
+                apply_direction(TranslationBundle::new(*locale).rtl());
                 || ()
             },
-            locale.clone(),
+            locale,
         );
     }
 
@@ -851,12 +867,20 @@ pub fn revaer_app() -> Html {
     };
 
     let set_mode = {
-        let mode = mode.clone();
-        Callback::from(move |next: UiMode| mode.set(next))
+        let dispatch = dispatch.clone();
+        Callback::from(move |next: UiMode| {
+            dispatch.reduce_mut(|store| {
+                store.ui.mode = next;
+            });
+        })
     };
     let set_density = {
-        let density = density.clone();
-        Callback::from(move |next: Density| density.set(next))
+        let dispatch = dispatch.clone();
+        Callback::from(move |next: Density| {
+            dispatch.reduce_mut(|store| {
+                store.ui.density = next;
+            });
+        })
     };
     let set_search = {
         let dispatch = dispatch.clone();
@@ -1035,6 +1059,35 @@ pub fn revaer_app() -> Html {
             });
         })
     };
+    let on_copy_payload = {
+        let dispatch = dispatch.clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
+        Callback::from(move |(kind, value): (CopyKind, String)| {
+            let dispatch = dispatch.clone();
+            let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
+            yew::platform::spawn_local(async move {
+                match copy_text_to_clipboard(value).await {
+                    Ok(()) => {
+                        let message = match kind {
+                            CopyKind::Magnet => bundle.text("toast.magnet_copied", "Magnet copied"),
+                            CopyKind::Metainfo => {
+                                bundle.text("toast.metainfo_copied", "Metainfo copied")
+                            }
+                        };
+                        push_toast(&dispatch, &toast_id, ToastKind::Success, message);
+                    }
+                    Err(err) => push_toast(
+                        &dispatch,
+                        &toast_id,
+                        ToastKind::Error,
+                        format!("{} {err}", bundle.text("toast.copy_failed", "Copy failed:")),
+                    ),
+                }
+            });
+        })
+    };
     let on_add_torrent = {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
@@ -1083,6 +1136,61 @@ pub fn revaer_app() -> Html {
                 }
                 dispatch.reduce_mut(|store| {
                     store.ui.busy.add_torrent = false;
+                });
+            });
+        })
+    };
+    let on_reset_create = {
+        let dispatch = dispatch.clone();
+        Callback::from(move |_| {
+            dispatch.reduce_mut(|store| {
+                store.torrents.create_result = None;
+                store.torrents.create_error = None;
+            });
+        })
+    };
+    let on_create_torrent = {
+        let dispatch = dispatch.clone();
+        let api_ctx = (*api_ctx).clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
+        Callback::from(move |request: TorrentAuthorRequest| {
+            let client = api_ctx.client.clone();
+            let dispatch = dispatch.clone();
+            let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
+            dispatch.reduce_mut(|store| {
+                store.ui.busy.create_torrent = true;
+                store.torrents.create_error = None;
+                store.torrents.create_result = None;
+            });
+            yew::platform::spawn_local(async move {
+                match client.create_torrent(&request).await {
+                    Ok(response) => {
+                        dispatch.reduce_mut(|store| {
+                            store.torrents.create_result = Some(response);
+                        });
+                        push_toast(
+                            &dispatch,
+                            &toast_id,
+                            ToastKind::Success,
+                            bundle.text("toast.create_success", "Torrent created"),
+                        );
+                    }
+                    Err(err) => {
+                        dispatch.reduce_mut(|store| {
+                            store.torrents.create_error = Some(err.to_string());
+                        });
+                        push_toast(
+                            &dispatch,
+                            &toast_id,
+                            ToastKind::Error,
+                            format!("{} {err}", bundle.text("toast.create_failed", "")),
+                        );
+                    }
+                }
+                dispatch.reduce_mut(|store| {
+                    store.ui.busy.create_torrent = false;
                 });
             });
         })
@@ -1170,22 +1278,52 @@ pub fn revaer_app() -> Html {
             let dispatch = dispatch.clone();
             let toast_id = toast_id.clone();
             let bundle = bundle.clone();
-            dispatch.reduce_mut(|store| {
-                update_detail_file_selection(&mut store.torrents, id, &change.path, change.wanted);
-            });
-            let request = TorrentSelectionRequest {
-                include: if change.wanted {
-                    vec![change.path.clone()]
-                } else {
-                    Vec::new()
-                },
-                exclude: if change.wanted {
-                    Vec::new()
-                } else {
-                    vec![change.path.clone()]
-                },
-                skip_fluff: None,
-                priorities: Vec::new(),
+            let request = match change {
+                FileSelectionChange::Toggle {
+                    index,
+                    path,
+                    selected,
+                } => {
+                    dispatch.reduce_mut(|store| {
+                        update_detail_file_selection(&mut store.torrents, id, index, selected);
+                    });
+                    TorrentSelectionRequest {
+                        include: if selected {
+                            vec![path.clone()]
+                        } else {
+                            Vec::new()
+                        },
+                        exclude: if selected {
+                            Vec::new()
+                        } else {
+                            vec![path.clone()]
+                        },
+                        skip_fluff: None,
+                        priorities: Vec::new(),
+                    }
+                }
+                FileSelectionChange::Priority { index, priority } => {
+                    dispatch.reduce_mut(|store| {
+                        update_detail_file_priority(&mut store.torrents, id, index, priority);
+                    });
+                    TorrentSelectionRequest {
+                        include: Vec::new(),
+                        exclude: Vec::new(),
+                        skip_fluff: None,
+                        priorities: vec![FilePriorityOverride { index, priority }],
+                    }
+                }
+                FileSelectionChange::SkipFluff { enabled } => {
+                    dispatch.reduce_mut(|store| {
+                        update_detail_skip_fluff(&mut store.torrents, id, enabled);
+                    });
+                    TorrentSelectionRequest {
+                        include: Vec::new(),
+                        exclude: Vec::new(),
+                        skip_fluff: Some(enabled),
+                        priorities: Vec::new(),
+                    }
+                }
             };
             yew::platform::spawn_local(async move {
                 if let Err(err) = client
@@ -1221,22 +1359,71 @@ pub fn revaer_app() -> Html {
             });
         })
     };
+    let on_update_options = {
+        let dispatch = dispatch.clone();
+        let api_ctx = (*api_ctx).clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
+        Callback::from(move |(id, request): (Uuid, TorrentOptionsRequest)| {
+            let client = api_ctx.client.clone();
+            let dispatch = dispatch.clone();
+            let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
+            dispatch.reduce_mut(|store| {
+                update_detail_options(&mut store.torrents, id, &request);
+            });
+            yew::platform::spawn_local(async move {
+                if let Err(err) = client
+                    .update_torrent_options(&id.to_string(), &request)
+                    .await
+                {
+                    push_toast(
+                        &dispatch,
+                        &toast_id,
+                        ToastKind::Error,
+                        format!(
+                            "{} {err}",
+                            bundle.text("toast.options_failed", "Failed to update options.")
+                        ),
+                    );
+                    if let Some(detail) = fetch_torrent_detail_with_retry(
+                        client,
+                        dispatch.clone(),
+                        toast_id,
+                        bundle,
+                        id,
+                    )
+                    .await
+                    {
+                        dispatch.reduce_mut(|store| {
+                            upsert_detail(&mut store.torrents, id, detail);
+                        });
+                    }
+                }
+            });
+        })
+    };
 
     let locale_selector = {
-        let locale = locale.clone();
+        let locale = *locale;
+        let dispatch = dispatch.clone();
         html! {
-            <select value={locale.code().to_string()} onchange={{
-                let locale = locale.clone();
-                Callback::from(move |e: Event| {
-                    let target: web_sys::HtmlSelectElement = e.target().unwrap().dyn_into().unwrap();
-                    let code = target.value();
-                    if let Some(next) = LocaleCode::from_lang_tag(&code) {
-                        locale.set(next);
-                    }
-                })
-            }}>
+            <select value={locale.code().to_string()} onchange={Callback::from(move |e: Event| {
+                let Some(target) = e
+                    .target()
+                    .and_then(|node| node.dyn_into::<web_sys::HtmlSelectElement>().ok())
+                else {
+                    return;
+                };
+                let code = target.value();
+                if let Some(next) = LocaleCode::from_lang_tag(&code) {
+                    dispatch.reduce_mut(|store| {
+                        store.ui.locale = next;
+                    });
+                }
+            })}>
                 {for LocaleCode::all().iter().map(|lc| html! {
-                    <option value={lc.code()} selected={*lc == *locale}>{lc.label()}</option>
+                    <option value={lc.code()} selected={*lc == locale}>{lc.label()}</option>
                 })}
             </select>
         }
@@ -1253,7 +1440,7 @@ pub fn revaer_app() -> Html {
                     <AppShell
                         theme={theme_value}
                         on_toggle_theme={toggle_theme}
-                        mode={*mode}
+                        mode={mode_value}
                         on_mode_change={set_mode}
                         active={current_route}
                         locale_selector={locale_selector}
@@ -1269,17 +1456,23 @@ pub fn revaer_app() -> Html {
                                 Route::Home => html! { <Redirect<Route> to={Route::Torrents} /> },
                                 Route::Torrents => html! {
                                     <div class="torrents-stack">
-                                        <DashboardPanel snapshot={(*dashboard).clone()} system_rates={system_rates_value} mode={*mode} density={*density} torrents={torrents_rows.clone()} />
+                                        <DashboardPanel snapshot={(*dashboard).clone()} system_rates={system_rates_value} mode={mode_value} density={density_value} torrents={torrents_rows.clone()} />
                                         <TorrentView
                                             breakpoint={*breakpoint}
                                             visible_ids={visible_ids.clone()}
-                                            density={*density}
-                                            mode={*mode}
+                                            density={density_value}
+                                            mode={mode_value}
                                             on_density_change={set_density.clone()}
                                             on_bulk_action={on_bulk_action.clone()}
                                             on_action={on_action.clone()}
                                             on_add={on_add_torrent.clone()}
                                             add_busy={add_busy_value}
+                                            create_result={create_result_value.clone()}
+                                            create_error={create_error_value.clone()}
+                                            create_busy={create_busy_value}
+                                            on_create={on_create_torrent.clone()}
+                                            on_reset_create={on_reset_create.clone()}
+                                            on_copy_payload={on_copy_payload.clone()}
                                             search={search.clone()}
                                             on_search={set_search.clone()}
                                             state_filter={state_filter_value.clone()}
@@ -1299,22 +1492,29 @@ pub fn revaer_app() -> Html {
                                             selected_detail={selected_detail_value.clone()}
                                             on_select_detail={on_select_detail.clone()}
                                             on_update_selection={on_update_selection.clone()}
+                                            on_update_options={on_update_options.clone()}
                                         />
                                     </div>
                                 },
                                 Route::TorrentDetail { id } => html! {
                                     <div class="torrents-stack">
-                                        <DashboardPanel snapshot={(*dashboard).clone()} system_rates={system_rates_value} mode={*mode} density={*density} torrents={torrents_rows.clone()} />
+                                        <DashboardPanel snapshot={(*dashboard).clone()} system_rates={system_rates_value} mode={mode_value} density={density_value} torrents={torrents_rows.clone()} />
                                         <TorrentView
                                             breakpoint={*breakpoint}
                                             visible_ids={visible_ids.clone()}
-                                            density={*density}
-                                            mode={*mode}
+                                            density={density_value}
+                                            mode={mode_value}
                                             on_density_change={set_density.clone()}
                                             on_bulk_action={on_bulk_action.clone()}
                                             on_action={on_action.clone()}
                                             on_add={on_add_torrent.clone()}
                                             add_busy={add_busy_value}
+                                            create_result={create_result_value.clone()}
+                                            create_error={create_error_value.clone()}
+                                            create_busy={create_busy_value}
+                                            on_create={on_create_torrent.clone()}
+                                            on_reset_create={on_reset_create.clone()}
+                                            on_copy_payload={on_copy_payload.clone()}
                                             search={search.clone()}
                                             on_search={set_search.clone()}
                                             state_filter={state_filter_value.clone()}
@@ -1334,6 +1534,7 @@ pub fn revaer_app() -> Html {
                                             selected_detail={selected_detail_value.clone()}
                                             on_select_detail={on_select_detail.clone()}
                                             on_update_selection={on_update_selection.clone()}
+                                            on_update_options={on_update_options.clone()}
                                         />
                                     </div>
                                 },
@@ -1471,7 +1672,7 @@ async fn fetch_torrent_detail_with_retry(
     toast_id: UseStateHandle<u64>,
     bundle: TranslationBundle,
     id: Uuid,
-) -> Option<crate::models::DetailData> {
+) -> Option<crate::models::TorrentDetail> {
     let id_str = id.to_string();
     match client.fetch_torrent_detail(&id_str).await {
         Ok(detail) => Some(detail),

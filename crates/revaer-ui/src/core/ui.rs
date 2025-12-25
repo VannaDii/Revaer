@@ -31,16 +31,12 @@ impl Density {
 /// Quick description of supported layout panes used across dashboard and torrent detail views.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Pane {
+    /// Overview pane.
+    Overview,
     /// Files pane.
     Files,
-    /// Peers pane.
-    Peers,
-    /// Trackers pane.
-    Trackers,
-    /// Log pane.
-    Log,
-    /// Info pane.
-    Info,
+    /// Options pane.
+    Options,
 }
 
 #[cfg(test)]
@@ -57,9 +53,9 @@ mod tests {
 
     #[test]
     fn pane_variants_are_distinct() {
-        assert_ne!(Pane::Files, Pane::Peers);
-        assert_ne!(Pane::Trackers, Pane::Log);
-        assert_ne!(Pane::Info, Pane::Files);
+        assert_ne!(Pane::Overview, Pane::Files);
+        assert_ne!(Pane::Files, Pane::Options);
+        assert_ne!(Pane::Options, Pane::Overview);
         assert_eq!(UiMode::Simple, UiMode::Simple);
     }
 }
