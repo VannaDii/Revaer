@@ -1,11 +1,9 @@
 use crate::app::api::ApiCtx;
 use crate::app::sse::{SseHandle, connect_sse};
 use crate::components::auth::AuthPrompt;
-use crate::components::dashboard::DashboardPanel;
 use crate::components::detail::FileSelectionChange;
 use crate::components::setup::SetupPrompt;
 use crate::components::shell::AppShell;
-use crate::components::status::SseOverlay;
 use crate::components::toast::ToastHost;
 use crate::components::torrent_modals::CopyKind;
 use crate::components::torrents::{TorrentView, demo_rows};
@@ -16,11 +14,13 @@ use crate::core::logic::{
     SseView, build_sse_query, build_torrent_filter_query, parse_torrent_filter_query,
 };
 use crate::core::store::{
-    AppModeState, AppStore, HealthMetricsSnapshot, HealthSnapshot, SseApplyOutcome, SystemRates,
-    TorrentHealthSnapshot, apply_sse_envelope, select_sse_status, select_system_rates,
+    AppModeState, AppStore, HealthMetricsSnapshot, HealthSnapshot, SseApplyOutcome,
+    SseConnectionState, SseError, SseStatus, SystemRates, TorrentHealthSnapshot,
+    apply_sse_envelope, select_system_rates,
 };
 use crate::core::theme::ThemeMode;
 use crate::core::ui::{Density, UiMode};
+use crate::features::dashboard::DashboardPage;
 use crate::features::health::view::HealthPage;
 use crate::features::labels::state::LabelKind;
 use crate::features::labels::view::LabelsPage;
@@ -28,15 +28,14 @@ use crate::features::settings::view::SettingsPage;
 use crate::features::torrents::actions::{TorrentAction, success_message};
 use crate::features::torrents::state::{
     ProgressPatch, SelectionSet, TorrentRow, TorrentsPaging, TorrentsQueryModel, append_rows,
-    apply_progress_patch, remove_row, select_selected_detail, select_visible_ids,
-    select_visible_rows, set_rows, set_selected, set_selected_id, update_detail_file_priority,
-    update_detail_file_selection, update_detail_options, update_detail_skip_fluff, upsert_detail,
+    apply_progress_patch, remove_row, select_selected_detail, select_visible_ids, set_rows,
+    set_selected, set_selected_id, update_detail_file_priority, update_detail_file_selection,
+    update_detail_options, update_detail_skip_fluff, upsert_detail,
 };
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode, TranslationBundle};
 use crate::models::{
-    AddTorrentInput, FilePriorityOverride, NavLabels, SseState, Toast, ToastKind,
-    TorrentAuthorRequest, TorrentOptionsRequest, TorrentSelectionRequest, demo_detail,
-    demo_snapshot,
+    AddTorrentInput, FilePriorityOverride, NavLabels, Toast, ToastKind, TorrentAuthorRequest,
+    TorrentOptionsRequest, TorrentSelectionRequest, demo_detail, demo_snapshot,
 };
 use crate::services::sse::SseDecodeError;
 use gloo::events::EventListener;
@@ -44,6 +43,7 @@ use gloo::storage::{LocalStorage, Storage};
 use gloo::utils::window;
 use gloo_timers::callback::{Interval, Timeout};
 use gloo_timers::future::TimeoutFuture;
+use js_sys::Date;
 use preferences::{
     DENSITY_KEY, LOCALE_KEY, MODE_KEY, THEME_KEY, allow_anonymous, api_base_url, load_auth_mode,
     load_auth_state, load_bypass_local, load_density, load_locale, load_mode, load_theme,
@@ -54,7 +54,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use uuid::Uuid;
-use wasm_bindgen::{JsCast, JsValue};
+use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
 use yew::prelude::*;
 use yew_router::prelude::*;
@@ -89,6 +89,7 @@ pub fn revaer_app() -> Html {
     let nav_labels = {
         let bundle = (*bundle).clone();
         NavLabels {
+            dashboard: bundle.text("nav.dashboard", "Dashboard"),
             torrents: bundle.text("nav.torrents", "Torrents"),
             categories: bundle.text("nav.categories", "Categories"),
             tags: bundle.text("nav.tags", "Tags"),
@@ -109,7 +110,6 @@ pub fn revaer_app() -> Html {
     let toasts = use_selector(|store: &AppStore| store.ui.toasts.clone());
     let add_busy = use_selector(|store: &AppStore| store.ui.busy.add_torrent);
     let create_busy = use_selector(|store: &AppStore| store.ui.busy.create_torrent);
-    let torrents_rows = use_selector(|store: &AppStore| select_visible_rows(&store.torrents));
     let visible_ids = use_selector(|store: &AppStore| select_visible_ids(&store.torrents));
     let selected_id = use_selector(|store: &AppStore| store.torrents.selected_id);
     let selected_ids = use_selector(|store: &AppStore| store.torrents.selected.clone());
@@ -130,7 +130,6 @@ pub fn revaer_app() -> Html {
     let paging_state = use_selector(|store: &AppStore| store.torrents.paging.clone());
     let paging_limit = use_selector(|store: &AppStore| store.torrents.paging.limit);
     let system_rates = use_selector(select_system_rates);
-    let sse_state = use_selector(select_sse_status);
 
     let auth_mode = *auth_mode;
     let auth_state_value = (*auth_state).clone();
@@ -146,7 +145,6 @@ pub fn revaer_app() -> Html {
     let toasts_value = (*toasts).clone();
     let add_busy_value = *add_busy;
     let create_busy_value = *create_busy;
-    let torrents_rows = (*torrents_rows).clone();
     let visible_ids = (*visible_ids).clone();
     let selected_id_value = *selected_id;
     let selected_ids_value = (*selected_ids).clone();
@@ -164,7 +162,6 @@ pub fn revaer_app() -> Html {
     let can_load_more = paging_state_value.next_cursor.is_some();
     let paging_is_loading = paging_state_value.is_loading;
     let system_rates_value = *system_rates;
-    let sse_state_value = (*sse_state).clone();
 
     let location = use_location();
     let current_route = use_route::<Route>().unwrap_or(Route::Torrents);
@@ -736,11 +733,12 @@ pub fn revaer_app() -> Html {
                 }
                 let auth_state_value = (**auth_state_value).clone();
                 if let Some(auth_state_value) = auth_state_value {
+                    let auth_mode = auth_mode_label(&Some(auth_state_value.clone()));
                     let on_state = {
                         let dispatch = dispatch.clone();
-                        Callback::from(move |state: SseState| {
+                        Callback::from(move |state: SseStatus| {
                             dispatch.reduce_mut(|store| {
-                                store.system.sse_state = state;
+                                store.system.sse_status = state;
                             });
                         })
                     };
@@ -772,19 +770,31 @@ pub fn revaer_app() -> Html {
                         *sse_handle.borrow_mut() = Some(handle);
                     } else {
                         dispatch.reduce_mut(|store| {
-                            store.system.sse_state = SseState::Reconnecting {
-                                retry_in_secs: 5,
-                                last_event: "connect".to_string(),
-                                reason: "SSE unavailable".to_string(),
+                            store.system.sse_status = SseStatus {
+                                state: SseConnectionState::Disconnected,
+                                backoff_ms: None,
+                                next_retry_at_ms: None,
+                                last_event_id: store.system.sse_status.last_event_id,
+                                last_error: Some(SseError {
+                                    message: "SSE unavailable".to_string(),
+                                    status_code: None,
+                                }),
+                                auth_mode: auth_mode.clone(),
                             };
                         });
                     }
                 } else {
                     dispatch.reduce_mut(|store| {
-                        store.system.sse_state = SseState::Reconnecting {
-                            retry_in_secs: 5,
-                            last_event: "auth".to_string(),
-                            reason: "awaiting authentication".to_string(),
+                        store.system.sse_status = SseStatus {
+                            state: SseConnectionState::Disconnected,
+                            backoff_ms: None,
+                            next_retry_at_ms: None,
+                            last_event_id: store.system.sse_status.last_event_id,
+                            last_error: Some(SseError {
+                                message: "awaiting authentication".to_string(),
+                                status_code: None,
+                            }),
+                            auth_mode: None,
                         };
                     });
                 }
@@ -873,14 +883,6 @@ pub fn revaer_app() -> Html {
         })
     };
 
-    let set_mode = {
-        let dispatch = dispatch.clone();
-        Callback::from(move |next: UiMode| {
-            dispatch.reduce_mut(|store| {
-                store.ui.mode = next;
-            });
-        })
-    };
     let set_density = {
         let dispatch = dispatch.clone();
         Callback::from(move |next: Density| {
@@ -1010,10 +1012,16 @@ pub fn revaer_app() -> Html {
         let dispatch = dispatch.clone();
         Callback::from(move |_| {
             dispatch.reduce_mut(|store| {
-                store.system.sse_state = SseState::Reconnecting {
-                    retry_in_secs: 3,
-                    last_event: "manual".to_string(),
-                    reason: "manual reconnect".to_string(),
+                store.system.sse_status = SseStatus {
+                    state: SseConnectionState::Reconnecting,
+                    backoff_ms: Some(0),
+                    next_retry_at_ms: Some(Date::now() as u64),
+                    last_event_id: store.system.sse_status.last_event_id,
+                    last_error: Some(SseError {
+                        message: "manual reconnect".to_string(),
+                        status_code: None,
+                    }),
+                    auth_mode: auth_mode_label(&store.auth.state),
                 };
             });
             sse_reset.set(*sse_reset + 1);
@@ -1413,31 +1421,52 @@ pub fn revaer_app() -> Html {
     let locale_selector = {
         let locale = *locale;
         let dispatch = dispatch.clone();
+        let active_flag = locale_flag(locale);
+        let active_flag_src = format!("https://flagcdn.com/{active_flag}.svg");
         html! {
-            <select value={locale.code().to_string()} onchange={Callback::from(move |e: Event| {
-                let Some(target) = e
-                    .target()
-                    .and_then(|node| node.dyn_into::<web_sys::HtmlSelectElement>().ok())
-                else {
-                    return;
-                };
-                let code = target.value();
-                if let Some(next) = LocaleCode::from_lang_tag(&code) {
-                    dispatch.reduce_mut(|store| {
-                        store.ui.locale = next;
-                    });
-                }
-            })}>
-                {for LocaleCode::all().iter().map(|lc| html! {
-                    <option value={lc.code()} selected={*lc == locale}>{lc.label()}</option>
-                })}
-            </select>
+            <div class="dropdown dropdown-bottom dropdown-center">
+                <div tabindex="0" class="btn btn-ghost btn-circle btn-sm cursor-pointer">
+                    <img
+                        src={active_flag_src}
+                        alt="Locale"
+                        class="rounded-box size-4.5 object-cover" />
+                </div>
+                <div tabindex="0" class="dropdown-content bg-base-100 rounded-box mt-2 w-40 shadow">
+                    <ul class="menu w-full p-2">
+                        {for LocaleCode::all().iter().map(|lc| {
+                            let flag = locale_flag(*lc);
+                            let flag_src = format!("https://flagcdn.com/{flag}.svg");
+                            let label = lc.label();
+                            let next = *lc;
+                                let onclick = {
+                                    let dispatch = dispatch.clone();
+                                    Callback::from(move |event: MouseEvent| {
+                                        event.prevent_default();
+                                        dispatch.reduce_mut(|store| {
+                                            store.ui.locale = next;
+                                        });
+                                    })
+                                };
+                            html! {
+                                <li>
+                                    <a class="flex items-center gap-2" href="#" onclick={onclick}>
+                                        <img
+                                            src={flag_src}
+                                            alt="Locale"
+                                            class="rounded-box size-4.5 cursor-pointer object-cover" />
+                                        <span>{label}</span>
+                                    </a>
+                                </li>
+                            }
+                        })}
+                    </ul>
+                </div>
+            </div>
         }
     };
 
     let bundle_ctx = bundle.clone();
     let bundle_routes = bundle.clone();
-    let bundle_sse = bundle.clone();
 
     html! {
         <ContextProvider<ApiCtx> context={(*api_ctx).clone()}>
@@ -1446,23 +1475,21 @@ pub fn revaer_app() -> Html {
                     <AppShell
                         theme={theme_value}
                         on_toggle_theme={toggle_theme}
-                        mode={mode_value}
-                        on_mode_change={set_mode}
                         active={current_route}
                         locale_selector={locale_selector}
                         nav={nav_labels}
-                        breakpoint={*breakpoint}
-                        sse_state={sse_state_value.clone()}
-                        on_sse_retry={trigger_sse_reconnect.clone()}
-                        network_mode={bundle_ctx.text("shell.network_connected", "")}
                     >
                         <Switch<Route> render={move |route| {
                             let bundle = (*bundle_routes).clone();
                             match route {
-                                Route::Home => html! { <Redirect<Route> to={Route::Torrents} /> },
+                                Route::Dashboard => html! {
+                                    <DashboardPage
+                                        snapshot={(*dashboard).clone()}
+                                        system_rates={system_rates_value}
+                                    />
+                                },
                                 Route::Torrents => html! {
                                     <div class="torrents-stack">
-                                        <DashboardPanel snapshot={(*dashboard).clone()} system_rates={system_rates_value} mode={mode_value} density={density_value} torrents={torrents_rows.clone()} />
                                         <TorrentView
                                             breakpoint={*breakpoint}
                                             visible_ids={visible_ids.clone()}
@@ -1500,12 +1527,12 @@ pub fn revaer_app() -> Html {
                                             on_select_detail={on_select_detail.clone()}
                                             on_update_selection={on_update_selection.clone()}
                                             on_update_options={on_update_options.clone()}
+                                            on_sse_retry={trigger_sse_reconnect.clone()}
                                         />
                                     </div>
                                 },
                                 Route::TorrentDetail { id } => html! {
                                     <div class="torrents-stack">
-                                        <DashboardPanel snapshot={(*dashboard).clone()} system_rates={system_rates_value} mode={mode_value} density={density_value} torrents={torrents_rows.clone()} />
                                         <TorrentView
                                             breakpoint={*breakpoint}
                                             visible_ids={visible_ids.clone()}
@@ -1543,6 +1570,7 @@ pub fn revaer_app() -> Html {
                                             on_select_detail={on_select_detail.clone()}
                                             on_update_selection={on_update_selection.clone()}
                                             on_update_options={on_update_options.clone()}
+                                            on_sse_retry={trigger_sse_reconnect.clone()}
                                         />
                                     </div>
                                 },
@@ -1555,7 +1583,6 @@ pub fn revaer_app() -> Html {
                         }} />
                     </AppShell>
                     <ToastHost toasts={toasts_value.clone()} on_dismiss={dismiss_toast.clone()} />
-                    <SseOverlay state={sse_state_value.clone()} on_retry={trigger_sse_reconnect} network_mode={bundle_sse.text("shell.network_remote", "")} />
                     {if app_mode_value == AppModeState::Setup {
                         html! {
                             <SetupPrompt
@@ -1936,6 +1963,15 @@ fn retry_delay_ms(delay_secs: u64) -> u32 {
     }
 }
 
+fn auth_mode_label(auth: &Option<AuthState>) -> Option<String> {
+    match auth {
+        Some(AuthState::ApiKey(_)) => Some("API key".to_string()),
+        Some(AuthState::Local(_)) => Some("Local auth".to_string()),
+        Some(AuthState::Anonymous) => Some("Anonymous".to_string()),
+        None => None,
+    }
+}
+
 fn push_toast(
     dispatch: &Dispatch<AppStore>,
     next_id: &UseStateHandle<u64>,
@@ -1972,17 +2008,42 @@ fn apply_breakpoint(bp: Breakpoint) {
 
 fn apply_theme(theme: ThemeMode) {
     if let Some(document) = window().document() {
-        if let Some(body) = document.body() {
-            let _ = body.set_attribute("data-theme", theme.as_str());
+        if let Some(root) = document.document_element() {
+            let _ = root.set_attribute("data-theme", theme.as_str());
         }
     }
 }
 
 fn apply_direction(is_rtl: bool) {
     if let Some(document) = window().document() {
-        if let Some(body) = document.body() {
-            let _ = body.set_attribute("dir", if is_rtl { "rtl" } else { "ltr" });
+        if let Some(root) = document.document_element() {
+            let _ = root.set_attribute("dir", if is_rtl { "rtl" } else { "ltr" });
         }
+    }
+}
+
+fn locale_flag(locale: LocaleCode) -> &'static str {
+    match locale {
+        LocaleCode::Ar => "sa",
+        LocaleCode::De => "de",
+        LocaleCode::Es => "es",
+        LocaleCode::Hi => "in",
+        LocaleCode::It => "it",
+        LocaleCode::Jv => "id",
+        LocaleCode::Mr => "in",
+        LocaleCode::Pt => "pt",
+        LocaleCode::Ta => "in",
+        LocaleCode::Tr => "tr",
+        LocaleCode::Bn => "bd",
+        LocaleCode::En => "us",
+        LocaleCode::Fr => "fr",
+        LocaleCode::Id => "id",
+        LocaleCode::Ja => "jp",
+        LocaleCode::Ko => "kr",
+        LocaleCode::Pa => "in",
+        LocaleCode::Ru => "ru",
+        LocaleCode::Te => "in",
+        LocaleCode::Zh => "cn",
     }
 }
 

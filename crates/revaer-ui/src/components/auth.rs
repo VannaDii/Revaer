@@ -92,7 +92,7 @@ pub(crate) fn auth_prompt(props: &AuthPromptProps) -> Html {
                 <p class="muted">
                     {t("auth.body")}
                 </p>
-                <div class="tabs">
+                <div class="auth-tabs">
                     <button class={classes!("ghost", if *mode == AuthMode::ApiKey { "active" } else { "" })} onclick={{
                         let mode = mode.clone();
                         Callback::from(move |_| mode.set(AuthMode::ApiKey))

@@ -127,6 +127,8 @@ pub struct Toast {
 /// Navigation labels supplied by the router shell.
 #[derive(Clone, PartialEq, Eq)]
 pub struct NavLabels {
+    /// Dashboard nav label.
+    pub dashboard: String,
     /// Torrents nav label.
     pub torrents: String,
     /// Categories nav label.
@@ -137,22 +139,6 @@ pub struct NavLabels {
     pub settings: String,
     /// Health nav label.
     pub health: String,
-}
-
-/// SSE connection state shared across shell/status components.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum SseState {
-    /// SSE connection is live.
-    Connected,
-    /// SSE connection is retrying.
-    Reconnecting {
-        /// Seconds until the next retry attempt.
-        retry_in_secs: u8,
-        /// Identifier for the last event seen.
-        last_event: String,
-        /// Human-readable reason for reconnect.
-        reason: String,
-    },
 }
 
 /// Dialog confirmation kinds for torrent actions.

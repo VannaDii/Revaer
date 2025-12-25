@@ -1,14 +1,8 @@
-use crate::UiMode;
 use crate::app::Route;
-use crate::breakpoints::Breakpoint;
-use crate::components::atoms::IconButton;
-use crate::components::atoms::icons::{
-    CategoriesIcon, HealthIcon, NotFoundIcon, RevaerLogoIcon, SettingsIcon, TagsIcon, TorrentsIcon,
-};
-use crate::components::status::SseBadge;
-use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
-use crate::models::{NavLabels, SseState};
-use crate::theme::ThemeMode;
+use crate::core::theme::ThemeMode;
+use crate::models::NavLabels;
+use wasm_bindgen::JsCast;
+use web_sys::{HtmlDialogElement, HtmlElement};
 use yew::prelude::*;
 use yew_router::prelude::Link;
 
@@ -17,174 +11,1120 @@ pub(crate) struct ShellProps {
     pub children: Children,
     pub theme: ThemeMode,
     pub on_toggle_theme: Callback<()>,
-    pub mode: UiMode,
-    pub on_mode_change: Callback<UiMode>,
     pub active: Route,
     pub locale_selector: Html,
     pub nav: NavLabels,
-    pub breakpoint: Breakpoint,
-    pub sse_state: SseState,
-    pub on_sse_retry: Callback<()>,
-    pub network_mode: String,
     #[prop_or_default]
     pub class: Classes,
 }
 
 #[function_component(AppShell)]
 pub(crate) fn app_shell(props: &ShellProps) -> Html {
-    let bundle = use_context::<TranslationBundle>()
-        .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let t = |key: &str| bundle.text(key, "");
-    let nav_open = use_state(|| false);
-    let toggle_nav = {
-        let nav_open = nav_open.clone();
-        Callback::from(move |_| nav_open.set(!*nav_open))
-    };
-    let close_nav = {
-        let nav_open = nav_open.clone();
-        Callback::from(move |_| nav_open.set(false))
+    let dashboard_active = matches!(props.active, Route::Dashboard);
+    let torrents_active = matches!(props.active, Route::Torrents | Route::TorrentDetail { .. });
+    let categories_active = matches!(props.active, Route::Categories);
+    let tags_active = matches!(props.active, Route::Tags);
+    let settings_active = matches!(props.active, Route::Settings);
+    let health_active = matches!(props.active, Route::Health);
+
+    let dashboard_open = dashboard_active || torrents_active || health_active;
+
+    let search_dialog_ref = use_node_ref();
+    let open_search = {
+        let search_dialog_ref = search_dialog_ref.clone();
+        Callback::from(move |_| {
+            if let Some(dialog) = search_dialog_ref.cast::<HtmlDialogElement>() {
+                let _ = dialog.show_modal();
+            }
+        })
     };
 
-    let theme_label = match props.theme {
-        ThemeMode::Light => t("shell.theme.light"),
-        ThemeMode::Dark => t("shell.theme.dark"),
-    };
-    let current_label = match props.active {
-        Route::Home | Route::Torrents | Route::TorrentDetail { .. } => props.nav.torrents.clone(),
-        Route::Categories => props.nav.categories.clone(),
-        Route::Tags => props.nav.tags.clone(),
-        Route::Settings => props.nav.settings.clone(),
-        Route::Health => props.nav.health.clone(),
-        Route::NotFound => "Not found".into(),
-    };
-    let nav_active = match props.active {
-        Route::Home | Route::TorrentDetail { .. } => Route::Torrents,
-        _ => props.active.clone(),
-    };
+    let blur_active = Callback::from(|_| {
+        if let Some(window) = web_sys::window() {
+            if let Some(document) = window.document() {
+                if let Some(active) = document.active_element() {
+                    if let Ok(active) = active.dyn_into::<HtmlElement>() {
+                        let _ = active.blur();
+                    }
+                }
+            }
+        }
+    });
 
     html! {
-        <div
-            class={classes!(
-                "app-shell",
-                "reaver-shell",
-                format!("theme-{}", props.theme.as_str()),
-                props.class.clone()
-            )}
-        >
-            <aside class={classes!("sidebar", if *nav_open { "open" } else { "closed" })}>
-                <div class="brand">
-                    <button class="ghost mobile-only" onclick={toggle_nav.clone()} aria-label={t("shell.close_nav")}>{"✕"}</button>
-                    <div class="logo-mark">{reaver_mark()}</div>
-                    <div class="brand-copy">
-                        <strong>{t("shell.brand")}</strong>
-                        <span class="muted">{t("shell.phase")}</span>
+        <div class={classes!("size-full", props.class.clone())}>
+            <div class="flex">
+                <input
+                    type="checkbox"
+                    id="layout-sidebar-toggle-trigger"
+                    class="hidden"
+                    aria-label="Toggle layout sidebar" />
+                <input
+                    type="checkbox"
+                    id="layout-sidebar-hover-trigger"
+                    class="hidden"
+                    aria-label="Dense layout sidebar" />
+                <div id="layout-sidebar-hover" class="bg-base-300 h-screen w-1"></div>
+
+                <div id="layout-sidebar" class="sidebar-menu sidebar-menu-activation">
+                    <div class="flex min-h-16 items-center justify-between gap-3 ps-5 pe-4">
+                        <Link<Route> to={Route::Dashboard}>
+                            <img
+                                alt="logo-dark"
+                                class="hidden h-5.5 dark:inline"
+                                src="/static/revaer-logo.png" />
+                            <img
+                                alt="logo-light"
+                                class="h-5.5 dark:hidden"
+                                src="/static/revaer-logo.png" />
+                        </Link<Route>>
+                        <label
+                            for="layout-sidebar-hover-trigger"
+                            title="Toggle sidebar hover"
+                            class="btn btn-circle btn-ghost btn-sm text-base-content/50 relative max-lg:hidden">
+                            <span
+                                class="iconify lucide--panel-left-close absolute size-4.5 opacity-100 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-0"></span>
+                            <span
+                                class="iconify lucide--panel-left-dashed absolute size-4.5 opacity-0 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-100"></span>
+                        </label>
                     </div>
-                </div>
-                <ul class="menu nav-list">
-                    {nav_item(Route::Torrents, &props.nav.torrents, nav_active.clone(), close_nav.clone())}
-                    {nav_item(Route::Categories, &props.nav.categories, nav_active.clone(), close_nav.clone())}
-                    {nav_item(Route::Tags, &props.nav.tags, nav_active.clone(), close_nav.clone())}
-                    {nav_item(Route::Settings, &props.nav.settings, nav_active.clone(), close_nav.clone())}
-                    {nav_item(Route::Health, &props.nav.health, nav_active, close_nav)}
-                </ul>
-                <div class="sidebar-footer">
-                    <div class="sidebar-group">
-                        <small>{t("shell.mode")}</small>
-                        <div class="chip-group">
-                            <button class={classes!("chip", if props.mode == UiMode::Simple { "active" } else { "ghost" })} onclick={{
-                                let cb = props.on_mode_change.clone();
-                                Callback::from(move |_| cb.emit(UiMode::Simple))
-                            }}>{t("mode.simple")}</button>
-                            <button class={classes!("chip", if props.mode == UiMode::Advanced { "active" } else { "ghost" })} onclick={{
-                                let cb = props.on_mode_change.clone();
-                                Callback::from(move |_| cb.emit(UiMode::Advanced))
-                            }}>{t("mode.advanced")}</button>
+                    <div class="relative min-h-0 grow">
+                        <div data-simplebar="" class="size-full">
+                            <div class="mb-3 space-y-0.5 px-2.5">
+                                <p class="menu-label px-2.5 pt-3 pb-1.5 first:pt-0">{"Overview"}</p>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item"
+                                        checked={dashboard_open} />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--monitor-dot size-4"></span>
+                                        <span class="grow">{"Dashboard"}</span>
+                                        <span class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <Link<Route>
+                                                to={Route::Dashboard}
+                                                classes={menu_item_class(dashboard_active)}>
+                                                <span class="grow">{props.nav.dashboard.clone()}</span>
+                                            </Link<Route>>
+                                            <Link<Route>
+                                                to={Route::Torrents}
+                                                classes={menu_item_class(torrents_active)}>
+                                                <span class="grow">{props.nav.torrents.clone()}</span>
+                                            </Link<Route>>
+                                            <Link<Route>
+                                                to={Route::Health}
+                                                classes={menu_item_class(health_active)}>
+                                                <span class="grow">{props.nav.health.clone()}</span>
+                                            </Link<Route>>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--bot-message-square size-4"></span>
+                                        <span class="grow">{"Agentic Hub"}</span>
+                                        <span class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a class="menu-item false" href="#">
+                                                <span class="grow">{"Storage"}</span>
+                                                <div class="ms-auto inline-flex gap-2">
+                                                    <div
+                                                        class="border-primary/20 bg-primary/10 text-primary rounded-box border px-1.5 text-[12px]">
+                                                        {"New"}
+                                                    </div>
+                                                </div>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <p class="menu-label px-2.5 pt-3 pb-1.5 first:pt-0">{"Apps"}</p>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--store size-4"></span>
+                                        <span class="grow">{"Ecommerce"}</span>
+                                        <span class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <Link<Route>
+                                                to={Route::Categories}
+                                                classes={menu_item_class(categories_active)}>
+                                                <span class="grow">{props.nav.categories.clone()}</span>
+                                            </Link<Route>>
+                                            <Link<Route>
+                                                to={Route::Tags}
+                                                classes={menu_item_class(tags_active)}>
+                                                <span class="grow">{props.nav.tags.clone()}</span>
+                                            </Link<Route>>
+                                            <a class="menu-item false" href="#">
+                                                <span class="grow">{"Sellers"}</span>
+                                            </a>
+                                            <a class="menu-item false" href="#">
+                                                <span class="grow">{"Customers"}</span>
+                                            </a>
+                                            <a class="menu-item false" href="#">
+                                                <span class="grow">{"Shops"}</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--brain-circuit size-4"></span>
+                                        <span class="grow">{"Gen AI"}</span>
+                                        <span class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a class="menu-item false" href="#">
+                                                <span class="grow">{"Home"}</span>
+                                            </a>
+                                            <a class="menu-item false" href="#">
+                                                <span class="grow">{"Content"}</span>
+                                            </a>
+                                            <a class="menu-item false" href="#">
+                                                <span class="grow">{"Image"}</span>
+                                            </a>
+                                            <a class="menu-item false" href="#">
+                                                <span class="grow">{"Library"}</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <a class="menu-item false" href="#">
+                                    <span class="iconify lucide--server size-4"></span>
+                                    <span class="grow">{"File Manager"}</span>
+                                </a>
+                                <a class="menu-item" href="#">
+                                    <span class="iconify lucide--messages-square size-4"></span>
+                                    <span class="grow">{"Chat"}</span>
+                                </a>
+                                <p class="menu-label px-2.5 pt-3 pb-1.5 first:pt-0">{"Extras"}</p>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--shield-check size-4"></span>
+                                        <span class="grow">{"Auth"}</span>
+                                        <span class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <a class="menu-item false" href="#">
+                                                <span class="grow">{"Login"}</span>
+                                            </a>
+                                            <a class="menu-item false" href="#">
+                                                <span class="grow">{"Register"}</span>
+                                            </a>
+                                            <a class="menu-item false" href="#">
+                                                <span class="grow">{"Forgot Password"}</span>
+                                            </a>
+                                            <a class="menu-item false" href="#">
+                                                <span class="grow">{"Reset Password"}</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="group collapse">
+                                    <input
+                                        aria-label="Sidemenu item trigger"
+                                        type="checkbox"
+                                        class="peer"
+                                        name="sidebar-menu-parent-item" />
+                                    <div class="collapse-title px-2.5 py-1.5">
+                                        <span class="iconify lucide--files size-4"></span>
+                                        <span class="grow">{"Pages"}</span>
+                                        <span class="iconify lucide--chevron-right arrow-icon size-3.5"></span>
+                                    </div>
+                                    <div class="collapse-content ms-6.5 !p-0">
+                                        <div class="mt-0.5 space-y-0.5">
+                                            <Link<Route>
+                                                to={Route::Settings}
+                                                classes={menu_item_class(settings_active)}>
+                                                <span class="grow">{props.nav.settings.clone()}</span>
+                                            </Link<Route>>
+                                            <a class="menu-item false" href="#">
+                                                <span class="grow">{"Get Help"}</span>
+                                            </a>
+                                        </div>
+                                    </div>
+                                </div>
+                                <a class="menu-item false" target="_blank" href="#">
+                                    <span class="iconify lucide--file size-4"></span>
+                                    <span class="grow">{"Landing"}</span>
+                                </a>
+                                <a class="menu-item false" target="_blank" href="#">
+                                    <span class="iconify lucide--blocks size-4"></span>
+                                    <span class="grow">{"Layout Builder"}</span>
+                                    <div class="ms-auto inline-flex gap-2">
+                                        <div
+                                            class="border-primary/20 bg-primary/10 text-primary rounded-box border px-1.5 text-[12px]">
+                                            {"New"}
+                                        </div>
+                                    </div>
+                                </a>
+                            </div>
+                        </div>
+                        <div
+                            class="from-base-100/60 pointer-events-none absolute start-0 end-0 bottom-0 h-7 bg-linear-to-t to-transparent"></div>
+                    </div>
+                    <div class="mb-2">
+                        <a
+                            target="_blank"
+                            class="group rounded-box relative mx-2.5 block gap-3"
+                            href="#">
+                            <div
+                                class="rounded-box absolute inset-0 bg-gradient-to-r from-transparent to-transparent transition-opacity duration-300 group-hover:opacity-0"></div>
+                            <div
+                                class="from-primary to-secondary rounded-box absolute inset-0 bg-gradient-to-r opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+                            <div class="relative flex h-10 items-center gap-3 px-3">
+                                <i
+                                    class="iconify lucide--shapes text-primary size-4.5 transition-all duration-300 group-hover:text-white"></i>
+                                <p
+                                    class="from-primary to-secondary bg-gradient-to-r bg-clip-text font-medium text-transparent transition-all duration-300 group-hover:text-white">
+                                    {"Components"}
+                                </p>
+                                <i
+                                    class="iconify lucide--chevron-right text-secondary ms-auto size-4.5 transition-all duration-300 group-hover:text-white"></i>
+                            </div>
+                        </a>
+                        <hr class="border-base-300 my-2 border-dashed" />
+                        <div class="dropdown dropdown-top dropdown-end w-full">
+                            <div
+                                tabindex="0"
+                                role="button"
+                                class="bg-base-200 hover:bg-base-300 rounded-box mx-2 mt-0 flex cursor-pointer items-center gap-2.5 px-3 py-2 transition-all">
+                                <div class="avatar">
+                                    <div class="bg-base-200 mask mask-squircle w-8">
+                                        <img src="/static/nexus/images/avatars/1.png" alt="Avatar" />
+                                    </div>
+                                </div>
+                                <div class="grow -space-y-0.5">
+                                    <p class="text-sm font-medium">{"Denish N"}</p>
+                                    <p class="text-base-content/60 text-xs">{"@withden"}</p>
+                                </div>
+                                <span class="iconify lucide--chevrons-up-down text-base-content/60 size-4"></span>
+                            </div>
+                            <ul
+                                role="menu"
+                                tabindex="0"
+                                class="dropdown-content menu bg-base-100 rounded-box shadow-base-content/4 mb-1 w-48 p-1 shadow-[0px_-10px_40px_0px]">
+                                <li>
+                                    <a href="#">
+                                        <span class="iconify lucide--user size-4"></span>
+                                        <span>{"My Profile"}</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="#">
+                                        <span class="iconify lucide--settings size-4"></span>
+                                        <span>{"Settings"}</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <a href="#">
+                                        <span class="iconify lucide--help-circle size-4"></span>
+                                        <span>{"Help"}</span>
+                                    </a>
+                                </li>
+                                <li>
+                                    <div>
+                                        <span class="iconify lucide--bell size-4"></span>
+                                        <span>{"Notification"}</span>
+                                    </div>
+                                </li>
+                                <li>
+                                    <div>
+                                        <span class="iconify lucide--arrow-left-right size-4"></span>
+                                        <span>{"Switch Account"}</span>
+                                    </div>
+                                </li>
+                            </ul>
                         </div>
                     </div>
-                    <div class="sidebar-group">
-                        <small>{t("shell.theme.label")}</small>
-                        <button class="chip ghost" onclick={{
-                            let cb = props.on_toggle_theme.clone();
-                            Callback::from(move |_| cb.emit(()))
-                        }}>{theme_label}</button>
+                </div>
+
+                <label for="layout-sidebar-toggle-trigger" id="layout-sidebar-backdrop"></label>
+
+                <div class="flex h-screen min-w-0 grow flex-col overflow-auto">
+                    <div
+                        role="navigation"
+                        aria-label="Navbar"
+                        class="flex items-center justify-between px-3"
+                        id="layout-topbar">
+                        <div class="inline-flex items-center gap-3">
+                            <label
+                                class="btn btn-square btn-ghost btn-sm group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:hidden"
+                                aria-label="Leftmenu toggle"
+                                for="layout-sidebar-toggle-trigger">
+                                <span class="iconify lucide--menu size-5"></span>
+                            </label>
+                            <label
+                                class="btn btn-square btn-ghost btn-sm hidden group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:flex"
+                                aria-label="Leftmenu toggle"
+                                for="layout-sidebar-hover-trigger">
+                                <span class="iconify lucide--menu size-5"></span>
+                            </label>
+                            <button
+                                class="btn btn-outline btn-sm btn-ghost border-base-300 text-base-content/70 hidden h-9 w-48 justify-start gap-2 !text-sm md:flex"
+                                onclick={open_search.clone()}>
+                                <span class="iconify lucide--search size-4"></span>
+                                <span>{"Search"}</span>
+                            </button>
+                            <button
+                                class="btn btn-outline btn-sm btn-square btn-ghost border-base-300 text-base-content/70 flex size-9 md:hidden"
+                                aria-label="Search"
+                                onclick={open_search.clone()}>
+                                <span class="iconify lucide--search size-4"></span>
+                            </button>
+                            <dialog id="topbar-search-modal" class="modal p-0" ref={search_dialog_ref}>
+                                <div class="modal-box bg-transparent p-0 shadow-none">
+                                    <div class="bg-base-100 rounded-box">
+                                        <div class="input w-full border-0 !outline-none">
+                                            <span class="iconify lucide--search text-base-content/60 size-4.5"></span>
+                                            <input
+                                                type="search"
+                                                class="grow"
+                                                placeholder="Search"
+                                                aria-label="Search" />
+                                            <form method="dialog">
+                                                <button class="btn btn-xs btn-circle btn-ghost" aria-label="Close">
+                                                    <span class="iconify lucide--x text-base-content/80 size-4"></span>
+                                                </button>
+                                            </form>
+                                        </div>
+                                        <div class="border-base-300 flex items-center gap-3 border-t px-2 py-2">
+                                            <div class="flex items-center gap-0.5">
+                                                <div
+                                                    class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                    <span class="iconify lucide--arrow-up size-3.5"></span>
+                                                </div>
+                                                <div
+                                                    class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                    <span class="iconify lucide--arrow-down size-3.5"></span>
+                                                </div>
+                                                <p class="text-base-content/80 ms-1 text-sm">{"Navigate"}</p>
+                                            </div>
+                                            <div class="flex items-center gap-0.5 max-sm:hidden">
+                                                <div
+                                                    class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                    <span class="iconify lucide--undo-2 size-3.5"></span>
+                                                </div>
+                                                <p class="text-base-content/80 ms-1 text-sm">{"Return"}</p>
+                                            </div>
+                                            <div class="flex items-center gap-0.5">
+                                                <div
+                                                    class="border-base-300 bg-base-200 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                    <span class="iconify lucide--corner-down-left size-3.5"></span>
+                                                </div>
+                                                <p class="text-base-content/80 ms-1 text-sm">{"Open"}</p>
+                                            </div>
+                                            <div class="ms-auto flex items-center gap-0.5">
+                                                <div
+                                                    class="border-base-300 bg-base-200 flex h-5 items-center justify-center rounded-sm border px-1 text-sm/none shadow-xs">
+                                                    {"esc"}
+                                                </div>
+                                                <p class="text-base-content/80 ms-1 text-sm">{"Close"}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="bg-base-100 rounded-box mt-4">
+                                        <div class="px-5 py-3">
+                                            <p class="text-base-content/80 text-sm font-medium">{"I'm looking for..."}</p>
+                                            <div class="mt-2 flex flex-wrap gap-1.5">
+                                                <div
+                                                    class="border-base-300 hover:bg-base-200 rounded-box cursor-pointer border px-2.5 py-1 text-sm/none">
+                                                    {"Writer"}
+                                                </div>
+                                                <div
+                                                    class="border-base-300 hover:bg-base-200 rounded-box cursor-pointer border px-2.5 py-1 text-sm/none">
+                                                    {"Editor"}
+                                                </div>
+                                                <div
+                                                    class="border-base-300 hover:bg-base-200 rounded-box cursor-pointer border px-2.5 py-1 text-sm/none">
+                                                    {"Explainer"}
+                                                </div>
+                                                <div
+                                                    class="border-base-300 hover:bg-base-200 rounded-box flex cursor-pointer items-center gap-1 border border-dashed px-2.5 py-1 text-sm/none">
+                                                    <span class="iconify lucide--plus size-3.5"></span>
+                                                    {"Action"}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <hr class="border-base-300 h-px border-dashed" />
+
+                                        <ul class="menu w-full pt-1">
+                                            <li class="menu-title">{"Talk to assistant"}</li>
+                                            <li>
+                                                <div class="group">
+                                                    <div
+                                                        class="from-primary to-primary/80 mask mask-squircle text-primary-content flex size-5 items-center justify-center bg-linear-to-b leading-none font-medium">
+                                                        {"R"}
+                                                    </div>
+                                                    <p class="grow text-sm">{"Research Buddy"}</p>
+                                                    <div
+                                                        class="flex translate-x-2 items-center gap-2.5 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100">
+                                                        <span class="iconify lucide--star text-orange-500"></span>
+                                                        <div class="flex items-center gap-0.5">
+                                                            <div
+                                                                class="border-base-300 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                                <span
+                                                                    class="iconify lucide--corner-down-left size-3.5"></span>
+                                                            </div>
+                                                            <p class="ms-1 text-sm opacity-80">{"Select"}</p>
+                                                        </div>
+                                                        <span class="iconify lucide--ellipsis-vertical opacity-80"></span>
+                                                    </div>
+                                                </div>
+                                            </li>
+
+                                            <li>
+                                                <div class="group">
+                                                    <div
+                                                        class="from-secondary to-secondary/80 mask mask-squircle text-secondary-content flex size-5 items-center justify-center bg-linear-to-b leading-none font-medium">
+                                                        {"T"}
+                                                    </div>
+                                                    <p class="grow text-sm">{"Task Planner"}</p>
+                                                    <div
+                                                        class="flex translate-x-2 items-center gap-2.5 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100">
+                                                        <span class="iconify lucide--star text-orange-500"></span>
+                                                        <div class="flex items-center gap-0.5">
+                                                            <div
+                                                                class="border-base-300 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                                <span
+                                                                    class="iconify lucide--corner-down-left size-3.5"></span>
+                                                            </div>
+                                                            <p class="ms-1 text-sm opacity-80">{"Select"}</p>
+                                                        </div>
+                                                        <span class="iconify lucide--ellipsis-vertical opacity-80"></span>
+                                                    </div>
+                                                </div>
+                                            </li>
+                                            <li>
+                                                <div class="group">
+                                                    <div
+                                                        class="from-success to-success/80 mask mask-squircle text-success-content flex size-5 items-center justify-center bg-linear-to-b leading-none font-medium">
+                                                        {"S"}
+                                                    </div>
+                                                    <p class="grow text-sm">{"Sparking Ideas"}</p>
+                                                    <div
+                                                        class="flex translate-x-2 items-center gap-2.5 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100">
+                                                        <span class="iconify lucide--star text-orange-500"></span>
+                                                        <div class="flex items-center gap-0.5">
+                                                            <div
+                                                                class="border-base-300 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                                <span
+                                                                    class="iconify lucide--corner-down-left size-3.5"></span>
+                                                            </div>
+                                                            <p class="ms-1 text-sm opacity-80">{"Select"}</p>
+                                                        </div>
+                                                        <span class="iconify lucide--ellipsis-vertical opacity-80"></span>
+                                                    </div>
+                                                </div>
+                                            </li>
+                                            <li>
+                                                <div class="group">
+                                                    <div
+                                                        class="from-warning to-warning/80 mask mask-squircle text-warning-content flex size-5 items-center justify-center bg-linear-to-b leading-none font-medium">
+                                                        {"D"}
+                                                    </div>
+                                                    <p class="grow text-sm">{"Docs Assistant"}</p>
+                                                    <div
+                                                        class="flex translate-x-2 items-center gap-2.5 opacity-0 transition-all duration-300 group-hover:translate-x-0 group-hover:opacity-100">
+                                                        <span class="iconify lucide--star text-orange-500"></span>
+                                                        <div class="flex items-center gap-0.5">
+                                                            <div
+                                                                class="border-base-300 flex size-5 items-center justify-center rounded-sm border shadow-xs">
+                                                                <span
+                                                                    class="iconify lucide--corner-down-left size-3.5"></span>
+                                                            </div>
+                                                            <p class="ms-1 text-sm opacity-80">{"Select"}</p>
+                                                        </div>
+                                                        <span class="iconify lucide--ellipsis-vertical opacity-80"></span>
+                                                    </div>
+                                                </div>
+                                            </li>
+                                        </ul>
+
+                                        <hr class="border-base-300 h-px border-dashed" />
+
+                                        <ul class="menu w-full pt-1">
+                                            <li class="menu-title flex flex-row items-center justify-between gap-2">
+                                                <span>{"Tasks Manager"}</span>
+                                                <span>{"Progress"}</span>
+                                            </li>
+                                            <li>
+                                                <div>
+                                                    <span class="iconify lucide--notebook size-4"></span>
+                                                    <p class="grow text-sm">{"Creating an essay"}</p>
+                                                    <progress
+                                                        class="progress progress-primary h-1 w-30"
+                                                        value="60"
+                                                        max="100"></progress>
+                                                </div>
+                                            </li>
+                                            <li>
+                                                <div>
+                                                    <span class="iconify lucide--message-circle size-4"></span>
+                                                    <p class="grow text-sm">{"Summarizing chat"}</p>
+                                                    <progress
+                                                        class="progress progress-secondary h-1 w-30"
+                                                        value="80"
+                                                        max="100"></progress>
+                                                </div>
+                                            </li>
+                                            <li>
+                                                <div>
+                                                    <span class="iconify lucide--code size-4"></span>
+                                                    <p class="grow text-sm">{"Fixing syntax"}</p>
+                                                    <progress
+                                                        class="progress progress-accent h-1 w-30"
+                                                        value="35"
+                                                        max="100"></progress>
+                                                </div>
+                                            </li>
+                                            <li>
+                                                <div>
+                                                    <span class="iconify lucide--book-open size-4"></span>
+                                                    <p class="grow text-sm">{"Reading docs"}</p>
+                                                    <progress
+                                                        class="progress progress-info h-1 w-30"
+                                                        value="90"
+                                                        max="100"></progress>
+                                                </div>
+                                            </li>
+                                            <li>
+                                                <div>
+                                                    <span class="iconify lucide--lightbulb size-4"></span>
+                                                    <p class="grow text-sm">{"Generating ideas"}</p>
+                                                    <progress
+                                                        class="progress progress-warning h-1 w-30"
+                                                        value="50"
+                                                        max="100"></progress>
+                                                </div>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                </div>
+                                <form method="dialog" class="modal-backdrop">
+                                    <button>{"close"}</button>
+                                </form>
+                        </dialog>
                     </div>
-                    <div class="sidebar-group">
-                        <small>{t("shell.locale")}</small>
-                        <div class="locale-select">{props.locale_selector.clone()}</div>
+                    <div class="inline-flex items-center gap-0.5">
+                            {props.locale_selector.clone()}
+                            <button
+                                aria-label="Toggle Theme"
+                                class="btn btn-sm btn-circle btn-ghost relative overflow-hidden"
+                                data-theme-control="toggle"
+                                onclick={{
+                                    let cb = props.on_toggle_theme.clone();
+                                    Callback::from(move |_| cb.emit(()))
+                                }}>
+                                <span
+                                    class="iconify lucide--sun absolute size-4.5 -translate-y-4 opacity-0 transition-all duration-300 group-data-[theme=light]/html:translate-y-0 group-data-[theme=light]/html:opacity-100"></span>
+                                <span
+                                    class="iconify lucide--moon absolute size-4.5 translate-y-4 opacity-0 transition-all duration-300 group-data-[theme=dark]/html:translate-y-0 group-data-[theme=dark]/html:opacity-100"></span>
+                                <span
+                                    class="iconify lucide--palette absolute size-4.5 opacity-100 group-data-[theme=dark]/html:opacity-0 group-data-[theme=light]/html:opacity-0"></span>
+                            </button>
+
+                            <label for="layout-rightbar-drawer" class="btn btn-circle btn-ghost btn-sm drawer-button">
+                                <span class="iconify lucide--settings-2 size-4.5"></span>
+                            </label>
+                            <div class="dropdown dropdown-bottom sm:dropdown-end dropdown-center">
+                                <div
+                                    tabindex="0"
+                                    role="button"
+                                    class="btn btn-circle btn-ghost btn-sm relative"
+                                    aria-label="Notifications">
+                                    <span class="iconify lucide--bell motion-preset-seesaw size-4.5"></span>
+                                    <div class="status status-error status-sm absolute end-1 top-1"></div>
+                                </div>
+                                <div
+                                    tabindex="0"
+                                    class="dropdown-content bg-base-100 rounded-box mt-1 w-84 shadow-md duration-1000 hover:shadow-lg">
+                                    <div class="bg-base-200/30 rounded-t-box border-base-200 border-b ps-4 pe-2 pt-3">
+                                        <div class="flex items-center justify-between">
+                                            <p class="font-medium">{"Notification"}</p>
+                                            <button
+                                                class="btn btn-xs btn-circle btn-ghost"
+                                                aria-label="Close"
+                                                onclick={blur_active.clone()}>
+                                                <span class="iconify lucide--x size-4"></span>
+                                            </button>
+                                        </div>
+                                        <div class="-ms-2 mt-2 -mb-px flex items-center justify-between">
+                                            <div role="tablist" class="tabs tabs-sm tabs-border">
+                                                <div role="tab" class="tab tab-active gap-2 px-3 font-medium">
+                                                    <span>{"All"}</span>
+                                                    <div class="badge badge-sm">{"4"}</div>
+                                                </div>
+                                                <div role="tab" class="tab gap-2 px-3"><span>{"Team"}</span></div>
+                                                <div role="tab" class="tab gap-2 px-3"><span>{"AI"}</span></div>
+                                                <div role="tab" class="tab gap-2 px-3"><span>{"@mention"}</span></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div
+                                        class="hover:bg-base-200/20 relative flex items-start gap-3 p-4 transition-all">
+                                        <div class="avatar avatar-online size-12">
+                                            <img
+                                                src="/static/nexus/images/avatars/2.png"
+                                                class="from-primary/80 to-primary/60 mask mask-squircle bg-linear-to-b px-1 pt-1"
+                                                alt="" />
+                                        </div>
+                                        <div class="grow">
+                                            <p class="text-sm leading-tight">{"Lena submitted a draft for review."}</p>
+                                            <p class="text-base-content/60 text-xs">{"15 min ago"}</p>
+                                            <div class="mt-2 flex items-center gap-2">
+                                                <button class="btn btn-sm btn-primary">{"Approve"}</button>
+                                                <button class="btn btn-sm btn-outline border-base-300">{"Decline"}</button>
+                                            </div>
+                                        </div>
+                                        <div class="status status-primary absolute end-4 top-4 size-1.5"></div>
+                                    </div>
+                                    <hr class="border-base-300 border-dashed" />
+                                    <div class="hover:bg-base-200/20 flex items-start gap-3 p-4 transition-all">
+                                        <div class="avatar avatar-offline size-12">
+                                            <img
+                                                src="/static/nexus/images/avatars/4.png"
+                                                class="from-secondary/80 to-secondary/60 mask mask-squircle bg-linear-to-b px-1 pt-1"
+                                                alt="" />
+                                        </div>
+                                        <div class="grow">
+                                            <p class="text-sm leading-tight">{"Kai mentioned you in a project."}</p>
+                                            <p class="text-base-content/60 text-xs">{"22 min ago"}</p>
+                                            <div
+                                                class="from-base-200 via-base-200/80 rounded-box mt-2 flex items-center justify-between gap-2 bg-linear-to-r to-transparent py-1 ps-2.5">
+                                                <p class="text-sm">{"Check model inputs?"}</p>
+                                                <button class="btn btn-xs btn-ghost text-xs">
+                                                    <span class="iconify lucide--reply size-3.5"></span>
+                                                    {"Reply"}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <hr class="border-base-300 border-dashed" />
+                                    <div class="hover:bg-base-200/20 flex items-start gap-3 p-4 transition-all">
+                                        <div class="avatar size-12">
+                                            <img
+                                                src="/static/nexus/images/avatars/5.png"
+                                                class="mask mask-squircle bg-linear-to-b from-orange-500/80 to-orange-500/60 px-1 pt-1"
+                                                alt="" />
+                                        </div>
+                                        <div class="grow">
+                                            <p class="text-sm leading-tight">{"Your latest results are ready"}</p>
+                                            <div
+                                                class="border-base-200 rounded-box mt-2 flex items-center justify-between gap-2 border px-2.5 py-1.5">
+                                                <p class="text-sm">
+                                                    {"Forecast Report"}
+                                                    <span class="text-base-content/60 text-xs">{"(12 MB)"}</span>
+                                                </p>
+                                                <button class="btn btn-xs btn-square btn-ghost text-xs">
+                                                    <span class="iconify lucide--arrow-down-to-line size-4"></span>
+                                                </button>
+                                            </div>
+                                            <div
+                                                class="border-base-200 rounded-box mt-2 flex items-center justify-between gap-2 border px-2.5 py-1.5">
+                                                <p class="text-sm">
+                                                    {"Generated Summary"}
+                                                    <span class="text-base-content/60 text-xs">{"(354 KB)"}</span>
+                                                </p>
+                                                <button class="btn btn-xs btn-square btn-ghost text-xs">
+                                                    <span class="iconify lucide--arrow-down-to-line size-4"></span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <hr class="border-base-200" />
+                                    <div class="flex items-center justify-between px-2 py-2">
+                                        <button class="btn btn-sm btn-soft btn-primary">{"View All"}</button>
+                                        <div class="flex items-center gap-1">
+                                            <button class="btn btn-sm btn-square btn-ghost">
+                                                <span class="iconify lucide--check-check size-4"></span>
+                                            </button>
+                                            <button class="btn btn-sm btn-square btn-ghost">
+                                                <span class="iconify lucide--bell-ring size-4"></span>
+                                            </button>
+                                            <button class="btn btn-sm btn-square btn-ghost">
+                                                <span class="iconify lucide--settings size-4"></span>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="drawer drawer-end">
+                                <input id="topbar-profile-drawer" type="checkbox" class="drawer-toggle" />
+                                <div class="drawer-content">
+                                    <label
+                                        for="topbar-profile-drawer"
+                                        class="btn btn-ghost flex items-center gap-2 px-1.5">
+                                        <div class="avatar">
+                                            <div class="bg-base-200 mask mask-squircle w-8">
+                                                <img src="/static/nexus/images/avatars/1.png" alt="Avatar" />
+                                            </div>
+                                        </div>
+                                        <div class="text-start">
+                                            <p class="text-sm/none">{"Denish"}</p>
+                                            <p class="text-base-content/50 mt-0.5 text-xs/none">{"Team"}</p>
+                                        </div>
+                                    </label>
+                                </div>
+                                <div class="drawer-side">
+                                    <label
+                                        for="topbar-profile-drawer"
+                                        aria-label="close sidebar"
+                                        class="drawer-overlay"></label>
+                                    <div class="h-full w-72 p-2 sm:w-84">
+                                        <div class="bg-base-100 rounded-box relative flex h-full flex-col pt-4 sm:pt-8">
+                                            <label
+                                                for="topbar-profile-drawer"
+                                                class="btn btn-xs btn-circle btn-ghost absolute start-2 top-2"
+                                                aria-label="Close">
+                                                <span class="iconify lucide--x size-4"></span>
+                                            </label>
+                                            <div class="flex flex-col items-center">
+                                                <div class="relative">
+                                                    <div
+                                                        class="avatar bg-base-200 isolate size-20 cursor-pointer overflow-hidden rounded-full px-1 pt-1 md:size-24">
+                                                        <img src="/static/nexus/images/avatars/1.png" alt="User Avatar" />
+                                                    </div>
+                                                    <div
+                                                        class="bg-base-100 absolute end-0 bottom-0 flex items-center justify-center rounded-full p-1.5 shadow-sm">
+                                                        <span class="iconify lucide--pencil size-4"></span>
+                                                    </div>
+                                                </div>
+                                                <p class="mt-4 text-lg/none font-medium sm:mt-8">{"John Doe"}</p>
+                                                <p class="text-base-content/60 mt-1 text-sm">{"john@company.com"}</p>
+                                                <div class="mt-4 flex items-center gap-2 *:cursor-pointer sm:mt-6">
+                                                    <div
+                                                        class="avatar bg-base-200 size-10 overflow-hidden rounded-full px-1 pt-1">
+                                                        <img src="/static/nexus/images/avatars/2.png" alt="Team member" />
+                                                    </div>
+                                                    <div
+                                                        class="avatar bg-base-200 size-10 overflow-hidden rounded-full px-1 pt-1">
+                                                        <img src="/static/nexus/images/avatars/3.png" alt="Team member" />
+                                                    </div>
+                                                    <div
+                                                        class="avatar bg-base-200 size-10 overflow-hidden rounded-full px-1 pt-1">
+                                                        <img src="/static/nexus/images/avatars/4.png" alt="Team member" />
+                                                    </div>
+                                                    <div
+                                                        class="bg-base-200 border-base-300 flex size-10 items-center justify-center rounded-full border border-dashed">
+                                                        <span class="iconify lucide--plus size-4.5"></span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div
+                                                class="border-base-200 flex grow flex-col gap-3 border-t px-3 pt-4 sm:px-5 sm:pt-6">
+                                                <a class="btn btn-outline border-base-300 justify-start">
+                                                    <span class="iconify lucide--user size-4"></span>
+                                                    {"View profile"}
+                                                </a>
+                                                <a class="btn btn-outline border-base-300 justify-start">
+                                                    <span class="iconify lucide--settings size-4"></span>
+                                                    {"Settings"}
+                                                </a>
+                                                <a class="btn btn-outline border-base-300 justify-start">
+                                                    <span class="iconify lucide--life-buoy size-4"></span>
+                                                    {"Support"}
+                                                </a>
+                                                <a class="btn btn-outline border-base-300 justify-start">
+                                                    <span class="iconify lucide--log-out size-4"></span>
+                                                    {"Logout"}
+                                                </a>
+                                                <div class="mt-auto">
+                                                    <p class="text-base-content/60 text-sm">{"Switch workspace"}</p>
+                                                    <div class="mt-2 flex items-center gap-2">
+                                                        <div
+                                                            class="bg-base-200 flex h-10 w-10 items-center justify-center rounded-full">
+                                                            {"R"}
+                                                        </div>
+                                                        <div>
+                                                            <p class="font-medium">{"Revaer"}</p>
+                                                            <p class="text-base-content/60 text-xs">{"Production"}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="layout-content">
+                        {for props.children.iter()}
+                    </div>
+                    <div class="-mt-2 flex items-center justify-between px-6 pb-4">
+                        <p>
+                            {"Built and designed with care by"}
+                            <a target="_blank" class="text-primary" href="https://withden.dev/">{"Denish"}</a>
+                        </p>
+                        <a
+                            aria-label="Buy now"
+                            target="_blank"
+                            class="bg-primary text-primary-content group flex size-9 items-center gap-2 overflow-hidden rounded-full px-2.5 py-0.5 font-medium transition-all hover:w-26"
+                            href="https://daisyui.com/store/244268">
+                            <span class="iconify lucide--shopping-cart block size-4.5"></span>
+                            <span class="hidden text-sm text-nowrap group-hover:block">{"Buy Now"}</span>
+                        </a>
                     </div>
                 </div>
-            </aside>
-            <div class="main">
-                <header class="topbar glass">
-                    <button class="ghost mobile-only" aria-label={t("shell.open_nav")} onclick={toggle_nav}>{"☰"}</button>
-                    <div class="page-title">
-                        <p class="eyebrow">{t("shell.phase")}</p>
-                        <h2>{current_label}</h2>
+            </div>
+
+            <div class="drawer drawer-end">
+                <input id="layout-rightbar-drawer" class="drawer-toggle" type="checkbox" />
+                <div class="drawer-side z-[50]">
+                    <label
+                        for="layout-rightbar-drawer"
+                        aria-label="close sidebar"
+                        class="drawer-overlay"
+                        aria-hidden="true"></label>
+                    <div class="bg-base-100 text-base-content h-full w-72 sm:w-96">
+                        <div
+                            class="bg-base-200/30 border-base-200 flex h-16 min-h-16 items-center justify-between border-b px-5">
+                            <p class="text-lg font-medium">{"Customization"}</p>
+                            <div class="inline-flex gap-1">
+                                <button
+                                    class="btn-ghost btn btn-sm btn-circle relative"
+                                    aria-label="Reset"
+                                    data-reset-control="">
+                                    <span class="iconify lucide--rotate-cw size-5"></span>
+                                    <span
+                                        class="bg-error absolute end-0.5 top-0.5 rounded-full p-0 opacity-0 transition-all group-data-[changed]/html:p-[2px] group-data-[changed]/html:opacity-100"></span>
+                                </button>
+                                <button
+                                    class="btn btn-ghost btn-sm btn-circle"
+                                    aria-label="Full Screen"
+                                    data-fullscreen-control="">
+                                    <span
+                                        class="iconify lucide--minimize hidden size-5 group-data-[fullscreen]/html:inline"></span>
+                                    <span
+                                        class="iconify lucide--fullscreen inline size-5 group-data-[fullscreen]/html:hidden"></span>
+                                </button>
+                                <label
+                                    for="layout-rightbar-drawer"
+                                    aria-label="close sidebar"
+                                    aria-hidden="true"
+                                    class="btn btn-ghost btn-sm btn-circle">
+                                    <span class="iconify lucide--x size-5"></span>
+                                </label>
+                            </div>
+                        </div>
+                        <div class="p-5">
+                            <p class="font-medium">{"Theme"}</p>
+                            <div class="mt-3 grid grid-cols-3 gap-3">
+                                <div
+                                    data-theme="light"
+                                    class="rounded-box group relative cursor-pointer"
+                                    data-theme-control="light">
+                                    <div class="bg-base-200 rounded-box pt-5 pb-3 text-center">
+                                        <div class="flex items-center justify-center gap-1">
+                                            <span class="rounded-box bg-primary h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-secondary h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-accent h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-success h-6 w-2 sm:w-3"></span>
+                                        </div>
+                                        <p class="mt-1.5 text-sm capitalize sm:text-base">{"Light"}</p>
+                                    </div>
+                                    <span
+                                        class="bg-primary text-primary-content absolute end-2 top-2 rounded-full p-0 opacity-0 transition-all group-data-[theme=light]/html:p-1 group-data-[theme=light]/html:opacity-100"></span>
+                                </div>
+                                <div
+                                    data-theme="contrast"
+                                    class="rounded-box group relative cursor-pointer"
+                                    data-theme-control="contrast">
+                                    <div class="bg-base-200 rounded-box pt-5 pb-3 text-center">
+                                        <div class="flex items-center justify-center gap-1">
+                                            <span class="rounded-box bg-primary h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-secondary h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-accent h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-success h-6 w-2 sm:w-3"></span>
+                                        </div>
+                                        <p class="mt-1.5 text-sm capitalize sm:text-base">{"Contrast"}</p>
+                                    </div>
+                                    <span
+                                        class="bg-primary text-primary-content absolute end-2 top-2 rounded-full p-0 opacity-0 transition-all group-data-[theme=contrast]/html:p-1 group-data-[theme=contrast]/html:opacity-100"></span>
+                                </div>
+                                <div
+                                    data-theme="material"
+                                    class="rounded-box group relative cursor-pointer"
+                                    data-theme-control="material">
+                                    <div class="bg-base-200 rounded-box pt-5 pb-3 text-center">
+                                        <div class="flex items-center justify-center gap-1">
+                                            <span class="rounded-box bg-primary h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-secondary h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-accent h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-success h-6 w-2 sm:w-3"></span>
+                                        </div>
+                                        <p class="mt-1.5 text-sm capitalize sm:text-base">{"Material"}</p>
+                                    </div>
+                                    <span
+                                        class="bg-primary text-primary-content absolute end-2 top-2 rounded-full p-0 opacity-0 transition-all group-data-[theme=material]/html:p-1 group-data-[theme=material]/html:opacity-100"></span>
+                                </div>
+                                <div
+                                    data-theme="dark"
+                                    class="rounded-box group relative cursor-pointer"
+                                    data-theme-control="dark">
+                                    <div class="bg-base-200 rounded-box pt-5 pb-3 text-center">
+                                        <div class="flex items-center justify-center gap-1">
+                                            <span class="rounded-box bg-primary h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-secondary h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-accent h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-success h-6 w-2 sm:w-3"></span>
+                                        </div>
+                                        <p class="mt-1.5 text-sm capitalize sm:text-base">{"Dark"}</p>
+                                    </div>
+                                    <span
+                                        class="bg-primary text-primary-content absolute end-2 top-2 rounded-full p-0 opacity-0 transition-all group-data-[theme=dark]/html:p-1 group-data-[theme=dark]/html:opacity-100"></span>
+                                </div>
+                                <div
+                                    data-theme="dim"
+                                    class="rounded-box group relative cursor-pointer"
+                                    data-theme-control="dim">
+                                    <div class="bg-base-200 rounded-box pt-5 pb-3 text-center">
+                                        <div class="flex items-center justify-center gap-1">
+                                            <span class="rounded-box bg-primary h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-secondary h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-accent h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-success h-6 w-2 sm:w-3"></span>
+                                        </div>
+                                        <p class="mt-1.5 text-sm capitalize sm:text-base">{"Dim"}</p>
+                                    </div>
+                                    <span
+                                        class="bg-primary text-primary-content absolute end-2 top-2 rounded-full p-0 opacity-0 transition-all group-data-[theme=dim]/html:p-1 group-data-[theme=dim]/html:opacity-100"></span>
+                                </div>
+                                <div
+                                    data-theme="material-dark"
+                                    class="rounded-box group relative cursor-pointer"
+                                    data-theme-control="material-dark">
+                                    <div class="bg-base-200 rounded-box pt-5 pb-3 text-center">
+                                        <div class="flex items-center justify-center gap-1">
+                                            <span class="rounded-box bg-primary h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-secondary h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-accent h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-success h-6 w-2 sm:w-3"></span>
+                                        </div>
+                                        <p class="mt-2.5 text-xs capitalize sm:text-sm">{"Material Dark"}</p>
+                                    </div>
+                                    <span
+                                        class="bg-primary text-primary-content absolute end-2 top-2 rounded-full p-0 opacity-0 transition-all group-data-[theme=material-dark]/html:p-1 group-data-[theme=material-dark]/html:opacity-100"></span>
+                                </div>
+                                <div
+                                    class="rounded-box group relative cursor-pointer"
+                                    data-theme-control="system">
+                                    <div class="bg-base-200 rounded-box pt-5 pb-3 text-center">
+                                        <div class="flex items-center justify-center gap-1">
+                                            <span class="rounded-box bg-primary h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-secondary h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-accent h-6 w-2 sm:w-3"></span>
+                                            <span class="rounded-box bg-success h-6 w-2 sm:w-3"></span>
+                                        </div>
+                                        <p class="mt-1.5 text-sm capitalize sm:text-base">{"System"}</p>
+                                    </div>
+                                    <span
+                                        class="bg-primary text-primary-content absolute end-2 top-2 rounded-full p-0 opacity-0 transition-all group-[:not([data-theme])]/html:p-1 group-[:not([data-theme])]/html:opacity-100"></span>
+                                </div>
+                            </div>
+                            <div
+                                class="pointer-events-none opacity-50 group-data-[theme=contrast]/html:pointer-events-auto group-data-[theme=contrast]/html:opacity-100 group-data-[theme=light]/html:pointer-events-auto group-data-[theme=light]/html:opacity-100">
+                                <p class="mt-6 font-medium">
+                                    {"Sidebar"}
+                                    <span
+                                        class="ms-1 inline text-xs group-data-[theme=contrast]/html:hidden group-data-[theme=light]/html:hidden md:text-sm">
+                                        {"(*Only available in light, contrast themes)"}
+                                    </span>
+                                </p>
+                                <div class="mt-3 grid grid-cols-2 gap-3">
+                                    <div
+                                        data-sidebar-theme-control="light"
+                                        class="border-base-300 hover:bg-base-200 rounded-box group-data-[sidebar-theme=light]/html:bg-base-200 inline-flex cursor-pointer items-center justify-center gap-2 border p-2">
+                                        <span class="iconify lucide--sun size-4.5"></span>
+                                        {"Light"}
+                                    </div>
+                                    <div
+                                        data-sidebar-theme-control="dark"
+                                        class="border-base-300 hover:bg-base-200 rounded-box group-data-[sidebar-theme=dark]/html:bg-base-200 inline-flex cursor-pointer items-center justify-center gap-2 border p-2">
+                                        <span class="iconify lucide--moon size-4.5"></span>
+                                        {"Dark"}
+                                    </div>
+                                </div>
+                            </div>
+                            <p class="mt-6 font-medium">{"Font Family"}</p>
+                            <div class="mt-3 grid grid-cols-2 gap-3">
+                                <div
+                                    data-font-family-control="dm-sans"
+                                    class="border-base-300 hover:bg-base-200 rounded-box group-[[data-font-family=dm-sans]]/html:bg-base-200 inline-flex cursor-pointer items-center justify-center gap-2 border p-2">
+                                    <p data-font-family="dm-sans" class="font-sans">{"DM Sans"}</p>
+                                </div>
+                                <div
+                                    data-font-family-control="wix"
+                                    class="border-base-300 hover:bg-base-200 rounded-box group-[[data-font-family=wix]]/html:bg-base-200 inline-flex cursor-pointer items-center justify-center gap-2 border p-2">
+                                    <p data-font-family="wix" class="font-sans">{"Wix"}</p>
+                                </div>
+                                <div
+                                    data-font-family-control="inclusive"
+                                    class="border-base-300 hover:bg-base-200 rounded-box group-[[data-font-family=inclusive]]/html:bg-base-200 group-[:not([data-font-family])]/html:bg-base-200 inline-flex cursor-pointer items-center justify-center gap-2 border p-2">
+                                    <p data-font-family="inclusive" class="font-sans">{"Inclusive"}</p>
+                                </div>
+                                <div
+                                    data-font-family-control="ar-one"
+                                    class="border-base-300 hover:bg-base-200 rounded-box group-[[data-font-family=ar-one]]/html:bg-base-200 inline-flex cursor-pointer items-center justify-center gap-2 border p-2">
+                                    <p data-font-family="ar-one" class="font-sans">{"AR One"}</p>
+                                </div>
+                            </div>
+                            <p class="mt-6 font-medium">{"Direction"}</p>
+                            <div class="mt-3 grid grid-cols-2 gap-3">
+                                <div
+                                    data-dir-control="ltr"
+                                    class="border-base-300 hover:bg-base-200 rounded-box group-[[dir=ltr]]/html:bg-base-200 group-[:not([dir])]/html:bg-base-200 inline-flex cursor-pointer items-center justify-center gap-2 border p-2">
+                                    <span class="iconify lucide--pilcrow-left size-4.5"></span>
+                                    <span class="hidden sm:inline">{"Left to Right"}</span>
+                                    <span class="inline sm:hidden">{"LTR"}</span>
+                                </div>
+                                <div
+                                    data-dir-control="rtl"
+                                    class="border-base-300 hover:bg-base-200 rounded-box group-[[dir=rtl]]/html:bg-base-200 inline-flex cursor-pointer items-center justify-center gap-2 border p-2">
+                                    <span class="iconify lucide--pilcrow-right size-4.5"></span>
+                                    <span class="hidden sm:inline">{"Right to Right"}</span>
+                                    <span class="inline sm:hidden">{"RTL"}</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="top-actions">
-                        <SseBadge state={props.sse_state.clone()} />
-                        <IconButton
-                            aria_label={t("shell.simulate_sse")}
-                            onclick={{
-                            let cb = props.on_sse_retry.clone();
-                            Callback::from(move |_| cb.emit(()))
-                            }}
-                        >
-                            {"↻"}
-                        </IconButton>
-                        <span class="pill subtle">{format!("BP {}", props.breakpoint.name)}</span>
-                        <span class="pill subtle">{props.network_mode.clone()}</span>
-                        <IconButton
-                            aria_label={t("shell.toggle_theme")}
-                            onclick={{
-                            let cb = props.on_toggle_theme.clone();
-                            Callback::from(move |_| cb.emit(()))
-                            }}
-                        >
-                            {"🌓"}
-                        </IconButton>
-                    </div>
-                </header>
-                <main>
-                    {for props.children.iter()}
-                </main>
+                </div>
             </div>
         </div>
     }
 }
 
-fn nav_item(route: Route, label: &str, active: Route, on_select: Callback<()>) -> Html {
-    let is_active = active == route;
-    let classes = classes!("nav-item", if is_active { "active" } else { "" });
-    let close = {
-        let on_select = on_select.clone();
-        Callback::from(move |_| on_select.emit(()))
-    };
-    html! {
-        <li onclick={close}>
-            <Link<Route> to={route.clone()} classes={classes}>
-                <span class="nav-icon">{nav_icon(&route)}</span>
-                <span class="nav-label">{label}</span>
-            </Link<Route>>
-        </li>
-    }
-}
-
-fn nav_icon(route: &Route) -> Html {
-    match route {
-        Route::Home | Route::Torrents | Route::TorrentDetail { .. } => {
-            html! { <TorrentsIcon size={18} /> }
-        }
-        Route::Categories => html! { <CategoriesIcon size={18} /> },
-        Route::Tags => html! { <TagsIcon size={18} /> },
-        Route::Settings => html! { <SettingsIcon size={18} /> },
-        Route::Health => html! { <HealthIcon size={18} /> },
-        Route::NotFound => html! { <NotFoundIcon size={18} /> },
-    }
-}
-
-fn reaver_mark() -> Html {
-    html! {
-        <RevaerLogoIcon class={classes!("reaver-logo")} size={28} />
-    }
+fn menu_item_class(active: bool) -> Classes {
+    classes!("menu-item", if active { "active" } else { "false" })
 }

@@ -33,6 +33,8 @@ pub(crate) struct DetailProps {
     pub on_update_selection: Callback<(Uuid, FileSelectionChange)>,
     pub on_update_options: Callback<(Uuid, TorrentOptionsRequest)>,
     #[prop_or_default]
+    pub footer: Html,
+    #[prop_or_default]
     pub class: Classes,
 }
 
@@ -49,9 +51,10 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
 
     let Some(detail) = props.data.as_ref() else {
         return html! {
-            <section class={classes!("detail-panel", "placeholder", props.class.clone())}>
+            <section class={classes!("detail-panel", "placeholder", "relative", props.class.clone())}>
                 <h3>{t("detail.select_title")}</h3>
                 <p class="muted">{t("detail.select_body")}</p>
+                {props.footer.clone()}
             </section>
         };
     };
@@ -209,7 +212,7 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
     );
 
     html! {
-        <section class={classes!("detail-panel", props.class.clone())}>
+        <section class={classes!("detail-panel", "relative", props.class.clone())}>
             <header class="detail-header">
                 <div>
                     <small class="muted">{t("detail.view_label")}</small>
@@ -300,6 +303,7 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
                     {options_tab}
                 </section>
             </div>
+            {props.footer.clone()}
         </section>
     }
 }

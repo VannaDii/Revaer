@@ -4,7 +4,7 @@ use yew_router::prelude::*;
 #[derive(Clone, Routable, PartialEq, Eq, Debug)]
 pub(crate) enum Route {
     #[at("/")]
-    Home,
+    Dashboard,
     #[at("/torrents")]
     Torrents,
     #[at("/torrents/:id")]

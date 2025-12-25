@@ -9,9 +9,10 @@ use crate::app::preferences::{load_last_event_id, persist_last_event_id};
 use crate::core::auth::{AuthState, LocalAuth};
 use crate::core::events::UiEventEnvelope;
 use crate::core::logic::{SseEndpoint, SseQuery, backoff_delay_ms, build_sse_url};
-use crate::models::SseState;
+use crate::core::store::{SseConnectionState, SseError, SseStatus};
 use crate::services::sse::{SseDecodeError, SseParser, decode_frame};
 use gloo_timers::future::TimeoutFuture;
+use js_sys::Date;
 use js_sys::{Reflect, Uint8Array};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::JsValue;
@@ -40,7 +41,7 @@ pub(crate) fn connect_sse(
     query: SseQuery,
     on_event: Callback<UiEventEnvelope>,
     on_error: Callback<SseDecodeError>,
-    on_state: Callback<SseState>,
+    on_state: Callback<SseStatus>,
 ) -> Option<SseHandle> {
     let controller = AbortController::new().ok()?;
     let signal = controller.signal();
@@ -57,11 +58,11 @@ async fn run_sse_loop(
     signal: AbortSignal,
     on_event: Callback<UiEventEnvelope>,
     on_error: Callback<SseDecodeError>,
-    on_state: Callback<SseState>,
+    on_state: Callback<SseStatus>,
 ) {
+    let auth_label = auth_label(&auth);
     let mut attempt = 0u32;
     let mut retry_hint_ms: Option<u64> = None;
-    let mut last_event = String::from("none");
     let mut last_event_id = load_last_event_id();
 
     loop {
@@ -69,18 +70,45 @@ async fn run_sse_loop(
             break;
         }
 
+        emit_status(
+            &on_state,
+            SseConnectionState::Reconnecting,
+            &auth_label,
+            last_event_id,
+            None,
+            None,
+            Some(SseError {
+                message: "connecting".to_string(),
+                status_code: None,
+            }),
+        );
+
         match open_stream(&base_url, &auth, &query, last_event_id, &signal).await {
             Ok(mut reader) => {
                 let mut parser = SseParser::default();
                 let decoder = match TextDecoder::new() {
                     Ok(decoder) => decoder,
                     Err(err) => {
-                        update_reconnecting(
+                        let error = SseError {
+                            message: format!("decoder error: {err:?}"),
+                            status_code: None,
+                        };
+                        emit_status(
                             &on_state,
+                            SseConnectionState::Disconnected,
+                            &auth_label,
+                            last_event_id,
+                            None,
+                            None,
+                            Some(error.clone()),
+                        );
+                        schedule_reconnect(
+                            &on_state,
+                            &auth_label,
                             retry_hint_ms,
                             attempt,
-                            &last_event,
-                            format!("decoder error: {err:?}"),
+                            last_event_id,
+                            error,
                         )
                         .await;
                         attempt = attempt.saturating_add(1);
@@ -89,6 +117,15 @@ async fn run_sse_loop(
                 };
                 attempt = 0;
                 retry_hint_ms = None;
+                emit_status(
+                    &on_state,
+                    SseConnectionState::Connected,
+                    &auth_label,
+                    last_event_id,
+                    None,
+                    None,
+                    None,
+                );
 
                 loop {
                     if signal.aborted() {
@@ -99,12 +136,26 @@ async fn run_sse_loop(
                             let text = match decoder.decode_with_js_u8_array(&bytes) {
                                 Ok(text) => text,
                                 Err(err) => {
-                                    update_reconnecting(
+                                    let error = SseError {
+                                        message: format!("decode error: {err:?}"),
+                                        status_code: None,
+                                    };
+                                    emit_status(
                                         &on_state,
+                                        SseConnectionState::Disconnected,
+                                        &auth_label,
+                                        last_event_id,
+                                        None,
+                                        None,
+                                        Some(error.clone()),
+                                    );
+                                    schedule_reconnect(
+                                        &on_state,
+                                        &auth_label,
                                         retry_hint_ms,
                                         attempt,
-                                        &last_event,
-                                        format!("decode error: {err:?}"),
+                                        last_event_id,
+                                        error,
                                     )
                                     .await;
                                     break;
@@ -119,9 +170,16 @@ async fn run_sse_loop(
                                         if let Some(id) = envelope.id {
                                             last_event_id = Some(id);
                                             persist_last_event_id(id);
-                                            last_event = id.to_string();
                                         }
-                                        on_state.emit(SseState::Connected);
+                                        emit_status(
+                                            &on_state,
+                                            SseConnectionState::Connected,
+                                            &auth_label,
+                                            last_event_id,
+                                            None,
+                                            None,
+                                            None,
+                                        );
                                         on_event.emit(envelope);
                                     }
                                     Err(err) => {
@@ -137,23 +195,66 @@ async fn run_sse_loop(
                                         if let Some(id) = envelope.id {
                                             last_event_id = Some(id);
                                             persist_last_event_id(id);
-                                            last_event = id.to_string();
                                         }
-                                        on_state.emit(SseState::Connected);
+                                        emit_status(
+                                            &on_state,
+                                            SseConnectionState::Connected,
+                                            &auth_label,
+                                            last_event_id,
+                                            None,
+                                            None,
+                                            None,
+                                        );
                                         on_event.emit(envelope);
                                     }
                                     Err(err) => on_error.emit(err),
                                 }
                             }
+                            let error = SseError {
+                                message: "stream ended".to_string(),
+                                status_code: None,
+                            };
+                            emit_status(
+                                &on_state,
+                                SseConnectionState::Disconnected,
+                                &auth_label,
+                                last_event_id,
+                                None,
+                                None,
+                                Some(error.clone()),
+                            );
+                            schedule_reconnect(
+                                &on_state,
+                                &auth_label,
+                                retry_hint_ms,
+                                attempt,
+                                last_event_id,
+                                error,
+                            )
+                            .await;
                             break;
                         }
                         Err(err) => {
-                            update_reconnecting(
+                            let error = SseError {
+                                message: format!("read error: {err}"),
+                                status_code: None,
+                            };
+                            emit_status(
                                 &on_state,
+                                SseConnectionState::Disconnected,
+                                &auth_label,
+                                last_event_id,
+                                None,
+                                None,
+                                Some(error.clone()),
+                            );
+                            schedule_reconnect(
+                                &on_state,
+                                &auth_label,
                                 retry_hint_ms,
                                 attempt,
-                                &last_event,
-                                format!("read error: {err}"),
+                                last_event_id,
+                                error,
                             )
                             .await;
                             break;
@@ -162,7 +263,25 @@ async fn run_sse_loop(
                 }
             }
             Err(err) => {
-                update_reconnecting(&on_state, retry_hint_ms, attempt, &last_event, err).await;
+                let error = connect_error_to_sse_error(&err);
+                emit_status(
+                    &on_state,
+                    SseConnectionState::Disconnected,
+                    &auth_label,
+                    last_event_id,
+                    None,
+                    None,
+                    Some(error.clone()),
+                );
+                schedule_reconnect(
+                    &on_state,
+                    &auth_label,
+                    retry_hint_ms,
+                    attempt,
+                    last_event_id,
+                    error,
+                )
+                .await;
             }
         }
 
@@ -176,29 +295,25 @@ async fn open_stream(
     query: &SseQuery,
     last_event_id: Option<u64>,
     signal: &AbortSignal,
-) -> Result<ReadableStreamDefaultReader, String> {
+) -> Result<ReadableStreamDefaultReader, ConnectError> {
     let primary = build_sse_url(base_url, SseEndpoint::Primary, Some(query));
     match fetch_stream(&primary, auth, last_event_id, signal).await {
         Ok(response) => stream_reader(response),
         Err(ConnectError::NotFound) => {
             let fallback = build_sse_url(base_url, SseEndpoint::Fallback, Some(query));
-            let response = fetch_stream(&fallback, auth, last_event_id, signal)
-                .await
-                .map_err(|err| format!("fallback SSE failed: {}", err.to_string()))?;
+            let response = fetch_stream(&fallback, auth, last_event_id, signal).await?;
             stream_reader(response)
         }
-        Err(err) => Err(err.to_string()),
+        Err(err) => Err(err),
     }
 }
 
-fn stream_reader(response: Response) -> Result<ReadableStreamDefaultReader, String> {
-    let stream: ReadableStream = response
-        .body()
-        .ok_or_else(|| "SSE response missing body".to_string())?;
+fn stream_reader(response: Response) -> Result<ReadableStreamDefaultReader, ConnectError> {
+    let stream: ReadableStream = response.body().ok_or(ConnectError::Stream)?;
     let reader = stream
         .get_reader()
         .dyn_into::<ReadableStreamDefaultReader>()
-        .map_err(|_| "SSE stream reader unavailable".to_string())?;
+        .map_err(|_| ConnectError::Reader)?;
     Ok(reader)
 }
 
@@ -272,20 +387,64 @@ async fn read_chunk(
     Ok(Some(Uint8Array::new(&value)))
 }
 
-async fn update_reconnecting(
-    on_state: &Callback<SseState>,
+fn emit_status(
+    on_state: &Callback<SseStatus>,
+    state: SseConnectionState,
+    auth_label: &Option<String>,
+    last_event_id: Option<u64>,
+    backoff_ms: Option<u64>,
+    next_retry_at_ms: Option<u64>,
+    last_error: Option<SseError>,
+) {
+    on_state.emit(SseStatus {
+        state,
+        backoff_ms,
+        next_retry_at_ms,
+        last_event_id,
+        last_error,
+        auth_mode: auth_label.clone(),
+    });
+}
+
+fn auth_label(auth: &Option<AuthState>) -> Option<String> {
+    match auth {
+        Some(AuthState::ApiKey(_)) => Some("API key".to_string()),
+        Some(AuthState::Local(_)) => Some("Local auth".to_string()),
+        Some(AuthState::Anonymous) => Some("Anonymous".to_string()),
+        None => None,
+    }
+}
+
+fn connect_error_to_sse_error(err: &ConnectError) -> SseError {
+    SseError {
+        message: err.to_string(),
+        status_code: err.status_code(),
+    }
+}
+
+fn now_ms() -> u64 {
+    Date::now() as u64
+}
+
+async fn schedule_reconnect(
+    on_state: &Callback<SseStatus>,
+    auth_label: &Option<String>,
     retry_hint_ms: Option<u64>,
     attempt: u32,
-    last_event: &str,
-    reason: String,
+    last_event_id: Option<u64>,
+    error: SseError,
 ) {
     let delay_ms = retry_hint_ms.unwrap_or(u64::from(backoff_delay_ms(attempt)));
-    let retry_in_secs = (delay_ms / 1000).min(30) as u8;
-    on_state.emit(SseState::Reconnecting {
-        retry_in_secs,
-        last_event: last_event.to_string(),
-        reason,
-    });
+    let next_retry_at = now_ms().saturating_add(delay_ms);
+    emit_status(
+        on_state,
+        SseConnectionState::Reconnecting,
+        auth_label,
+        last_event_id,
+        Some(delay_ms),
+        Some(next_retry_at),
+        Some(error),
+    );
     TimeoutFuture::new(delay_ms as u32).await;
 }
 
@@ -295,8 +454,20 @@ enum ConnectError {
     Headers,
     Request,
     Fetch,
+    Stream,
+    Reader,
     NotFound,
     Status(u16),
+}
+
+impl ConnectError {
+    fn status_code(&self) -> Option<u16> {
+        match self {
+            Self::NotFound => Some(404),
+            Self::Status(code) => Some(*code),
+            _ => None,
+        }
+    }
 }
 
 impl std::fmt::Display for ConnectError {
@@ -306,6 +477,8 @@ impl std::fmt::Display for ConnectError {
             Self::Headers => write!(f, "headers unavailable"),
             Self::Request => write!(f, "request build failed"),
             Self::Fetch => write!(f, "fetch failed"),
+            Self::Stream => write!(f, "SSE response missing body"),
+            Self::Reader => write!(f, "SSE stream reader unavailable"),
             Self::NotFound => write!(f, "endpoint not found"),
             Self::Status(code) => write!(f, "http {code}"),
         }

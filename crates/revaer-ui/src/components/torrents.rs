@@ -1,6 +1,7 @@
 use crate::app::Route;
 use crate::components::action_menu::{ActionMenuItem, render_action_menu};
 use crate::components::atoms::{BulkActionBar, SearchInput};
+use crate::components::connectivity::{ConnectivityIndicator, ConnectivityModal};
 use crate::components::daisy::{Input, MultiSelect, Select};
 use crate::components::detail::{DetailView, FileSelectionChange};
 use crate::components::torrent_modals::{AddTorrentPanel, CopyKind, CreateTorrentPanel};
@@ -10,7 +11,7 @@ use crate::core::logic::{
     ShortcutOutcome, format_rate, interpret_shortcut, parse_rate_input, parse_tags, plan_columns,
     select_all_or_clear, toggle_selection,
 };
-use crate::core::store::AppStore;
+use crate::core::store::{AppStore, select_sse_status, select_sse_status_summary};
 use crate::features::torrents::actions::TorrentAction;
 use crate::features::torrents::state::{
     FsopsBadge, FsopsStatus, SelectionSet, TorrentProgressSlice, TorrentRow, TorrentRowBase,
@@ -92,6 +93,8 @@ pub(crate) struct TorrentProps {
     pub on_update_selection: Callback<(Uuid, FileSelectionChange)>,
     /// Request a torrent options update for a torrent.
     pub on_update_options: Callback<(Uuid, TorrentOptionsRequest)>,
+    /// Manually trigger an SSE reconnect attempt.
+    pub on_sse_retry: Callback<()>,
     /// Optional class hook for the torrent view container.
     #[prop_or_default]
     pub class: Classes,
@@ -137,6 +140,16 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     let show_add_modal = use_state(|| false);
     let show_create_modal = use_state(|| false);
     let fab_open = use_state(|| false);
+    let connectivity_summary = use_selector(select_sse_status_summary);
+    let show_connectivity = use_state(|| false);
+    let open_connectivity = {
+        let show_connectivity = show_connectivity.clone();
+        Callback::from(move |_| show_connectivity.set(true))
+    };
+    let close_connectivity = {
+        let show_connectivity = show_connectivity.clone();
+        Callback::from(move |_| show_connectivity.set(false))
+    };
     let search_ref = use_node_ref();
     let navigator = use_navigator();
     let is_mobile = props
@@ -453,6 +466,25 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
             (),
         );
     }
+
+    let connectivity_footer = html! {
+        <div class="mt-2 flex items-center justify-end border-t border-base-200 pt-2">
+            <ConnectivityIndicator
+                summary={(*connectivity_summary).clone()}
+                on_open={open_connectivity.clone()}
+            />
+            {if *show_connectivity {
+                html! {
+                    <ConnectivityModalContainer
+                        on_retry={props.on_sse_retry.clone()}
+                        on_dismiss={close_connectivity.clone()}
+                    />
+                }
+            } else {
+                html! {}
+            }}
+        </div>
+    };
 
     html! {
         <section class={classes!("torrents-view", density_class, mode_class, props.class.clone())}>
@@ -792,6 +824,7 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                 on_prompt_remove={on_prompt_remove_detail}
                 on_update_selection={props.on_update_selection.clone()}
                 on_update_options={props.on_update_options.clone()}
+                footer={connectivity_footer.clone()}
             />
             <MobileActionRow
                 on_action={props.on_action.clone()}
@@ -1162,7 +1195,7 @@ fn render_row(
                     <strong>{base.name.clone()}</strong>
                     <span class="muted">{base.tracker.clone()}</span>
                 </div>
-                <div class="status">
+                <div class="torrent-status">
                     <span class={classes!("pill", status_class(&progress.status))}>{progress.status.clone()}</span>
                     {if let Some(label) = fsops_label {
                         html! {
@@ -1171,7 +1204,7 @@ fn render_row(
                             </span>
                         }
                     } else { html!{} }}
-                    <div class="progress">
+                    <div class="torrent-progress">
                         <div class="bar" style={format!("width: {:.1}%", progress.progress * 100.0)}></div>
                         <span class="muted">{format!("{:.1}%", progress.progress * 100.0)}</span>
                         {if show_eta {
@@ -1395,7 +1428,7 @@ fn render_mobile_row(
                     } else { html!{} }}
                 </div>
             </header>
-            <div class="progress">
+            <div class="torrent-progress">
                 <div class="bar" style={format!("width: {:.1}%", progress.progress * 100.0)}></div>
                 <div class="meta">
                     <span class="muted">{format!("{:.1}%", progress.progress * 100.0)}</span>
@@ -1925,6 +1958,24 @@ fn rate_dialog(props: &RateDialogProps) -> Html {
                 </div>
             </div>
         </div>
+    }
+}
+
+#[derive(Properties, PartialEq)]
+struct ConnectivityModalContainerProps {
+    pub on_retry: Callback<()>,
+    pub on_dismiss: Callback<()>,
+}
+
+#[function_component(ConnectivityModalContainer)]
+fn connectivity_modal_container(props: &ConnectivityModalContainerProps) -> Html {
+    let status = use_selector(select_sse_status);
+    html! {
+        <ConnectivityModal
+            status={(*status).clone()}
+            on_retry={props.on_retry.clone()}
+            on_dismiss={props.on_dismiss.clone()}
+        />
     }
 }
 

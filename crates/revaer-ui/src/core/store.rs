@@ -16,7 +16,7 @@ use crate::features::torrents::state::{
     update_fsops_started, update_metadata, update_status,
 };
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode};
-use crate::models::{SseState, Toast, TorrentLabelEntry};
+use crate::models::{Toast, TorrentLabelEntry};
 #[cfg(target_arch = "wasm32")]
 use revaer_events::{Event as CoreEvent, TorrentState as CoreTorrentState};
 #[cfg(target_arch = "wasm32")]
@@ -192,6 +192,70 @@ pub struct TorrentHealthSnapshot {
     pub queue_depth: i64,
 }
 
+/// High-level connectivity states for the SSE client.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SseConnectionState {
+    /// Connected and receiving events.
+    Connected,
+    /// Disconnected without an active retry timer.
+    Disconnected,
+    /// Waiting to retry with backoff.
+    Reconnecting,
+}
+
+/// Detailed SSE error information.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SseError {
+    /// Human-readable reason for the latest failure.
+    pub message: String,
+    /// Optional HTTP status code, when available.
+    pub status_code: Option<u16>,
+}
+
+/// Detailed SSE connection status for UI diagnostics.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SseStatus {
+    /// Current connectivity state.
+    pub state: SseConnectionState,
+    /// Current backoff delay in milliseconds.
+    pub backoff_ms: Option<u64>,
+    /// Timestamp (ms since epoch) for the next retry.
+    pub next_retry_at_ms: Option<u64>,
+    /// Last numeric event id observed.
+    pub last_event_id: Option<u64>,
+    /// Last observed error details.
+    pub last_error: Option<SseError>,
+    /// Optional auth mode label for diagnostics.
+    pub auth_mode: Option<String>,
+}
+
+impl Default for SseStatus {
+    fn default() -> Self {
+        Self {
+            state: SseConnectionState::Reconnecting,
+            backoff_ms: None,
+            next_retry_at_ms: None,
+            last_event_id: None,
+            last_error: Some(SseError {
+                message: "connecting".to_string(),
+                status_code: None,
+            }),
+            auth_mode: None,
+        }
+    }
+}
+
+/// Minimal SSE status slice for the connectivity indicator.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SseStatusSummary {
+    /// Current connectivity state.
+    pub state: SseConnectionState,
+    /// Timestamp (ms since epoch) for the next retry.
+    pub next_retry_at_ms: Option<u64>,
+    /// Whether a last error is present.
+    pub has_error: bool,
+}
+
 impl Default for AuthSlice {
     fn default() -> Self {
         Self {
@@ -219,25 +283,12 @@ pub enum AppModeState {
 }
 
 /// System-level state, including SSE connection status.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct SystemState {
     /// Aggregate transfer rates.
     pub rates: SystemRates,
     /// SSE connection status.
-    pub sse_state: SseState,
-}
-
-impl Default for SystemState {
-    fn default() -> Self {
-        Self {
-            rates: SystemRates::default(),
-            sse_state: SseState::Reconnecting {
-                retry_in_secs: 3,
-                last_event: "initial".to_string(),
-                reason: "connecting".to_string(),
-            },
-        }
-    }
+    pub sse_status: SseStatus,
 }
 
 /// Aggregate transfer rates reported by SSE or polling.
@@ -257,8 +308,19 @@ pub const fn select_system_rates(store: &AppStore) -> SystemRates {
 
 /// Read the current SSE connection status.
 #[must_use]
-pub fn select_sse_status(store: &AppStore) -> SseState {
-    store.system.sse_state.clone()
+pub fn select_sse_status(store: &AppStore) -> SseStatus {
+    store.system.sse_status.clone()
+}
+
+/// Read the SSE status summary used by the connectivity indicator.
+#[must_use]
+pub const fn select_sse_status_summary(store: &AppStore) -> SseStatusSummary {
+    let status = &store.system.sse_status;
+    SseStatusSummary {
+        state: status.state,
+        next_retry_at_ms: status.next_retry_at_ms,
+        has_error: status.last_error.is_some(),
+    }
 }
 
 /// Result of applying a normalized SSE envelope.
