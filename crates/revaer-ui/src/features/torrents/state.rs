@@ -21,6 +21,8 @@ pub struct TorrentRow {
     pub eta: Option<String>,
     /// Current ratio for the torrent.
     pub ratio: f64,
+    /// Timestamp string for the last update.
+    pub updated: String,
     /// Any labels applied to the torrent.
     pub tags: Vec<String>,
     /// Tracker URL (empty if missing).
@@ -65,6 +67,7 @@ impl From<TorrentSummary> for TorrentRow {
                 }
             }),
             ratio: clamp_f64(value.rates.ratio),
+            updated: value.last_updated.format("%Y-%m-%d %H:%M UTC").to_string(),
             tags: value.tags,
             tracker: value.trackers.first().cloned().unwrap_or_default(),
             path: value
@@ -125,6 +128,8 @@ pub struct TorrentRowBase {
     pub size_bytes: u64,
     /// Upload ratio as reported by the engine.
     pub ratio: f64,
+    /// Timestamp string for the last update.
+    pub updated: String,
 }
 
 impl TorrentRowBase {
@@ -475,6 +480,7 @@ pub fn select_torrent_row_base(state: &TorrentsState, id: &Uuid) -> Option<Torre
         category: row.category.clone(),
         size_bytes: row.size_bytes,
         ratio: row.ratio,
+        updated: row.updated.clone(),
     })
 }
 
@@ -649,6 +655,7 @@ mod tests {
             progress: 0.1,
             eta: Some("10s".into()),
             ratio: 0.0,
+            updated: "2024-01-01 00:00 UTC".into(),
             tags: vec![],
             tracker: "t1".into(),
             path: "/data/a".into(),
@@ -756,6 +763,7 @@ mod tests {
         assert_eq!(row.size_label(), "1.00 GB");
         assert_eq!(row.tracker, "t");
         assert_eq!(row.path, "/p");
+        assert_eq!(row.updated, now.format("%Y-%m-%d %H:%M UTC").to_string());
     }
 
     #[test]
@@ -785,6 +793,7 @@ mod tests {
         let base = select_torrent_row_base(&state, &id).expect("base slice");
         assert_eq!(base.name, "alpha");
         assert_eq!(base.tracker, "t1");
+        assert_eq!(base.updated, "2024-01-01 00:00 UTC");
 
         let progress = select_torrent_progress_slice(&state, &id).expect("progress slice");
         assert_eq!(progress.status, "downloading");

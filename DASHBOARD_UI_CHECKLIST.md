@@ -101,7 +101,7 @@
 - [ ] Layout: Nexus dashboard styling, list-based view, with filter bar and FAB.
 - [x] Filters in URL query: query text (name), state, tags, tracker, extension.
 - [x] Pagination: limit and cursor; provide Load more using next cursor.
-- [ ] Columns (TorrentSummary): name, state, progress, down/up rate, ratio, tags, trackers, updated timestamp.
+- [x] Columns (TorrentSummary): name, state, progress, down/up rate, ratio, tags, trackers, updated timestamp.
 - [ ] Row click opens details drawer and updates route (deep link).
 - [ ] Row menu actions: pause, resume, reannounce, recheck, sequential toggle.
 - [ ] Row menu actions: set rate (download/upload bps).

@@ -639,6 +639,7 @@ fn render_row(
     let show_eta = visible_cols.contains(&"eta");
     let show_ratio = visible_cols.contains(&"ratio");
     let show_size = visible_cols.contains(&"size");
+    let show_updated = visible_cols.contains(&"updated");
     let show_tags = visible_cols.contains(&"tags");
     let show_path = visible_cols.contains(&"path");
     let mut overflow = Vec::new();
@@ -656,6 +657,12 @@ fn render_row(
     }
     if overflow_cols.contains(&"size") {
         overflow.push((t("torrents.size"), base.size_label()));
+    }
+    if overflow_cols.contains(&"updated") {
+        overflow.push((
+            bundle.text("torrents.updated", "Updated"),
+            base.updated.clone(),
+        ));
     }
     if overflow_cols.contains(&"tags") && !base.tags.is_empty() {
         overflow.push((t("torrents.tags"), base.tags.join(", ")));
@@ -747,6 +754,12 @@ fn render_row(
                         <strong>{base.size_label()}</strong>
                     </div>
                 }} else { html!{} }}
+                {if show_updated { html! {
+                    <div class="stat">
+                        <small>{bundle.text("torrents.updated", "Updated")}</small>
+                        <strong>{base.updated.clone()}</strong>
+                    </div>
+                }} else { html!{} }}
             </div>
             <div class="row-meta">
                 {if show_path { html! { <span class="muted">{base.path.clone()}</span> }} else { html!{} }}
@@ -794,6 +807,7 @@ fn render_mobile_row(
     let show_eta = visible_cols.contains(&"eta");
     let show_ratio = visible_cols.contains(&"ratio");
     let show_size = visible_cols.contains(&"size");
+    let show_updated = visible_cols.contains(&"updated");
     let show_tags = visible_cols.contains(&"tags");
     let show_path = visible_cols.contains(&"path");
     let mut overflow = Vec::new();
@@ -811,6 +825,12 @@ fn render_mobile_row(
     }
     if overflow_cols.contains(&"size") {
         overflow.push((t("torrents.size"), base.size_label()));
+    }
+    if overflow_cols.contains(&"updated") {
+        overflow.push((
+            bundle.text("torrents.updated", "Updated"),
+            base.updated.clone(),
+        ));
     }
     if overflow_cols.contains(&"tags") && !base.tags.is_empty() {
         overflow.push((t("torrents.tags"), base.tags.join(", ")));
@@ -883,6 +903,7 @@ fn render_mobile_row(
                 <div><small>{t("torrents.up")}</small><strong>{format_rate(progress.upload_bps)}</strong></div>
                 {if show_ratio { html! { <div><small>{t("torrents.ratio")}</small><strong>{format!("{:.2}", base.ratio)}</strong></div> }} else { html!{} }}
                 {if show_size { html! { <div><small>{t("torrents.size")}</small><strong>{base.size_label()}</strong></div> }} else { html!{} }}
+                {if show_updated { html! { <div><small>{bundle.text("torrents.updated", "Updated")}</small><strong>{base.updated.clone()}</strong></div> }} else { html!{} }}
             </div>
             <div class="row-meta">
                 {if show_path { html! { <span class="muted ellipsis">{base.path.clone()}</span> }} else { html!{} }}
@@ -1310,6 +1331,7 @@ pub(crate) fn demo_rows() -> Vec<TorrentRow> {
             progress: 0.41,
             eta: Some("12m".into()),
             ratio: 0.12,
+            updated: "2024-12-12 09:14 UTC".into(),
             tags: vec!["4K", "HDR10", "hevc"]
                 .into_iter()
                 .map(str::to_string)
@@ -1328,6 +1350,7 @@ pub(crate) fn demo_rows() -> Vec<TorrentRow> {
             progress: 1.0,
             eta: None,
             ratio: 3.82,
+            updated: "2024-12-12 08:02 UTC".into(),
             tags: vec!["blu-ray", "lossless"]
                 .into_iter()
                 .map(str::to_string)
@@ -1346,6 +1369,7 @@ pub(crate) fn demo_rows() -> Vec<TorrentRow> {
             progress: 0.77,
             eta: Some("–".into()),
             ratio: 0.44,
+            updated: "2024-12-12 07:44 UTC".into(),
             tags: vec!["remux", "dolby vision"]
                 .into_iter()
                 .map(str::to_string)
@@ -1364,6 +1388,7 @@ pub(crate) fn demo_rows() -> Vec<TorrentRow> {
             progress: 0.13,
             eta: Some("3m".into()),
             ratio: 0.02,
+            updated: "2024-12-12 06:55 UTC".into(),
             tags: vec!["iso"].into_iter().map(str::to_string).collect(),
             tracker: "releases.ubuntu.com".into(),
             path: "/data/incomplete/ubuntu".into(),
@@ -1379,6 +1404,7 @@ pub(crate) fn demo_rows() -> Vec<TorrentRow> {
             progress: 0.63,
             eta: Some("8m".into()),
             ratio: 0.56,
+            updated: "2024-12-12 09:01 UTC".into(),
             tags: vec!["nf", "dolby atmos"]
                 .into_iter()
                 .map(str::to_string)

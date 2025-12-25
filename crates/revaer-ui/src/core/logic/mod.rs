@@ -479,7 +479,7 @@ pub fn build_torrents_path(filters: &TorrentsQueryModel, paging: &TorrentsPaging
 #[must_use]
 pub fn plan_columns(width: u16) -> (Vec<&'static str>, Vec<&'static str>) {
     const REQUIRED: [&str; 5] = ["name", "status", "progress", "down", "up"];
-    const OPTIONAL: [&str; 5] = ["eta", "ratio", "size", "tags", "path"];
+    const OPTIONAL: [&str; 6] = ["eta", "ratio", "size", "tags", "path", "updated"];
     if width < crate::breakpoints::MD.min_width {
         (REQUIRED.to_vec(), OPTIONAL.to_vec())
     } else if width < crate::breakpoints::LG.min_width {
