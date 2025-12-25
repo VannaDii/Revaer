@@ -778,6 +778,23 @@ h1, h2, h3, h4, h5, h6 {
   gap: 8px;
 }
 
+.toolbar .filters {
+  flex: 2 1 420px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.toolbar .filter {
+  display: grid;
+  gap: 4px;
+}
+
+.toolbar .filter span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .bulk-actions {
   display: flex;
   flex-wrap: wrap;
@@ -797,7 +814,8 @@ h1, h2, h3, h4, h5, h6 {
   color: var(--primary-700);
 }
 
-.toolbar input {
+.toolbar input,
+.toolbar select {
   flex: 1;
   padding: 10px 12px;
   border-radius: 10px;
@@ -811,6 +829,16 @@ h1, h2, h3, h4, h5, h6 {
   gap: 8px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+.load-more {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 16px;
+}
+
+.load-more button {
+  min-width: 160px;
 }
 
 .segmented {
@@ -1107,6 +1135,12 @@ button {
 
 button:hover {
   border-color: var(--primary-500);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  border-color: var(--border);
 }
 
 button.ghost {
@@ -1544,6 +1578,9 @@ button:focus-visible {
   .toolbar {
     flex-direction: column;
     align-items: stretch;
+  }
+  .toolbar .filters {
+    grid-template-columns: 1fr;
   }
   .toolbar .actions {
     justify-content: space-between;

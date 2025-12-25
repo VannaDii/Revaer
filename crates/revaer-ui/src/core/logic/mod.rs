@@ -309,6 +309,101 @@ pub fn build_sse_query(
     }
 }
 
+fn collect_filter_params(filters: &TorrentsQueryModel) -> Vec<String> {
+    let mut params = Vec::new();
+    if !filters.name.trim().is_empty() {
+        params.push(format!("name={}", urlencoding::encode(filters.name.trim())));
+    }
+    if let Some(state) = filters.state.as_ref().filter(|s| !s.trim().is_empty()) {
+        params.push(format!("state={}", urlencoding::encode(state.trim())));
+    }
+    if !filters.tags.is_empty() {
+        let tags = filters
+            .tags
+            .iter()
+            .map(|tag| tag.trim())
+            .filter(|tag| !tag.is_empty())
+            .collect::<Vec<_>>()
+            .join(",");
+        if !tags.is_empty() {
+            params.push(format!("tags={}", urlencoding::encode(&tags)));
+        }
+    }
+    if let Some(tracker) = filters.tracker.as_ref().filter(|t| !t.trim().is_empty()) {
+        params.push(format!("tracker={}", urlencoding::encode(tracker.trim())));
+    }
+    if let Some(extension) = filters.extension.as_ref().filter(|e| !e.trim().is_empty()) {
+        let normalized = extension.trim_start_matches('.');
+        params.push(format!("extension={}", urlencoding::encode(normalized)));
+    }
+    params
+}
+
+fn decode_query_value(raw: &str) -> Option<String> {
+    let normalized = raw.replace('+', " ");
+    urlencoding::decode(&normalized)
+        .ok()
+        .map(std::borrow::Cow::into_owned)
+}
+
+/// Build the query string for torrent list filters (no paging parameters).
+#[must_use]
+pub fn build_torrent_filter_query(filters: &TorrentsQueryModel) -> String {
+    collect_filter_params(filters).join("&")
+}
+
+/// Parse torrent list filters from a URL query string.
+#[must_use]
+pub fn parse_torrent_filter_query(query: &str) -> TorrentsQueryModel {
+    let mut filters = TorrentsQueryModel::default();
+    let query = query.trim_start_matches('?');
+    if query.is_empty() {
+        return filters;
+    }
+    for pair in query.split('&') {
+        if pair.trim().is_empty() {
+            continue;
+        }
+        let mut parts = pair.splitn(2, '=');
+        let key_raw = parts.next().unwrap_or_default();
+        let value_raw = parts.next().unwrap_or_default();
+        let Some(key) = decode_query_value(key_raw) else {
+            continue;
+        };
+        let value = decode_query_value(value_raw).unwrap_or_default();
+        match key.as_str() {
+            "name" => {
+                filters.name = value;
+            }
+            "state" => {
+                let trimmed = value.trim();
+                if !trimmed.is_empty() {
+                    filters.state = Some(trimmed.to_string());
+                }
+            }
+            "tags" => {
+                if let Some(tags) = parse_tags(&value) {
+                    filters.tags = tags;
+                }
+            }
+            "tracker" => {
+                let trimmed = value.trim();
+                if !trimmed.is_empty() {
+                    filters.tracker = Some(trimmed.to_string());
+                }
+            }
+            "extension" => {
+                let normalized = value.trim().trim_start_matches('.');
+                if !normalized.is_empty() {
+                    filters.extension = Some(normalized.to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+    filters
+}
+
 const fn base_event_kinds() -> [&'static str; 8] {
     [
         "torrent_added",
@@ -366,32 +461,7 @@ pub fn build_sse_url(base_url: &str, endpoint: SseEndpoint, query: Option<&SseQu
 #[must_use]
 pub fn build_torrents_path(filters: &TorrentsQueryModel, paging: &TorrentsPaging) -> String {
     const DEFAULT_LIMIT: u32 = 50;
-    let mut params = Vec::new();
-    if !filters.name.trim().is_empty() {
-        params.push(format!("name={}", urlencoding::encode(filters.name.trim())));
-    }
-    if let Some(state) = filters.state.as_ref().filter(|s| !s.trim().is_empty()) {
-        params.push(format!("state={}", urlencoding::encode(state.trim())));
-    }
-    if !filters.tags.is_empty() {
-        let tags = filters
-            .tags
-            .iter()
-            .map(|tag| tag.trim())
-            .filter(|tag| !tag.is_empty())
-            .collect::<Vec<_>>()
-            .join(",");
-        if !tags.is_empty() {
-            params.push(format!("tags={}", urlencoding::encode(&tags)));
-        }
-    }
-    if let Some(tracker) = filters.tracker.as_ref().filter(|t| !t.trim().is_empty()) {
-        params.push(format!("tracker={}", urlencoding::encode(tracker.trim())));
-    }
-    if let Some(extension) = filters.extension.as_ref().filter(|e| !e.trim().is_empty()) {
-        let normalized = extension.trim_start_matches('.');
-        params.push(format!("extension={}", urlencoding::encode(normalized)));
-    }
+    let mut params = collect_filter_params(filters);
     if let Some(cursor) = paging.cursor.as_ref().filter(|c| !c.trim().is_empty()) {
         params.push(format!("cursor={}", urlencoding::encode(cursor.trim())));
     }
@@ -587,6 +657,24 @@ mod tests {
             build_torrents_path(&filters, &paging),
             "/v1/torrents?name=abc&tags=one%2Ctwo&cursor=cursor&limit=75"
         );
+    }
+
+    #[test]
+    fn torrent_filter_query_round_trips() {
+        let filters = TorrentsQueryModel {
+            name: "alpha beta".into(),
+            state: Some("downloading".into()),
+            tags: vec!["one".into(), "two".into()],
+            tracker: Some("tracker".into()),
+            extension: Some("mkv".into()),
+        };
+        let query = build_torrent_filter_query(&filters);
+        assert_eq!(
+            query,
+            "name=alpha%20beta&state=downloading&tags=one%2Ctwo&tracker=tracker&extension=mkv"
+        );
+        let parsed = parse_torrent_filter_query(&format!("?{query}"));
+        assert_eq!(parsed, filters);
     }
 
     #[test]

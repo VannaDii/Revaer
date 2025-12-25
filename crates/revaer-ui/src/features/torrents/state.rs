@@ -278,6 +278,21 @@ pub fn set_rows(state: &mut TorrentsState, rows: Vec<TorrentRow>) {
     }
 }
 
+/// Append new rows to the list without clearing existing state.
+pub fn append_rows(state: &mut TorrentsState, rows: Vec<TorrentRow>) {
+    if rows.is_empty() {
+        return;
+    }
+    let mut existing: HashSet<Uuid, RandomState> = state.visible_ids.iter().copied().collect();
+    for row in rows {
+        let id = row.id;
+        state.by_id.insert(id, Rc::new(row));
+        if existing.insert(id) {
+            state.visible_ids.push(id);
+        }
+    }
+}
+
 /// Set the selected drawer id.
 pub const fn set_selected_id(state: &mut TorrentsState, id: Option<Uuid>) {
     state.selected_id = id;
@@ -741,6 +756,23 @@ mod tests {
         assert_eq!(row.size_label(), "1.00 GB");
         assert_eq!(row.tracker, "t");
         assert_eq!(row.path, "/p");
+    }
+
+    #[test]
+    fn append_rows_dedupes_and_updates() {
+        let id_one = Uuid::from_u128(1);
+        let id_two = Uuid::from_u128(2);
+        let mut state = TorrentsState::default();
+        set_rows(&mut state, vec![base_row(id_one)]);
+        state.selected.insert(id_one);
+
+        let mut updated = base_row(id_one);
+        updated.name = "beta".into();
+        append_rows(&mut state, vec![updated, base_row(id_two)]);
+
+        assert_eq!(state.visible_ids, vec![id_one, id_two]);
+        assert_eq!(state.by_id.get(&id_one).unwrap().name, "beta");
+        assert!(state.selected.contains(&id_one));
     }
 
     #[test]

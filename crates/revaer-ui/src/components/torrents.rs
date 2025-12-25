@@ -38,6 +38,28 @@ pub(crate) struct TorrentProps {
     pub add_busy: bool,
     pub search: String,
     pub on_search: Callback<String>,
+    /// Current state filter value.
+    pub state_filter: String,
+    /// Current tags filter input (comma-separated).
+    pub tags_filter: String,
+    /// Current tracker filter value.
+    pub tracker_filter: String,
+    /// Current extension filter value.
+    pub extension_filter: String,
+    /// Update the state filter.
+    pub on_state_filter: Callback<String>,
+    /// Update the tags filter.
+    pub on_tags_filter: Callback<String>,
+    /// Update the tracker filter.
+    pub on_tracker_filter: Callback<String>,
+    /// Update the extension filter.
+    pub on_extension_filter: Callback<String>,
+    /// Whether another page is available.
+    pub can_load_more: bool,
+    /// Whether the list is loading (refresh or pagination).
+    pub is_loading: bool,
+    /// Request the next page of torrents.
+    pub on_load_more: Callback<()>,
     pub selected_id: Option<Uuid>,
     pub selected_ids: SelectionSet,
     pub on_set_selected: Callback<SelectionSet>,
@@ -281,6 +303,88 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                         }}
                     />
                 </div>
+                <div class="filters">
+                    <label class="filter">
+                        <span>{bundle.text("torrents.filter_state", "State")}</span>
+                        <select
+                            aria-label={bundle.text("torrents.state_label", "Torrent state")}
+                            value={props.state_filter.clone()}
+                            onchange={{
+                                let on_state = props.on_state_filter.clone();
+                                Callback::from(move |e: web_sys::Event| {
+                                    if let Some(select) =
+                                        e.target_dyn_into::<web_sys::HtmlSelectElement>()
+                                    {
+                                        on_state.emit(select.value());
+                                    }
+                                })
+                            }}
+                        >
+                            <option value="">{bundle.text("torrents.state_all", "All states")}</option>
+                            <option value="queued">{bundle.text("torrents.state_queued", "Queued")}</option>
+                            <option value="fetching_metadata">{bundle.text("torrents.state_fetching", "Metadata")}</option>
+                            <option value="downloading">{bundle.text("torrents.state_downloading", "Downloading")}</option>
+                            <option value="seeding">{bundle.text("torrents.state_seeding", "Seeding")}</option>
+                            <option value="completed">{bundle.text("torrents.state_completed", "Completed")}</option>
+                            <option value="stopped">{bundle.text("torrents.state_stopped", "Stopped")}</option>
+                            <option value="failed">{bundle.text("torrents.state_failed", "Failed")}</option>
+                        </select>
+                    </label>
+                    <label class="filter">
+                        <span>{bundle.text("torrents.filter_tags", "Tags")}</span>
+                        <input
+                            aria-label={bundle.text("torrents.tags_label", "Tags")}
+                            placeholder={bundle.text("torrents.tags_placeholder", "tag1, tag2")}
+                            value={props.tags_filter.clone()}
+                            oninput={{
+                                let on_tags = props.on_tags_filter.clone();
+                                Callback::from(move |e: InputEvent| {
+                                    if let Some(input) =
+                                        e.target_dyn_into::<web_sys::HtmlInputElement>()
+                                    {
+                                        on_tags.emit(input.value());
+                                    }
+                                })
+                            }}
+                        />
+                    </label>
+                    <label class="filter">
+                        <span>{bundle.text("torrents.filter_tracker", "Tracker")}</span>
+                        <input
+                            aria-label={bundle.text("torrents.tracker_label", "Tracker")}
+                            placeholder={bundle.text("torrents.tracker_placeholder", "tracker url")}
+                            value={props.tracker_filter.clone()}
+                            oninput={{
+                                let on_tracker = props.on_tracker_filter.clone();
+                                Callback::from(move |e: InputEvent| {
+                                    if let Some(input) =
+                                        e.target_dyn_into::<web_sys::HtmlInputElement>()
+                                    {
+                                        on_tracker.emit(input.value());
+                                    }
+                                })
+                            }}
+                        />
+                    </label>
+                    <label class="filter">
+                        <span>{bundle.text("torrents.filter_extension", "Extension")}</span>
+                        <input
+                            aria-label={bundle.text("torrents.extension_label", "Extension")}
+                            placeholder={bundle.text("torrents.extension_placeholder", ".mkv")}
+                            value={props.extension_filter.clone()}
+                            oninput={{
+                                let on_extension = props.on_extension_filter.clone();
+                                Callback::from(move |e: InputEvent| {
+                                    if let Some(input) =
+                                        e.target_dyn_into::<web_sys::HtmlInputElement>()
+                                    {
+                                        on_extension.emit(input.value());
+                                    }
+                                })
+                            }}
+                        />
+                    </label>
+                </div>
                 <div class="bulk-actions">
                     <button class="ghost" onclick={{
                         let selected_ids = selected_ids.clone();
@@ -397,6 +501,23 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                     })
                 }}
             />
+            {if props.can_load_more {
+                let label = if props.is_loading {
+                    bundle.text("torrents.loading_more", "Loading...")
+                } else {
+                    bundle.text("torrents.load_more", "Load more")
+                };
+                let on_load_more = props.on_load_more.clone();
+                html! {
+                    <div class="load-more">
+                        <button class="ghost" onclick={Callback::from(move |_| on_load_more.emit(()))} disabled={props.is_loading}>
+                            {label}
+                        </button>
+                    </div>
+                }
+            } else {
+                html! {}
+            }}
 
             <DetailView data={props.selected_detail.clone()} on_toggle_file={on_toggle_file} />
             <MobileActionRow

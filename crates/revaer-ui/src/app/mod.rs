@@ -11,7 +11,9 @@ use crate::components::torrents::{TorrentView, demo_rows};
 use crate::core::auth::{AuthMode, AuthState};
 use crate::core::breakpoints::Breakpoint;
 use crate::core::events::UiEventEnvelope;
-use crate::core::logic::{SseView, build_sse_query};
+use crate::core::logic::{
+    SseView, build_sse_query, build_torrent_filter_query, parse_tags, parse_torrent_filter_query,
+};
 use crate::core::store::{
     AppModeState, AppStore, HealthMetricsSnapshot, HealthSnapshot, SseApplyOutcome, SystemRates,
     TorrentHealthSnapshot, apply_sse_envelope, select_sse_status, select_system_rates,
@@ -24,7 +26,7 @@ use crate::features::labels::view::LabelsPage;
 use crate::features::settings::view::SettingsPage;
 use crate::features::torrents::actions::{TorrentAction, success_message};
 use crate::features::torrents::state::{
-    ProgressPatch, SelectionSet, TorrentRow, TorrentsPaging, TorrentsQueryModel,
+    ProgressPatch, SelectionSet, TorrentRow, TorrentsPaging, TorrentsQueryModel, append_rows,
     apply_progress_patch, remove_row, select_selected_detail, select_visible_ids,
     select_visible_rows, set_rows, set_selected, set_selected_id, update_detail_file_selection,
     upsert_detail,
@@ -50,7 +52,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use uuid::Uuid;
-use wasm_bindgen::JsCast;
+use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 use yew::prelude::*;
 use yew_router::prelude::*;
@@ -110,10 +112,8 @@ pub fn revaer_app() -> Html {
     let selected_ids = use_selector(|store: &AppStore| store.torrents.selected.clone());
     let selected_detail = use_selector(|store: &AppStore| select_selected_detail(&store.torrents));
     let filters = use_selector(|store: &AppStore| store.torrents.filters.clone());
-    let paging_request = use_selector(|store: &AppStore| {
-        let paging = &store.torrents.paging;
-        (paging.cursor.clone(), paging.limit)
-    });
+    let paging_state = use_selector(|store: &AppStore| store.torrents.paging.clone());
+    let paging_limit = use_selector(|store: &AppStore| store.torrents.paging.limit);
     let system_rates = use_selector(select_system_rates);
     let sse_state = use_selector(select_sse_status);
 
@@ -134,15 +134,76 @@ pub fn revaer_app() -> Html {
     let selected_ids_value = (*selected_ids).clone();
     let selected_detail_value = (*selected_detail).clone();
     let filters_value = (*filters).clone();
+    let paging_state_value = (*paging_state).clone();
     let search = filters_value.name.clone();
+    let state_filter_value = filters_value.state.clone().unwrap_or_default();
+    let tags_filter_value = if filters_value.tags.is_empty() {
+        String::new()
+    } else {
+        filters_value.tags.join(", ")
+    };
+    let tracker_filter_value = filters_value.tracker.clone().unwrap_or_default();
+    let extension_filter_value = filters_value.extension.clone().unwrap_or_default();
+    let can_load_more = paging_state_value.next_cursor.is_some();
+    let paging_is_loading = paging_state_value.is_loading;
     let system_rates_value = *system_rates;
     let sse_state_value = (*sse_state).clone();
 
+    let location = use_location();
     let current_route = use_route::<Route>().unwrap_or(Route::Torrents);
     let selected_route_id = match current_route.clone() {
         Route::TorrentDetail { id } => Uuid::parse_str(&id).ok(),
         _ => None,
     };
+
+    {
+        let dispatch = dispatch.clone();
+        let location = location.clone();
+        use_effect_with_deps(
+            move |(location, route)| {
+                let Some(location) = location.as_ref() else {
+                    return;
+                };
+                if !matches!(route, Route::Torrents | Route::TorrentDetail { .. }) {
+                    return;
+                }
+                let parsed = parse_torrent_filter_query(location.query_str());
+                if parsed != dispatch.get().torrents.filters {
+                    dispatch.reduce_mut(|store| {
+                        store.torrents.filters = parsed;
+                        store.torrents.paging.cursor = None;
+                        store.torrents.paging.next_cursor = None;
+                    });
+                }
+            },
+            (location.clone(), current_route.clone()),
+        );
+    }
+    {
+        let location = location.clone();
+        let filters = filters.clone();
+        use_effect_with_deps(
+            move |(filters, location, route)| {
+                let Some(location) = location.as_ref() else {
+                    return;
+                };
+                if !matches!(route, Route::Torrents | Route::TorrentDetail { .. }) {
+                    return;
+                }
+                let desired = build_torrent_filter_query(&**filters);
+                let desired_query = if desired.is_empty() {
+                    String::new()
+                } else {
+                    format!("?{desired}")
+                };
+                if desired_query == location.query_str() {
+                    return;
+                }
+                replace_url_query(location.path(), location.hash(), &desired);
+            },
+            (filters.clone(), location.clone(), current_route.clone()),
+        );
+    }
 
     {
         let dispatch = dispatch.clone();
@@ -446,19 +507,18 @@ pub fn revaer_app() -> Html {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
         let filters = filters.clone();
-        let paging_request = paging_request.clone();
+        let paging_limit = paging_limit.clone();
         let auth_state = auth_state.clone();
         let toast_id = toast_id.clone();
         let bundle = (*bundle).clone();
         use_effect_with_deps(
-            move |(filters, paging_request, auth_state)| {
+            move |(filters, paging_limit, auth_state)| {
                 let auth_state = (**auth_state).clone();
                 let filters = (**filters).clone();
-                let (cursor, limit) = &**paging_request;
                 let paging = TorrentsPaging {
-                    cursor: cursor.clone(),
+                    cursor: None,
                     next_cursor: None,
-                    limit: *limit,
+                    limit: **paging_limit,
                     is_loading: false,
                 };
                 let dispatch = dispatch.clone();
@@ -491,7 +551,7 @@ pub fn revaer_app() -> Html {
                 });
                 || ()
             },
-            (filters.clone(), paging_request.clone(), auth_state.clone()),
+            (filters.clone(), paging_limit.clone(), auth_state.clone()),
         );
     }
 
@@ -515,7 +575,7 @@ pub fn revaer_app() -> Html {
                 let state = dispatch.get();
                 let auth_state = state.auth.state.clone();
                 let filters = state.torrents.filters.clone();
-                let paging = state.torrents.paging.clone();
+                let paging = refresh_paging(&state.torrents.paging);
                 if auth_state.is_none() {
                     dispatch.reduce_mut(|store| {
                         set_rows(&mut store.torrents, demo_rows());
@@ -808,11 +868,110 @@ pub fn revaer_app() -> Html {
             });
         })
     };
+    let set_state_filter = {
+        let dispatch = dispatch.clone();
+        Callback::from(move |value: String| {
+            dispatch.reduce_mut(|store| {
+                let trimmed = value.trim();
+                store.torrents.filters.state = if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed.to_string())
+                };
+                store.torrents.paging.cursor = None;
+                store.torrents.paging.next_cursor = None;
+            });
+        })
+    };
+    let set_tags_filter = {
+        let dispatch = dispatch.clone();
+        Callback::from(move |value: String| {
+            let parsed = parse_tags(&value).unwrap_or_default();
+            dispatch.reduce_mut(|store| {
+                store.torrents.filters.tags = parsed;
+                store.torrents.paging.cursor = None;
+                store.torrents.paging.next_cursor = None;
+            });
+        })
+    };
+    let set_tracker_filter = {
+        let dispatch = dispatch.clone();
+        Callback::from(move |value: String| {
+            dispatch.reduce_mut(|store| {
+                let trimmed = value.trim();
+                store.torrents.filters.tracker = if trimmed.is_empty() {
+                    None
+                } else {
+                    Some(trimmed.to_string())
+                };
+                store.torrents.paging.cursor = None;
+                store.torrents.paging.next_cursor = None;
+            });
+        })
+    };
+    let set_extension_filter = {
+        let dispatch = dispatch.clone();
+        Callback::from(move |value: String| {
+            dispatch.reduce_mut(|store| {
+                let normalized = value.trim().trim_start_matches('.');
+                store.torrents.filters.extension = if normalized.is_empty() {
+                    None
+                } else {
+                    Some(normalized.to_string())
+                };
+                store.torrents.paging.cursor = None;
+                store.torrents.paging.next_cursor = None;
+            });
+        })
+    };
     let on_set_selected = {
         let dispatch = dispatch.clone();
         Callback::from(move |next: SelectionSet| {
             dispatch.reduce_mut(|store| {
                 set_selected(&mut store.torrents, next);
+            });
+        })
+    };
+    let on_load_more = {
+        let dispatch = dispatch.clone();
+        let api_ctx = (*api_ctx).clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
+        Callback::from(move |_| {
+            let state = dispatch.get();
+            if state.torrents.paging.is_loading || state.auth.state.is_none() {
+                return;
+            }
+            let Some(cursor) = state.torrents.paging.next_cursor.clone() else {
+                return;
+            };
+            let filters = state.torrents.filters.clone();
+            let paging = TorrentsPaging {
+                cursor: Some(cursor),
+                next_cursor: None,
+                limit: state.torrents.paging.limit,
+                is_loading: false,
+            };
+            dispatch.reduce_mut(|store| {
+                store.torrents.paging.is_loading = true;
+            });
+            let dispatch = dispatch.clone();
+            let client = api_ctx.client.clone();
+            let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
+            yew::platform::spawn_local(async move {
+                fetch_torrent_list_with_retry(
+                    client,
+                    dispatch.clone(),
+                    toast_id,
+                    bundle,
+                    filters,
+                    paging,
+                )
+                .await;
+                dispatch.reduce_mut(|store| {
+                    store.torrents.paging.is_loading = false;
+                });
             });
         })
     };
@@ -902,7 +1061,7 @@ pub fn revaer_app() -> Html {
                             let state = dispatch.get();
                             (
                                 state.torrents.filters.clone(),
-                                state.torrents.paging.clone(),
+                                refresh_paging(&state.torrents.paging),
                             )
                         };
                         fetch_torrent_list_with_retry(
@@ -1144,13 +1303,71 @@ pub fn revaer_app() -> Html {
                                 Route::Torrents => html! {
                                     <div class="torrents-stack">
                                         <DashboardPanel snapshot={(*dashboard).clone()} system_rates={system_rates_value} mode={*mode} density={*density} torrents={torrents_rows.clone()} />
-                                        <TorrentView breakpoint={*breakpoint} visible_ids={visible_ids.clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_bulk_action={on_bulk_action.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={add_busy_value} search={search.clone()} on_search={set_search.clone()} selected_id={selected_id_value} selected_ids={selected_ids_value.clone()} on_set_selected={on_set_selected.clone()} selected_detail={selected_detail_value.clone()} on_select_detail={on_select_detail.clone()} on_update_selection={on_update_selection.clone()} />
+                                        <TorrentView
+                                            breakpoint={*breakpoint}
+                                            visible_ids={visible_ids.clone()}
+                                            density={*density}
+                                            mode={*mode}
+                                            on_density_change={set_density.clone()}
+                                            on_bulk_action={on_bulk_action.clone()}
+                                            on_action={on_action.clone()}
+                                            on_add={on_add_torrent.clone()}
+                                            add_busy={add_busy_value}
+                                            search={search.clone()}
+                                            on_search={set_search.clone()}
+                                            state_filter={state_filter_value.clone()}
+                                            tags_filter={tags_filter_value.clone()}
+                                            tracker_filter={tracker_filter_value.clone()}
+                                            extension_filter={extension_filter_value.clone()}
+                                            on_state_filter={set_state_filter.clone()}
+                                            on_tags_filter={set_tags_filter.clone()}
+                                            on_tracker_filter={set_tracker_filter.clone()}
+                                            on_extension_filter={set_extension_filter.clone()}
+                                            can_load_more={can_load_more}
+                                            is_loading={paging_is_loading}
+                                            on_load_more={on_load_more.clone()}
+                                            selected_id={selected_id_value}
+                                            selected_ids={selected_ids_value.clone()}
+                                            on_set_selected={on_set_selected.clone()}
+                                            selected_detail={selected_detail_value.clone()}
+                                            on_select_detail={on_select_detail.clone()}
+                                            on_update_selection={on_update_selection.clone()}
+                                        />
                                     </div>
                                 },
                                 Route::TorrentDetail { id } => html! {
                                     <div class="torrents-stack">
                                         <DashboardPanel snapshot={(*dashboard).clone()} system_rates={system_rates_value} mode={*mode} density={*density} torrents={torrents_rows.clone()} />
-                                        <TorrentView breakpoint={*breakpoint} visible_ids={visible_ids.clone()} density={*density} mode={*mode} on_density_change={set_density.clone()} on_bulk_action={on_bulk_action.clone()} on_action={on_action.clone()} on_add={on_add_torrent.clone()} add_busy={add_busy_value} search={search.clone()} on_search={set_search.clone()} selected_id={Uuid::parse_str(&id).ok()} selected_ids={selected_ids_value.clone()} on_set_selected={on_set_selected.clone()} selected_detail={selected_detail_value.clone()} on_select_detail={on_select_detail.clone()} on_update_selection={on_update_selection.clone()} />
+                                        <TorrentView
+                                            breakpoint={*breakpoint}
+                                            visible_ids={visible_ids.clone()}
+                                            density={*density}
+                                            mode={*mode}
+                                            on_density_change={set_density.clone()}
+                                            on_bulk_action={on_bulk_action.clone()}
+                                            on_action={on_action.clone()}
+                                            on_add={on_add_torrent.clone()}
+                                            add_busy={add_busy_value}
+                                            search={search.clone()}
+                                            on_search={set_search.clone()}
+                                            state_filter={state_filter_value.clone()}
+                                            tags_filter={tags_filter_value.clone()}
+                                            tracker_filter={tracker_filter_value.clone()}
+                                            extension_filter={extension_filter_value.clone()}
+                                            on_state_filter={set_state_filter.clone()}
+                                            on_tags_filter={set_tags_filter.clone()}
+                                            on_tracker_filter={set_tracker_filter.clone()}
+                                            on_extension_filter={set_extension_filter.clone()}
+                                            can_load_more={can_load_more}
+                                            is_loading={paging_is_loading}
+                                            on_load_more={on_load_more.clone()}
+                                            selected_id={Uuid::parse_str(&id).ok()}
+                                            selected_ids={selected_ids_value.clone()}
+                                            on_set_selected={on_set_selected.clone()}
+                                            selected_detail={selected_detail_value.clone()}
+                                            on_select_detail={on_select_detail.clone()}
+                                            on_update_selection={on_update_selection.clone()}
+                                        />
                                     </div>
                                 },
                                 Route::Categories => html! { <LabelsPage kind={LabelKind::Category} /> },
@@ -1229,8 +1446,9 @@ async fn fetch_torrent_list_with_retry(
     filters: TorrentsQueryModel,
     paging: TorrentsPaging,
 ) {
+    let append = paging.cursor.is_some();
     match client.fetch_torrents(&filters, &paging).await {
-        Ok(list) => apply_torrent_list(&dispatch, list),
+        Ok(list) => apply_torrent_list(&dispatch, list, append),
         Err(err) if err.is_rate_limited() => {
             if let Some(delay) = err.retry_after_secs {
                 push_toast(
@@ -1245,7 +1463,7 @@ async fn fetch_torrent_list_with_retry(
                 );
                 TimeoutFuture::new(retry_delay_ms(delay)).await;
                 match client.fetch_torrents(&filters, &paging).await {
-                    Ok(list) => apply_torrent_list(&dispatch, list),
+                    Ok(list) => apply_torrent_list(&dispatch, list, append),
                     Err(err) => push_toast(
                         &dispatch,
                         &toast_id,
@@ -1347,12 +1565,43 @@ async fn fetch_torrent_detail_with_retry(
     }
 }
 
-fn apply_torrent_list(dispatch: &Dispatch<AppStore>, list: crate::models::TorrentListResponse) {
+fn apply_torrent_list(
+    dispatch: &Dispatch<AppStore>,
+    list: crate::models::TorrentListResponse,
+    append: bool,
+) {
     let rows = list.torrents.into_iter().map(TorrentRow::from).collect();
     dispatch.reduce_mut(|store| {
-        set_rows(&mut store.torrents, rows);
+        if append {
+            append_rows(&mut store.torrents, rows);
+        } else {
+            set_rows(&mut store.torrents, rows);
+        }
         store.torrents.paging.next_cursor = list.next;
     });
+}
+
+fn refresh_paging(paging: &TorrentsPaging) -> TorrentsPaging {
+    TorrentsPaging {
+        cursor: None,
+        next_cursor: None,
+        limit: paging.limit,
+        is_loading: false,
+    }
+}
+
+fn replace_url_query(path: &str, hash: &str, query: &str) {
+    let mut url = path.to_string();
+    if !query.is_empty() {
+        url.push('?');
+        url.push_str(query);
+    }
+    if !hash.is_empty() {
+        url.push_str(hash);
+    }
+    if let Ok(history) = window().history() {
+        let _ = history.replace_state_with_url(&JsValue::NULL, "", Some(&url));
+    }
 }
 
 fn retry_delay_ms(delay_secs: u64) -> u32 {
