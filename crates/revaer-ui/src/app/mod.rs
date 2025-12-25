@@ -20,6 +20,7 @@ use crate::core::ui::{Density, UiMode};
 use crate::features::health::view::HealthPage;
 use crate::features::labels::state::LabelKind;
 use crate::features::labels::view::LabelsPage;
+use crate::features::settings::view::SettingsPage;
 use crate::features::torrents::actions::{TorrentAction, success_message};
 use crate::features::torrents::state::{
     ProgressPatch, SelectionSet, TorrentRow, TorrentsPaging, TorrentsQueryModel,
@@ -38,7 +39,8 @@ use gloo_timers::callback::{Interval, Timeout};
 use gloo_timers::future::TimeoutFuture;
 use preferences::{
     DENSITY_KEY, LOCALE_KEY, MODE_KEY, THEME_KEY, allow_anonymous, api_base_url, load_auth_mode,
-    load_auth_state, load_density, load_locale, load_mode, load_theme, persist_auth_state,
+    load_auth_state, load_bypass_local, load_density, load_locale, load_mode, load_theme,
+    persist_auth_state, persist_bypass_local,
 };
 pub(crate) use routes::Route;
 use std::cell::RefCell;
@@ -91,6 +93,7 @@ pub fn revaer_app() -> Html {
     let auth_mode = use_selector(|store: &AppStore| store.auth.mode);
     let auth_state = use_selector(|store: &AppStore| store.auth.state.clone());
     let app_mode = use_selector(|store: &AppStore| store.auth.app_mode);
+    let bypass_local = use_selector(|store: &AppStore| store.auth.bypass_local);
     let setup_token = use_selector(|store: &AppStore| store.auth.setup_token.clone());
     let setup_expires = use_selector(|store: &AppStore| store.auth.setup_expires_at.clone());
     let setup_error = use_selector(|store: &AppStore| store.auth.setup_error.clone());
@@ -114,6 +117,7 @@ pub fn revaer_app() -> Html {
     let auth_mode = *auth_mode;
     let auth_state_value = (*auth_state).clone();
     let app_mode_value = *app_mode;
+    let bypass_local_value = *bypass_local;
     let setup_token_value = (*setup_token).clone();
     let setup_expires_value = (*setup_expires).clone();
     let setup_error_value = (*setup_error).clone();
@@ -167,9 +171,11 @@ pub fn revaer_app() -> Html {
             move |_| {
                 let mode = load_auth_mode();
                 let state = load_auth_state(mode, allow_anon);
+                let bypass_local = load_bypass_local();
                 dispatch.reduce_mut(|store| {
                     store.auth.mode = mode;
                     store.auth.state = state;
+                    store.auth.bypass_local = bypass_local;
                 });
                 || ()
             },
@@ -829,6 +835,15 @@ pub fn revaer_app() -> Html {
             });
         })
     };
+    let on_toggle_bypass_local = {
+        let dispatch = dispatch.clone();
+        Callback::from(move |value: bool| {
+            persist_bypass_local(value);
+            dispatch.reduce_mut(|store| {
+                store.auth.bypass_local = value;
+            });
+        })
+    };
     let on_copy_metrics = {
         let dispatch = dispatch.clone();
         let toast_id = toast_id.clone();
@@ -1076,7 +1091,7 @@ pub fn revaer_app() -> Html {
                                 },
                                 Route::Categories => html! { <LabelsPage kind={LabelKind::Category} /> },
                                 Route::Tags => html! { <LabelsPage kind={LabelKind::Tag} /> },
-                                Route::Settings => html! { <Placeholder title={bundle.text("placeholder.settings_title", "Settings")} body={bundle.text("placeholder.settings_body", "Engine profile and paths")} /> },
+                                Route::Settings => html! { <SettingsPage bypass_local={bypass_local_value} on_toggle_bypass_local={on_toggle_bypass_local.clone()} /> },
                                 Route::Health => html! { <HealthPage on_copy_metrics={on_copy_metrics.clone()} /> },
                                 Route::NotFound => html! { <Placeholder title={bundle.text("placeholder.not_found_title", "Not found")} body={bundle.text("placeholder.not_found_body", "Use navigation to return to a supported view.")} /> },
                             }
@@ -1099,7 +1114,7 @@ pub fn revaer_app() -> Html {
                         html! {
                             <AuthPrompt
                                 allow_anonymous={allow_anon}
-                                default_mode={auth_mode}
+                                default_mode={if bypass_local_value { AuthMode::ApiKey } else { auth_mode }}
                                 on_submit={{
                                     let dispatch = dispatch.clone();
                                     Callback::from(move |value: AuthState| {

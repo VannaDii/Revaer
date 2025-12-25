@@ -45,6 +45,7 @@ ADR documents capture the rationale behind significant technical decisions.
 - [040](040-ui-labels-policy.md) – UI label policy editor and API wiring
 - [041](041-ui-health-shortcuts.md) – UI health view and label shortcuts
 - [042](042-ui-metrics-copy.md) – UI metrics copy button
+- [043](043-ui-settings-bypass-auth.md) – UI settings bypass local auth toggle
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

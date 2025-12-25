@@ -11,22 +11,22 @@
 - [ ] Apply tokens via DaisyUI theme variables or theme selection plus minimal overrides; keep contrast readable for table/list UIs.
 
 ## 3) Shell and routing (atomic composition)
-- [ ] Implement AppShell template: sidebar + topbar + main outlet; preserve Nexus layout structure.
+- [x] Implement AppShell template: sidebar + topbar + main outlet; preserve Nexus layout structure.
 - [x] Routes: Torrents (default), Categories, Tags, Settings, Health.
-- [ ] Torrents route supports deep linking to selected torrent (open details drawer) via URL state.
+- [x] Torrents route supports deep linking to selected torrent (open details drawer) via URL state.
 
 ## 4) Authentication and first-run flow
-- [ ] On startup, determine configured vs not configured.
-- [ ] If not configured: force Setup flow (blocking screen).
-- [ ] If configured and auth missing: show auth prompt (blocking modal/screen).
-- [ ] Setup flow: call admin/setup/start; handle "already configured" by switching to configured state.
-- [ ] Setup flow: collect setup token and complete via admin/setup/complete.
-- [ ] After completion, route to auth prompt.
-- [ ] Auth prompt (configured state): provide two tabs: API key, or Local auth (username/password).
-- [ ] Store auth choice in local storage and attach to all API requests.
-- [ ] API key maps to header x-revaer-api-key (per OpenAPI).
-- [ ] Local auth sends Authorization: Basic ... (server may ignore).
-- [ ] Settings allow "bypass local" toggle; when enabled default auth prompt to API key and avoid showing local auth first.
+- [x] On startup, determine configured vs not configured.
+- [x] If not configured: force Setup flow (blocking screen).
+- [x] If configured and auth missing: show auth prompt (blocking modal/screen).
+- [x] Setup flow: call admin/setup/start; handle "already configured" by switching to configured state.
+- [x] Setup flow: collect setup token and complete via admin/setup/complete.
+- [x] After completion, route to auth prompt.
+- [x] Auth prompt (configured state): provide two tabs: API key, or Local auth (username/password).
+- [x] Store auth choice in local storage and attach to all API requests.
+- [x] API key maps to header x-revaer-api-key (per OpenAPI).
+- [x] Local auth sends Authorization: Basic ... (server may ignore).
+- [x] Settings allow "bypass local" toggle; when enabled default auth prompt to API key and avoid showing local auth first.
 
 ## 5) State management and rendering performance (yewdux)
 - [ ] Adopt yewdux for all shared UI/data state; avoid use_reducer + ContextProvider for shared data.

@@ -45,6 +45,8 @@ pub struct AuthSlice {
     pub mode: AuthMode,
     /// Active auth state.
     pub state: Option<AuthState>,
+    /// Whether to prefer API key auth in the prompt.
+    pub bypass_local: bool,
     /// Current setup gating state.
     pub app_mode: AppModeState,
     /// Setup token returned by the API.
@@ -182,6 +184,7 @@ impl Default for AuthSlice {
         Self {
             mode: AuthMode::ApiKey,
             state: None,
+            bypass_local: false,
             app_mode: AppModeState::Loading,
             setup_token: None,
             setup_expires_at: None,

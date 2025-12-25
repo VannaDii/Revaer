@@ -185,11 +185,13 @@ impl ApiClient {
 
     pub(crate) async fn fetch_health(&self) -> Result<HealthResponse, ApiError> {
         let req = Request::get(&format!("{}{}", self.base_url, "/health"));
+        let req = self.apply_auth(req)?;
         self.send_json(req).await
     }
 
     pub(crate) async fn fetch_health_full(&self) -> Result<FullHealthResponse, ApiError> {
         let req = Request::get(&format!("{}{}", self.base_url, "/health/full"));
+        let req = self.apply_auth(req)?;
         self.send_json(req).await
     }
 

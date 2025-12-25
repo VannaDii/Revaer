@@ -16,6 +16,7 @@ pub(crate) const API_KEY_KEY: &str = "revaer.api_key";
 pub(crate) const AUTH_MODE_KEY: &str = "revaer.auth.mode";
 pub(crate) const LOCAL_AUTH_USER_KEY: &str = "revaer.auth.user";
 pub(crate) const LOCAL_AUTH_PASS_KEY: &str = "revaer.auth.pass";
+pub(crate) const AUTH_BYPASS_LOCAL_KEY: &str = "revaer.auth.bypass_local";
 pub(crate) const SSE_LAST_EVENT_ID_KEY: &str = "revaer.sse.last_event_id";
 
 pub(crate) fn load_theme() -> ThemeMode {
@@ -85,6 +86,10 @@ pub(crate) fn load_auth_mode() -> AuthMode {
     AuthMode::ApiKey
 }
 
+pub(crate) fn load_bypass_local() -> bool {
+    LocalStorage::get::<bool>(AUTH_BYPASS_LOCAL_KEY).unwrap_or(false)
+}
+
 pub(crate) fn load_local_auth() -> Option<LocalAuth> {
     let username = LocalStorage::get::<String>(LOCAL_AUTH_USER_KEY).ok()?;
     let password = LocalStorage::get::<String>(LOCAL_AUTH_PASS_KEY).ok()?;
@@ -129,6 +134,10 @@ pub(crate) fn persist_auth_state(state: &AuthState) {
             let _ = LocalStorage::delete(LOCAL_AUTH_PASS_KEY);
         }
     }
+}
+
+pub(crate) fn persist_bypass_local(value: bool) {
+    let _ = LocalStorage::set(AUTH_BYPASS_LOCAL_KEY, value);
 }
 
 pub(crate) fn allow_anonymous() -> bool {
