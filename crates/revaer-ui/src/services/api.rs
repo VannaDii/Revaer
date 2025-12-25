@@ -184,6 +184,23 @@ impl ApiClient {
         }
     }
 
+    async fn send_torrent_action(
+        &self,
+        id: &str,
+        action: ApiTorrentAction,
+    ) -> Result<(), ApiError> {
+        let req = Request::post(&format!(
+            "{}/v1/torrents/{}/action",
+            self.base_url.trim_end_matches('/'),
+            id
+        ));
+        let req = self.apply_auth(req)?;
+        let req = req
+            .json(&action)
+            .map_err(|err| ApiError::client(format!("action payload failed: {err}")))?;
+        self.send_empty(req).await
+    }
+
     pub(crate) async fn fetch_health(&self) -> Result<HealthResponse, ApiError> {
         let req = Request::get(&format!("{}{}", self.base_url, "/health"));
         let req = self.apply_auth(req)?;
@@ -280,33 +297,44 @@ impl ApiClient {
                 };
                 self.update_torrent_options(id, &request).await
             }
+            UiTorrentAction::Reannounce => {
+                self.send_torrent_action(id, ApiTorrentAction::Reannounce)
+                    .await
+            }
             UiTorrentAction::Recheck => {
-                let api_action = ApiTorrentAction::Recheck;
-                let req = Request::post(&format!(
-                    "{}/v1/torrents/{}/action",
-                    self.base_url.trim_end_matches('/'),
-                    id
-                ));
-                let req = self.apply_auth(req)?;
-                let req = req
-                    .json(&api_action)
-                    .map_err(|err| ApiError::client(format!("action payload failed: {err}")))?;
-                self.send_empty(req).await
+                self.send_torrent_action(id, ApiTorrentAction::Recheck)
+                    .await
+            }
+            UiTorrentAction::Sequential { enable } => {
+                self.send_torrent_action(id, ApiTorrentAction::Sequential { enable })
+                    .await
+            }
+            UiTorrentAction::Rate {
+                download_bps,
+                upload_bps,
+            } => {
+                if download_bps.is_none() && upload_bps.is_none() {
+                    return Err(ApiError::client(
+                        "rate action requires download or upload value",
+                    ));
+                }
+                self.send_torrent_action(
+                    id,
+                    ApiTorrentAction::Rate {
+                        download_bps,
+                        upload_bps,
+                    },
+                )
+                .await
             }
             UiTorrentAction::Delete { with_data } => {
-                let api_action = ApiTorrentAction::Remove {
-                    delete_data: with_data,
-                };
-                let req = Request::post(&format!(
-                    "{}/v1/torrents/{}/action",
-                    self.base_url.trim_end_matches('/'),
-                    id
-                ));
-                let req = self.apply_auth(req)?;
-                let req = req
-                    .json(&api_action)
-                    .map_err(|err| ApiError::client(format!("action payload failed: {err}")))?;
-                self.send_empty(req).await
+                self.send_torrent_action(
+                    id,
+                    ApiTorrentAction::Remove {
+                        delete_data: with_data,
+                    },
+                )
+                .await
             }
         }
     }

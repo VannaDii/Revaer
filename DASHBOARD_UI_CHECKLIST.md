@@ -102,15 +102,15 @@
 - [x] Filters in URL query: query text (name), state, tags, tracker, extension.
 - [x] Pagination: limit and cursor; provide Load more using next cursor.
 - [x] Columns (TorrentSummary): name, state, progress, down/up rate, ratio, tags, trackers, updated timestamp.
-- [ ] Row click opens details drawer and updates route (deep link).
-- [ ] Row menu actions: pause, resume, reannounce, recheck, sequential toggle.
-- [ ] Row menu actions: set rate (download/upload bps).
-- [ ] Row menu actions: remove (confirm + delete_data toggle).
-- [ ] Bulk operations: multi-select checkboxes and bulk action bar.
-- [ ] Bulk ops: issue /{id}/action per selected torrent in parallel with concurrency cap.
-- [ ] Bulk ops: collect per-item failures, show summary toast, keep drawer closed unless single selection remains.
-- [ ] Bulk actions: pause, resume, recheck, reannounce.
-- [ ] Bulk actions: sequential on/off, rate set, remove (confirm + optional delete_data).
+- [x] Row click opens details drawer and updates route (deep link).
+- [x] Row menu actions: pause, resume, reannounce, recheck, sequential toggle.
+- [x] Row menu actions: set rate (download/upload bps).
+- [x] Row menu actions: remove (confirm + delete_data toggle).
+- [x] Bulk operations: multi-select checkboxes and bulk action bar.
+- [x] Bulk ops: issue /{id}/action per selected torrent in parallel with concurrency cap.
+- [x] Bulk ops: collect per-item failures, show summary toast, keep drawer closed unless single selection remains.
+- [x] Bulk actions: pause, resume, recheck, reannounce.
+- [x] Bulk actions: sequential on/off, rate set, remove (confirm + optional delete_data).
 
 ## 10) Torrent details drawer (tabs: Overview, Files, Options)
 - [ ] Overview: summary fields + same actions; show last error if present.

@@ -49,7 +49,7 @@ use preferences::{
 };
 pub(crate) use routes::Route;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
 use uuid::Uuid;
 use wasm_bindgen::{JsCast, JsValue};
@@ -1142,47 +1142,14 @@ pub fn revaer_app() -> Html {
         let bundle = (*bundle).clone();
         Callback::from(move |(action, ids): (TorrentAction, Vec<Uuid>)| {
             let client = api_ctx.client.clone();
-            let dispatch = dispatch.clone();
-            let toast_id = toast_id.clone();
-            let bundle = bundle.clone();
-            yew::platform::spawn_local(async move {
-                for id in ids.clone() {
-                    let id_str = id.to_string();
-                    let display_name = dispatch
-                        .get()
-                        .torrents
-                        .by_id
-                        .get(&id)
-                        .map(|row| row.name.clone())
-                        .unwrap_or_else(|| {
-                            format!("{} {id}", bundle.text("toast.torrent_placeholder", ""))
-                        });
-                    if let Err(err) = client.perform_action(&id_str, action.clone()).await {
-                        push_toast(
-                            &dispatch,
-                            &toast_id,
-                            ToastKind::Error,
-                            format!(
-                                "{} {display_name}: {err}",
-                                bundle.text("toast.action_failed", "")
-                            ),
-                        );
-                    }
-                }
-                if matches!(action, TorrentAction::Delete { .. }) {
-                    dispatch.reduce_mut(|store| {
-                        for id in &ids {
-                            remove_row(&mut store.torrents, *id);
-                        }
-                    });
-                }
-                push_toast(
-                    &dispatch,
-                    &toast_id,
-                    ToastKind::Success,
-                    format!("{} {}", bundle.text("toast.bulk_done", ""), ids.len()),
-                );
-            });
+            spawn_bulk_actions(
+                client,
+                dispatch.clone(),
+                toast_id.clone(),
+                bundle.clone(),
+                action,
+                ids,
+            );
         })
     };
     let on_select_detail = {
@@ -1579,6 +1546,154 @@ fn apply_torrent_list(
         }
         store.torrents.paging.next_cursor = list.next;
     });
+}
+
+struct BulkActionState {
+    queue: VecDeque<Uuid>,
+    in_flight: usize,
+    completed: usize,
+    total: usize,
+    successes: Vec<Uuid>,
+    failures: Vec<String>,
+}
+
+fn spawn_bulk_actions(
+    client: Rc<crate::services::api::ApiClient>,
+    dispatch: Dispatch<AppStore>,
+    toast_id: UseStateHandle<u64>,
+    bundle: TranslationBundle,
+    action: TorrentAction,
+    ids: Vec<Uuid>,
+) {
+    const BULK_CONCURRENCY: usize = 4;
+    if ids.is_empty() {
+        return;
+    }
+    let action_is_delete = matches!(action, TorrentAction::Delete { .. });
+    let total = ids.len();
+    let queue = VecDeque::from(ids);
+    let state = Rc::new(RefCell::new(BulkActionState {
+        queue,
+        in_flight: 0,
+        completed: 0,
+        total,
+        successes: Vec::new(),
+        failures: Vec::new(),
+    }));
+    let runner: Rc<RefCell<Option<Rc<dyn Fn()>>>> = Rc::new(RefCell::new(None));
+    let runner_handle = runner.clone();
+    let schedule: Rc<dyn Fn()> = Rc::new(move || {
+        let mut batch = Vec::new();
+        {
+            let mut current = state.borrow_mut();
+            while current.in_flight < BULK_CONCURRENCY {
+                if let Some(id) = current.queue.pop_front() {
+                    current.in_flight += 1;
+                    batch.push(id);
+                } else {
+                    break;
+                }
+            }
+        }
+        for id in batch {
+            let client = client.clone();
+            let dispatch = dispatch.clone();
+            let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
+            let action = action.clone();
+            let state = state.clone();
+            let runner_handle = runner_handle.clone();
+            yew::platform::spawn_local(async move {
+                let id_str = id.to_string();
+                let display_name = dispatch
+                    .get()
+                    .torrents
+                    .by_id
+                    .get(&id)
+                    .map(|row| row.name.clone())
+                    .unwrap_or_else(|| {
+                        format!("{} {id}", bundle.text("toast.torrent_placeholder", ""))
+                    });
+                let result = client.perform_action(&id_str, action.clone()).await;
+                let finished = {
+                    let mut current = state.borrow_mut();
+                    current.in_flight = current.in_flight.saturating_sub(1);
+                    current.completed = current.completed.saturating_add(1);
+                    match result {
+                        Ok(_) => current.successes.push(id),
+                        Err(err) => current.failures.push(format!("{display_name}: {err}")),
+                    }
+                    current.completed == current.total
+                };
+                if finished {
+                    finalize_bulk_action(&dispatch, &toast_id, &bundle, action_is_delete, &state);
+                    return;
+                }
+                if let Some(next) = runner_handle.borrow().clone() {
+                    next();
+                }
+            });
+        }
+    });
+    *runner.borrow_mut() = Some(schedule.clone());
+    schedule();
+}
+
+fn finalize_bulk_action(
+    dispatch: &Dispatch<AppStore>,
+    toast_id: &UseStateHandle<u64>,
+    bundle: &TranslationBundle,
+    action_is_delete: bool,
+    state: &Rc<RefCell<BulkActionState>>,
+) {
+    let (successes, failures, total) = {
+        let current = state.borrow();
+        (
+            current.successes.clone(),
+            current.failures.clone(),
+            current.total,
+        )
+    };
+    dispatch.reduce_mut(|store| {
+        if action_is_delete {
+            for id in &successes {
+                remove_row(&mut store.torrents, *id);
+            }
+        }
+        let selected_len = store.torrents.selected.len();
+        if selected_len > 1 {
+            set_selected_id(&mut store.torrents, None);
+        } else if selected_len == 1 {
+            let only_id = store.torrents.selected.iter().next().copied();
+            if store.torrents.selected_id != only_id {
+                set_selected_id(&mut store.torrents, only_id);
+            }
+        } else {
+            set_selected_id(&mut store.torrents, None);
+        }
+    });
+    let failure_count = failures.len();
+    let success_count = total.saturating_sub(failure_count);
+    let message = if failure_count == 0 {
+        format!(
+            "{} {}",
+            bundle.text("toast.bulk_done", "Bulk actions completed for"),
+            total
+        )
+    } else {
+        let first_error = failures.first().cloned().unwrap_or_default();
+        format!(
+            "{} {success_count}/{total} ({} failed). {first_error}",
+            bundle.text("toast.bulk_done", "Bulk actions completed for"),
+            failure_count
+        )
+    };
+    let kind = if failure_count == 0 {
+        ToastKind::Success
+    } else {
+        ToastKind::Error
+    };
+    push_toast(dispatch, toast_id, kind, message);
 }
 
 fn refresh_paging(paging: &TorrentsPaging) -> TorrentsPaging {

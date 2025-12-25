@@ -28,9 +28,13 @@
     "add": "Add",
     "pause": "Pause",
     "resume": "Resume",
+    "reannounce": "Reannounce",
     "delete": "Delete",
     "delete_data": "Delete data",
-    "recheck": "Recheck"
+    "recheck": "Recheck",
+    "sequential_on": "Sequential on",
+    "sequential_off": "Sequential off",
+    "rate": "Set rate"
   },
   "torrents": {
     "search_label": "Search torrents",
@@ -47,6 +51,13 @@
     "tags_placeholder": "4K, hevc, scene",
     "save_path": "Save path",
     "save_path_placeholder": "/data/incomplete",
+    "rate_title": "Set rate limits for",
+    "rate_body": "Leave a field blank to keep it unchanged.",
+    "rate_apply": "Apply",
+    "rate_download": "Download cap (B/s)",
+    "rate_upload": "Upload cap (B/s)",
+    "rate_invalid": "Enter whole numbers for rates.",
+    "rate_empty": "Provide at least one rate limit.",
     "open_detail": "Open detail",
     "eta_infinite": "∞",
     "eta": "ETA",
@@ -69,9 +80,13 @@
     "banner": {
       "removed_data": "Removed torrent + data",
       "removed": "Removed torrent",
+      "reannounce": "Reannounced",
       "recheck": "Rechecking",
       "pause": "Paused",
-      "resume": "Resumed"
+      "resume": "Resumed",
+      "sequential_on": "Sequential on",
+      "sequential_off": "Sequential off",
+      "rate": "Rate updated"
     }
   },
   "dashboard": {
@@ -108,6 +123,12 @@
     "event_error": "Error"
   },
   "confirm": {
+    "remove": {
+      "title": "Remove",
+      "body": "Files remain on disk unless delete data is enabled.",
+      "cta": "Remove"
+    },
+    "remove_toggle": "Delete data",
     "delete": {
       "title": "Remove torrent?",
       "body": "Files remain on disk. This cannot be undone without data deletion.",
@@ -244,7 +265,11 @@
   "toast": {
     "pause": "Paused",
     "resume": "Resumed",
+    "reannounce": "Reannounced",
     "recheck": "Rechecking",
+    "sequential_on": "Sequential on",
+    "sequential_off": "Sequential off",
+    "rate": "Rate updated",
     "delete": "Removed",
     "delete_data": "Removed (data deleted)",
     "add_success": "Added",

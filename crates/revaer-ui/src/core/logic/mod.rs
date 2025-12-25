@@ -170,6 +170,30 @@ pub fn format_rate(value: u64) -> String {
     }
 }
 
+/// Rate input parsing errors.
+#[cfg(any(test, target_arch = "wasm32"))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum RateInputError {
+    /// Provided value was not a valid integer.
+    Invalid,
+}
+
+/// Parse a rate-limit input string into an optional bytes-per-second value.
+///
+/// # Errors
+/// Returns [`RateInputError::Invalid`] if the input is not a valid integer.
+#[cfg(any(test, target_arch = "wasm32"))]
+pub(crate) fn parse_rate_input(value: &str) -> Result<Option<u64>, RateInputError> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+    trimmed
+        .parse::<u64>()
+        .map(Some)
+        .map_err(|_| RateInputError::Invalid)
+}
+
 /// Exponential backoff (1s → 30s) for SSE reconnect attempts.
 #[must_use]
 pub fn backoff_delay_ms(attempt: u32) -> u32 {
@@ -522,6 +546,19 @@ pub fn compute_window(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parse_rate_input_handles_empty_and_values() {
+        assert_eq!(parse_rate_input(""), Ok(None));
+        assert_eq!(parse_rate_input("  "), Ok(None));
+        assert_eq!(parse_rate_input("1024"), Ok(Some(1024)));
+    }
+
+    #[test]
+    fn parse_rate_input_rejects_invalid_numbers() {
+        assert_eq!(parse_rate_input("abc"), Err(RateInputError::Invalid));
+        assert_eq!(parse_rate_input("10.5"), Err(RateInputError::Invalid));
+    }
 
     #[test]
     fn toggle_selection_adds_and_removes() {

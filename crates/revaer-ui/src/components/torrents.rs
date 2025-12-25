@@ -3,8 +3,8 @@ use crate::components::detail::{DetailView, FileSelectionChange};
 use crate::components::virtual_list::VirtualList;
 use crate::core::breakpoints::Breakpoint;
 use crate::core::logic::{
-    ShortcutOutcome, format_rate, interpret_shortcut, plan_columns, select_all_or_clear,
-    toggle_selection,
+    ShortcutOutcome, format_rate, interpret_shortcut, parse_rate_input, plan_columns,
+    select_all_or_clear, toggle_selection,
 };
 use crate::core::store::AppStore;
 use crate::features::torrents::actions::TorrentAction;
@@ -19,7 +19,7 @@ use std::rc::Rc;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::closure::Closure;
-use web_sys::{DragEvent, File, HtmlElement, KeyboardEvent};
+use web_sys::{DragEvent, File, HtmlElement, KeyboardEvent, MouseEvent};
 use yew::prelude::*;
 use yew_router::prelude::{Link, use_navigator};
 use yewdux::prelude::use_selector;
@@ -71,6 +71,31 @@ pub(crate) struct TorrentProps {
     pub on_update_selection: Callback<(Uuid, FileSelectionChange)>,
 }
 
+#[derive(Clone, PartialEq)]
+struct ActionTarget {
+    ids: Vec<Uuid>,
+    label: String,
+}
+
+impl ActionTarget {
+    fn single(id: Uuid, label: String) -> Self {
+        Self {
+            ids: vec![id],
+            label,
+        }
+    }
+
+    fn bulk(ids: Vec<Uuid>, label: String) -> Self {
+        Self { ids, label }
+    }
+}
+
+#[derive(Clone, PartialEq)]
+struct RateValues {
+    download_bps: Option<u64>,
+    upload_bps: Option<u64>,
+}
+
 #[function_component(TorrentView)]
 pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
@@ -81,6 +106,8 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     let selected_idx = use_state(|| 0usize);
     let action_banner = use_state(|| None as Option<String>);
     let confirm = use_state(|| None as Option<ConfirmKind>);
+    let remove_target = use_state(|| None as Option<ActionTarget>);
+    let rate_target = use_state(|| None as Option<ActionTarget>);
     let search_ref = use_node_ref();
     let navigator = use_navigator();
     let is_mobile = props
@@ -136,10 +163,11 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
         })
     };
     let delete_selected = {
-        let on_action = props.on_action.clone();
+        let remove_target = remove_target.clone();
+        let selected_name = selected_name.clone();
         Callback::from(move |_| {
             if let Some(id) = selected_id {
-                on_action.emit((TorrentAction::Delete { with_data: false }, id));
+                remove_target.set(Some(ActionTarget::single(id, selected_name.clone())));
             }
         })
     };
@@ -166,6 +194,20 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                 navigator.push(&Route::TorrentDetail { id: id.to_string() });
             }
             on_select_detail.emit(id);
+        })
+    };
+
+    let on_prompt_remove = {
+        let remove_target = remove_target.clone();
+        Callback::from(move |target: ActionTarget| {
+            remove_target.set(Some(target));
+        })
+    };
+
+    let on_prompt_rate = {
+        let rate_target = rate_target.clone();
+        Callback::from(move |target: ActionTarget| {
+            rate_target.set(Some(target));
         })
     };
 
@@ -266,18 +308,27 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                 })
                     as Box<dyn FnMut(_)>);
 
-                let window = web_sys::window().expect("window");
-                window
-                    .add_event_listener_with_callback("keydown", handler.as_ref().unchecked_ref())
-                    .expect("register keydown");
-
-                move || {
-                    let _ = web_sys::window()
-                        .unwrap()
-                        .remove_event_listener_with_callback(
+                let window = web_sys::window();
+                let attached = if let Some(window_ref) = window.as_ref() {
+                    window_ref
+                        .add_event_listener_with_callback(
                             "keydown",
                             handler.as_ref().unchecked_ref(),
-                        );
+                        )
+                        .is_ok()
+                } else {
+                    false
+                };
+
+                move || {
+                    if attached {
+                        if let Some(window_ref) = window {
+                            let _ = window_ref.remove_event_listener_with_callback(
+                                "keydown",
+                                handler.as_ref().unchecked_ref(),
+                            );
+                        }
+                    }
                 }
             },
             (),
@@ -398,35 +449,148 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                     </button>
                     <span class="muted">{format!("{} {}", selected_count, t("torrents.selected"))}</span>
                     <div class="bulk-buttons">
-                        {for [
-                            (TorrentAction::Pause, "toolbar.pause"),
-                            (TorrentAction::Resume, "toolbar.resume"),
-                            (TorrentAction::Recheck, "toolbar.recheck"),
-                        ]
-                        .iter()
-                        .map(|(action, key)| {
-                            let label = t(key);
-                            let cb = {
+                        <button
+                            class="ghost"
+                            disabled={selected_count == 0}
+                            onclick={{
                                 let on_bulk = props.on_bulk_action.clone();
                                 let ids = selected_ids.clone();
-                                let action = action.clone();
                                 Callback::from(move |_| {
                                     if !ids.is_empty() {
-                                        on_bulk.emit((action.clone(), ids.iter().cloned().collect()));
+                                        on_bulk.emit((TorrentAction::Pause, ids.iter().cloned().collect()));
                                     }
                                 })
-                            };
-                            html! { <button class="ghost" onclick={cb}>{label}</button> }
-                        })}
-                        <button class="ghost danger" onclick={{
-                            let on_bulk = props.on_bulk_action.clone();
-                            let ids = selected_ids.clone();
-                            Callback::from(move |_| {
-                                if !ids.is_empty() {
-                                    on_bulk.emit((TorrentAction::Delete { with_data: false }, ids.iter().cloned().collect()));
-                                }
-                            })
-                        }}>{t("toolbar.delete")}</button>
+                            }}
+                        >
+                            {t("toolbar.pause")}
+                        </button>
+                        <button
+                            class="ghost"
+                            disabled={selected_count == 0}
+                            onclick={{
+                                let on_bulk = props.on_bulk_action.clone();
+                                let ids = selected_ids.clone();
+                                Callback::from(move |_| {
+                                    if !ids.is_empty() {
+                                        on_bulk.emit((TorrentAction::Resume, ids.iter().cloned().collect()));
+                                    }
+                                })
+                            }}
+                        >
+                            {t("toolbar.resume")}
+                        </button>
+                        <button
+                            class="ghost"
+                            disabled={selected_count == 0}
+                            onclick={{
+                                let on_bulk = props.on_bulk_action.clone();
+                                let ids = selected_ids.clone();
+                                Callback::from(move |_| {
+                                    if !ids.is_empty() {
+                                        on_bulk.emit((TorrentAction::Reannounce, ids.iter().cloned().collect()));
+                                    }
+                                })
+                            }}
+                        >
+                            {bundle.text("toolbar.reannounce", "Reannounce")}
+                        </button>
+                        <button
+                            class="ghost"
+                            disabled={selected_count == 0}
+                            onclick={{
+                                let on_bulk = props.on_bulk_action.clone();
+                                let ids = selected_ids.clone();
+                                Callback::from(move |_| {
+                                    if !ids.is_empty() {
+                                        on_bulk.emit((TorrentAction::Recheck, ids.iter().cloned().collect()));
+                                    }
+                                })
+                            }}
+                        >
+                            {t("toolbar.recheck")}
+                        </button>
+                        <button
+                            class="ghost"
+                            disabled={selected_count == 0}
+                            onclick={{
+                                let on_bulk = props.on_bulk_action.clone();
+                                let ids = selected_ids.clone();
+                                Callback::from(move |_| {
+                                    if !ids.is_empty() {
+                                        on_bulk.emit((
+                                            TorrentAction::Sequential { enable: true },
+                                            ids.iter().cloned().collect(),
+                                        ));
+                                    }
+                                })
+                            }}
+                        >
+                            {bundle.text("toolbar.sequential_on", "Sequential on")}
+                        </button>
+                        <button
+                            class="ghost"
+                            disabled={selected_count == 0}
+                            onclick={{
+                                let on_bulk = props.on_bulk_action.clone();
+                                let ids = selected_ids.clone();
+                                Callback::from(move |_| {
+                                    if !ids.is_empty() {
+                                        on_bulk.emit((
+                                            TorrentAction::Sequential { enable: false },
+                                            ids.iter().cloned().collect(),
+                                        ));
+                                    }
+                                })
+                            }}
+                        >
+                            {bundle.text("toolbar.sequential_off", "Sequential off")}
+                        </button>
+                        <button
+                            class="ghost"
+                            disabled={selected_count == 0}
+                            onclick={{
+                                let rate_target = rate_target.clone();
+                                let ids = selected_ids.clone();
+                                let label = format!(
+                                    "{} {}",
+                                    ids.len(),
+                                    bundle.text("torrents.selected", "selected")
+                                );
+                                Callback::from(move |_| {
+                                    if !ids.is_empty() {
+                                        rate_target.set(Some(ActionTarget::bulk(
+                                            ids.iter().cloned().collect(),
+                                            label.clone(),
+                                        )));
+                                    }
+                                })
+                            }}
+                        >
+                            {bundle.text("toolbar.rate", "Set rate")}
+                        </button>
+                        <button
+                            class="ghost danger"
+                            disabled={selected_count == 0}
+                            onclick={{
+                                let remove_target = remove_target.clone();
+                                let ids = selected_ids.clone();
+                                let label = format!(
+                                    "{} {}",
+                                    ids.len(),
+                                    bundle.text("torrents.selected", "selected")
+                                );
+                                Callback::from(move |_| {
+                                    if !ids.is_empty() {
+                                        remove_target.set(Some(ActionTarget::bulk(
+                                            ids.iter().cloned().collect(),
+                                            label.clone(),
+                                        )));
+                                    }
+                                })
+                            }}
+                        >
+                            {t("toolbar.delete")}
+                        </button>
                     </div>
                 </div>
                 <div class="actions">
@@ -477,6 +641,8 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                     let overflow_cols = std::rc::Rc::new(overflow_cols);
                     let selected_ids_for_toggle = selected_ids.clone();
                     let on_set_selected = props.on_set_selected.clone();
+                    let on_prompt_remove = on_prompt_remove.clone();
+                    let on_prompt_rate = on_prompt_rate.clone();
                     let toggle_select = Callback::from(move |id: Uuid| {
                         on_set_selected.emit(toggle_selection(&selected_ids_for_toggle, &id));
                     });
@@ -490,6 +656,8 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                                     on_select={on_select.clone()}
                                     on_toggle={toggle_select.clone()}
                                     on_action={on_action.clone()}
+                                    on_prompt_remove={on_prompt_remove.clone()}
+                                    on_prompt_rate={on_prompt_rate.clone()}
                                     bundle={bundle.clone()}
                                     visible_cols={visible_cols.clone()}
                                     overflow_cols={overflow_cols.clone()}
@@ -522,7 +690,10 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
             <DetailView data={props.selected_detail.clone()} on_toggle_file={on_toggle_file} />
             <MobileActionRow
                 on_action={props.on_action.clone()}
+                on_prompt_remove={on_prompt_remove.clone()}
+                on_prompt_rate={on_prompt_rate.clone()}
                 selected={props.visible_ids.get(*selected_idx).copied()}
+                selected_label={selected_name.clone()}
             />
             <ActionBanner message={(*action_banner).clone()} />
             <ConfirmDialog
@@ -553,6 +724,65 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                     })
                 }}
             />
+            <RemoveDialog
+                target={(*remove_target).clone()}
+                on_close={{
+                    let remove_target = remove_target.clone();
+                    Callback::from(move |_| remove_target.set(None))
+                }}
+                on_confirm={{
+                    let remove_target = remove_target.clone();
+                    let on_action = props.on_action.clone();
+                    let on_bulk_action = props.on_bulk_action.clone();
+                    Callback::from(move |delete_data: bool| {
+                        let target = (*remove_target).clone();
+                        remove_target.set(None);
+                        let Some(target) = target else {
+                            return;
+                        };
+                        let action = TorrentAction::Delete {
+                            with_data: delete_data,
+                        };
+                        if target.ids.len() == 1 {
+                            if let Some(id) = target.ids.first().copied() {
+                                on_action.emit((action, id));
+                            }
+                        } else {
+                            on_bulk_action.emit((action, target.ids));
+                        }
+                    })
+                }}
+            />
+            <RateDialog
+                target={(*rate_target).clone()}
+                on_close={{
+                    let rate_target = rate_target.clone();
+                    Callback::from(move |_| rate_target.set(None))
+                }}
+                on_confirm={{
+                    let rate_target = rate_target.clone();
+                    let on_action = props.on_action.clone();
+                    let on_bulk_action = props.on_bulk_action.clone();
+                    Callback::from(move |values: RateValues| {
+                        let target = (*rate_target).clone();
+                        rate_target.set(None);
+                        let Some(target) = target else {
+                            return;
+                        };
+                        let action = TorrentAction::Rate {
+                            download_bps: values.download_bps,
+                            upload_bps: values.upload_bps,
+                        };
+                        if target.ids.len() == 1 {
+                            if let Some(id) = target.ids.first().copied() {
+                                on_action.emit((action, id));
+                            }
+                        } else {
+                            on_bulk_action.emit((action, target.ids));
+                        }
+                    })
+                }}
+            />
         </section>
     }
 }
@@ -565,6 +795,8 @@ struct TorrentRowItemProps {
     on_select: Callback<Uuid>,
     on_toggle: Callback<Uuid>,
     on_action: Callback<(TorrentAction, Uuid)>,
+    on_prompt_remove: Callback<ActionTarget>,
+    on_prompt_rate: Callback<ActionTarget>,
     bundle: TranslationBundle,
     visible_cols: Rc<Vec<&'static str>>,
     overflow_cols: Rc<Vec<&'static str>>,
@@ -601,6 +833,8 @@ fn torrent_row_item(props: &TorrentRowItemProps) -> Html {
             props.on_select.clone(),
             props.on_toggle.clone(),
             props.on_action.clone(),
+            props.on_prompt_remove.clone(),
+            props.on_prompt_rate.clone(),
             props.bundle.clone(),
             props.visible_cols.as_slice(),
             props.overflow_cols.as_slice(),
@@ -615,6 +849,8 @@ fn torrent_row_item(props: &TorrentRowItemProps) -> Html {
             props.on_select.clone(),
             props.on_toggle.clone(),
             props.on_action.clone(),
+            props.on_prompt_remove.clone(),
+            props.on_prompt_rate.clone(),
             props.bundle.clone(),
             props.visible_cols.as_slice(),
             props.overflow_cols.as_slice(),
@@ -631,6 +867,8 @@ fn render_row(
     on_select: Callback<Uuid>,
     on_toggle: Callback<Uuid>,
     on_action: Callback<(TorrentAction, Uuid)>,
+    on_prompt_remove: Callback<ActionTarget>,
+    on_prompt_rate: Callback<ActionTarget>,
     bundle: TranslationBundle,
     visible_cols: &[&str],
     overflow_cols: &[&str],
@@ -670,6 +908,16 @@ fn render_row(
     if overflow_cols.contains(&"path") && !base.path.is_empty() {
         overflow.push((t("torrents.save_path"), base.path.clone()));
     }
+    let row_click = {
+        let on_select = on_select.clone();
+        let id = base.id;
+        Callback::from(move |event: MouseEvent| {
+            if is_interactive_target(&event) {
+                return;
+            }
+            on_select.emit(id);
+        })
+    };
     let select = {
         let on_select = on_select.clone();
         let id = base.id;
@@ -685,19 +933,62 @@ fn render_row(
         let id = base.id;
         Callback::from(move |_| on_action.emit((TorrentAction::Resume, id)))
     };
+    let reannounce = {
+        let on_action = on_action.clone();
+        let id = base.id;
+        Callback::from(move |_| on_action.emit((TorrentAction::Reannounce, id)))
+    };
     let recheck = {
         let on_action = on_action.clone();
         let id = base.id;
         Callback::from(move |_| on_action.emit((TorrentAction::Recheck, id)))
     };
-    let delete_data = {
+    let sequential_on = {
         let on_action = on_action.clone();
         let id = base.id;
-        Callback::from(move |_| on_action.emit((TorrentAction::Delete { with_data: true }, id)))
+        Callback::from(move |_| on_action.emit((TorrentAction::Sequential { enable: true }, id)))
     };
+    let sequential_off = {
+        let on_action = on_action.clone();
+        let id = base.id;
+        Callback::from(move |_| on_action.emit((TorrentAction::Sequential { enable: false }, id)))
+    };
+    let prompt_rate = {
+        let on_prompt_rate = on_prompt_rate.clone();
+        let id = base.id;
+        let label = base.name.clone();
+        Callback::from(move |_| on_prompt_rate.emit(ActionTarget::single(id, label.clone())))
+    };
+    let prompt_remove = {
+        let on_prompt_remove = on_prompt_remove.clone();
+        let id = base.id;
+        let label = base.name.clone();
+        Callback::from(move |_| on_prompt_remove.emit(ActionTarget::single(id, label.clone())))
+    };
+    let action_menu = render_action_menu(
+        &bundle,
+        vec![
+            ActionMenuItem::new(bundle.text("toolbar.reannounce", "Reannounce"), reannounce),
+            ActionMenuItem::new(bundle.text("toolbar.recheck", "Recheck"), recheck),
+            ActionMenuItem::new(
+                bundle.text("toolbar.sequential_on", "Sequential on"),
+                sequential_on,
+            ),
+            ActionMenuItem::new(
+                bundle.text("toolbar.sequential_off", "Sequential off"),
+                sequential_off,
+            ),
+            ActionMenuItem::new(bundle.text("toolbar.rate", "Set rate"), prompt_rate),
+            ActionMenuItem::danger(bundle.text("toolbar.delete", "Remove"), prompt_remove),
+        ],
+    );
     let fsops_label = fsops_label(&bundle, fsops);
     html! {
-        <article class={classes!("torrent-row", if selected { Some("selected") } else { None })} aria-selected={selected.to_string()}>
+        <article
+            class={classes!("torrent-row", if selected { Some("selected") } else { None })}
+            aria-selected={selected.to_string()}
+            onclick={row_click}
+        >
             <div class="row-checkbox">
                 <input
                     type="checkbox"
@@ -783,8 +1074,7 @@ fn render_row(
                 <button class="ghost" onclick={select.clone()}>{t("torrents.open_detail")}</button>
                 <button class="ghost" onclick={pause}>{t("toolbar.pause")}</button>
                 <button class="ghost" onclick={resume}>{t("toolbar.resume")}</button>
-                <button class="ghost" onclick={recheck}>{t("toolbar.recheck")}</button>
-                <button class="ghost danger" onclick={delete_data}>{t("toolbar.delete_data")}</button>
+                {action_menu}
             </div>
         </article>
     }
@@ -799,6 +1089,8 @@ fn render_mobile_row(
     on_select: Callback<Uuid>,
     on_toggle: Callback<Uuid>,
     on_action: Callback<(TorrentAction, Uuid)>,
+    on_prompt_remove: Callback<ActionTarget>,
+    on_prompt_rate: Callback<ActionTarget>,
     bundle: TranslationBundle,
     visible_cols: &[&str],
     overflow_cols: &[&str],
@@ -838,6 +1130,16 @@ fn render_mobile_row(
     if overflow_cols.contains(&"path") && !base.path.is_empty() {
         overflow.push((t("torrents.save_path"), base.path.clone()));
     }
+    let row_click = {
+        let on_select = on_select.clone();
+        let id = base.id;
+        Callback::from(move |event: MouseEvent| {
+            if is_interactive_target(&event) {
+                return;
+            }
+            on_select.emit(id);
+        })
+    };
     let select = {
         let on_select = on_select.clone();
         let id = base.id;
@@ -853,14 +1155,62 @@ fn render_mobile_row(
         let id = base.id;
         Callback::from(move |_| on_action.emit((TorrentAction::Resume, id)))
     };
-    let delete_data = {
+    let reannounce = {
         let on_action = on_action.clone();
         let id = base.id;
-        Callback::from(move |_| on_action.emit((TorrentAction::Delete { with_data: true }, id)))
+        Callback::from(move |_| on_action.emit((TorrentAction::Reannounce, id)))
     };
+    let recheck = {
+        let on_action = on_action.clone();
+        let id = base.id;
+        Callback::from(move |_| on_action.emit((TorrentAction::Recheck, id)))
+    };
+    let sequential_on = {
+        let on_action = on_action.clone();
+        let id = base.id;
+        Callback::from(move |_| on_action.emit((TorrentAction::Sequential { enable: true }, id)))
+    };
+    let sequential_off = {
+        let on_action = on_action.clone();
+        let id = base.id;
+        Callback::from(move |_| on_action.emit((TorrentAction::Sequential { enable: false }, id)))
+    };
+    let prompt_rate = {
+        let on_prompt_rate = on_prompt_rate.clone();
+        let id = base.id;
+        let label = base.name.clone();
+        Callback::from(move |_| on_prompt_rate.emit(ActionTarget::single(id, label.clone())))
+    };
+    let prompt_remove = {
+        let on_prompt_remove = on_prompt_remove.clone();
+        let id = base.id;
+        let label = base.name.clone();
+        Callback::from(move |_| on_prompt_remove.emit(ActionTarget::single(id, label.clone())))
+    };
+    let action_menu = render_action_menu(
+        &bundle,
+        vec![
+            ActionMenuItem::new(bundle.text("toolbar.reannounce", "Reannounce"), reannounce),
+            ActionMenuItem::new(bundle.text("toolbar.recheck", "Recheck"), recheck),
+            ActionMenuItem::new(
+                bundle.text("toolbar.sequential_on", "Sequential on"),
+                sequential_on,
+            ),
+            ActionMenuItem::new(
+                bundle.text("toolbar.sequential_off", "Sequential off"),
+                sequential_off,
+            ),
+            ActionMenuItem::new(bundle.text("toolbar.rate", "Set rate"), prompt_rate),
+            ActionMenuItem::danger(bundle.text("toolbar.delete", "Remove"), prompt_remove),
+        ],
+    );
     let fsops_label = fsops_label(&bundle, fsops);
     html! {
-        <article class={classes!("torrent-row", "mobile", if selected { Some("selected") } else { None })} aria-selected={selected.to_string()}>
+        <article
+            class={classes!("torrent-row", "mobile", if selected { Some("selected") } else { None })}
+            aria-selected={selected.to_string()}
+            onclick={row_click}
+        >
             <header class="title">
                 <div class="row-checkbox">
                     <input
@@ -925,7 +1275,7 @@ fn render_mobile_row(
                 <button class="ghost" onclick={select.clone()}>{t("torrents.open_detail")}</button>
                 <button class="ghost" onclick={pause}>{t("toolbar.pause")}</button>
                 <button class="ghost" onclick={resume}>{t("toolbar.resume")}</button>
-                <button class="ghost danger" onclick={delete_data}>{t("toolbar.delete_data")}</button>
+                {action_menu}
             </div>
         </article>
     }
@@ -961,6 +1311,63 @@ fn fsops_label(bundle: &TranslationBundle, fsops: Option<&FsopsBadge>) -> Option
     Some(label)
 }
 
+struct ActionMenuItem {
+    label: String,
+    on_click: Callback<MouseEvent>,
+    class: Option<&'static str>,
+}
+
+impl ActionMenuItem {
+    fn new(label: String, on_click: Callback<MouseEvent>) -> Self {
+        Self {
+            label,
+            on_click,
+            class: None,
+        }
+    }
+
+    fn danger(label: String, on_click: Callback<MouseEvent>) -> Self {
+        Self {
+            label,
+            on_click,
+            class: Some("danger"),
+        }
+    }
+}
+
+fn render_action_menu(bundle: &TranslationBundle, items: Vec<ActionMenuItem>) -> Html {
+    if items.is_empty() {
+        return html! {};
+    }
+    html! {
+        <details class="row-menu">
+            <summary class="ghost">{bundle.text("torrents.more", "More…")}</summary>
+            <div class="menu">
+                {for items.into_iter().map(|item| {
+                    let class = classes!("ghost", item.class);
+                    html! {
+                        <button type="button" class={class} onclick={item.on_click}>{item.label}</button>
+                    }
+                })}
+            </div>
+        </details>
+    }
+}
+
+fn is_interactive_target(event: &MouseEvent) -> bool {
+    let Some(target) = event.target() else {
+        return false;
+    };
+    let Ok(element) = target.dyn_into::<web_sys::Element>() else {
+        return false;
+    };
+    element
+        .closest("button, a, input, select, textarea, label, summary, [role=\"button\"]")
+        .ok()
+        .flatten()
+        .is_some()
+}
+
 fn action_banner_message(bundle: &TranslationBundle, action: &TorrentAction, name: &str) -> String {
     match action {
         TorrentAction::Delete { with_data: true } => {
@@ -969,11 +1376,30 @@ fn action_banner_message(bundle: &TranslationBundle, action: &TorrentAction, nam
         TorrentAction::Delete { with_data: false } => {
             format!("{} {name}", bundle.text("torrents.banner.removed", ""))
         }
+        TorrentAction::Reannounce => {
+            format!("{} {name}", bundle.text("torrents.banner.reannounce", ""))
+        }
         TorrentAction::Recheck => {
             format!("{} {name}", bundle.text("torrents.banner.recheck", ""))
         }
         TorrentAction::Pause => format!("{} {name}", bundle.text("torrents.banner.pause", "")),
         TorrentAction::Resume => format!("{} {name}", bundle.text("torrents.banner.resume", "")),
+        TorrentAction::Sequential { enable } => {
+            if *enable {
+                format!(
+                    "{} {name}",
+                    bundle.text("torrents.banner.sequential_on", "")
+                )
+            } else {
+                format!(
+                    "{} {name}",
+                    bundle.text("torrents.banner.sequential_off", "")
+                )
+            }
+        }
+        TorrentAction::Rate { .. } => {
+            format!("{} {name}", bundle.text("torrents.banner.rate", ""))
+        }
     }
 }
 
@@ -1085,7 +1511,9 @@ fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                 if files.length() == 0 {
                     return;
                 }
-                let file: File = files.get(0).unwrap();
+                let Some(file) = files.get(0) else {
+                    return;
+                };
                 let name = file.name();
                 if !name.ends_with(".torrent") {
                     error.set(Some(bundle.text("torrents.error.file_type", "")));
@@ -1196,6 +1624,11 @@ fn mobile_action_row(props: &MobileActionProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
     let t = |key: &str| bundle.text(key, "");
+    let label = if props.selected_label.trim().is_empty() {
+        bundle.text("toast.torrent_placeholder", "Torrent")
+    } else {
+        props.selected_label.clone()
+    };
     let pause = {
         let on_action = props.on_action.clone();
         let id = props.selected;
@@ -1214,21 +1647,84 @@ fn mobile_action_row(props: &MobileActionProps) -> Html {
             }
         })
     };
-    let delete = {
+    let reannounce = {
         let on_action = props.on_action.clone();
         let id = props.selected;
         Callback::from(move |_| {
             if let Some(id) = id {
-                on_action.emit((TorrentAction::Delete { with_data: false }, id));
+                on_action.emit((TorrentAction::Reannounce, id));
             }
         })
     };
+    let recheck = {
+        let on_action = props.on_action.clone();
+        let id = props.selected;
+        Callback::from(move |_| {
+            if let Some(id) = id {
+                on_action.emit((TorrentAction::Recheck, id));
+            }
+        })
+    };
+    let sequential_on = {
+        let on_action = props.on_action.clone();
+        let id = props.selected;
+        Callback::from(move |_| {
+            if let Some(id) = id {
+                on_action.emit((TorrentAction::Sequential { enable: true }, id));
+            }
+        })
+    };
+    let sequential_off = {
+        let on_action = props.on_action.clone();
+        let id = props.selected;
+        Callback::from(move |_| {
+            if let Some(id) = id {
+                on_action.emit((TorrentAction::Sequential { enable: false }, id));
+            }
+        })
+    };
+    let prompt_rate = {
+        let on_prompt_rate = props.on_prompt_rate.clone();
+        let id = props.selected;
+        let label = label.clone();
+        Callback::from(move |_| {
+            if let Some(id) = id {
+                on_prompt_rate.emit(ActionTarget::single(id, label.clone()));
+            }
+        })
+    };
+    let prompt_remove = {
+        let on_prompt_remove = props.on_prompt_remove.clone();
+        let id = props.selected;
+        let label = label.clone();
+        Callback::from(move |_| {
+            if let Some(id) = id {
+                on_prompt_remove.emit(ActionTarget::single(id, label.clone()));
+            }
+        })
+    };
+    let action_menu = render_action_menu(
+        &bundle,
+        vec![
+            ActionMenuItem::new(bundle.text("toolbar.reannounce", "Reannounce"), reannounce),
+            ActionMenuItem::new(bundle.text("toolbar.recheck", "Recheck"), recheck),
+            ActionMenuItem::new(
+                bundle.text("toolbar.sequential_on", "Sequential on"),
+                sequential_on,
+            ),
+            ActionMenuItem::new(
+                bundle.text("toolbar.sequential_off", "Sequential off"),
+                sequential_off,
+            ),
+            ActionMenuItem::new(bundle.text("toolbar.rate", "Set rate"), prompt_rate),
+            ActionMenuItem::danger(bundle.text("toolbar.delete", "Remove"), prompt_remove),
+        ],
+    );
     html! {
         <div class="mobile-action-row">
             <button class="ghost" onclick={pause}>{t("toolbar.pause")}</button>
             <button class="ghost" onclick={resume}>{t("toolbar.resume")}</button>
-            <button class="ghost danger" onclick={delete}>{t("toolbar.delete")}</button>
-            <button class="solid">{t("torrents.more")}</button>
+            {action_menu}
         </div>
     }
 }
@@ -1293,14 +1789,233 @@ fn confirm_dialog(props: &ConfirmProps) -> Html {
 }
 
 #[derive(Properties, PartialEq)]
+struct RemoveDialogProps {
+    pub target: Option<ActionTarget>,
+    pub on_close: Callback<()>,
+    pub on_confirm: Callback<bool>,
+}
+
+#[function_component(RemoveDialog)]
+fn remove_dialog(props: &RemoveDialogProps) -> Html {
+    let bundle = use_context::<TranslationBundle>()
+        .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
+    let Some(target) = props.target.clone() else {
+        return html! {};
+    };
+    let delete_data = use_state(|| false);
+    {
+        let delete_data = delete_data.clone();
+        let target = target.clone();
+        use_effect_with_deps(
+            move |_| {
+                delete_data.set(false);
+                || ()
+            },
+            target,
+        );
+    }
+    let title = format!(
+        "{} {}",
+        bundle.text("confirm.remove.title", "Remove"),
+        target.label
+    );
+    let body = bundle.text(
+        "confirm.remove.body",
+        "Files remain on disk unless delete data is enabled.",
+    );
+    let toggle_label = bundle.text("confirm.remove_toggle", "Delete data");
+    let confirm_label = bundle.text("confirm.remove.cta", "Remove");
+    let confirm = {
+        let delete_data = delete_data.clone();
+        let cb = props.on_confirm.clone();
+        Callback::from(move |_| cb.emit(*delete_data))
+    };
+    html! {
+        <div class="confirm-overlay" role="dialog" aria-modal="true">
+            <div class="card">
+                <header>
+                    <h4>{title}</h4>
+                </header>
+                <p class="muted">{body}</p>
+                <label class="toggle-row">
+                    <input
+                        type="checkbox"
+                        checked={*delete_data}
+                        onchange={{
+                            let delete_data = delete_data.clone();
+                            Callback::from(move |event: web_sys::Event| {
+                                if let Some(input) =
+                                    event.target_dyn_into::<web_sys::HtmlInputElement>()
+                                {
+                                    delete_data.set(input.checked());
+                                }
+                            })
+                        }}
+                    />
+                    <span>{toggle_label}</span>
+                </label>
+                <div class="actions">
+                    <button class="ghost" onclick={{
+                        let cb = props.on_close.clone();
+                        Callback::from(move |_| cb.emit(()))
+                    }}>{bundle.text("confirm.cancel", "Cancel")}</button>
+                    <button class="solid danger" onclick={confirm}>{confirm_label}</button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+#[derive(Properties, PartialEq)]
+struct RateDialogProps {
+    pub target: Option<ActionTarget>,
+    pub on_close: Callback<()>,
+    pub on_confirm: Callback<RateValues>,
+}
+
+#[function_component(RateDialog)]
+fn rate_dialog(props: &RateDialogProps) -> Html {
+    let bundle = use_context::<TranslationBundle>()
+        .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
+    let Some(target) = props.target.clone() else {
+        return html! {};
+    };
+    let download_input = use_state(String::new);
+    let upload_input = use_state(String::new);
+    let error = use_state(|| None as Option<String>);
+    {
+        let download_input = download_input.clone();
+        let upload_input = upload_input.clone();
+        let error = error.clone();
+        let target = target.clone();
+        use_effect_with_deps(
+            move |_| {
+                download_input.set(String::new());
+                upload_input.set(String::new());
+                error.set(None);
+                || ()
+            },
+            target,
+        );
+    }
+    let title = format!(
+        "{} {}",
+        bundle.text("torrents.rate_title", "Set rate limits for"),
+        target.label
+    );
+    let body = bundle.text(
+        "torrents.rate_body",
+        "Leave a field blank to keep it unchanged.",
+    );
+    let confirm_label = bundle.text("torrents.rate_apply", "Apply");
+    let confirm = {
+        let download_input = download_input.clone();
+        let upload_input = upload_input.clone();
+        let error = error.clone();
+        let bundle = bundle.clone();
+        let cb = props.on_confirm.clone();
+        Callback::from(move |_| {
+            let download_value = (*download_input).clone();
+            let upload_value = (*upload_input).clone();
+            let download = match parse_rate_input(&download_value) {
+                Ok(parsed) => parsed,
+                Err(_) => {
+                    error.set(Some(
+                        bundle.text("torrents.rate_invalid", "Enter whole numbers for rates."),
+                    ));
+                    return;
+                }
+            };
+            let upload = match parse_rate_input(&upload_value) {
+                Ok(parsed) => parsed,
+                Err(_) => {
+                    error.set(Some(
+                        bundle.text("torrents.rate_invalid", "Enter whole numbers for rates."),
+                    ));
+                    return;
+                }
+            };
+            if download.is_none() && upload.is_none() {
+                error.set(Some(
+                    bundle.text("torrents.rate_empty", "Provide at least one rate limit."),
+                ));
+                return;
+            }
+            error.set(None);
+            cb.emit(RateValues {
+                download_bps: download,
+                upload_bps: upload,
+            });
+        })
+    };
+    html! {
+        <div class="confirm-overlay" role="dialog" aria-modal="true">
+            <div class="card">
+                <header>
+                    <h4>{title}</h4>
+                </header>
+                <p class="muted">{body}</p>
+                <div class="form-grid">
+                    <label>
+                        <span>{bundle.text("torrents.rate_download", "Download cap (B/s)")}</span>
+                        <input
+                            value={(*download_input).clone()}
+                            oninput={{
+                                let download_input = download_input.clone();
+                                Callback::from(move |event: InputEvent| {
+                                    if let Some(input) =
+                                        event.target_dyn_into::<web_sys::HtmlInputElement>()
+                                    {
+                                        download_input.set(input.value());
+                                    }
+                                })
+                            }}
+                        />
+                    </label>
+                    <label>
+                        <span>{bundle.text("torrents.rate_upload", "Upload cap (B/s)")}</span>
+                        <input
+                            value={(*upload_input).clone()}
+                            oninput={{
+                                let upload_input = upload_input.clone();
+                                Callback::from(move |event: InputEvent| {
+                                    if let Some(input) =
+                                        event.target_dyn_into::<web_sys::HtmlInputElement>()
+                                    {
+                                        upload_input.set(input.value());
+                                    }
+                                })
+                            }}
+                        />
+                    </label>
+                </div>
+                {if let Some(msg) = &*error {
+                    html! { <p class="error-text">{msg}</p> }
+                } else { html! {} }}
+                <div class="actions">
+                    <button class="ghost" onclick={{
+                        let cb = props.on_close.clone();
+                        Callback::from(move |_| cb.emit(()))
+                    }}>{bundle.text("confirm.cancel", "Cancel")}</button>
+                    <button class="solid" onclick={confirm}>{confirm_label}</button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+#[derive(Properties, PartialEq)]
 pub(crate) struct BannerProps {
     pub message: Option<String>,
 }
 
 #[derive(Properties, PartialEq)]
-pub(crate) struct MobileActionProps {
+struct MobileActionProps {
     pub on_action: Callback<(TorrentAction, Uuid)>,
+    pub on_prompt_remove: Callback<ActionTarget>,
+    pub on_prompt_rate: Callback<ActionTarget>,
     pub selected: Option<Uuid>,
+    pub selected_label: String,
 }
 
 #[function_component(ActionBanner)]

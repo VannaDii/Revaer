@@ -50,6 +50,7 @@ ADR documents capture the rationale behind significant technical decisions.
 - [045](045-ui-icon-system.md) – UI icon components and icon button standardization
 - [046](046-ui-torrent-filters-pagination.md) – UI torrent filters, pagination, and URL sync
 - [047](047-ui-torrent-updated-column.md) – UI torrent list updated timestamp column
+- [048](048-ui-torrent-actions-bulk-controls.md) – UI torrent row actions, bulk controls, and rate/remove dialogs
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

@@ -1,0 +1,28 @@
+# ADR 048: UI torrent row actions, bulk controls, and rate/remove dialogs
+
+- Status: Accepted
+- Date: 2025-12-24
+- Context:
+  - Motivation: complete torrent list row actions and bulk controls with confirm/rate UX and concurrency safety.
+  - Constraints: no new dependencies, no unwrap/expect in non-test code, yewdux-managed shared state, and clean `just ci`.
+- Decision:
+  - Add UI action variants (reannounce, sequential on/off, rate) and map them to API actions.
+  - Introduce row action menus plus remove/rate dialogs with input validation and delete-data toggle.
+  - Implement a bulk-action runner with a concurrency cap, failure aggregation, and drawer-close logic when multi-select remains.
+  - Alternatives considered: per-item toasts with sequential execution (rejected for spam and slow UX).
+- Consequences:
+  - Positive: consistent row/bulk actions, safer removals, bounded bulk concurrency, and clear summary feedback.
+  - Trade-offs: additional UI state for dialogs and bulk runner bookkeeping.
+- Follow-up:
+  - Ensure translations are backfilled for new strings beyond English as needed.
+  - Revisit concurrency cap if the API or UI performance requirements change.
+- Test coverage summary:
+  - Added unit tests for rate input parsing in `crates/revaer-ui/src/core/logic/mod.rs`.
+  - Existing action success message tests extended to cover new variants.
+- Observability updates:
+  - None (UI-only changes; no new metrics/tracing added).
+- Risk & rollback plan:
+  - Risk: dialog/menu UX regressions on small screens or edge-case bulk failures.
+  - Rollback: revert this ADR's changeset and restore prior row-action buttons and sequential bulk loop.
+- Dependency rationale:
+  - No new dependencies added.
