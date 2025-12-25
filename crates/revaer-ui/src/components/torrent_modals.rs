@@ -27,6 +27,8 @@ pub(crate) enum CopyKind {
 pub(crate) struct AddTorrentProps {
     pub on_submit: Callback<AddTorrentInput>,
     pub pending: bool,
+    #[prop_or_default]
+    pub class: Classes,
 }
 
 #[function_component(AddTorrentPanel)]
@@ -200,7 +202,7 @@ pub(crate) fn add_torrent_panel(props: &AddTorrentProps) -> Html {
     };
 
     html! {
-        <div class="add-panel">
+        <div class={classes!("add-panel", props.class.clone())}>
             <input
                 ref={file_input}
                 class="file-input-hidden"
@@ -341,6 +343,8 @@ pub(crate) struct CreateTorrentProps {
     pub pending: bool,
     pub result: Option<TorrentAuthorResponse>,
     pub error: Option<String>,
+    #[prop_or_default]
+    pub class: Classes,
 }
 
 #[function_component(CreateTorrentPanel)]
@@ -415,7 +419,7 @@ pub(crate) fn create_torrent_panel(props: &CreateTorrentProps) -> Html {
         .or_else(|| props.error.clone());
 
     html! {
-        <div class="create-panel">
+        <div class={classes!("create-panel", props.class.clone())}>
             <div class="create-form">
                 <label>
                     <span>{t("torrents.create_root_label")}</span>

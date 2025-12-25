@@ -7,6 +7,8 @@ use yew::prelude::*;
 pub(crate) struct ToastHostProps {
     pub toasts: Vec<Toast>,
     pub on_dismiss: Callback<u64>,
+    #[prop_or_default]
+    pub class: Classes,
 }
 
 #[function_component(ToastHost)]
@@ -32,7 +34,7 @@ pub(crate) fn toast_host(props: &ToastHostProps) -> Html {
     }
 
     html! {
-        <div class="toast-host" aria-live="polite" aria-atomic="true">
+        <div class={classes!("toast-host", props.class.clone())} aria-live="polite" aria-atomic="true">
             {for props.toasts.iter().map(|toast| render_toast(toast, props.on_dismiss.clone(), t("toast.dismiss")))}
         </div>
     }

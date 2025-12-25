@@ -158,6 +158,7 @@ ui-serve: sync-assets
     if ! command -v trunk >/dev/null 2>&1; then \
         cargo install trunk; \
     fi
+    mkdir -p crates/revaer-ui/dist/.stage
     cd crates/revaer-ui && trunk serve --open
 
 ui-build: sync-assets
@@ -165,6 +166,7 @@ ui-build: sync-assets
     if ! command -v trunk >/dev/null 2>&1; then \
         cargo install trunk; \
     fi
+    mkdir -p crates/revaer-ui/dist/.stage
     cd crates/revaer-ui && trunk build --release
 
 dev: sync-assets

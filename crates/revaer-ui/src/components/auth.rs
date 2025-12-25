@@ -7,6 +7,8 @@ pub(crate) struct AuthPromptProps {
     pub allow_anonymous: bool,
     pub default_mode: AuthMode,
     pub on_submit: Callback<AuthState>,
+    #[prop_or_default]
+    pub class: Classes,
 }
 
 #[function_component(AuthPrompt)]
@@ -82,7 +84,7 @@ pub(crate) fn auth_prompt(props: &AuthPromptProps) -> Html {
     };
 
     html! {
-        <div class="auth-overlay" role="dialog" aria-modal="true">
+        <div class={classes!("auth-overlay", props.class.clone())} role="dialog" aria-modal="true">
             <div class="card">
                 <header>
                     <h3>{t("auth.title")}</h3>

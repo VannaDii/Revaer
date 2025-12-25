@@ -16,6 +16,8 @@ pub(crate) struct SetupPromptProps {
     pub error: Option<String>,
     pub on_request_token: Callback<()>,
     pub on_complete: Callback<String>,
+    #[prop_or_default]
+    pub class: Classes,
 }
 
 #[function_component(SetupPrompt)]
@@ -60,7 +62,7 @@ pub(crate) fn setup_prompt(props: &SetupPromptProps) -> Html {
     };
 
     html! {
-        <div class="setup-overlay" role="dialog" aria-modal="true">
+        <div class={classes!("setup-overlay", props.class.clone())} role="dialog" aria-modal="true">
             <div class="card">
                 <header>
                     <h3>{t("setup.title")}</h3>

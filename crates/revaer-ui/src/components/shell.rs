@@ -26,6 +26,8 @@ pub(crate) struct ShellProps {
     pub sse_state: SseState,
     pub on_sse_retry: Callback<()>,
     pub network_mode: String,
+    #[prop_or_default]
+    pub class: Classes,
 }
 
 #[function_component(AppShell)]
@@ -61,7 +63,14 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
     };
 
     html! {
-        <div class={classes!("app-shell", "reaver-shell", format!("theme-{}", props.theme.as_str()))}>
+        <div
+            class={classes!(
+                "app-shell",
+                "reaver-shell",
+                format!("theme-{}", props.theme.as_str()),
+                props.class.clone()
+            )}
+        >
             <aside class={classes!("sidebar", if *nav_open { "open" } else { "closed" })}>
                 <div class="brand">
                     <button class="ghost mobile-only" onclick={toggle_nav.clone()} aria-label={t("shell.close_nav")}>{"✕"}</button>

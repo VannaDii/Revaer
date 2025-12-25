@@ -1,9 +1,9 @@
 # Nexus + DaisyUI Dashboard UI Checklist
 
 ## 1) UX constraints and source-of-truth rules
-- [ ] Treat ui_vendor/nexus-html@3.1.0/src as markup reference only; do not run any Node tooling.
-- [ ] Treat static/nexus as the runtime asset kit (compiled CSS, images, client-side JS).
-- [ ] Use DaisyUI Blueprint MCP as the canonical reference for DaisyUI v5 component patterns, variants, accessibility, and form layout; if Nexus markup differs, Nexus wins for visual parity unless intentionally standardizing.
+- [x] Treat ui_vendor/nexus-html@3.1.0/src as markup reference only; do not run any Node tooling.
+- [x] Treat static/nexus as the runtime asset kit (compiled CSS, images, client-side JS).
+- [x] Use DaisyUI Blueprint MCP as the canonical reference for DaisyUI v5 component patterns, variants, accessibility, and form layout; if Nexus markup differs, Nexus wins for visual parity unless intentionally standardizing.
 
 ## 2) Theme + palette (from the logo)
 - [x] Establish a Revaer theme that leans into dark navy/purple with magenta-purple accent.
@@ -95,7 +95,7 @@
 - [x] Build primitives: Dropdown menu, Tabs.
 - [x] Build primitives: Modal, Drawer (details panel), Toast/Alert.
 - [x] Build primitives: Table/List row components and a sticky bulk action bar.
-- [ ] Every component exposes all configurables as props: labels, counts, state, href, ids, optional sections, variants, and an extra class hook.
+- [x] Every component exposes all configurables as props: labels, counts, state, href, ids, optional sections, variants, and an extra class hook.
 
 ## 9) Torrents list page (main screen)
 - [x] Layout: Nexus dashboard styling, list-based view, with filter bar and FAB.
@@ -162,6 +162,6 @@
 - [x] UI: show "Live" indicator when connected and subtle warning when reconnecting/backing off.
 
 ## 15) Not in scope guardrails
-- [ ] Do not implement qBittorrent compatibility endpoints.
-- [ ] Do not add node/npm/vite/tailwind build steps.
+- [x] Do not implement qBittorrent compatibility endpoints.
+- [x] Do not add node/npm/vite/tailwind build steps.
 - [ ] Do not add fake UI controls for settings that cannot be persisted via existing endpoints.

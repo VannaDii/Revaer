@@ -7,6 +7,8 @@ pub(crate) struct SseProps {
     pub state: SseState,
     pub on_retry: Callback<()>,
     pub network_mode: String,
+    #[prop_or_default]
+    pub class: Classes,
 }
 
 #[function_component(SseOverlay)]
@@ -33,7 +35,7 @@ pub(crate) fn sse_overlay(props: &SseProps) -> Html {
     };
 
     html! {
-        <div class="sse-overlay" role="status" aria-live="polite">
+        <div class={classes!("sse-overlay", props.class.clone())} role="status" aria-live="polite">
             <div class="card">
                 <header>
                     <strong>{t("sse.title")}</strong>
@@ -57,6 +59,8 @@ pub(crate) fn sse_overlay(props: &SseProps) -> Html {
 #[derive(Properties, PartialEq)]
 pub(crate) struct SseBadgeProps {
     pub state: SseState,
+    #[prop_or_default]
+    pub class: Classes,
 }
 
 #[function_component(SseBadge)]
@@ -65,9 +69,11 @@ pub(crate) fn sse_badge(props: &SseBadgeProps) -> Html {
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
     let t = |key: &str| bundle.text(key, "");
     match &props.state {
-        SseState::Connected => html! { <span class="pill live">{t("sse.badge")}</span> },
+        SseState::Connected => {
+            html! { <span class={classes!("pill", "live", props.class.clone())}>{t("sse.badge")}</span> }
+        }
         SseState::Reconnecting { retry_in_secs, .. } => html! {
-            <span class="pill warn">{format!("{} ({retry_in_secs}s)", t("sse.badge_reconnecting"))}</span>
+            <span class={classes!("pill", "warn", props.class.clone())}>{format!("{} ({retry_in_secs}s)", t("sse.badge_reconnecting"))}</span>
         },
     }
 }

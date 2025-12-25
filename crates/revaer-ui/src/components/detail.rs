@@ -32,6 +32,8 @@ pub(crate) struct DetailProps {
     pub on_prompt_remove: Callback<(Uuid, String)>,
     pub on_update_selection: Callback<(Uuid, FileSelectionChange)>,
     pub on_update_options: Callback<(Uuid, TorrentOptionsRequest)>,
+    #[prop_or_default]
+    pub class: Classes,
 }
 
 #[function_component(DetailView)]
@@ -47,7 +49,7 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
 
     let Some(detail) = props.data.as_ref() else {
         return html! {
-            <section class="detail-panel placeholder">
+            <section class={classes!("detail-panel", "placeholder", props.class.clone())}>
                 <h3>{t("detail.select_title")}</h3>
                 <p class="muted">{t("detail.select_body")}</p>
             </section>
@@ -207,7 +209,7 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
     );
 
     html! {
-        <section class="detail-panel">
+        <section class={classes!("detail-panel", props.class.clone())}>
             <header class="detail-header">
                 <div>
                     <small class="muted">{t("detail.view_label")}</small>

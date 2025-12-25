@@ -13,6 +13,8 @@ pub(crate) struct DashboardProps {
     pub mode: UiMode,
     pub density: Density,
     pub torrents: Vec<TorrentRow>,
+    #[prop_or_default]
+    pub class: Classes,
 }
 
 #[function_component(DashboardPanel)]
@@ -34,7 +36,9 @@ pub(crate) fn dashboard_panel(props: &DashboardProps) -> Html {
     let torrents = props.torrents.iter().take(7).cloned().collect::<Vec<_>>();
 
     html! {
-        <section class={classes!("dashboard-canvas", density_class, mode_class)}>
+        <section
+            class={classes!("dashboard-canvas", density_class, mode_class, props.class.clone())}
+        >
             <div class="dashboard-heading">
                 <div>
                     <p class="eyebrow">{tf("nav.dashboard", "Dashboard")}</p>

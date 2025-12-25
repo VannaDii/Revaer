@@ -92,6 +92,9 @@ pub(crate) struct TorrentProps {
     pub on_update_selection: Callback<(Uuid, FileSelectionChange)>,
     /// Request a torrent options update for a torrent.
     pub on_update_options: Callback<(Uuid, TorrentOptionsRequest)>,
+    /// Optional class hook for the torrent view container.
+    #[prop_or_default]
+    pub class: Classes,
 }
 
 #[derive(Clone, PartialEq)]
@@ -452,7 +455,7 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     }
 
     html! {
-        <section class={classes!("torrents-view", density_class, mode_class)}>
+        <section class={classes!("torrents-view", density_class, mode_class, props.class.clone())}>
             <header class="toolbar">
                 <div class="search">
                     <SearchInput
