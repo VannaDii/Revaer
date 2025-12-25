@@ -3,63 +3,15 @@
 use std::sync::Arc;
 
 use axum::{Json, body::Body, extract::State, http::StatusCode, response::Response};
-use revaer_config::AppMode;
 use revaer_telemetry::{build_sha, record_app_mode};
-use serde::Serialize;
 use tracing::{error, info, warn};
 
 use crate::app::state::ApiState;
 use crate::http::errors::ApiError;
-#[derive(Serialize)]
-pub(crate) struct HealthComponent {
-    pub(crate) status: &'static str,
-    pub(crate) revision: Option<i64>,
-}
-
-#[derive(Serialize)]
-pub(crate) struct HealthResponse {
-    pub(crate) status: &'static str,
-    pub(crate) mode: AppMode,
-    pub(crate) database: HealthComponent,
-}
-
-#[derive(Serialize)]
-pub(crate) struct FullHealthResponse {
-    pub(crate) status: &'static str,
-    pub(crate) mode: AppMode,
-    pub(crate) revision: i64,
-    pub(crate) build: String,
-    pub(crate) degraded: Vec<String>,
-    pub(crate) metrics: HealthMetricsResponse,
-    pub(crate) torrent: TorrentHealthSnapshot,
-}
-
-#[derive(Serialize)]
-pub(crate) struct HealthMetricsResponse {
-    pub(crate) config_watch_latency_ms: i64,
-    pub(crate) config_apply_latency_ms: i64,
-    pub(crate) config_update_failures_total: u64,
-    pub(crate) config_watch_slow_total: u64,
-    pub(crate) guardrail_violations_total: u64,
-    pub(crate) rate_limit_throttled_total: u64,
-}
-
-#[derive(Serialize)]
-pub(crate) struct TorrentHealthSnapshot {
-    pub(crate) active: i64,
-    pub(crate) queue_depth: i64,
-}
-
-#[derive(Serialize)]
-pub(crate) struct DashboardResponse {
-    pub(crate) download_bps: u64,
-    pub(crate) upload_bps: u64,
-    pub(crate) active: u32,
-    pub(crate) paused: u32,
-    pub(crate) completed: u32,
-    pub(crate) disk_total_gb: u32,
-    pub(crate) disk_used_gb: u32,
-}
+use crate::models::{
+    DashboardResponse, FullHealthResponse, HealthComponentResponse, HealthMetricsResponse,
+    HealthResponse, TorrentHealthResponse,
+};
 
 pub(crate) async fn health(
     State(state): State<Arc<ApiState>>,
@@ -69,10 +21,10 @@ pub(crate) async fn health(
             state.remove_degraded_component("database");
             record_app_mode(snapshot.app_profile.mode.as_str());
             Ok(Json(HealthResponse {
-                status: "ok",
-                mode: snapshot.app_profile.mode.clone(),
-                database: HealthComponent {
-                    status: "ok",
+                status: "ok".to_string(),
+                mode: snapshot.app_profile.mode.as_str().to_string(),
+                database: HealthComponentResponse {
+                    status: "ok".to_string(),
                     revision: Some(snapshot.revision),
                 },
             }))
@@ -104,19 +56,19 @@ pub(crate) async fn health_full(
                 guardrail_violations_total: metrics_snapshot.guardrail_violations_total,
                 rate_limit_throttled_total: metrics_snapshot.rate_limit_throttled_total,
             };
-            let torrent = TorrentHealthSnapshot {
+            let torrent = TorrentHealthResponse {
                 active: metrics_snapshot.active_torrents,
                 queue_depth: metrics_snapshot.queue_depth,
             };
             let degraded = state.current_health_degraded();
             let status = if degraded.is_empty() {
-                "ok"
+                "ok".to_string()
             } else {
-                "degraded"
+                "degraded".to_string()
             };
             Ok(Json(FullHealthResponse {
                 status,
-                mode: snapshot.app_profile.mode.clone(),
+                mode: snapshot.app_profile.mode.as_str().to_string(),
                 revision: snapshot.revision,
                 build: build_sha().to_string(),
                 degraded,
@@ -183,7 +135,7 @@ mod tests {
     use async_trait::async_trait;
     use chrono::Utc;
     use revaer_config::{
-        ApiKeyAuth, AppProfile, AppliedChanges, ConfigSnapshot, EngineProfile, FsPolicy,
+        ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigSnapshot, EngineProfile, FsPolicy,
         SettingsChangeset, SetupToken, normalize_engine_profile,
     };
     use revaer_events::EventBus;

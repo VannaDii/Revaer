@@ -66,6 +66,110 @@ pub struct ProblemInvalidParam {
     pub message: String,
 }
 
+/// Health component status used by the `/health` endpoints.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HealthComponentResponse {
+    /// Component health status ("ok", "degraded").
+    pub status: String,
+    /// Optional schema revision associated with the component.
+    pub revision: Option<i64>,
+}
+
+/// Basic health response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HealthResponse {
+    /// Overall health status.
+    pub status: String,
+    /// Application mode ("setup" or "active").
+    pub mode: String,
+    /// Database component health details.
+    pub database: HealthComponentResponse,
+}
+
+/// Detailed health metrics snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct HealthMetricsResponse {
+    /// Config watch latency in milliseconds.
+    pub config_watch_latency_ms: i64,
+    /// Config apply latency in milliseconds.
+    pub config_apply_latency_ms: i64,
+    /// Total count of config update failures.
+    pub config_update_failures_total: u64,
+    /// Total count of slow config watches.
+    pub config_watch_slow_total: u64,
+    /// Total count of guardrail violations.
+    pub guardrail_violations_total: u64,
+    /// Total count of rate-limit throttles.
+    pub rate_limit_throttled_total: u64,
+}
+
+/// Torrent-specific health snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TorrentHealthResponse {
+    /// Count of active torrents.
+    pub active: i64,
+    /// Queue depth snapshot.
+    pub queue_depth: i64,
+}
+
+/// Full health response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FullHealthResponse {
+    /// Overall health status.
+    pub status: String,
+    /// Application mode ("setup" or "active").
+    pub mode: String,
+    /// Schema revision identifier.
+    pub revision: i64,
+    /// Build identifier.
+    pub build: String,
+    /// Degraded component list.
+    pub degraded: Vec<String>,
+    /// Metrics snapshot for config and guardrails.
+    pub metrics: HealthMetricsResponse,
+    /// Torrent health snapshot for queue sizing.
+    pub torrent: TorrentHealthResponse,
+}
+
+/// Dashboard response payload (overview counts).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DashboardResponse {
+    /// Aggregate download throughput in bytes per second.
+    pub download_bps: u64,
+    /// Aggregate upload throughput in bytes per second.
+    pub upload_bps: u64,
+    /// Count of active torrents.
+    pub active: u32,
+    /// Count of paused torrents.
+    pub paused: u32,
+    /// Count of completed torrents.
+    pub completed: u32,
+    /// Total disk capacity (GB).
+    pub disk_total_gb: u32,
+    /// Used disk capacity (GB).
+    pub disk_used_gb: u32,
+}
+
+/// Setup start response payload returned by `/admin/setup/start`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SetupStartResponse {
+    /// Plaintext setup token.
+    pub token: String,
+    /// Token expiry timestamp as an RFC3339 string.
+    pub expires_at: String,
+}
+
+/// Setup start request payload accepted by `/admin/setup/start`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct SetupStartRequest {
+    /// Optional identifier for the actor requesting the token.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub issued_by: Option<String>,
+    /// Optional TTL in seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ttl_seconds: Option<u64>,
+}
+
 /// Enumerates the coarse torrent lifecycle states surfaced via the API.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]

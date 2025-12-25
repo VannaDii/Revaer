@@ -6,6 +6,7 @@
 //! - Use explicit form state to avoid implicit mutations.
 
 use crate::app::api::ApiCtx;
+use crate::components::atoms::EmptyState;
 use crate::core::store::AppStore;
 use crate::features::labels::actions::LabelAction;
 use crate::features::labels::api::upsert_label;
@@ -167,7 +168,11 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                             <span class="pill subtle">{entries.len()}</span>
                         </div>
                         {if entries_empty {
-                            html! { <p class="muted">{t("labels.empty", "No labels configured yet.")}</p> }
+                            html! {
+                                <EmptyState
+                                    title={AttrValue::from(t("labels.empty", "No labels configured yet."))}
+                                />
+                            }
                         } else {
                             html! {
                                 <ul class="label-items">

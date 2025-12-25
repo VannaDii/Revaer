@@ -9,10 +9,11 @@ use crate::core::logic::build_torrents_path;
 use crate::features::torrents::actions::TorrentAction as UiTorrentAction;
 use crate::features::torrents::state::{TorrentsPaging, TorrentsQueryModel};
 use crate::models::{
-    AddTorrentInput, DashboardSnapshot, ProblemDetails, QueueStatus,
-    TorrentAction as ApiTorrentAction, TorrentAuthorRequest, TorrentAuthorResponse,
-    TorrentCreateRequest, TorrentDetail, TorrentLabelEntry, TorrentLabelPolicy,
-    TorrentListResponse, TorrentOptionsRequest, TorrentSelectionRequest, TrackerHealth, VpnState,
+    AddTorrentInput, DashboardResponse, DashboardSnapshot, FullHealthResponse, HealthResponse,
+    ProblemDetails, QueueStatus, SetupStartResponse, TorrentAction as ApiTorrentAction,
+    TorrentAuthorRequest, TorrentAuthorResponse, TorrentCreateRequest, TorrentDetail,
+    TorrentLabelEntry, TorrentLabelPolicy, TorrentListResponse, TorrentOptionsRequest,
+    TorrentSelectionRequest, TrackerHealth, VpnState,
 };
 use base64::{Engine as _, engine::general_purpose};
 use gloo::file::futures::read_as_bytes;
@@ -64,52 +65,6 @@ impl fmt::Display for ApiError {
 }
 
 impl std::error::Error for ApiError {}
-
-#[derive(Clone, Debug, Deserialize)]
-pub(crate) struct HealthComponentResponse {
-    pub status: String,
-    pub revision: Option<i64>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub(crate) struct HealthResponse {
-    pub status: String,
-    pub mode: String,
-    pub database: HealthComponentResponse,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub(crate) struct HealthMetricsResponse {
-    pub config_watch_latency_ms: i64,
-    pub config_apply_latency_ms: i64,
-    pub config_update_failures_total: u64,
-    pub config_watch_slow_total: u64,
-    pub guardrail_violations_total: u64,
-    pub rate_limit_throttled_total: u64,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub(crate) struct TorrentHealthResponse {
-    pub active: i64,
-    pub queue_depth: i64,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub(crate) struct FullHealthResponse {
-    pub status: String,
-    pub mode: String,
-    pub revision: i64,
-    pub build: String,
-    pub degraded: Vec<String>,
-    pub metrics: HealthMetricsResponse,
-    pub torrent: TorrentHealthResponse,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub(crate) struct SetupStartResponse {
-    pub token: String,
-    pub expires_at: String,
-}
 
 #[derive(Clone, Debug)]
 pub(crate) struct ApiClient {
@@ -348,17 +303,7 @@ impl ApiClient {
     }
 
     pub(crate) async fn fetch_dashboard(&self) -> Result<DashboardSnapshot, ApiError> {
-        #[derive(Deserialize)]
-        struct DashboardDto {
-            download_bps: u64,
-            upload_bps: u64,
-            active: u32,
-            paused: u32,
-            completed: u32,
-            disk_total_gb: u32,
-            disk_used_gb: u32,
-        }
-        let dto: DashboardDto = self.get_json("/v1/dashboard").await?;
+        let dto: DashboardResponse = self.get_json("/v1/dashboard").await?;
         Ok(DashboardSnapshot {
             download_bps: dto.download_bps,
             upload_bps: dto.upload_bps,

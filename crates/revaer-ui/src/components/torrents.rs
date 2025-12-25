@@ -1,11 +1,13 @@
 use crate::app::Route;
 use crate::components::action_menu::{ActionMenuItem, render_action_menu};
+use crate::components::atoms::{BulkActionBar, SearchInput};
+use crate::components::daisy::{Input, MultiSelect, Select};
 use crate::components::detail::{DetailView, FileSelectionChange};
 use crate::components::torrent_modals::{AddTorrentPanel, CopyKind, CreateTorrentPanel};
 use crate::components::virtual_list::VirtualList;
 use crate::core::breakpoints::Breakpoint;
 use crate::core::logic::{
-    ShortcutOutcome, format_rate, interpret_shortcut, parse_rate_input, plan_columns,
+    ShortcutOutcome, format_rate, interpret_shortcut, parse_rate_input, parse_tags, plan_columns,
     select_all_or_clear, toggle_selection,
 };
 use crate::core::store::AppStore;
@@ -57,8 +59,10 @@ pub(crate) struct TorrentProps {
     pub on_search: Callback<String>,
     /// Current state filter value.
     pub state_filter: String,
-    /// Current tags filter input (comma-separated).
-    pub tags_filter: String,
+    /// Current tags filter selection.
+    pub tags_filter: Vec<String>,
+    /// Available tag options for the tags filter.
+    pub tag_options: Vec<(AttrValue, AttrValue)>,
     /// Current tracker filter value.
     pub tracker_filter: String,
     /// Current extension filter value.
@@ -66,7 +70,7 @@ pub(crate) struct TorrentProps {
     /// Update the state filter.
     pub on_state_filter: Callback<String>,
     /// Update the tags filter.
-    pub on_tags_filter: Callback<String>,
+    pub on_tags_filter: Callback<Vec<String>>,
     /// Update the tracker filter.
     pub on_tracker_filter: Callback<String>,
     /// Update the extension filter.
@@ -158,6 +162,51 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     let selected_id = props.visible_ids.get(*selected_idx).copied();
     let selected_ids = props.selected_ids.clone();
     let selected_count = selected_ids.len();
+    let tag_values: Vec<AttrValue> = props
+        .tags_filter
+        .iter()
+        .cloned()
+        .map(AttrValue::from)
+        .collect();
+    let tag_input_value = if props.tags_filter.is_empty() {
+        String::new()
+    } else {
+        props.tags_filter.join(", ")
+    };
+    let state_options = vec![
+        (
+            AttrValue::from(""),
+            AttrValue::from(bundle.text("torrents.state_all", "All states")),
+        ),
+        (
+            AttrValue::from("queued"),
+            AttrValue::from(bundle.text("torrents.state_queued", "Queued")),
+        ),
+        (
+            AttrValue::from("fetching_metadata"),
+            AttrValue::from(bundle.text("torrents.state_fetching", "Metadata")),
+        ),
+        (
+            AttrValue::from("downloading"),
+            AttrValue::from(bundle.text("torrents.state_downloading", "Downloading")),
+        ),
+        (
+            AttrValue::from("seeding"),
+            AttrValue::from(bundle.text("torrents.state_seeding", "Seeding")),
+        ),
+        (
+            AttrValue::from("completed"),
+            AttrValue::from(bundle.text("torrents.state_completed", "Completed")),
+        ),
+        (
+            AttrValue::from("stopped"),
+            AttrValue::from(bundle.text("torrents.state_stopped", "Stopped")),
+        ),
+        (
+            AttrValue::from("failed"),
+            AttrValue::from(bundle.text("torrents.state_failed", "Failed")),
+        ),
+    ];
     let selected_base = {
         let selected_id = selected_id;
         use_selector(move |store: &AppStore| {
@@ -406,116 +455,98 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
         <section class={classes!("torrents-view", density_class, mode_class)}>
             <header class="toolbar">
                 <div class="search">
-                    <input
-                        aria-label={t("torrents.search_label")}
-                        placeholder={t("torrents.search_placeholder")}
-                        ref={search_ref.clone()}
-                        value={props.search.clone()}
-                        oninput={{
-                            let on_search = props.on_search.clone();
-                            Callback::from(move |e: InputEvent| {
-                                if let Some(input) = e.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                    on_search.emit(input.value());
-                                }
-                            })
-                        }}
+                    <SearchInput
+                        aria_label={Some(AttrValue::from(t("torrents.search_label")))}
+                        placeholder={Some(AttrValue::from(t("torrents.search_placeholder")))}
+                        input_ref={search_ref.clone()}
+                        value={AttrValue::from(props.search.clone())}
+                        debounce_ms={250}
+                        on_search={props.on_search.clone()}
                     />
                 </div>
                 <div class="filters">
                     <label class="filter">
                         <span>{bundle.text("torrents.filter_state", "State")}</span>
-                        <select
-                            aria-label={bundle.text("torrents.state_label", "Torrent state")}
-                            value={props.state_filter.clone()}
+                        <Select
+                            aria_label={Some(AttrValue::from(bundle.text("torrents.state_label", "Torrent state")))}
+                            value={Some(AttrValue::from(props.state_filter.clone()))}
+                            options={state_options.clone()}
                             onchange={{
                                 let on_state = props.on_state_filter.clone();
-                                Callback::from(move |e: web_sys::Event| {
-                                    if let Some(select) =
-                                        e.target_dyn_into::<web_sys::HtmlSelectElement>()
-                                    {
-                                        on_state.emit(select.value());
-                                    }
-                                })
-                            }}
-                        >
-                            <option value="">{bundle.text("torrents.state_all", "All states")}</option>
-                            <option value="queued">{bundle.text("torrents.state_queued", "Queued")}</option>
-                            <option value="fetching_metadata">{bundle.text("torrents.state_fetching", "Metadata")}</option>
-                            <option value="downloading">{bundle.text("torrents.state_downloading", "Downloading")}</option>
-                            <option value="seeding">{bundle.text("torrents.state_seeding", "Seeding")}</option>
-                            <option value="completed">{bundle.text("torrents.state_completed", "Completed")}</option>
-                            <option value="stopped">{bundle.text("torrents.state_stopped", "Stopped")}</option>
-                            <option value="failed">{bundle.text("torrents.state_failed", "Failed")}</option>
-                        </select>
-                    </label>
-                    <label class="filter">
-                        <span>{bundle.text("torrents.filter_tags", "Tags")}</span>
-                        <input
-                            aria-label={bundle.text("torrents.tags_label", "Tags")}
-                            placeholder={bundle.text("torrents.tags_placeholder", "tag1, tag2")}
-                            value={props.tags_filter.clone()}
-                            oninput={{
-                                let on_tags = props.on_tags_filter.clone();
-                                Callback::from(move |e: InputEvent| {
-                                    if let Some(input) =
-                                        e.target_dyn_into::<web_sys::HtmlInputElement>()
-                                    {
-                                        on_tags.emit(input.value());
-                                    }
-                                })
+                                Callback::from(move |value: AttrValue| on_state.emit(value.to_string()))
                             }}
                         />
                     </label>
                     <label class="filter">
+                        <span>{bundle.text("torrents.filter_tags", "Tags")}</span>
+                        {if props.tag_options.is_empty() {
+                            html! {
+                                <Input
+                                    aria_label={Some(AttrValue::from(bundle.text("torrents.tags_label", "Tags")))}
+                                    placeholder={Some(AttrValue::from(bundle.text("torrents.tags_placeholder", "tag1, tag2")))}
+                                    value={AttrValue::from(tag_input_value.clone())}
+                                    oninput={{
+                                        let on_tags = props.on_tags_filter.clone();
+                                        Callback::from(move |value: String| {
+                                            on_tags.emit(parse_tags(&value).unwrap_or_default());
+                                        })
+                                    }}
+                                />
+                            }
+                        } else {
+                            html! {
+                                <MultiSelect
+                                    aria_label={Some(AttrValue::from(bundle.text("torrents.tags_label", "Tags")))}
+                                    options={props.tag_options.clone()}
+                                    values={tag_values.clone()}
+                                    onchange={{
+                                        let on_tags = props.on_tags_filter.clone();
+                                        Callback::from(move |values: Vec<AttrValue>| {
+                                            on_tags.emit(values.into_iter().map(|value| value.to_string()).collect());
+                                        })
+                                    }}
+                                />
+                            }
+                        }}
+                    </label>
+                    <label class="filter">
                         <span>{bundle.text("torrents.filter_tracker", "Tracker")}</span>
-                        <input
-                            aria-label={bundle.text("torrents.tracker_label", "Tracker")}
-                            placeholder={bundle.text("torrents.tracker_placeholder", "tracker url")}
-                            value={props.tracker_filter.clone()}
+                        <Input
+                            aria_label={Some(AttrValue::from(bundle.text("torrents.tracker_label", "Tracker")))}
+                            placeholder={Some(AttrValue::from(bundle.text("torrents.tracker_placeholder", "tracker url")))}
+                            value={AttrValue::from(props.tracker_filter.clone())}
                             oninput={{
                                 let on_tracker = props.on_tracker_filter.clone();
-                                Callback::from(move |e: InputEvent| {
-                                    if let Some(input) =
-                                        e.target_dyn_into::<web_sys::HtmlInputElement>()
-                                    {
-                                        on_tracker.emit(input.value());
-                                    }
-                                })
+                                Callback::from(move |value: String| on_tracker.emit(value))
                             }}
                         />
                     </label>
                     <label class="filter">
                         <span>{bundle.text("torrents.filter_extension", "Extension")}</span>
-                        <input
-                            aria-label={bundle.text("torrents.extension_label", "Extension")}
-                            placeholder={bundle.text("torrents.extension_placeholder", ".mkv")}
-                            value={props.extension_filter.clone()}
+                        <Input
+                            aria_label={Some(AttrValue::from(bundle.text("torrents.extension_label", "Extension")))}
+                            placeholder={Some(AttrValue::from(bundle.text("torrents.extension_placeholder", ".mkv")))}
+                            value={AttrValue::from(props.extension_filter.clone())}
                             oninput={{
                                 let on_extension = props.on_extension_filter.clone();
-                                Callback::from(move |e: InputEvent| {
-                                    if let Some(input) =
-                                        e.target_dyn_into::<web_sys::HtmlInputElement>()
-                                    {
-                                        on_extension.emit(input.value());
-                                    }
-                                })
+                                Callback::from(move |value: String| on_extension.emit(value))
                             }}
                         />
                     </label>
                 </div>
-                <div class="bulk-actions">
-                    <button class="ghost" onclick={{
+                <BulkActionBar
+                    select_label={AttrValue::from(t("torrents.select_all"))}
+                    selected_label={AttrValue::from(t("torrents.selected"))}
+                    selected_count={selected_count}
+                    on_toggle_all={{
                         let selected_ids = selected_ids.clone();
                         let on_set_selected = props.on_set_selected.clone();
                         let visible_ids = props.visible_ids.clone();
                         Callback::from(move |_| {
                             on_set_selected.emit(select_all_or_clear(&selected_ids, &visible_ids));
                         })
-                    }}>
-                        {t("torrents.select_all")}
-                    </button>
-                    <span class="muted">{format!("{} {}", selected_count, t("torrents.selected"))}</span>
-                    <div class="bulk-buttons">
+                    }}
+                >
                         <button
                             class="ghost"
                             disabled={selected_count == 0}
@@ -658,8 +689,7 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                         >
                             {t("toolbar.delete")}
                         </button>
-                    </div>
-                </div>
+                </BulkActionBar>
                 <div class="actions">
                     <div class="segmented density">
                         {Density::all().iter().map(|option| {

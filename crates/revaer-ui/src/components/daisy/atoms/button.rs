@@ -18,6 +18,12 @@ pub struct ButtonProps {
     #[prop_or_default]
     pub disabled: bool,
     #[prop_or_default]
+    pub loading: bool,
+    #[prop_or_default]
+    pub leading_icon: Option<Html>,
+    #[prop_or_default]
+    pub trailing_icon: Option<Html>,
+    #[prop_or_default]
     pub class: Classes,
     #[prop_or_default]
     pub r#type: Option<AttrValue>,
@@ -35,6 +41,7 @@ pub fn button(props: &ButtonProps) -> Html {
         size,
         props.full_width.then_some("btn-block"),
         props.circle.then_some("btn-circle"),
+        props.loading.then_some("loading"),
         props.class.clone()
     );
     if let Some(tone) = tone {
@@ -44,11 +51,17 @@ pub fn button(props: &ButtonProps) -> Html {
     html! {
         <button
             class={classes}
-            disabled={props.disabled}
+            disabled={props.disabled || props.loading}
             r#type={props.r#type.clone()}
             onclick={props.onclick.clone()}
         >
+            {props.leading_icon.clone().map(|icon| html! {
+                <span class="btn-icon leading">{icon}</span>
+            }).unwrap_or_default()}
             { for props.children.iter() }
+            {props.trailing_icon.clone().map(|icon| html! {
+                <span class="btn-icon trailing">{icon}</span>
+            }).unwrap_or_default()}
         </button>
     }
 }

@@ -53,6 +53,7 @@ ADR documents capture the rationale behind significant technical decisions.
 - [048](048-ui-torrent-actions-bulk-controls.md) – UI torrent row actions, bulk controls, and rate/remove dialogs
 - [049](049-ui-detail-overview-files-options.md) – UI detail drawer overview/files/options
 - [050](050-ui-torrent-fab-create-modals.md) – UI torrent FAB, add modal, and create-torrent authoring flow
+- [051](051-ui-api-models-primitives.md) – UI shared API models and UX primitives
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

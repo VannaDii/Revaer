@@ -10,11 +10,19 @@ pub struct InputProps {
     #[prop_or_default]
     pub input_type: Option<AttrValue>,
     #[prop_or_default]
+    pub id: Option<AttrValue>,
+    #[prop_or_default]
+    pub name: Option<AttrValue>,
+    #[prop_or_default]
+    pub aria_label: Option<AttrValue>,
+    #[prop_or_default]
     pub tone: Option<DaisyColor>,
     #[prop_or(DaisySize::Md)]
     pub size: DaisySize,
     #[prop_or_default]
     pub disabled: bool,
+    #[prop_or_default]
+    pub input_ref: NodeRef,
     #[prop_or_default]
     pub class: Classes,
     #[prop_or_default]
@@ -45,8 +53,12 @@ pub fn input(props: &InputProps) -> Html {
             placeholder={props.placeholder.clone()}
             value={props.value.clone()}
             type={props.input_type.clone().unwrap_or_else(|| AttrValue::from("text"))}
+            id={props.id.clone()}
+            name={props.name.clone()}
+            aria-label={props.aria_label.clone()}
             disabled={props.disabled}
             oninput={oninput}
+            ref={props.input_ref.clone()}
         />
     }
 }

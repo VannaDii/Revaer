@@ -1799,6 +1799,41 @@ button:focus-visible {
   }
 }
 
+.btn-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn-icon.leading {
+  margin-right: 6px;
+}
+
+.btn-icon.trailing {
+  margin-left: 6px;
+}
+
+.empty-state {
+  display: grid;
+  gap: 8px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px dashed var(--border);
+  background: var(--surface);
+  text-align: center;
+}
+
+.empty-state h4 {
+  margin: 0;
+}
+
+.empty-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 [dir="rtl"] .sidebar,
 [dir="rtl"] .topbar,
 [dir="rtl"] .row-meta,

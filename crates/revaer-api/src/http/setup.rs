@@ -10,25 +10,13 @@ use axum::{
 use revaer_config::{AppMode, ConfigSnapshot, SettingsChangeset};
 use revaer_events::Event as CoreEvent;
 use revaer_telemetry::record_app_mode;
-use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 use tracing::{error, warn};
 
 use crate::app::state::ApiState;
 use crate::http::auth::{AuthContext, extract_setup_token, map_config_error};
 use crate::http::errors::ApiError;
-
-#[derive(Debug, Default, Deserialize)]
-pub(crate) struct SetupStartRequest {
-    pub(crate) issued_by: Option<String>,
-    pub(crate) ttl_seconds: Option<u64>,
-}
-
-#[derive(Serialize)]
-pub(crate) struct SetupStartResponse {
-    pub(crate) token: String,
-    pub(crate) expires_at: chrono::DateTime<chrono::Utc>,
-}
+use crate::models::{SetupStartRequest, SetupStartResponse};
 
 pub(crate) async fn setup_start(
     State(state): State<Arc<ApiState>>,
@@ -63,7 +51,7 @@ pub(crate) async fn setup_start(
 
     Ok(Json(SetupStartResponse {
         token: token.plaintext,
-        expires_at: token.expires_at,
+        expires_at: token.expires_at.to_rfc3339(),
     }))
 }
 

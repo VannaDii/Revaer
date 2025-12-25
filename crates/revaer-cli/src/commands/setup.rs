@@ -1,6 +1,6 @@
 use anyhow::anyhow;
+use revaer_api::models::{SetupStartRequest, SetupStartResponse};
 use revaer_config::{ApiKeyPatch, ConfigSnapshot, SecretPatch, SettingsChangeset};
-use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::io::{self, IsTerminal};
 use std::net::IpAddr;
@@ -20,7 +20,7 @@ pub(crate) async fn handle_setup_start(ctx: &AppContext, args: SetupStartArgs) -
     let mut request = ctx.client.post(url);
 
     if args.issued_by.is_some() || args.ttl_seconds.is_some() {
-        let payload = SetupStartPayload {
+        let payload = SetupStartRequest {
             issued_by: args.issued_by,
             ttl_seconds: args.ttl_seconds,
         };
@@ -184,20 +184,6 @@ pub(crate) fn resolve_passphrase(args: &SetupCompleteArgs) -> CliResult<String> 
             "passphrase required; supply via --passphrase when running non-interactively",
         ))
     }
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct SetupStartPayload {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    issued_by: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    ttl_seconds: Option<u64>,
-}
-
-#[derive(Debug, Deserialize)]
-struct SetupStartResponse {
-    token: String,
-    expires_at: String,
 }
 
 #[cfg(test)]

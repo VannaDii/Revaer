@@ -13,7 +13,7 @@ use crate::core::auth::{AuthMode, AuthState};
 use crate::core::breakpoints::Breakpoint;
 use crate::core::events::UiEventEnvelope;
 use crate::core::logic::{
-    SseView, build_sse_query, build_torrent_filter_query, parse_tags, parse_torrent_filter_query,
+    SseView, build_sse_query, build_torrent_filter_query, parse_torrent_filter_query,
 };
 use crate::core::store::{
     AppModeState, AppStore, HealthMetricsSnapshot, HealthSnapshot, SseApplyOutcome, SystemRates,
@@ -117,6 +117,16 @@ pub fn revaer_app() -> Html {
     let create_result = use_selector(|store: &AppStore| store.torrents.create_result.clone());
     let create_error = use_selector(|store: &AppStore| store.torrents.create_error.clone());
     let filters = use_selector(|store: &AppStore| store.torrents.filters.clone());
+    let tag_options = use_selector(|store: &AppStore| {
+        let mut tags: Vec<String> = store.labels.tags.keys().cloned().collect();
+        tags.sort();
+        tags.into_iter()
+            .map(|tag| {
+                let value = AttrValue::from(tag);
+                (value.clone(), value)
+            })
+            .collect::<Vec<(AttrValue, AttrValue)>>()
+    });
     let paging_state = use_selector(|store: &AppStore| store.torrents.paging.clone());
     let paging_limit = use_selector(|store: &AppStore| store.torrents.paging.limit);
     let system_rates = use_selector(select_system_rates);
@@ -144,14 +154,11 @@ pub fn revaer_app() -> Html {
     let create_result_value = (*create_result).clone();
     let create_error_value = (*create_error).clone();
     let filters_value = (*filters).clone();
+    let tag_options_value = (*tag_options).clone();
     let paging_state_value = (*paging_state).clone();
     let search = filters_value.name.clone();
     let state_filter_value = filters_value.state.clone().unwrap_or_default();
-    let tags_filter_value = if filters_value.tags.is_empty() {
-        String::new()
-    } else {
-        filters_value.tags.join(", ")
-    };
+    let tags_filter_value = filters_value.tags.clone();
     let tracker_filter_value = filters_value.tracker.clone().unwrap_or_default();
     let extension_filter_value = filters_value.extension.clone().unwrap_or_default();
     let can_load_more = paging_state_value.next_cursor.is_some();
@@ -909,10 +916,9 @@ pub fn revaer_app() -> Html {
     };
     let set_tags_filter = {
         let dispatch = dispatch.clone();
-        Callback::from(move |value: String| {
-            let parsed = parse_tags(&value).unwrap_or_default();
+        Callback::from(move |values: Vec<String>| {
             dispatch.reduce_mut(|store| {
-                store.torrents.filters.tags = parsed;
+                store.torrents.filters.tags = values;
                 store.torrents.paging.cursor = None;
                 store.torrents.paging.next_cursor = None;
             });
@@ -1477,6 +1483,7 @@ pub fn revaer_app() -> Html {
                                             on_search={set_search.clone()}
                                             state_filter={state_filter_value.clone()}
                                             tags_filter={tags_filter_value.clone()}
+                                            tag_options={tag_options_value.clone()}
                                             tracker_filter={tracker_filter_value.clone()}
                                             extension_filter={extension_filter_value.clone()}
                                             on_state_filter={set_state_filter.clone()}
@@ -1519,6 +1526,7 @@ pub fn revaer_app() -> Html {
                                             on_search={set_search.clone()}
                                             state_filter={state_filter_value.clone()}
                                             tags_filter={tags_filter_value.clone()}
+                                            tag_options={tag_options_value.clone()}
                                             tracker_filter={tracker_filter_value.clone()}
                                             extension_filter={extension_filter_value.clone()}
                                             on_state_filter={set_state_filter.clone()}

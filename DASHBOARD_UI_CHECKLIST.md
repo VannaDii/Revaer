@@ -29,7 +29,7 @@
 - [x] Settings allow "bypass local" toggle; when enabled default auth prompt to API key and avoid showing local auth first.
 
 ## 5) State management and rendering performance (yewdux)
-- [ ] Adopt yewdux for all shared UI/data state; avoid use_reducer + ContextProvider for shared data.
+- [x] Adopt yewdux for all shared UI/data state; avoid use_reducer + ContextProvider for shared data.
 - [x] Define a single normalized AppStore with domain sub-structs:
   - [x] auth (configured, setup status, auth method, key/user presence, last auth error)
   - [x] ui (theme, toasts, modal/drawer state, FAB open, busy flags)
@@ -37,7 +37,7 @@
   - [x] labels (categories/tags caches)
   - [x] health (basic/full snapshots)
   - [x] system (system rates, SSE connection status)
-- [ ] Normalize torrent data:
+- [x] Normalize torrent data:
   - [x] torrents.by_id: HashMap<Uuid, Rc<TorrentRowState>>
   - [x] torrents.visible_ids: Vec<Uuid> (render list by IDs only)
   - [x] torrents.selected: HashSet<Uuid> (bulk)
@@ -45,7 +45,7 @@
   - [x] torrents.paging: { cursor, next_cursor, limit, is_loading }
   - [x] torrents.details_by_id: HashMap<Uuid, Rc<TorrentDetailState>> (optional cache; keep large vectors here, not in row state)
   - [x] torrents.fsops_by_id: HashMap<Uuid, Rc<FsopsState>> (separate map; row derives a small badge slice)
-- [ ] Implement selectors for row-level subscription:
+- [x] Implement selectors for row-level subscription:
   - [x] select_visible_ids()
   - [x] select_torrent_row(id) (for drawer)
   - [x] select_torrent_progress_slice(id) (for list rows; minimal fields only)
@@ -66,7 +66,7 @@
 - [x] Prefer re-exporting or directly depending on shared crates for:
   - [x] TorrentSummary, TorrentDetail, TorrentSettingsView, TorrentFile, TorrentLabelPolicy
   - [x] EventEnvelope, Event, TorrentState, related enums
-- [ ] Build only minimal transport/adaptation glue (headers, auth, pagination, SSE), not duplicate schemas.
+- [x] Build only minimal transport/adaptation glue (headers, auth, pagination, SSE), not duplicate schemas.
 - [x] Endpoints: GET /health, GET /health/full.
 - [x] Endpoints: GET /metrics (optional viewer).
 - [x] Endpoints: GET /v1/torrents, POST /v1/torrents.
@@ -88,13 +88,13 @@
 - [x] Replace all inline SVG usage in pages/components with the icon components.
 
 ## 8) Rust UI component library (atomic + props discipline)
-- [ ] Build primitives: Buttons (variants, sizes, loading, icon slots), IconButton.
-- [ ] Build primitives: Inputs (text, password, number), SearchInput with debounce.
-- [ ] Build primitives: Select/MultiSelect, Checkbox/Toggle.
-- [ ] Build primitives: Badge, Progress, Tooltip, Skeleton, EmptyState.
-- [ ] Build primitives: Dropdown menu, Tabs.
-- [ ] Build primitives: Modal, Drawer (details panel), Toast/Alert.
-- [ ] Build primitives: Table/List row components and a sticky bulk action bar.
+- [x] Build primitives: Buttons (variants, sizes, loading, icon slots), IconButton.
+- [x] Build primitives: Inputs (text, password, number), SearchInput with debounce.
+- [x] Build primitives: Select/MultiSelect, Checkbox/Toggle.
+- [x] Build primitives: Badge, Progress, Tooltip, Skeleton, EmptyState.
+- [x] Build primitives: Dropdown menu, Tabs.
+- [x] Build primitives: Modal, Drawer (details panel), Toast/Alert.
+- [x] Build primitives: Table/List row components and a sticky bulk action bar.
 - [ ] Every component exposes all configurables as props: labels, counts, state, href, ids, optional sections, variants, and an extra class hook.
 
 ## 9) Torrents list page (main screen)
