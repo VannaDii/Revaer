@@ -278,6 +278,7 @@
     "local_pass_placeholder": "password",
     "allow_anon": "LAN mode detected: leave blank to continue anonymously.",
     "use_anon": "Use anonymous (if allowed)",
+    "dismiss": "Dismiss",
     "submit": "Continue"
   },
   "setup": {

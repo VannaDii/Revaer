@@ -12,8 +12,9 @@
 
 ## 3) Shell and routing (atomic composition)
 - [x] Implement AppShell template: sidebar + topbar + main outlet; preserve Nexus layout structure.
-- [x] Routes: Torrents (default), Categories, Tags, Settings, Health.
+- [x] Routes: Home, Torrents (+ detail), Settings only; remove Categories/Tags/Health from routing.
 - [x] Torrents route supports deep linking to selected torrent (open details drawer) via URL state.
+- [x] Static assets resolve under nested routes (Nexus CSS/icons load on /torrents and /settings).
 
 ## 4) Authentication and first-run flow
 - [x] On startup, determine configured vs not configured.
@@ -27,6 +28,7 @@
 - [x] API key maps to header x-revaer-api-key (per OpenAPI).
 - [x] Local auth sends Authorization: Basic ... (server may ignore).
 - [x] Settings allow "bypass local" toggle; when enabled default auth prompt to API key and avoid showing local auth first.
+- [x] Auth prompt is dismissible so navigation to Settings remains available.
 
 ## 5) State management and rendering performance (yewdux)
 - [x] Adopt yewdux for all shared UI/data state; avoid use_reducer + ContextProvider for shared data.
@@ -98,7 +100,7 @@
 - [x] Every component exposes all configurables as props: labels, counts, state, href, ids, optional sections, variants, and an extra class hook.
 
 ## 9) Torrents list page (main screen)
-- [x] Layout: Nexus dashboard styling, list-based view, with filter bar and FAB.
+- [x] Layout: Nexus dashboard styling, table-based view (DaisyUI table) with filter bar and FAB.
 - [x] Filters in URL query: query text (name), state, tags, tracker, extension.
 - [x] Pagination: limit and cursor; provide Load more using next cursor.
 - [x] Columns (TorrentSummary): name, state, progress, down/up rate, ratio, tags, trackers, updated timestamp.
@@ -165,3 +167,16 @@
 - [x] Do not implement qBittorrent compatibility endpoints.
 - [x] Do not add node/npm/vite/tailwind build steps.
 - [x] Do not add fake UI controls for settings that cannot be persisted via existing endpoints.
+
+## 16) Hardline dashboard rebuild (Nexus + DaisyUI)
+- [x] Inventory old dashboard entrypoint/shell/components/styles for cleanup.
+- [x] Nexus source-of-truth files identified (dashboard + sidebar/topbar + storage status partials).
+- [x] Sidebar nav = Home, Torrents, Settings (only) with SSE indicator pinned at the bottom.
+- [x] Sidebar footer SSE indicator uses Nexus pinned-footer structure and DaisyUI primitives.
+- [x] Topbar is consistent with breadcrumb, theme toggle, language selector, server menu.
+- [x] Home dashboard matches Nexus layout with DaisyUI cards/stats/progress/table/dropdown.
+- [x] SSE indicator modal is non-blocking; navigation always reachable.
+- [x] Settings is sectioned and reachable without auth; test connection + config snapshot wired.
+- [x] Legacy dashboard CSS reduced; Nexus app.css remains primary styling.
+- [x] Task record (ADR) added for this work.
+- [x] `just ci` passes locally.

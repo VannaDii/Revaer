@@ -22,14 +22,12 @@ pub(crate) const SSE_LAST_EVENT_ID_KEY: &str = "revaer.sse.last_event_id";
 pub(crate) fn load_theme() -> ThemeMode {
     if let Ok(value) = LocalStorage::get::<String>(THEME_KEY) {
         return match value.as_str() {
-            "dark" => ThemeMode::Dark,
-            _ => ThemeMode::Light,
+            "revaer-dark" | "dark" => ThemeMode::Dark,
+            "revaer-light" | "light" => ThemeMode::Light,
+            _ => ThemeMode::Dark,
         };
     }
-    prefers_dark()
-        .unwrap_or(false)
-        .then_some(ThemeMode::Dark)
-        .unwrap_or(ThemeMode::Light)
+    ThemeMode::Dark
 }
 
 pub(crate) fn load_mode() -> UiMode {
@@ -195,12 +193,4 @@ pub(crate) fn api_base_url() -> String {
     }
 
     "http://localhost:7070".to_string()
-}
-
-pub(crate) fn prefers_dark() -> Option<bool> {
-    let media: web_sys::MediaQueryList = window()
-        .match_media("(prefers-color-scheme: dark)")
-        .ok()
-        .and_then(|m| m)?;
-    Some(media.matches())
 }

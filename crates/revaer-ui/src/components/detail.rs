@@ -215,7 +215,7 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
         <section class={classes!("detail-panel", "relative", props.class.clone())}>
             <header class="detail-header">
                 <div>
-                    <small class="muted">{t("detail.view_label")}</small>
+                    <small class="text-xs text-base-content/60">{t("detail.view_label")}</small>
                     <h3>{name.clone()}</h3>
                 </div>
                 <div class="pane-tabs mobile-only">
@@ -232,7 +232,15 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
                             Callback::from(move |_| active.set(pane))
                         };
                         html! {
-                            <button class={classes!("ghost", if active_state { "active" } else { "" })} onclick={onclick}>{label}</button>
+                            <button
+                                class={classes!(
+                                    "btn",
+                                    "btn-xs",
+                                    if active_state { "btn-primary" } else { "btn-ghost" }
+                                )}
+                                onclick={onclick}>
+                                {label}
+                            </button>
                         }
                     })}
                 </div>
@@ -242,23 +250,23 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
                 <section class={pane_classes(Pane::Overview, *active)} data-pane="overview">
                     <header>
                         <h4>{t("detail.overview.title")}</h4>
-                        <p class="muted">{t("detail.overview.body")}</p>
+                        <p class="text-sm text-base-content/60">{t("detail.overview.body")}</p>
                     </header>
                     <div class="overview-actions">
-                        <button class="ghost" onclick={pause}>{t("toolbar.pause")}</button>
-                        <button class="ghost" onclick={resume}>{t("toolbar.resume")}</button>
+                        <button class="btn btn-sm btn-ghost" onclick={pause}>{t("toolbar.pause")}</button>
+                        <button class="btn btn-sm btn-ghost" onclick={resume}>{t("toolbar.resume")}</button>
                         {action_menu}
                     </div>
                     {last_error.as_ref().map(|message| html! {
                         <div class="detail-error">
-                            <span class="pill error">{t("detail.overview.last_error")}</span>
+                            <span class="badge badge-sm badge-error badge-soft">{t("detail.overview.last_error")}</span>
                             <span>{message.clone()}</span>
                         </div>
                     }).unwrap_or_default()}
                     <div class="table-like">
                         <div class="table-row">
                             <div><strong>{t("detail.overview.status")}</strong></div>
-                            <div class={classes!("pill", status_class)}>{status.clone()}</div>
+                            <div class={classes!("badge", "badge-sm", "badge-soft", status_class)}>{status.clone()}</div>
                         </div>
                         <div class="table-row">
                             <div><strong>{t("detail.overview.progress")}</strong></div>
@@ -329,11 +337,12 @@ fn state_label(state: &TorrentStateKind) -> &'static str {
 
 fn status_class(state: &TorrentStateKind) -> &'static str {
     match state {
-        TorrentStateKind::Downloading | TorrentStateKind::Seeding => "ok",
-        TorrentStateKind::Completed => "ok",
-        TorrentStateKind::Failed => "error",
-        TorrentStateKind::FetchingMetadata => "warn",
-        _ => "muted",
+        TorrentStateKind::Downloading | TorrentStateKind::Seeding | TorrentStateKind::Completed => {
+            "badge-success"
+        }
+        TorrentStateKind::Failed => "badge-error",
+        TorrentStateKind::FetchingMetadata => "badge-warning",
+        _ => "badge-ghost",
     }
 }
 
@@ -770,11 +779,11 @@ fn render_options_tab(
                                     })
                                 }}
                             />
-                            <button class="ghost" onclick={on_connections_apply}>{apply_label.clone()}</button>
+                            <button class="btn btn-xs btn-ghost" onclick={on_connections_apply}>{apply_label.clone()}</button>
                             {if connections_error_msg.is_empty() {
                                 html! {}
                             } else {
-                                html! { <span class="pill warn">{connections_error_msg}</span> }
+                                html! { <span class="badge badge-sm badge-warning badge-soft">{connections_error_msg}</span> }
                             }}
                         </div>
                     </div>
@@ -816,11 +825,11 @@ fn render_options_tab(
                                     })
                                 }}
                             />
-                            <button class="ghost" onclick={on_queue_apply} disabled={auto_managed}>{apply_label.clone()}</button>
+                            <button class="btn btn-xs btn-ghost" onclick={on_queue_apply} disabled={auto_managed}>{apply_label.clone()}</button>
                             {if queue_error_msg.is_empty() {
                                 html! {}
                             } else {
-                                html! { <span class="pill warn">{queue_error_msg}</span> }
+                                html! { <span class="badge badge-sm badge-warning badge-soft">{queue_error_msg}</span> }
                             }}
                         </div>
                     </div>

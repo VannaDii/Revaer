@@ -9,17 +9,16 @@ use crate::core::logic::build_torrents_path;
 use crate::features::torrents::actions::TorrentAction as UiTorrentAction;
 use crate::features::torrents::state::{TorrentsPaging, TorrentsQueryModel};
 use crate::models::{
-    AddTorrentInput, DashboardResponse, DashboardSnapshot, FullHealthResponse, HealthResponse,
-    ProblemDetails, QueueStatus, SetupStartResponse, TorrentAction as ApiTorrentAction,
-    TorrentAuthorRequest, TorrentAuthorResponse, TorrentCreateRequest, TorrentDetail,
-    TorrentLabelEntry, TorrentLabelPolicy, TorrentListResponse, TorrentOptionsRequest,
-    TorrentSelectionRequest, TrackerHealth, VpnState,
+    AddTorrentInput, DashboardResponse, DashboardSnapshot, HealthResponse, ProblemDetails,
+    QueueStatus, SetupStartResponse, TorrentAction as ApiTorrentAction, TorrentAuthorRequest,
+    TorrentAuthorResponse, TorrentCreateRequest, TorrentDetail, TorrentLabelEntry,
+    TorrentListResponse, TorrentOptionsRequest, TorrentSelectionRequest, TrackerHealth, VpnState,
 };
 use base64::{Engine as _, engine::general_purpose};
 use gloo::file::futures::read_as_bytes;
 use gloo_net::http::{Request, Response};
 use serde::Deserialize;
-use serde_json::json;
+use serde_json::{Value, json};
 use uuid::Uuid;
 use web_sys::window;
 
@@ -124,21 +123,6 @@ impl ApiClient {
         }
     }
 
-    async fn send_text(&self, req: Request) -> Result<String, ApiError> {
-        let response = req
-            .send()
-            .await
-            .map_err(|err| ApiError::client(format!("request failed: {err}")))?;
-        if response.ok() {
-            response
-                .text()
-                .await
-                .map_err(|err| ApiError::client(format!("invalid text: {err}")))
-        } else {
-            Err(api_error_from_response(response).await)
-        }
-    }
-
     async fn send_torrent_action(
         &self,
         id: &str,
@@ -162,16 +146,8 @@ impl ApiClient {
         self.send_json(req).await
     }
 
-    pub(crate) async fn fetch_health_full(&self) -> Result<FullHealthResponse, ApiError> {
-        let req = Request::get(&format!("{}{}", self.base_url, "/health/full"));
-        let req = self.apply_auth(req)?;
-        self.send_json(req).await
-    }
-
-    pub(crate) async fn fetch_metrics(&self) -> Result<String, ApiError> {
-        let req = Request::get(&format!("{}{}", self.base_url, "/metrics"));
-        let req = self.apply_auth(req)?;
-        self.send_text(req).await
+    pub(crate) async fn fetch_config_snapshot(&self) -> Result<Value, ApiError> {
+        self.get_json("/v1/config").await
     }
 
     pub(crate) async fn setup_start(&self) -> Result<SetupStartResponse, ApiError> {
@@ -200,42 +176,6 @@ impl ApiClient {
 
     pub(crate) async fn fetch_tags(&self) -> Result<Vec<TorrentLabelEntry>, ApiError> {
         self.get_json("/v1/torrents/tags").await
-    }
-
-    pub(crate) async fn upsert_category(
-        &self,
-        name: &str,
-        policy: &TorrentLabelPolicy,
-    ) -> Result<TorrentLabelEntry, ApiError> {
-        let encoded = urlencoding::encode(name);
-        let req = Request::put(&format!(
-            "{}/v1/torrents/categories/{}",
-            self.base_url.trim_end_matches('/'),
-            encoded
-        ));
-        let req = self.apply_auth(req)?;
-        let req = req
-            .json(policy)
-            .map_err(|err| ApiError::client(format!("encode category policy: {err}")))?;
-        self.send_json(req).await
-    }
-
-    pub(crate) async fn upsert_tag(
-        &self,
-        name: &str,
-        policy: &TorrentLabelPolicy,
-    ) -> Result<TorrentLabelEntry, ApiError> {
-        let encoded = urlencoding::encode(name);
-        let req = Request::put(&format!(
-            "{}/v1/torrents/tags/{}",
-            self.base_url.trim_end_matches('/'),
-            encoded
-        ));
-        let req = self.apply_auth(req)?;
-        let req = req
-            .json(policy)
-            .map_err(|err| ApiError::client(format!("encode tag policy: {err}")))?;
-        self.send_json(req).await
     }
 
     pub(crate) async fn perform_action(

@@ -60,7 +60,7 @@ pub(crate) fn health_page(props: &HealthPageProps) -> Html {
                     <div class="panel-subhead">
                         <strong>{t("health.metrics", "Metrics")}</strong>
                         <span class="pill subtle">{"/metrics"}</span>
-                        <button class="chip ghost" disabled={!can_copy} onclick={on_copy}>
+                        <button class="btn btn-ghost btn-xs" disabled={!can_copy} onclick={on_copy}>
                             {t("health.metrics_copy", "Copy")}
                         </button>
                     </div>

@@ -11,11 +11,14 @@ pub(crate) struct ConnectivityIndicatorProps {
     pub on_open: Callback<()>,
     #[prop_or_default]
     pub class: Classes,
+    #[prop_or_default]
+    pub label_class: Classes,
 }
 
 #[function_component(ConnectivityIndicator)]
 pub(crate) fn connectivity_indicator(props: &ConnectivityIndicatorProps) -> Html {
     let (icon, status_class, title) = indicator_style(&props.summary);
+    let label = status_label(&props.summary);
     let on_open = {
         let on_open = props.on_open.clone();
         Callback::from(move |_| on_open.emit(()))
@@ -23,12 +26,20 @@ pub(crate) fn connectivity_indicator(props: &ConnectivityIndicatorProps) -> Html
 
     html! {
         <button
-            class={classes!("btn", "btn-ghost", "btn-xs", "gap-2", props.class.clone())}
-            title={title}
+            type="button"
+            class={classes!(
+                "menu-item",
+                "sse-indicator",
+                "gap-3",
+                props.class.clone()
+            )}
+            title={title.clone()}
+            aria-label={title}
             onclick={on_open}
         >
-            <span class={classes!("iconify", icon, "size-4")}></span>
+            <span class={classes!("iconify", icon, "size-4.5")}></span>
             <span class={classes!("status", status_class, "status-sm")}></span>
+            <span class={props.label_class.clone()}>{label}</span>
         </button>
     }
 }
@@ -91,65 +102,76 @@ pub(crate) fn connectivity_modal(props: &ConnectivityModalProps) -> Html {
     });
 
     html! {
-        <div class={classes!("absolute", "bottom-14", "end-4", "z-50", "w-[min(90vw,24rem)]", props.class.clone())}>
-            <div class="card bg-base-100 shadow border border-base-200" role="dialog" aria-modal="false">
-                <div class="card-body gap-3 p-4">
-                    <div class="flex items-start justify-between">
-                        <div class="flex items-center gap-2">
-                            <span class={classes!("iconify", icon, "size-4")}></span>
-                            <span class={classes!("status", status_class, "status-sm")}></span>
-                            <h3 class="text-sm font-semibold">{"Connectivity"}</h3>
+        <dialog
+            open={true}
+            class={classes!(
+                "modal",
+                "modal-bottom",
+                "pointer-events-none",
+                props.class.clone()
+            )}
+            role="dialog"
+            aria-modal="false">
+            <div class="modal-box pointer-events-auto w-[min(90vw,24rem)] p-0">
+                <div class="card bg-base-100 shadow border border-base-200">
+                    <div class="card-body gap-3 p-4">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center gap-2">
+                                <span class={classes!("iconify", icon, "size-4")}></span>
+                                <span class={classes!("status", status_class, "status-sm")}></span>
+                                <h3 class="text-sm font-semibold">{"Connectivity"}</h3>
+                            </div>
+                            <button
+                                class="btn btn-ghost btn-xs btn-circle"
+                                aria-label="Dismiss"
+                                onclick={on_dismiss_click.clone()}>
+                                <span class="iconify lucide--x size-4"></span>
+                            </button>
                         </div>
-                        <button
-                            class="btn btn-ghost btn-xs btn-circle"
-                            aria-label="Dismiss"
-                            onclick={on_dismiss_click.clone()}>
-                            <span class="iconify lucide--x size-4"></span>
-                        </button>
-                    </div>
-                    <div class="grid gap-2 text-sm">
-                        <div class="flex items-center justify-between">
-                            <span class="text-base-content/70">{"Status"}</span>
-                            <span>{status_label}</span>
+                        <div class="grid gap-2 text-sm">
+                            <div class="flex items-center justify-between">
+                                <span class="text-base-content/70">{"Status"}</span>
+                                <span>{status_label}</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-base-content/70">{"Auth mode"}</span>
+                                <span>{auth_mode}</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-base-content/70">{"Next retry"}</span>
+                                <span>{retry_in.unwrap_or_else(|| "n/a".to_string())}</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-base-content/70">{"Last event id"}</span>
+                                <span>{last_event_id}</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-base-content/70">{"Last error"}</span>
+                                <span class="text-end">{last_error}</span>
+                            </div>
+                            <div class="text-xs text-base-content/60">
+                                {"Retry strategy: exponential backoff + jitter."}
+                            </div>
                         </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-base-content/70">{"Auth mode"}</span>
-                            <span>{auth_mode}</span>
+                        <div class="mt-2 flex items-center justify-end gap-2">
+                            <button
+                                class="btn btn-sm btn-outline border-base-300"
+                                onclick={{
+                                    let on_retry = on_retry.clone();
+                                    Callback::from(move |_| on_retry.emit(()))
+                                }}>
+                                {"Retry now"}
+                            </button>
+                            <button
+                                class="btn btn-sm"
+                                onclick={on_dismiss_click}>
+                                {"Dismiss"}
+                            </button>
                         </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-base-content/70">{"Next retry"}</span>
-                            <span>{retry_in.unwrap_or_else(|| "n/a".to_string())}</span>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-base-content/70">{"Last event id"}</span>
-                            <span>{last_event_id}</span>
-                        </div>
-                        <div class="flex items-center justify-between">
-                            <span class="text-base-content/70">{"Last error"}</span>
-                            <span class="text-end">{last_error}</span>
-                        </div>
-                        <div class="text-xs text-base-content/60">
-                            {"Retry strategy: exponential backoff + jitter."}
-                        </div>
-                    </div>
-                    <div class="mt-2 flex items-center justify-end gap-2">
-                        <button
-                            class="btn btn-sm btn-outline border-base-300"
-                            onclick={{
-                                let on_retry = on_retry.clone();
-                                Callback::from(move |_| on_retry.emit(()))
-                            }}>
-                            {"Retry now"}
-                        </button>
-                        <button
-                            class="btn btn-sm"
-                            onclick={on_dismiss_click}>
-                            {"Dismiss"}
-                        </button>
                     </div>
                 </div>
             </div>
-        </div>
+        </dialog>
     }
 }
 
@@ -181,6 +203,14 @@ fn indicator_style(summary: &SseStatusSummary) -> (&'static str, &'static str, S
             },
             "Disconnected".to_string(),
         ),
+    }
+}
+
+fn status_label(summary: &SseStatusSummary) -> &'static str {
+    match summary.state {
+        SseConnectionState::Connected => "Connected",
+        SseConnectionState::Disconnected => "Disconnected",
+        SseConnectionState::Reconnecting => "Reconnecting",
     }
 }
 

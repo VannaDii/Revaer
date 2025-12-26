@@ -24,15 +24,30 @@ pub(crate) struct BulkActionBarProps {
 #[function_component(BulkActionBar)]
 pub(crate) fn bulk_action_bar(props: &BulkActionBarProps) -> Html {
     html! {
-        <div class={classes!("bulk-actions", props.class.clone())}>
+        <div
+            role="alert"
+            class={classes!(
+                "alert",
+                "bg-base-100",
+                "border",
+                "border-base-200",
+                "shadow",
+                "flex",
+                "flex-wrap",
+                "items-center",
+                "gap-3",
+                props.class.clone()
+            )}>
             <button
-                class={classes!("ghost", props.select_class.clone())}
+                class={classes!("btn", "btn-sm", "btn-ghost", props.select_class.clone())}
                 onclick={props.on_toggle_all.clone()}
-            >
+                type="button">
                 {props.select_label.clone()}
             </button>
-            <span class="muted">{format!("{} {}", props.selected_count, props.selected_label)}</span>
-            <div class="bulk-buttons">
+            <span class="text-sm text-base-content/70">
+                {format!("{} {}", props.selected_count, props.selected_label)}
+            </span>
+            <div class="ms-auto flex flex-wrap items-center gap-2">
                 { for props.children.iter() }
             </div>
         </div>

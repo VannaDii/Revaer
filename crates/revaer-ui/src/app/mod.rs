@@ -14,16 +14,12 @@ use crate::core::logic::{
     SseView, build_sse_query, build_torrent_filter_query, parse_torrent_filter_query,
 };
 use crate::core::store::{
-    AppModeState, AppStore, HealthMetricsSnapshot, HealthSnapshot, SseApplyOutcome,
-    SseConnectionState, SseError, SseStatus, SystemRates, TorrentHealthSnapshot,
-    apply_sse_envelope, select_system_rates,
+    AppModeState, AppStore, HealthSnapshot, SseApplyOutcome, SseConnectionState, SseError,
+    SseStatus, SystemRates, apply_sse_envelope, select_system_rates,
 };
 use crate::core::theme::ThemeMode;
 use crate::core::ui::{Density, UiMode};
 use crate::features::dashboard::DashboardPage;
-use crate::features::health::view::HealthPage;
-use crate::features::labels::state::LabelKind;
-use crate::features::labels::view::LabelsPage;
 use crate::features::settings::view::SettingsPage;
 use crate::features::torrents::actions::{TorrentAction, success_message};
 use crate::features::torrents::state::{
@@ -50,6 +46,7 @@ use preferences::{
     persist_auth_state, persist_bypass_local,
 };
 pub(crate) use routes::Route;
+use serde_json::Value;
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
@@ -72,6 +69,10 @@ pub fn revaer_app() -> Html {
     let dispatch = Dispatch::<AppStore>::new();
     let api_ctx = use_memo(|_| ApiCtx::new(api_base_url()), ());
     let dashboard = use_state(demo_snapshot);
+    let config_snapshot = use_state(|| None::<Value>);
+    let config_error = use_state(|| None::<String>);
+    let config_busy = use_state(|| false);
+    let test_busy = use_state(|| false);
     let toast_id = use_state(|| 0u64);
     let sse_handle = use_mut_ref(|| None as Option<SseHandle>);
     let sse_reset = use_state(|| 0u32);
@@ -89,7 +90,7 @@ pub fn revaer_app() -> Html {
     let nav_labels = {
         let bundle = (*bundle).clone();
         NavLabels {
-            dashboard: bundle.text("nav.dashboard", "Dashboard"),
+            dashboard: bundle.text("nav.dashboard", "Home"),
             torrents: bundle.text("nav.torrents", "Torrents"),
             categories: bundle.text("nav.categories", "Categories"),
             tags: bundle.text("nav.tags", "Tags"),
@@ -130,6 +131,7 @@ pub fn revaer_app() -> Html {
     let paging_state = use_selector(|store: &AppStore| store.torrents.paging.clone());
     let paging_limit = use_selector(|store: &AppStore| store.torrents.paging.limit);
     let system_rates = use_selector(select_system_rates);
+    let auth_prompt_dismissed = use_state(|| false);
 
     let auth_mode = *auth_mode;
     let auth_state_value = (*auth_state).clone();
@@ -162,13 +164,49 @@ pub fn revaer_app() -> Html {
     let can_load_more = paging_state_value.next_cursor.is_some();
     let paging_is_loading = paging_state_value.is_loading;
     let system_rates_value = *system_rates;
+    let config_snapshot_value = (*config_snapshot).clone();
+    let config_error_value = (*config_error).clone();
+    let config_busy_value = *config_busy;
+    let test_busy_value = *test_busy;
+    let settings_base_url = api_base_url();
+    let dismiss_auth_prompt = {
+        let auth_prompt_dismissed = auth_prompt_dismissed.clone();
+        Callback::from(move |_| auth_prompt_dismissed.set(true))
+    };
 
     let location = use_location();
-    let current_route = use_route::<Route>().unwrap_or(Route::Torrents);
+    let current_route = use_route::<Route>().unwrap_or_else(|| {
+        let Some(location) = location.as_ref() else {
+            return Route::NotFound;
+        };
+        let path = location.path();
+        match path {
+            "/" => Route::Dashboard,
+            "/torrents" => Route::Torrents,
+            "/settings" => Route::Settings,
+            _ => path
+                .strip_prefix("/torrents/")
+                .map(|id| Route::TorrentDetail { id: id.to_string() })
+                .unwrap_or(Route::NotFound),
+        }
+    });
     let selected_route_id = match current_route.clone() {
         Route::TorrentDetail { id } => Uuid::parse_str(&id).ok(),
         _ => None,
     };
+    {
+        let auth_prompt_dismissed = auth_prompt_dismissed.clone();
+        let auth_state_value = auth_state_value.clone();
+        use_effect_with_deps(
+            move |auth_state| {
+                if auth_state.is_some() {
+                    auth_prompt_dismissed.set(false);
+                }
+                || ()
+            },
+            auth_state_value,
+        );
+    }
 
     {
         let dispatch = dispatch.clone();
@@ -316,67 +354,6 @@ pub fn revaer_app() -> Html {
             (),
         );
     }
-    {
-        let dispatch = dispatch.clone();
-        let api_ctx = (*api_ctx).clone();
-        use_effect_with_deps(
-            move |route| {
-                if matches!(route, Route::Health) {
-                    let dispatch = dispatch.clone();
-                    let client = api_ctx.client.clone();
-                    yew::platform::spawn_local(async move {
-                        let full = client.fetch_health_full().await;
-                        let metrics = client.fetch_metrics().await;
-                        dispatch.reduce_mut(|store| {
-                            store.health.metrics_text = metrics.ok();
-                            match full {
-                                Ok(full) => {
-                                    store.health.full =
-                                        Some(crate::core::store::FullHealthSnapshot {
-                                            status: full.status,
-                                            mode: full.mode,
-                                            revision: full.revision,
-                                            build: full.build,
-                                            degraded: full.degraded,
-                                            metrics: HealthMetricsSnapshot {
-                                                config_watch_latency_ms: full
-                                                    .metrics
-                                                    .config_watch_latency_ms,
-                                                config_apply_latency_ms: full
-                                                    .metrics
-                                                    .config_apply_latency_ms,
-                                                config_update_failures_total: full
-                                                    .metrics
-                                                    .config_update_failures_total,
-                                                config_watch_slow_total: full
-                                                    .metrics
-                                                    .config_watch_slow_total,
-                                                guardrail_violations_total: full
-                                                    .metrics
-                                                    .guardrail_violations_total,
-                                                rate_limit_throttled_total: full
-                                                    .metrics
-                                                    .rate_limit_throttled_total,
-                                            },
-                                            torrent: TorrentHealthSnapshot {
-                                                active: full.torrent.active,
-                                                queue_depth: full.torrent.queue_depth,
-                                            },
-                                        });
-                                }
-                                Err(_) => {
-                                    store.health.full = None;
-                                }
-                            }
-                        });
-                    });
-                }
-                || ()
-            },
-            current_route.clone(),
-        );
-    }
-
     let request_setup_token = {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
@@ -1044,35 +1021,160 @@ pub fn revaer_app() -> Html {
             });
         })
     };
-    let on_copy_metrics = {
+    let on_save_auth = {
         let dispatch = dispatch.clone();
-        let toast_id = toast_id.clone();
-        let bundle = (*bundle).clone();
-        Callback::from(move |text: String| {
-            let dispatch = dispatch.clone();
-            let toast_id = toast_id.clone();
-            let bundle = bundle.clone();
-            yew::platform::spawn_local(async move {
-                match copy_text_to_clipboard(text).await {
-                    Ok(()) => push_toast(
-                        &dispatch,
-                        &toast_id,
-                        ToastKind::Success,
-                        bundle.text("toast.metrics_copied", "Metrics copied"),
-                    ),
-                    Err(err) => push_toast(
-                        &dispatch,
-                        &toast_id,
-                        ToastKind::Error,
-                        format!(
-                            "{} {err}",
-                            bundle.text("toast.metrics_copy_failed", "Failed to copy metrics.")
-                        ),
-                    ),
-                }
+        Callback::from(move |state: AuthState| {
+            let next_mode = match state {
+                AuthState::Local(_) => AuthMode::Local,
+                _ => AuthMode::ApiKey,
+            };
+            persist_auth_state(&state);
+            dispatch.reduce_mut(|store| {
+                store.auth.mode = next_mode;
+                store.auth.state = Some(state);
             });
         })
     };
+    let on_test_connection = {
+        let api_ctx = (*api_ctx).clone();
+        let dispatch = dispatch.clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
+        let test_busy = test_busy.clone();
+        Callback::from(move |_| {
+            if *test_busy {
+                return;
+            }
+            test_busy.set(true);
+            let client = api_ctx.client.clone();
+            let dispatch = dispatch.clone();
+            let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
+            let test_busy = test_busy.clone();
+            yew::platform::spawn_local(async move {
+                match client.fetch_health().await {
+                    Ok(health) => {
+                        dispatch.reduce_mut(|store| {
+                            store.health.basic = Some(HealthSnapshot {
+                                status: health.status.clone(),
+                                mode: health.mode.clone(),
+                                database_status: Some(health.database.status),
+                                database_revision: health.database.revision,
+                            });
+                        });
+                        push_toast(
+                            &dispatch,
+                            &toast_id,
+                            ToastKind::Success,
+                            bundle.text("settings.test_success", "Connection successful."),
+                        );
+                    }
+                    Err(err) => {
+                        push_toast(
+                            &dispatch,
+                            &toast_id,
+                            ToastKind::Error,
+                            format!(
+                                "{} {err}",
+                                bundle.text("settings.test_failed", "Connection failed:")
+                            ),
+                        );
+                    }
+                }
+                test_busy.set(false);
+            });
+        })
+    };
+    let on_server_restart = {
+        let dispatch = dispatch.clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
+        Callback::from(move |_| {
+            push_toast(
+                &dispatch,
+                &toast_id,
+                ToastKind::Info,
+                bundle.text(
+                    "toast.server_restart_unavailable",
+                    "Server restart is not available yet.",
+                ),
+            );
+        })
+    };
+    let on_refresh_config = {
+        let api_ctx = (*api_ctx).clone();
+        let dispatch = dispatch.clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
+        let config_snapshot = config_snapshot.clone();
+        let config_error = config_error.clone();
+        let config_busy = config_busy.clone();
+        Callback::from(move |_| {
+            if *config_busy {
+                return;
+            }
+            config_busy.set(true);
+            config_error.set(None);
+            let client = api_ctx.client.clone();
+            let dispatch = dispatch.clone();
+            let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
+            let config_snapshot = config_snapshot.clone();
+            let config_error = config_error.clone();
+            let config_busy = config_busy.clone();
+            yew::platform::spawn_local(async move {
+                match client.fetch_config_snapshot().await {
+                    Ok(snapshot) => {
+                        config_snapshot.set(Some(snapshot));
+                        config_error.set(None);
+                    }
+                    Err(err) => {
+                        config_error.set(Some(err.to_string()));
+                        push_toast(
+                            &dispatch,
+                            &toast_id,
+                            ToastKind::Error,
+                            format!(
+                                "{} {err}",
+                                bundle.text("settings.config_failed", "Failed to load config:")
+                            ),
+                        );
+                    }
+                }
+                config_busy.set(false);
+            });
+        })
+    };
+    let on_server_logs = {
+        let dispatch = dispatch.clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
+        Callback::from(move |_| {
+            push_toast(
+                &dispatch,
+                &toast_id,
+                ToastKind::Info,
+                bundle.text(
+                    "toast.server_logs_unavailable",
+                    "Log viewer is not available yet.",
+                ),
+            );
+        })
+    };
+    {
+        let on_refresh_config = on_refresh_config.clone();
+        let auth_state_value = auth_state_value.clone();
+        let current_route = current_route.clone();
+        use_effect_with_deps(
+            move |(route, _auth_state)| {
+                if matches!(route, Route::Settings) {
+                    on_refresh_config.emit(());
+                }
+                || ()
+            },
+            (current_route, auth_state_value),
+        );
+    }
     let on_copy_payload = {
         let dispatch = dispatch.clone();
         let toast_id = toast_id.clone();
@@ -1467,156 +1569,173 @@ pub fn revaer_app() -> Html {
 
     let bundle_ctx = bundle.clone();
     let bundle_routes = bundle.clone();
+    let auth_state_for_routes = auth_state_value.clone();
 
     html! {
         <ContextProvider<ApiCtx> context={(*api_ctx).clone()}>
             <ContextProvider<TranslationBundle> context={(*bundle_ctx).clone()}>
-                <BrowserRouter>
-                    <AppShell
-                        theme={theme_value}
-                        on_toggle_theme={toggle_theme}
-                        active={current_route}
-                        locale_selector={locale_selector}
-                        nav={nav_labels}
-                    >
-                        <Switch<Route> render={move |route| {
-                            let bundle = (*bundle_routes).clone();
-                            match route {
-                                Route::Dashboard => html! {
-                                    <DashboardPage
-                                        snapshot={(*dashboard).clone()}
-                                        system_rates={system_rates_value}
+                <AppShell
+                    theme={theme_value}
+                    on_toggle_theme={toggle_theme}
+                    active={current_route.clone()}
+                    locale_selector={locale_selector}
+                    nav={nav_labels}
+                    on_sse_retry={trigger_sse_reconnect.clone()}
+                    on_server_restart={on_server_restart.clone()}
+                    on_server_logs={on_server_logs.clone()}
+                >
+                    <Switch<Route> render={move |route| {
+                        let bundle = (*bundle_routes).clone();
+                        match route {
+                            Route::Dashboard => html! {
+                                <DashboardPage
+                                    snapshot={(*dashboard).clone()}
+                                    system_rates={system_rates_value}
+                                />
+                            },
+                            Route::Torrents => html! {
+                            <div class="space-y-4">
+                                    <TorrentView
+                                        visible_ids={visible_ids.clone()}
+                                        density={density_value}
+                                        mode={mode_value}
+                                        on_density_change={set_density.clone()}
+                                        on_bulk_action={on_bulk_action.clone()}
+                                        on_action={on_action.clone()}
+                                        on_add={on_add_torrent.clone()}
+                                        add_busy={add_busy_value}
+                                        create_result={create_result_value.clone()}
+                                        create_error={create_error_value.clone()}
+                                        create_busy={create_busy_value}
+                                        on_create={on_create_torrent.clone()}
+                                        on_reset_create={on_reset_create.clone()}
+                                        on_copy_payload={on_copy_payload.clone()}
+                                        search={search.clone()}
+                                        on_search={set_search.clone()}
+                                        state_filter={state_filter_value.clone()}
+                                        tags_filter={tags_filter_value.clone()}
+                                        tag_options={tag_options_value.clone()}
+                                        tracker_filter={tracker_filter_value.clone()}
+                                        extension_filter={extension_filter_value.clone()}
+                                        on_state_filter={set_state_filter.clone()}
+                                        on_tags_filter={set_tags_filter.clone()}
+                                        on_tracker_filter={set_tracker_filter.clone()}
+                                        on_extension_filter={set_extension_filter.clone()}
+                                        can_load_more={can_load_more}
+                                        is_loading={paging_is_loading}
+                                        on_load_more={on_load_more.clone()}
+                                        selected_id={selected_id_value}
+                                        selected_ids={selected_ids_value.clone()}
+                                        on_set_selected={on_set_selected.clone()}
+                                        selected_detail={selected_detail_value.clone()}
+                                        on_select_detail={on_select_detail.clone()}
+                                        on_update_selection={on_update_selection.clone()}
+                                        on_update_options={on_update_options.clone()}
                                     />
-                                },
-                                Route::Torrents => html! {
-                                    <div class="torrents-stack">
-                                        <TorrentView
-                                            breakpoint={*breakpoint}
-                                            visible_ids={visible_ids.clone()}
-                                            density={density_value}
-                                            mode={mode_value}
-                                            on_density_change={set_density.clone()}
-                                            on_bulk_action={on_bulk_action.clone()}
-                                            on_action={on_action.clone()}
-                                            on_add={on_add_torrent.clone()}
-                                            add_busy={add_busy_value}
-                                            create_result={create_result_value.clone()}
-                                            create_error={create_error_value.clone()}
-                                            create_busy={create_busy_value}
-                                            on_create={on_create_torrent.clone()}
-                                            on_reset_create={on_reset_create.clone()}
-                                            on_copy_payload={on_copy_payload.clone()}
-                                            search={search.clone()}
-                                            on_search={set_search.clone()}
-                                            state_filter={state_filter_value.clone()}
-                                            tags_filter={tags_filter_value.clone()}
-                                            tag_options={tag_options_value.clone()}
-                                            tracker_filter={tracker_filter_value.clone()}
-                                            extension_filter={extension_filter_value.clone()}
-                                            on_state_filter={set_state_filter.clone()}
-                                            on_tags_filter={set_tags_filter.clone()}
-                                            on_tracker_filter={set_tracker_filter.clone()}
-                                            on_extension_filter={set_extension_filter.clone()}
-                                            can_load_more={can_load_more}
-                                            is_loading={paging_is_loading}
-                                            on_load_more={on_load_more.clone()}
-                                            selected_id={selected_id_value}
-                                            selected_ids={selected_ids_value.clone()}
-                                            on_set_selected={on_set_selected.clone()}
-                                            selected_detail={selected_detail_value.clone()}
-                                            on_select_detail={on_select_detail.clone()}
-                                            on_update_selection={on_update_selection.clone()}
-                                            on_update_options={on_update_options.clone()}
-                                            on_sse_retry={trigger_sse_reconnect.clone()}
-                                        />
-                                    </div>
-                                },
-                                Route::TorrentDetail { id } => html! {
-                                    <div class="torrents-stack">
-                                        <TorrentView
-                                            breakpoint={*breakpoint}
-                                            visible_ids={visible_ids.clone()}
-                                            density={density_value}
-                                            mode={mode_value}
-                                            on_density_change={set_density.clone()}
-                                            on_bulk_action={on_bulk_action.clone()}
-                                            on_action={on_action.clone()}
-                                            on_add={on_add_torrent.clone()}
-                                            add_busy={add_busy_value}
-                                            create_result={create_result_value.clone()}
-                                            create_error={create_error_value.clone()}
-                                            create_busy={create_busy_value}
-                                            on_create={on_create_torrent.clone()}
-                                            on_reset_create={on_reset_create.clone()}
-                                            on_copy_payload={on_copy_payload.clone()}
-                                            search={search.clone()}
-                                            on_search={set_search.clone()}
-                                            state_filter={state_filter_value.clone()}
-                                            tags_filter={tags_filter_value.clone()}
-                                            tag_options={tag_options_value.clone()}
-                                            tracker_filter={tracker_filter_value.clone()}
-                                            extension_filter={extension_filter_value.clone()}
-                                            on_state_filter={set_state_filter.clone()}
-                                            on_tags_filter={set_tags_filter.clone()}
-                                            on_tracker_filter={set_tracker_filter.clone()}
-                                            on_extension_filter={set_extension_filter.clone()}
-                                            can_load_more={can_load_more}
-                                            is_loading={paging_is_loading}
-                                            on_load_more={on_load_more.clone()}
-                                            selected_id={Uuid::parse_str(&id).ok()}
-                                            selected_ids={selected_ids_value.clone()}
-                                            on_set_selected={on_set_selected.clone()}
-                                            selected_detail={selected_detail_value.clone()}
-                                            on_select_detail={on_select_detail.clone()}
-                                            on_update_selection={on_update_selection.clone()}
-                                            on_update_options={on_update_options.clone()}
-                                            on_sse_retry={trigger_sse_reconnect.clone()}
-                                        />
-                                    </div>
-                                },
-                                Route::Categories => html! { <LabelsPage kind={LabelKind::Category} /> },
-                                Route::Tags => html! { <LabelsPage kind={LabelKind::Tag} /> },
-                                Route::Settings => html! { <SettingsPage bypass_local={bypass_local_value} on_toggle_bypass_local={on_toggle_bypass_local.clone()} /> },
-                                Route::Health => html! { <HealthPage on_copy_metrics={on_copy_metrics.clone()} /> },
-                                Route::NotFound => html! { <Placeholder title={bundle.text("placeholder.not_found_title", "Not found")} body={bundle.text("placeholder.not_found_body", "Use navigation to return to a supported view.")} /> },
-                            }
-                        }} />
-                    </AppShell>
-                    <ToastHost toasts={toasts_value.clone()} on_dismiss={dismiss_toast.clone()} />
-                    {if app_mode_value == AppModeState::Setup {
-                        html! {
-                            <SetupPrompt
-                                token={setup_token_value.clone()}
-                                expires_at={setup_expires_value.clone()}
-                                busy={setup_busy_value}
-                                error={setup_error_value.clone()}
-                                on_request_token={request_setup_token.clone()}
-                                on_complete={complete_setup.clone()}
-                            />
+                                </div>
+                            },
+                            Route::TorrentDetail { id } => html! {
+                            <div class="space-y-4">
+                                    <TorrentView
+                                        visible_ids={visible_ids.clone()}
+                                        density={density_value}
+                                        mode={mode_value}
+                                        on_density_change={set_density.clone()}
+                                        on_bulk_action={on_bulk_action.clone()}
+                                        on_action={on_action.clone()}
+                                        on_add={on_add_torrent.clone()}
+                                        add_busy={add_busy_value}
+                                        create_result={create_result_value.clone()}
+                                        create_error={create_error_value.clone()}
+                                        create_busy={create_busy_value}
+                                        on_create={on_create_torrent.clone()}
+                                        on_reset_create={on_reset_create.clone()}
+                                        on_copy_payload={on_copy_payload.clone()}
+                                        search={search.clone()}
+                                        on_search={set_search.clone()}
+                                        state_filter={state_filter_value.clone()}
+                                        tags_filter={tags_filter_value.clone()}
+                                        tag_options={tag_options_value.clone()}
+                                        tracker_filter={tracker_filter_value.clone()}
+                                        extension_filter={extension_filter_value.clone()}
+                                        on_state_filter={set_state_filter.clone()}
+                                        on_tags_filter={set_tags_filter.clone()}
+                                        on_tracker_filter={set_tracker_filter.clone()}
+                                        on_extension_filter={set_extension_filter.clone()}
+                                        can_load_more={can_load_more}
+                                        is_loading={paging_is_loading}
+                                        on_load_more={on_load_more.clone()}
+                                        selected_id={Uuid::parse_str(&id).ok()}
+                                        selected_ids={selected_ids_value.clone()}
+                                        on_set_selected={on_set_selected.clone()}
+                                        selected_detail={selected_detail_value.clone()}
+                                        on_select_detail={on_select_detail.clone()}
+                                        on_update_selection={on_update_selection.clone()}
+                                        on_update_options={on_update_options.clone()}
+                                    />
+                                </div>
+                            },
+                            Route::Settings => html! {
+                                <SettingsPage
+                                    base_url={settings_base_url.clone()}
+                                    allow_anonymous={allow_anon}
+                                    auth_mode={auth_mode}
+                                    auth_state={auth_state_for_routes.clone()}
+                                    bypass_local={bypass_local_value}
+                                    on_toggle_bypass_local={on_toggle_bypass_local.clone()}
+                                    on_save_auth={on_save_auth.clone()}
+                                    on_test_connection={on_test_connection.clone()}
+                                    test_busy={test_busy_value}
+                                    on_server_restart={on_server_restart.clone()}
+                                    on_server_logs={on_server_logs.clone()}
+                                    config_snapshot={config_snapshot_value.clone()}
+                                    config_error={config_error_value.clone()}
+                                    config_busy={config_busy_value}
+                                    on_refresh_config={on_refresh_config.clone()}
+                                />
+                            },
+                            Route::NotFound => html! { <Placeholder title={bundle.text("placeholder.not_found_title", "Not found")} body={bundle.text("placeholder.not_found_body", "Use navigation to return to a supported view.")} /> },
                         }
-                    } else if auth_state_value.is_none() {
-                        html! {
-                            <AuthPrompt
-                                allow_anonymous={allow_anon}
-                                default_mode={if bypass_local_value { AuthMode::ApiKey } else { auth_mode }}
-                                on_submit={{
-                                    let dispatch = dispatch.clone();
-                                    Callback::from(move |value: AuthState| {
-                                        let next_mode = match value {
-                                            AuthState::Local(_) => AuthMode::Local,
-                                            _ => AuthMode::ApiKey,
-                                        };
-                                        persist_auth_state(&value);
-                                        dispatch.reduce_mut(|store| {
-                                            store.auth.mode = next_mode;
-                                            store.auth.state = Some(value);
-                                        });
-                                    })
-                                }}
-                            />
-                        }
-                    } else { html!{} }}
-                </BrowserRouter>
+                    }} />
+                </AppShell>
+                <ToastHost toasts={toasts_value.clone()} on_dismiss={dismiss_toast.clone()} />
+                {if app_mode_value == AppModeState::Setup {
+                    html! {
+                        <SetupPrompt
+                            token={setup_token_value.clone()}
+                            expires_at={setup_expires_value.clone()}
+                            busy={setup_busy_value}
+                            error={setup_error_value.clone()}
+                            on_request_token={request_setup_token.clone()}
+                            on_complete={complete_setup.clone()}
+                        />
+                    }
+                } else if auth_state_value.is_none()
+                    && !matches!(current_route, Route::Settings)
+                    && !*auth_prompt_dismissed
+                {
+                    html! {
+                        <AuthPrompt
+                            allow_anonymous={allow_anon}
+                            default_mode={if bypass_local_value { AuthMode::ApiKey } else { auth_mode }}
+                            on_dismiss={dismiss_auth_prompt}
+                            on_submit={{
+                                let dispatch = dispatch.clone();
+                                Callback::from(move |value: AuthState| {
+                                    let next_mode = match value {
+                                        AuthState::Local(_) => AuthMode::Local,
+                                        _ => AuthMode::ApiKey,
+                                    };
+                                    persist_auth_state(&value);
+                                    dispatch.reduce_mut(|store| {
+                                        store.auth.mode = next_mode;
+                                        store.auth.state = Some(value);
+                                    });
+                                })
+                            }}
+                        />
+                    }
+                } else { html!{} }}
             </ContextProvider<TranslationBundle>>
         </ContextProvider<ApiCtx>>
     }
@@ -2094,8 +2213,17 @@ fn handle_sse_envelope(
 pub fn run_app() {
     console_error_panic_hook::set_once();
     if let Some(root) = gloo::utils::document().get_element_by_id("root") {
-        yew::Renderer::<RevaerApp>::with_root(root).render();
+        yew::Renderer::<RevaerRoot>::with_root(root).render();
     } else {
-        yew::Renderer::<RevaerApp>::new().render();
+        yew::Renderer::<RevaerRoot>::new().render();
+    }
+}
+
+#[function_component(RevaerRoot)]
+fn revaer_root() -> Html {
+    html! {
+        <BrowserRouter>
+            <RevaerApp />
+        </BrowserRouter>
     }
 }

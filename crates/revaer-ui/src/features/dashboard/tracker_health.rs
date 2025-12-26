@@ -47,9 +47,17 @@ pub(crate) fn dashboard_tracker_health(props: &DashboardTrackerHealthProps) -> H
                             <div class="hidden text-center sm:block">
                                 <p>{t("dashboard.warn", "Warn")}</p>
                                 <p class="mt-0.5 text-xl font-medium">{warn}</p>
-                                <div class="text-success mt-0.5 inline-flex items-center gap-1">
-                                    <span class="iconify lucide--arrow-up size-3"></span>
+                                <div class="text-warning mt-0.5 inline-flex items-center gap-1">
+                                    <span class="iconify lucide--triangle-alert size-3"></span>
                                     <p class="text-xs">{"Watch"}</p>
+                                </div>
+                            </div>
+                            <div class="hidden text-center sm:block">
+                                <p>{t("dashboard.error", "Error")}</p>
+                                <p class="mt-0.5 text-xl font-medium">{error}</p>
+                                <div class="text-error mt-0.5 inline-flex items-center gap-1">
+                                    <span class="iconify lucide--triangle-alert size-3"></span>
+                                    <p class="text-xs">{"Investigate"}</p>
                                 </div>
                             </div>
                         </div>

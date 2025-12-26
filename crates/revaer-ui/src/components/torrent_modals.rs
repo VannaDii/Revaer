@@ -5,14 +5,12 @@
 //! - Local form state stays inside the modal panels to avoid polluting shared store slices.
 //! - Validation errors are surfaced inline with clear, localized copy.
 
-use crate::app::Route;
 use crate::core::logic::{AddInputError, build_add_payload, format_bytes};
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::{AddTorrentInput, TorrentAuthorRequest, TorrentAuthorResponse};
 use wasm_bindgen::JsCast;
 use web_sys::{DragEvent, Event, File, HtmlInputElement};
 use yew::prelude::*;
-use yew_router::prelude::Link;
 
 /// Copy actions supported by the create-torrent result panel.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -227,15 +225,15 @@ pub(crate) fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                         value={(*input_value).clone()}
                         oninput={on_input}
                     />
-                    <button class="ghost" type="button" onclick={on_pick_file}>
+                    <button class="btn btn-ghost btn-sm" type="button" onclick={on_pick_file}>
                         {t("torrents.browse_file")}
                     </button>
-                    <button class="solid" onclick={submit.clone()} disabled={props.pending}>
+                    <button class="btn btn-primary btn-sm" onclick={submit.clone()} disabled={props.pending}>
                         {if props.pending { t("torrents.adding") } else { t("toolbar.add") }}
                     </button>
                 </div>
                 {if let Some(err) = &*error {
-                    html! { <p class="error-text">{err}</p> }
+                    html! { <p class="text-sm text-error">{err}</p> }
                 } else if let Some(f) = &*file {
                     html! { <p class="muted">{format!("{} {}", t("torrents.ready_prefix"), f.name())}</p> }
                 } else { html! {} }}
@@ -320,17 +318,6 @@ pub(crate) fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                         }}
                     />
                 </label>
-                <div class="label-shortcuts">
-                    <span class="muted">{bundle.text("torrents.manage_labels", "Manage labels")}</span>
-                    <div class="chip-group">
-                        <Link<Route> to={Route::Categories} classes="chip ghost">
-                            {bundle.text("torrents.manage_categories", "Categories")}
-                        </Link<Route>>
-                        <Link<Route> to={Route::Tags} classes="chip ghost">
-                            {bundle.text("torrents.manage_tags", "Tags")}
-                        </Link<Route>>
-                    </div>
-                </div>
             </div>
         </div>
     }
@@ -576,10 +563,10 @@ pub(crate) fn create_torrent_panel(props: &CreateTorrentProps) -> Html {
                     />
                 </label>
                 {if let Some(message) = error_message {
-                    html! { <p class="error-text">{message}</p> }
+                    html! { <p class="text-sm text-error">{message}</p> }
                 } else { html! {} }}
                 <div class="create-actions">
-                    <button class="solid" onclick={submit} disabled={props.pending}>
+                    <button class="btn btn-primary btn-sm" onclick={submit} disabled={props.pending}>
                         {if props.pending { t("torrents.create_pending") } else { t("torrents.create_submit") }}
                     </button>
                 </div>
@@ -637,14 +624,18 @@ fn render_create_result(
             <div class="result-row">
                 <div class="result-label">{bundle.text("torrents.create_result_magnet", "Magnet URI")}</div>
                 <div class="result-actions">
-                    <button class="ghost" onclick={copy_magnet}>{bundle.text("torrents.copy_magnet", "Copy magnet")}</button>
+                    <button class="btn btn-ghost btn-sm" onclick={copy_magnet}>
+                        {bundle.text("torrents.copy_magnet", "Copy magnet")}
+                    </button>
                 </div>
                 <textarea readonly={true} rows="2" value={result.magnet_uri.clone()} />
             </div>
             <div class="result-row">
                 <div class="result-label">{bundle.text("torrents.create_result_metainfo", "Metainfo (b64)")}</div>
                 <div class="result-actions">
-                    <button class="ghost" onclick={copy_metainfo}>{bundle.text("torrents.copy_metainfo", "Copy metainfo")}</button>
+                    <button class="btn btn-ghost btn-sm" onclick={copy_metainfo}>
+                        {bundle.text("torrents.copy_metainfo", "Copy metainfo")}
+                    </button>
                 </div>
                 <textarea readonly={true} rows="3" value={result.metainfo.clone()} />
             </div>

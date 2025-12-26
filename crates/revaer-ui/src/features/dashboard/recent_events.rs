@@ -124,5 +124,5 @@ pub(crate) fn dashboard_recent_events(props: &DashboardRecentEventsProps) -> Htm
 
 fn event_icon_src(index: usize) -> String {
     let product = (index % 10) + 1;
-    format!("/static/nexus/images/apps/ecommerce/products/{product}.jpg")
+    format!("static/nexus/images/apps/ecommerce/products/{product}.jpg")
 }

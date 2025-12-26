@@ -354,8 +354,8 @@ impl ThemeMode {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
-            Self::Light => "light",
-            Self::Dark => "dark",
+            Self::Light => "revaer-light",
+            Self::Dark => "revaer-dark",
         }
     }
 }
@@ -374,7 +374,7 @@ mod tests {
 
     #[test]
     fn theme_mode_to_str() {
-        assert_eq!(ThemeMode::Light.as_str(), "light");
-        assert_eq!(ThemeMode::Dark.as_str(), "dark");
+        assert_eq!(ThemeMode::Light.as_str(), "revaer-light");
+        assert_eq!(ThemeMode::Dark.as_str(), "revaer-dark");
     }
 }

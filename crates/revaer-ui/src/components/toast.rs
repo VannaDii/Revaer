@@ -34,7 +34,11 @@ pub(crate) fn toast_host(props: &ToastHostProps) -> Html {
     }
 
     html! {
-        <div class={classes!("toast-host", props.class.clone())} aria-live="polite" aria-atomic="true">
+        <div
+            class={classes!("toast", "toast-end", "toast-bottom", props.class.clone())}
+            aria-live="polite"
+            aria-atomic="true"
+        >
             {for props.toasts.iter().map(|toast| render_toast(toast, props.on_dismiss.clone(), t("toast.dismiss")))}
         </div>
     }
@@ -42,9 +46,9 @@ pub(crate) fn toast_host(props: &ToastHostProps) -> Html {
 
 fn render_toast(toast: &Toast, on_dismiss: Callback<u64>, dismiss_label: String) -> Html {
     let class = match toast.kind {
-        ToastKind::Info => "info",
-        ToastKind::Success => "success",
-        ToastKind::Error => "error",
+        ToastKind::Info => "alert-info",
+        ToastKind::Success => "alert-success",
+        ToastKind::Error => "alert-error",
     };
     let id = toast.id;
     let on_close = {
@@ -53,9 +57,15 @@ fn render_toast(toast: &Toast, on_dismiss: Callback<u64>, dismiss_label: String)
     };
 
     html! {
-        <div class={classes!("toast", class)} role="status">
-            <span>{toast.message.clone()}</span>
-            <button class="ghost" aria-label={dismiss_label.clone()} onclick={on_close}>{"✕"}</button>
+        <div role="status" class={classes!("alert", class, "shadow")}>
+            <span class="text-sm">{toast.message.clone()}</span>
+            <button
+                class="btn btn-ghost btn-xs btn-circle"
+                aria-label={dismiss_label.clone()}
+                onclick={on_close}
+            >
+                <span class="iconify lucide--x size-3.5"></span>
+            </button>
         </div>
     }
 }

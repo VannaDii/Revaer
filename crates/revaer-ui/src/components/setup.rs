@@ -63,29 +63,46 @@ pub(crate) fn setup_prompt(props: &SetupPromptProps) -> Html {
 
     html! {
         <div class={classes!("setup-overlay", props.class.clone())} role="dialog" aria-modal="true">
-            <div class="card">
-                <header>
-                    <h3>{t("setup.title")}</h3>
-                </header>
-                <p class="muted">{t("setup.body")}</p>
-                <div class="stacked">
-                    <label class="stack">
-                        <span>{t("setup.token_label")}</span>
-                        <input type="text" placeholder={t("setup.token_placeholder")} value={(*token_input).clone()} oninput={on_input} />
-                    </label>
-                    {if let Some(expires) = props.expires_at.as_ref() {
-                        html! { <p class="muted">{format!("{} {expires}", t("setup.expires_prefix"))}</p> }
-                    } else { html!{} }}
-                </div>
-                {if let Some(err) = props.error.as_ref() {
-                    html! { <p class="error-text">{err.clone()}</p> }
-                } else { html! {} }}
-                <div class="actions">
-                    <button class="ghost" onclick={{
-                        let on_request = props.on_request_token.clone();
-                        Callback::from(move |_| on_request.emit(()))
-                    }} disabled={props.busy}>{t("setup.issue_token")}</button>
-                    <button class="solid" onclick={submit} disabled={props.busy}>{t("setup.complete")}</button>
+            <div class="card bg-base-100 shadow border border-base-200">
+                <div class="card-body gap-4">
+                    <div>
+                        <h3 class="text-lg font-semibold">{t("setup.title")}</h3>
+                        <p class="text-sm text-base-content/60">{t("setup.body")}</p>
+                    </div>
+                    <div class="grid gap-3">
+                        <label class="form-control gap-1">
+                            <span class="label-text text-xs">{t("setup.token_label")}</span>
+                            <input
+                                class="input input-bordered w-full"
+                                type="text"
+                                placeholder={t("setup.token_placeholder")}
+                                value={(*token_input).clone()}
+                                oninput={on_input} />
+                        </label>
+                        {if let Some(expires) = props.expires_at.as_ref() {
+                            html! { <p class="text-xs text-base-content/60">{format!("{} {expires}", t("setup.expires_prefix"))}</p> }
+                        } else { html!{} }}
+                    </div>
+                    {if let Some(err) = props.error.as_ref() {
+                        html! { <p class="text-sm text-error">{err.clone()}</p> }
+                    } else { html! {} }}
+                    <div class="flex justify-end gap-2">
+                        <button
+                            class="btn btn-ghost btn-sm"
+                            onclick={{
+                                let on_request = props.on_request_token.clone();
+                                Callback::from(move |_| on_request.emit(()))
+                            }}
+                            disabled={props.busy}>
+                            {t("setup.issue_token")}
+                        </button>
+                        <button
+                            class="btn btn-primary btn-sm"
+                            onclick={submit}
+                            disabled={props.busy}>
+                            {t("setup.complete")}
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>

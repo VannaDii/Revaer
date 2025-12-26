@@ -7,6 +7,7 @@ pub(crate) struct AuthPromptProps {
     pub allow_anonymous: bool,
     pub default_mode: AuthMode,
     pub on_submit: Callback<AuthState>,
+    pub on_dismiss: Callback<()>,
     #[prop_or_default]
     pub class: Classes,
 }
@@ -15,6 +16,7 @@ pub(crate) struct AuthPromptProps {
 pub(crate) fn auth_prompt(props: &AuthPromptProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
+    let dismiss_label = bundle.text("auth.dismiss", "Dismiss");
     let t = move |key: &str| bundle.text(key, "");
     let api_key = use_state(String::new);
     let local_user = use_state(String::new);
@@ -82,64 +84,105 @@ pub(crate) fn auth_prompt(props: &AuthPromptProps) -> Html {
             }
         })
     };
+    let on_dismiss = {
+        let on_dismiss = props.on_dismiss.clone();
+        Callback::from(move |_| on_dismiss.emit(()))
+    };
 
     html! {
         <div class={classes!("auth-overlay", props.class.clone())} role="dialog" aria-modal="true">
-            <div class="card">
-                <header>
-                    <h3>{t("auth.title")}</h3>
-                </header>
-                <p class="muted">
-                    {t("auth.body")}
-                </p>
-                <div class="auth-tabs">
-                    <button class={classes!("ghost", if *mode == AuthMode::ApiKey { "active" } else { "" })} onclick={{
-                        let mode = mode.clone();
-                        Callback::from(move |_| mode.set(AuthMode::ApiKey))
-                    }}>{t("auth.tab.api_key")}</button>
-                    <button class={classes!("ghost", if *mode == AuthMode::Local { "active" } else { "" })} onclick={{
-                        let mode = mode.clone();
-                        Callback::from(move |_| mode.set(AuthMode::Local))
-                    }}>{t("auth.tab.local")}</button>
-                </div>
-                {if *mode == AuthMode::ApiKey {
-                    html! {
-                        <label class="stack">
-                            <span>{t("auth.label")}</span>
-                            <input type="password" placeholder={t("auth.placeholder")} oninput={on_input} />
-                        </label>
-                    }
-                } else { html!{} }}
-                {if *mode == AuthMode::Local {
-                    html! {
-                        <div class="stacked">
-                            <label class="stack">
-                                <span>{t("auth.local_user")}</span>
-                                <input type="text" placeholder={t("auth.local_user_placeholder")} oninput={on_user_input} />
-                            </label>
-                            <label class="stack">
-                                <span>{t("auth.local_pass")}</span>
-                                <input type="password" placeholder={t("auth.local_pass_placeholder")} oninput={on_pass_input} />
-                            </label>
+            <div class="card bg-base-100 shadow border border-base-200">
+                <div class="card-body gap-4">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <h3 class="text-lg font-semibold">{t("auth.title")}</h3>
+                            <p class="text-sm text-base-content/60">{t("auth.body")}</p>
                         </div>
-                    }
-                } else { html!{} }}
-                {if props.allow_anonymous {
-                    html! { <p class="muted">{t("auth.allow_anon")}</p> }
-                } else { html!{} }}
-                {if let Some(err) = &*error {
-                    html! { <p class="error-text">{err}</p> }
-                } else { html! {} }}
-                <div class="actions">
-                    {if props.allow_anonymous {
+                        <button
+                            class="btn btn-ghost btn-xs btn-circle"
+                            aria-label={dismiss_label.clone()}
+                            onclick={on_dismiss.clone()}>
+                            <span class="iconify lucide--x size-4"></span>
+                        </button>
+                    </div>
+                    <div role="tablist" class="tabs tabs-boxed">
+                        <button
+                            role="tab"
+                            class={classes!("tab", if *mode == AuthMode::ApiKey { "tab-active" } else { "" })}
+                            onclick={{
+                                let mode = mode.clone();
+                                Callback::from(move |_| mode.set(AuthMode::ApiKey))
+                            }}>
+                            {t("auth.tab.api_key")}
+                        </button>
+                        <button
+                            role="tab"
+                            class={classes!("tab", if *mode == AuthMode::Local { "tab-active" } else { "" })}
+                            onclick={{
+                                let mode = mode.clone();
+                                Callback::from(move |_| mode.set(AuthMode::Local))
+                            }}>
+                            {t("auth.tab.local")}
+                        </button>
+                    </div>
+                    {if *mode == AuthMode::ApiKey {
                         html! {
-                            <button class="ghost" onclick={{
-                                let on_submit = props.on_submit.clone();
-                                Callback::from(move |_| on_submit.emit(AuthState::Anonymous))
-                            }}>{t("auth.use_anon")}</button>
+                            <label class="form-control gap-1">
+                                <span class="label-text text-xs">{t("auth.label")}</span>
+                                <input
+                                    class="input input-bordered w-full"
+                                    type="password"
+                                    placeholder={t("auth.placeholder")}
+                                    oninput={on_input} />
+                            </label>
                         }
                     } else { html!{} }}
-                    <button class="solid" onclick={submit}>{t("auth.submit")}</button>
+                    {if *mode == AuthMode::Local {
+                        html! {
+                            <div class="grid gap-3">
+                                <label class="form-control gap-1">
+                                    <span class="label-text text-xs">{t("auth.local_user")}</span>
+                                    <input
+                                        class="input input-bordered w-full"
+                                        type="text"
+                                        placeholder={t("auth.local_user_placeholder")}
+                                        oninput={on_user_input} />
+                                </label>
+                                <label class="form-control gap-1">
+                                    <span class="label-text text-xs">{t("auth.local_pass")}</span>
+                                    <input
+                                        class="input input-bordered w-full"
+                                        type="password"
+                                        placeholder={t("auth.local_pass_placeholder")}
+                                        oninput={on_pass_input} />
+                                </label>
+                            </div>
+                        }
+                    } else { html!{} }}
+                    {if props.allow_anonymous {
+                        html! { <p class="text-xs text-base-content/60">{t("auth.allow_anon")}</p> }
+                    } else { html!{} }}
+                    {if let Some(err) = &*error {
+                        html! { <p class="text-sm text-error">{err}</p> }
+                    } else { html! {} }}
+                    <div class="flex justify-end gap-2">
+                        <button class="btn btn-ghost btn-sm" onclick={on_dismiss}>
+                            {dismiss_label}
+                        </button>
+                        {if props.allow_anonymous {
+                            html! {
+                                <button
+                                    class="btn btn-ghost btn-sm"
+                                    onclick={{
+                                        let on_submit = props.on_submit.clone();
+                                        Callback::from(move |_| on_submit.emit(AuthState::Anonymous))
+                                    }}>
+                                    {t("auth.use_anon")}
+                                </button>
+                            }
+                        } else { html!{} }}
+                        <button class="btn btn-primary btn-sm" onclick={submit}>{t("auth.submit")}</button>
+                    </div>
                 </div>
             </div>
         </div>

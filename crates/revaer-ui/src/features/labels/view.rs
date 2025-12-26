@@ -28,16 +28,6 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
     let t = |key: &str, fallback: &str| bundle.text(key, fallback);
     let api_ctx = use_context::<ApiCtx>();
-    let api_ctx = match api_ctx {
-        Some(ctx) => ctx,
-        None => {
-            return html! {
-                <div class="panel">
-                    <p class="error-text">{"Missing API context."}</p>
-                </div>
-            };
-        }
-    };
 
     let kind = props.kind;
     let entries = use_selector(move |store: &AppStore| {
@@ -54,6 +44,13 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
     let form = use_state(LabelFormState::default);
     let error = use_state(|| None as Option<String>);
     let saving = use_state(|| false);
+    let Some(api_ctx) = api_ctx else {
+        return html! {
+            <div class="panel">
+                <p class="text-sm text-error">{"Missing API context."}</p>
+            </div>
+        };
+    };
 
     let on_action = {
         let entries = entries.clone();
@@ -156,7 +153,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                         <h3>{title}</h3>
                         <p class="muted">{subtitle}</p>
                     </div>
-                    <button class="chip ghost" onclick={{
+                    <button class="btn btn-ghost btn-sm" onclick={{
                         let on_action = on_action.clone();
                         Callback::from(move |_| on_action.emit(LabelAction::New))
                     }}>{t("labels.new", "New")}</button>
@@ -407,10 +404,10 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                             </details>
                         </div>
                         {if let Some(message) = error.as_ref() {
-                            html! { <p class="error-text">{message.clone()}</p> }
+                            html! { <p class="text-sm text-error">{message.clone()}</p> }
                         } else { html! {} }}
                         <div class="actions">
-                            <button class="solid" onclick={on_save} disabled={*saving}>
+                            <button class="btn btn-primary btn-sm" onclick={on_save} disabled={*saving}>
                                 {if *saving { t("labels.saving", "Saving...") } else { t("labels.save", "Save") }}
                             </button>
                         </div>

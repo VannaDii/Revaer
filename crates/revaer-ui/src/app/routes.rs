@@ -9,14 +9,8 @@ pub(crate) enum Route {
     Torrents,
     #[at("/torrents/:id")]
     TorrentDetail { id: String },
-    #[at("/categories")]
-    Categories,
-    #[at("/tags")]
-    Tags,
     #[at("/settings")]
     Settings,
-    #[at("/health")]
-    Health,
     #[not_found]
     #[at("/404")]
     NotFound,

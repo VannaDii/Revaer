@@ -28,7 +28,7 @@ impl ActionMenuItem {
         Self {
             label,
             on_click,
-            class: Some("danger"),
+            class: Some("text-error hover:bg-error/10"),
         }
     }
 }
@@ -38,16 +38,31 @@ pub(crate) fn render_action_menu(bundle: &TranslationBundle, items: Vec<ActionMe
         return html! {};
     }
     html! {
-        <details class="row-menu">
-            <summary class="ghost">{bundle.text("torrents.more", "More...")}</summary>
-            <div class="menu">
+        <div class="dropdown dropdown-end">
+            <button
+                type="button"
+                tabindex="0"
+                aria-label={bundle.text("torrents.more", "More")}
+                class="btn btn-ghost btn-xs btn-square">
+                <span class="iconify lucide--more-horizontal size-4"></span>
+            </button>
+            <ul
+                tabindex="0"
+                class="dropdown-content menu bg-base-100 rounded-box w-44 p-1 shadow">
                 {for items.into_iter().map(|item| {
-                    let class = classes!("ghost", item.class);
+                    let class = classes!("justify-start", item.class);
                     html! {
-                        <button type="button" class={class} onclick={item.on_click}>{item.label}</button>
+                        <li>
+                            <button
+                                type="button"
+                                class={class}
+                                onclick={item.on_click}>
+                                {item.label}
+                            </button>
+                        </li>
                     }
                 })}
-            </div>
-        </details>
+            </ul>
+        </div>
     }
 }
