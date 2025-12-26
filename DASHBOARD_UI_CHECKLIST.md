@@ -164,4 +164,4 @@
 ## 15) Not in scope guardrails
 - [x] Do not implement qBittorrent compatibility endpoints.
 - [x] Do not add node/npm/vite/tailwind build steps.
-- [ ] Do not add fake UI controls for settings that cannot be persisted via existing endpoints.
+- [x] Do not add fake UI controls for settings that cannot be persisted via existing endpoints.
