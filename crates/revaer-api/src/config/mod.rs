@@ -32,6 +32,10 @@ pub trait ConfigFacade: Send + Sync {
     async fn snapshot(&self) -> Result<ConfigSnapshot>;
     /// Validate API credentials and return the associated authorisation scope.
     async fn authenticate_api_key(&self, key_id: &str, secret: &str) -> Result<Option<ApiKeyAuth>>;
+    /// Check whether any API keys are configured.
+    async fn has_api_keys(&self) -> Result<bool>;
+    /// Perform a factory reset of configuration + runtime tables.
+    async fn factory_reset(&self) -> Result<()>;
 }
 
 /// Shared reference to the configuration backend.
@@ -70,6 +74,14 @@ impl ConfigFacade for ConfigService {
 
     async fn authenticate_api_key(&self, key_id: &str, secret: &str) -> Result<Option<ApiKeyAuth>> {
         Self::authenticate_api_key(self, key_id, secret).await
+    }
+
+    async fn has_api_keys(&self) -> Result<bool> {
+        <Self as SettingsFacade>::has_api_keys(self).await
+    }
+
+    async fn factory_reset(&self) -> Result<()> {
+        <Self as SettingsFacade>::factory_reset(self).await
     }
 }
 
@@ -257,6 +269,16 @@ mod tests {
             self.calls.lock().await.push_back("authenticate_api_key");
             Ok(None)
         }
+
+        async fn has_api_keys(&self) -> Result<bool> {
+            self.calls.lock().await.push_back("has_api_keys");
+            Ok(true)
+        }
+
+        async fn factory_reset(&self) -> Result<()> {
+            self.calls.lock().await.push_back("factory_reset");
+            Ok(())
+        }
     }
 
     #[tokio::test]
@@ -278,6 +300,8 @@ mod tests {
             .authenticate_api_key("id", "secret")
             .await
             .expect("auth result");
+        let _ = shared.has_api_keys().await.expect("has api keys");
+        shared.factory_reset().await.expect("reset");
 
         let calls = config.pop_calls().await;
         assert_eq!(
@@ -288,7 +312,9 @@ mod tests {
                 "issue_setup_token",
                 "validate_setup_token",
                 "consume_setup_token",
-                "authenticate_api_key"
+                "authenticate_api_key",
+                "has_api_keys",
+                "factory_reset"
             ]
         );
     }

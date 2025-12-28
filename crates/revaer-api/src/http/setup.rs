@@ -7,16 +7,18 @@ use axum::{
     Json,
     extract::{Extension, State},
 };
-use revaer_config::{AppMode, ConfigSnapshot, SettingsChangeset};
+use chrono::{Duration as ChronoDuration, Utc};
+use revaer_config::{ApiKeyPatch, AppMode, ConfigSnapshot, SettingsChangeset};
 use revaer_events::Event as CoreEvent;
 use revaer_telemetry::record_app_mode;
 use serde_json::{Map, Value, json};
 use tracing::{error, warn};
+use uuid::Uuid;
 
 use crate::app::state::ApiState;
 use crate::http::auth::{AuthContext, extract_setup_token, map_config_error};
 use crate::http::errors::ApiError;
-use crate::models::{SetupStartRequest, SetupStartResponse};
+use crate::models::{SetupCompleteResponse, SetupStartRequest, SetupStartResponse};
 
 pub(crate) async fn setup_start(
     State(state): State<Arc<ApiState>>,
@@ -59,10 +61,11 @@ pub(crate) async fn setup_complete(
     State(state): State<Arc<ApiState>>,
     Extension(context): Extension<AuthContext>,
     Json(mut changeset): Json<SettingsChangeset>,
-) -> Result<Json<ConfigSnapshot>, ApiError> {
+) -> Result<Json<SetupCompleteResponse>, ApiError> {
     let token = extract_setup_token(context)?;
     ensure_valid_setup_token(&state, &token).await?;
     coerce_app_profile_patch(&mut changeset)?;
+    let bootstrap_key = ensure_bootstrap_api_key(&mut changeset);
 
     let snapshot = apply_setup_changes(&state, changeset, &token).await?;
 
@@ -70,7 +73,56 @@ pub(crate) async fn setup_complete(
         description: format!("setup_complete revision {}", snapshot.revision),
     });
 
-    Ok(Json(snapshot))
+    let snapshot_value = serde_json::to_value(&snapshot).map_err(|err| {
+        error!(error = %err, "failed to serialize setup completion snapshot");
+        ApiError::internal("failed to serialize setup snapshot")
+    })?;
+
+    Ok(Json(SetupCompleteResponse {
+        snapshot: snapshot_value,
+        api_key: format!("{}:{}", bootstrap_key.key_id, bootstrap_key.secret),
+        api_key_expires_at: bootstrap_key.expires_at.to_rfc3339(),
+    }))
+}
+
+struct BootstrapApiKey {
+    key_id: String,
+    secret: String,
+    expires_at: chrono::DateTime<chrono::Utc>,
+}
+
+fn ensure_bootstrap_api_key(changeset: &mut SettingsChangeset) -> BootstrapApiKey {
+    let expires_at = Utc::now() + ChronoDuration::days(14);
+    if let Some(key) = changeset.api_keys.iter().find_map(|patch| match patch {
+        ApiKeyPatch::Upsert {
+            key_id,
+            secret: Some(secret),
+            ..
+        } if !secret.trim().is_empty() => Some(BootstrapApiKey {
+            key_id: key_id.clone(),
+            secret: secret.clone(),
+            expires_at,
+        }),
+        _ => None,
+    }) {
+        return key;
+    }
+
+    let key_id = Uuid::new_v4().simple().to_string();
+    let secret = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+    changeset.api_keys.push(ApiKeyPatch::Upsert {
+        key_id: key_id.clone(),
+        label: Some("bootstrap".to_string()),
+        enabled: Some(true),
+        secret: Some(secret.clone()),
+        rate_limit: None,
+    });
+
+    BootstrapApiKey {
+        key_id,
+        secret,
+        expires_at,
+    }
 }
 
 async fn ensure_valid_setup_token(state: &ApiState, token: &str) -> Result<(), ApiError> {

@@ -6,6 +6,7 @@ use crate::core::ui::{Density, UiMode};
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode};
 use gloo::storage::{LocalStorage, Storage};
 use gloo::utils::window;
+use js_sys::Date;
 use web_sys::Url;
 
 pub(crate) const THEME_KEY: &str = "revaer.theme";
@@ -13,6 +14,7 @@ pub(crate) const MODE_KEY: &str = "revaer.mode";
 pub(crate) const LOCALE_KEY: &str = "revaer.locale";
 pub(crate) const DENSITY_KEY: &str = "revaer.density";
 pub(crate) const API_KEY_KEY: &str = "revaer.api_key";
+pub(crate) const API_KEY_EXPIRES_AT_KEY: &str = "revaer.api_key_expires_at";
 pub(crate) const AUTH_MODE_KEY: &str = "revaer.auth.mode";
 pub(crate) const LOCAL_AUTH_USER_KEY: &str = "revaer.auth.user";
 pub(crate) const LOCAL_AUTH_PASS_KEY: &str = "revaer.auth.pass";
@@ -66,12 +68,18 @@ pub(crate) fn load_locale() -> LocaleCode {
 }
 
 pub(crate) fn load_api_key(_allow_anon: bool) -> Option<String> {
-    if let Ok(value) = LocalStorage::get::<String>(API_KEY_KEY) {
-        if !value.trim().is_empty() {
-            return Some(value);
+    let value = LocalStorage::get::<String>(API_KEY_KEY).ok()?;
+    if value.trim().is_empty() {
+        return None;
+    }
+    if let Some(expires_at_ms) = load_api_key_expires_at_ms() {
+        let now = Date::now() as i64;
+        if expires_at_ms <= now {
+            clear_api_key_storage();
+            return None;
         }
     }
-    None
+    Some(value)
 }
 
 pub(crate) fn load_auth_mode() -> AuthMode {
@@ -119,19 +127,56 @@ pub(crate) fn persist_auth_state(state: &AuthState) {
         AuthState::ApiKey(value) => {
             let _ = LocalStorage::set(AUTH_MODE_KEY, "api_key");
             let _ = LocalStorage::set(API_KEY_KEY, value);
+            let _ = LocalStorage::delete(API_KEY_EXPIRES_AT_KEY);
         }
         AuthState::Local(auth) => {
             let _ = LocalStorage::set(AUTH_MODE_KEY, "local");
             let _ = LocalStorage::set(LOCAL_AUTH_USER_KEY, &auth.username);
             let _ = LocalStorage::set(LOCAL_AUTH_PASS_KEY, &auth.password);
+            let _ = LocalStorage::delete(API_KEY_EXPIRES_AT_KEY);
         }
         AuthState::Anonymous => {
             let _ = LocalStorage::set(AUTH_MODE_KEY, "api_key");
             let _ = LocalStorage::delete(API_KEY_KEY);
             let _ = LocalStorage::delete(LOCAL_AUTH_USER_KEY);
             let _ = LocalStorage::delete(LOCAL_AUTH_PASS_KEY);
+            let _ = LocalStorage::delete(API_KEY_EXPIRES_AT_KEY);
         }
     }
+}
+
+pub(crate) fn persist_api_key_with_expiry(api_key: &str, expires_at: &str) {
+    let _ = LocalStorage::set(AUTH_MODE_KEY, "api_key");
+    let _ = LocalStorage::set(API_KEY_KEY, api_key);
+    if let Some(expires_at_ms) = parse_expires_at_ms(expires_at) {
+        let _ = LocalStorage::set(API_KEY_EXPIRES_AT_KEY, expires_at_ms);
+    } else {
+        let _ = LocalStorage::delete(API_KEY_EXPIRES_AT_KEY);
+    }
+}
+
+pub(crate) fn clear_auth_storage() {
+    clear_api_key_storage();
+    let _ = LocalStorage::delete(LOCAL_AUTH_USER_KEY);
+    let _ = LocalStorage::delete(LOCAL_AUTH_PASS_KEY);
+}
+
+pub(crate) fn clear_api_key_storage() {
+    let _ = LocalStorage::delete(API_KEY_KEY);
+    let _ = LocalStorage::delete(API_KEY_EXPIRES_AT_KEY);
+}
+
+fn parse_expires_at_ms(value: &str) -> Option<i64> {
+    let parsed = Date::parse(value);
+    if parsed.is_nan() {
+        None
+    } else {
+        Some(parsed as i64)
+    }
+}
+
+fn load_api_key_expires_at_ms() -> Option<i64> {
+    LocalStorage::get::<i64>(API_KEY_EXPIRES_AT_KEY).ok()
 }
 
 pub(crate) fn persist_bypass_local(value: bool) {

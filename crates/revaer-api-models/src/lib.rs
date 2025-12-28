@@ -23,6 +23,7 @@
 use base64::{Engine as _, engine::general_purpose};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use uuid::Uuid;
 
 use revaer_events::TorrentState;
@@ -168,6 +169,24 @@ pub struct SetupStartRequest {
     /// Optional TTL in seconds.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ttl_seconds: Option<u64>,
+}
+
+/// Setup complete response payload returned by `/admin/setup/complete`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SetupCompleteResponse {
+    /// Updated configuration snapshot.
+    pub snapshot: Value,
+    /// Bootstrap API key (`key_id:secret`).
+    pub api_key: String,
+    /// API key expiry timestamp as an RFC3339 string.
+    pub api_key_expires_at: String,
+}
+
+/// Factory reset request payload accepted by `/admin/factory-reset`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FactoryResetRequest {
+    /// Confirmation phrase that must match `factory reset`.
+    pub confirm: String,
 }
 
 /// Enumerates the coarse torrent lifecycle states surfaced via the API.

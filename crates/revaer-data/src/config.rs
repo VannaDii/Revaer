@@ -762,6 +762,22 @@ where
     Ok(())
 }
 
+/// Perform a factory reset of configuration + runtime tables.
+///
+/// # Errors
+///
+/// Returns an error if the reset procedure fails to execute.
+pub async fn factory_reset<'e, E>(executor: E) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.factory_reset()")
+        .execute(executor)
+        .await
+        .context("failed to execute factory reset")?;
+    Ok(())
+}
+
 /// Load a secret row by name.
 ///
 /// # Errors

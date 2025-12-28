@@ -70,6 +70,10 @@ pub trait SettingsFacade: Send + Sync {
     async fn issue_setup_token(&self, ttl: Duration, issued_by: &str) -> Result<SetupToken>;
     /// Permanently consume a setup token.
     async fn consume_setup_token(&self, token: &str) -> Result<()>;
+    /// Check whether any API keys are configured.
+    async fn has_api_keys(&self) -> Result<bool>;
+    /// Perform a factory reset of configuration + runtime tables.
+    async fn factory_reset(&self) -> Result<()>;
 }
 
 // Models are defined in model.rs.
@@ -639,6 +643,20 @@ impl SettingsFacade for ConfigService {
 
         tx.commit().await?;
         info!("setup token consumed successfully");
+        Ok(())
+    }
+
+    async fn has_api_keys(&self) -> Result<bool> {
+        let value = fetch_api_keys_json(&self.pool).await?;
+        let keys = value
+            .as_array()
+            .ok_or_else(|| anyhow!("auth_api_keys payload must be an array"))?;
+        Ok(!keys.is_empty())
+    }
+
+    async fn factory_reset(&self) -> Result<()> {
+        data_config::factory_reset(&self.pool).await?;
+        info!("factory reset completed");
         Ok(())
     }
 }

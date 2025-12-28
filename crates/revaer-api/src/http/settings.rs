@@ -5,6 +5,7 @@ use std::sync::Arc;
 use axum::{
     Json,
     extract::{Extension, State},
+    http::StatusCode,
 };
 use revaer_config::{ConfigError, ConfigSnapshot, SettingsChangeset};
 use revaer_events::Event as CoreEvent;
@@ -13,7 +14,7 @@ use tracing::error;
 use crate::app::state::ApiState;
 use crate::http::auth::{AuthContext, map_config_error};
 use crate::http::errors::ApiError;
-use crate::models::ProblemInvalidParam;
+use crate::models::{FactoryResetRequest, ProblemInvalidParam};
 
 pub(crate) async fn settings_patch(
     State(state): State<Arc<ApiState>>,
@@ -45,6 +46,34 @@ pub(crate) async fn settings_patch(
     });
 
     Ok(Json(snapshot))
+}
+
+pub(crate) async fn factory_reset(
+    State(state): State<Arc<ApiState>>,
+    Extension(context): Extension<AuthContext>,
+    Json(request): Json<FactoryResetRequest>,
+) -> Result<StatusCode, ApiError> {
+    match context {
+        AuthContext::ApiKey { .. } => {}
+        AuthContext::SetupToken(_) => {
+            return Err(ApiError::unauthorized(
+                "setup authentication context cannot factory reset",
+            ));
+        }
+    }
+
+    if request.confirm.trim() != "factory reset" {
+        return Err(ApiError::bad_request(
+            "confirmation phrase must be 'factory reset'",
+        ));
+    }
+
+    state.config.factory_reset().await.map_err(|err| {
+        error!(error = %err, "factory reset failed");
+        ApiError::internal(err.to_string())
+    })?;
+
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub(crate) async fn well_known(
@@ -150,6 +179,14 @@ mod tests {
             _secret: &str,
         ) -> Result<Option<ApiKeyAuth>> {
             Ok(None)
+        }
+
+        async fn has_api_keys(&self) -> Result<bool> {
+            Ok(true)
+        }
+
+        async fn factory_reset(&self) -> Result<()> {
+            Ok(())
         }
     }
 

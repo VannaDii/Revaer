@@ -2682,6 +2682,7 @@ dependencies = [
  "revaer-events",
  "revaer-torrent-core",
  "serde",
+ "serde_json",
  "uuid",
 ]
 

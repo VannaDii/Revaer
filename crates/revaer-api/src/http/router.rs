@@ -26,7 +26,7 @@ use tracing::Span;
 use crate::TorrentHandles;
 use crate::app::state::ApiState;
 use crate::config::SharedConfig;
-use crate::http::auth::{require_api_key, require_setup_token};
+use crate::http::auth::{require_api_key, require_factory_reset_auth, require_setup_token};
 #[cfg(feature = "compat-qb")]
 use crate::http::compat_qb;
 use crate::http::constants::{
@@ -34,7 +34,7 @@ use crate::http::constants::{
     HEADER_SETUP_TOKEN,
 };
 use crate::http::health::{dashboard, health, health_full, metrics};
-use crate::http::settings::{get_config_snapshot, settings_patch, well_known};
+use crate::http::settings::{factory_reset, get_config_snapshot, settings_patch, well_known};
 use crate::http::setup::{setup_complete, setup_start};
 use crate::http::sse::stream_events;
 use crate::http::telemetry::HttpMetricsLayer;
@@ -204,6 +204,8 @@ impl ApiServer {
     fn admin_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
         let require_setup = middleware::from_fn_with_state(state.clone(), require_setup_token);
         let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+        let require_factory_reset =
+            middleware::from_fn_with_state(state.clone(), require_factory_reset_auth);
 
         Router::new()
             .route("/admin/setup/start", post(setup_start))
@@ -214,6 +216,10 @@ impl ApiServer {
             .route(
                 "/admin/settings",
                 patch(settings_patch).route_layer(require_api.clone()),
+            )
+            .route(
+                "/admin/factory-reset",
+                post(factory_reset).route_layer(require_factory_reset),
             )
             .route(
                 "/admin/torrents",

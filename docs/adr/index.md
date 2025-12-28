@@ -57,6 +57,8 @@ ADR documents capture the rationale behind significant technical decisions.
 - [052](052-ui-nexus-dashboard.md) – UI dashboard migration to Nexus vendor layout
 - [053](053-ui-dashboard-hardline-rebuild.md) – UI dashboard hardline rebuild
 - [054](054-ui-dashboard-nexus-parity.md) – UI dashboard Nexus parity tweaks
+- [055](055-factory-reset-bootstrap-api-key.md) – Factory reset and bootstrap API key
+- [056](056-factory-reset-bootstrap-auth-fallback.md) – Factory reset auth fallback when no API keys exist
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

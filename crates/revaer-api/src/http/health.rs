@@ -216,6 +216,14 @@ mod tests {
         ) -> Result<Option<ApiKeyAuth>> {
             self.maybe_fail(None)
         }
+
+        async fn has_api_keys(&self) -> Result<bool> {
+            self.maybe_fail(true)
+        }
+
+        async fn factory_reset(&self) -> Result<()> {
+            self.maybe_fail(())
+        }
     }
 
     fn sample_snapshot(mode: AppMode) -> ConfigSnapshot {

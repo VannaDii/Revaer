@@ -537,6 +537,21 @@ mod tests {
             };
             Ok(auth)
         }
+
+        async fn has_api_keys(&self) -> Result<bool> {
+            let guard = self.inner.lock().await;
+            Ok(!guard.api_keys.is_empty())
+        }
+
+        async fn factory_reset(&self) -> Result<()> {
+            let mut guard = self.inner.lock().await;
+            guard.tokens.clear();
+            guard.api_keys.clear();
+            guard.snapshot.app_profile.mode = AppMode::Setup;
+            guard.snapshot.app_profile.instance_name = "revaer".to_string();
+            drop(guard);
+            Ok(())
+        }
     }
 
     fn apply_app_profile_patch(profile: &mut AppProfile, patch: &Value) -> Result<()> {
@@ -763,7 +778,7 @@ mod tests {
             secrets: vec![],
         };
 
-        let Json(snapshot) = setup_complete(
+        let Json(response) = setup_complete(
             State(state.clone()),
             Extension(AuthContext::SetupToken(start.token.clone())),
             Json(changeset),
@@ -771,7 +786,10 @@ mod tests {
         .await
         .expect("setup complete");
 
+        let snapshot: ConfigSnapshot =
+            serde_json::from_value(response.snapshot.clone()).expect("snapshot");
         assert_eq!(snapshot.app_profile.mode, AppMode::Active);
+        assert!(response.api_key.contains(':'));
         let event = timeout(Duration::from_secs(1), event_stream.next())
             .await
             .expect("settings event")

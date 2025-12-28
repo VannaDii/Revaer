@@ -1978,6 +1978,14 @@ mod tests {
                 rate_limit: None,
             }))
         }
+
+        async fn has_api_keys(&self) -> anyhow::Result<bool> {
+            Ok(true)
+        }
+
+        async fn factory_reset(&self) -> anyhow::Result<()> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
     }
 
     #[derive(Clone, Default)]
@@ -2050,6 +2058,14 @@ mod tests {
                 label: Some("label".to_string()),
                 rate_limit: None,
             }))
+        }
+
+        async fn has_api_keys(&self) -> anyhow::Result<bool> {
+            Ok(true)
+        }
+
+        async fn factory_reset(&self) -> anyhow::Result<()> {
+            Err(anyhow::anyhow!("not implemented"))
         }
     }
 

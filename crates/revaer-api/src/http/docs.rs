@@ -72,6 +72,14 @@ mod tests {
         ) -> Result<Option<ApiKeyAuth>> {
             Ok(None)
         }
+
+        async fn has_api_keys(&self) -> Result<bool> {
+            Ok(true)
+        }
+
+        async fn factory_reset(&self) -> Result<()> {
+            Ok(())
+        }
     }
 
     fn sample_snapshot() -> ConfigSnapshot {

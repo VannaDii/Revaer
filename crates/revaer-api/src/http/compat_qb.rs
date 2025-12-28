@@ -1433,6 +1433,14 @@ mod tests {
         ) -> Result<Option<ApiKeyAuth>> {
             Ok(None)
         }
+
+        async fn has_api_keys(&self) -> Result<bool> {
+            Ok(true)
+        }
+
+        async fn factory_reset(&self) -> Result<()> {
+            Err(anyhow!("not implemented in tests"))
+        }
     }
 
     #[derive(Clone)]

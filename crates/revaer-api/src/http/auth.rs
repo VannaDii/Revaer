@@ -23,7 +23,7 @@ mod tests {
         body::Body,
         http::{Request, StatusCode},
         middleware,
-        routing::get,
+        routing::{get, post},
     };
     use revaer_config::{
         ApiKeyAuth, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigSnapshot,
@@ -43,6 +43,7 @@ mod tests {
     struct MockConfig {
         mode: AppMode,
         api_auth: Option<ApiKeyAuth>,
+        has_api_keys: bool,
     }
 
     #[async_trait]
@@ -89,6 +90,14 @@ mod tests {
         async fn authenticate_api_key(&self, _: &str, _: &str) -> Result<Option<ApiKeyAuth>> {
             Ok(self.api_auth.clone())
         }
+
+        async fn has_api_keys(&self) -> Result<bool> {
+            Ok(self.has_api_keys)
+        }
+
+        async fn factory_reset(&self) -> Result<()> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
     }
 
     fn router_with_state(state: &Arc<ApiState>) -> Router {
@@ -111,12 +120,23 @@ mod tests {
             ))
     }
 
-    fn api_state(mode: AppMode, auth: Option<ApiKeyAuth>) -> Arc<ApiState> {
+    fn factory_reset_router_with_state(state: &Arc<ApiState>) -> Router {
+        Router::new()
+            .route("/", post(|| async { "ok" }))
+            .with_state(state.clone())
+            .route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                require_factory_reset_auth,
+            ))
+    }
+
+    fn api_state(mode: AppMode, auth: Option<ApiKeyAuth>, has_api_keys: bool) -> Arc<ApiState> {
         let metrics = Metrics::new().expect("metrics");
         Arc::new(ApiState::new(
             Arc::new(MockConfig {
                 mode,
                 api_auth: auth,
+                has_api_keys,
             }),
             metrics,
             Arc::new(json!({})),
@@ -127,7 +147,7 @@ mod tests {
 
     #[tokio::test]
     async fn require_api_key_rejects_missing_and_invalid() {
-        let state = api_state(AppMode::Active, None);
+        let state = api_state(AppMode::Active, None, true);
         let app = router_with_state(&state);
 
         let response = app
@@ -160,7 +180,7 @@ mod tests {
                 replenish_period: Duration::from_secs(60),
             }),
         };
-        let state = api_state(AppMode::Active, Some(auth));
+        let state = api_state(AppMode::Active, Some(auth), true);
         let app = router_with_state(&state);
 
         let response = app
@@ -178,7 +198,7 @@ mod tests {
 
     #[tokio::test]
     async fn require_setup_token_enforces_mode_and_header() {
-        let state = api_state(AppMode::Setup, None);
+        let state = api_state(AppMode::Setup, None, true);
         let app = setup_router_with_state(&state);
 
         let missing = app
@@ -201,7 +221,7 @@ mod tests {
         assert_eq!(ok.status(), StatusCode::OK);
 
         // Active mode should reject setup tokens.
-        let active_app = setup_router_with_state(&api_state(AppMode::Active, None));
+        let active_app = setup_router_with_state(&api_state(AppMode::Active, None, true));
         let rejected = active_app
             .oneshot(
                 Request::builder()
@@ -213,6 +233,69 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(rejected.status(), StatusCode::CONFLICT);
+    }
+
+    #[tokio::test]
+    async fn require_factory_reset_allows_without_api_key_when_none_exist() {
+        let state = api_state(AppMode::Active, None, false);
+        let app = factory_reset_router_with_state(&state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn require_factory_reset_rejects_without_api_key_when_keys_exist() {
+        let state = api_state(AppMode::Active, None, true);
+        let app = factory_reset_router_with_state(&state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    }
+
+    #[tokio::test]
+    async fn require_factory_reset_accepts_valid_api_key() {
+        let auth = ApiKeyAuth {
+            key_id: "demo".to_string(),
+            label: Some("label".to_string()),
+            rate_limit: Some(ApiKeyRateLimit {
+                burst: 5,
+                replenish_period: Duration::from_secs(60),
+            }),
+        };
+        let state = api_state(AppMode::Active, Some(auth), true);
+        let app = factory_reset_router_with_state(&state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/")
+                    .header(crate::http::constants::HEADER_API_KEY, "demo:secret-token")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }
 
@@ -315,6 +398,79 @@ pub(crate) async fn require_api_key(
         );
     }
     Ok(response)
+}
+
+pub(crate) async fn require_factory_reset_auth(
+    State(state): State<Arc<ApiState>>,
+    mut req: Request<axum::body::Body>,
+    next: Next,
+) -> Result<Response, ApiError> {
+    info!("require_factory_reset_auth start");
+    let app = state.config.get_app_profile().await.map_err(|err| {
+        error!(error = %err, "failed to load app profile");
+        ApiError::internal("failed to load app profile")
+    })?;
+    record_app_mode(app.mode.as_str());
+
+    if let Some(api_key_raw) = extract_api_key(&req) {
+        let (key_id, secret) = api_key_raw
+            .split_once(':')
+            .ok_or_else(|| ApiError::unauthorized("API key must be provided as key_id:secret"))?;
+
+        let auth = state
+            .config
+            .authenticate_api_key(key_id, secret)
+            .await
+            .map_err(|err| {
+                error!(error = %err, "failed to verify API key");
+                ApiError::internal("failed to verify API key")
+            })?;
+
+        let Some(auth) = auth else {
+            return Err(ApiError::unauthorized("invalid API key"));
+        };
+
+        let rate_snapshot = match state.enforce_rate_limit(&auth.key_id, auth.rate_limit.as_ref()) {
+            Ok(snapshot) => snapshot,
+            Err(err) => {
+                return Err(ApiError::too_many_requests(
+                    "API key rate limit exceeded; try again later",
+                )
+                .with_rate_limit_headers(err.limit, 0, Some(err.retry_after)));
+            }
+        };
+
+        req.extensions_mut().insert(AuthContext::ApiKey {
+            key_id: auth.key_id,
+        });
+
+        let mut response = next.run(req).await;
+        if let Some(snapshot) = rate_snapshot {
+            insert_rate_limit_headers(
+                response.headers_mut(),
+                snapshot.limit,
+                snapshot.remaining,
+                None,
+            );
+        }
+        return Ok(response);
+    }
+
+    let has_api_keys = state.config.has_api_keys().await.map_err(|err| {
+        error!(error = %err, "failed to check API key inventory");
+        ApiError::internal("failed to check API key inventory")
+    })?;
+    if has_api_keys {
+        return Err(ApiError::unauthorized(
+            "missing API key header or query parameter",
+        ));
+    }
+
+    warn!("factory reset allowed without API key because no keys exist");
+    req.extensions_mut().insert(AuthContext::ApiKey {
+        key_id: "bootstrap".to_string(),
+    });
+    Ok(next.run(req).await)
 }
 
 pub(crate) fn extract_setup_token(context: AuthContext) -> Result<String, ApiError> {

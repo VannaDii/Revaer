@@ -1516,6 +1516,14 @@ mod engine_refresh_tests {
         async fn consume_setup_token(&self, _token: &str) -> Result<()> {
             Err(anyhow!("not implemented"))
         }
+
+        async fn has_api_keys(&self) -> Result<bool> {
+            Ok(false)
+        }
+
+        async fn factory_reset(&self) -> Result<()> {
+            Err(anyhow!("not implemented"))
+        }
     }
 
     fn sample_fs_policy() -> FsPolicy {

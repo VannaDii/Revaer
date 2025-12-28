@@ -1,5 +1,5 @@
 use anyhow::anyhow;
-use revaer_api::models::{SetupStartRequest, SetupStartResponse};
+use revaer_api::models::{SetupCompleteResponse, SetupStartRequest, SetupStartResponse};
 use revaer_config::{ApiKeyPatch, ConfigSnapshot, SecretPatch, SettingsChangeset};
 use serde_json::{Value, json};
 use std::io::{self, IsTerminal};
@@ -127,12 +127,17 @@ pub(crate) async fn handle_setup_complete(
         })?;
 
     if response.status().is_success() {
-        let snapshot = response.json::<ConfigSnapshot>().await.map_err(|err| {
-            CliError::failure(anyhow!("failed to parse setup completion response: {err}"))
-        })?;
+        let body = response
+            .json::<SetupCompleteResponse>()
+            .await
+            .map_err(|err| {
+                CliError::failure(anyhow!("failed to parse setup completion response: {err}"))
+            })?;
+        let snapshot: ConfigSnapshot = serde_json::from_value(body.snapshot.clone())
+            .map_err(|err| CliError::failure(anyhow!("failed to parse setup snapshot: {err}")))?;
         let instance_name = &snapshot.app_profile.instance_name;
         println!("Setup complete for instance '{instance_name}'.");
-        println!("API key created (store securely): {api_key_id}:{api_key_secret}");
+        println!("API key created (store securely): {}", body.api_key);
         Ok(())
     } else {
         Err(classify_problem(response).await)
@@ -375,7 +380,11 @@ mod tests {
                 .header(HEADER_SETUP_TOKEN, "token-1");
             then.status(200)
                 .header("content-type", "application/json")
-                .json_body(json!(snapshot));
+                .json_body(json!({
+                    "snapshot": snapshot,
+                    "api_key": "admin:secret",
+                    "api_key_expires_at": "2025-01-01T00:00:00Z"
+                }));
         });
 
         let ctx = context_with(&server, None);

@@ -10,9 +10,10 @@ use crate::features::torrents::actions::TorrentAction as UiTorrentAction;
 use crate::features::torrents::state::{TorrentsPaging, TorrentsQueryModel};
 use crate::models::{
     AddTorrentInput, DashboardResponse, DashboardSnapshot, HealthResponse, ProblemDetails,
-    QueueStatus, SetupStartResponse, TorrentAction as ApiTorrentAction, TorrentAuthorRequest,
-    TorrentAuthorResponse, TorrentCreateRequest, TorrentDetail, TorrentLabelEntry,
-    TorrentListResponse, TorrentOptionsRequest, TorrentSelectionRequest, TrackerHealth, VpnState,
+    QueueStatus, SetupCompleteResponse, SetupStartResponse, TorrentAction as ApiTorrentAction,
+    TorrentAuthorRequest, TorrentAuthorResponse, TorrentCreateRequest, TorrentDetail,
+    TorrentLabelEntry, TorrentListResponse, TorrentOptionsRequest, TorrentSelectionRequest,
+    TrackerHealth, VpnState,
 };
 use base64::{Engine as _, engine::general_purpose};
 use gloo::file::futures::read_as_bytes;
@@ -155,12 +156,24 @@ impl ApiClient {
         self.send_json(req).await
     }
 
-    pub(crate) async fn setup_complete(&self, token: &str) -> Result<(), ApiError> {
+    pub(crate) async fn setup_complete(
+        &self,
+        token: &str,
+    ) -> Result<SetupCompleteResponse, ApiError> {
         let mut req = Request::post(&format!("{}{}", self.base_url, "/admin/setup/complete"));
         req = req.header("x-revaer-setup-token", token);
         let req = req
             .json(&json!({}))
             .map_err(|err| ApiError::client(format!("setup payload failed: {err}")))?;
+        self.send_json::<SetupCompleteResponse>(req).await
+    }
+
+    pub(crate) async fn factory_reset(&self, confirm: &str) -> Result<(), ApiError> {
+        let mut req = Request::post(&format!("{}{}", self.base_url, "/admin/factory-reset"));
+        req = self.apply_auth(req)?;
+        let req = req
+            .json(&json!({ "confirm": confirm }))
+            .map_err(|err| ApiError::client(format!("factory reset payload failed: {err}")))?;
         self.send_empty(req).await
     }
 

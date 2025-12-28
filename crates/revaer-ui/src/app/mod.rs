@@ -2,6 +2,7 @@ use crate::app::api::ApiCtx;
 use crate::app::sse::{SseHandle, connect_sse};
 use crate::components::auth::AuthPrompt;
 use crate::components::detail::FileSelectionChange;
+use crate::components::factory_reset::FactoryResetModal;
 use crate::components::setup::SetupPrompt;
 use crate::components::shell::AppShell;
 use crate::components::toast::ToastHost;
@@ -41,9 +42,10 @@ use gloo_timers::callback::{Interval, Timeout};
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
 use preferences::{
-    DENSITY_KEY, LOCALE_KEY, MODE_KEY, THEME_KEY, allow_anonymous, api_base_url, load_auth_mode,
-    load_auth_state, load_bypass_local, load_density, load_locale, load_mode, load_theme,
-    persist_auth_state, persist_bypass_local,
+    DENSITY_KEY, LOCALE_KEY, MODE_KEY, THEME_KEY, allow_anonymous, api_base_url,
+    clear_auth_storage, load_auth_mode, load_auth_state, load_bypass_local, load_density,
+    load_locale, load_mode, load_theme, persist_api_key_with_expiry, persist_auth_state,
+    persist_bypass_local,
 };
 pub(crate) use routes::Route;
 use serde_json::Value;
@@ -73,6 +75,8 @@ pub fn revaer_app() -> Html {
     let config_error = use_state(|| None::<String>);
     let config_busy = use_state(|| false);
     let test_busy = use_state(|| false);
+    let factory_reset_open = use_state(|| false);
+    let factory_reset_busy = use_state(|| false);
     let toast_id = use_state(|| 0u64);
     let sse_handle = use_mut_ref(|| None as Option<SseHandle>);
     let sse_reset = use_state(|| 0u32);
@@ -318,10 +322,12 @@ pub fn revaer_app() -> Html {
     {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
+        let toast_id = toast_id.clone();
         use_effect_with_deps(
             move |_| {
                 let client = api_ctx.client.clone();
                 let dispatch = dispatch.clone();
+                let toast_id = toast_id.clone();
                 yew::platform::spawn_local(async move {
                     match client.fetch_health().await {
                         Ok(health) => {
@@ -341,11 +347,18 @@ pub fn revaer_app() -> Html {
                             });
                         }
                         Err(err) => {
+                            let message = err.detail.clone().unwrap_or_else(|| err.to_string());
                             dispatch.reduce_mut(|store| {
-                                store.auth.setup_error = Some(format!("{err}"));
+                                store.auth.setup_error = Some(message.clone());
                                 store.auth.app_mode = AppModeState::Active;
                                 store.health.basic = None;
                             });
+                            push_toast(
+                                &dispatch,
+                                &toast_id,
+                                ToastKind::Error,
+                                format!("Health check failed: {message}"),
+                            );
                         }
                     }
                 });
@@ -357,12 +370,14 @@ pub fn revaer_app() -> Html {
     let request_setup_token = {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
+        let toast_id = toast_id.clone();
         Callback::from(move |_| {
             dispatch.reduce_mut(|store| {
                 store.auth.setup_busy = true;
             });
             let dispatch = dispatch.clone();
             let client = api_ctx.client.clone();
+            let toast_id = toast_id.clone();
             yew::platform::spawn_local(async move {
                 match client.setup_start().await {
                     Ok(response) => {
@@ -379,9 +394,16 @@ pub fn revaer_app() -> Html {
                                 store.auth.setup_error = None;
                             });
                         } else {
+                            let message = err.detail.clone().unwrap_or_else(|| err.to_string());
                             dispatch.reduce_mut(|store| {
-                                store.auth.setup_error = Some(format!("{err}"));
+                                store.auth.setup_error = Some(message.clone());
                             });
+                            push_toast(
+                                &dispatch,
+                                &toast_id,
+                                ToastKind::Error,
+                                format!("Setup token request failed: {message}"),
+                            );
                         }
                     }
                 }
@@ -395,24 +417,35 @@ pub fn revaer_app() -> Html {
     let complete_setup = {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
+        let toast_id = toast_id.clone();
         Callback::from(move |token: String| {
             dispatch.reduce_mut(|store| {
                 store.auth.setup_busy = true;
             });
             let dispatch = dispatch.clone();
             let client = api_ctx.client.clone();
+            let toast_id = toast_id.clone();
             yew::platform::spawn_local(async move {
                 match client.setup_complete(&token).await {
-                    Ok(_) => {
+                    Ok(response) => {
+                        let api_key = response.api_key.clone();
+                        let expires_at = response.api_key_expires_at.clone();
+                        persist_api_key_with_expiry(&api_key, &expires_at);
                         dispatch.reduce_mut(|store| {
+                            store.auth.mode = AuthMode::ApiKey;
+                            store.auth.state = Some(AuthState::ApiKey(api_key));
                             store.auth.setup_error = None;
+                            store.auth.setup_token = None;
+                            store.auth.setup_expires_at = None;
                             store.auth.app_mode = AppModeState::Active;
                         });
                     }
                     Err(err) => {
+                        let message = err.detail.clone().unwrap_or_else(|| err.to_string());
                         dispatch.reduce_mut(|store| {
-                            store.auth.setup_error = Some(format!("{err}"));
+                            store.auth.setup_error = Some(message.clone());
                         });
+                        push_toast(&dispatch, &toast_id, ToastKind::Error, message);
                     }
                 }
                 dispatch.reduce_mut(|store| {
@@ -1149,6 +1182,73 @@ pub fn revaer_app() -> Html {
             );
         })
     };
+    let on_factory_reset = {
+        let factory_reset_open = factory_reset_open.clone();
+        Callback::from(move |_| factory_reset_open.set(true))
+    };
+    let on_factory_reset_close = {
+        let factory_reset_open = factory_reset_open.clone();
+        let factory_reset_busy = factory_reset_busy.clone();
+        Callback::from(move |_| {
+            if *factory_reset_busy {
+                return;
+            }
+            factory_reset_open.set(false);
+        })
+    };
+    let on_factory_reset_confirm = {
+        let api_ctx = (*api_ctx).clone();
+        let dispatch = dispatch.clone();
+        let toast_id = toast_id.clone();
+        let factory_reset_busy = factory_reset_busy.clone();
+        let factory_reset_open = factory_reset_open.clone();
+        Callback::from(move |confirm: String| {
+            if *factory_reset_busy {
+                return;
+            }
+            factory_reset_busy.set(true);
+            let client = api_ctx.client.clone();
+            let dispatch = dispatch.clone();
+            let toast_id = toast_id.clone();
+            let factory_reset_busy = factory_reset_busy.clone();
+            let factory_reset_open = factory_reset_open.clone();
+            yew::platform::spawn_local(async move {
+                match client.factory_reset(&confirm).await {
+                    Ok(()) => {
+                        clear_auth_storage();
+                        dispatch.reduce_mut(|store| {
+                            store.auth.state = None;
+                            store.auth.setup_token = None;
+                            store.auth.setup_expires_at = None;
+                        });
+                        let _ = window().location().reload();
+                    }
+                    Err(err) => {
+                        let detail = err.detail.clone().unwrap_or_else(|| err.to_string());
+                        push_toast(
+                            &dispatch,
+                            &toast_id,
+                            ToastKind::Error,
+                            format!("Factory reset failed: {detail}"),
+                        );
+                        factory_reset_busy.set(false);
+                        factory_reset_open.set(true);
+                    }
+                }
+            });
+        })
+    };
+    let on_logout = {
+        let dispatch = dispatch.clone();
+        let auth_prompt_dismissed = auth_prompt_dismissed.clone();
+        Callback::from(move |_| {
+            clear_auth_storage();
+            auth_prompt_dismissed.set(false);
+            dispatch.reduce_mut(|store| {
+                store.auth.state = None;
+            });
+        })
+    };
     {
         let on_refresh_config = on_refresh_config.clone();
         let auth_state_value = auth_state_value.clone();
@@ -1560,6 +1660,8 @@ pub fn revaer_app() -> Html {
                     on_sse_retry={trigger_sse_reconnect.clone()}
                     on_server_restart={on_server_restart.clone()}
                     on_server_logs={on_server_logs.clone()}
+                    on_factory_reset={on_factory_reset.clone()}
+                    on_logout={on_logout.clone()}
                 >
                     <Switch<Route> render={move |route| {
                         let bundle = (*bundle_routes).clone();
@@ -1676,6 +1778,12 @@ pub fn revaer_app() -> Html {
                     }} />
                 </AppShell>
                 <ToastHost toasts={toasts_value.clone()} on_dismiss={dismiss_toast.clone()} />
+                <FactoryResetModal
+                    open={*factory_reset_open}
+                    busy={*factory_reset_busy}
+                    on_close={on_factory_reset_close.clone()}
+                    on_confirm={on_factory_reset_confirm.clone()}
+                />
                 {if app_mode_value == AppModeState::Setup {
                     html! {
                         <SetupPrompt

@@ -87,6 +87,14 @@ mod tests {
         ) -> Result<Option<revaer_config::ApiKeyAuth>> {
             Ok(None)
         }
+
+        async fn has_api_keys(&self) -> Result<bool> {
+            Ok(false)
+        }
+
+        async fn factory_reset(&self) -> Result<()> {
+            Err(anyhow::anyhow!("not implemented"))
+        }
     }
 
     #[derive(Default)]

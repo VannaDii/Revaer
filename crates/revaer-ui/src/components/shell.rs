@@ -18,6 +18,8 @@ pub(crate) struct ShellProps {
     pub on_sse_retry: Callback<()>,
     pub on_server_restart: Callback<()>,
     pub on_server_logs: Callback<()>,
+    pub on_factory_reset: Callback<()>,
+    pub on_logout: Callback<()>,
     #[prop_or_default]
     pub class: Classes,
 }
@@ -117,11 +119,22 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                         <div
                             class="from-base-100/60 pointer-events-none absolute start-0 end-0 bottom-0 h-7 bg-linear-to-t to-transparent"></div>
                     </div>
-                    <div class="mb-2">
+                    <div class="mb-2 flex items-center gap-2 px-2">
                         <ConnectivityIndicator
                             summary={(*connectivity_summary).clone()}
                             on_open={open_connectivity.clone()}
+                            class="mx-0 grow"
                         />
+                        <button
+                            class="btn btn-ghost btn-sm gap-2"
+                            onclick={{
+                                let cb = props.on_logout.clone();
+                                Callback::from(move |_| cb.emit(()))
+                            }}
+                            aria-label="Logout">
+                            <span class="iconify lucide--log-out size-4"></span>
+                            <span class="sidebar-footer__label">{"Logout"}</span>
+                        </button>
                     </div>
                 </div>
 
@@ -197,6 +210,17 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                             }}>
                                             <span class="iconify lucide--file-text size-4"></span>
                                             <span>{"View logs"}</span>
+                                        </button>
+                                    </li>
+                                    <li>
+                                        <button
+                                            class="text-warning"
+                                            onclick={{
+                                                let cb = props.on_factory_reset.clone();
+                                                Callback::from(move |_| cb.emit(()))
+                                            }}>
+                                            <span class="iconify lucide--alert-triangle size-4"></span>
+                                            <span>{"Factory reset"}</span>
                                         </button>
                                     </li>
                                 </ul>
