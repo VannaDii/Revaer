@@ -4,11 +4,11 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "డాష్‌బోర్డ్",
-    "torrents": "టొరెంట్‌లు",
+    "dashboard": "Home",
+    "torrents": "Torrents",
     "search": "శోధన",
     "jobs": "ఉద్యోగాలు / పోస్ట్-ప్రాసెసింగ్",
-    "settings": "సెట్టింగులు",
+    "settings": "Settings",
     "logs": "లాగ్‌లు"
   },
   "mode": {

@@ -3,6 +3,8 @@
 #[cfg(target_arch = "wasm32")]
 mod disk_usage;
 #[cfg(target_arch = "wasm32")]
+mod global_summary;
+#[cfg(target_arch = "wasm32")]
 mod queue_summary;
 #[cfg(target_arch = "wasm32")]
 mod recent_events;

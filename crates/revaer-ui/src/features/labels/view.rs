@@ -26,7 +26,7 @@ pub(crate) struct LabelsPageProps {
 pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let t = |key: &str, fallback: &str| bundle.text(key, fallback);
+    let t = |key: &str| bundle.text(key);
     let api_ctx = use_context::<ApiCtx>();
 
     let kind = props.kind;
@@ -129,18 +129,18 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
     };
 
     let title = match kind {
-        LabelKind::Category => t("labels.categories_title", kind.plural()),
-        LabelKind::Tag => t("labels.tags_title", kind.plural()),
+        LabelKind::Category => t("labels.categories_title"),
+        LabelKind::Tag => t("labels.tags_title"),
     };
     let subtitle = match kind {
-        LabelKind::Category => t("labels.categories_body", "Manage category policies."),
-        LabelKind::Tag => t("labels.tags_body", "Manage tag policies."),
+        LabelKind::Category => t("labels.categories_body"),
+        LabelKind::Tag => t("labels.tags_body"),
     };
 
     let selected_label = selected
         .as_ref()
         .map(|name| format!("Editing: {name}"))
-        .unwrap_or_else(|| t("labels.new_label", "New label"));
+        .unwrap_or_else(|| t("labels.new_label"));
 
     let entries_empty = entries.is_empty();
 
@@ -156,18 +156,18 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                     <button class="btn btn-ghost btn-sm" onclick={{
                         let on_action = on_action.clone();
                         Callback::from(move |_| on_action.emit(LabelAction::New))
-                    }}>{t("labels.new", "New")}</button>
+                    }}>{t("labels.new")}</button>
                 </div>
                 <div class="labels-grid">
                     <div class="label-list">
                         <div class="panel-subhead">
-                            <strong>{t("labels.list_title", "Existing labels")}</strong>
+                            <strong>{t("labels.list_title")}</strong>
                             <span class="pill subtle">{entries.len()}</span>
                         </div>
                         {if entries_empty {
                             html! {
                                 <EmptyState
-                                    title={AttrValue::from(t("labels.empty", "No labels configured yet."))}
+                                    title={AttrValue::from(t("labels.empty"))}
                                 />
                             }
                         } else {
@@ -205,10 +205,10 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                         </div>
                         <div class="stacked">
                             <label class="stack">
-                                <span>{t("labels.name", "Name")}</span>
+                                <span>{t("labels.name")}</span>
                                 <input
                                     type="text"
-                                    placeholder={t("labels.name_placeholder", "Label name")}
+                                    placeholder={t("labels.name_placeholder")}
                                     value={form.name.clone()}
                                     oninput={{
                                         let form = form.clone();
@@ -221,10 +221,10 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                 />
                             </label>
                             <label class="stack">
-                                <span>{t("labels.download_dir", "Download directory")}</span>
+                                <span>{t("labels.download_dir")}</span>
                                 <input
                                     type="text"
-                                    placeholder={t("labels.download_dir_placeholder", "Optional download path")}
+                                    placeholder={t("labels.download_dir_placeholder")}
                                     value={form.download_dir.clone()}
                                     oninput={{
                                         let form = form.clone();
@@ -237,14 +237,14 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                 />
                             </label>
                             <details class="advanced" open={false}>
-                                <summary>{t("labels.advanced", "Advanced policy")}</summary>
+                                <summary>{t("labels.advanced")}</summary>
                                 <div class="stacked">
                                     <label class="stack">
-                                        <span>{t("labels.rate_limit_down", "Download cap (B/s)")}</span>
+                                        <span>{t("labels.rate_limit_down")}</span>
                                         <input
                                             type="number"
                                             min="0"
-                                            placeholder={t("labels.rate_limit_down_placeholder", "Optional")}
+                                            placeholder={t("labels.rate_limit_down_placeholder")}
                                             value={form.rate_limit_download.clone()}
                                             oninput={{
                                                 let form = form.clone();
@@ -257,11 +257,11 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                         />
                                     </label>
                                     <label class="stack">
-                                        <span>{t("labels.rate_limit_up", "Upload cap (B/s)")}</span>
+                                        <span>{t("labels.rate_limit_up")}</span>
                                         <input
                                             type="number"
                                             min="0"
-                                            placeholder={t("labels.rate_limit_up_placeholder", "Optional")}
+                                            placeholder={t("labels.rate_limit_up_placeholder")}
                                             value={form.rate_limit_upload.clone()}
                                             oninput={{
                                                 let form = form.clone();
@@ -274,11 +274,11 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                         />
                                     </label>
                                     <label class="stack">
-                                        <span>{t("labels.queue_position", "Queue position")}</span>
+                                        <span>{t("labels.queue_position")}</span>
                                         <input
                                             type="number"
                                             min="0"
-                                            placeholder={t("labels.queue_position_placeholder", "Optional")}
+                                            placeholder={t("labels.queue_position_placeholder")}
                                             value={form.queue_position.clone()}
                                             oninput={{
                                                 let form = form.clone();
@@ -291,7 +291,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                         />
                                     </label>
                                     <label class="stack">
-                                        <span>{t("labels.auto_managed", "Auto-managed")}</span>
+                                        <span>{t("labels.auto_managed")}</span>
                                         <select
                                             value={form.auto_managed.as_value()}
                                             onchange={{
@@ -305,18 +305,18 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                                 })
                                             }}
                                         >
-                                            <option value="default">{t("labels.auto_default", "Default")}</option>
-                                            <option value="enabled">{t("labels.auto_enabled", "Enabled")}</option>
-                                            <option value="disabled">{t("labels.auto_disabled", "Disabled")}</option>
+                                            <option value="default">{t("labels.auto_default")}</option>
+                                            <option value="enabled">{t("labels.auto_enabled")}</option>
+                                            <option value="disabled">{t("labels.auto_disabled")}</option>
                                         </select>
                                     </label>
                                     <label class="stack">
-                                        <span>{t("labels.seed_ratio", "Seed ratio limit")}</span>
+                                        <span>{t("labels.seed_ratio")}</span>
                                         <input
                                             type="number"
                                             min="0"
                                             step="0.01"
-                                            placeholder={t("labels.seed_ratio_placeholder", "Optional")}
+                                            placeholder={t("labels.seed_ratio_placeholder")}
                                             value={form.seed_ratio_limit.clone()}
                                             oninput={{
                                                 let form = form.clone();
@@ -329,11 +329,11 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                         />
                                     </label>
                                     <label class="stack">
-                                        <span>{t("labels.seed_time", "Seed time limit (s)")}</span>
+                                        <span>{t("labels.seed_time")}</span>
                                         <input
                                             type="number"
                                             min="0"
-                                            placeholder={t("labels.seed_time_placeholder", "Optional")}
+                                            placeholder={t("labels.seed_time_placeholder")}
                                             value={form.seed_time_limit.clone()}
                                             oninput={{
                                                 let form = form.clone();
@@ -346,16 +346,16 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                         />
                                     </label>
                                     <div class="panel-subhead">
-                                        <strong>{t("labels.cleanup_title", "Cleanup policy")}</strong>
-                                        <span class="muted">{t("labels.cleanup_hint", "Apply after seeding goals")}</span>
+                                        <strong>{t("labels.cleanup_title")}</strong>
+                                        <span class="muted">{t("labels.cleanup_hint")}</span>
                                     </div>
                                     <label class="stack">
-                                        <span>{t("labels.cleanup_seed_ratio", "Cleanup seed ratio")}</span>
+                                        <span>{t("labels.cleanup_seed_ratio")}</span>
                                         <input
                                             type="number"
                                             min="0"
                                             step="0.01"
-                                            placeholder={t("labels.cleanup_seed_ratio_placeholder", "Optional")}
+                                            placeholder={t("labels.cleanup_seed_ratio_placeholder")}
                                             value={form.cleanup_seed_ratio_limit.clone()}
                                             oninput={{
                                                 let form = form.clone();
@@ -368,11 +368,11 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                         />
                                     </label>
                                     <label class="stack">
-                                        <span>{t("labels.cleanup_seed_time", "Cleanup seed time (s)")}</span>
+                                        <span>{t("labels.cleanup_seed_time")}</span>
                                         <input
                                             type="number"
                                             min="0"
-                                            placeholder={t("labels.cleanup_seed_time_placeholder", "Optional")}
+                                            placeholder={t("labels.cleanup_seed_time_placeholder")}
                                             value={form.cleanup_seed_time_limit.clone()}
                                             oninput={{
                                                 let form = form.clone();
@@ -385,7 +385,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                         />
                                     </label>
                                     <label class="stack toggle-row">
-                                        <span>{t("labels.cleanup_remove_data", "Remove data after cleanup")}</span>
+                                        <span>{t("labels.cleanup_remove_data")}</span>
                                         <input
                                             type="checkbox"
                                             checked={form.cleanup_remove_data}
@@ -408,7 +408,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                         } else { html! {} }}
                         <div class="actions">
                             <button class="btn btn-primary btn-sm" onclick={on_save} disabled={*saving}>
-                                {if *saving { t("labels.saving", "Saving...") } else { t("labels.save", "Save") }}
+                                {if *saving { t("labels.saving") } else { t("labels.save") }}
                             </button>
                         </div>
                     </div>

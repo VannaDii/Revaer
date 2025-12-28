@@ -2,7 +2,6 @@
 
 use serde::Deserialize;
 use serde_json::Value;
-use std::sync::LazyLock;
 
 /// Supported locale codes for Phase 1.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Deserialize)]
@@ -163,9 +162,7 @@ impl PartialEq for TranslationBundle {
 }
 
 impl TranslationBundle {
-    /// Build a translation bundle for the given locale, falling back to English.
-    ///
-    /// The bundle will gracefully degrade to English strings when a key is missing.
+    /// Build a translation bundle for the given locale.
     #[must_use]
     pub fn new(locale: LocaleCode) -> Self {
         let raw = raw_locale(locale);
@@ -178,12 +175,10 @@ impl TranslationBundle {
         Self { locale, tree, rtl }
     }
 
-    /// Resolve a dotted path (`section.key`) with English fallback and caller default.
+    /// Resolve a dotted path (`section.key`) with key fallback.
     #[must_use]
-    pub fn text(&self, path: &str, default: &str) -> String {
-        resolve(&self.tree, path)
-            .or_else(|| resolve(&EN_FALLBACK.tree, path))
-            .unwrap_or_else(|| default.to_string())
+    pub fn text(&self, path: &str) -> String {
+        resolve(&self.tree, path).unwrap_or_else(|| path.to_string())
     }
 
     /// Whether the locale prefers RTL layout (bidi).
@@ -199,9 +194,6 @@ impl TranslationBundle {
         self.locale
     }
 }
-
-static EN_FALLBACK: LazyLock<TranslationBundle> =
-    LazyLock::new(|| TranslationBundle::new(LocaleCode::En));
 
 fn resolve(tree: &Value, path: &str) -> Option<String> {
     let mut node = tree;
@@ -243,7 +235,7 @@ mod tests {
     #[test]
     fn missing_key_falls_back_to_default() {
         let bundle = TranslationBundle::new(LocaleCode::Fr);
-        assert_eq!(bundle.text("nonexistent.key", "fallback"), "fallback");
+        assert_eq!(bundle.text("nonexistent.key"), "nonexistent.key");
     }
 
     #[test]
@@ -257,7 +249,7 @@ mod tests {
         for locale in LocaleCode::all() {
             let bundle = TranslationBundle::new(locale);
             assert_eq!(bundle.locale(), locale);
-            assert!(!bundle.text("nav.dashboard", "Dash").is_empty());
+            assert!(!bundle.text("nav.dashboard").is_empty());
         }
     }
 

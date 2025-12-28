@@ -16,8 +16,8 @@ pub(crate) struct AuthPromptProps {
 pub(crate) fn auth_prompt(props: &AuthPromptProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let dismiss_label = bundle.text("auth.dismiss", "Dismiss");
-    let t = move |key: &str| bundle.text(key, "");
+    let dismiss_label = bundle.text("auth.dismiss");
+    let t = move |key: &str| bundle.text(key);
     let api_key = use_state(String::new);
     let local_user = use_state(String::new);
     let local_pass = use_state(String::new);
@@ -90,7 +90,7 @@ pub(crate) fn auth_prompt(props: &AuthPromptProps) -> Html {
     };
 
     html! {
-        <div class={classes!("auth-overlay", props.class.clone())} role="dialog" aria-modal="true">
+        <div class={classes!("auth-overlay", props.class.clone())} role="dialog" aria-modal="false">
             <div class="card bg-base-100 shadow border border-base-200">
                 <div class="card-body gap-4">
                     <div class="flex items-start justify-between gap-3">
@@ -101,6 +101,7 @@ pub(crate) fn auth_prompt(props: &AuthPromptProps) -> Html {
                         <button
                             class="btn btn-ghost btn-xs btn-circle"
                             aria-label={dismiss_label.clone()}
+                            type="button"
                             onclick={on_dismiss.clone()}>
                             <span class="iconify lucide--x size-4"></span>
                         </button>
@@ -166,13 +167,14 @@ pub(crate) fn auth_prompt(props: &AuthPromptProps) -> Html {
                         html! { <p class="text-sm text-error">{err}</p> }
                     } else { html! {} }}
                     <div class="flex justify-end gap-2">
-                        <button class="btn btn-ghost btn-sm" onclick={on_dismiss}>
+                        <button class="btn btn-ghost btn-sm" type="button" onclick={on_dismiss}>
                             {dismiss_label}
                         </button>
                         {if props.allow_anonymous {
                             html! {
                                 <button
                                     class="btn btn-ghost btn-sm"
+                                    type="button"
                                     onclick={{
                                         let on_submit = props.on_submit.clone();
                                         Callback::from(move |_| on_submit.emit(AuthState::Anonymous))
@@ -181,7 +183,9 @@ pub(crate) fn auth_prompt(props: &AuthPromptProps) -> Html {
                                 </button>
                             }
                         } else { html!{} }}
-                        <button class="btn btn-primary btn-sm" onclick={submit}>{t("auth.submit")}</button>
+                        <button class="btn btn-primary btn-sm" type="button" onclick={submit}>
+                            {t("auth.submit")}
+                        </button>
                     </div>
                 </div>
             </div>

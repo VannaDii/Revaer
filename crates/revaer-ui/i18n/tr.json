@@ -4,11 +4,11 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "Panel",
-    "torrents": "Torrentler",
+    "dashboard": "Home",
+    "torrents": "Torrents",
     "search": "Ara",
     "jobs": "İşler / Sonrası İşlemler",
-    "settings": "Ayarlar",
+    "settings": "Settings",
     "logs": "Günlükler"
   },
   "mode": {

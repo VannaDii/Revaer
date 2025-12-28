@@ -3,6 +3,7 @@ use crate::models::DashboardSnapshot;
 use yew::prelude::*;
 
 use super::disk_usage::DashboardDiskUsage;
+use super::global_summary::DashboardGlobalSummary;
 use super::queue_summary::DashboardQueueSummary;
 use super::recent_events::DashboardRecentEvents;
 use super::shell::DashboardShell;
@@ -30,6 +31,7 @@ pub(crate) fn dashboard_page(props: &DashboardPageProps) -> Html {
             <div class="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-5 2xl:grid-cols-12">
                 <DashboardRecentEvents snapshot={props.snapshot.clone()} />
                 <DashboardQueueSummary snapshot={props.snapshot.clone()} />
+                <DashboardGlobalSummary snapshot={props.snapshot.clone()} />
             </div>
         </DashboardShell>
     }

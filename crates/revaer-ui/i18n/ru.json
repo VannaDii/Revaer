@@ -4,11 +4,11 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "Панель",
-    "torrents": "Торренты",
+    "dashboard": "Home",
+    "torrents": "Torrents",
     "search": "Поиск",
     "jobs": "Задачи / Постобработка",
-    "settings": "Настройки",
+    "settings": "Settings",
     "logs": "Логи"
   },
   "mode": {

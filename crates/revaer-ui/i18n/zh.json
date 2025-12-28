@@ -4,11 +4,11 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "仪表板",
-    "torrents": "种子",
+    "dashboard": "Home",
+    "torrents": "Torrents",
     "search": "搜索",
     "jobs": "任务 / 后处理",
-    "settings": "设置",
+    "settings": "Settings",
     "logs": "日志"
   },
   "mode": {

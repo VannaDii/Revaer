@@ -15,7 +15,7 @@ pub(crate) struct ToastHostProps {
 pub(crate) fn toast_host(props: &ToastHostProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let t = |key: &str| bundle.text(key, "");
+    let t = |key: &str| bundle.text(key);
     {
         let toasts = props.toasts.clone();
         let on_dismiss = props.on_dismiss.clone();

@@ -90,12 +90,12 @@ pub fn revaer_app() -> Html {
     let nav_labels = {
         let bundle = (*bundle).clone();
         NavLabels {
-            dashboard: bundle.text("nav.dashboard", "Home"),
-            torrents: bundle.text("nav.torrents", "Torrents"),
-            categories: bundle.text("nav.categories", "Categories"),
-            tags: bundle.text("nav.tags", "Tags"),
-            settings: bundle.text("nav.settings", "Settings"),
-            health: bundle.text("nav.health", "Health"),
+            dashboard: bundle.text("nav.dashboard"),
+            torrents: bundle.text("nav.torrents"),
+            categories: bundle.text("nav.categories"),
+            tags: bundle.text("nav.tags"),
+            settings: bundle.text("nav.settings"),
+            health: bundle.text("nav.health"),
         }
     };
 
@@ -1066,7 +1066,7 @@ pub fn revaer_app() -> Html {
                             &dispatch,
                             &toast_id,
                             ToastKind::Success,
-                            bundle.text("settings.test_success", "Connection successful."),
+                            bundle.text("settings.test_success"),
                         );
                     }
                     Err(err) => {
@@ -1074,10 +1074,7 @@ pub fn revaer_app() -> Html {
                             &dispatch,
                             &toast_id,
                             ToastKind::Error,
-                            format!(
-                                "{} {err}",
-                                bundle.text("settings.test_failed", "Connection failed:")
-                            ),
+                            format!("{} {err}", bundle.text("settings.test_failed")),
                         );
                     }
                 }
@@ -1094,10 +1091,7 @@ pub fn revaer_app() -> Html {
                 &dispatch,
                 &toast_id,
                 ToastKind::Info,
-                bundle.text(
-                    "toast.server_restart_unavailable",
-                    "Server restart is not available yet.",
-                ),
+                bundle.text("toast.server_restart_unavailable"),
             );
         })
     };
@@ -1134,10 +1128,7 @@ pub fn revaer_app() -> Html {
                             &dispatch,
                             &toast_id,
                             ToastKind::Error,
-                            format!(
-                                "{} {err}",
-                                bundle.text("settings.config_failed", "Failed to load config:")
-                            ),
+                            format!("{} {err}", bundle.text("settings.config_failed")),
                         );
                     }
                 }
@@ -1154,10 +1145,7 @@ pub fn revaer_app() -> Html {
                 &dispatch,
                 &toast_id,
                 ToastKind::Info,
-                bundle.text(
-                    "toast.server_logs_unavailable",
-                    "Log viewer is not available yet.",
-                ),
+                bundle.text("toast.server_logs_unavailable"),
             );
         })
     };
@@ -1187,10 +1175,8 @@ pub fn revaer_app() -> Html {
                 match copy_text_to_clipboard(value).await {
                     Ok(()) => {
                         let message = match kind {
-                            CopyKind::Magnet => bundle.text("toast.magnet_copied", "Magnet copied"),
-                            CopyKind::Metainfo => {
-                                bundle.text("toast.metainfo_copied", "Metainfo copied")
-                            }
+                            CopyKind::Magnet => bundle.text("toast.magnet_copied"),
+                            CopyKind::Metainfo => bundle.text("toast.metainfo_copied"),
                         };
                         push_toast(&dispatch, &toast_id, ToastKind::Success, message);
                     }
@@ -1198,7 +1184,7 @@ pub fn revaer_app() -> Html {
                         &dispatch,
                         &toast_id,
                         ToastKind::Error,
-                        format!("{} {err}", bundle.text("toast.copy_failed", "Copy failed:")),
+                        format!("{} {err}", bundle.text("toast.copy_failed")),
                     ),
                 }
             });
@@ -1224,7 +1210,7 @@ pub fn revaer_app() -> Html {
                             &dispatch,
                             &toast_id,
                             ToastKind::Success,
-                            bundle.text("toast.add_success", "Torrent added"),
+                            bundle.text("toast.add_success"),
                         );
                         let (filters, paging) = {
                             let state = dispatch.get();
@@ -1247,7 +1233,7 @@ pub fn revaer_app() -> Html {
                         &dispatch,
                         &toast_id,
                         ToastKind::Error,
-                        format!("{} {err}", bundle.text("toast.add_failed", "")),
+                        format!("{} {err}", bundle.text("toast.add_failed")),
                     ),
                 }
                 dispatch.reduce_mut(|store| {
@@ -1290,7 +1276,7 @@ pub fn revaer_app() -> Html {
                             &dispatch,
                             &toast_id,
                             ToastKind::Success,
-                            bundle.text("toast.create_success", "Torrent created"),
+                            bundle.text("toast.create_success"),
                         );
                     }
                     Err(err) => {
@@ -1301,7 +1287,7 @@ pub fn revaer_app() -> Html {
                             &dispatch,
                             &toast_id,
                             ToastKind::Error,
-                            format!("{} {err}", bundle.text("toast.create_failed", "")),
+                            format!("{} {err}", bundle.text("toast.create_failed")),
                         );
                     }
                 }
@@ -1330,7 +1316,7 @@ pub fn revaer_app() -> Html {
                     .get(&id)
                     .map(|row| row.name.clone())
                     .unwrap_or_else(|| {
-                        format!("{} {id}", bundle.text("toast.torrent_placeholder", ""))
+                        format!("{} {id}", bundle.text("toast.torrent_placeholder"))
                     });
                 match client.perform_action(&id_str, action.clone()).await {
                     Ok(_) => {
@@ -1352,7 +1338,7 @@ pub fn revaer_app() -> Html {
                         ToastKind::Error,
                         format!(
                             "{} {display_name}: {err}",
-                            bundle.text("toast.action_failed", "")
+                            bundle.text("toast.action_failed")
                         ),
                     ),
                 }
@@ -1450,13 +1436,7 @@ pub fn revaer_app() -> Html {
                         &dispatch,
                         &toast_id,
                         ToastKind::Error,
-                        format!(
-                            "{} {err}",
-                            bundle.text(
-                                "toast.file_selection_failed",
-                                "Failed to update file selection."
-                            )
-                        ),
+                        format!("{} {err}", bundle.text("toast.file_selection_failed")),
                     );
                     if let Some(detail) = fetch_torrent_detail_with_retry(
                         client,
@@ -1497,10 +1477,7 @@ pub fn revaer_app() -> Html {
                         &dispatch,
                         &toast_id,
                         ToastKind::Error,
-                        format!(
-                            "{} {err}",
-                            bundle.text("toast.options_failed", "Failed to update options.")
-                        ),
+                        format!("{} {err}", bundle.text("toast.options_failed")),
                     );
                     if let Some(detail) = fetch_torrent_detail_with_retry(
                         client,
@@ -1694,7 +1671,7 @@ pub fn revaer_app() -> Html {
                                     on_refresh_config={on_refresh_config.clone()}
                                 />
                             },
-                            Route::NotFound => html! { <Placeholder title={bundle.text("placeholder.not_found_title", "Not found")} body={bundle.text("placeholder.not_found_body", "Use navigation to return to a supported view.")} /> },
+                            Route::NotFound => html! { <Placeholder title={bundle.text("placeholder.not_found_title")} body={bundle.text("placeholder.not_found_body")} /> },
                         }
                     }} />
                 </AppShell>
@@ -1746,10 +1723,12 @@ fn placeholder(props: &PlaceholderProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
     html! {
-        <div class="placeholder">
-            <h2>{&props.title}</h2>
-            <p class="muted">{&props.body}</p>
-            <div class="pill subtle">{bundle.text("placeholder.badge", "")}</div>
+        <div class="card bg-base-100 border border-base-200 shadow">
+            <div class="card-body gap-2">
+                <h2 class="text-lg font-semibold">{&props.title}</h2>
+                <p class="text-sm text-base-content/60">{&props.body}</p>
+                <span class="badge badge-ghost badge-sm">{bundle.text("placeholder.badge")}</span>
+            </div>
         </div>
     }
 }
@@ -1777,11 +1756,7 @@ async fn fetch_torrent_list_with_retry(
                     &dispatch,
                     &toast_id,
                     ToastKind::Info,
-                    format!(
-                        "{} {}s",
-                        bundle.text("toast.rate_limited", "Rate limited, retrying in"),
-                        delay
-                    ),
+                    format!("{} {}s", bundle.text("toast.rate_limited"), delay),
                 );
                 TimeoutFuture::new(retry_delay_ms(delay)).await;
                 match client.fetch_torrents(&filters, &paging).await {
@@ -1790,10 +1765,7 @@ async fn fetch_torrent_list_with_retry(
                         &dispatch,
                         &toast_id,
                         ToastKind::Error,
-                        format!(
-                            "{} {err}",
-                            bundle.text("toast.list_failed", "Failed to load torrents.")
-                        ),
+                        format!("{} {err}", bundle.text("toast.list_failed")),
                     ),
                 }
             } else {
@@ -1801,10 +1773,7 @@ async fn fetch_torrent_list_with_retry(
                     &dispatch,
                     &toast_id,
                     ToastKind::Error,
-                    format!(
-                        "{} {err}",
-                        bundle.text("toast.list_failed", "Failed to load torrents.")
-                    ),
+                    format!("{} {err}", bundle.text("toast.list_failed")),
                 );
             }
         }
@@ -1812,10 +1781,7 @@ async fn fetch_torrent_list_with_retry(
             &dispatch,
             &toast_id,
             ToastKind::Error,
-            format!(
-                "{} {err}",
-                bundle.text("toast.list_failed", "Failed to load torrents.")
-            ),
+            format!("{} {err}", bundle.text("toast.list_failed")),
         ),
     }
 }
@@ -1836,11 +1802,7 @@ async fn fetch_torrent_detail_with_retry(
                     &dispatch,
                     &toast_id,
                     ToastKind::Info,
-                    format!(
-                        "{} {}s",
-                        bundle.text("toast.rate_limited", "Rate limited, retrying in"),
-                        delay
-                    ),
+                    format!("{} {}s", bundle.text("toast.rate_limited"), delay),
                 );
                 TimeoutFuture::new(retry_delay_ms(delay)).await;
                 match client.fetch_torrent_detail(&id_str).await {
@@ -1850,11 +1812,7 @@ async fn fetch_torrent_detail_with_retry(
                             &dispatch,
                             &toast_id,
                             ToastKind::Error,
-                            format!(
-                                "{} {err}",
-                                bundle
-                                    .text("toast.detail_failed", "Failed to load torrent details.")
-                            ),
+                            format!("{} {err}", bundle.text("toast.detail_failed")),
                         );
                         None
                     }
@@ -1864,10 +1822,7 @@ async fn fetch_torrent_detail_with_retry(
                     &dispatch,
                     &toast_id,
                     ToastKind::Error,
-                    format!(
-                        "{} {err}",
-                        bundle.text("toast.detail_failed", "Failed to load torrent details.")
-                    ),
+                    format!("{} {err}", bundle.text("toast.detail_failed")),
                 );
                 None
             }
@@ -1877,10 +1832,7 @@ async fn fetch_torrent_detail_with_retry(
                 &dispatch,
                 &toast_id,
                 ToastKind::Error,
-                format!(
-                    "{} {err}",
-                    bundle.text("toast.detail_failed", "Failed to load torrent details.")
-                ),
+                format!("{} {err}", bundle.text("toast.detail_failed")),
             );
             None
         }
@@ -1967,7 +1919,7 @@ fn spawn_bulk_actions(
                     .get(&id)
                     .map(|row| row.name.clone())
                     .unwrap_or_else(|| {
-                        format!("{} {id}", bundle.text("toast.torrent_placeholder", ""))
+                        format!("{} {id}", bundle.text("toast.torrent_placeholder"))
                     });
                 let result = client.perform_action(&id_str, action.clone()).await;
                 let finished = {
@@ -2030,16 +1982,12 @@ fn finalize_bulk_action(
     let failure_count = failures.len();
     let success_count = total.saturating_sub(failure_count);
     let message = if failure_count == 0 {
-        format!(
-            "{} {}",
-            bundle.text("toast.bulk_done", "Bulk actions completed for"),
-            total
-        )
+        format!("{} {}", bundle.text("toast.bulk_done"), total)
     } else {
         let first_error = failures.first().cloned().unwrap_or_default();
         format!(
             "{} {success_count}/{total} ({} failed). {first_error}",
-            bundle.text("toast.bulk_done", "Bulk actions completed for"),
+            bundle.text("toast.bulk_done"),
             failure_count
         )
     };

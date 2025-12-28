@@ -24,7 +24,7 @@ pub(crate) struct SetupPromptProps {
 pub(crate) fn setup_prompt(props: &SetupPromptProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let t = |key: &str| bundle.text(key, "");
+    let t = |key: &str| bundle.text(key);
     let token_input = use_state(String::new);
 
     {
@@ -62,7 +62,7 @@ pub(crate) fn setup_prompt(props: &SetupPromptProps) -> Html {
     };
 
     html! {
-        <div class={classes!("setup-overlay", props.class.clone())} role="dialog" aria-modal="true">
+        <div class={classes!("setup-overlay", props.class.clone())} role="dialog" aria-modal="false">
             <div class="card bg-base-100 shadow border border-base-200">
                 <div class="card-body gap-4">
                     <div>

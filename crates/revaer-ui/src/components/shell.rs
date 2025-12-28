@@ -34,8 +34,6 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
         Route::Settings => props.nav.settings.clone(),
         Route::NotFound => "Not Found".to_string(),
     };
-    let show_second_crumb = !home_active;
-
     let connectivity_summary = use_selector(select_sse_status_summary);
     let connectivity_status = use_selector(select_sse_status);
     let show_connectivity = use_state(|| false);
@@ -119,16 +117,10 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                         <div
                             class="from-base-100/60 pointer-events-none absolute start-0 end-0 bottom-0 h-7 bg-linear-to-t to-transparent"></div>
                     </div>
-                    <div class="border-base-200 sidebar-menu mt-3 space-y-0.5 border-t px-2.5 pt-2">
+                    <div class="mb-2">
                         <ConnectivityIndicator
                             summary={(*connectivity_summary).clone()}
                             on_open={open_connectivity.clone()}
-                            label_class={classes!(
-                                "sse-indicator__label",
-                                "text-xs",
-                                "font-medium",
-                                "text-base-content/70"
-                            )}
                         />
                     </div>
                 </div>
@@ -156,19 +148,11 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                             </label>
                             <div class="breadcrumbs p-0 text-sm">
                                 <ul>
-                                    <li>
-                                        <Link<Route> to={Route::Dashboard}>{props.nav.dashboard.clone()}</Link<Route>>
-                                    </li>
-                                    {if show_second_crumb {
-                                        html! { <li class="opacity-80">{page_label.clone()}</li> }
-                                    } else {
-                                        html! {}
-                                    }}
+                                    <li class="opacity-80">{page_label.clone()}</li>
                                 </ul>
                             </div>
                         </div>
                         <div class="inline-flex items-center gap-1.5">
-                            {props.locale_selector.clone()}
                             <button
                                 aria-label="Toggle Theme"
                                 class="btn btn-sm btn-circle btn-ghost"
@@ -182,6 +166,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                     html! { <span class="iconify lucide--moon size-4.5"></span> }
                                 }}
                             </button>
+                            {props.locale_selector.clone()}
                             <div class="dropdown dropdown-bottom dropdown-end">
                                 <div
                                     tabindex="0"

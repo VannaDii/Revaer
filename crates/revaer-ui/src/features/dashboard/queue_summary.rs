@@ -13,28 +13,28 @@ pub(crate) struct DashboardQueueSummaryProps {
 pub(crate) fn dashboard_queue_summary(props: &DashboardQueueSummaryProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let t = |key: &str, fallback: &str| bundle.text(key, fallback);
+    let t = |key: &str| bundle.text(key);
 
     let entries = [
         (
-            t("dashboard.active", "Active"),
+            t("dashboard.active"),
             props.snapshot.queue.active,
-            t("dashboard.queue_active", "Currently active"),
+            t("dashboard.torrents_sub"),
         ),
         (
-            t("dashboard.paused", "Paused"),
+            t("dashboard.paused"),
             props.snapshot.queue.paused,
-            t("dashboard.queue_paused", "Paused by policy"),
+            t("dashboard.torrents_sub"),
         ),
         (
-            t("dashboard.queued", "Queued"),
+            t("dashboard.queued"),
             props.snapshot.queue.queued,
-            t("dashboard.queue_waiting", "Waiting in queue"),
+            t("dashboard.queue_sub"),
         ),
         (
-            t("dashboard.depth", "Depth"),
+            t("dashboard.depth"),
             props.snapshot.queue.depth,
-            t("dashboard.queue_depth", "Depth remaining"),
+            t("dashboard.queue_sub"),
         ),
     ];
 
@@ -43,12 +43,12 @@ pub(crate) fn dashboard_queue_summary(props: &DashboardQueueSummaryProps) -> Htm
             <div class="card bg-base-100 shadow">
                 <div class="card-body pb-3">
                     <div class="flex items-center gap-3">
-                        <span class="iconify lucide--list-checks size-4.5"></span>
-                        <span class="font-medium">{t("dashboard.queue_summary", "Queue Summary")}</span>
+                        <span class="iconify lucide--messages-square size-4.5"></span>
+                        <span class="font-medium">{t("dashboard.queue")}</span>
                         <Link<Route>
                             to={Route::Torrents}
                             classes="btn btn-outline btn-sm border-base-300 ms-auto">
-                            {t("dashboard.queue_view", "View queue")}
+                            {t("nav.torrents")}
                         </Link<Route>>
                     </div>
                     <div class="-mx-2 mt-2 space-y-0.5">
@@ -84,5 +84,5 @@ pub(crate) fn dashboard_queue_summary(props: &DashboardQueueSummaryProps) -> Htm
 
 fn queue_icon_src(index: usize) -> String {
     let avatar = (index % 5) + 1;
-    format!("static/nexus/images/avatars/{avatar}.png")
+    format!("/static/nexus/images/avatars/{avatar}.png")
 }

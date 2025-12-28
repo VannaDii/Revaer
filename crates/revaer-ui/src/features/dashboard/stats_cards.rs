@@ -14,7 +14,7 @@ pub(crate) struct DashboardStatsCardsProps {
 pub(crate) fn dashboard_stats_cards(props: &DashboardStatsCardsProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let t = |key: &str, fallback: &str| bundle.text(key, fallback);
+    let t = |key: &str| bundle.text(key);
 
     let download_rate = format_rate(props.system_rates.download_bps);
     let upload_rate = format_rate(props.system_rates.upload_bps);
@@ -28,7 +28,7 @@ pub(crate) fn dashboard_stats_cards(props: &DashboardStatsCardsProps) -> Html {
                     <div class="flex items-start justify-between gap-2 text-sm">
                         <div>
                             <p class="text-base-content/80 font-medium">
-                                {t("dashboard.down", "Down")}
+                                {t("dashboard.down")}
                             </p>
                             <div class="mt-3 flex items-center gap-2">
                                 <p class="inline text-2xl font-semibold">
@@ -59,7 +59,7 @@ pub(crate) fn dashboard_stats_cards(props: &DashboardStatsCardsProps) -> Html {
                     <div class="flex items-start justify-between gap-2 text-sm">
                         <div>
                             <p class="text-base-content/80 font-medium">
-                                {t("dashboard.up", "Up")}
+                                {t("dashboard.up")}
                             </p>
                             <div class="mt-3 flex items-center gap-2">
                                 <p class="inline text-2xl font-semibold">
@@ -89,7 +89,7 @@ pub(crate) fn dashboard_stats_cards(props: &DashboardStatsCardsProps) -> Html {
                     <div class="flex items-start justify-between gap-2 text-sm">
                         <div>
                             <p class="text-base-content/80 font-medium">
-                                {t("dashboard.active", "Active")}
+                                {t("dashboard.active")}
                             </p>
                             <div class="mt-3 flex items-center gap-2">
                                 <p class="inline text-2xl font-semibold">
@@ -119,7 +119,7 @@ pub(crate) fn dashboard_stats_cards(props: &DashboardStatsCardsProps) -> Html {
                     <div class="flex items-start justify-between gap-2 text-sm">
                         <div>
                             <p class="text-base-content/80 font-medium">
-                                {t("dashboard.completed", "Completed")}
+                                {t("dashboard.completed")}
                             </p>
                             <div class="mt-3 flex items-center gap-2">
                                 <p class="inline text-2xl font-semibold">

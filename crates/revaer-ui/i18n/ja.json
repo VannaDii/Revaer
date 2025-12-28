@@ -4,11 +4,11 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "ダッシュボード",
-    "torrents": "トレント",
+    "dashboard": "Home",
+    "torrents": "Torrents",
     "search": "検索",
     "jobs": "ジョブ / 後処理",
-    "settings": "設定",
+    "settings": "Settings",
     "logs": "ログ"
   },
   "mode": {

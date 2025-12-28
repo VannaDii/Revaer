@@ -33,7 +33,7 @@ pub(crate) struct AddTorrentProps {
 pub(crate) fn add_torrent_panel(props: &AddTorrentProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let t = |key: &str| bundle.text(key, "");
+    let t = |key: &str| bundle.text(key);
     let bundle_for_submit = bundle.clone();
     let bundle_for_drop = bundle.clone();
     let input_value = use_state(String::new);
@@ -75,15 +75,15 @@ pub(crate) fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                     payload
                 }
                 Err(AddInputError::Empty) => {
-                    error.set(Some(bundle.text("torrents.error.empty", "")));
+                    error.set(Some(bundle.text("torrents.error.empty")));
                     return;
                 }
                 Err(AddInputError::Invalid) => {
-                    error.set(Some(bundle.text("torrents.error.invalid", "")));
+                    error.set(Some(bundle.text("torrents.error.invalid")));
                     return;
                 }
                 Err(AddInputError::RateInvalid) => {
-                    error.set(Some(bundle.text("torrents.rate_invalid", "")));
+                    error.set(Some(bundle.text("torrents.rate_invalid")));
                     return;
                 }
             };
@@ -133,7 +133,7 @@ pub(crate) fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                 };
                 let name = file.name();
                 if !name.ends_with(".torrent") {
-                    error.set(Some(bundle.text("torrents.error.file_type", "")));
+                    error.set(Some(bundle.text("torrents.error.file_type")));
                 } else {
                     error.set(None);
                     file_state.set(Some(file));
@@ -190,7 +190,7 @@ pub(crate) fn add_torrent_panel(props: &AddTorrentProps) -> Html {
             };
             let name = file.name();
             if !name.ends_with(".torrent") {
-                error.set(Some(bundle.text("torrents.error.file_type", "")));
+                error.set(Some(bundle.text("torrents.error.file_type")));
             } else {
                 error.set(None);
                 file_state.set(Some(file));
@@ -200,26 +200,38 @@ pub(crate) fn add_torrent_panel(props: &AddTorrentProps) -> Html {
     };
 
     html! {
-        <div class={classes!("add-panel", props.class.clone())}>
+        <div class={classes!("space-y-4", props.class.clone())}>
             <input
                 ref={file_input}
-                class="file-input-hidden"
+                class="hidden"
                 type="file"
                 accept=".torrent"
                 onchange={on_file_change}
             />
             <div
-                class={classes!("drop-zone", if *drag_over { "drag-over" } else { "" })}
+                class={classes!(
+                    "rounded-box",
+                    "border",
+                    "border-dashed",
+                    "border-base-300",
+                    "bg-base-100",
+                    "p-4",
+                    "space-y-3",
+                    if *drag_over { "bg-base-200/60 border-base-200" } else { "" }
+                )}
                 role="button"
                 aria-label={t("torrents.upload_label")}
                 ondrop={on_drop}
                 ondragover={on_drag_over}
                 ondragleave={on_drag_leave}
             >
-                <p><strong>{t("torrents.drop_help")}</strong></p>
-                <p class="muted">{t("torrents.drop_sub")}</p>
-                <div class="inputs">
+                <div>
+                    <p class="text-sm font-semibold">{t("torrents.drop_help")}</p>
+                    <p class="text-xs text-base-content/60">{t("torrents.drop_sub")}</p>
+                </div>
+                <div class="flex flex-wrap items-center gap-2">
                     <input
+                        class="input input-bordered input-sm flex-1 min-w-[12rem]"
                         aria-label={t("torrents.add_placeholder")}
                         placeholder={t("torrents.add_placeholder")}
                         value={(*input_value).clone()}
@@ -235,17 +247,22 @@ pub(crate) fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                 {if let Some(err) = &*error {
                     html! { <p class="text-sm text-error">{err}</p> }
                 } else if let Some(f) = &*file {
-                    html! { <p class="muted">{format!("{} {}", t("torrents.ready_prefix"), f.name())}</p> }
+                    html! {
+                        <p class="text-xs text-base-content/60">
+                            {format!("{} {}", t("torrents.ready_prefix"), f.name())}
+                        </p>
+                    }
                 } else { html! {} }}
             </div>
-            <div class="pre-flight">
-                <div class="watch-folder">
+            <div class="grid gap-3 md:grid-cols-2">
+                <div class="rounded-box border border-base-200 bg-base-200/40 p-3 text-sm">
                     <strong>{t("torrents.watch_folder")}</strong>
-                    <p class="muted">{t("torrents.watch_folder_body")}</p>
+                    <p class="text-base-content/60">{t("torrents.watch_folder_body")}</p>
                 </div>
-                <label>
-                    <span>{t("torrents.category")}</span>
+                <label class="form-control gap-1">
+                    <span class="label-text text-xs">{t("torrents.category")}</span>
                     <input
+                        class="input input-bordered input-sm"
                         placeholder={t("torrents.category_placeholder")}
                         value={(*category).clone()}
                         oninput={{
@@ -258,9 +275,10 @@ pub(crate) fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                         }}
                     />
                 </label>
-                <label>
-                    <span>{t("torrents.tags")}</span>
+                <label class="form-control gap-1">
+                    <span class="label-text text-xs">{t("torrents.tags")}</span>
                     <input
+                        class="input input-bordered input-sm"
                         placeholder={t("torrents.tags_placeholder")}
                         value={(*tags).clone()}
                         oninput={{
@@ -273,9 +291,10 @@ pub(crate) fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                         }}
                     />
                 </label>
-                <label>
-                    <span>{t("torrents.save_path")}</span>
+                <label class="form-control gap-1">
+                    <span class="label-text text-xs">{t("torrents.save_path")}</span>
                     <input
+                        class="input input-bordered input-sm"
                         placeholder={t("torrents.save_path_placeholder")}
                         value={(*save_path).clone()}
                         oninput={{
@@ -288,9 +307,10 @@ pub(crate) fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                         }}
                     />
                 </label>
-                <label>
-                    <span>{t("torrents.rate_download")}</span>
+                <label class="form-control gap-1">
+                    <span class="label-text text-xs">{t("torrents.rate_download")}</span>
                     <input
+                        class="input input-bordered input-sm"
                         placeholder={t("torrents.rate_placeholder")}
                         value={(*download_limit).clone()}
                         oninput={{
@@ -303,9 +323,10 @@ pub(crate) fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                         }}
                     />
                 </label>
-                <label>
-                    <span>{t("torrents.rate_upload")}</span>
+                <label class="form-control gap-1">
+                    <span class="label-text text-xs">{t("torrents.rate_upload")}</span>
                     <input
+                        class="input input-bordered input-sm"
                         placeholder={t("torrents.rate_placeholder")}
                         value={(*upload_limit).clone()}
                         oninput={{
@@ -338,7 +359,7 @@ pub(crate) struct CreateTorrentProps {
 pub(crate) fn create_torrent_panel(props: &CreateTorrentProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let t = |key: &str| bundle.text(key, "");
+    let t = |key: &str| bundle.text(key);
     let root_path = use_state(String::new);
     let trackers = use_state(String::new);
     let web_seeds = use_state(String::new);
@@ -368,19 +389,19 @@ pub(crate) fn create_torrent_panel(props: &CreateTorrentProps) -> Html {
         Callback::from(move |_| {
             let root = root_path.trim().to_string();
             if root.is_empty() {
-                local_error.set(Some(bundle.text("torrents.create_error_root", "")));
+                local_error.set(Some(bundle.text("torrents.create_error_root")));
                 return;
             }
             let piece_length_value = if piece_length.trim().is_empty() {
                 None
             } else if let Ok(value) = piece_length.trim().parse::<u32>() {
                 if value == 0 {
-                    local_error.set(Some(bundle.text("torrents.create_error_piece", "")));
+                    local_error.set(Some(bundle.text("torrents.create_error_piece")));
                     return;
                 }
                 Some(value)
             } else {
-                local_error.set(Some(bundle.text("torrents.create_error_piece", "")));
+                local_error.set(Some(bundle.text("torrents.create_error_piece")));
                 return;
             };
             let request = TorrentAuthorRequest {
@@ -406,11 +427,12 @@ pub(crate) fn create_torrent_panel(props: &CreateTorrentProps) -> Html {
         .or_else(|| props.error.clone());
 
     html! {
-        <div class={classes!("create-panel", props.class.clone())}>
-            <div class="create-form">
-                <label>
-                    <span>{t("torrents.create_root_label")}</span>
+        <div class={classes!("space-y-4", props.class.clone())}>
+            <div class="grid gap-3 md:grid-cols-2">
+                <label class="form-control gap-1 md:col-span-2">
+                    <span class="label-text text-xs">{t("torrents.create_root_label")}</span>
                     <input
+                        class="input input-bordered input-sm"
                         placeholder={t("torrents.create_root_placeholder")}
                         value={(*root_path).clone()}
                         oninput={{
@@ -423,9 +445,10 @@ pub(crate) fn create_torrent_panel(props: &CreateTorrentProps) -> Html {
                         }}
                     />
                 </label>
-                <label>
-                    <span>{t("torrents.create_trackers")}</span>
+                <label class="form-control gap-1 md:col-span-2">
+                    <span class="label-text text-xs">{t("torrents.create_trackers")}</span>
                     <textarea
+                        class="textarea textarea-bordered textarea-sm"
                         rows="2"
                         placeholder={t("torrents.create_trackers_placeholder")}
                         value={(*trackers).clone()}
@@ -439,9 +462,10 @@ pub(crate) fn create_torrent_panel(props: &CreateTorrentProps) -> Html {
                         }}
                     />
                 </label>
-                <label>
-                    <span>{t("torrents.create_web_seeds")}</span>
+                <label class="form-control gap-1 md:col-span-2">
+                    <span class="label-text text-xs">{t("torrents.create_web_seeds")}</span>
                     <textarea
+                        class="textarea textarea-bordered textarea-sm"
                         rows="2"
                         placeholder={t("torrents.create_web_seeds_placeholder")}
                         value={(*web_seeds).clone()}
@@ -455,9 +479,10 @@ pub(crate) fn create_torrent_panel(props: &CreateTorrentProps) -> Html {
                         }}
                     />
                 </label>
-                <label>
-                    <span>{t("torrents.create_include")}</span>
+                <label class="form-control gap-1 md:col-span-2">
+                    <span class="label-text text-xs">{t("torrents.create_include")}</span>
                     <textarea
+                        class="textarea textarea-bordered textarea-sm"
                         rows="2"
                         placeholder={t("torrents.create_include_placeholder")}
                         value={(*include).clone()}
@@ -471,9 +496,10 @@ pub(crate) fn create_torrent_panel(props: &CreateTorrentProps) -> Html {
                         }}
                     />
                 </label>
-                <label>
-                    <span>{t("torrents.create_exclude")}</span>
+                <label class="form-control gap-1 md:col-span-2">
+                    <span class="label-text text-xs">{t("torrents.create_exclude")}</span>
                     <textarea
+                        class="textarea textarea-bordered textarea-sm"
                         rows="2"
                         placeholder={t("torrents.create_exclude_placeholder")}
                         value={(*exclude).clone()}
@@ -487,24 +513,10 @@ pub(crate) fn create_torrent_panel(props: &CreateTorrentProps) -> Html {
                         }}
                     />
                 </label>
-                <label class="inline-toggle">
+                <label class="form-control gap-1">
+                    <span class="label-text text-xs">{t("torrents.create_piece_length")}</span>
                     <input
-                        type="checkbox"
-                        checked={*skip_fluff}
-                        onchange={{
-                            let skip_fluff = skip_fluff.clone();
-                            Callback::from(move |e: Event| {
-                                if let Some(input) = e.target_dyn_into::<HtmlInputElement>() {
-                                    skip_fluff.set(input.checked());
-                                }
-                            })
-                        }}
-                    />
-                    <span>{t("torrents.create_skip_fluff")}</span>
-                </label>
-                <label>
-                    <span>{t("torrents.create_piece_length")}</span>
-                    <input
+                        class="input input-bordered input-sm"
                         placeholder={t("torrents.create_piece_placeholder")}
                         value={(*piece_length).clone()}
                         oninput={{
@@ -517,24 +529,10 @@ pub(crate) fn create_torrent_panel(props: &CreateTorrentProps) -> Html {
                         }}
                     />
                 </label>
-                <label class="inline-toggle">
+                <label class="form-control gap-1">
+                    <span class="label-text text-xs">{t("torrents.create_comment")}</span>
                     <input
-                        type="checkbox"
-                        checked={*private}
-                        onchange={{
-                            let private = private.clone();
-                            Callback::from(move |e: Event| {
-                                if let Some(input) = e.target_dyn_into::<HtmlInputElement>() {
-                                    private.set(input.checked());
-                                }
-                            })
-                        }}
-                    />
-                    <span>{t("torrents.create_private")}</span>
-                </label>
-                <label>
-                    <span>{t("torrents.create_comment")}</span>
-                    <input
+                        class="input input-bordered input-sm"
                         placeholder={t("torrents.create_comment_placeholder")}
                         value={(*comment).clone()}
                         oninput={{
@@ -547,9 +545,10 @@ pub(crate) fn create_torrent_panel(props: &CreateTorrentProps) -> Html {
                         }}
                     />
                 </label>
-                <label>
-                    <span>{t("torrents.create_source")}</span>
+                <label class="form-control gap-1">
+                    <span class="label-text text-xs">{t("torrents.create_source")}</span>
                     <input
+                        class="input input-bordered input-sm"
                         placeholder={t("torrents.create_source_placeholder")}
                         value={(*source).clone()}
                         oninput={{
@@ -562,10 +561,44 @@ pub(crate) fn create_torrent_panel(props: &CreateTorrentProps) -> Html {
                         }}
                     />
                 </label>
+                <div class="flex flex-wrap items-center gap-4 md:col-span-2">
+                    <label class="label cursor-pointer justify-start gap-2">
+                        <input
+                            type="checkbox"
+                            class="toggle toggle-sm"
+                            checked={*skip_fluff}
+                            onchange={{
+                                let skip_fluff = skip_fluff.clone();
+                                Callback::from(move |e: Event| {
+                                    if let Some(input) = e.target_dyn_into::<HtmlInputElement>() {
+                                        skip_fluff.set(input.checked());
+                                    }
+                                })
+                            }}
+                        />
+                        <span class="label-text text-sm">{t("torrents.create_skip_fluff")}</span>
+                    </label>
+                    <label class="label cursor-pointer justify-start gap-2">
+                        <input
+                            type="checkbox"
+                            class="toggle toggle-sm"
+                            checked={*private}
+                            onchange={{
+                                let private = private.clone();
+                                Callback::from(move |e: Event| {
+                                    if let Some(input) = e.target_dyn_into::<HtmlInputElement>() {
+                                        private.set(input.checked());
+                                    }
+                                })
+                            }}
+                        />
+                        <span class="label-text text-sm">{t("torrents.create_private")}</span>
+                    </label>
+                </div>
                 {if let Some(message) = error_message {
-                    html! { <p class="text-sm text-error">{message}</p> }
+                    html! { <p class="text-sm text-error md:col-span-2">{message}</p> }
                 } else { html! {} }}
-                <div class="create-actions">
+                <div class="flex justify-end md:col-span-2">
                     <button class="btn btn-primary btn-sm" onclick={submit} disabled={props.pending}>
                         {if props.pending { t("torrents.create_pending") } else { t("torrents.create_submit") }}
                     </button>
@@ -619,51 +652,75 @@ fn render_create_result(
         Some(result.warnings.clone())
     };
     html! {
-        <div class="create-result">
-            <h4>{bundle.text("torrents.create_result_title", "Created torrent")}</h4>
-            <div class="result-row">
-                <div class="result-label">{bundle.text("torrents.create_result_magnet", "Magnet URI")}</div>
-                <div class="result-actions">
-                    <button class="btn btn-ghost btn-sm" onclick={copy_magnet}>
-                        {bundle.text("torrents.copy_magnet", "Copy magnet")}
+        <div class="space-y-3 border-t border-base-200 pt-4">
+            <h4 class="text-sm font-semibold">{bundle.text("torrents.create_result_title")}</h4>
+            <div class="space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs text-base-content/60">
+                        {bundle.text("torrents.create_result_magnet")}
+                    </span>
+                    <button class="btn btn-ghost btn-xs" onclick={copy_magnet}>
+                        {bundle.text("torrents.copy_magnet")}
                     </button>
                 </div>
-                <textarea readonly={true} rows="2" value={result.magnet_uri.clone()} />
+                <textarea
+                    class="textarea textarea-bordered textarea-sm w-full font-mono text-xs"
+                    readonly={true}
+                    rows="2"
+                    value={result.magnet_uri.clone()}
+                />
             </div>
-            <div class="result-row">
-                <div class="result-label">{bundle.text("torrents.create_result_metainfo", "Metainfo (b64)")}</div>
-                <div class="result-actions">
-                    <button class="btn btn-ghost btn-sm" onclick={copy_metainfo}>
-                        {bundle.text("torrents.copy_metainfo", "Copy metainfo")}
+            <div class="space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-xs text-base-content/60">
+                        {bundle.text("torrents.create_result_metainfo")}
+                    </span>
+                    <button class="btn btn-ghost btn-xs" onclick={copy_metainfo}>
+                        {bundle.text("torrents.copy_metainfo")}
                     </button>
                 </div>
-                <textarea readonly={true} rows="3" value={result.metainfo.clone()} />
+                <textarea
+                    class="textarea textarea-bordered textarea-sm w-full font-mono text-xs"
+                    readonly={true}
+                    rows="3"
+                    value={result.metainfo.clone()}
+                />
             </div>
-            <div class="result-grid">
+            <div class="grid gap-3 sm:grid-cols-2">
                 <div>
-                    <span class="muted">{bundle.text("torrents.create_result_hash", "Info hash")}</span>
-                    <p class="mono">{result.info_hash.clone()}</p>
+                    <span class="text-xs text-base-content/60">
+                        {bundle.text("torrents.create_result_hash")}
+                    </span>
+                    <p class="break-all font-mono text-sm">{result.info_hash.clone()}</p>
                 </div>
                 <div>
-                    <span class="muted">{bundle.text("torrents.create_result_piece", "Piece length")}</span>
-                    <p>{format_bytes(u64::from(result.piece_length))}</p>
+                    <span class="text-xs text-base-content/60">
+                        {bundle.text("torrents.create_result_piece")}
+                    </span>
+                    <p class="text-sm">{format_bytes(u64::from(result.piece_length))}</p>
                 </div>
                 <div>
-                    <span class="muted">{bundle.text("torrents.create_result_size", "Total size")}</span>
-                    <p>{format_bytes(result.total_size)}</p>
+                    <span class="text-xs text-base-content/60">
+                        {bundle.text("torrents.create_result_size")}
+                    </span>
+                    <p class="text-sm">{format_bytes(result.total_size)}</p>
                 </div>
                 <div>
-                    <span class="muted">{bundle.text("torrents.create_result_files", "Files")}</span>
-                    <p>{result.files.len()}</p>
+                    <span class="text-xs text-base-content/60">
+                        {bundle.text("torrents.create_result_files")}
+                    </span>
+                    <p class="text-sm">{result.files.len()}</p>
                 </div>
             </div>
             {if let Some(warnings) = warnings {
                 html! {
-                    <div class="result-warnings">
-                        <span class="muted">{bundle.text("torrents.create_result_warnings", "Warnings")}</span>
-                        <ul>
-                            {for warnings.into_iter().map(|warn| html! { <li>{warn}</li> })}
-                        </ul>
+                    <div class="alert alert-warning text-sm">
+                        <div>
+                            <p class="font-medium">{bundle.text("torrents.create_result_warnings")}</p>
+                            <ul class="list-disc ps-4">
+                                {for warnings.into_iter().map(|warn| html! { <li>{warn}</li> })}
+                            </ul>
+                        </div>
                     </div>
                 }
             } else { html! {} }}

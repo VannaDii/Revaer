@@ -4,7 +4,7 @@
 //! - Keep local input state for immediate typing feedback.
 //! - Emit debounced values to the caller for shared state updates.
 
-use crate::components::daisy::{DaisyColor, DaisySize, Input};
+use crate::components::daisy::{DaisyColor, DaisySize, tone_class};
 use gloo_timers::callback::Timeout;
 use yew::prelude::*;
 
@@ -28,6 +28,8 @@ pub(crate) struct SearchInputProps {
     pub input_ref: NodeRef,
     #[prop_or_default]
     pub class: Classes,
+    #[prop_or_default]
+    pub input_class: Classes,
     #[prop_or_default]
     pub on_search: Callback<String>,
 }
@@ -73,18 +75,38 @@ pub(crate) fn search_input(props: &SearchInputProps) -> Html {
         })
     };
 
+    let size = props.size.with_prefix("input");
+    let tone = tone_class("input", props.tone);
+    let label_classes = {
+        let mut classes = classes!("input", size, props.class.clone());
+        if let Some(tone) = tone {
+            classes.push(tone);
+        }
+        classes
+    };
+
     html! {
-        <Input
-            value={AttrValue::from((*value_state).clone())}
-            placeholder={props.placeholder.clone()}
-            aria_label={props.aria_label.clone()}
-            input_type={Some(AttrValue::from("search"))}
-            tone={props.tone}
-            size={props.size}
-            disabled={props.disabled}
-            input_ref={props.input_ref.clone()}
-            class={props.class.clone()}
-            oninput={oninput}
-        />
+        <label
+            class={label_classes}>
+            <span class="iconify lucide--search text-base-content/80 size-3.5"></span>
+            <input
+                class={classes!(
+                    "text-base",
+                    "placeholder:text-sm",
+                    props.input_class.clone()
+                )}
+                type="search"
+                placeholder={props.placeholder.clone()}
+                value={AttrValue::from((*value_state).clone())}
+                aria-label={props.aria_label.clone()}
+                disabled={props.disabled}
+                oninput={Callback::from(move |event: InputEvent| {
+                    if let Some(input) = event.target_dyn_into::<web_sys::HtmlInputElement>() {
+                        oninput.emit(input.value());
+                    }
+                })}
+                ref={props.input_ref.clone()}
+            />
+        </label>
     }
 }

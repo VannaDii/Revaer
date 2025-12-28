@@ -58,8 +58,8 @@ mod tests {
     #[test]
     fn translation_fallbacks_work() {
         let bundle = TranslationBundle::new(LocaleCode::Fr);
-        assert_eq!(bundle.text("nav.dashboard", "Dash"), "Tableau de bord");
-        assert_eq!(bundle.text("nav.missing_key", "Default"), "Default");
+        assert_eq!(bundle.text("nav.dashboard"), "Tableau de bord");
+        assert_eq!(bundle.text("nav.missing_key"), "nav.missing_key");
     }
 
     #[test]

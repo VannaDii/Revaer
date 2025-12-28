@@ -35,7 +35,7 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
     let t = {
         let bundle = bundle.clone();
-        move |key: &str, fallback: &str| bundle.text(key, fallback)
+        move |key: &str| bundle.text(key)
     };
     let auth_mode = use_state(|| props.auth_mode);
     let api_key = use_state(String::new);
@@ -45,11 +45,11 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
     let auth_mode_options = vec![
         (
             AttrValue::from("api_key"),
-            AttrValue::from(t("settings.auth_api", "API key")),
+            AttrValue::from(t("settings.auth_api")),
         ),
         (
             AttrValue::from("local"),
-            AttrValue::from(t("settings.auth_local", "Local auth")),
+            AttrValue::from(t("settings.auth_local")),
         ),
     ];
     let on_toggle = {
@@ -105,7 +105,7 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
             AuthMode::ApiKey => {
                 let value = (*api_key).trim().to_string();
                 if value.is_empty() && !allow_anonymous {
-                    auth_error.set(Some(t("settings.auth_required", "API key is required.")));
+                    auth_error.set(Some(t("settings.auth_required")));
                     return;
                 }
                 auth_error.set(None);
@@ -118,10 +118,7 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
             }
             AuthMode::Local => {
                 if local_user.trim().is_empty() || local_pass.trim().is_empty() {
-                    auth_error.set(Some(t(
-                        "settings.auth_local_required",
-                        "Username and password are required.",
-                    )));
+                    auth_error.set(Some(t("settings.auth_local_required")));
                     return;
                 }
                 auth_error.set(None);
@@ -145,9 +142,9 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
         })
     };
     let test_label = if props.test_busy {
-        t("settings.test_busy", "Testing...")
+        t("settings.test_busy")
     } else {
-        t("settings.test", "Test connection")
+        t("settings.test")
     };
     let on_test_connection = {
         let on_test_connection = props.on_test_connection.clone();
@@ -171,9 +168,9 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
     html! {
         <section class="space-y-6">
             <div>
-                <p class="text-lg font-medium">{t("settings.title", "Settings")}</p>
+                <p class="text-lg font-medium">{t("settings.title")}</p>
                 <p class="text-sm text-base-content/60">
-                    {t("settings.subtitle", "Tune connectivity and engine preferences.")}
+                    {t("settings.subtitle")}
                 </p>
             </div>
 
@@ -182,16 +179,16 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
                     <div class="card-body gap-4">
                         <div>
                             <h3 class="text-base font-semibold">
-                                {t("settings.connection_title", "Connection")}
+                                {t("settings.connection_title")}
                             </h3>
                             <p class="text-sm text-base-content/60">
-                                {t("settings.connection_body", "Manage API endpoint and credentials.")}
+                                {t("settings.connection_body")}
                             </p>
                         </div>
                         <div class="grid gap-3">
                             <div class="form-control w-full">
                                 <label class="label pb-1">
-                                    <span class="label-text text-xs">{t("settings.base_url", "Base URL")}</span>
+                                    <span class="label-text text-xs">{t("settings.base_url")}</span>
                                 </label>
                                 <Input
                                     value={AttrValue::from(props.base_url.clone())}
@@ -201,7 +198,7 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
                             </div>
                             <div class="form-control w-full">
                                 <label class="label pb-1">
-                                    <span class="label-text text-xs">{t("settings.auth_mode", "Auth mode")}</span>
+                                    <span class="label-text text-xs">{t("settings.auth_mode")}</span>
                                 </label>
                                 <Select
                                     value={Some(AttrValue::from(match *auth_mode {
@@ -217,12 +214,12 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
                                 html! {
                                     <div class="form-control w-full">
                                         <label class="label pb-1">
-                                            <span class="label-text text-xs">{t("settings.api_key", "API key")}</span>
+                                            <span class="label-text text-xs">{t("settings.api_key")}</span>
                                         </label>
                                         <Input
                                             value={AttrValue::from((*api_key).clone())}
                                             input_type={Some(AttrValue::from("password"))}
-                                            placeholder={Some(AttrValue::from(t("settings.api_key_placeholder", "Paste your API key")))}
+                                            placeholder={Some(AttrValue::from(t("settings.api_key_placeholder")))}
                                             class="w-full"
                                             oninput={{
                                                 let api_key = api_key.clone();
@@ -230,7 +227,7 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
                                             }}
                                         />
                                         {if props.allow_anonymous {
-                                            html! { <p class="text-xs text-base-content/60 mt-1">{t("settings.allow_anon", "Leave blank to use anonymous access on localhost.")}</p> }
+                                            html! { <p class="text-xs text-base-content/60 mt-1">{t("settings.allow_anon")}</p> }
                                         } else { html! {} }}
                                     </div>
                                 }
@@ -240,11 +237,11 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
                                     <div class="grid gap-3 sm:grid-cols-2">
                                         <div class="form-control w-full">
                                             <label class="label pb-1">
-                                                <span class="label-text text-xs">{t("settings.local_user", "Username")}</span>
+                                                <span class="label-text text-xs">{t("settings.local_user")}</span>
                                             </label>
                                             <Input
                                                 value={AttrValue::from((*local_user).clone())}
-                                                placeholder={Some(AttrValue::from(t("settings.local_user_placeholder", "username")))}
+                                                placeholder={Some(AttrValue::from(t("settings.local_user_placeholder")))}
                                                 class="w-full"
                                                 oninput={{
                                                     let local_user = local_user.clone();
@@ -254,12 +251,12 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
                                         </div>
                                         <div class="form-control w-full">
                                             <label class="label pb-1">
-                                                <span class="label-text text-xs">{t("settings.local_pass", "Password")}</span>
+                                                <span class="label-text text-xs">{t("settings.local_pass")}</span>
                                             </label>
                                             <Input
                                                 value={AttrValue::from((*local_pass).clone())}
                                                 input_type={Some(AttrValue::from("password"))}
-                                                placeholder={Some(AttrValue::from(t("settings.local_pass_placeholder", "password")))}
+                                                placeholder={Some(AttrValue::from(t("settings.local_pass_placeholder")))}
                                                 class="w-full"
                                                 oninput={{
                                                     let local_pass = local_pass.clone();
@@ -272,12 +269,12 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
                             } else { html! {} }}
                             <div class="flex flex-wrap items-center gap-3">
                                 <Toggle
-                                    label={Some(AttrValue::from(t("settings.bypass_toggle", "Prefer API key by default")))}
+                                    label={Some(AttrValue::from(t("settings.bypass_toggle")))}
                                     checked={props.bypass_local}
                                     onchange={on_toggle}
                                 />
                                 <span class="badge badge-ghost badge-sm">
-                                    {t("settings.bypass_badge", "Default")}
+                                    {t("settings.bypass_badge")}
                                 </span>
                             </div>
                             {if let Some(err) = &*auth_error {
@@ -290,7 +287,7 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
                             <button class="btn btn-primary btn-sm" onclick={save_auth}>
-                                {t("settings.save", "Save")}
+                                {t("settings.save")}
                             </button>
                             <button
                                 class="btn btn-outline btn-sm"
@@ -306,22 +303,22 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
                     <div class="card-body gap-4">
                         <div>
                             <h3 class="text-base font-semibold">
-                                {t("settings.server_title", "Server controls")}
+                                {t("settings.server_title")}
                             </h3>
                             <p class="text-sm text-base-content/60">
-                                {t("settings.server_body", "Maintenance actions for the Revaer backend.")}
+                                {t("settings.server_body")}
                             </p>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
                             <button
                                 class="btn btn-outline btn-sm"
                                 onclick={on_server_restart}>
-                                {t("settings.server_restart", "Restart server")}
+                                {t("settings.server_restart")}
                             </button>
                             <button
                                 class="btn btn-outline btn-sm"
                                 onclick={on_server_logs}>
-                                {t("settings.server_logs", "View logs")}
+                                {t("settings.server_logs")}
                             </button>
                         </div>
                     </div>
@@ -333,10 +330,10 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
                     <div class="flex flex-wrap items-center justify-between gap-3">
                         <div>
                             <h3 class="text-base font-semibold">
-                                {t("settings.engine_title", "Engine settings")}
+                                {t("settings.engine_title")}
                             </h3>
                             <p class="text-sm text-base-content/60">
-                                {t("settings.engine_body", "Read-only snapshot of server configuration.")}
+                                {t("settings.engine_body")}
                             </p>
                         </div>
                         <button
@@ -344,9 +341,9 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
                             disabled={props.config_busy}
                             onclick={on_refresh_config}>
                             {if props.config_busy {
-                                t("settings.refreshing", "Refreshing...")
+                                t("settings.refreshing")
                             } else {
-                                t("settings.refresh", "Refresh")
+                                t("settings.refresh")
                             }}
                         </button>
                     </div>
@@ -359,7 +356,7 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
                     } else if config_sections.is_empty() {
                         html! {
                             <div class="rounded-box border border-base-200 p-4 text-sm text-base-content/60">
-                                {t("settings.engine_empty", "No configuration loaded yet.")}
+                                {t("settings.engine_empty")}
                             </div>
                         }
                     } else {
@@ -451,7 +448,7 @@ fn render_config_section(section: ConfigSection) -> Html {
             <div class="card-body gap-3 p-4">
                 <h4 class="text-sm font-semibold">{section.title}</h4>
                 <div class="overflow-x-auto">
-                    <table class="table table-sm">
+                    <table class="table table-sm bg-base-200">
                         <thead>
                             <tr>
                                 <th class="text-xs">{"Key"}</th>
@@ -461,10 +458,10 @@ fn render_config_section(section: ConfigSection) -> Html {
                         <tbody>
                             {for section.entries.into_iter().map(|(key, value)| {
                                 html! {
-                                    <tr>
-                                        <td class="text-xs font-mono">{key}</td>
-                                        <td class="text-xs">{value}</td>
-                                    </tr>
+                                <tr class="row-hover">
+                                    <td class="text-xs font-mono">{key}</td>
+                                    <td class="text-xs">{value}</td>
+                                </tr>
                                 }
                             })}
                         </tbody>

@@ -1,3 +1,4 @@
+html[data-theme="dark"],
 html[data-theme="revaer-dark"] {
   color-scheme: dark;
   --color-primary: #901CBB;
@@ -36,6 +37,7 @@ html[data-theme="revaer-dark"] {
   --card-fs: var(--text-base);
 }
 
+html[data-theme="light"],
 html[data-theme="revaer-light"] {
   color-scheme: light;
   --color-primary: #901CBB;
@@ -84,9 +86,8 @@ html[data-theme="revaer-light"] {
   --warning-500: var(--color-warning);
   --error-500: var(--color-error);
   --surface: var(--color-base-100);
-  --border: color-mix(in oklab, var(--color-base-content) 12%, transparent);
+  --border-color: color-mix(in oklab, var(--color-base-content) 12%, transparent);
   --text: var(--color-base-content);
-  --muted: color-mix(in oklab, var(--color-base-content) 65%, transparent);
   --shadow: 0 22px 60px color-mix(in oklab, var(--color-base-content) 16%, transparent);
 }
 
@@ -98,6 +99,12 @@ body {
   margin: 0;
 }
 
+@media (hover: hover) {
+  .row-hover:hover {
+    background-color: var(--color-base-100);
+  }
+}
+
 .sse-indicator__label {
   max-width: 0;
   opacity: 0;
@@ -106,431 +113,10 @@ body {
   transition: opacity 0.2s ease, max-width 0.2s ease;
 }
 
-.sse-indicator:hover .sse-indicator__label,
-.sse-indicator:focus .sse-indicator__label,
-.sse-indicator:focus-within .sse-indicator__label {
+html:has(#layout-sidebar-hover-trigger:checked) .sse-indicator__label,
+html:has(#layout-sidebar-toggle-trigger:checked) .sse-indicator__label {
   max-width: 8rem;
   opacity: 1;
-}
-
-@keyframes fade-rise {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.stacked {
-  display: grid;
-  gap: 12px;
-}
-
-.add-panel {
-  display: grid;
-  gap: 10px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
-  box-shadow: var(--shadow);
-}
-
-.drop-zone {
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-  padding: 12px;
-}
-
-.drop-zone.drag-over {
-  border-color: var(--accent-500);
-  background: color-mix(in oklab, var(--color-info) 10%, transparent);
-}
-
-.drop-zone .inputs {
-  display: flex;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.drop-zone input {
-  flex: 1;
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-}
-
-.pre-flight {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 8px;
-}
-
-.pre-flight label {
-  display: grid;
-  gap: 4px;
-}
-
-.pre-flight input {
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-}
-
-.file-input-hidden {
-  display: none;
-}
-
-.modal-box .add-panel,
-.modal-box .create-panel {
-  padding: 0;
-  border: none;
-  background: transparent;
-  box-shadow: none;
-}
-
-.create-panel {
-  display: grid;
-  gap: 16px;
-}
-
-.create-form {
-  display: grid;
-  gap: 10px;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-}
-
-.create-form label {
-  display: grid;
-  gap: 4px;
-}
-
-.create-form input,
-.create-form textarea {
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-}
-
-.inline-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.create-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.create-result {
-  display: grid;
-  gap: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-}
-
-.create-result h4 {
-  margin: 0;
-}
-
-.result-row {
-  display: grid;
-  gap: 6px;
-}
-
-.result-label {
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.result-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.result-row textarea {
-  width: 100%;
-  resize: vertical;
-  padding: 10px;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
-}
-
-.result-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-}
-
-.mono {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  word-break: break-all;
-}
-
-.result-warnings ul {
-  padding-left: 18px;
-}
-
-.pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 12px;
-  font-size: 12px;
-  border: 1px solid var(--border);
-  background: color-mix(in oklab, var(--color-base-content) 6%, transparent);
-}
-
-.pill.live,
-.chip-success {
-  background: color-mix(in oklab, var(--color-success) 20%, transparent);
-  border-color: color-mix(in oklab, var(--color-success) 45%, transparent);
-  color: var(--color-success-content);
-}
-
-.pill.subtle {
-  background: color-mix(in oklab, var(--color-base-content) 6%, transparent);
-}
-
-.pill.warn {
-  background: color-mix(in oklab, var(--color-warning) 22%, transparent);
-  color: var(--color-warning-content);
-  border-color: color-mix(in oklab, var(--color-warning) 45%, transparent);
-}
-
-.pill.error {
-  background: color-mix(in oklab, var(--color-error) 22%, transparent);
-  color: var(--color-error-content);
-  border-color: color-mix(in oklab, var(--color-error) 40%, transparent);
-}
-
-.ok {
-  color: var(--success-500);
-}
-
-.warn {
-  color: var(--warning-500);
-}
-
-.error {
-  color: var(--error-500);
-}
-
-.muted {
-  color: var(--muted);
-}
-
-.placeholder {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  padding: 16px;
-  border-radius: 12px;
-  box-shadow: var(--shadow);
-}
-
-.mobile-only {
-  display: inline-flex;
-}
-
-.detail-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 12px;
-  display: grid;
-  gap: 12px;
-  box-shadow: var(--shadow);
-}
-
-.detail-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.pane-tabs {
-  display: inline-flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.detail-grid {
-  display: grid;
-  gap: 12px;
-}
-
-.detail-pane {
-  background: var(--neutral-50);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px;
-}
-
-.detail-pane:not(.active) {
-  display: none;
-}
-
-.file-tree details {
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  margin-bottom: 6px;
-  padding: 8px;
-}
-
-.file-tree summary {
-  list-style: none;
-}
-
-.file-tree summary::-webkit-details-marker {
-  display: none;
-}
-
-.file-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-}
-
-.file-main {
-  display: grid;
-  gap: 6px;
-  flex: 1;
-}
-
-.file-progress {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.file-progress .bar {
-  flex: 1;
-  height: 8px;
-  background: linear-gradient(90deg, var(--accent-500), var(--primary-500));
-  border-radius: 6px;
-}
-
-.file-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.file-children {
-  margin-top: 8px;
-  display: grid;
-  gap: 6px;
-}
-
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 40px;
-  height: 22px;
-}
-
-.switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-
-.slider {
-  position: absolute;
-  cursor: pointer;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-color: var(--neutral-300);
-  transition: 0.2s;
-  border-radius: 24px;
-}
-
-.slider:before {
-  position: absolute;
-  content: "";
-  height: 16px;
-  width: 16px;
-  left: 3px;
-  bottom: 3px;
-  background-color: white;
-  transition: 0.2s;
-  border-radius: 50%;
-}
-
-.switch input:checked + .slider {
-  background-color: var(--accent-500);
-}
-
-.switch input:checked + .slider:before {
-  transform: translateX(18px);
-}
-
-.table-like {
-  display: grid;
-  gap: 8px;
-}
-
-.watch-folder {
-  padding: 10px 12px;
-  border: 1px dashed var(--border);
-  border-radius: 10px;
-}
-
-.table-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 6px;
-  align-items: center;
-  padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-}
-
-.event-log {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: 6px;
-}
-
-.event-log li {
-  display: grid;
-  grid-template-columns: 90px 80px 1fr;
-  gap: 8px;
-  align-items: center;
-}
-
-.metadata {
-  display: grid;
-  gap: 8px;
-}
-
-.metadata div {
-  display: grid;
-  grid-template-columns: 120px 1fr;
-  gap: 8px;
-  align-items: baseline;
-}
-
-.metadata .truncate {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .auth-overlay,
@@ -543,55 +129,30 @@ body {
   z-index: 70;
 }
 
+.auth-overlay {
+  pointer-events: none;
+}
+
+.setup-overlay {
+  pointer-events: none;
+}
+
 .auth-overlay .card,
 .setup-overlay .card {
   background: var(--surface);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-color);
   border-radius: 12px;
   padding: 16px;
   width: min(420px, 90vw);
   box-shadow: var(--shadow);
 }
 
-.stack {
-  display: grid;
-  gap: 6px;
+.auth-overlay .card {
+  pointer-events: auto;
 }
 
-@media (min-width: 768px) {
-  .mobile-only {
-    display: none;
-  }
-}
-
-@media (min-width: 1024px) {
-  .detail-grid {
-    grid-template-columns: 1.4fr 1fr;
-    grid-template-areas:
-      "files info"
-      "peers info"
-      "trackers log";
-  }
-  .detail-pane {
-    display: block;
-  }
-  .detail-pane[data-pane="files"] { grid-area: files; }
-  .detail-pane[data-pane="peers"] { grid-area: peers; }
-  .detail-pane[data-pane="trackers"] { grid-area: trackers; }
-  .detail-pane[data-pane="log"] { grid-area: log; }
-  .detail-pane[data-pane="info"] { grid-area: info; position: sticky; top: 80px; }
-  .pane-tabs {
-    display: none;
-  }
-}
-
-@media (max-width: 767px) {
-  .detail-pane {
-    display: none;
-  }
-  .detail-pane.active {
-    display: block;
-  }
+.setup-overlay .card {
+  pointer-events: auto;
 }
 
 .btn-icon {
@@ -606,25 +167,4 @@ body {
 
 .btn-icon.trailing {
   margin-left: 6px;
-}
-
-[dir="rtl"] .row-meta,
-[dir="rtl"] .row-actions,
-[dir="rtl"] .pane-tabs {
-  direction: rtl;
-}
-
-[dir="rtl"] .torrent-progress,
-[dir="rtl"] .file-progress,
-[dir="rtl"] .metadata div,
-[dir="rtl"] .event-log li {
-  direction: rtl;
-}
-
-[dir="rtl"] .row-primary .title {
-  flex-direction: row-reverse;
-}
-
-[dir="rtl"] .detail-pane[data-pane="info"] {
-  text-align: right;
 }

@@ -22,8 +22,8 @@
 
 ## Task Record
 - Motivation: enforce Nexus + DaisyUI parity for the dashboard while keeping Settings reachable and diagnostics visible.
-- Design notes: mapped each dashboard section to specific Nexus blocks; SSE indicator uses sidebar footer with a non-blocking dialog; config snapshot parsed as `serde_json::Value` to avoid new dependencies; disabled wasm-opt in `crates/revaer-ui/index.html` to keep `trunk build --release` reliable on this environment until tooling changes; adjusted Nexus asset URLs to relative paths for more reliable static hosting.
-- Test coverage summary: UI changes rely on existing CI gates; no new unit tests added.
+- Design notes: mapped each dashboard section to specific Nexus blocks; SSE indicator uses sidebar footer with a non-blocking dialog; config snapshot parsed as `serde_json::Value` to avoid new dependencies; disabled wasm-opt in `crates/revaer-ui/index.html` to keep `trunk build --release` reliable on this environment until tooling changes; aligned Nexus image URLs to `/static/nexus/...` for correct asset loading on all routes; aligned the sidebar footer indicator to the Nexus pinned-footer structure, restored the missing Global Sales card slot, and made the auth prompt non-blocking while stabilizing drawer hook usage; re-aligned the torrents filter header to the Nexus orders layout, updated the search input to use DaisyUI `input-sm` sizing, removed the custom placeholder override to let DaisyUI placeholder styles apply, and removed the legacy torrent list view.
+- Test coverage summary: `just ci` runs but `just cov` fails at ~77.6% overall line coverage (below the ≥80% gate); no new unit tests added in this update.
 - Observability updates: none (UI-only changes).
 - Risk & rollback plan: revert `crates/revaer-ui` dashboard/shell/settings edits and `static/style.css` if UI regressions appear.
 - Dependency rationale: no new dependencies added; reused existing `serde_json`.

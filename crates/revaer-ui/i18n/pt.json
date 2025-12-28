@@ -1,231 +1,231 @@
 {
-    "meta": {
-        "language": "pt",
-        "rtl": false
+  "meta": {
+    "language": "pt",
+    "rtl": false
+  },
+  "nav": {
+    "dashboard": "Home",
+    "torrents": "Torrents",
+    "search": "Pesquisar",
+    "jobs": "Tarefas / Pós-processamento",
+    "settings": "Settings",
+    "logs": "Registros"
+  },
+  "mode": {
+    "simple": "Simples",
+    "advanced": "Avançado"
+  },
+  "density": {
+    "compact": "Compacto",
+    "normal": "Normal",
+    "comfy": "Confortável"
+  },
+  "toolbar": {
+    "regex": "Regex",
+    "add": "Adicionar",
+    "pause": "Pausar",
+    "resume": "Retomar",
+    "delete": "Excluir",
+    "delete_data": "Excluir dados",
+    "recheck": "Reverificar"
+  },
+  "torrents": {
+    "search_label": "Pesquisar torrents",
+    "search_placeholder": "Pesquisar nome, caminho, tracker",
+    "add_placeholder": "Magnet ou URL",
+    "drop_help": "Solte .torrent ou cole magnet",
+    "drop_sub": "Valida magnet/URL, suporta arrastar/soltar e seleção de arquivos.",
+    "upload_label": "Enviar torrent",
+    "adding": "Adicionando…",
+    "ready_prefix": "Pronto para enviar",
+    "category": "Categoria",
+    "category_placeholder": "tv, filmes, música",
+    "tags": "Tags",
+    "tags_placeholder": "4K, hevc, scene",
+    "save_path": "Caminho de salvamento",
+    "save_path_placeholder": "/data/incompleto",
+    "open_detail": "Abrir detalhes",
+    "eta_infinite": "∞",
+    "eta": "Tempo restante",
+    "down": "Download",
+    "up": "Upload",
+    "ratio": "Proporção",
+    "size": "Tamanho",
+    "select_row": "Selecionar torrent",
+    "select_all": "Selecionar tudo",
+    "selected": "selecionados",
+    "watch_folder": "Pasta monitorada",
+    "watch_folder_body": "O caminho monitorado está ativado; falhas aparecerão em Tarefas/Pós-processamento.",
+    "error": {
+      "empty": "Insira um link magnet, URL ou solte um .torrent",
+      "invalid": "Magnet ou URL inválido",
+      "file_type": "Tipo de arquivo não suportado"
     },
-    "nav": {
-        "dashboard": "Painel",
-        "torrents": "Torrents",
-        "search": "Pesquisar",
-        "jobs": "Tarefas / Pós-processamento",
-        "settings": "Configurações",
-        "logs": "Registros"
-    },
-    "mode": {
-        "simple": "Simples",
-        "advanced": "Avançado"
-    },
-    "density": {
-        "compact": "Compacto",
-        "normal": "Normal",
-        "comfy": "Confortável"
-    },
-    "toolbar": {
-        "regex": "Regex",
-        "add": "Adicionar",
-        "pause": "Pausar",
-        "resume": "Retomar",
-        "delete": "Excluir",
-        "delete_data": "Excluir dados",
-        "recheck": "Reverificar"
-    },
-    "torrents": {
-        "search_label": "Pesquisar torrents",
-        "search_placeholder": "Pesquisar nome, caminho, tracker",
-        "add_placeholder": "Magnet ou URL",
-        "drop_help": "Solte .torrent ou cole magnet",
-        "drop_sub": "Valida magnet/URL, suporta arrastar/soltar e seleção de arquivos.",
-        "upload_label": "Enviar torrent",
-        "adding": "Adicionando…",
-        "ready_prefix": "Pronto para enviar",
-        "category": "Categoria",
-        "category_placeholder": "tv, filmes, música",
-        "tags": "Tags",
-        "tags_placeholder": "4K, hevc, scene",
-        "save_path": "Caminho de salvamento",
-        "save_path_placeholder": "/data/incompleto",
-        "open_detail": "Abrir detalhes",
-        "eta_infinite": "∞",
-        "eta": "Tempo restante",
-        "down": "Download",
-        "up": "Upload",
-        "ratio": "Proporção",
-        "size": "Tamanho",
-        "select_row": "Selecionar torrent",
-        "select_all": "Selecionar tudo",
-        "selected": "selecionados",
-        "watch_folder": "Pasta monitorada",
-        "watch_folder_body": "O caminho monitorado está ativado; falhas aparecerão em Tarefas/Pós-processamento.",
-        "error": {
-            "empty": "Insira um link magnet, URL ou solte um .torrent",
-            "invalid": "Magnet ou URL inválido",
-            "file_type": "Tipo de arquivo não suportado"
-        },
-        "shortcut": "Atalho",
-        "more": "Mais…",
-        "banner": {
-            "removed_data": "Torrent + dados removidos",
-            "removed": "Torrent removido",
-            "recheck": "Reverificando",
-            "pause": "Pausado",
-            "resume": "Retomado"
-        }
-    },
-    "dashboard": {
-        "speeds": "Velocidades globais",
-        "live": "SSE ao vivo",
-        "down": "Download",
-        "up": "Upload",
-        "speeds_subtext": "Atualizações subsegundas com recuo em dispositivos móveis e redes restritas.",
-        "torrents": "Torrents",
-        "torrents_sub": "Ativos / Pausados / Concluídos",
-        "active": "Ativos",
-        "paused": "Pausados",
-        "completed": "Concluídos",
-        "disk": "Uso do disco",
-        "disk_sub": "Global + por caminho",
-        "total": "Total",
-        "queue": "Fila",
-        "queue_sub": "Profundidade e contagens pausadas",
-        "queued": "Na fila",
-        "depth": "Profundidade",
-        "vpn": "Status VPN",
-        "vpn_state": "Estado",
-        "vpn_message": "Mensagem",
-        "tracker_health": "Saúde do tracker",
-        "tracker_sub": "Agregado",
-        "ok": "OK",
-        "warn": "Aviso",
-        "error": "Erro",
-        "tracker_help": "Falhas aparecem no log de eventos com carimbos de data/hora do próximo anúncio.",
-        "events": "Eventos recentes",
-        "events_sub": "Avisos e problemas do tracker",
-        "event_info": "Info",
-        "event_warn": "Aviso",
-        "event_error": "Erro"
-    },
-    "confirm": {
-        "delete": {
-            "title": "Remover torrent?",
-            "body": "Os arquivos permanecem no disco. Isso não pode ser desfeito sem exclusão de dados.",
-            "cta": "Remover"
-        },
-        "delete_data": {
-            "title": "Remover torrent e excluir dados?",
-            "body": "Isso exclui permanentemente os arquivos do disco.",
-            "cta": "Excluir dados"
-        },
-        "recheck": {
-            "title": "Reverificar dados?",
-            "body": "A verificação de hash verificará os dados existentes.",
-            "cta": "Reverificar"
-        },
-        "cancel": "Cancelar"
-    },
-    "detail": {
-        "select_title": "Selecione um torrent",
-        "select_body": "Abra um torrent para visualizar arquivos, peers, trackers e metadados.",
-        "view_label": "Visualização detalhada",
-        "tab": {
-            "files": "Arquivos",
-            "peers": "Peers",
-            "trackers": "Trackers",
-            "log": "Registro",
-            "info": "Info"
-        },
-        "files": {
-            "title": "Arquivos",
-            "body": "Prioridade por arquivo + alternadores desejado/indesejado. Acordeão em dispositivos móveis.",
-            "wanted": "Desejado"
-        },
-        "peers": {
-            "title": "Peers",
-            "body": "Ordenável por velocidade/progresso; mostra bandeiras + país quando disponível.",
-            "down": "Download",
-            "up": "Upload",
-            "progress": "Progresso"
-        },
-        "trackers": {
-            "title": "Trackers",
-            "body": "Status, próximo anúncio e erros com emblemas de aviso."
-        },
-        "log": {
-            "title": "Registro de eventos",
-            "body": "Avisos, problemas do tracker, transições de estado."
-        },
-        "info": {
-            "title": "Metadados",
-            "body": "Hash, magnet, tamanho, contagem de peças, tamanho da peça.",
-            "hash": "Hash",
-            "magnet": "Magnet",
-            "size": "Tamanho",
-            "pieces": "Peças",
-            "piece_size": "Tamanho da peça"
-        }
-    },
-    "auth": {
-        "error_required": "Chave API necessária para modo remoto",
-        "title": "Acesso à API necessário",
-        "body": "Insira sua chave API para conectar. O modo remoto sempre requer uma chave; o modo LAN pode permitir anônimo se habilitado pelo backend.",
-        "label": "Chave API",
-        "placeholder": "revaer_api_key",
-        "allow_anon": "Modo LAN detectado: deixe em branco para continuar anonimamente.",
-        "use_anon": "Usar anônimo (se permitido)",
-        "submit": "Continuar"
-    },
-    "sse": {
-        "title": "SSE desconectado",
-        "body": "Reconectando com recuo exponencial e jitter.",
-        "next_retry": "Próxima tentativa em",
-        "last_event": "Último evento",
-        "reason": "Razão:",
-        "retry": "Tentar novamente agora",
-        "dismiss": "Dispensar sobreposição",
-        "badge": "SSE",
-        "badge_reconnecting": "SSE reconectando"
-    },
-    "shell": {
-        "theme": {
-            "light": "Claro",
-            "dark": "Escuro",
-            "label": "Tema"
-        },
-        "close_nav": "Fechar navegação",
-        "open_nav": "Abrir navegação",
-        "brand": "Revaer",
-        "phase": "Fase 1",
-        "mode": "Modo",
-        "locale": "Idioma",
-        "search_placeholder": "Pesquisar torrents (/ para focar)",
-        "search_label": "Pesquisa global",
-        "simulate_sse": "Simular queda SSE",
-        "toggle_theme": "Alternar tema",
-        "network_connected": "conectado",
-        "network_remote": "remoto (chave API)"
-    },
-    "placeholder": {
-        "jobs_title": "Tarefas / Pós-processamento",
-        "jobs_body": "Estados de tarefas, erros de pasta monitorada, atualizações SSE",
-        "settings_title": "Configurações",
-        "settings_body": "Perfil do motor, caminhos, funções, modo remoto",
-        "logs_title": "Registros",
-        "logs_body": "Log de eventos em streaming com filtros",
-        "not_found_title": "Não encontrado",
-        "not_found_body": "Use a navegação para retornar a uma visualização suportada.",
-        "badge": "Layout responsivo para celular + desktop pronto."
-    },
-    "toast": {
-        "pause": "Pausado",
-        "resume": "Retomado",
-        "recheck": "Reverificando",
-        "delete": "Removido",
-        "delete_data": "Removido (dados excluídos)",
-        "add_success": "Adicionado",
-        "add_refresh_failed": "Adicionado, mas a atualização falhou:",
-        "add_failed": "Falha ao adicionar:",
-        "action_failed": "Ação falhou para",
-        "torrent_placeholder": "Torrent",
-        "bulk_done": "Ações em massa concluídas para",
-        "dismiss": "Dispensar"
+    "shortcut": "Atalho",
+    "more": "Mais…",
+    "banner": {
+      "removed_data": "Torrent + dados removidos",
+      "removed": "Torrent removido",
+      "recheck": "Reverificando",
+      "pause": "Pausado",
+      "resume": "Retomado"
     }
+  },
+  "dashboard": {
+    "speeds": "Velocidades globais",
+    "live": "SSE ao vivo",
+    "down": "Download",
+    "up": "Upload",
+    "speeds_subtext": "Atualizações subsegundas com recuo em dispositivos móveis e redes restritas.",
+    "torrents": "Torrents",
+    "torrents_sub": "Ativos / Pausados / Concluídos",
+    "active": "Ativos",
+    "paused": "Pausados",
+    "completed": "Concluídos",
+    "disk": "Uso do disco",
+    "disk_sub": "Global + por caminho",
+    "total": "Total",
+    "queue": "Fila",
+    "queue_sub": "Profundidade e contagens pausadas",
+    "queued": "Na fila",
+    "depth": "Profundidade",
+    "vpn": "Status VPN",
+    "vpn_state": "Estado",
+    "vpn_message": "Mensagem",
+    "tracker_health": "Saúde do tracker",
+    "tracker_sub": "Agregado",
+    "ok": "OK",
+    "warn": "Aviso",
+    "error": "Erro",
+    "tracker_help": "Falhas aparecem no log de eventos com carimbos de data/hora do próximo anúncio.",
+    "events": "Eventos recentes",
+    "events_sub": "Avisos e problemas do tracker",
+    "event_info": "Info",
+    "event_warn": "Aviso",
+    "event_error": "Erro"
+  },
+  "confirm": {
+    "delete": {
+      "title": "Remover torrent?",
+      "body": "Os arquivos permanecem no disco. Isso não pode ser desfeito sem exclusão de dados.",
+      "cta": "Remover"
+    },
+    "delete_data": {
+      "title": "Remover torrent e excluir dados?",
+      "body": "Isso exclui permanentemente os arquivos do disco.",
+      "cta": "Excluir dados"
+    },
+    "recheck": {
+      "title": "Reverificar dados?",
+      "body": "A verificação de hash verificará os dados existentes.",
+      "cta": "Reverificar"
+    },
+    "cancel": "Cancelar"
+  },
+  "detail": {
+    "select_title": "Selecione um torrent",
+    "select_body": "Abra um torrent para visualizar arquivos, peers, trackers e metadados.",
+    "view_label": "Visualização detalhada",
+    "tab": {
+      "files": "Arquivos",
+      "peers": "Peers",
+      "trackers": "Trackers",
+      "log": "Registro",
+      "info": "Info"
+    },
+    "files": {
+      "title": "Arquivos",
+      "body": "Prioridade por arquivo + alternadores desejado/indesejado. Acordeão em dispositivos móveis.",
+      "wanted": "Desejado"
+    },
+    "peers": {
+      "title": "Peers",
+      "body": "Ordenável por velocidade/progresso; mostra bandeiras + país quando disponível.",
+      "down": "Download",
+      "up": "Upload",
+      "progress": "Progresso"
+    },
+    "trackers": {
+      "title": "Trackers",
+      "body": "Status, próximo anúncio e erros com emblemas de aviso."
+    },
+    "log": {
+      "title": "Registro de eventos",
+      "body": "Avisos, problemas do tracker, transições de estado."
+    },
+    "info": {
+      "title": "Metadados",
+      "body": "Hash, magnet, tamanho, contagem de peças, tamanho da peça.",
+      "hash": "Hash",
+      "magnet": "Magnet",
+      "size": "Tamanho",
+      "pieces": "Peças",
+      "piece_size": "Tamanho da peça"
+    }
+  },
+  "auth": {
+    "error_required": "Chave API necessária para modo remoto",
+    "title": "Acesso à API necessário",
+    "body": "Insira sua chave API para conectar. O modo remoto sempre requer uma chave; o modo LAN pode permitir anônimo se habilitado pelo backend.",
+    "label": "Chave API",
+    "placeholder": "revaer_api_key",
+    "allow_anon": "Modo LAN detectado: deixe em branco para continuar anonimamente.",
+    "use_anon": "Usar anônimo (se permitido)",
+    "submit": "Continuar"
+  },
+  "sse": {
+    "title": "SSE desconectado",
+    "body": "Reconectando com recuo exponencial e jitter.",
+    "next_retry": "Próxima tentativa em",
+    "last_event": "Último evento",
+    "reason": "Razão:",
+    "retry": "Tentar novamente agora",
+    "dismiss": "Dispensar sobreposição",
+    "badge": "SSE",
+    "badge_reconnecting": "SSE reconectando"
+  },
+  "shell": {
+    "theme": {
+      "light": "Claro",
+      "dark": "Escuro",
+      "label": "Tema"
+    },
+    "close_nav": "Fechar navegação",
+    "open_nav": "Abrir navegação",
+    "brand": "Revaer",
+    "phase": "Fase 1",
+    "mode": "Modo",
+    "locale": "Idioma",
+    "search_placeholder": "Pesquisar torrents (/ para focar)",
+    "search_label": "Pesquisa global",
+    "simulate_sse": "Simular queda SSE",
+    "toggle_theme": "Alternar tema",
+    "network_connected": "conectado",
+    "network_remote": "remoto (chave API)"
+  },
+  "placeholder": {
+    "jobs_title": "Tarefas / Pós-processamento",
+    "jobs_body": "Estados de tarefas, erros de pasta monitorada, atualizações SSE",
+    "settings_title": "Configurações",
+    "settings_body": "Perfil do motor, caminhos, funções, modo remoto",
+    "logs_title": "Registros",
+    "logs_body": "Log de eventos em streaming com filtros",
+    "not_found_title": "Não encontrado",
+    "not_found_body": "Use a navegação para retornar a uma visualização suportada.",
+    "badge": "Layout responsivo para celular + desktop pronto."
+  },
+  "toast": {
+    "pause": "Pausado",
+    "resume": "Retomado",
+    "recheck": "Reverificando",
+    "delete": "Removido",
+    "delete_data": "Removido (dados excluídos)",
+    "add_success": "Adicionado",
+    "add_refresh_failed": "Adicionado, mas a atualização falhou:",
+    "add_failed": "Falha ao adicionar:",
+    "action_failed": "Ação falhou para",
+    "torrent_placeholder": "Torrent",
+    "bulk_done": "Ações em massa concluídas para",
+    "dismiss": "Dispensar"
+  }
 }

@@ -4,11 +4,11 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "डैशबोर्ड",
-    "torrents": "टॉरेंट",
+    "dashboard": "Home",
+    "torrents": "Torrents",
     "search": "खोज",
     "jobs": "कार्य / पोस्ट-प्रोसेसिंग",
-    "settings": "सेटिंग्स",
+    "settings": "Settings",
     "logs": "लॉग"
   },
   "mode": {

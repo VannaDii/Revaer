@@ -4,11 +4,11 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "Dasbor",
-    "torrents": "Torrent",
+    "dashboard": "Home",
+    "torrents": "Torrents",
     "search": "Nggoleki",
     "jobs": "Pegaweyan / Pangolahan Sawise",
-    "settings": "Pengaturan",
+    "settings": "Settings",
     "logs": "Log"
   },
   "mode": {

@@ -4,11 +4,13 @@
 - [x] Treat ui_vendor/nexus-html@3.1.0/src as markup reference only; do not run any Node tooling.
 - [x] Treat static/nexus as the runtime asset kit (compiled CSS, images, client-side JS).
 - [x] Use DaisyUI Blueprint MCP as the canonical reference for DaisyUI v5 component patterns, variants, accessibility, and form layout; if Nexus markup differs, Nexus wins for visual parity unless intentionally standardizing.
+- [x] Translation bundle surfaces missing keys (no default/fallback strings).
 
 ## 2) Theme + palette (from the logo)
 - [x] Establish a Revaer theme that leans into dark navy/purple with magenta-purple accent.
 - [x] Use token guidance from the logo: background ~#000030 to #000040; accent ~#6A0071; primary ~#901CBB; highlight ~#C42AC3.
 - [x] Apply tokens via DaisyUI theme variables or theme selection plus minimal overrides; keep contrast readable for table/list UIs.
+- [x] Tables use base-200 with base-100 hover; progress fills use primary tokens.
 
 ## 3) Shell and routing (atomic composition)
 - [x] Implement AppShell template: sidebar + topbar + main outlet; preserve Nexus layout structure.
@@ -29,6 +31,7 @@
 - [x] Local auth sends Authorization: Basic ... (server may ignore).
 - [x] Settings allow "bypass local" toggle; when enabled default auth prompt to API key and avoid showing local auth first.
 - [x] Auth prompt is dismissible so navigation to Settings remains available.
+- [x] Auth prompt overlay is non-blocking (pointer events pass through to the shell).
 
 ## 5) State management and rendering performance (yewdux)
 - [x] Adopt yewdux for all shared UI/data state; avoid use_reducer + ContextProvider for shared data.
@@ -101,6 +104,8 @@
 
 ## 9) Torrents list page (main screen)
 - [x] Layout: Nexus dashboard styling, table-based view (DaisyUI table) with filter bar and FAB.
+- [x] Filter header matches Nexus orders layout (search + select row with right-side actions).
+- [x] Secondary filter row covers tags/tracker/extension + clear filters.
 - [x] Filters in URL query: query text (name), state, tags, tracker, extension.
 - [x] Pagination: limit and cursor; provide Load more using next cursor.
 - [x] Columns (TorrentSummary): name, state, progress, down/up rate, ratio, tags, trackers, updated timestamp.
@@ -113,6 +118,7 @@
 - [x] Bulk ops: collect per-item failures, show summary toast, keep drawer closed unless single selection remains.
 - [x] Bulk actions: pause, resume, recheck, reannounce.
 - [x] Bulk actions: sequential on/off, rate set, remove (confirm + optional delete_data).
+- [x] Legacy torrent list component removed (non-Nexus grid/list).
 
 ## 10) Torrent details drawer (tabs: Overview, Files, Options)
 - [x] Overview: summary fields + same actions; show last error if present.
@@ -121,6 +127,8 @@
 - [x] Options tab: render TorrentSettingsView; only editable fields that map to PATCH /v1/torrents/{id}/options.
 - [x] Options tab: read-only settings shown as static rows (no fake toggles).
 - [x] Details caching discipline: keep large file vectors/settings off the hot row model; update drawer from details_by_id.
+- [x] Drawer empty state uses DaisyUI card styling (no custom placeholder overrides).
+- [x] Detail drawer layout uses DaisyUI tabs/tables/toggles (no legacy panel CSS).
 
 ## 11) FAB actions (Torrents screen)
 - [x] Add torrent modal supports magnet or metainfo_b64.
@@ -129,6 +137,7 @@
 - [x] Create torrent modal wired to POST /v1/torrents/create.
 - [x] Create torrent modal provides copy buttons for magnet/metainfo.
 - [x] Provide shortcuts to manage categories and tags.
+- [x] Add/Create torrent modals use DaisyUI form controls (no legacy panel CSS).
 
 ## 12) Categories and Tags pages (policy management)
 - [x] Categories list and editor: list existing, create/update via PUT with TorrentLabelPolicy fields.
@@ -172,11 +181,15 @@
 - [x] Inventory old dashboard entrypoint/shell/components/styles for cleanup.
 - [x] Nexus source-of-truth files identified (dashboard + sidebar/topbar + storage status partials).
 - [x] Sidebar nav = Home, Torrents, Settings (only) with SSE indicator pinned at the bottom.
+- [x] Sidebar labels show Home/Torrents/Settings across locales (nav labels standardized).
 - [x] Sidebar footer SSE indicator uses Nexus pinned-footer structure and DaisyUI primitives.
+- [x] Sidebar SSE indicator label expands only when the sidebar is expanded.
 - [x] Topbar is consistent with breadcrumb, theme toggle, language selector, server menu.
-- [x] Home dashboard matches Nexus layout with DaisyUI cards/stats/progress/table/dropdown.
+- [x] Home dashboard matches Nexus layout with DaisyUI cards/stats/progress/list.
+- [x] Dashboard storage status dropdown uses Nexus actions (Enhance/Insights/Auto Tag/Delete).
 - [x] SSE indicator modal is non-blocking; navigation always reachable.
 - [x] Settings is sectioned and reachable without auth; test connection + config snapshot wired.
 - [x] Legacy dashboard CSS reduced; Nexus app.css remains primary styling.
 - [x] Task record (ADR) added for this work.
 - [x] `just ci` passes locally.
+- [x] `just cov` meets the ≥80% line coverage gate.

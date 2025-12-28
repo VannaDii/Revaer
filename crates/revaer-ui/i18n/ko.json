@@ -4,11 +4,11 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "대시보드",
-    "torrents": "토렌트",
+    "dashboard": "Home",
+    "torrents": "Torrents",
     "search": "검색",
     "jobs": "작업 / 후처리",
-    "settings": "설정",
+    "settings": "Settings",
     "logs": "로그"
   },
   "mode": {

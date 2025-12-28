@@ -1,7 +1,7 @@
 use crate::app::Route;
 use crate::components::action_menu::{ActionMenuItem, render_action_menu};
-use crate::components::atoms::{BulkActionBar, SearchInput};
-use crate::components::daisy::{Input, Modal, MultiSelect, Select};
+use crate::components::atoms::{BulkActionBar, EmptyState, SearchInput};
+use crate::components::daisy::{DaisySize, Drawer, Input, Loading, Modal, MultiSelect, Select};
 use crate::components::detail::{DetailView, FileSelectionChange};
 use crate::components::torrent_modals::{AddTorrentPanel, CopyKind, CreateTorrentPanel};
 use crate::core::logic::{
@@ -25,7 +25,7 @@ use wasm_bindgen::JsCast;
 use wasm_bindgen::closure::Closure;
 use web_sys::{HtmlElement, KeyboardEvent, MouseEvent};
 use yew::prelude::*;
-use yew_router::prelude::use_navigator;
+use yew_router::prelude::{Link, use_navigator};
 use yewdux::prelude::{Dispatch, use_selector};
 
 #[derive(Properties, PartialEq)]
@@ -123,7 +123,7 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
     let bundle_for_t = bundle.clone();
     let bundle = bundle.clone();
-    let t = move |key: &str| bundle_for_t.text(key, "");
+    let t = move |key: &str| bundle_for_t.text(key);
     let selected_idx = use_state(|| 0usize);
     let action_banner = use_state(|| None as Option<String>);
     let confirm = use_state(|| None as Option<ConfirmKind>);
@@ -178,35 +178,35 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     let state_options = vec![
         (
             AttrValue::from(""),
-            AttrValue::from(bundle.text("torrents.state_all", "All states")),
+            AttrValue::from(bundle.text("torrents.state_all")),
         ),
         (
             AttrValue::from("queued"),
-            AttrValue::from(bundle.text("torrents.state_queued", "Queued")),
+            AttrValue::from(bundle.text("torrents.state_queued")),
         ),
         (
             AttrValue::from("fetching_metadata"),
-            AttrValue::from(bundle.text("torrents.state_fetching", "Metadata")),
+            AttrValue::from(bundle.text("torrents.state_fetching")),
         ),
         (
             AttrValue::from("downloading"),
-            AttrValue::from(bundle.text("torrents.state_downloading", "Downloading")),
+            AttrValue::from(bundle.text("torrents.state_downloading")),
         ),
         (
             AttrValue::from("seeding"),
-            AttrValue::from(bundle.text("torrents.state_seeding", "Seeding")),
+            AttrValue::from(bundle.text("torrents.state_seeding")),
         ),
         (
             AttrValue::from("completed"),
-            AttrValue::from(bundle.text("torrents.state_completed", "Completed")),
+            AttrValue::from(bundle.text("torrents.state_completed")),
         ),
         (
             AttrValue::from("stopped"),
-            AttrValue::from(bundle.text("torrents.state_stopped", "Stopped")),
+            AttrValue::from(bundle.text("torrents.state_stopped")),
         ),
         (
             AttrValue::from("failed"),
-            AttrValue::from(bundle.text("torrents.state_failed", "Failed")),
+            AttrValue::from(bundle.text("torrents.state_failed")),
         ),
     ];
     let selected_base = {
@@ -392,7 +392,7 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                             }
                             ShortcutOutcome::TogglePauseResume => {
                                 if let Some(id) = visible_ids.get(*selected_idx) {
-                                    action_banner.set(Some(bundle.text("toast.pause", "")));
+                                    action_banner.set(Some(bundle.text("toast.pause")));
                                     on_action.emit((TorrentAction::Pause, *id));
                                 }
                             }
@@ -445,261 +445,271 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
         );
     }
 
+    let drawer_open = props.selected_id.is_some();
+    let close_drawer = {
+        let navigator = navigator.clone();
+        Callback::from(move |_| {
+            if let Some(navigator) = navigator.clone() {
+                navigator.push(&Route::Torrents);
+            }
+        })
+    };
+
     html! {
         <section class={classes!(density_class, mode_class, props.class.clone())}>
-            <div class="space-y-4">
-                <div class="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                        <p class="text-lg font-medium">{bundle.text("torrents.title", "Torrents")}</p>
-                        <p class="text-sm text-base-content/60">
-                            {bundle.text("torrents.subtitle", "Monitor active transfers and queue health.")}
-                        </p>
-                    </div>
-                    <div class="flex flex-wrap items-center gap-2">
-                        <div class="join">
-                            {Density::all().iter().map(|option| {
-                                let label = match option {
-                                    Density::Compact => t("density.compact"),
-                                    Density::Normal => t("density.normal"),
-                                    Density::Comfy => t("density.comfy"),
-                                };
-                                let active = props.density == *option;
-                                let callback = {
-                                    let on_change = props.on_density_change.clone();
-                                    let option = *option;
-                                    Callback::from(move |_| on_change.emit(option))
-                                };
-                                html! {
-                                    <button
-                                        class={classes!(
-                                            "btn",
-                                            "btn-sm",
-                                            "join-item",
-                                            if active { "btn-primary" } else { "btn-ghost" }
-                                        )}
-                                        onclick={callback}>
-                                        {label}
-                                    </button>
-                                }
-                            }).collect::<Html>()}
+            <Drawer
+                open={drawer_open}
+                on_close={close_drawer.clone()}
+                class="drawer-end"
+                content={html! {
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between">
+                            <p class="text-lg font-medium">{bundle.text("torrents.title")}</p>
+                            <div class="breadcrumbs hidden p-0 text-sm sm:inline">
+                                <ul>
+                                    <li>
+                                        <Link<Route> to={Route::Dashboard}>
+                                            {bundle.text("nav.dashboard")}
+                                        </Link<Route>>
+                                    </li>
+                                    <li class="opacity-80">{bundle.text("torrents.title")}</li>
+                                </ul>
+                            </div>
                         </div>
-                        <button class="btn btn-outline btn-sm" onclick={open_create_modal.clone()}>
-                            {bundle.text("torrents.create_title", "Create torrent")}
-                        </button>
-                        <button class="btn btn-primary btn-sm" onclick={open_add_modal.clone()}>
-                            {t("toolbar.add")}
-                        </button>
-                    </div>
-                </div>
 
-                <BulkActionBar
-                    class={classes!("sticky", "top-2", "z-10")}
-                    select_label={AttrValue::from(t("torrents.select_all"))}
-                    selected_label={AttrValue::from(t("torrents.selected"))}
-                    selected_count={selected_count}
-                    on_toggle_all={{
-                        let selected_ids = selected_ids.clone();
-                        let on_set_selected = props.on_set_selected.clone();
-                        let visible_ids = display_ids.clone();
-                        Callback::from(move |_| {
-                            on_set_selected.emit(select_all_or_clear(&selected_ids, &visible_ids));
-                        })
-                    }}
-                >
-                    <button
-                        class="btn btn-ghost btn-sm"
-                        disabled={selected_count == 0}
-                        onclick={{
-                            let on_bulk = props.on_bulk_action.clone();
-                            let ids = selected_ids.clone();
-                            Callback::from(move |_| {
-                                if !ids.is_empty() {
-                                    on_bulk.emit((TorrentAction::Pause, ids.iter().cloned().collect()));
-                                }
-                            })
-                        }}
-                    >
-                        {t("toolbar.pause")}
-                    </button>
-                    <button
-                        class="btn btn-ghost btn-sm"
-                        disabled={selected_count == 0}
-                        onclick={{
-                            let on_bulk = props.on_bulk_action.clone();
-                            let ids = selected_ids.clone();
-                            Callback::from(move |_| {
-                                if !ids.is_empty() {
-                                    on_bulk.emit((TorrentAction::Resume, ids.iter().cloned().collect()));
-                                }
-                            })
-                        }}
-                    >
-                        {t("toolbar.resume")}
-                    </button>
-                    <button
-                        class="btn btn-ghost btn-sm"
-                        disabled={selected_count == 0}
-                        onclick={{
-                            let on_bulk = props.on_bulk_action.clone();
-                            let ids = selected_ids.clone();
-                            Callback::from(move |_| {
-                                if !ids.is_empty() {
-                                    on_bulk.emit((TorrentAction::Reannounce, ids.iter().cloned().collect()));
-                                }
-                            })
-                        }}
-                    >
-                        {bundle.text("toolbar.reannounce", "Reannounce")}
-                    </button>
-                    <button
-                        class="btn btn-ghost btn-sm"
-                        disabled={selected_count == 0}
-                        onclick={{
-                            let on_bulk = props.on_bulk_action.clone();
-                            let ids = selected_ids.clone();
-                            Callback::from(move |_| {
-                                if !ids.is_empty() {
-                                    on_bulk.emit((TorrentAction::Recheck, ids.iter().cloned().collect()));
-                                }
-                            })
-                        }}
-                    >
-                        {t("toolbar.recheck")}
-                    </button>
-                    <button
-                        class="btn btn-ghost btn-sm"
-                        disabled={selected_count == 0}
-                        onclick={{
-                            let on_bulk = props.on_bulk_action.clone();
-                            let ids = selected_ids.clone();
-                            Callback::from(move |_| {
-                                if !ids.is_empty() {
-                                    on_bulk.emit((
-                                        TorrentAction::Sequential { enable: true },
-                                        ids.iter().cloned().collect(),
-                                    ));
-                                }
-                            })
-                        }}
-                    >
-                        {bundle.text("toolbar.sequential_on", "Sequential on")}
-                    </button>
-                    <button
-                        class="btn btn-ghost btn-sm"
-                        disabled={selected_count == 0}
-                        onclick={{
-                            let on_bulk = props.on_bulk_action.clone();
-                            let ids = selected_ids.clone();
-                            Callback::from(move |_| {
-                                if !ids.is_empty() {
-                                    on_bulk.emit((
-                                        TorrentAction::Sequential { enable: false },
-                                        ids.iter().cloned().collect(),
-                                    ));
-                                }
-                            })
-                        }}
-                    >
-                        {bundle.text("toolbar.sequential_off", "Sequential off")}
-                    </button>
-                    <button
-                        class="btn btn-ghost btn-sm"
-                        disabled={selected_count == 0}
-                        onclick={{
-                            let rate_target = rate_target.clone();
-                            let ids = selected_ids.clone();
-                            let label = format!(
-                                "{} {}",
-                                ids.len(),
-                                bundle.text("torrents.selected", "selected")
-                            );
-                            Callback::from(move |_| {
-                                if !ids.is_empty() {
-                                    rate_target.set(Some(ActionTarget::bulk(
-                                        ids.iter().cloned().collect(),
-                                        label.clone(),
-                                    )));
-                                }
-                            })
-                        }}
-                    >
-                        {bundle.text("toolbar.rate", "Set rate")}
-                    </button>
-                    <button
-                        class="btn btn-ghost btn-sm text-error"
-                        disabled={selected_count == 0}
-                        onclick={{
-                            let remove_target = remove_target.clone();
-                            let ids = selected_ids.clone();
-                            let label = format!(
-                                "{} {}",
-                                ids.len(),
-                                bundle.text("torrents.selected", "selected")
-                            );
-                            Callback::from(move |_| {
-                                if !ids.is_empty() {
-                                    remove_target.set(Some(ActionTarget::bulk(
-                                        ids.iter().cloned().collect(),
-                                        label.clone(),
-                                    )));
-                                }
-                            })
-                        }}
-                    >
-                        {t("toolbar.delete")}
-                    </button>
-                </BulkActionBar>
+                        <BulkActionBar
+                            class={classes!("sticky", "top-2", "z-10")}
+                            select_label={AttrValue::from(t("torrents.select_all"))}
+                            selected_label={AttrValue::from(t("torrents.selected"))}
+                            selected_count={selected_count}
+                            on_toggle_all={{
+                                let selected_ids = selected_ids.clone();
+                                let on_set_selected = props.on_set_selected.clone();
+                                let visible_ids = display_ids.clone();
+                                Callback::from(move |_| {
+                                    on_set_selected.emit(select_all_or_clear(&selected_ids, &visible_ids));
+                                })
+                            }}
+                        >
+                            <button
+                                class="btn btn-ghost btn-sm"
+                                disabled={selected_count == 0}
+                                onclick={{
+                                    let on_bulk = props.on_bulk_action.clone();
+                                    let ids = selected_ids.clone();
+                                    Callback::from(move |_| {
+                                        if !ids.is_empty() {
+                                            on_bulk.emit((TorrentAction::Pause, ids.iter().cloned().collect()));
+                                        }
+                                    })
+                                }}
+                            >
+                                {t("toolbar.pause")}
+                            </button>
+                            <button
+                                class="btn btn-ghost btn-sm"
+                                disabled={selected_count == 0}
+                                onclick={{
+                                    let on_bulk = props.on_bulk_action.clone();
+                                    let ids = selected_ids.clone();
+                                    Callback::from(move |_| {
+                                        if !ids.is_empty() {
+                                            on_bulk.emit((TorrentAction::Resume, ids.iter().cloned().collect()));
+                                        }
+                                    })
+                                }}
+                            >
+                                {t("toolbar.resume")}
+                            </button>
+                            <button
+                                class="btn btn-ghost btn-sm"
+                                disabled={selected_count == 0}
+                                onclick={{
+                                    let on_bulk = props.on_bulk_action.clone();
+                                    let ids = selected_ids.clone();
+                                    Callback::from(move |_| {
+                                        if !ids.is_empty() {
+                                            on_bulk.emit((TorrentAction::Reannounce, ids.iter().cloned().collect()));
+                                        }
+                                    })
+                                }}
+                            >
+                                {bundle.text("toolbar.reannounce")}
+                            </button>
+                            <button
+                                class="btn btn-ghost btn-sm"
+                                disabled={selected_count == 0}
+                                onclick={{
+                                    let on_bulk = props.on_bulk_action.clone();
+                                    let ids = selected_ids.clone();
+                                    Callback::from(move |_| {
+                                        if !ids.is_empty() {
+                                            on_bulk.emit((TorrentAction::Recheck, ids.iter().cloned().collect()));
+                                        }
+                                    })
+                                }}
+                            >
+                                {t("toolbar.recheck")}
+                            </button>
+                            <button
+                                class="btn btn-ghost btn-sm"
+                                disabled={selected_count == 0}
+                                onclick={{
+                                    let on_bulk = props.on_bulk_action.clone();
+                                    let ids = selected_ids.clone();
+                                    Callback::from(move |_| {
+                                        if !ids.is_empty() {
+                                            on_bulk.emit((
+                                                TorrentAction::Sequential { enable: true },
+                                                ids.iter().cloned().collect(),
+                                            ));
+                                        }
+                                    })
+                                }}
+                            >
+                                {bundle.text("toolbar.sequential_on")}
+                            </button>
+                            <button
+                                class="btn btn-ghost btn-sm"
+                                disabled={selected_count == 0}
+                                onclick={{
+                                    let on_bulk = props.on_bulk_action.clone();
+                                    let ids = selected_ids.clone();
+                                    Callback::from(move |_| {
+                                        if !ids.is_empty() {
+                                            on_bulk.emit((
+                                                TorrentAction::Sequential { enable: false },
+                                                ids.iter().cloned().collect(),
+                                            ));
+                                        }
+                                    })
+                                }}
+                            >
+                                {bundle.text("toolbar.sequential_off")}
+                            </button>
+                            <button
+                                class="btn btn-ghost btn-sm"
+                                disabled={selected_count == 0}
+                                onclick={{
+                                    let rate_target = rate_target.clone();
+                                    let ids = selected_ids.clone();
+                                    let label = format!(
+                                        "{} {}",
+                                        ids.len(),
+                                        bundle.text("torrents.selected")
+                                    );
+                                    Callback::from(move |_| {
+                                        if !ids.is_empty() {
+                                            rate_target.set(Some(ActionTarget::bulk(
+                                                ids.iter().cloned().collect(),
+                                                label.clone(),
+                                            )));
+                                        }
+                                    })
+                                }}
+                            >
+                                {bundle.text("toolbar.rate")}
+                            </button>
+                            <button
+                                class="btn btn-ghost btn-sm text-error"
+                                disabled={selected_count == 0}
+                                onclick={{
+                                    let remove_target = remove_target.clone();
+                                    let ids = selected_ids.clone();
+                                    let label = format!(
+                                        "{} {}",
+                                        ids.len(),
+                                        bundle.text("torrents.selected")
+                                    );
+                                    Callback::from(move |_| {
+                                        if !ids.is_empty() {
+                                            remove_target.set(Some(ActionTarget::bulk(
+                                                ids.iter().cloned().collect(),
+                                                label.clone(),
+                                            )));
+                                        }
+                                    })
+                                }}
+                            >
+                                {t("toolbar.delete")}
+                            </button>
+                        </BulkActionBar>
 
-                <div class="card bg-base-100 mt-5 shadow">
-                    <div class="card-body p-0">
-                        <div class="px-5 pt-5">
-                            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                                <div class="form-control w-full">
-                                    <label class="label pb-1">
-                                        <span class="label-text text-xs">
-                                            {t("torrents.search_label")}
-                                        </span>
-                                    </label>
-                                    <SearchInput
-                                        aria_label={Some(AttrValue::from(t("torrents.search_label")))}
-                                        placeholder={Some(AttrValue::from(t("torrents.search_placeholder")))}
-                                        input_ref={search_ref.clone()}
-                                        value={AttrValue::from(props.search.clone())}
-                                        debounce_ms={250}
-                                        class="w-full"
-                                        on_search={props.on_search.clone()}
-                                    />
+                        <div class="card bg-base-100 mt-5 shadow">
+                            <div class="card-body p-0">
+                                <div class="flex items-center justify-between px-5 pt-5">
+                                    <div class="inline-flex flex-wrap items-center gap-3">
+                                        <SearchInput
+                                            aria_label={Some(AttrValue::from(t("torrents.search_label")))}
+                                            placeholder={Some(AttrValue::from(t("torrents.search_placeholder")))}
+                                            input_ref={search_ref.clone()}
+                                            value={AttrValue::from(props.search.clone())}
+                                            debounce_ms={250}
+                                            size={DaisySize::Sm}
+                                            input_class="w-24 sm:w-36"
+                                            on_search={props.on_search.clone()}
+                                        />
+                                        <Select
+                                            aria_label={Some(AttrValue::from(bundle.text("torrents.state_label")))}
+                                            value={Some(AttrValue::from(props.state_filter.clone()))}
+                                            options={state_options.clone()}
+                                            size={DaisySize::Sm}
+                                            class="w-36"
+                                            onchange={{
+                                                let on_state = props.on_state_filter.clone();
+                                                Callback::from(move |value: AttrValue| on_state.emit(value.to_string()))
+                                            }}
+                                        />
+                                    </div>
+                                    <div class="inline-flex items-center gap-2">
+                                        <div class="join hidden md:flex">
+                                            {Density::all().iter().map(|option| {
+                                                let label = match option {
+                                                    Density::Compact => t("density.compact"),
+                                                    Density::Normal => t("density.normal"),
+                                                    Density::Comfy => t("density.comfy"),
+                                                };
+                                                let active = props.density == *option;
+                                                let callback = {
+                                                    let on_change = props.on_density_change.clone();
+                                                    let option = *option;
+                                                    Callback::from(move |_| on_change.emit(option))
+                                                };
+                                                html! {
+                                                    <button
+                                                        class={classes!(
+                                                            "btn",
+                                                            "btn-sm",
+                                                            "join-item",
+                                                            if active { "btn-primary" } else { "btn-ghost" }
+                                                        )}
+                                                        onclick={callback}>
+                                                        {label}
+                                                    </button>
+                                                }
+                                            }).collect::<Html>()}
+                                        </div>
+                                        <button class="btn btn-outline btn-sm" onclick={open_create_modal.clone()}>
+                                            <span class="iconify lucide--plus size-4"></span>
+                                            <span class="hidden sm:inline">
+                                                {bundle.text("torrents.create_title")}
+                                            </span>
+                                        </button>
+                                        <button class="btn btn-primary btn-sm" onclick={open_add_modal.clone()}>
+                                            <span class="iconify lucide--upload size-4"></span>
+                                            <span class="hidden sm:inline">{t("toolbar.add")}</span>
+                                        </button>
+                                    </div>
                                 </div>
-                                <div class="form-control w-full">
-                                    <label class="label pb-1">
-                                        <span class="label-text text-xs">
-                                            {bundle.text("torrents.filter_state", "State")}
-                                        </span>
-                                    </label>
-                                    <Select
-                                        aria_label={Some(AttrValue::from(bundle.text("torrents.state_label", "Torrent state")))}
-                                        value={Some(AttrValue::from(props.state_filter.clone()))}
-                                        options={state_options.clone()}
-                                        class="w-full"
-                                        onchange={{
-                                            let on_state = props.on_state_filter.clone();
-                                            Callback::from(move |value: AttrValue| on_state.emit(value.to_string()))
-                                        }}
-                                    />
-                                </div>
-                                <div class="form-control w-full">
-                                    <label class="label pb-1">
-                                        <span class="label-text text-xs">
-                                            {bundle.text("torrents.filter_tags", "Tags")}
-                                        </span>
-                                    </label>
+                                <div class="mt-3 flex flex-wrap items-center gap-2 px-5 pb-4">
                                     {if props.tag_options.is_empty() {
                                         html! {
                                             <Input
-                                                aria_label={Some(AttrValue::from(bundle.text("torrents.tags_label", "Tags")))}
-                                                placeholder={Some(AttrValue::from(bundle.text("torrents.tags_placeholder", "tag1, tag2")))}
+                                                aria_label={Some(AttrValue::from(bundle.text("torrents.tags_label")))}
+                                                placeholder={Some(AttrValue::from(bundle.text("torrents.tags_placeholder")))}
                                                 value={AttrValue::from(tag_input_value.clone())}
-                                                class="w-full"
+                                                size={DaisySize::Sm}
+                                                class="w-40"
                                                 oninput={{
                                                     let on_tags = props.on_tags_filter.clone();
                                                     Callback::from(move |value: String| {
@@ -711,10 +721,11 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                                     } else {
                                         html! {
                                             <MultiSelect
-                                                aria_label={Some(AttrValue::from(bundle.text("torrents.tags_label", "Tags")))}
+                                                aria_label={Some(AttrValue::from(bundle.text("torrents.tags_label")))}
                                                 options={props.tag_options.clone()}
                                                 values={tag_values.clone()}
-                                                class="w-full"
+                                                size={DaisySize::Sm}
+                                                class="w-40"
                                                 onchange={{
                                                     let on_tags = props.on_tags_filter.clone();
                                                     Callback::from(move |values: Vec<AttrValue>| {
@@ -724,202 +735,210 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                                             />
                                         }
                                     }}
-                                </div>
-                                <div class="form-control w-full">
-                                    <label class="label pb-1">
-                                        <span class="label-text text-xs">
-                                            {bundle.text("torrents.filter_tracker", "Tracker")}
-                                        </span>
-                                    </label>
                                     <Input
-                                        aria_label={Some(AttrValue::from(bundle.text("torrents.tracker_label", "Tracker")))}
-                                        placeholder={Some(AttrValue::from(bundle.text("torrents.tracker_placeholder", "tracker url")))}
+                                        aria_label={Some(AttrValue::from(bundle.text("torrents.tracker_label")))}
+                                        placeholder={Some(AttrValue::from(bundle.text("torrents.tracker_placeholder")))}
                                         value={AttrValue::from(props.tracker_filter.clone())}
-                                        class="w-full"
+                                        size={DaisySize::Sm}
+                                        class="w-40"
                                         oninput={{
                                             let on_tracker = props.on_tracker_filter.clone();
                                             Callback::from(move |value: String| on_tracker.emit(value))
                                         }}
                                     />
-                                </div>
-                                <div class="form-control w-full">
-                                    <label class="label pb-1">
-                                        <span class="label-text text-xs">
-                                            {bundle.text("torrents.filter_extension", "Extension")}
-                                        </span>
-                                    </label>
                                     <Input
-                                        aria_label={Some(AttrValue::from(bundle.text("torrents.extension_label", "Extension")))}
-                                        placeholder={Some(AttrValue::from(bundle.text("torrents.extension_placeholder", ".mkv")))}
+                                        aria_label={Some(AttrValue::from(bundle.text("torrents.extension_label")))}
+                                        placeholder={Some(AttrValue::from(bundle.text("torrents.extension_placeholder")))}
                                         value={AttrValue::from(props.extension_filter.clone())}
-                                        class="w-full"
+                                        size={DaisySize::Sm}
+                                        class="w-32"
                                         oninput={{
                                             let on_extension = props.on_extension_filter.clone();
                                             Callback::from(move |value: String| on_extension.emit(value))
                                         }}
                                     />
-                                </div>
-                            </div>
-                            <div class="mt-3 flex flex-wrap items-center gap-2">
-                                <button
-                                    class="btn btn-ghost btn-sm"
-                                    disabled={!has_filters}
-                                    onclick={clear_filters.clone()}>
-                                    {bundle.text("torrents.clear_filters", "Clear filters")}
-                                </button>
-                                <span class="text-xs text-base-content/60">
-                                    {format!("{} {}", display_ids.len(), bundle.text("torrents.results", "results"))}
-                                </span>
-                            </div>
-                        </div>
-                        <div class="mt-4 overflow-auto">
-                            <table class="table *:text-nowrap">
-                                <thead>
-                                    <tr>
-                                        <th class="px-6">
-                                            <input
-                                                aria-label={t("torrents.select_all")}
-                                                class="checkbox checkbox-sm"
-                                                type="checkbox"
-                                                checked={selected_count > 0 && selected_count == display_ids.len()}
-                                                onclick={{
-                                                    let selected_ids = selected_ids.clone();
-                                                    let on_set_selected = props.on_set_selected.clone();
-                                                    let visible_ids = display_ids.clone();
-                                                    Callback::from(move |_| {
-                                                        on_set_selected.emit(select_all_or_clear(&selected_ids, &visible_ids));
-                                                    })
-                                                }}
-                                            />
-                                        </th>
-                                        {sortable_header(
-                                            AttrValue::from(bundle.text("torrents.name", "Name")),
-                                            SortKey::Name,
-                                            *sort_state,
-                                            on_sort.clone(),
-                                        )}
-                                        {sortable_header(
-                                            AttrValue::from(bundle.text("torrents.state", "State")),
-                                            SortKey::State,
-                                            *sort_state,
-                                            on_sort.clone(),
-                                        )}
-                                        {sortable_header(
-                                            AttrValue::from(bundle.text("torrents.progress", "Progress")),
-                                            SortKey::Progress,
-                                            *sort_state,
-                                            on_sort.clone(),
-                                        )}
-                                        {sortable_header(
-                                            AttrValue::from(bundle.text("torrents.down", "Down")),
-                                            SortKey::Down,
-                                            *sort_state,
-                                            on_sort.clone(),
-                                        )}
-                                        {sortable_header(
-                                            AttrValue::from(bundle.text("torrents.up", "Up")),
-                                            SortKey::Up,
-                                            *sort_state,
-                                            on_sort.clone(),
-                                        )}
-                                        {sortable_header(
-                                            AttrValue::from(bundle.text("torrents.ratio", "Ratio")),
-                                            SortKey::Ratio,
-                                            *sort_state,
-                                            on_sort.clone(),
-                                        )}
-                                        {sortable_header(
-                                            AttrValue::from(bundle.text("torrents.size", "Size")),
-                                            SortKey::Size,
-                                            *sort_state,
-                                            on_sort.clone(),
-                                        )}
-                                        {sortable_header(
-                                            AttrValue::from(bundle.text("torrents.eta", "ETA")),
-                                            SortKey::Eta,
-                                            *sort_state,
-                                            on_sort.clone(),
-                                        )}
-                                        {sortable_header(
-                                            AttrValue::from(bundle.text("torrents.tags", "Tags")),
-                                            SortKey::Tags,
-                                            *sort_state,
-                                            on_sort.clone(),
-                                        )}
-                                        {sortable_header(
-                                            AttrValue::from(bundle.text("torrents.trackers", "Trackers")),
-                                            SortKey::Trackers,
-                                            *sort_state,
-                                            on_sort.clone(),
-                                        )}
-                                        {sortable_header(
-                                            AttrValue::from(bundle.text("torrents.updated", "Updated")),
-                                            SortKey::Updated,
-                                            *sort_state,
-                                            on_sort.clone(),
-                                        )}
-                                        <th>{bundle.text("torrents.actions", "Actions")}</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {if display_ids.is_empty() {
-                                        html! {
-                                            <tr>
-                                                <td colspan="13" class="h-24 text-center text-sm text-base-content/60">
-                                                    {bundle.text("torrents.empty", "No torrents yet")}
-                                                </td>
-                                            </tr>
-                                        }
-                                    } else {
-                                        html! {for display_ids.iter().enumerate().map(|(idx, id)| {
-                                            let active = Some(*id) == selected_id;
-                                            html! {
-                                                <TorrentTableRow
-                                                    id={*id}
-                                                    active={active || idx == *selected_idx}
-                                                    on_select={on_select.clone()}
-                                                    on_toggle={toggle_select.clone()}
-                                                    on_action={props.on_action.clone()}
-                                                    on_prompt_remove={on_prompt_remove.clone()}
-                                                    on_prompt_rate={on_prompt_rate.clone()}
-                                                    bundle={bundle.clone()}
-                                                />
-                                            }
-                                        })}
-                                    }}
-                                </tbody>
-                            </table>
-                        </div>
-                        {if props.can_load_more {
-                            let label = if props.is_loading {
-                                bundle.text("torrents.loading_more", "Loading...")
-                            } else {
-                                bundle.text("torrents.load_more", "Load more")
-                            };
-                            let on_load_more = props.on_load_more.clone();
-                            html! {
-                                <div class="flex justify-center px-5 py-4">
                                     <button
-                                        class="btn btn-outline btn-sm"
-                                        onclick={Callback::from(move |_| on_load_more.emit(()))}
-                                        disabled={props.is_loading}>
-                                        {label}
+                                        class="btn btn-ghost btn-sm"
+                                        disabled={!has_filters}
+                                        onclick={clear_filters.clone()}>
+                                        {bundle.text("torrents.clear_filters")}
                                     </button>
+                                    <span class="text-xs text-base-content/60">
+                                        {format!("{} {}", display_ids.len(), bundle.text("torrents.results"))}
+                                    </span>
+                                </div>
+                                <div class="mt-4 overflow-auto">
+                                    <table class="table bg-base-200">
+                                        <thead>
+                                            <tr>
+                                                <th class="px-6">
+                                                    <input
+                                                        aria-label={t("torrents.select_all")}
+                                                        class="checkbox checkbox-sm"
+                                                        type="checkbox"
+                                                        checked={selected_count > 0 && selected_count == display_ids.len()}
+                                                        onclick={{
+                                                            let selected_ids = selected_ids.clone();
+                                                            let on_set_selected = props.on_set_selected.clone();
+                                                            let visible_ids = display_ids.clone();
+                                                            Callback::from(move |_| {
+                                                                on_set_selected.emit(select_all_or_clear(&selected_ids, &visible_ids));
+                                                            })
+                                                        }}
+                                                    />
+                                                </th>
+                                                {sortable_header(
+                                                    AttrValue::from(bundle.text("torrents.name")),
+                                                    SortKey::Name,
+                                                    *sort_state,
+                                                    on_sort.clone(),
+                                                )}
+                                                {sortable_header(
+                                                    AttrValue::from(bundle.text("torrents.state")),
+                                                    SortKey::State,
+                                                    *sort_state,
+                                                    on_sort.clone(),
+                                                )}
+                                                {sortable_header(
+                                                    AttrValue::from(bundle.text("torrents.progress")),
+                                                    SortKey::Progress,
+                                                    *sort_state,
+                                                    on_sort.clone(),
+                                                )}
+                                                {sortable_header(
+                                                    AttrValue::from(bundle.text("torrents.down")),
+                                                    SortKey::Down,
+                                                    *sort_state,
+                                                    on_sort.clone(),
+                                                )}
+                                                {sortable_header(
+                                                    AttrValue::from(bundle.text("torrents.up")),
+                                                    SortKey::Up,
+                                                    *sort_state,
+                                                    on_sort.clone(),
+                                                )}
+                                                {sortable_header(
+                                                    AttrValue::from(bundle.text("torrents.ratio")),
+                                                    SortKey::Ratio,
+                                                    *sort_state,
+                                                    on_sort.clone(),
+                                                )}
+                                                {sortable_header(
+                                                    AttrValue::from(bundle.text("torrents.size")),
+                                                    SortKey::Size,
+                                                    *sort_state,
+                                                    on_sort.clone(),
+                                                )}
+                                                {sortable_header(
+                                                    AttrValue::from(bundle.text("torrents.eta")),
+                                                    SortKey::Eta,
+                                                    *sort_state,
+                                                    on_sort.clone(),
+                                                )}
+                                                {sortable_header(
+                                                    AttrValue::from(bundle.text("torrents.tags")),
+                                                    SortKey::Tags,
+                                                    *sort_state,
+                                                    on_sort.clone(),
+                                                )}
+                                                {sortable_header(
+                                                    AttrValue::from(bundle.text("torrents.trackers")),
+                                                    SortKey::Trackers,
+                                                    *sort_state,
+                                                    on_sort.clone(),
+                                                )}
+                                                {sortable_header(
+                                                    AttrValue::from(bundle.text("torrents.updated")),
+                                                    SortKey::Updated,
+                                                    *sort_state,
+                                                    on_sort.clone(),
+                                                )}
+                                                <th>{bundle.text("torrents.actions")}</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {if display_ids.is_empty() {
+                                                html! {
+                                                    <tr>
+                                                        <td colspan="13" class="px-6 py-8">
+                                                            <EmptyState title={AttrValue::from(bundle.text("torrents.empty"))} />
+                                                        </td>
+                                                    </tr>
+                                                }
+                                            } else {
+                                                html! {for display_ids.iter().enumerate().map(|(idx, id)| {
+                                                    let active = Some(*id) == selected_id;
+                                                    html! {
+                                                        <TorrentTableRow
+                                                            id={*id}
+                                                            active={active || idx == *selected_idx}
+                                                            on_select={on_select.clone()}
+                                                            on_toggle={toggle_select.clone()}
+                                                            on_action={props.on_action.clone()}
+                                                            on_prompt_remove={on_prompt_remove.clone()}
+                                                            on_prompt_rate={on_prompt_rate.clone()}
+                                                            bundle={bundle.clone()}
+                                                        />
+                                                    }
+                                                })}
+                                            }}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {if props.can_load_more {
+                                    let label = if props.is_loading {
+                                        bundle.text("torrents.loading_more")
+                                    } else {
+                                        bundle.text("torrents.load_more")
+                                    };
+                                    let on_load_more = props.on_load_more.clone();
+                                    html! {
+                                        <div class="flex justify-center px-5 py-4">
+                                            <button
+                                                class="btn btn-outline btn-sm"
+                                                onclick={Callback::from(move |_| on_load_more.emit(()))}
+                                                disabled={props.is_loading}>
+                                                {label}
+                                            </button>
+                                        </div>
+                                    }
+                                } else { html! {} }}
+                            </div>
+                        </div>
+                    </div>
+                }}
+                side={{
+                    if drawer_open {
+                        if let Some(detail) = props.selected_detail.clone() {
+                            html! {
+                                <div class="min-h-full w-96 max-w-full bg-base-200 p-4">
+                                    <DetailView
+                                        data={Some(detail)}
+                                        on_action={props.on_action.clone()}
+                                        on_prompt_rate={on_prompt_rate_detail.clone()}
+                                        on_prompt_remove={on_prompt_remove_detail.clone()}
+                                        on_update_selection={props.on_update_selection.clone()}
+                                        on_update_options={props.on_update_options.clone()}
+                                        on_close={close_drawer.clone()}
+                                        footer={html! {}}
+                                    />
                                 </div>
                             }
-                        } else { html! {} }}
-                    </div>
-                </div>
-            </div>
-
-            <DetailView
-                data={props.selected_detail.clone()}
-                on_action={props.on_action.clone()}
-                on_prompt_rate={on_prompt_rate_detail}
-                on_prompt_remove={on_prompt_remove_detail}
-                on_update_selection={props.on_update_selection.clone()}
-                on_update_options={props.on_update_options.clone()}
-                footer={html! {}}
+                        } else {
+                            html! {
+                                <div class="min-h-full w-96 max-w-full bg-base-200 p-4">
+                                    <div class="card bg-base-100 border border-base-200 shadow">
+                                        <div class="card-body items-center justify-center">
+                                            <Loading size={DaisySize::Sm} />
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        }
+                    } else {
+                        html! {}
+                    }
+                }}
             />
             {if *show_add_modal {
                 html! {
@@ -1271,12 +1290,12 @@ fn render_row(
     on_prompt_rate: Callback<ActionTarget>,
     bundle: TranslationBundle,
 ) -> Html {
-    let t = |key: &str, fallback: &str| bundle.text(key, fallback);
+    let t = |key: &str| bundle.text(key);
     let progress_percent = (progress.progress * 100.0).clamp(0.0, 100.0);
     let eta_label = progress
         .eta
         .clone()
-        .unwrap_or_else(|| t("torrents.eta_infinite", "–"));
+        .unwrap_or_else(|| t("torrents.eta_infinite"));
     let extra_tags = base.tags.len().saturating_sub(2);
     let row_click = {
         let on_select = on_select.clone();
@@ -1341,26 +1360,20 @@ fn render_row(
     let action_menu = render_action_menu(
         &bundle,
         vec![
-            ActionMenuItem::new(bundle.text("toolbar.reannounce", "Reannounce"), reannounce),
-            ActionMenuItem::new(bundle.text("toolbar.recheck", "Recheck"), recheck),
-            ActionMenuItem::new(
-                bundle.text("toolbar.sequential_on", "Sequential on"),
-                sequential_on,
-            ),
-            ActionMenuItem::new(
-                bundle.text("toolbar.sequential_off", "Sequential off"),
-                sequential_off,
-            ),
-            ActionMenuItem::new(bundle.text("toolbar.rate", "Set rate"), prompt_rate),
-            ActionMenuItem::danger(bundle.text("toolbar.delete", "Remove"), prompt_remove),
+            ActionMenuItem::new(bundle.text("toolbar.reannounce"), reannounce),
+            ActionMenuItem::new(bundle.text("toolbar.recheck"), recheck),
+            ActionMenuItem::new(bundle.text("toolbar.sequential_on"), sequential_on),
+            ActionMenuItem::new(bundle.text("toolbar.sequential_off"), sequential_off),
+            ActionMenuItem::new(bundle.text("toolbar.rate"), prompt_rate),
+            ActionMenuItem::danger(bundle.text("toolbar.delete"), prompt_remove),
         ],
     );
     let fsops_label = fsops_label(&bundle, fsops);
     let row_class = classes!(
-        "hover:bg-base-200/40",
+        "row-hover",
         "cursor-pointer",
         "*:text-nowrap",
-        selected.then_some("bg-base-200/40")
+        selected.then_some("bg-base-100")
     );
     html! {
         <tr class={row_class} aria-selected={selected.to_string()} onclick={row_click}>
@@ -1368,7 +1381,7 @@ fn render_row(
                 <input
                     type="checkbox"
                     class="checkbox checkbox-sm"
-                    aria-label={t("torrents.select_row", "Select row")}
+                    aria-label={t("torrents.select_row")}
                     checked={checked}
                     onclick={{
                         let on_toggle = on_toggle.clone();
@@ -1382,7 +1395,7 @@ fn render_row(
                     <p class="font-medium truncate">{base.name.clone()}</p>
                     <p class="text-base-content/60 text-xs truncate">
                         {if base.path.is_empty() {
-                            t("torrents.path_unknown", "Unknown path")
+                            t("torrents.path_unknown")
                         } else {
                             base.path.clone()
                         }}
@@ -1432,7 +1445,7 @@ fn render_row(
             </td>
             <td class="text-sm">
                 {if base.tracker.is_empty() {
-                    t("torrents.tracker_none", "No tracker")
+                    t("torrents.tracker_none")
                 } else {
                     base.tracker.clone()
                 }}
@@ -1448,7 +1461,7 @@ fn render_row(
                         )}
                         disabled={!can_pause}
                         onclick={pause}>
-                        {t("toolbar.pause", "Pause")}
+                        {t("toolbar.pause")}
                     </button>
                     <button
                         class={classes!(
@@ -1458,7 +1471,7 @@ fn render_row(
                         )}
                         disabled={!can_resume}
                         onclick={resume}>
-                        {t("toolbar.resume", "Resume")}
+                        {t("toolbar.resume")}
                     </button>
                     {action_menu}
                 </div>
@@ -1489,9 +1502,9 @@ fn fsops_badge_class(fsops: Option<&FsopsBadge>) -> &'static str {
 
 fn fsops_label(bundle: &TranslationBundle, fsops: Option<&FsopsBadge>) -> Option<String> {
     let label = match fsops.map(|badge| &badge.status) {
-        Some(FsopsStatus::InProgress) => bundle.text("torrents.fsops_in_progress", "FSOps"),
-        Some(FsopsStatus::Completed) => bundle.text("torrents.fsops_done", "FSOps done"),
-        Some(FsopsStatus::Failed) => bundle.text("torrents.fsops_failed", "FSOps failed"),
+        Some(FsopsStatus::InProgress) => bundle.text("torrents.fsops_in_progress"),
+        Some(FsopsStatus::Completed) => bundle.text("torrents.fsops_done"),
+        Some(FsopsStatus::Failed) => bundle.text("torrents.fsops_failed"),
         None => return None,
     };
     Some(label)
@@ -1514,34 +1527,28 @@ fn is_interactive_target(event: &MouseEvent) -> bool {
 fn action_banner_message(bundle: &TranslationBundle, action: &TorrentAction, name: &str) -> String {
     match action {
         TorrentAction::Delete { with_data: true } => {
-            format!("{} {name}", bundle.text("torrents.banner.removed_data", ""))
+            format!("{} {name}", bundle.text("torrents.banner.removed_data"))
         }
         TorrentAction::Delete { with_data: false } => {
-            format!("{} {name}", bundle.text("torrents.banner.removed", ""))
+            format!("{} {name}", bundle.text("torrents.banner.removed"))
         }
         TorrentAction::Reannounce => {
-            format!("{} {name}", bundle.text("torrents.banner.reannounce", ""))
+            format!("{} {name}", bundle.text("torrents.banner.reannounce"))
         }
         TorrentAction::Recheck => {
-            format!("{} {name}", bundle.text("torrents.banner.recheck", ""))
+            format!("{} {name}", bundle.text("torrents.banner.recheck"))
         }
-        TorrentAction::Pause => format!("{} {name}", bundle.text("torrents.banner.pause", "")),
-        TorrentAction::Resume => format!("{} {name}", bundle.text("torrents.banner.resume", "")),
+        TorrentAction::Pause => format!("{} {name}", bundle.text("torrents.banner.pause")),
+        TorrentAction::Resume => format!("{} {name}", bundle.text("torrents.banner.resume")),
         TorrentAction::Sequential { enable } => {
             if *enable {
-                format!(
-                    "{} {name}",
-                    bundle.text("torrents.banner.sequential_on", "")
-                )
+                format!("{} {name}", bundle.text("torrents.banner.sequential_on"))
             } else {
-                format!(
-                    "{} {name}",
-                    bundle.text("torrents.banner.sequential_off", "")
-                )
+                format!("{} {name}", bundle.text("torrents.banner.sequential_off"))
             }
         }
         TorrentAction::Rate { .. } => {
-            format!("{} {name}", bundle.text("torrents.banner.rate", ""))
+            format!("{} {name}", bundle.text("torrents.banner.rate"))
         }
     }
 }
@@ -1569,7 +1576,7 @@ mod tests {
     fn action_banner_uses_locale_strings() {
         let bundle = TranslationBundle::new(DEFAULT_LOCALE);
         let msg = action_banner_message(&bundle, &TorrentAction::Pause, "alpha");
-        assert!(msg.contains(&bundle.text("torrents.banner.pause", "")));
+        assert!(msg.contains(&bundle.text("torrents.banner.pause")));
     }
 }
 
@@ -1584,7 +1591,7 @@ pub(crate) struct ConfirmProps {
 fn confirm_dialog(props: &ConfirmProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let t = |key: &str| bundle.text(key, "");
+    let t = |key: &str| bundle.text(key);
     let Some(kind) = &props.kind else {
         return html! {};
     };
@@ -1671,17 +1678,10 @@ fn remove_dialog(props: &RemoveDialogProps) -> Html {
     let Some(target) = target else {
         return html! {};
     };
-    let title = format!(
-        "{} {}",
-        bundle.text("confirm.remove.title", "Remove"),
-        target.label
-    );
-    let body = bundle.text(
-        "confirm.remove.body",
-        "Files remain on disk unless delete data is enabled.",
-    );
-    let toggle_label = bundle.text("confirm.remove_toggle", "Delete data");
-    let confirm_label = bundle.text("confirm.remove.cta", "Remove");
+    let title = format!("{} {}", bundle.text("confirm.remove.title"), target.label);
+    let body = bundle.text("confirm.remove.body");
+    let toggle_label = bundle.text("confirm.remove_toggle");
+    let confirm_label = bundle.text("confirm.remove.cta");
     let confirm = {
         let delete_data = delete_data.clone();
         let cb = props.on_confirm.clone();
@@ -1719,7 +1719,7 @@ fn remove_dialog(props: &RemoveDialogProps) -> Html {
                             let cb = props.on_close.clone();
                             Callback::from(move |_| cb.emit(()))
                         }}>
-                        {bundle.text("confirm.cancel", "Cancel")}
+                        {bundle.text("confirm.cancel")}
                     </button>
                     <button class="btn btn-error btn-sm" onclick={confirm}>
                         {confirm_label}
@@ -1763,16 +1763,9 @@ fn rate_dialog(props: &RateDialogProps) -> Html {
     let Some(target) = target else {
         return html! {};
     };
-    let title = format!(
-        "{} {}",
-        bundle.text("torrents.rate_title", "Set rate limits for"),
-        target.label
-    );
-    let body = bundle.text(
-        "torrents.rate_body",
-        "Leave a field blank to keep it unchanged.",
-    );
-    let confirm_label = bundle.text("torrents.rate_apply", "Apply");
+    let title = format!("{} {}", bundle.text("torrents.rate_title"), target.label);
+    let body = bundle.text("torrents.rate_body");
+    let confirm_label = bundle.text("torrents.rate_apply");
     let confirm = {
         let download_input = download_input.clone();
         let upload_input = upload_input.clone();
@@ -1785,25 +1778,19 @@ fn rate_dialog(props: &RateDialogProps) -> Html {
             let download = match parse_rate_input(&download_value) {
                 Ok(parsed) => parsed,
                 Err(_) => {
-                    error.set(Some(
-                        bundle.text("torrents.rate_invalid", "Enter whole numbers for rates."),
-                    ));
+                    error.set(Some(bundle.text("torrents.rate_invalid")));
                     return;
                 }
             };
             let upload = match parse_rate_input(&upload_value) {
                 Ok(parsed) => parsed,
                 Err(_) => {
-                    error.set(Some(
-                        bundle.text("torrents.rate_invalid", "Enter whole numbers for rates."),
-                    ));
+                    error.set(Some(bundle.text("torrents.rate_invalid")));
                     return;
                 }
             };
             if download.is_none() && upload.is_none() {
-                error.set(Some(
-                    bundle.text("torrents.rate_empty", "Provide at least one rate limit."),
-                ));
+                error.set(Some(bundle.text("torrents.rate_empty")));
                 return;
             }
             error.set(None);
@@ -1824,12 +1811,12 @@ fn rate_dialog(props: &RateDialogProps) -> Html {
                     <div class="form-control w-full">
                         <label class="label pb-1">
                             <span class="label-text text-xs">
-                                {bundle.text("torrents.rate_download", "Download cap (B/s)")}
+                                {bundle.text("torrents.rate_download")}
                             </span>
                         </label>
                         <Input
                             value={AttrValue::from((*download_input).clone())}
-                            placeholder={Some(AttrValue::from(bundle.text("torrents.rate_placeholder", "0")))}
+                            placeholder={Some(AttrValue::from(bundle.text("torrents.rate_placeholder")))}
                             class="w-full"
                             oninput={{
                                 let download_input = download_input.clone();
@@ -1840,12 +1827,12 @@ fn rate_dialog(props: &RateDialogProps) -> Html {
                     <div class="form-control w-full">
                         <label class="label pb-1">
                             <span class="label-text text-xs">
-                                {bundle.text("torrents.rate_upload", "Upload cap (B/s)")}
+                                {bundle.text("torrents.rate_upload")}
                             </span>
                         </label>
                         <Input
                             value={AttrValue::from((*upload_input).clone())}
-                            placeholder={Some(AttrValue::from(bundle.text("torrents.rate_placeholder", "0")))}
+                            placeholder={Some(AttrValue::from(bundle.text("torrents.rate_placeholder")))}
                             class="w-full"
                             oninput={{
                                 let upload_input = upload_input.clone();
@@ -1868,7 +1855,7 @@ fn rate_dialog(props: &RateDialogProps) -> Html {
                             let cb = props.on_close.clone();
                             Callback::from(move |_| cb.emit(()))
                         }}>
-                        {bundle.text("confirm.cancel", "Cancel")}
+                        {bundle.text("confirm.cancel")}
                     </button>
                     <button class="btn btn-primary btn-sm" onclick={confirm}>
                         {confirm_label}
@@ -1888,7 +1875,7 @@ pub(crate) struct BannerProps {
 fn action_banner(props: &BannerProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let t = |key: &str| bundle.text(key, "");
+    let t = |key: &str| bundle.text(key);
     let Some(msg) = props.message.clone() else {
         return html! {};
     };

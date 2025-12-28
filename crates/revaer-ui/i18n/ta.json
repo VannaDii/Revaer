@@ -4,11 +4,11 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "டாஷ்போர்டு",
-    "torrents": "டொரண்ட்கள்",
+    "dashboard": "Home",
+    "torrents": "Torrents",
     "search": "தேடு",
     "jobs": "வேலைகள் / பிந்தைய செயலாக்கம்",
-    "settings": "அமைப்புகள்",
+    "settings": "Settings",
     "logs": "பதிவுகள்"
   },
   "mode": {

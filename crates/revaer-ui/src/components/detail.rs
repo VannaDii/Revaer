@@ -1,5 +1,6 @@
 use crate::Pane;
 use crate::components::action_menu::{ActionMenuItem, render_action_menu};
+use crate::components::atoms::EmptyState;
 use crate::core::logic::{format_bytes, format_rate};
 use crate::features::torrents::actions::TorrentAction;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
@@ -33,6 +34,8 @@ pub(crate) struct DetailProps {
     pub on_update_selection: Callback<(Uuid, FileSelectionChange)>,
     pub on_update_options: Callback<(Uuid, TorrentOptionsRequest)>,
     #[prop_or_default]
+    pub on_close: Callback<()>,
+    #[prop_or_default]
     pub footer: Html,
     #[prop_or_default]
     pub class: Classes,
@@ -42,22 +45,12 @@ pub(crate) struct DetailProps {
 pub(crate) fn detail_view(props: &DetailProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let t = |key: &str| bundle.text(key, "");
+    let t = |key: &str| bundle.text(key);
     let active = use_state(|| Pane::Overview);
     let connections_input = use_state(String::new);
     let connections_error = use_state(|| None as Option<String>);
     let queue_input = use_state(String::new);
     let queue_error = use_state(|| None as Option<String>);
-
-    let Some(detail) = props.data.as_ref() else {
-        return html! {
-            <section class={classes!("detail-panel", "placeholder", "relative", props.class.clone())}>
-                <h3>{t("detail.select_title")}</h3>
-                <p class="muted">{t("detail.select_body")}</p>
-                {props.footer.clone()}
-            </section>
-        };
-    };
 
     let detail_key = props
         .data
@@ -94,6 +87,10 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
             detail_key,
         );
     }
+
+    let Some(detail) = props.data.as_ref() else {
+        return html! {};
+    };
 
     let name = detail
         .summary
@@ -182,21 +179,19 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
         let label = name.clone();
         Callback::from(move |_| on_prompt_remove.emit((detail_id, label.clone())))
     };
+    let on_close = {
+        let on_close = props.on_close.clone();
+        Callback::from(move |_| on_close.emit(()))
+    };
     let action_menu = render_action_menu(
         &bundle,
         vec![
-            ActionMenuItem::new(bundle.text("toolbar.reannounce", "Reannounce"), reannounce),
-            ActionMenuItem::new(bundle.text("toolbar.recheck", "Recheck"), recheck),
-            ActionMenuItem::new(
-                bundle.text("toolbar.sequential_on", "Sequential on"),
-                sequential_on,
-            ),
-            ActionMenuItem::new(
-                bundle.text("toolbar.sequential_off", "Sequential off"),
-                sequential_off,
-            ),
-            ActionMenuItem::new(bundle.text("toolbar.rate", "Set rate"), prompt_rate),
-            ActionMenuItem::danger(bundle.text("toolbar.delete", "Remove"), prompt_remove),
+            ActionMenuItem::new(bundle.text("toolbar.reannounce"), reannounce),
+            ActionMenuItem::new(bundle.text("toolbar.recheck"), recheck),
+            ActionMenuItem::new(bundle.text("toolbar.sequential_on"), sequential_on),
+            ActionMenuItem::new(bundle.text("toolbar.sequential_off"), sequential_off),
+            ActionMenuItem::new(bundle.text("toolbar.rate"), prompt_rate),
+            ActionMenuItem::danger(bundle.text("toolbar.delete"), prompt_remove),
         ],
     );
 
@@ -212,114 +207,167 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
     );
 
     html! {
-        <section class={classes!("detail-panel", "relative", props.class.clone())}>
-            <header class="detail-header">
-                <div>
-                    <small class="text-xs text-base-content/60">{t("detail.view_label")}</small>
-                    <h3>{name.clone()}</h3>
-                </div>
-                <div class="pane-tabs mobile-only">
-                    {for [Pane::Overview, Pane::Files, Pane::Options].iter().map(|pane| {
-                        let label = match pane {
-                            Pane::Overview => t("detail.tab.overview"),
-                            Pane::Files => t("detail.tab.files"),
-                            Pane::Options => t("detail.tab.options"),
-                        };
-                        let active_state = *active == *pane;
-                        let onclick = {
-                            let active = active.clone();
-                            let pane = *pane;
-                            Callback::from(move |_| active.set(pane))
-                        };
-                        html! {
-                            <button
-                                class={classes!(
-                                    "btn",
-                                    "btn-xs",
-                                    if active_state { "btn-primary" } else { "btn-ghost" }
-                                )}
-                                onclick={onclick}>
-                                {label}
-                            </button>
-                        }
-                    })}
-                </div>
-            </header>
-
-            <div class="detail-grid">
-                <section class={pane_classes(Pane::Overview, *active)} data-pane="overview">
-                    <header>
-                        <h4>{t("detail.overview.title")}</h4>
-                        <p class="text-sm text-base-content/60">{t("detail.overview.body")}</p>
-                    </header>
-                    <div class="overview-actions">
-                        <button class="btn btn-sm btn-ghost" onclick={pause}>{t("toolbar.pause")}</button>
-                        <button class="btn btn-sm btn-ghost" onclick={resume}>{t("toolbar.resume")}</button>
-                        {action_menu}
+        <section
+            class={classes!(
+                "card",
+                "bg-base-100",
+                "border",
+                "border-base-200",
+                "shadow",
+                "relative",
+                props.class.clone()
+            )}>
+            <div class="card-body gap-4">
+                <div class="flex items-start justify-between gap-3">
+                    <div class="space-y-1">
+                        <p class="text-xs text-base-content/60">{t("detail.view_label")}</p>
+                        <h3 class="text-base font-semibold break-words">{name.clone()}</h3>
                     </div>
-                    {last_error.as_ref().map(|message| html! {
-                        <div class="detail-error">
-                            <span class="badge badge-sm badge-error badge-soft">{t("detail.overview.last_error")}</span>
-                            <span>{message.clone()}</span>
+                    <div class="flex items-start gap-2">
+                        <div role="tablist" class="tabs tabs-boxed tabs-sm md:hidden">
+                            {for [Pane::Overview, Pane::Files, Pane::Options].iter().map(|pane| {
+                                let label = match pane {
+                                    Pane::Overview => t("detail.tab.overview"),
+                                    Pane::Files => t("detail.tab.files"),
+                                    Pane::Options => t("detail.tab.options"),
+                                };
+                                let active_state = *active == *pane;
+                                let onclick = {
+                                    let active = active.clone();
+                                    let pane = *pane;
+                                    Callback::from(move |_| active.set(pane))
+                                };
+                                html! {
+                                    <button
+                                        role="tab"
+                                        class={classes!("tab", if active_state { "tab-active" } else { "" })}
+                                        onclick={onclick}>
+                                        {label}
+                                    </button>
+                                }
+                            })}
                         </div>
-                    }).unwrap_or_default()}
-                    <div class="table-like">
-                        <div class="table-row">
-                            <div><strong>{t("detail.overview.status")}</strong></div>
-                            <div class={classes!("badge", "badge-sm", "badge-soft", status_class)}>{status.clone()}</div>
-                        </div>
-                        <div class="table-row">
-                            <div><strong>{t("detail.overview.progress")}</strong></div>
-                            <div>{progress_label}</div>
-                        </div>
-                        <div class="table-row">
-                            <div><strong>{t("detail.overview.rates")}</strong></div>
-                            <div>{rates_label}</div>
-                        </div>
-                        <div class="table-row">
-                            <div><strong>{t("detail.overview.ratio")}</strong></div>
-                            <div>{ratio_label}</div>
-                        </div>
-                        <div class="table-row">
-                            <div><strong>{t("detail.overview.category")}</strong></div>
-                            <div>{category_label}</div>
-                        </div>
-                        <div class="table-row">
-                            <div><strong>{t("detail.overview.tags")}</strong></div>
-                            <div>{tags_label}</div>
-                        </div>
-                        <div class="table-row">
-                            <div><strong>{t("detail.overview.trackers")}</strong></div>
-                            <div>{trackers_label}</div>
-                        </div>
-                        <div class="table-row">
-                            <div><strong>{t("detail.overview.save_path")}</strong></div>
-                            <div>{save_path_label}</div>
-                        </div>
-                        <div class="table-row">
-                            <div><strong>{t("detail.overview.updated")}</strong></div>
-                            <div>{updated_label}</div>
-                        </div>
+                        <button
+                            class="btn btn-ghost btn-xs btn-circle"
+                            aria-label={t("confirm.cancel")}
+                            onclick={on_close}>
+                            <span class="iconify lucide--x size-4"></span>
+                        </button>
                     </div>
-                </section>
+                </div>
 
-                <section class={pane_classes(Pane::Files, *active)} data-pane="files">
-                    {files_tab}
-                </section>
+                <div class="grid gap-4 lg:grid-cols-2">
+                    <section class={pane_classes(Pane::Overview, *active)} data-pane="overview">
+                        <div class="space-y-1">
+                            <h4 class="text-sm font-semibold">{t("detail.overview.title")}</h4>
+                            <p class="text-sm text-base-content/60">{t("detail.overview.body")}</p>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <button class="btn btn-sm btn-ghost" onclick={pause}>{t("toolbar.pause")}</button>
+                            <button class="btn btn-sm btn-ghost" onclick={resume}>{t("toolbar.resume")}</button>
+                            {action_menu}
+                        </div>
+                        {last_error.as_ref().map(|message| html! {
+                            <div class="alert alert-error text-sm">
+                                <span class="iconify lucide--alert-triangle size-4"></span>
+                                <div class="flex flex-wrap items-center gap-2">
+                                    <span class="badge badge-sm badge-error badge-soft">
+                                        {t("detail.overview.last_error")}
+                                    </span>
+                                    <span>{message.clone()}</span>
+                                </div>
+                            </div>
+                        }).unwrap_or_default()}
+                        <div class="overflow-x-auto">
+                            <table class="table table-sm bg-base-200">
+                                <tbody>
+                                    <tr class="row-hover">
+                                        <th class="text-xs font-medium text-base-content/70">
+                                            {t("detail.overview.status")}
+                                        </th>
+                                        <td>
+                                            <span class={classes!("badge", "badge-sm", "badge-soft", status_class)}>
+                                                {status.clone()}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <tr class="row-hover">
+                                        <th class="text-xs font-medium text-base-content/70">
+                                            {t("detail.overview.progress")}
+                                        </th>
+                                        <td class="text-sm">{progress_label}</td>
+                                    </tr>
+                                    <tr class="row-hover">
+                                        <th class="text-xs font-medium text-base-content/70">
+                                            {t("detail.overview.rates")}
+                                        </th>
+                                        <td class="text-sm">{rates_label}</td>
+                                    </tr>
+                                    <tr class="row-hover">
+                                        <th class="text-xs font-medium text-base-content/70">
+                                            {t("detail.overview.ratio")}
+                                        </th>
+                                        <td class="text-sm">{ratio_label}</td>
+                                    </tr>
+                                    <tr class="row-hover">
+                                        <th class="text-xs font-medium text-base-content/70">
+                                            {t("detail.overview.category")}
+                                        </th>
+                                        <td class="text-sm">{category_label}</td>
+                                    </tr>
+                                    <tr class="row-hover">
+                                        <th class="text-xs font-medium text-base-content/70">
+                                            {t("detail.overview.tags")}
+                                        </th>
+                                        <td class="text-sm">{tags_label}</td>
+                                    </tr>
+                                    <tr class="row-hover">
+                                        <th class="text-xs font-medium text-base-content/70">
+                                            {t("detail.overview.trackers")}
+                                        </th>
+                                        <td class="text-sm">{trackers_label}</td>
+                                    </tr>
+                                    <tr class="row-hover">
+                                        <th class="text-xs font-medium text-base-content/70">
+                                            {t("detail.overview.save_path")}
+                                        </th>
+                                        <td class="text-sm">{save_path_label}</td>
+                                    </tr>
+                                    <tr class="row-hover">
+                                        <th class="text-xs font-medium text-base-content/70">
+                                            {t("detail.overview.updated")}
+                                        </th>
+                                        <td class="text-sm">{updated_label}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
 
-                <section class={pane_classes(Pane::Options, *active)} data-pane="options">
-                    {options_tab}
-                </section>
+                    <section class={pane_classes(Pane::Files, *active)} data-pane="files">
+                        {files_tab}
+                    </section>
+
+                    <section class={pane_classes(Pane::Options, *active)} data-pane="options">
+                        {options_tab}
+                    </section>
+                </div>
+                {props.footer.clone()}
             </div>
-            {props.footer.clone()}
         </section>
     }
 }
 
 fn pane_classes(pane: Pane, active: Pane) -> Classes {
     classes!(
-        "detail-pane",
-        if pane == active { Some("active") } else { None }
+        "rounded-box",
+        "border",
+        "border-base-200",
+        "bg-base-200/40",
+        "p-4",
+        "space-y-3",
+        if pane == active { "block" } else { "hidden" },
+        "lg:block"
     )
 }
 
@@ -370,7 +418,7 @@ fn render_files_tab(
     on_update_selection: Callback<(Uuid, FileSelectionChange)>,
     bundle: TranslationBundle,
 ) -> Html {
-    let t = |key: &str| bundle.text(key, "");
+    let t = |key: &str| bundle.text(key);
     let title = t("detail.files.title");
     let body = t("detail.files.body");
     let empty_label = t("detail.files.empty");
@@ -398,29 +446,41 @@ fn render_files_tab(
 
     let rows = match detail.files.as_ref() {
         Some(files) if !files.is_empty() => html! {
-            <div class="file-tree">
-                {for files.iter().map(|file| render_file_row(file, &on_update_selection, &bundle, detail_id))}
+            <div class="overflow-x-auto">
+                <table class="table table-sm bg-base-200">
+                    <thead>
+                        <tr>
+                            <th>{t("torrents.name")}</th>
+                            <th>{t("detail.overview.progress")}</th>
+                            <th>{t("detail.files.priority")}</th>
+                            <th>{t("detail.files.wanted")}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {for files.iter().map(|file| render_file_row(file, &on_update_selection, &bundle, detail_id))}
+                    </tbody>
+                </table>
             </div>
         },
-        _ => html! { <p class="muted">{empty_label}</p> },
+        _ => html! { <EmptyState title={AttrValue::from(empty_label)} /> },
     };
 
     html! {
         <>
-            <header>
-                <h4>{title}</h4>
-                <p class="muted">{body}</p>
-                <label class="switch">
-                    <input
-                        type="checkbox"
-                        checked={skip_fluff}
-                        aria-label={skip_fluff_label.clone()}
-                        onchange={on_skip_fluff}
-                    />
-                    <span class="slider"></span>
-                    <span class="switch-label">{skip_fluff_label}</span>
-                </label>
-            </header>
+            <div class="space-y-1">
+                <h4 class="text-sm font-semibold">{title}</h4>
+                <p class="text-sm text-base-content/60">{body}</p>
+            </div>
+            <label class="label cursor-pointer justify-start gap-2">
+                <input
+                    type="checkbox"
+                    class="toggle toggle-sm"
+                    checked={skip_fluff}
+                    aria-label={skip_fluff_label.clone()}
+                    onchange={on_skip_fluff}
+                />
+                <span class="label-text text-sm">{skip_fluff_label}</span>
+            </label>
             {rows}
         </>
     }
@@ -432,7 +492,7 @@ fn render_file_row(
     bundle: &TranslationBundle,
     detail_id: Uuid,
 ) -> Html {
-    let t = |key: &str| bundle.text(key, "");
+    let t = |key: &str| bundle.text(key);
     let wanted_label = t("detail.files.wanted");
     let priority_label = t("detail.files.priority");
     let percent = if file.size_bytes == 0 {
@@ -476,35 +536,43 @@ fn render_file_row(
     };
 
     html! {
-        <div class="file-row">
-            <div class="file-main">
-                <span class="file-name">{file.path.clone()}</span>
-                <div class="file-progress">
-                    <span class="muted">{progress_label}</span>
-                    <div class="bar" style={format!("width: {:.1}%", percent)}></div>
+        <tr class="row-hover">
+            <td class="max-w-[16rem]">
+                <span class="block truncate text-sm font-medium">{file.path.clone()}</span>
+            </td>
+            <td>
+                <div class="space-y-1">
+                    <progress
+                        class="progress progress-primary h-2 w-32"
+                        max="100"
+                        value={format!("{percent:.1}")}></progress>
+                    <span class="text-xs text-base-content/60">{progress_label}</span>
                 </div>
-            </div>
-            <div class="file-actions">
-                <label class="file-priority">
-                    <span class="muted">{priority_label}</span>
-                    <select value={priority_value(file.priority)} onchange={on_priority}>
+            </td>
+            <td>
+                <label class="form-control gap-1">
+                    <span class="label-text text-xs">{priority_label}</span>
+                    <select
+                        class="select select-bordered select-xs"
+                        value={priority_value(file.priority)}
+                        onchange={on_priority}>
                         <option value="skip">{t("detail.files.priority_skip")}</option>
                         <option value="low">{t("detail.files.priority_low")}</option>
                         <option value="normal">{t("detail.files.priority_normal")}</option>
                         <option value="high">{t("detail.files.priority_high")}</option>
                     </select>
                 </label>
-                <label class="switch">
-                    <input
-                        type="checkbox"
-                        checked={file.selected}
-                        aria-label={wanted_label}
-                        onchange={on_toggle}
-                    />
-                    <span class="slider"></span>
-                </label>
-            </div>
-        </div>
+            </td>
+            <td class="text-center">
+                <input
+                    type="checkbox"
+                    class="checkbox checkbox-sm"
+                    checked={file.selected}
+                    aria-label={wanted_label}
+                    onchange={on_toggle}
+                />
+            </td>
+        </tr>
     }
 }
 
@@ -517,7 +585,7 @@ fn render_options_tab(
     queue_error: UseStateHandle<Option<String>>,
     bundle: TranslationBundle,
 ) -> Html {
-    let t = |key: &str| bundle.text(key, "");
+    let t = |key: &str| bundle.text(key);
     let title = t("detail.options.title");
     let body = t("detail.options.body");
     let empty_label = t("detail.options.empty");
@@ -558,11 +626,11 @@ fn render_options_tab(
     let Some(settings) = detail.settings.as_ref() else {
         return html! {
             <>
-                <header>
-                    <h4>{title}</h4>
-                    <p class="muted">{body}</p>
-                </header>
-                <p class="muted">{empty_label}</p>
+                <div class="space-y-1">
+                    <h4 class="text-sm font-semibold">{title}</h4>
+                    <p class="text-sm text-base-content/60">{body}</p>
+                </div>
+                <EmptyState title={AttrValue::from(empty_label)} />
             </>
         };
     };
@@ -756,159 +824,185 @@ fn render_options_tab(
 
     html! {
         <>
-            <header>
-                <h4>{title}</h4>
-                <p class="muted">{body}</p>
-            </header>
-            <div class="options-block">
-                <h5>{editable_label}</h5>
-                <div class="table-like">
-                    <div class="table-row">
-                        <div><strong>{connections_label}</strong></div>
-                        <div class="option-control">
-                            <input
-                                type="number"
-                                value={connections_value}
-                                placeholder={unset_label.clone()}
-                                onchange={{
-                                    let connections_input = connections_input.clone();
-                                    Callback::from(move |event: Event| {
-                                        if let Some(input) = event.target_dyn_into::<HtmlInputElement>() {
-                                            connections_input.set(input.value());
-                                        }
-                                    })
-                                }}
-                            />
-                            <button class="btn btn-xs btn-ghost" onclick={on_connections_apply}>{apply_label.clone()}</button>
-                            {if connections_error_msg.is_empty() {
-                                html! {}
-                            } else {
-                                html! { <span class="badge badge-sm badge-warning badge-soft">{connections_error_msg}</span> }
-                            }}
-                        </div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{pex_label}</strong></div>
-                        <label class="switch">
-                            <input type="checkbox" checked={pex_enabled} onchange={on_pex} />
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{super_seeding_label}</strong></div>
-                        <label class="switch">
-                            <input type="checkbox" checked={super_seeding} onchange={on_super_seeding} />
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{auto_managed_label}</strong></div>
-                        <label class="switch">
-                            <input type="checkbox" checked={auto_managed} onchange={on_auto_managed} />
-                            <span class="slider"></span>
-                        </label>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{queue_position_label}</strong></div>
-                        <div class="option-control">
-                            <input
-                                type="number"
-                                value={queue_value}
-                                placeholder={unset_label.clone()}
-                                disabled={auto_managed}
-                                onchange={{
-                                    let queue_input = queue_input.clone();
-                                    Callback::from(move |event: Event| {
-                                        if let Some(input) = event.target_dyn_into::<HtmlInputElement>() {
-                                            queue_input.set(input.value());
-                                        }
-                                    })
-                                }}
-                            />
-                            <button class="btn btn-xs btn-ghost" onclick={on_queue_apply} disabled={auto_managed}>{apply_label.clone()}</button>
-                            {if queue_error_msg.is_empty() {
-                                html! {}
-                            } else {
-                                html! { <span class="badge badge-sm badge-warning badge-soft">{queue_error_msg}</span> }
-                            }}
-                        </div>
+            <div class="space-y-1">
+                <h4 class="text-sm font-semibold">{title}</h4>
+                <p class="text-sm text-base-content/60">{body}</p>
+            </div>
+            <div class="space-y-3">
+                <div class="rounded-box border border-base-200 bg-base-200/40 p-3 space-y-2">
+                    <h5 class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+                        {editable_label}
+                    </h5>
+                    <div class="overflow-x-auto">
+                        <table class="table table-sm bg-base-200">
+                            <tbody>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{connections_label}</th>
+                                    <td>
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <input
+                                                class="input input-bordered input-xs w-24"
+                                                type="number"
+                                                value={connections_value}
+                                                placeholder={unset_label.clone()}
+                                                onchange={{
+                                                    let connections_input = connections_input.clone();
+                                                    Callback::from(move |event: Event| {
+                                                        if let Some(input) = event.target_dyn_into::<HtmlInputElement>() {
+                                                            connections_input.set(input.value());
+                                                        }
+                                                    })
+                                                }}
+                                            />
+                                            <button class="btn btn-xs btn-ghost" onclick={on_connections_apply}>
+                                                {apply_label.clone()}
+                                            </button>
+                                            {if connections_error_msg.is_empty() {
+                                                html! {}
+                                            } else {
+                                                html! { <span class="badge badge-warning badge-sm">{connections_error_msg}</span> }
+                                            }}
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{pex_label}</th>
+                                    <td>
+                                        <input type="checkbox" class="toggle toggle-sm" checked={pex_enabled} onchange={on_pex} />
+                                    </td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{super_seeding_label}</th>
+                                    <td>
+                                        <input type="checkbox" class="toggle toggle-sm" checked={super_seeding} onchange={on_super_seeding} />
+                                    </td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{auto_managed_label}</th>
+                                    <td>
+                                        <input type="checkbox" class="toggle toggle-sm" checked={auto_managed} onchange={on_auto_managed} />
+                                    </td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{queue_position_label}</th>
+                                    <td>
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <input
+                                                class="input input-bordered input-xs w-24"
+                                                type="number"
+                                                value={queue_value}
+                                                placeholder={unset_label.clone()}
+                                                disabled={auto_managed}
+                                                onchange={{
+                                                    let queue_input = queue_input.clone();
+                                                    Callback::from(move |event: Event| {
+                                                        if let Some(input) = event.target_dyn_into::<HtmlInputElement>() {
+                                                            queue_input.set(input.value());
+                                                        }
+                                                    })
+                                                }}
+                                            />
+                                            <button
+                                                class="btn btn-xs btn-ghost"
+                                                onclick={on_queue_apply}
+                                                disabled={auto_managed}>
+                                                {apply_label.clone()}
+                                            </button>
+                                            {if queue_error_msg.is_empty() {
+                                                html! {}
+                                            } else {
+                                                html! { <span class="badge badge-warning badge-sm">{queue_error_msg}</span> }
+                                            }}
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
-            </div>
-            <div class="options-block">
-                <h5>{readonly_label}</h5>
-                <div class="table-like">
-                    <div class="table-row">
-                        <div><strong>{category_label}</strong></div>
-                        <div>{settings.category.clone().unwrap_or_else(|| unset_label.clone())}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{tags_label_title}</strong></div>
-                        <div>{tags_label}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{trackers_label_title}</strong></div>
-                        <div>{trackers_label}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{tracker_messages_label_title}</strong></div>
-                        <div>{tracker_messages_label}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{download_dir_label_title}</strong></div>
-                        <div>{download_dir_label}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{rate_limit_label_title}</strong></div>
-                        <div>{rate_limit_label}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{storage_mode_label_title}</strong></div>
-                        <div>{storage_mode_label}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{partfile_label_title}</strong></div>
-                        <div>{partfile_label}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{sequential_label_title}</strong></div>
-                        <div>{if settings.sequential { yes_label.clone() } else { no_label.clone() }}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{selection_label_title}</strong></div>
-                        <div>{selection_label}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{seed_mode_label_title}</strong></div>
-                        <div>{seed_mode_label}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{seed_ratio_label_title}</strong></div>
-                        <div>{seed_ratio_label}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{seed_time_label_title}</strong></div>
-                        <div>{seed_time_label}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{cleanup_label_title}</strong></div>
-                        <div>{cleanup_label}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{private_label_title}</strong></div>
-                        <div>{private_label}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{comment_label_title}</strong></div>
-                        <div>{comment_label}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{source_label_title}</strong></div>
-                        <div>{source_label}</div>
-                    </div>
-                    <div class="table-row">
-                        <div><strong>{web_seeds_label_title}</strong></div>
-                        <div>{web_seeds_label}</div>
+                <div class="rounded-box border border-base-200 bg-base-200/20 p-3 space-y-2">
+                    <h5 class="text-xs font-semibold uppercase tracking-wide text-base-content/60">
+                        {readonly_label}
+                    </h5>
+                    <div class="overflow-x-auto">
+                        <table class="table table-sm bg-base-200">
+                            <tbody>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{category_label}</th>
+                                    <td class="text-sm break-words">
+                                        {settings.category.clone().unwrap_or_else(|| unset_label.clone())}
+                                    </td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{tags_label_title}</th>
+                                    <td class="text-sm break-words">{tags_label}</td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{trackers_label_title}</th>
+                                    <td class="text-sm break-words">{trackers_label}</td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{tracker_messages_label_title}</th>
+                                    <td class="text-sm">{tracker_messages_label}</td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{download_dir_label_title}</th>
+                                    <td class="text-sm break-words">{download_dir_label}</td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{rate_limit_label_title}</th>
+                                    <td class="text-sm">{rate_limit_label}</td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{storage_mode_label_title}</th>
+                                    <td class="text-sm">{storage_mode_label}</td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{partfile_label_title}</th>
+                                    <td class="text-sm">{partfile_label}</td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{sequential_label_title}</th>
+                                    <td class="text-sm">{if settings.sequential { yes_label.clone() } else { no_label.clone() }}</td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{selection_label_title}</th>
+                                    <td class="text-sm break-words">{selection_label}</td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{seed_mode_label_title}</th>
+                                    <td class="text-sm">{seed_mode_label}</td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{seed_ratio_label_title}</th>
+                                    <td class="text-sm">{seed_ratio_label}</td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{seed_time_label_title}</th>
+                                    <td class="text-sm">{seed_time_label}</td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{cleanup_label_title}</th>
+                                    <td class="text-sm break-words">{cleanup_label}</td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{private_label_title}</th>
+                                    <td class="text-sm">{private_label}</td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{comment_label_title}</th>
+                                    <td class="text-sm break-words">{comment_label}</td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{source_label_title}</th>
+                                    <td class="text-sm break-words">{source_label}</td>
+                                </tr>
+                                <tr class="row-hover">
+                                    <th class="text-xs font-medium text-base-content/70">{web_seeds_label_title}</th>
+                                    <td class="text-sm break-words">{web_seeds_label}</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>

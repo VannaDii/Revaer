@@ -19,6 +19,20 @@ pub(crate) struct ConnectivityIndicatorProps {
 pub(crate) fn connectivity_indicator(props: &ConnectivityIndicatorProps) -> Html {
     let (icon, status_class, title) = indicator_style(&props.summary);
     let label = status_label(&props.summary);
+    let label_class = classes!(
+        "sse-indicator__label",
+        "text-xs",
+        "font-medium",
+        "from-primary",
+        "to-secondary",
+        "bg-gradient-to-r",
+        "bg-clip-text",
+        "text-transparent",
+        "transition-all",
+        "duration-300",
+        "group-hover:text-primary-content",
+        props.label_class.clone()
+    );
     let on_open = {
         let on_open = props.on_open.clone();
         Callback::from(move |_| on_open.emit(()))
@@ -28,18 +42,33 @@ pub(crate) fn connectivity_indicator(props: &ConnectivityIndicatorProps) -> Html
         <button
             type="button"
             class={classes!(
-                "menu-item",
                 "sse-indicator",
-                "gap-3",
+                "group",
+                "rounded-box",
+                "relative",
+                "mx-2.5",
+                "block",
                 props.class.clone()
             )}
             title={title.clone()}
             aria-label={title}
             onclick={on_open}
         >
-            <span class={classes!("iconify", icon, "size-4.5")}></span>
-            <span class={classes!("status", status_class, "status-sm")}></span>
-            <span class={props.label_class.clone()}>{label}</span>
+            <div class="rounded-box absolute inset-0 bg-gradient-to-r from-transparent to-transparent transition-opacity duration-300 group-hover:opacity-0"></div>
+            <div class="from-primary to-secondary rounded-box absolute inset-0 bg-gradient-to-r opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
+            <div class="relative flex h-10 items-center gap-3 px-3">
+                <span class={classes!(
+                    "iconify",
+                    icon,
+                    "text-primary",
+                    "size-4.5",
+                    "transition-all",
+                    "duration-300",
+                    "group-hover:text-primary-content"
+                )}></span>
+                <span class={classes!("status", status_class, "status-sm")}></span>
+                <span class={label_class}>{label}</span>
+            </div>
         </button>
     }
 }
@@ -79,11 +108,6 @@ pub(crate) fn connectivity_modal(props: &ConnectivityModalProps) -> Html {
         SseConnectionState::Reconnecting => "Reconnecting",
     };
     let retry_in = retry_in_seconds(props.status.next_retry_at_ms);
-    let auth_mode = props
-        .status
-        .auth_mode
-        .clone()
-        .unwrap_or_else(|| "Unknown".to_string());
     let last_event_id = props
         .status
         .last_event_id
@@ -130,23 +154,19 @@ pub(crate) fn connectivity_modal(props: &ConnectivityModalProps) -> Html {
                         </div>
                         <div class="grid gap-2 text-sm">
                             <div class="flex items-center justify-between">
-                                <span class="text-base-content/70">{"Status"}</span>
+                                <span class="text-base-content/70">{"Current status"}</span>
                                 <span>{status_label}</span>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span class="text-base-content/70">{"Auth mode"}</span>
-                                <span>{auth_mode}</span>
-                            </div>
-                            <div class="flex items-center justify-between">
-                                <span class="text-base-content/70">{"Next retry"}</span>
+                                <span class="text-base-content/70">{"Next retry time"}</span>
                                 <span>{retry_in.unwrap_or_else(|| "n/a".to_string())}</span>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span class="text-base-content/70">{"Last event id"}</span>
+                                <span class="text-base-content/70">{"Last event ID"}</span>
                                 <span>{last_event_id}</span>
                             </div>
                             <div class="flex items-center justify-between">
-                                <span class="text-base-content/70">{"Last error"}</span>
+                                <span class="text-base-content/70">{"Last error reason"}</span>
                                 <span class="text-end">{last_error}</span>
                             </div>
                             <div class="text-xs text-base-content/60">

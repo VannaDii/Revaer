@@ -36,25 +36,25 @@ pub enum TorrentAction {
 #[must_use]
 pub fn success_message(bundle: &TranslationBundle, action: &TorrentAction, name: &str) -> String {
     match action {
-        TorrentAction::Pause => format!("{} {name}", bundle.text("toast.pause", "")),
-        TorrentAction::Resume => format!("{} {name}", bundle.text("toast.resume", "")),
-        TorrentAction::Reannounce => format!("{} {name}", bundle.text("toast.reannounce", "")),
-        TorrentAction::Recheck => format!("{} {name}", bundle.text("toast.recheck", "")),
+        TorrentAction::Pause => format!("{} {name}", bundle.text("toast.pause")),
+        TorrentAction::Resume => format!("{} {name}", bundle.text("toast.resume")),
+        TorrentAction::Reannounce => format!("{} {name}", bundle.text("toast.reannounce")),
+        TorrentAction::Recheck => format!("{} {name}", bundle.text("toast.recheck")),
         TorrentAction::Sequential { enable } => {
             if *enable {
-                format!("{} {name}", bundle.text("toast.sequential_on", ""))
+                format!("{} {name}", bundle.text("toast.sequential_on"))
             } else {
-                format!("{} {name}", bundle.text("toast.sequential_off", ""))
+                format!("{} {name}", bundle.text("toast.sequential_off"))
             }
         }
         TorrentAction::Rate { .. } => {
-            format!("{} {name}", bundle.text("toast.rate", ""))
+            format!("{} {name}", bundle.text("toast.rate"))
         }
         TorrentAction::Delete { with_data } => {
             if *with_data {
-                format!("{} {name}", bundle.text("toast.delete_data", ""))
+                format!("{} {name}", bundle.text("toast.delete_data"))
             } else {
-                format!("{} {name}", bundle.text("toast.delete", ""))
+                format!("{} {name}", bundle.text("toast.delete"))
             }
         }
     }

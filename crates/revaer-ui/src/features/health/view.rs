@@ -20,7 +20,7 @@ pub(crate) struct HealthPageProps {
 pub(crate) fn health_page(props: &HealthPageProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let t = |key: &str, fallback: &str| bundle.text(key, fallback);
+    let t = |key: &str| bundle.text(key);
 
     let basic = use_selector(|store: &AppStore| store.health.basic.clone());
     let full = use_selector(|store: &AppStore| store.health.full.clone());
@@ -47,9 +47,9 @@ pub(crate) fn health_page(props: &HealthPageProps) -> Html {
             <div class="panel">
                 <div class="panel-head">
                     <div>
-                        <p class="eyebrow">{t("nav.health", "Health")}</p>
-                        <h3>{t("health.title", "System health")}</h3>
-                        <p class="muted">{t("health.body", "Service status and diagnostics")}</p>
+                        <p class="eyebrow">{t("nav.health")}</p>
+                        <h3>{t("health.title")}</h3>
+                        <p class="muted">{t("health.body")}</p>
                     </div>
                 </div>
                 <div class="health-grid">
@@ -58,16 +58,16 @@ pub(crate) fn health_page(props: &HealthPageProps) -> Html {
                 </div>
                 <div class="metrics-panel">
                     <div class="panel-subhead">
-                        <strong>{t("health.metrics", "Metrics")}</strong>
+                        <strong>{t("health.metrics")}</strong>
                         <span class="pill subtle">{"/metrics"}</span>
                         <button class="btn btn-ghost btn-xs" disabled={!can_copy} onclick={on_copy}>
-                            {t("health.metrics_copy", "Copy")}
+                            {t("health.metrics_copy")}
                         </button>
                     </div>
                     {if let Some(text) = metrics_text_value {
                         html! { <pre class="metrics-output">{text}</pre> }
                     } else {
-                        html! { <p class="muted">{t("health.metrics_empty", "Metrics have not been fetched yet.")}</p> }
+                        html! { <p class="muted">{t("health.metrics_empty")}</p> }
                     }}
                 </div>
             </div>
@@ -75,12 +75,12 @@ pub(crate) fn health_page(props: &HealthPageProps) -> Html {
     }
 }
 
-fn render_basic(t: &impl Fn(&str, &str) -> String, basic: Option<HealthSnapshot>) -> Html {
+fn render_basic(t: &impl Fn(&str) -> String, basic: Option<HealthSnapshot>) -> Html {
     let Some(snapshot) = basic else {
         return html! {
             <div class="card">
-                <h4>{t("health.basic", "Basic status")}</h4>
-                <p class="muted">{t("health.basic_empty", "No basic health snapshot available.")}</p>
+                <h4>{t("health.basic")}</h4>
+                <p class="muted">{t("health.basic_empty")}</p>
             </div>
         };
     };
@@ -91,38 +91,38 @@ fn render_basic(t: &impl Fn(&str, &str) -> String, basic: Option<HealthSnapshot>
         .unwrap_or_else(|| "-".to_string());
     html! {
         <div class="card">
-            <h4>{t("health.basic", "Basic status")}</h4>
+            <h4>{t("health.basic")}</h4>
             <div class="health-row">
-                <span class="muted">{t("health.status", "Status")}</span>
+                <span class="muted">{t("health.status")}</span>
                 <span class={status_pill(snapshot.status.as_str())}>{snapshot.status.clone()}</span>
             </div>
             <div class="health-row">
-                <span class="muted">{t("health.mode", "Mode")}</span>
+                <span class="muted">{t("health.mode")}</span>
                 <span class="pill subtle">{snapshot.mode}</span>
             </div>
             <div class="health-row">
-                <span class="muted">{t("health.db_status", "Database")}</span>
+                <span class="muted">{t("health.db_status")}</span>
                 <span class={status_pill(db_status)}>{db_status.to_string()}</span>
             </div>
             <div class="health-row">
-                <span class="muted">{t("health.db_revision", "DB revision")}</span>
+                <span class="muted">{t("health.db_revision")}</span>
                 <span class="pill subtle">{db_revision}</span>
             </div>
         </div>
     }
 }
 
-fn render_full(t: &impl Fn(&str, &str) -> String, full: Option<FullHealthSnapshot>) -> Html {
+fn render_full(t: &impl Fn(&str) -> String, full: Option<FullHealthSnapshot>) -> Html {
     let Some(snapshot) = full else {
         return html! {
             <div class="card">
-                <h4>{t("health.full", "Full status")}</h4>
-                <p class="muted">{t("health.full_empty", "No full health snapshot available.")}</p>
+                <h4>{t("health.full")}</h4>
+                <p class="muted">{t("health.full_empty")}</p>
             </div>
         };
     };
     let degraded = if snapshot.degraded.is_empty() {
-        html! { <span class="pill subtle">{t("health.degraded_none", "None")}</span> }
+        html! { <span class="pill subtle">{t("health.degraded_none")}</span> }
     } else {
         html! {
             <div class="pill-group">
@@ -132,33 +132,33 @@ fn render_full(t: &impl Fn(&str, &str) -> String, full: Option<FullHealthSnapsho
     };
     html! {
         <div class="card">
-            <h4>{t("health.full", "Full status")}</h4>
+            <h4>{t("health.full")}</h4>
             <div class="health-row">
-                <span class="muted">{t("health.status", "Status")}</span>
+                <span class="muted">{t("health.status")}</span>
                 <span class={status_pill(snapshot.status.as_str())}>{snapshot.status.clone()}</span>
             </div>
             <div class="health-row">
-                <span class="muted">{t("health.mode", "Mode")}</span>
+                <span class="muted">{t("health.mode")}</span>
                 <span class="pill subtle">{snapshot.mode}</span>
             </div>
             <div class="health-row">
-                <span class="muted">{t("health.revision", "Revision")}</span>
+                <span class="muted">{t("health.revision")}</span>
                 <span class="pill subtle">{snapshot.revision}</span>
             </div>
             <div class="health-row">
-                <span class="muted">{t("health.build", "Build")}</span>
+                <span class="muted">{t("health.build")}</span>
                 <span class="pill subtle">{snapshot.build}</span>
             </div>
             <div class="health-row">
-                <span class="muted">{t("health.degraded", "Degraded")}</span>
+                <span class="muted">{t("health.degraded")}</span>
                 {degraded}
             </div>
             <div class="health-block">
-                <h5>{t("health.metrics_summary", "Metrics")}</h5>
+                <h5>{t("health.metrics_summary")}</h5>
                 {render_metrics(&snapshot.metrics)}
             </div>
             <div class="health-block">
-                <h5>{t("health.torrent", "Torrent snapshot")}</h5>
+                <h5>{t("health.torrent")}</h5>
                 {render_torrent_snapshot(&snapshot.torrent)}
             </div>
         </div>

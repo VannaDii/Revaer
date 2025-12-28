@@ -11,12 +11,12 @@ pub(crate) struct DashboardTrackerHealthProps {
 pub(crate) fn dashboard_tracker_health(props: &DashboardTrackerHealthProps) -> Html {
     let bundle = use_context::<TranslationBundle>()
         .unwrap_or_else(|| TranslationBundle::new(DEFAULT_LOCALE));
-    let t = |key: &str, fallback: &str| bundle.text(key, fallback);
+    let t = |key: &str| bundle.text(key);
 
     let ok = props.snapshot.tracker_health.ok;
     let warn = props.snapshot.tracker_health.warn;
     let error = props.snapshot.tracker_health.error;
-    let error_label = format!("{} {}", t("dashboard.error", "Error"), error);
+    let error_label = format!("{} {}", t("dashboard.error"), error);
 
     html! {
         <div class="xl:col-span-5">
@@ -24,7 +24,7 @@ pub(crate) fn dashboard_tracker_health(props: &DashboardTrackerHealthProps) -> H
                 <div class="card-body p-0">
                     <div class="flex items-center justify-between px-5 pt-5">
                         <span class="font-medium">
-                            {t("dashboard.tracker_health", "Tracker Health")}
+                            {t("dashboard.tracker_health")}
                         </span>
                         <div class="inline-flex items-center gap-2">
                             <div class="text-base-content/60 w-6 border border-dashed"></div>
@@ -37,27 +37,19 @@ pub(crate) fn dashboard_tracker_health(props: &DashboardTrackerHealthProps) -> H
                         <div
                             class="divide-base-300 grid grid-cols-2 gap-5 px-5 sm:grid-cols-3 sm:divide-x">
                             <div class="text-center">
-                                <p>{t("dashboard.ok", "OK")}</p>
+                                <p>{t("dashboard.ok")}</p>
                                 <p class="mt-0.5 text-xl font-medium">{ok}</p>
                                 <div class="text-success mt-0.5 inline-flex items-center gap-1">
                                     <span class="iconify lucide--arrow-up size-3"></span>
-                                    <p class="text-xs">{"Stable"}</p>
+                                    <p class="text-xs">{t("dashboard.ok")}</p>
                                 </div>
                             </div>
                             <div class="hidden text-center sm:block">
-                                <p>{t("dashboard.warn", "Warn")}</p>
+                                <p>{t("dashboard.warn")}</p>
                                 <p class="mt-0.5 text-xl font-medium">{warn}</p>
-                                <div class="text-warning mt-0.5 inline-flex items-center gap-1">
-                                    <span class="iconify lucide--triangle-alert size-3"></span>
-                                    <p class="text-xs">{"Watch"}</p>
-                                </div>
-                            </div>
-                            <div class="hidden text-center sm:block">
-                                <p>{t("dashboard.error", "Error")}</p>
-                                <p class="mt-0.5 text-xl font-medium">{error}</p>
-                                <div class="text-error mt-0.5 inline-flex items-center gap-1">
-                                    <span class="iconify lucide--triangle-alert size-3"></span>
-                                    <p class="text-xs">{"Investigate"}</p>
+                                <div class="text-success mt-0.5 inline-flex items-center gap-1">
+                                    <span class="iconify lucide--arrow-up size-3"></span>
+                                    <p class="text-xs">{t("dashboard.warn")}</p>
                                 </div>
                             </div>
                         </div>

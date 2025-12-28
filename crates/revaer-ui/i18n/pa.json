@@ -4,11 +4,11 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "ਡੈਸ਼ਬੋਰਡ",
-    "torrents": "ਟੌਰੈਂਟ",
+    "dashboard": "Home",
+    "torrents": "Torrents",
     "search": "ਖੋਜ",
     "jobs": "ਕੰਮ / ਪੋਸਟ-ਪ੍ਰੋਸੈਸਿੰਗ",
-    "settings": "ਸੈਟਿੰਗਾਂ",
+    "settings": "Settings",
     "logs": "ਲੌਗ"
   },
   "mode": {

@@ -879,11 +879,11 @@ mod tests {
         let bundle = TranslationBundle::new(LocaleCode::En);
         assert!(
             success_message(&bundle, &TorrentAction::Pause, "alpha")
-                .contains(&bundle.text("toast.pause", ""))
+                .contains(&bundle.text("toast.pause"))
         );
         assert!(
             success_message(&bundle, &TorrentAction::Delete { with_data: true }, "alpha")
-                .contains(&bundle.text("toast.delete_data", ""))
+                .contains(&bundle.text("toast.delete_data"))
         );
     }
 

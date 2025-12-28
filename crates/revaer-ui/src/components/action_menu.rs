@@ -42,7 +42,7 @@ pub(crate) fn render_action_menu(bundle: &TranslationBundle, items: Vec<ActionMe
             <button
                 type="button"
                 tabindex="0"
-                aria-label={bundle.text("torrents.more", "More")}
+                aria-label={bundle.text("torrents.more")}
                 class="btn btn-ghost btn-xs btn-square">
                 <span class="iconify lucide--more-horizontal size-4"></span>
             </button>

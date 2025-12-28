@@ -4,7 +4,7 @@
     "rtl": false
   },
   "nav": {
-    "dashboard": "Dashboard",
+    "dashboard": "Home",
     "torrents": "Torrents",
     "search": "Search",
     "jobs": "Jobs / Post-processing",
@@ -142,7 +142,7 @@
     "active": "Active",
     "paused": "Paused",
     "completed": "Completed",
-    "disk": "Disk Usage",
+    "disk": "Storage Status",
     "disk_sub": "Global + per path",
     "total": "Total",
     "queue": "Queue",
@@ -162,7 +162,11 @@
     "events_sub": "Warnings and tracker issues",
     "event_info": "Info",
     "event_warn": "Warn",
-    "event_error": "Error"
+    "event_error": "Error",
+    "disk_enhance": "Enhance",
+    "disk_insights": "Insights",
+    "disk_auto_tag": "Auto Tag",
+    "disk_delete": "Delete"
   },
   "confirm": {
     "remove": {

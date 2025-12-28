@@ -55,6 +55,8 @@ ADR documents capture the rationale behind significant technical decisions.
 - [050](050-ui-torrent-fab-create-modals.md) – UI torrent FAB, add modal, and create-torrent authoring flow
 - [051](051-ui-api-models-primitives.md) – UI shared API models and UX primitives
 - [052](052-ui-nexus-dashboard.md) – UI dashboard migration to Nexus vendor layout
+- [053](053-ui-dashboard-hardline-rebuild.md) – UI dashboard hardline rebuild
+- [054](054-ui-dashboard-nexus-parity.md) – UI dashboard Nexus parity tweaks
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.
