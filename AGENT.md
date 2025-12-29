@@ -121,6 +121,7 @@ target/              # build artifacts
 
 ## 5) Database Access (stored procedures only)
 
+-   **Disallowed Data Types**: The `JSONB` type is BANNED, and all types like it. Never persist conglomerate data into the database. All data must be normalized.
 -   **Runtime code never embeds SQL**—all `sqlx::query` calls must wrap stored procedure invocations (e.g., `SELECT revaer_config.apply_patch($1, $2)`).
 -   **Parameter binding & Transactions**: Use Named Bind Parameters and Transactions for Consistency and Safety in accordance with https://sqlx.dev/article/Best_Practices_for_Writing_SQLX_Code.html
 -   **Inline SQL is migration-only**: schema definitions, stored procedure bodies, and seed data live under `crates/*/migrations/`. No other crate may ship raw DML/DDL text.
