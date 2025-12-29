@@ -78,14 +78,17 @@ target/              # build artifacts
     ```
 -   FFI-boundary crates may use `#![deny(unsafe_code)]` with a scoped `#[allow(unsafe_code)]` on the boundary module when native bindings are unavoidable; keep all unsafe isolated (e.g., `ffi.rs`) and prefer `#![forbid(unsafe_code)]` elsewhere.
 -   **Ban:** `#[allow(dead_code)]`, `#[allow(missing_docs)]`, `#[allow(clippy::cast_precision_loss)]`,`#[allow(clippy::cast_sign_loss)]`, `#[allow(clippy::missing_const_for_fn)]`, `#[allow(clippy::cast_possible_truncation)]`, `#[allow(clippy::missing_errors_doc)]`, `#[allow(clippy::non_send_fields_in_send_ty)]` anywhere. If you have unused items, delete them or feature-gate them behind code that is exercised in CI; do not leave “parking lot” code lying around.
-    -   Exceptions: The minimal and necessary `#[allow(...)]` code can only be used in FFI interactions that cannot be accomplished in Rust or thru an existing crate.- **Ban:** `panic!`, `unwrap()`, `expect()` in production code. All errors must be handled gracefully and returned via proper `Result<T, E>` types. Test code may use these for controlled failure scenarios only.
+    -   Exceptions: The minimal and necessary `#[allow(...)]` code can only be used in FFI interactions that cannot be accomplished in Rust or thru an existing crate.
+-   **Ban:** `panic!`, `unwrap()`, `expect()`, `unreachable!()` in production code. All errors must be handled gracefully and returned via proper `Result<T, E>` types. Test code may use these for controlled failure scenarios only.
     -   Production code must use `?` operator, `map_err()`, or explicit `match` to handle errors.
     -   Bootstrap/main functions may use `expect()` only for truly unrecoverable initialization failures with clear error messages.
 -   **Ban:** `std::panic::catch_unwind` and any try-catch patterns that suppress or ignore errors. Errors must be handled explicitly, never caught and discarded.
     -   No error suppression: `let _ = some_fallible_operation();` is forbidden; handle or propagate all errors.
     -   No panic recovery: catching panics masks programming errors; fix the root cause instead.
 -   **Ban:** Logging errors multiple times in the call chain. Errors must be logged only at their origin point, never re-logged when propagated up.
--   **Ban:** Interpolating context data into error messages or log messages. Error messages must be constant strings; context must be stored in separate structured fields for filtering and analysis.- **Ban:** `#[allow(clippy::too_many_lines)]` anywhere—split the code instead. Resolve the lint by extracting helpers that group related steps, moving reusable logic into private modules, or introducing small structs/impl blocks to own stateful behavior. Keep the original function as a thin orchestrator and add tests around the new pieces.
+-   **Ban:** Interpolating context data into error messages or log messages. Error messages must be constant strings; context must be stored in separate structured fields for filtering and analysis.
+-   **Ban:** `Option<T>` return types for fallible operations. All operations that can fail must return `Result<T, E>` to explicitly indicate success or error, even for void operations (`Result<(), E>`).
+-   **Ban:** `#[allow(clippy::too_many_lines)]` anywhere—split the code instead. Resolve the lint by extracting helpers that group related steps, moving reusable logic into private modules, or introducing small structs/impl blocks to own stateful behavior. Keep the original function as a thin orchestrator and add tests around the new pieces.
 -   **Ban:** crate-level allowances for `clippy::module_name_repetitions`, `unexpected_cfgs`, and `clippy::multiple_crate_versions`. Design names and dependency graphs so these lints pass without suppressions.
 -   Dependency hygiene is enforced with `cargo-deny` and `cargo-udeps`; `clippy::cargo` as well as the crate-level lint set.
 -   Mark important return values `#[must_use]` (IDs, handles, results with side effects).
@@ -117,7 +120,8 @@ target/              # build artifacts
 
 ### 3.1) Error Handling (mandatory patterns)
 
--   **No panics in production:** `panic!`, `unwrap()`, and `expect()` are forbidden in all production code paths. Use `Result<T, E>` for all fallible operations.
+-   **No panics in production:** `panic!`, `unwrap()`, `expect()`, and `unreachable!()` are forbidden in all production code paths. Use `Result<T, E>` for all fallible operations.
+-   **No Option returns:** All fallible operations must return `Result<T, E>`, never `Option<T>`. This includes void operations that return `Result<(), E>` to explicitly indicate success or failure.
 -   **No try-catch patterns:** `std::panic::catch_unwind` and error suppression patterns (`let _ = fallible_op();`) are forbidden. Handle errors explicitly, never catch and discard them.
 -   **Consistent error types:** Each crate defines one primary error enum implementing `std::error::Error + Send + Sync + 'static`. Use `thiserror` for structured errors in libraries.
 -   **Error context (mandatory):** All error types must contain sufficient contextual information to recreate the failure scenario in a unit test—include all relevant input parameters, state values, and operation details. Error messages must be constant strings; context must be stored in separate structured fields, never interpolated into messages.
@@ -228,7 +232,8 @@ Since Codex runs locally, **a task is not complete** until **all requirements in
     5. Run `just build-release` to ensure release readiness.
 
 -   **Checklist (must all be true before marking the task complete):**
-    -   [ ] **No panics:** No `panic!`, `unwrap()`, or `expect()` in production code; all errors handled via `Result<T, E>`
+    -   [ ] **No panics:** No `panic!`, `unwrap()`, `expect()`, or `unreachable!()` in production code; all errors handled via `Result<T, E>`
+    -   [ ] **Result-only returns:** No `Option<T>` returns for fallible operations; all operations return `Result<T, E>` including void (`Result<(), E>`)
     -   [ ] **Error handling:** Each crate has consistent error types with context; graceful error propagation and recovery
     -   [ ] **Error logging:** Errors logged only at origin point; external integrations wrapped in `tryOp<V, E>(...)`
     -   [ ] No `unsafe`, no production `unwrap/expect` (outside tests/bootstrap/examples)
@@ -328,7 +333,8 @@ Required jobs (fail-fast):
 -   Avoid premature generics; prefer concrete types until clarity demands abstraction.
 -   Avoid blocking in async; if needed, `spawn_blocking` with clear rationale and tests.
 -   Don’t leak types across crates without intent; enforce `pub(crate)` by default.
--   **Error Handling Pattern (mandatory):** All fallible operations return `Result<T, E>` with domain-specific error types. Never use `panic!`, `unwrap()`, or `expect()` in production paths—errors must be handled or propagated via `?` operator.
+-   **Error Handling Pattern (mandatory):** All fallible operations return `Result<T, E>` with domain-specific error types, never `Option<T>`. Never use `panic!`, `unwrap()`, `expect()`, or `unreachable!()` in production paths—errors must be handled or propagated via `?` operator.
+-   **Result-only policy:** Even void operations return `Result<(), E>` to explicitly indicate success or failure. No operation should silently fail or use `Option` to represent failure states.
 -   **Common Error Structure:** Each crate defines a primary error enum (e.g., `ApiError`, `TorrentError`) that implements `std::error::Error + Send + Sync`. Use `thiserror` for libraries, `anyhow` only in binaries/tests.
 -   **External Integration Pattern:** Wrap all external system calls (FFI, third-party crates, network) in `tryOp<V, E>(...)` functions that convert foreign errors/panics into domain error types.
 -   Use `Result<T, E>` with domain-specific `E`; avoid boolean flags that hide errors.
