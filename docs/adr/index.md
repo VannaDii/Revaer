@@ -59,6 +59,8 @@ ADR documents capture the rationale behind significant technical decisions.
 - [054](054-ui-dashboard-nexus-parity.md) – UI dashboard Nexus parity tweaks
 - [055](055-factory-reset-bootstrap-api-key.md) – Factory reset and bootstrap API key
 - [056](056-factory-reset-bootstrap-auth-fallback.md) – Factory reset auth fallback when no API keys exist
+- [057](057-ui-settings-tabs-controls.md) – UI settings tabs and editor controls
+- [058](058-settings-logs-fs-browser.md) – UI settings controls, logs stream, and filesystem browser
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

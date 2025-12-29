@@ -189,6 +189,42 @@ pub struct FactoryResetRequest {
     pub confirm: String,
 }
 
+/// Directory entry returned by the filesystem browser.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FsEntry {
+    /// Base name of the entry.
+    pub name: String,
+    /// Full path for the entry.
+    pub path: String,
+    /// Classification for the entry.
+    pub kind: FsEntryKind,
+}
+
+/// Filesystem entry kinds.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum FsEntryKind {
+    /// Directory entry.
+    Directory,
+    /// Regular file entry.
+    File,
+    /// Symbolic link entry.
+    Symlink,
+    /// Other or unknown entry.
+    Other,
+}
+
+/// Filesystem browser payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FsBrowseResponse {
+    /// Resolved path for the request.
+    pub path: String,
+    /// Parent path if available.
+    pub parent: Option<String>,
+    /// Directory entries sorted by kind and name.
+    pub entries: Vec<FsEntry>,
+}
+
 /// Enumerates the coarse torrent lifecycle states surfaced via the API.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]

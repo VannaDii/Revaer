@@ -27,7 +27,7 @@ mod tests {
     };
     use revaer_config::{
         ApiKeyAuth, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigSnapshot,
-        SettingsChangeset, SetupToken,
+        SettingsChangeset, SetupToken, TelemetryConfig,
     };
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
@@ -56,9 +56,9 @@ mod tests {
                 version: 1,
                 http_port: 8080,
                 bind_addr: IpAddr::V4(Ipv4Addr::LOCALHOST),
-                telemetry: json!({}),
-                features: json!({}),
-                immutable_keys: json!([]),
+                telemetry: TelemetryConfig::default(),
+                label_policies: Vec::new(),
+                immutable_keys: Vec::new(),
             })
         }
 

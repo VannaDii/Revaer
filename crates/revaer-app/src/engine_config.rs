@@ -43,9 +43,7 @@ impl EngineRuntimePlan {
     #[must_use]
     pub(crate) fn from_profile(profile: &EngineProfile) -> Self {
         let effective = normalize_engine_profile(profile);
-        let tracker = map_tracker_config(
-            serde_json::from_value::<TrackerConfig>(effective.tracker.clone()).unwrap_or_default(),
-        );
+        let tracker = map_tracker_config(effective.tracker.clone());
         let runtime_ipv6_mode = map_ipv6_mode(effective.network.ipv6_mode);
         let (listen_interfaces, listen_port) = derive_listen_config(&effective.network);
         let ip_filter = map_ip_filter_config(&effective.network.ip_filter);
@@ -320,8 +318,8 @@ fn map_ip_filter_rule(rule: &IpFilterRule) -> RuntimeIpFilterRule {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::{TimeZone, Utc};
     use revaer_config::MAX_RATE_LIMIT_BPS;
-    use serde_json::json;
     use uuid::Uuid;
 
     #[test]
@@ -353,7 +351,7 @@ mod tests {
             unchoke_slots: None,
             half_open_limit: None,
             stats_interval_ms: None,
-            alt_speed: json!({}),
+            alt_speed: AltSpeedConfig::default(),
             sequential_default: true,
             auto_managed: true.into(),
             auto_manage_prefer_seeds: false.into(),
@@ -376,15 +374,15 @@ mod tests {
             coalesce_reads: EngineProfile::default_coalesce_reads(),
             coalesce_writes: EngineProfile::default_coalesce_writes(),
             use_disk_cache_pool: EngineProfile::default_use_disk_cache_pool(),
-            tracker: json!("not-an-object"),
+            tracker: TrackerConfig::default(),
             enable_lsd: false.into(),
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
-            ip_filter: json!({}),
-            peer_classes: json!({}),
+            ip_filter: IpFilterConfig::default(),
+            peer_classes: PeerClassesConfig::default(),
         };
         let plan = EngineRuntimePlan::from_profile(&profile);
 
@@ -395,7 +393,7 @@ mod tests {
         assert_eq!(plan.runtime.encryption, EncryptionPolicy::Prefer);
         assert_eq!(plan.runtime.download_root, "/data/staging");
         assert_eq!(plan.runtime.resume_dir, "/var/lib/revaer/state");
-        assert_eq!(plan.effective.tracker, json!({}));
+        assert_eq!(plan.effective.tracker, TrackerConfig::default());
         assert!(plan.runtime.tracker.default.is_empty());
         assert!(
             !plan.effective.warnings.is_empty(),
@@ -445,7 +443,7 @@ mod tests {
             unchoke_slots: None,
             half_open_limit: None,
             stats_interval_ms: None,
-            alt_speed: json!({}),
+            alt_speed: AltSpeedConfig::default(),
             sequential_default: false,
             auto_managed: true.into(),
             auto_manage_prefer_seeds: false.into(),
@@ -468,15 +466,15 @@ mod tests {
             coalesce_reads: EngineProfile::default_coalesce_reads(),
             coalesce_writes: EngineProfile::default_coalesce_writes(),
             use_disk_cache_pool: EngineProfile::default_use_disk_cache_pool(),
-            tracker: json!({}),
+            tracker: TrackerConfig::default(),
             enable_lsd: true.into(),
             enable_upnp: true.into(),
             enable_natpmp: true.into(),
             enable_pex: true.into(),
             dht_bootstrap_nodes: vec!["router.bittorrent.com:6881".into()],
             dht_router_nodes: vec!["dht.transmissionbt.com:6881".into()],
-            ip_filter: json!({}),
-            peer_classes: json!({}),
+            ip_filter: IpFilterConfig::default(),
+            peer_classes: PeerClassesConfig::default(),
         };
 
         let require = EngineRuntimePlan::from_profile(&base);
@@ -507,6 +505,10 @@ mod tests {
 
     #[test]
     fn ip_filter_is_threaded_into_runtime() {
+        let last_updated_at = Utc
+            .with_ymd_and_hms(2024, 1, 1, 0, 0, 0)
+            .single()
+            .expect("timestamp");
         let profile = EngineProfile {
             id: Uuid::new_v4(),
             implementation: "libtorrent".into(),
@@ -534,7 +536,7 @@ mod tests {
             unchoke_slots: None,
             half_open_limit: None,
             stats_interval_ms: None,
-            alt_speed: json!({}),
+            alt_speed: AltSpeedConfig::default(),
             sequential_default: false,
             auto_managed: true.into(),
             auto_manage_prefer_seeds: false.into(),
@@ -557,20 +559,21 @@ mod tests {
             coalesce_reads: EngineProfile::default_coalesce_reads(),
             coalesce_writes: EngineProfile::default_coalesce_writes(),
             use_disk_cache_pool: EngineProfile::default_use_disk_cache_pool(),
-            tracker: json!({}),
+            tracker: TrackerConfig::default(),
             enable_lsd: false.into(),
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
-            ip_filter: json!({
-                "cidrs": ["10.0.0.0/8"],
-                "blocklist_url": "https://example.com/blocklist",
-                "etag": "etag-1",
-                "last_updated_at": "2024-01-01T00:00:00Z"
-            }),
-            peer_classes: json!({}),
+            ip_filter: IpFilterConfig {
+                blocklist_url: Some("https://example.com/blocklist".to_string()),
+                etag: Some("etag-1".to_string()),
+                last_updated_at: Some(last_updated_at),
+                last_error: None,
+                cidrs: vec!["10.0.0.0/8".to_string()],
+            },
+            peer_classes: PeerClassesConfig::default(),
         };
 
         let plan = EngineRuntimePlan::from_profile(&profile);
@@ -618,7 +621,7 @@ mod tests {
             unchoke_slots: None,
             half_open_limit: None,
             stats_interval_ms: None,
-            alt_speed: json!({}),
+            alt_speed: AltSpeedConfig::default(),
             sequential_default: false,
             auto_managed: true.into(),
             auto_manage_prefer_seeds: false.into(),
@@ -641,21 +644,25 @@ mod tests {
             coalesce_reads: EngineProfile::default_coalesce_reads(),
             coalesce_writes: EngineProfile::default_coalesce_writes(),
             use_disk_cache_pool: EngineProfile::default_use_disk_cache_pool(),
-            tracker: json!({
-                "proxy": {
-                    "host": "proxy.example",
-                    "port": 8080,
-                    "proxy_peers": true
-                }
-            }),
+            tracker: TrackerConfig {
+                proxy: Some(TrackerProxyConfig {
+                    host: "proxy.example".to_string(),
+                    port: 8080,
+                    username_secret: None,
+                    password_secret: None,
+                    kind: TrackerProxyType::Http,
+                    proxy_peers: true,
+                }),
+                ..TrackerConfig::default()
+            },
             enable_lsd: false.into(),
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
-            ip_filter: json!({}),
-            peer_classes: json!({}),
+            ip_filter: IpFilterConfig::default(),
+            peer_classes: PeerClassesConfig::default(),
         };
 
         let plan = EngineRuntimePlan::from_profile(&profile);
@@ -699,7 +706,7 @@ mod tests {
             unchoke_slots: None,
             half_open_limit: None,
             stats_interval_ms: None,
-            alt_speed: json!({}),
+            alt_speed: AltSpeedConfig::default(),
             sequential_default: false,
             auto_managed: true.into(),
             auto_manage_prefer_seeds: false.into(),
@@ -722,15 +729,15 @@ mod tests {
             coalesce_reads: EngineProfile::default_coalesce_reads(),
             coalesce_writes: EngineProfile::default_coalesce_writes(),
             use_disk_cache_pool: EngineProfile::default_use_disk_cache_pool(),
-            tracker: json!({}),
+            tracker: TrackerConfig::default(),
             enable_lsd: false.into(),
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
-            ip_filter: json!({}),
-            peer_classes: json!({}),
+            ip_filter: IpFilterConfig::default(),
+            peer_classes: PeerClassesConfig::default(),
         };
 
         let plan = EngineRuntimePlan::from_profile(&profile);

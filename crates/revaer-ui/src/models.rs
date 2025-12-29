@@ -131,6 +131,8 @@ pub struct NavLabels {
     pub dashboard: String,
     /// Torrents nav label.
     pub torrents: String,
+    /// Logs nav label.
+    pub logs: String,
     /// Categories nav label.
     pub categories: String,
     /// Tags nav label.

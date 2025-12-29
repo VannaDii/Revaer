@@ -126,11 +126,12 @@ mod tests {
     use chrono::Utc;
     use revaer_config::{
         ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigError, ConfigSnapshot,
-        EngineProfile, FsPolicy, SettingsChangeset, SetupToken, normalize_engine_profile,
+        EngineProfile, FsPolicy, SettingsChangeset, SetupToken, TelemetryConfig,
+        engine_profile::{AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig},
+        normalize_engine_profile,
     };
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
-    use serde_json::json;
     use std::time::Duration;
     use uuid::Uuid;
 
@@ -215,7 +216,7 @@ mod tests {
             unchoke_slots: None,
             half_open_limit: None,
             stats_interval_ms: None,
-            alt_speed: json!({}),
+            alt_speed: AltSpeedConfig::default(),
             sequential_default: false,
             auto_managed: true.into(),
             auto_manage_prefer_seeds: false.into(),
@@ -238,15 +239,15 @@ mod tests {
             coalesce_reads: EngineProfile::default_coalesce_reads(),
             coalesce_writes: EngineProfile::default_coalesce_writes(),
             use_disk_cache_pool: EngineProfile::default_use_disk_cache_pool(),
-            tracker: json!([]),
+            tracker: TrackerConfig::default(),
             enable_lsd: false.into(),
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
-            ip_filter: json!({}),
-            peer_classes: json!({}),
+            ip_filter: IpFilterConfig::default(),
+            peer_classes: PeerClassesConfig::default(),
             outgoing_port_min: None,
             outgoing_port_max: None,
             peer_dscp: None,
@@ -260,9 +261,9 @@ mod tests {
                 version: 1,
                 http_port: 3030,
                 bind_addr: "127.0.0.1".parse().expect("bind addr"),
-                telemetry: json!({}),
-                features: json!({}),
-                immutable_keys: json!([]),
+                telemetry: TelemetryConfig::default(),
+                label_policies: Vec::new(),
+                immutable_keys: Vec::new(),
             },
             engine_profile: engine_profile.clone(),
             engine_profile_effective: normalize_engine_profile(&engine_profile),
@@ -273,14 +274,14 @@ mod tests {
                 par2: "disabled".into(),
                 flatten: false,
                 move_mode: "copy".into(),
-                cleanup_keep: json!([]),
-                cleanup_drop: json!([]),
+                cleanup_keep: Vec::new(),
+                cleanup_drop: Vec::new(),
                 chmod_file: None,
                 chmod_dir: None,
                 owner: None,
                 group: None,
                 umask: None,
-                allow_paths: json!([]),
+                allow_paths: Vec::new(),
             },
         }
     }
@@ -292,7 +293,7 @@ mod tests {
                 snapshot: sample_snapshot(),
             }),
             Metrics::new().expect("metrics"),
-            Arc::new(json!({})),
+            Arc::new(serde_json::json!({})),
             EventBus::new(),
             None,
         ));
@@ -314,7 +315,7 @@ mod tests {
                 snapshot: snapshot.clone(),
             }),
             Metrics::new().expect("metrics"),
-            Arc::new(json!({})),
+            Arc::new(serde_json::json!({})),
             EventBus::new(),
             None,
         ));

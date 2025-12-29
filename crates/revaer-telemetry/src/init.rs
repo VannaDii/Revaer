@@ -11,6 +11,8 @@ use anyhow::{Result, anyhow};
 use once_cell::sync::OnceCell;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
+use crate::log_stream::log_stream_writer;
+
 #[cfg(feature = "otel")]
 use opentelemetry::{global, trace::TracerProvider};
 #[cfg(feature = "otel")]
@@ -171,13 +173,19 @@ fn install_fmt_subscriber(config: &LoggingConfig) -> Result<()> {
                 fmt::layer()
                     .json()
                     .with_target(false)
-                    .with_thread_ids(false),
+                    .with_thread_ids(false)
+                    .with_writer(log_stream_writer()),
             )
             .try_init()
             .map_err(|err| anyhow!("failed to install tracing subscriber: {err}")),
         LogFormat::Pretty => tracing_subscriber::registry()
             .with(build_env_filter(config.level))
-            .with(fmt::layer().with_target(false).with_thread_ids(false))
+            .with(
+                fmt::layer()
+                    .with_target(false)
+                    .with_thread_ids(false)
+                    .with_writer(log_stream_writer()),
+            )
             .try_init()
             .map_err(|err| anyhow!("failed to install tracing subscriber: {err}")),
     }
@@ -213,14 +221,20 @@ fn install_with_otel_layer(
                 fmt::layer()
                     .json()
                     .with_target(false)
-                    .with_thread_ids(false),
+                    .with_thread_ids(false)
+                    .with_writer(log_stream_writer()),
             )
             .try_init()
             .map_err(|err| anyhow!("failed to install tracing subscriber: {err}"))?,
         LogFormat::Pretty => tracing_subscriber::registry()
             .with(layer)
             .with(build_env_filter(config.level))
-            .with(fmt::layer().with_target(false).with_thread_ids(false))
+            .with(
+                fmt::layer()
+                    .with_target(false)
+                    .with_thread_ids(false)
+                    .with_writer(log_stream_writer()),
+            )
             .try_init()
             .map_err(|err| anyhow!("failed to install tracing subscriber: {err}"))?,
     }

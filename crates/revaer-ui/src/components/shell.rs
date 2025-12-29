@@ -33,6 +33,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
     let page_label = match props.active {
         Route::Dashboard => props.nav.dashboard.clone(),
         Route::Torrents | Route::TorrentDetail { .. } => props.nav.torrents.clone(),
+        Route::Logs => props.nav.logs.clone(),
         Route::Settings => props.nav.settings.clone(),
         Route::NotFound => "Not Found".to_string(),
     };
@@ -213,8 +214,11 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                         </button>
                                     </li>
                                     <li>
+                                        <hr class="my-1 border-base-200" />
+                                    </li>
+                                    <li>
                                         <button
-                                            class="text-warning"
+                                            class="text-error"
                                             onclick={{
                                                 let cb = props.on_factory_reset.clone();
                                                 Callback::from(move |_| cb.emit(()))

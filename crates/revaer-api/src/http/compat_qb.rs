@@ -1372,7 +1372,7 @@ mod tests {
 
     #[derive(Clone, Default)]
     struct TestConfig {
-        features: Arc<tokio::sync::Mutex<Value>>,
+        label_policies: Arc<tokio::sync::Mutex<Vec<revaer_config::LabelPolicy>>>,
     }
 
     #[async_trait]
@@ -1385,9 +1385,9 @@ mod tests {
                 version: 1,
                 http_port: 8080,
                 bind_addr: std::net::IpAddr::from([127, 0, 0, 1]),
-                telemetry: serde_json::json!({}),
-                features: self.features.lock().await.clone(),
-                immutable_keys: serde_json::json!([]),
+                telemetry: revaer_config::TelemetryConfig::default(),
+                label_policies: self.label_policies.lock().await.clone(),
+                immutable_keys: Vec::new(),
             })
         }
 
@@ -1409,10 +1409,8 @@ mod tests {
             _reason: &str,
             changeset: SettingsChangeset,
         ) -> Result<AppliedChanges> {
-            if let Some(app_profile) = changeset.app_profile.as_ref()
-                && let Some(features) = app_profile.get("features")
-            {
-                *self.features.lock().await = features.clone();
+            if let Some(app_profile) = changeset.app_profile.as_ref() {
+                *self.label_policies.lock().await = app_profile.label_policies.clone();
             }
             Ok(AppliedChanges {
                 revision: 1,

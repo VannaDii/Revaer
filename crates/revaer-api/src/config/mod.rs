@@ -90,7 +90,11 @@ mod tests {
     use super::*;
     use anyhow::anyhow;
     use chrono::Utc;
-    use revaer_config::normalize_engine_profile;
+    use revaer_config::{
+        TelemetryConfig,
+        engine_profile::{AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig},
+        normalize_engine_profile,
+    };
     use std::collections::VecDeque;
     use tokio::sync::Mutex;
 
@@ -124,9 +128,9 @@ mod tests {
             version: 1,
             http_port: 3000,
             bind_addr: "127.0.0.1".parse().expect("bind addr"),
-            telemetry: serde_json::json!({}),
-            features: serde_json::json!({}),
-            immutable_keys: serde_json::json!([]),
+            telemetry: TelemetryConfig::default(),
+            label_policies: Vec::new(),
+            immutable_keys: Vec::new(),
         }
     }
 
@@ -155,7 +159,7 @@ mod tests {
             unchoke_slots: None,
             half_open_limit: None,
             stats_interval_ms: None,
-            alt_speed: serde_json::json!({}),
+            alt_speed: AltSpeedConfig::default(),
             sequential_default: false,
             auto_managed: true.into(),
             auto_manage_prefer_seeds: false.into(),
@@ -178,15 +182,15 @@ mod tests {
             coalesce_reads: revaer_config::EngineProfile::default_coalesce_reads(),
             coalesce_writes: revaer_config::EngineProfile::default_coalesce_writes(),
             use_disk_cache_pool: revaer_config::EngineProfile::default_use_disk_cache_pool(),
-            tracker: serde_json::json!([]),
+            tracker: TrackerConfig::default(),
             enable_lsd: false.into(),
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
-            ip_filter: serde_json::json!({}),
-            peer_classes: serde_json::json!({}),
+            ip_filter: IpFilterConfig::default(),
+            peer_classes: PeerClassesConfig::default(),
             outgoing_port_min: None,
             outgoing_port_max: None,
             peer_dscp: None,
@@ -209,14 +213,14 @@ mod tests {
                 par2: "disabled".into(),
                 flatten: false,
                 move_mode: "copy".into(),
-                cleanup_keep: serde_json::json!([]),
-                cleanup_drop: serde_json::json!([]),
+                cleanup_keep: Vec::new(),
+                cleanup_drop: Vec::new(),
                 chmod_file: None,
                 chmod_dir: None,
                 owner: None,
                 group: None,
                 umask: None,
-                allow_paths: serde_json::json!([]),
+                allow_paths: Vec::new(),
             },
         }
     }

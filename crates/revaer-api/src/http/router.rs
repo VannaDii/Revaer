@@ -33,7 +33,9 @@ use crate::http::constants::{
     HEADER_API_KEY, HEADER_API_KEY_LEGACY, HEADER_LAST_EVENT_ID, HEADER_REQUEST_ID,
     HEADER_SETUP_TOKEN,
 };
+use crate::http::filesystem::browse_filesystem;
 use crate::http::health::{dashboard, health, health_full, metrics};
+use crate::http::logs::stream_logs;
 use crate::http::settings::{factory_reset, get_config_snapshot, settings_patch, well_known};
 use crate::http::setup::{setup_complete, setup_start};
 use crate::http::sse::stream_events;
@@ -272,6 +274,14 @@ impl ApiServer {
                 get(get_config_snapshot)
                     .patch(settings_patch)
                     .route_layer(require_api.clone()),
+            )
+            .route(
+                "/v1/fs/browse",
+                get(browse_filesystem).route_layer(require_api.clone()),
+            )
+            .route(
+                "/v1/logs/stream",
+                get(stream_logs).route_layer(require_api.clone()),
             )
             .route(
                 "/v1/torrents",

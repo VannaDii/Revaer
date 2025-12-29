@@ -18,11 +18,12 @@
 //!
 //! Layout: `init.rs` (logging setup), `context.rs` (request/app spans), `layers.rs`
 //! (request-id middleware), `metrics.rs` (Prometheus registry), `openapi.rs`
-//! (artifact persistence).
+//! (artifact persistence), `log_stream.rs` (live log broadcasting).
 
 pub mod context;
 pub mod init;
 pub mod layers;
+pub mod log_stream;
 pub mod metrics;
 pub mod openapi;
 
@@ -35,5 +36,6 @@ pub use init::{
     build_sha, init_logging, init_logging_with_otel, log_format_from_config,
 };
 pub use layers::{propagate_request_id_layer, set_request_id_layer};
+pub use log_stream::log_stream_receiver;
 pub use metrics::{Metrics, MetricsSnapshot};
 pub use openapi::persist_openapi;

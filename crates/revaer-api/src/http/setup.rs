@@ -11,7 +11,6 @@ use chrono::{Duration as ChronoDuration, Utc};
 use revaer_config::{ApiKeyPatch, AppMode, ConfigSnapshot, SettingsChangeset};
 use revaer_events::Event as CoreEvent;
 use revaer_telemetry::record_app_mode;
-use serde_json::{Map, Value, json};
 use tracing::{error, warn};
 use uuid::Uuid;
 
@@ -64,7 +63,7 @@ pub(crate) async fn setup_complete(
 ) -> Result<Json<SetupCompleteResponse>, ApiError> {
     let token = extract_setup_token(context)?;
     ensure_valid_setup_token(&state, &token).await?;
-    coerce_app_profile_patch(&mut changeset)?;
+    ensure_active_app_profile(&state, &mut changeset).await?;
     let bootstrap_key = ensure_bootstrap_api_key(&mut changeset);
 
     let snapshot = apply_setup_changes(&state, changeset, &token).await?;
@@ -135,25 +134,19 @@ async fn ensure_valid_setup_token(state: &ApiState, token: &str) -> Result<(), A
     }
 }
 
-fn coerce_app_profile_patch(changeset: &mut SettingsChangeset) -> Result<(), ApiError> {
-    let updated = match changeset.app_profile.take() {
-        Some(Value::Object(mut map)) => {
-            map.insert("mode".to_string(), json!("active"));
-            Value::Object(map)
-        }
-        Some(Value::Null) | None => {
-            let mut map = Map::new();
-            map.insert("mode".to_string(), json!("active"));
-            Value::Object(map)
-        }
-        Some(other) => {
-            warn!("setup completion received invalid app_profile patch: {other:?}");
-            return Err(ApiError::bad_request(
-                "app_profile changeset must be a JSON object",
-            ));
-        }
+async fn ensure_active_app_profile(
+    state: &ApiState,
+    changeset: &mut SettingsChangeset,
+) -> Result<(), ApiError> {
+    let mut profile = match changeset.app_profile.take() {
+        Some(profile) => profile,
+        None => state.config.get_app_profile().await.map_err(|err| {
+            error!(error = %err, "failed to load app profile for setup completion");
+            ApiError::internal("failed to load app profile")
+        })?,
     };
-    changeset.app_profile = Some(updated);
+    profile.mode = AppMode::Active;
+    changeset.app_profile = Some(profile);
     Ok(())
 }
 

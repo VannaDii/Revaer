@@ -1015,7 +1015,7 @@ fn require_api_key(context: crate::http::auth::AuthContext) -> Result<String, Ap
 mod tests {
     use super::*;
     use axum::http::StatusCode;
-    use revaer_config::{ApiKeyAuth, AppMode, AppProfile, SettingsChangeset};
+    use revaer_config::{ApiKeyAuth, AppMode, AppProfile, LabelPolicy, SettingsChangeset, TelemetryConfig};
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
     use revaer_torrent_core::{
@@ -1026,7 +1026,7 @@ mod tests {
             TorrentTrackersUpdate,
         },
     };
-    use serde_json::{Value, json};
+    use serde_json::json;
     use std::collections::HashMap;
     use std::time::Duration;
     use tokio::sync::Mutex as AsyncMutex;
@@ -1932,9 +1932,9 @@ mod tests {
                 version: 1,
                 http_port: 8080,
                 bind_addr: std::net::IpAddr::from([127, 0, 0, 1]),
-                telemetry: json!({}),
-                features: json!({}),
-                immutable_keys: json!([]),
+                telemetry: TelemetryConfig::default(),
+                label_policies: Vec::new(),
+                immutable_keys: Vec::new(),
             })
         }
 
@@ -1990,7 +1990,7 @@ mod tests {
 
     #[derive(Clone, Default)]
     struct LabelConfig {
-        features: Arc<AsyncMutex<Value>>,
+        label_policies: Arc<AsyncMutex<Vec<LabelPolicy>>>,
     }
 
     #[async_trait::async_trait]
@@ -2003,9 +2003,9 @@ mod tests {
                 version: 1,
                 http_port: 8080,
                 bind_addr: std::net::IpAddr::from([127, 0, 0, 1]),
-                telemetry: json!({}),
-                features: self.features.lock().await.clone(),
-                immutable_keys: json!([]),
+                telemetry: TelemetryConfig::default(),
+                label_policies: self.label_policies.lock().await.clone(),
+                immutable_keys: Vec::new(),
             })
         }
 
@@ -2031,10 +2031,8 @@ mod tests {
             _: &str,
             changeset: SettingsChangeset,
         ) -> anyhow::Result<revaer_config::AppliedChanges> {
-            if let Some(app_profile) = changeset.app_profile.as_ref()
-                && let Some(features) = app_profile.get("features")
-            {
-                *self.features.lock().await = features.clone();
+            if let Some(app_profile) = changeset.app_profile.as_ref() {
+                *self.label_policies.lock().await = app_profile.label_policies.clone();
             }
             Ok(revaer_config::AppliedChanges {
                 revision: 1,

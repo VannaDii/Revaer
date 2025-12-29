@@ -22,8 +22,7 @@ use anyhow::{Context, Result, anyhow};
 use chrono::{DateTime, Utc};
 use revaer_events::TorrentState;
 use revaer_torrent_core::{TorrentFile, TorrentStatus};
-use serde_json::{Value, json};
-use sqlx::{FromRow, PgPool, Row, types::Json};
+use sqlx::{FromRow, PgPool, Row};
 use uuid::Uuid;
 
 /// Database-backed repository for runtime state.
@@ -47,11 +46,18 @@ const UPSERT_TORRENT_CALL: &str = r"
         _sequential => $11,
         _library_path => $12,
         _download_dir => $13,
-        _payload => $14,
-        _files => $15,
-        _added_at => $16,
-        _completed_at => $17,
-        _updated_at => $18
+        _comment => $14,
+        _source => $15,
+        _private => $16,
+        _file_indexes => $17,
+        _file_paths => $18,
+        _file_sizes => $19,
+        _file_bytes_completed => $20,
+        _file_priorities => $21,
+        _file_selected => $22,
+        _added_at => $23,
+        _completed_at => $24,
+        _updated_at => $25
     )
 ";
 
@@ -118,12 +124,6 @@ impl RuntimeStore {
     /// Returns an error if the database operation fails.
     pub async fn upsert_status(&self, status: &TorrentStatus) -> Result<()> {
         let (state_label, state_message) = serialize_state(&status.state);
-        let files = status
-            .files
-            .as_ref()
-            .map(|files| serde_json::to_value(files).context("failed to serialise torrent files"))
-            .transpose()?;
-
         let download_bps = clamp_i64(status.rates.download_bps);
         let upload_bps = clamp_i64(status.rates.upload_bps);
         let bytes_downloaded = clamp_i64(status.progress.bytes_downloaded);
@@ -133,12 +133,33 @@ impl RuntimeStore {
             .eta_seconds
             .map(|eta| i64::try_from(eta).unwrap_or(i64::MAX));
 
-        let payload = Json(json!({
-            "comment": status.comment,
-            "source": status.source,
-            "private": status.private,
-        }));
-        let files_json = files.map(Json);
+        let mut file_indexes: Vec<i32> = Vec::new();
+        let mut file_paths: Vec<String> = Vec::new();
+        let mut file_sizes: Vec<i64> = Vec::new();
+        let mut file_bytes_completed: Vec<i64> = Vec::new();
+        let mut file_priorities: Vec<String> = Vec::new();
+        let mut file_selected: Vec<bool> = Vec::new();
+
+        if let Some(files) = status.files.as_ref() {
+            file_indexes.reserve(files.len());
+            file_paths.reserve(files.len());
+            file_sizes.reserve(files.len());
+            file_bytes_completed.reserve(files.len());
+            file_priorities.reserve(files.len());
+            file_selected.reserve(files.len());
+
+            for file in files {
+                let index = i32::try_from(file.index).unwrap_or_default();
+                let size = i64::try_from(file.size_bytes).unwrap_or_default();
+                let completed = i64::try_from(file.bytes_completed).unwrap_or_default();
+                file_indexes.push(index);
+                file_paths.push(file.path.clone());
+                file_sizes.push(size);
+                file_bytes_completed.push(completed);
+                file_priorities.push(file_priority_label(file.priority).to_string());
+                file_selected.push(file.selected);
+            }
+        }
         let state_message_ref = state_message.as_deref();
         let name = status.name.as_deref();
         let library_path = status.library_path.as_deref();
@@ -157,8 +178,15 @@ impl RuntimeStore {
             .bind(status.sequential)
             .bind(library_path)
             .bind(download_dir)
-            .bind(payload)
-            .bind(files_json)
+            .bind(status.comment.as_deref())
+            .bind(status.source.as_deref())
+            .bind(status.private)
+            .bind(&file_indexes)
+            .bind(&file_paths)
+            .bind(&file_sizes)
+            .bind(&file_bytes_completed)
+            .bind(&file_priorities)
+            .bind(&file_selected)
             .bind(status.added_at)
             .bind(status.completed_at)
             .bind(status.last_updated)
@@ -200,29 +228,14 @@ impl RuntimeStore {
             let state_label: String = row.try_get("state")?;
             let state_message: Option<String> = row.try_get("state_message")?;
             let state = deserialize_state(&state_label, state_message);
-            let files = match row.try_get::<Option<Json<Value>>, _>("files")? {
-                Some(Json(value)) if !value.is_null() => Some(
-                    serde_json::from_value::<Vec<TorrentFile>>(value)
-                        .context("failed to decode persisted torrent file list")?,
-                ),
-                _ => None,
-            };
-
-            let payload = row
-                .try_get::<Json<Value>, _>("payload")
-                .map_or_else(|_| json!({}), |Json(value)| value);
-            let comment = payload
-                .get("comment")
-                .and_then(|value| value.as_str())
-                .map(ToString::to_string);
-            let source = payload
-                .get("source")
-                .and_then(|value| value.as_str())
-                .map(ToString::to_string);
-            let private = payload.get("private").and_then(serde_json::Value::as_bool);
+            let torrent_id: Uuid = row.try_get("torrent_id")?;
+            let files = self.fetch_torrent_files(torrent_id).await?;
+            let comment: Option<String> = row.try_get("comment")?;
+            let source: Option<String> = row.try_get("source")?;
+            let private: Option<bool> = row.try_get("private")?;
 
             statuses.push(TorrentStatus {
-                id: row.try_get("torrent_id")?,
+                id: torrent_id,
                 name: row.try_get("name")?,
                 state,
                 progress: revaer_torrent_core::TorrentProgress {
@@ -257,6 +270,38 @@ impl RuntimeStore {
         }
 
         Ok(statuses)
+    }
+
+    async fn fetch_torrent_files(&self, torrent_id: Uuid) -> Result<Option<Vec<TorrentFile>>> {
+        let rows = sqlx::query("SELECT * FROM revaer_runtime.list_torrent_files(_torrent_id => $1)")
+            .bind(torrent_id)
+            .fetch_all(&self.pool)
+            .await
+            .context("failed to load torrent file list")?;
+
+        if rows.is_empty() {
+            return Ok(None);
+        }
+
+        let mut files = Vec::with_capacity(rows.len());
+        for row in rows {
+            let index: i32 = row.try_get("file_index")?;
+            let size: i64 = row.try_get("size_bytes")?;
+            let completed: i64 = row.try_get("bytes_completed")?;
+            let priority_label: String = row.try_get("priority")?;
+            let priority = parse_file_priority(&priority_label);
+            let file = TorrentFile {
+                index: u32::try_from(index).unwrap_or_default(),
+                path: row.try_get("path")?,
+                size_bytes: u64::try_from(size).unwrap_or_default(),
+                bytes_completed: u64::try_from(completed).unwrap_or_default(),
+                priority,
+                selected: row.try_get("selected")?,
+            };
+            files.push(file);
+        }
+
+        Ok(Some(files))
     }
 
     /// Record that filesystem processing has started for a torrent.
@@ -371,6 +416,24 @@ fn deserialize_state(label: &str, message: Option<String>) -> TorrentState {
             tracing::warn!(state = %other, "unknown torrent state encountered in runtime store");
             TorrentState::Stopped
         }
+    }
+}
+
+fn file_priority_label(priority: revaer_torrent_core::FilePriority) -> &'static str {
+    match priority {
+        revaer_torrent_core::FilePriority::Skip => "skip",
+        revaer_torrent_core::FilePriority::Low => "low",
+        revaer_torrent_core::FilePriority::Normal => "normal",
+        revaer_torrent_core::FilePriority::High => "high",
+    }
+}
+
+fn parse_file_priority(label: &str) -> revaer_torrent_core::FilePriority {
+    match label {
+        "skip" => revaer_torrent_core::FilePriority::Skip,
+        "low" => revaer_torrent_core::FilePriority::Low,
+        "high" => revaer_torrent_core::FilePriority::High,
+        _ => revaer_torrent_core::FilePriority::Normal,
     }
 }
 

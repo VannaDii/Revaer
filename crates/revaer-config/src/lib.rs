@@ -32,8 +32,8 @@ pub use engine_profile::{
 };
 pub use model::{
     ApiKeyAuth, ApiKeyPatch, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigSnapshot,
-    EngineProfile, FsPolicy, SecretPatch, SettingsChange, SettingsChangeset, SettingsPayload,
-    SetupToken,
+    EngineProfile, FsPolicy, LabelKind, LabelPolicy, SecretPatch, SettingsChange,
+    SettingsChangeset, SettingsPayload, SetupToken, TelemetryConfig,
 };
 pub use service::{ConfigService, ConfigWatcher, SettingsFacade, SettingsStream};
 pub use validate::ConfigError;

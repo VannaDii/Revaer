@@ -1,7 +1,6 @@
 use anyhow::anyhow;
 use revaer_api::models::{SetupCompleteResponse, SetupStartRequest, SetupStartResponse};
-use revaer_config::{ApiKeyPatch, ConfigSnapshot, SecretPatch, SettingsChangeset};
-use serde_json::{Value, json};
+use revaer_config::{ApiKeyPatch, AppMode, ConfigSnapshot, SecretPatch, SettingsChangeset};
 use std::io::{self, IsTerminal};
 use std::net::IpAddr;
 use std::path::Path;
@@ -78,25 +77,33 @@ pub(crate) async fn handle_setup_complete(
     let download_root = path_to_string(&args.download_root)?;
     let library_root = path_to_string(&args.library_root)?;
 
+    let snapshot = fetch_well_known_snapshot(ctx).await?;
+
     let api_key_id = args.api_key_id.clone().unwrap_or_else(|| random_string(24));
     let api_key_secret = random_string(48);
 
+    let mut app_profile = snapshot.app_profile;
+    app_profile.instance_name = args.instance;
+    app_profile.bind_addr = bind_addr;
+    app_profile.http_port = i32::from(args.port);
+    app_profile.mode = AppMode::Active;
+
+    let mut engine_profile = snapshot.engine_profile;
+    engine_profile.implementation = "libtorrent".to_string();
+    engine_profile.resume_dir = resume_dir.clone();
+    engine_profile.download_root = download_root.clone();
+
+    let fs_policy = build_fs_policy_patch(
+        snapshot.fs_policy,
+        &library_root,
+        &download_root,
+        &resume_dir,
+    );
+
     let changeset = SettingsChangeset {
-        app_profile: Some(json!({
-            "instance_name": args.instance,
-            "bind_addr": bind_addr.to_string(),
-            "http_port": i64::from(args.port)
-        })),
-        engine_profile: Some(json!({
-            "implementation": "libtorrent",
-            "resume_dir": resume_dir,
-            "download_root": download_root
-        })),
-        fs_policy: Some(build_fs_policy_patch(
-            &library_root,
-            &download_root,
-            &resume_dir,
-        )),
+        app_profile: Some(app_profile),
+        engine_profile: Some(engine_profile),
+        fs_policy: Some(fs_policy),
         api_keys: vec![ApiKeyPatch::Upsert {
             key_id: api_key_id.clone(),
             label: Some(args.api_key_label.clone()),
@@ -144,6 +151,29 @@ pub(crate) async fn handle_setup_complete(
     }
 }
 
+async fn fetch_well_known_snapshot(ctx: &AppContext) -> CliResult<ConfigSnapshot> {
+    let url = ctx
+        .base_url
+        .join("/.well-known/revaer.json")
+        .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
+
+    let response = ctx
+        .client
+        .get(url)
+        .send()
+        .await
+        .map_err(|err| CliError::failure(anyhow!("request to /.well-known/revaer.json failed: {err}")))?;
+
+    if response.status().is_success() {
+        response
+            .json::<ConfigSnapshot>()
+            .await
+            .map_err(|err| CliError::failure(anyhow!("failed to parse well-known snapshot: {err}")))
+    } else {
+        Err(classify_problem(response).await)
+    }
+}
+
 fn path_to_string(path: &Path) -> CliResult<String> {
     path.to_str().map(str::to_string).ok_or_else(|| {
         CliError::validation(format!("path '{}' is not valid UTF-8", path.display()))
@@ -151,19 +181,19 @@ fn path_to_string(path: &Path) -> CliResult<String> {
 }
 
 pub(crate) fn build_fs_policy_patch(
+    mut policy: revaer_config::FsPolicy,
     library_root: &str,
     download_root: &str,
     resume_dir: &str,
-) -> Value {
+) -> revaer_config::FsPolicy {
     let mut allow_paths = vec![download_root.to_string(), library_root.to_string()];
     if !allow_paths.iter().any(|p| p == resume_dir) {
         allow_paths.push(resume_dir.to_string());
     }
 
-    json!({
-        "library_root": library_root,
-        "allow_paths": allow_paths,
-    })
+    policy.library_root = library_root.to_string();
+    policy.allow_paths = allow_paths;
+    policy
 }
 
 pub(crate) fn resolve_passphrase(args: &SetupCompleteArgs) -> CliResult<String> {
@@ -197,7 +227,12 @@ mod tests {
     use chrono::Utc;
     use httpmock::prelude::*;
     use reqwest::Client;
-    use revaer_config::{AppMode, AppProfile, EngineProfile, FsPolicy, normalize_engine_profile};
+    use revaer_config::{
+        AppMode, AppProfile, EngineProfile, FsPolicy, TelemetryConfig,
+        engine_profile::{AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig},
+        normalize_engine_profile,
+    };
+    use serde_json::json;
     use std::path::PathBuf;
     use tokio::time::{Duration, timeout};
     use uuid::Uuid;
@@ -247,7 +282,7 @@ mod tests {
             unchoke_slots: None,
             half_open_limit: None,
             stats_interval_ms: None,
-            alt_speed: json!({}),
+            alt_speed: AltSpeedConfig::default(),
             sequential_default: false,
             auto_managed: true.into(),
             auto_manage_prefer_seeds: false.into(),
@@ -270,15 +305,15 @@ mod tests {
             coalesce_reads: EngineProfile::default_coalesce_reads(),
             coalesce_writes: EngineProfile::default_coalesce_writes(),
             use_disk_cache_pool: EngineProfile::default_use_disk_cache_pool(),
-            tracker: json!({}),
+            tracker: TrackerConfig::default(),
             enable_lsd: false.into(),
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
-            ip_filter: json!({}),
-            peer_classes: json!({}),
+            ip_filter: IpFilterConfig::default(),
+            peer_classes: PeerClassesConfig::default(),
             outgoing_port_min: None,
             outgoing_port_max: None,
             peer_dscp: None,
@@ -292,9 +327,12 @@ mod tests {
                 version: 1,
                 http_port: 7070,
                 bind_addr: "127.0.0.1".parse().unwrap(),
-                telemetry: json!({"level": "info"}),
-                features: json!({}),
-                immutable_keys: json!([]),
+                telemetry: TelemetryConfig {
+                    level: Some("info".to_string()),
+                    ..TelemetryConfig::default()
+                },
+                label_policies: Vec::new(),
+                immutable_keys: Vec::new(),
             },
             engine_profile: engine_profile.clone(),
             engine_profile_effective: normalize_engine_profile(&engine_profile),
@@ -305,14 +343,14 @@ mod tests {
                 par2: "disabled".into(),
                 flatten: false,
                 move_mode: "copy".into(),
-                cleanup_keep: json!([]),
-                cleanup_drop: json!([]),
+                cleanup_keep: Vec::new(),
+                cleanup_drop: Vec::new(),
                 chmod_file: None,
                 chmod_dir: None,
                 owner: None,
                 group: None,
                 umask: None,
-                allow_paths: json!([]),
+                allow_paths: Vec::new(),
             },
         }
     }
@@ -374,6 +412,13 @@ mod tests {
     async fn setup_complete_submits_changeset() {
         let server = MockServer::start_async().await;
         let snapshot = sample_snapshot();
+        let well_known_snapshot = snapshot.clone();
+        server.mock(|when, then| {
+            when.method(GET).path("/.well-known/revaer.json");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(json!(well_known_snapshot));
+        });
         let mock = server.mock(move |when, then| {
             when.method(POST)
                 .path("/admin/setup/complete")
@@ -409,16 +454,9 @@ mod tests {
 
     #[test]
     fn build_fs_policy_patch_merges_allow_paths() {
-        let patch = build_fs_policy_patch("/library", "/downloads", "/downloads");
-        let allow_paths = patch
-            .get("allow_paths")
-            .and_then(Value::as_array)
-            .expect("allow_paths array");
-        let values: Vec<&str> = allow_paths
-            .iter()
-            .map(|value| value.as_str().expect("string"))
-            .collect();
-        assert_eq!(values, vec!["/downloads", "/library"]);
+        let policy = sample_snapshot().fs_policy;
+        let updated = build_fs_policy_patch(policy, "/library", "/downloads", "/downloads");
+        assert_eq!(updated.allow_paths, vec!["/downloads", "/library"]);
     }
 
     #[test]

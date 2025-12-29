@@ -9,17 +9,18 @@ use crate::core::logic::build_torrents_path;
 use crate::features::torrents::actions::TorrentAction as UiTorrentAction;
 use crate::features::torrents::state::{TorrentsPaging, TorrentsQueryModel};
 use crate::models::{
-    AddTorrentInput, DashboardResponse, DashboardSnapshot, HealthResponse, ProblemDetails,
-    QueueStatus, SetupCompleteResponse, SetupStartResponse, TorrentAction as ApiTorrentAction,
-    TorrentAuthorRequest, TorrentAuthorResponse, TorrentCreateRequest, TorrentDetail,
-    TorrentLabelEntry, TorrentListResponse, TorrentOptionsRequest, TorrentSelectionRequest,
-    TrackerHealth, VpnState,
+    AddTorrentInput, DashboardResponse, DashboardSnapshot, FsBrowseResponse, HealthResponse,
+    ProblemDetails, QueueStatus, SetupCompleteResponse, SetupStartResponse,
+    TorrentAction as ApiTorrentAction, TorrentAuthorRequest, TorrentAuthorResponse,
+    TorrentCreateRequest, TorrentDetail, TorrentLabelEntry, TorrentListResponse,
+    TorrentOptionsRequest, TorrentSelectionRequest, TrackerHealth, VpnState,
 };
 use base64::{Engine as _, engine::general_purpose};
 use gloo::file::futures::read_as_bytes;
 use gloo_net::http::{Request, Response};
 use serde::Deserialize;
 use serde_json::{Value, json};
+use urlencoding::encode;
 use uuid::Uuid;
 use web_sys::window;
 
@@ -149,6 +150,30 @@ impl ApiClient {
 
     pub(crate) async fn fetch_config_snapshot(&self) -> Result<Value, ApiError> {
         self.get_json("/v1/config").await
+    }
+
+    pub(crate) async fn browse_filesystem(&self, path: &str) -> Result<FsBrowseResponse, ApiError> {
+        let encoded = encode(path);
+        let url = format!(
+            "{}/v1/fs/browse?path={}",
+            self.base_url.trim_end_matches('/'),
+            encoded
+        );
+        let req = Request::get(&url);
+        let req = self.apply_auth(req)?;
+        self.send_json(req).await
+    }
+
+    pub(crate) async fn patch_settings(&self, changeset: Value) -> Result<Value, ApiError> {
+        let req = Request::patch(&format!(
+            "{}/v1/config",
+            self.base_url.trim_end_matches('/')
+        ));
+        let req = self.apply_auth(req)?;
+        let req = req
+            .json(&changeset)
+            .map_err(|err| ApiError::client(format!("settings payload failed: {err}")))?;
+        self.send_json(req).await
     }
 
     pub(crate) async fn setup_start(&self) -> Result<SetupStartResponse, ApiError> {

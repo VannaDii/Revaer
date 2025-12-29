@@ -22,7 +22,7 @@ mod tests {
     use super::*;
     use anyhow::Result;
     use async_trait::async_trait;
-    use revaer_config::{AppMode, AppProfile};
+    use revaer_config::{AppMode, AppProfile, TelemetryConfig};
     use revaer_torrent_core::{
         AddTorrent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentRateLimit,
         TorrentWorkflow,
@@ -45,9 +45,9 @@ mod tests {
                 version: 1,
                 http_port: 8080,
                 bind_addr: std::net::IpAddr::from([127, 0, 0, 1]),
-                telemetry: json!({}),
-                features: json!({}),
-                immutable_keys: json!([]),
+                telemetry: TelemetryConfig::default(),
+                label_policies: Vec::new(),
+                immutable_keys: Vec::new(),
             })
         }
 

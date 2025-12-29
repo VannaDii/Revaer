@@ -10,8 +10,12 @@ pub mod constants;
 pub mod docs;
 /// Problem response helpers and error types.
 pub mod errors;
+/// Filesystem browser endpoints.
+pub mod filesystem;
 /// Health and diagnostics endpoints.
 pub mod health;
+/// Log streaming endpoints.
+pub mod logs;
 /// Rate limit helpers for HTTP responses.
 pub mod rate_limit;
 /// Router construction and server host.

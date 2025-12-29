@@ -8,18 +8,16 @@
 use std::collections::{BTreeSet, HashMap};
 
 use serde::{Deserialize, Serialize};
-use serde_json::{Map, Value, json};
-use tracing::{error, warn};
+use tracing::error;
 
 use crate::app::state::ApiState;
 use crate::http::auth::map_config_error;
 use crate::http::errors::ApiError;
-use revaer_config::SettingsChangeset;
+use revaer_config::{LabelKind, LabelPolicy, SettingsChangeset};
 use revaer_events::Event as CoreEvent;
-use revaer_torrent_core::{AddTorrentOptions, TorrentCleanupPolicy, TorrentLabelPolicy};
-
-const FEATURE_TORRENT_CATEGORIES: &str = "torrent_categories";
-const FEATURE_TORRENT_TAGS: &str = "torrent_tags";
+use revaer_torrent_core::{
+    AddTorrentOptions, TorrentCleanupPolicy, TorrentLabelPolicy, TorrentRateLimit,
+};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub(in crate::http) struct TorrentLabelCatalog {
@@ -30,47 +28,34 @@ pub(in crate::http) struct TorrentLabelCatalog {
 }
 
 impl TorrentLabelCatalog {
-    pub(in crate::http) fn from_features(features: &Value) -> Result<Self, ApiError> {
-        if features.is_null() {
-            return Ok(Self::default());
+    pub(in crate::http) fn from_label_policies(
+        policies: &[LabelPolicy],
+    ) -> Result<Self, ApiError> {
+        let mut catalog = Self::default();
+        for policy in policies {
+            let name = normalize_label_name(policy.kind.as_str(), &policy.name)?;
+            let torrent_policy = label_policy_to_torrent(policy);
+            match policy.kind {
+                LabelKind::Category => {
+                    catalog.categories.insert(name, torrent_policy);
+                }
+                LabelKind::Tag => {
+                    catalog.tags.insert(name, torrent_policy);
+                }
+            }
         }
-        if !features.is_object() {
-            return Err(ApiError::internal(
-                "app_profile.features must be an object to manage torrent labels",
-            ));
-        }
-        let catalog: Self = serde_json::from_value(features.clone()).map_err(|err| {
-            warn!(error = %err, "failed to decode torrent label catalog");
-            ApiError::internal("failed to decode torrent label catalog")
-        })?;
         Ok(catalog)
     }
 
-    pub(in crate::http) fn merge_into_features(&self, base: &Value) -> Result<Value, ApiError> {
-        let mut map = match base.as_object() {
-            Some(map) => map.clone(),
-            None if base.is_null() => Map::new(),
-            None => {
-                return Err(ApiError::internal(
-                    "app_profile.features must be an object to update torrent labels",
-                ));
-            }
-        };
-        map.insert(
-            FEATURE_TORRENT_CATEGORIES.to_string(),
-            serde_json::to_value(&self.categories).map_err(|err| {
-                warn!(error = %err, "failed to encode torrent categories");
-                ApiError::internal("failed to encode torrent categories")
-            })?,
-        );
-        map.insert(
-            FEATURE_TORRENT_TAGS.to_string(),
-            serde_json::to_value(&self.tags).map_err(|err| {
-                warn!(error = %err, "failed to encode torrent tags");
-                ApiError::internal("failed to encode torrent tags")
-            })?,
-        );
-        Ok(Value::Object(map))
+    pub(in crate::http) fn to_label_policies(&self) -> Vec<LabelPolicy> {
+        let mut policies = Vec::new();
+        for (name, policy) in &self.categories {
+            policies.push(torrent_policy_to_label(LabelKind::Category, name, policy));
+        }
+        for (name, policy) in &self.tags {
+            policies.push(torrent_policy_to_label(LabelKind::Tag, name, policy));
+        }
+        policies
     }
 
     pub(in crate::http) fn upsert_category(
@@ -132,7 +117,7 @@ pub(in crate::http) async fn load_label_catalog(
         error!(error = %err, "failed to load app profile for labels");
         ApiError::internal("failed to load app profile")
     })?;
-    TorrentLabelCatalog::from_features(&profile.features)
+    TorrentLabelCatalog::from_label_policies(&profile.label_policies)
 }
 
 pub(in crate::http) async fn update_label_catalog<F>(
@@ -148,11 +133,12 @@ where
         error!(error = %err, "failed to load app profile for label update");
         ApiError::internal("failed to load app profile")
     })?;
-    let mut catalog = TorrentLabelCatalog::from_features(&profile.features)?;
+    let mut catalog = TorrentLabelCatalog::from_label_policies(&profile.label_policies)?;
     mutator(&mut catalog)?;
-    let features = catalog.merge_into_features(&profile.features)?;
+    let mut updated_profile = profile.clone();
+    updated_profile.label_policies = catalog.to_label_policies();
     let changeset = SettingsChangeset {
-        app_profile: Some(json!({ "features": features })),
+        app_profile: Some(updated_profile),
         ..SettingsChangeset::default()
     };
     state
@@ -192,6 +178,93 @@ fn apply_label_policy(options: &mut AddTorrentOptions, policy: &TorrentLabelPoli
     }
     if options.cleanup.is_none() {
         options.cleanup.clone_from(&policy.cleanup);
+    }
+}
+
+fn label_policy_to_torrent(policy: &LabelPolicy) -> TorrentLabelPolicy {
+    let rate_limit = if policy.rate_limit_download_bps.is_some()
+        || policy.rate_limit_upload_bps.is_some()
+    {
+        Some(TorrentRateLimit {
+            download_bps: policy
+                .rate_limit_download_bps
+                .and_then(|value| u64::try_from(value).ok()),
+            upload_bps: policy
+                .rate_limit_upload_bps
+                .and_then(|value| u64::try_from(value).ok()),
+        })
+    } else {
+        None
+    };
+
+    let remove_data = policy.cleanup_remove_data.unwrap_or(false);
+    let cleanup = if policy.cleanup_seed_ratio_limit.is_some()
+        || policy.cleanup_seed_time_limit.is_some()
+        || remove_data
+    {
+        Some(TorrentCleanupPolicy {
+            seed_ratio_limit: policy.cleanup_seed_ratio_limit,
+            seed_time_limit: policy
+                .cleanup_seed_time_limit
+                .and_then(|value| u64::try_from(value).ok()),
+            remove_data,
+        })
+    } else {
+        None
+    };
+
+    TorrentLabelPolicy {
+        download_dir: policy.download_dir.clone(),
+        rate_limit,
+        queue_position: policy.queue_position,
+        auto_managed: policy.auto_managed,
+        seed_ratio_limit: policy.seed_ratio_limit,
+        seed_time_limit: policy
+            .seed_time_limit
+            .and_then(|value| u64::try_from(value).ok()),
+        cleanup,
+    }
+}
+
+fn torrent_policy_to_label(
+    kind: LabelKind,
+    name: &str,
+    policy: &TorrentLabelPolicy,
+) -> LabelPolicy {
+    let rate_limit_download_bps = policy
+        .rate_limit
+        .as_ref()
+        .and_then(|limit| limit.download_bps)
+        .and_then(|value| i64::try_from(value).ok());
+    let rate_limit_upload_bps = policy
+        .rate_limit
+        .as_ref()
+        .and_then(|limit| limit.upload_bps)
+        .and_then(|value| i64::try_from(value).ok());
+
+    let cleanup_seed_ratio_limit = policy.cleanup.as_ref().and_then(|cleanup| cleanup.seed_ratio_limit);
+    let cleanup_seed_time_limit = policy
+        .cleanup
+        .as_ref()
+        .and_then(|cleanup| cleanup.seed_time_limit)
+        .and_then(|value| i64::try_from(value).ok());
+    let cleanup_remove_data = policy.cleanup.as_ref().map(|cleanup| cleanup.remove_data);
+
+    LabelPolicy {
+        kind,
+        name: name.to_string(),
+        download_dir: policy.download_dir.clone(),
+        rate_limit_download_bps,
+        rate_limit_upload_bps,
+        queue_position: policy.queue_position,
+        auto_managed: policy.auto_managed,
+        seed_ratio_limit: policy.seed_ratio_limit,
+        seed_time_limit: policy
+            .seed_time_limit
+            .and_then(|value| i64::try_from(value).ok()),
+        cleanup_seed_ratio_limit,
+        cleanup_seed_time_limit,
+        cleanup_remove_data,
     }
 }
 

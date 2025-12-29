@@ -79,7 +79,8 @@ mod tests {
     use futures_util::{StreamExt, future, pin_mut};
     use revaer_config::{
         ApiKeyAuth, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigError,
-        ConfigSnapshot, EngineProfile, FsPolicy, SettingsChangeset, SetupToken,
+        ConfigSnapshot, EngineProfile, FsPolicy, SettingsChangeset, SetupToken, TelemetryConfig,
+        engine_profile::{AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig},
         normalize_engine_profile,
     };
     use revaer_events::{Event as CoreEvent, EventBus, TorrentState};
@@ -296,7 +297,7 @@ mod tests {
                 unchoke_slots: None,
                 half_open_limit: None,
                 stats_interval_ms: None,
-                alt_speed: Value::Null,
+                alt_speed: AltSpeedConfig::default(),
                 sequential_default: false,
                 auto_managed: true.into(),
                 auto_manage_prefer_seeds: false.into(),
@@ -319,15 +320,15 @@ mod tests {
                 coalesce_reads: EngineProfile::default_coalesce_reads(),
                 coalesce_writes: EngineProfile::default_coalesce_writes(),
                 use_disk_cache_pool: EngineProfile::default_use_disk_cache_pool(),
-                tracker: Value::Null,
+                tracker: TrackerConfig::default(),
                 enable_lsd: false.into(),
                 enable_upnp: false.into(),
                 enable_natpmp: false.into(),
                 enable_pex: false.into(),
                 dht_bootstrap_nodes: Vec::new(),
                 dht_router_nodes: Vec::new(),
-                ip_filter: Value::Null,
-                peer_classes: Value::Null,
+                ip_filter: IpFilterConfig::default(),
+                peer_classes: PeerClassesConfig::default(),
                 outgoing_port_min: None,
                 outgoing_port_max: None,
                 peer_dscp: None,
@@ -341,9 +342,9 @@ mod tests {
                     version: 1,
                     http_port: 7070,
                     bind_addr: IpAddr::from_str("127.0.0.1").expect("ip"),
-                    telemetry: Value::Null,
-                    features: json!({}),
-                    immutable_keys: Value::Null,
+                    telemetry: TelemetryConfig::default(),
+                    label_policies: Vec::new(),
+                    immutable_keys: Vec::new(),
                 },
                 engine_profile: engine_profile.clone(),
                 engine_profile_effective: normalize_engine_profile(&engine_profile),
@@ -354,14 +355,14 @@ mod tests {
                     par2: "disabled".to_string(),
                     flatten: false,
                     move_mode: "copy".to_string(),
-                    cleanup_keep: Value::Null,
-                    cleanup_drop: Value::Null,
+                    cleanup_keep: Vec::new(),
+                    cleanup_drop: Vec::new(),
                     chmod_file: None,
                     chmod_dir: None,
                     owner: None,
                     group: None,
                     umask: None,
-                    allow_paths: Value::Array(vec![]),
+                    allow_paths: Vec::new(),
                 },
             };
             Self {
@@ -464,18 +465,18 @@ mod tests {
             let mut engine_changed = false;
             let mut fs_changed = false;
 
-            if let Some(patch) = changeset.app_profile.take() {
-                apply_app_profile_patch(&mut guard.snapshot.app_profile, &patch)?;
+            if let Some(update) = changeset.app_profile.take() {
+                guard.snapshot.app_profile = update;
                 app_changed = true;
             }
 
-            if let Some(patch) = changeset.engine_profile.take() {
-                apply_engine_patch(&mut guard.snapshot.engine_profile, &patch);
+            if let Some(update) = changeset.engine_profile.take() {
+                guard.snapshot.engine_profile = update;
                 engine_changed = true;
             }
 
-            if let Some(patch) = changeset.fs_policy.take() {
-                apply_fs_patch(&mut guard.snapshot.fs_policy, &patch);
+            if let Some(update) = changeset.fs_policy.take() {
+                guard.snapshot.fs_policy = update;
                 fs_changed = true;
             }
 
@@ -551,58 +552,6 @@ mod tests {
             guard.snapshot.app_profile.instance_name = "revaer".to_string();
             drop(guard);
             Ok(())
-        }
-    }
-
-    fn apply_app_profile_patch(profile: &mut AppProfile, patch: &Value) -> Result<()> {
-        if let Some(name) = patch.get("instance_name").and_then(Value::as_str) {
-            profile.instance_name = name.to_string();
-        }
-        if let Some(bind) = patch.get("bind_addr").and_then(Value::as_str) {
-            profile.bind_addr = IpAddr::from_str(bind)?;
-        }
-        if let Some(port) = patch.get("http_port").and_then(Value::as_i64) {
-            profile.http_port = i32::try_from(port)
-                .map_err(|_| anyhow::anyhow!("http_port {port} exceeds i32 range"))?;
-        }
-        if let Some(mode) = patch.get("mode").and_then(Value::as_str) {
-            profile.mode = mode.parse()?;
-        }
-        Ok(())
-    }
-
-    fn apply_engine_patch(profile: &mut EngineProfile, patch: &Value) {
-        if let Some(impl_name) = patch.get("implementation").and_then(Value::as_str) {
-            profile.implementation = impl_name.to_string();
-        }
-        if let Some(resume) = patch.get("resume_dir").and_then(Value::as_str) {
-            profile.resume_dir = resume.to_string();
-        }
-        if let Some(download) = patch.get("download_root").and_then(Value::as_str) {
-            profile.download_root = download.to_string();
-        }
-        if let Some(nodes) = patch.get("dht_bootstrap_nodes").and_then(Value::as_array) {
-            profile.dht_bootstrap_nodes = nodes
-                .iter()
-                .filter_map(Value::as_str)
-                .map(str::to_string)
-                .collect();
-        }
-        if let Some(nodes) = patch.get("dht_router_nodes").and_then(Value::as_array) {
-            profile.dht_router_nodes = nodes
-                .iter()
-                .filter_map(Value::as_str)
-                .map(str::to_string)
-                .collect();
-        }
-    }
-
-    fn apply_fs_patch(policy: &mut FsPolicy, patch: &Value) {
-        if let Some(root) = patch.get("library_root").and_then(Value::as_str) {
-            policy.library_root = root.to_string();
-        }
-        if let Some(allow_paths) = patch.get("allow_paths") {
-            policy.allow_paths = allow_paths.clone();
         }
     }
 
@@ -752,22 +701,26 @@ mod tests {
             .expect("setup start");
         assert!(!start.token.is_empty());
 
+        let snapshot = config.snapshot().await;
+        let mut app_profile = snapshot.app_profile.clone();
+        app_profile.instance_name = "demo".to_string();
+        app_profile.bind_addr = IpAddr::from_str("127.0.0.1")?;
+        app_profile.http_port = 8080;
+        app_profile.mode = AppMode::Active;
+
+        let mut engine_profile = snapshot.engine_profile.clone();
+        engine_profile.implementation = "libtorrent".to_string();
+        engine_profile.resume_dir = "/var/lib/revaer/resume".to_string();
+        engine_profile.download_root = "/var/lib/revaer/downloads".to_string();
+
+        let mut fs_policy = snapshot.fs_policy.clone();
+        fs_policy.library_root = "/data/library".to_string();
+        fs_policy.allow_paths = vec!["/data".to_string()];
+
         let changeset = SettingsChangeset {
-            app_profile: Some(json!({
-                "instance_name": "demo",
-                "bind_addr": "127.0.0.1",
-                "http_port": 8080,
-                "mode": "active"
-            })),
-            engine_profile: Some(json!({
-                "implementation": "libtorrent",
-                "resume_dir": "/var/lib/revaer/resume",
-                "download_root": "/var/lib/revaer/downloads"
-            })),
-            fs_policy: Some(json!({
-                "library_root": "/data/library",
-                "allow_paths": ["/data"]
-            })),
+            app_profile: Some(app_profile),
+            engine_profile: Some(engine_profile),
+            fs_policy: Some(fs_policy),
             api_keys: vec![revaer_config::ApiKeyPatch::Upsert {
                 key_id: "bootstrap".to_string(),
                 label: Some("bootstrap".to_string()),
@@ -815,8 +768,10 @@ mod tests {
             None,
         ));
 
+        let mut app_profile = config.snapshot().await.app_profile;
+        app_profile.instance_name = "patched".to_string();
         let changeset = SettingsChangeset {
-            app_profile: Some(json!({"instance_name": "patched"})),
+            app_profile: Some(app_profile),
             engine_profile: None,
             fs_policy: None,
             api_keys: Vec::new(),

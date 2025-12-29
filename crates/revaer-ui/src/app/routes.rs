@@ -11,6 +11,8 @@ pub(crate) enum Route {
     TorrentDetail { id: String },
     #[at("/settings")]
     Settings,
+    #[at("/logs")]
+    Logs,
     #[not_found]
     #[at("/404")]
     NotFound,

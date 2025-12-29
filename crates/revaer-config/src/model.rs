@@ -7,16 +7,109 @@
 use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::net::IpAddr;
 use std::str::FromStr;
 use std::time::Duration;
 use uuid::Uuid;
 
-use crate::engine_profile::EngineProfileEffective;
+use crate::engine_profile::{
+    AltSpeedConfig, EngineProfileEffective, IpFilterConfig, PeerClassesConfig, TrackerConfig,
+};
+
+/// Telemetry configuration stored alongside the app profile.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct TelemetryConfig {
+    /// Optional log level override.
+    #[serde(default)]
+    pub level: Option<String>,
+    /// Optional log format override.
+    #[serde(default)]
+    pub format: Option<String>,
+    /// Optional OpenTelemetry enablement flag.
+    #[serde(default)]
+    pub otel_enabled: Option<bool>,
+    /// Optional OpenTelemetry service name override.
+    #[serde(default)]
+    pub otel_service_name: Option<String>,
+    /// Optional OpenTelemetry endpoint override.
+    #[serde(default)]
+    pub otel_endpoint: Option<String>,
+}
+
+/// Label policy kinds for app-level routing rules.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum LabelKind {
+    /// Category label policy.
+    Category,
+    /// Tag label policy.
+    Tag,
+}
+
+impl FromStr for LabelKind {
+    type Err = anyhow::Error;
+
+    fn from_str(value: &str) -> Result<Self> {
+        match value {
+            "category" => Ok(Self::Category),
+            "tag" => Ok(Self::Tag),
+            other => Err(anyhow!("invalid label kind '{other}'")),
+        }
+    }
+}
+
+impl LabelKind {
+    #[must_use]
+    /// Render the label kind as its lowercase string representation.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Category => "category",
+            Self::Tag => "tag",
+        }
+    }
+}
+
+/// Label policy entry applied to categories/tags.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct LabelPolicy {
+    /// Label kind (`category` or `tag`).
+    pub kind: LabelKind,
+    /// Label name.
+    pub name: String,
+    /// Optional download directory override.
+    #[serde(default)]
+    pub download_dir: Option<String>,
+    /// Optional download rate limit in bytes per second.
+    #[serde(default)]
+    pub rate_limit_download_bps: Option<i64>,
+    /// Optional upload rate limit in bytes per second.
+    #[serde(default)]
+    pub rate_limit_upload_bps: Option<i64>,
+    /// Optional queue position override.
+    #[serde(default)]
+    pub queue_position: Option<i32>,
+    /// Optional auto-managed flag.
+    #[serde(default)]
+    pub auto_managed: Option<bool>,
+    /// Optional seed ratio limit.
+    #[serde(default)]
+    pub seed_ratio_limit: Option<f64>,
+    /// Optional seed time limit in seconds.
+    #[serde(default)]
+    pub seed_time_limit: Option<i64>,
+    /// Optional cleanup seed ratio limit.
+    #[serde(default)]
+    pub cleanup_seed_ratio_limit: Option<f64>,
+    /// Optional cleanup seed time limit in seconds.
+    #[serde(default)]
+    pub cleanup_seed_time_limit: Option<i64>,
+    /// Optional cleanup remove data flag.
+    #[serde(default)]
+    pub cleanup_remove_data: Option<bool>,
+}
 
 /// High-level view of the application profile.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AppProfile {
     /// Primary key for the application profile row.
     pub id: Uuid,
@@ -30,12 +123,14 @@ pub struct AppProfile {
     pub http_port: i32,
     /// IP address (and interface) the API server should bind to.
     pub bind_addr: IpAddr,
-    /// Structured telemetry configuration (JSON object).
-    pub telemetry: Value,
-    /// Feature flags exposed to the application (JSON object).
-    pub features: Value,
+    /// Structured telemetry configuration.
+    pub telemetry: TelemetryConfig,
+    /// Label policies exposed to the application.
+    #[serde(default)]
+    pub label_policies: Vec<LabelPolicy>,
     /// Immutable keys that must not be edited by clients.
-    pub immutable_keys: Value,
+    #[serde(default)]
+    pub immutable_keys: Vec<String>,
 }
 
 /// Setup or active mode flag recorded in `app_profile.mode`.
@@ -164,7 +259,7 @@ pub struct EngineProfile {
     pub half_open_limit: Option<i32>,
     /// Alternate speed caps and optional schedule payload.
     #[serde(default)]
-    pub alt_speed: Value,
+    pub alt_speed: AltSpeedConfig,
     /// Optional stats alert interval in milliseconds.
     #[serde(default)]
     pub stats_interval_ms: Option<i64>,
@@ -231,8 +326,9 @@ pub struct EngineProfile {
     /// Whether the shared disk cache pool should be used.
     #[serde(default = "EngineProfile::default_use_disk_cache_pool")]
     pub use_disk_cache_pool: Toggle,
-    /// Arbitrary tracker configuration payload (JSON object).
-    pub tracker: Value,
+    /// Tracker configuration payload.
+    #[serde(default)]
+    pub tracker: TrackerConfig,
     /// Enable local service discovery (mDNS).
     pub enable_lsd: Toggle,
     /// Enable `UPnP` port mapping.
@@ -242,14 +338,17 @@ pub struct EngineProfile {
     /// Enable peer exchange (PEX).
     pub enable_pex: Toggle,
     /// DHT bootstrap node list (host:port).
+    #[serde(default)]
     pub dht_bootstrap_nodes: Vec<String>,
     /// DHT router endpoints (host:port).
+    #[serde(default)]
     pub dht_router_nodes: Vec<String>,
     /// IP filter and blocklist configuration payload.
-    pub ip_filter: Value,
+    #[serde(default)]
+    pub ip_filter: IpFilterConfig,
     /// Peer class configuration for the engine profile.
     #[serde(default)]
-    pub peer_classes: Value,
+    pub peer_classes: PeerClassesConfig,
 }
 
 impl EngineProfile {
@@ -321,7 +420,7 @@ impl EngineProfile {
 }
 
 /// Filesystem policy configuration.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct FsPolicy {
     /// Primary key for the filesystem policy row.
     pub id: Uuid,
@@ -335,10 +434,12 @@ pub struct FsPolicy {
     pub flatten: bool,
     /// Move mode (`copy`, `move`, `hardlink`).
     pub move_mode: String,
-    /// Cleanup rules describing paths to retain (JSON array).
-    pub cleanup_keep: Value,
-    /// Cleanup rules describing paths to purge (JSON array).
-    pub cleanup_drop: Value,
+    /// Cleanup rules describing paths to retain.
+    #[serde(default)]
+    pub cleanup_keep: Vec<String>,
+    /// Cleanup rules describing paths to purge.
+    #[serde(default)]
+    pub cleanup_drop: Vec<String>,
     /// Optional chmod value applied to files.
     pub chmod_file: Option<String>,
     /// Optional chmod value applied to directories.
@@ -349,8 +450,9 @@ pub struct FsPolicy {
     pub group: Option<String>,
     /// Optional umask enforced during filesystem operations.
     pub umask: Option<String>,
-    /// Allow-list of destination paths (JSON array).
-    pub allow_paths: Value,
+    /// Allow-list of destination paths.
+    #[serde(default)]
+    pub allow_paths: Vec<String>,
 }
 
 /// Patch description for API keys.
@@ -368,7 +470,8 @@ pub enum ApiKeyPatch {
         /// Optional new secret value.
         secret: Option<String>,
         /// Optional rate limit configuration payload.
-        rate_limit: Option<Value>,
+        #[serde(default)]
+        rate_limit: Option<Option<ApiKeyRateLimit>>,
     },
     /// Remove an API key record.
     Delete {
@@ -446,23 +549,13 @@ pub struct ApiKeyAuth {
 }
 
 /// Token-bucket rate limit configuration applied per API key.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ApiKeyRateLimit {
     /// Maximum number of requests allowed within a replenishment window.
     pub burst: u32,
-    /// Duration between token replenishments.
+    /// Duration between token replenishments, expressed as seconds.
+    #[serde(rename = "per_seconds", with = "duration_seconds")]
     pub replenish_period: Duration,
-}
-
-impl ApiKeyRateLimit {
-    /// Serialise the rate limit into a stable JSON representation.
-    #[must_use]
-    pub fn to_json(&self) -> Value {
-        serde_json::json!({
-            "burst": self.burst,
-            "per_seconds": self.replenish_period.as_secs(),
-        })
-    }
 }
 
 /// Token representation surfaced to the caller. The plaintext value is only
@@ -495,13 +588,13 @@ pub struct ConfigSnapshot {
 pub struct SettingsChangeset {
     /// Optional application profile update payload.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub app_profile: Option<Value>,
+    pub app_profile: Option<AppProfile>,
     /// Optional engine profile update payload.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub engine_profile: Option<Value>,
+    pub engine_profile: Option<EngineProfile>,
     /// Optional filesystem policy update payload.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub fs_policy: Option<Value>,
+    pub fs_policy: Option<FsPolicy>,
     /// API key upserts/deletions included in the changeset.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub api_keys: Vec<ApiKeyPatch>,
@@ -519,5 +612,30 @@ impl SettingsChangeset {
             && self.fs_policy.is_none()
             && self.api_keys.is_empty()
             && self.secrets.is_empty()
+    }
+}
+
+mod duration_seconds {
+    use serde::{Deserialize, Deserializer, Serializer};
+    use std::time::Duration;
+
+    pub(super) fn serialize<S>(
+        duration: &Duration,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u64(duration.as_secs())
+    }
+
+    pub(super) fn deserialize<'de, D>(
+        deserializer: D,
+    ) -> Result<Duration, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let secs = u64::deserialize(deserializer)?;
+        Ok(Duration::from_secs(secs))
     }
 }

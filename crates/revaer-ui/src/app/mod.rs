@@ -21,6 +21,7 @@ use crate::core::store::{
 use crate::core::theme::ThemeMode;
 use crate::core::ui::{Density, UiMode};
 use crate::features::dashboard::DashboardPage;
+use crate::features::logs::view::LogsPage;
 use crate::features::settings::view::SettingsPage;
 use crate::features::torrents::actions::{TorrentAction, success_message};
 use crate::features::torrents::state::{
@@ -60,6 +61,7 @@ use yew_router::prelude::*;
 use yewdux::prelude::{Dispatch, use_selector};
 
 pub(crate) mod api;
+pub(crate) mod logs_sse;
 mod preferences;
 mod routes;
 mod sse;
@@ -74,6 +76,7 @@ pub fn revaer_app() -> Html {
     let config_snapshot = use_state(|| None::<Value>);
     let config_error = use_state(|| None::<String>);
     let config_busy = use_state(|| false);
+    let config_save_busy = use_state(|| false);
     let test_busy = use_state(|| false);
     let factory_reset_open = use_state(|| false);
     let factory_reset_busy = use_state(|| false);
@@ -96,6 +99,7 @@ pub fn revaer_app() -> Html {
         NavLabels {
             dashboard: bundle.text("nav.dashboard"),
             torrents: bundle.text("nav.torrents"),
+            logs: bundle.text("nav.logs"),
             categories: bundle.text("nav.categories"),
             tags: bundle.text("nav.tags"),
             settings: bundle.text("nav.settings"),
@@ -171,6 +175,7 @@ pub fn revaer_app() -> Html {
     let config_snapshot_value = (*config_snapshot).clone();
     let config_error_value = (*config_error).clone();
     let config_busy_value = *config_busy;
+    let config_save_busy_value = *config_save_busy;
     let test_busy_value = *test_busy;
     let settings_base_url = api_base_url();
     let dismiss_auth_prompt = {
@@ -179,6 +184,7 @@ pub fn revaer_app() -> Html {
     };
 
     let location = use_location();
+    let navigator = use_navigator();
     let current_route = use_route::<Route>().unwrap_or_else(|| {
         let Some(location) = location.as_ref() else {
             return Route::NotFound;
@@ -188,6 +194,7 @@ pub fn revaer_app() -> Html {
             "/" => Route::Dashboard,
             "/torrents" => Route::Torrents,
             "/settings" => Route::Settings,
+            "/logs" => Route::Logs,
             _ => path
                 .strip_prefix("/torrents/")
                 .map(|id| Route::TorrentDetail { id: id.to_string() })
@@ -1169,17 +1176,67 @@ pub fn revaer_app() -> Html {
             });
         })
     };
-    let on_server_logs = {
+    let on_apply_settings = {
+        let api_ctx = (*api_ctx).clone();
         let dispatch = dispatch.clone();
         let toast_id = toast_id.clone();
         let bundle = (*bundle).clone();
+        let config_snapshot = config_snapshot.clone();
+        let config_error = config_error.clone();
+        let config_save_busy = config_save_busy.clone();
+        Callback::from(move |changeset: Value| {
+            if *config_save_busy {
+                return;
+            }
+            if changeset
+                .as_object()
+                .map(|map| map.is_empty())
+                .unwrap_or(true)
+            {
+                return;
+            }
+            config_save_busy.set(true);
+            config_error.set(None);
+            let client = api_ctx.client.clone();
+            let dispatch = dispatch.clone();
+            let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
+            let config_snapshot = config_snapshot.clone();
+            let config_error = config_error.clone();
+            let config_save_busy = config_save_busy.clone();
+            yew::platform::spawn_local(async move {
+                match client.patch_settings(changeset).await {
+                    Ok(snapshot) => {
+                        config_snapshot.set(Some(snapshot));
+                        config_error.set(None);
+                        push_toast(
+                            &dispatch,
+                            &toast_id,
+                            ToastKind::Success,
+                            bundle.text("settings.saved"),
+                        );
+                    }
+                    Err(err) => {
+                        let detail = err.detail.clone().unwrap_or_else(|| err.to_string());
+                        config_error.set(Some(detail.clone()));
+                        push_toast(
+                            &dispatch,
+                            &toast_id,
+                            ToastKind::Error,
+                            format!("{} {detail}", bundle.text("settings.save_failed")),
+                        );
+                    }
+                }
+                config_save_busy.set(false);
+            });
+        })
+    };
+    let on_server_logs = {
+        let navigator = navigator.clone();
         Callback::from(move |_| {
-            push_toast(
-                &dispatch,
-                &toast_id,
-                ToastKind::Info,
-                bundle.text("toast.server_logs_unavailable"),
-            );
+            if let Some(navigator) = navigator.clone() {
+                navigator.push(&Route::Logs);
+            }
         })
     };
     let on_factory_reset = {
@@ -1221,7 +1278,16 @@ pub fn revaer_app() -> Html {
                             store.auth.setup_token = None;
                             store.auth.setup_expires_at = None;
                         });
-                        let _ = window().location().reload();
+                        factory_reset_busy.set(false);
+                        factory_reset_open.set(false);
+                        if let Err(err) = window().location().reload() {
+                            push_toast(
+                                &dispatch,
+                                &toast_id,
+                                ToastKind::Error,
+                                format!("Factory reset completed, reload failed: {err:?}"),
+                            );
+                        }
                     }
                     Err(err) => {
                         let detail = err.detail.clone().unwrap_or_else(|| err.to_string());
@@ -1288,6 +1354,39 @@ pub fn revaer_app() -> Html {
                     ),
                 }
             });
+        })
+    };
+    let on_copy_value = {
+        let dispatch = dispatch.clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
+        Callback::from(move |value: String| {
+            let dispatch = dispatch.clone();
+            let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
+            yew::platform::spawn_local(async move {
+                match copy_text_to_clipboard(value).await {
+                    Ok(()) => push_toast(
+                        &dispatch,
+                        &toast_id,
+                        ToastKind::Success,
+                        bundle.text("toast.copied"),
+                    ),
+                    Err(err) => push_toast(
+                        &dispatch,
+                        &toast_id,
+                        ToastKind::Error,
+                        format!("{} {err}", bundle.text("toast.copy_failed")),
+                    ),
+                }
+            });
+        })
+    };
+    let on_error_toast = {
+        let dispatch = dispatch.clone();
+        let toast_id = toast_id.clone();
+        Callback::from(move |message: String| {
+            push_toast(&dispatch, &toast_id, ToastKind::Error, message);
         })
     };
     let on_add_torrent = {
@@ -1672,6 +1771,12 @@ pub fn revaer_app() -> Html {
                                     system_rates={system_rates_value}
                                 />
                             },
+                            Route::Logs => html! {
+                                <LogsPage
+                                    base_url={settings_base_url.clone()}
+                                    auth_state={auth_state_for_routes.clone()}
+                                />
+                            },
                             Route::Torrents => html! {
                             <div class="space-y-4">
                                     <TorrentView
@@ -1770,7 +1875,11 @@ pub fn revaer_app() -> Html {
                                     config_snapshot={config_snapshot_value.clone()}
                                     config_error={config_error_value.clone()}
                                     config_busy={config_busy_value}
+                                    config_save_busy={config_save_busy_value}
                                     on_refresh_config={on_refresh_config.clone()}
+                                    on_apply_settings={on_apply_settings.clone()}
+                                    on_copy_value={on_copy_value.clone()}
+                                    on_error_toast={on_error_toast.clone()}
                                 />
                             },
                             Route::NotFound => html! { <Placeholder title={bundle.text("placeholder.not_found_title")} body={bundle.text("placeholder.not_found_body")} /> },

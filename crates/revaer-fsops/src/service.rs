@@ -31,7 +31,6 @@ use revaer_events::{Event, EventBus};
 use revaer_runtime::RuntimeStore;
 use revaer_telemetry::Metrics;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use tracing::{error, info, warn};
 use uuid::Uuid;
 use walkdir::WalkDir;
@@ -1604,7 +1603,7 @@ fn persist_meta(path: &Path, meta: &FsOpsMeta) -> Result<()> {
         .with_context(|| format!("failed to persist fsops metadata at {}", path.display()))
 }
 
-fn enforce_allow_paths(root: &Path, allow_paths: &Value) -> Result<()> {
+fn enforce_allow_paths(root: &Path, allow_paths: &[String]) -> Result<()> {
     let allows = parse_path_list(allow_paths)?;
     if allows.is_empty() {
         return Ok(());
@@ -1634,24 +1633,17 @@ fn enforce_allow_paths(root: &Path, allow_paths: &Value) -> Result<()> {
     Ok(())
 }
 
-fn parse_path_list(value: &Value) -> Result<Vec<PathBuf>> {
-    match value {
-        Value::Array(entries) => entries
-            .iter()
-            .map(|entry| match entry {
-                Value::String(path) if !path.trim().is_empty() => Ok(PathBuf::from(path)),
-                Value::String(_) => Err(anyhow!("allow path entries cannot be empty")),
-                other => Err(anyhow!(
-                    "allow path entries must be strings (found {other:?})"
-                )),
-            })
-            .collect(),
-        Value::Null => Ok(Vec::new()),
-        Value::Object(obj) if obj.is_empty() => Ok(Vec::new()),
-        other => Err(anyhow!(
-            "allow_paths must be an array of strings (found {other:?})"
-        )),
-    }
+fn parse_path_list(entries: &[String]) -> Result<Vec<PathBuf>> {
+    entries
+        .iter()
+        .map(|entry| {
+            if entry.trim().is_empty() {
+                Err(anyhow!("allow path entries cannot be empty"))
+            } else {
+                Ok(PathBuf::from(entry))
+            }
+        })
+        .collect()
 }
 
 #[derive(Debug)]
@@ -1714,20 +1706,17 @@ enum RuleDecision {
     Skip,
 }
 
-fn parse_glob_list(value: &Value) -> Result<Vec<String>> {
-    match value {
-        Value::Array(entries) => entries
-            .iter()
-            .map(|entry| match entry {
-                Value::String(pattern) if !pattern.trim().is_empty() => Ok(pattern.clone()),
-                Value::String(_) => Err(anyhow!("glob patterns cannot be empty strings")),
-                other => Err(anyhow!("glob patterns must be strings (found {other:?})")),
-            })
-            .collect(),
-        Value::Null => Ok(Vec::new()),
-        Value::Object(obj) if obj.is_empty() => Ok(Vec::new()),
-        other => Err(anyhow!("expected array of glob patterns (found {other:?})")),
-    }
+fn parse_glob_list(entries: &[String]) -> Result<Vec<String>> {
+    entries
+        .iter()
+        .map(|pattern| {
+            if pattern.trim().is_empty() {
+                Err(anyhow!("glob patterns cannot be empty strings"))
+            } else {
+                Ok(pattern.clone())
+            }
+        })
+        .collect()
 }
 
 fn build_globset(patterns: Vec<String>) -> Result<Option<GlobSet>> {
@@ -1751,7 +1740,6 @@ fn build_globset(patterns: Vec<String>) -> Result<Option<GlobSet>> {
 mod tests {
     use super::*;
     use anyhow::anyhow;
-    use serde_json::json;
     use std::io::Write;
     use tempfile::TempDir;
     use tokio::runtime::Runtime;
@@ -1765,14 +1753,14 @@ mod tests {
             par2: "disabled".to_string(),
             flatten: false,
             move_mode: "copy".to_string(),
-            cleanup_keep: json!(["**/*.mkv"]),
-            cleanup_drop: json!([]),
+            cleanup_keep: vec!["**/*.mkv".to_string()],
+            cleanup_drop: Vec::new(),
             chmod_file: None,
             chmod_dir: None,
             owner: None,
             group: None,
             umask: None,
-            allow_paths: json!([root.display().to_string()]),
+            allow_paths: vec![root.display().to_string()],
         }
     }
 
@@ -1799,14 +1787,14 @@ mod tests {
             par2: "disabled".to_string(),
             flatten: false,
             move_mode: "copy".to_string(),
-            cleanup_keep: json!(["**/*.mkv"]),
-            cleanup_drop: json!(["**/extras/**"]),
+            cleanup_keep: vec!["**/*.mkv".to_string()],
+            cleanup_drop: vec!["**/extras/**".to_string()],
             chmod_file: None,
             chmod_dir: None,
             owner: None,
             group: None,
             umask: None,
-            allow_paths: json!([]),
+            allow_paths: Vec::new(),
         };
 
         let rules = RuleSet::from_policy(&policy)?;
@@ -1827,16 +1815,16 @@ mod tests {
 
     #[test]
     fn parse_path_list_rejects_invalid_entries() {
-        let values = json!(["", {"path": "/tmp"}]);
+        let values = vec!["".to_string(), "/tmp".to_string()];
         let err = parse_path_list(&values).expect_err("invalid inputs should fail");
         assert!(format!("{err:#}").contains("allow path entries"));
     }
 
     #[test]
     fn parse_glob_list_rejects_non_strings() {
-        let values = json!({"pattern": "**/*.mkv"});
-        let err = parse_glob_list(&values).expect_err("non-array should fail");
-        assert!(format!("{err:#}").contains("expected array"));
+        let values = vec!["".to_string()];
+        let err = parse_glob_list(&values).expect_err("empty pattern should fail");
+        assert!(format!("{err:#}").contains("glob patterns cannot be empty"));
     }
 
     fn write_zip_archive(archive: &Path, entries: &[(&str, &[u8])]) -> Result<()> {
@@ -1934,8 +1922,8 @@ mod tests {
         let mut policy = sample_policy(temp.path());
         policy.extract = true;
         policy.flatten = true;
-        policy.cleanup_drop = json!(["**/*.txt"]);
-        policy.allow_paths = json!([temp.path().display().to_string()]);
+        policy.cleanup_drop = vec!["**/*.txt".to_string()];
+        policy.allow_paths = vec![temp.path().display().to_string()];
 
         service.apply(FsOpsRequest {
             torrent_id,
@@ -1968,7 +1956,7 @@ mod tests {
     fn enforce_allow_paths_accepts_parent_directory() -> Result<()> {
         let temp = TempDir::new()?;
         let root = temp.path().join("library");
-        let allow = json!([temp.path().display().to_string()]);
+        let allow = vec![temp.path().display().to_string()];
         enforce_allow_paths(&root, &allow)?;
         Ok(())
     }
@@ -1976,7 +1964,7 @@ mod tests {
     #[test]
     fn rule_set_expands_skip_fluff_preset() -> Result<()> {
         let mut policy = sample_policy(Path::new("/data"));
-        policy.cleanup_drop = json!([SKIP_FLUFF_PRESET]);
+        policy.cleanup_drop = vec![SKIP_FLUFF_PRESET.to_string()];
 
         let rules = RuleSet::from_policy(&policy)?;
         assert!(rules.exclude_count() >= SKIP_FLUFF_PATTERNS.len());
@@ -2075,14 +2063,14 @@ mod tests {
             par2: "disabled".to_string(),
             flatten: false,
             move_mode: "copy".to_string(),
-            cleanup_keep: json!(["**/*.mkv"]),
-            cleanup_drop: json!(["**/*.nfo"]),
+            cleanup_keep: vec!["**/*.mkv".to_string()],
+            cleanup_drop: vec!["**/*.nfo".to_string()],
             chmod_file: None,
             chmod_dir: None,
             owner: None,
             group: None,
             umask: None,
-            allow_paths: json!([]),
+            allow_paths: Vec::new(),
         };
         let rules = RuleSet::from_policy(&policy)?;
         let removed = FsOpsService::cleanup_destination(&root, &rules);
@@ -2192,8 +2180,8 @@ mod tests {
         meta.artifact_path = Some(artifact.to_string_lossy().into_owned());
 
         let mut policy = sample_policy(temp.path());
-        policy.cleanup_keep = json!([]);
-        policy.cleanup_drop = json!([]);
+        policy.cleanup_keep = Vec::new();
+        policy.cleanup_drop = Vec::new();
 
         service.run_cleanup(torrent_id, &mut meta, &meta_path, &policy)?;
 

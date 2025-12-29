@@ -30,7 +30,6 @@ use revaer_torrent_core::{
     },
 };
 use revaer_torrent_libt::{IpFilterRule as RuntimeIpFilterRule, IpFilterRuntimeConfig};
-use serde_json::{Value, json};
 use tokio::{sync::RwLock, task::JoinHandle};
 use tokio_stream::StreamExt;
 use tracing::{error, info, warn};
@@ -554,17 +553,13 @@ where
             return Ok(());
         }
 
-        let patch = json!({
-            "ip_filter": {
-                "cidrs": updated.cidrs,
-                "blocklist_url": updated.blocklist_url,
-                "etag": updated.etag,
-                "last_updated_at": updated.last_updated_at.map(|ts| ts.to_rfc3339()),
-                "last_error": updated.last_error,
-            }
-        });
+        let mut profile = {
+            let guard = self.engine_profile.read().await;
+            guard.clone()
+        };
+        profile.ip_filter = updated.clone();
         let changeset = SettingsChangeset {
-            engine_profile: Some(patch),
+            engine_profile: Some(profile),
             ..SettingsChangeset::default()
         };
         config
@@ -1106,7 +1101,7 @@ const fn bytes_to_f64(value: u64) -> f64 {
     }
 }
 
-fn enforce_allow_paths(root: &Path, allow_paths: &Value) -> Result<()> {
+fn enforce_allow_paths(root: &Path, allow_paths: &[String]) -> Result<()> {
     let allows = parse_path_list(allow_paths)?;
     if allows.is_empty() {
         return Ok(());
@@ -1132,31 +1127,26 @@ fn enforce_allow_paths(root: &Path, allow_paths: &Value) -> Result<()> {
     Ok(())
 }
 
-fn parse_path_list(value: &Value) -> Result<Vec<PathBuf>> {
-    match value {
-        Value::Array(entries) => entries
-            .iter()
-            .map(|entry| match entry {
-                Value::String(path) if !path.trim().is_empty() => Ok(PathBuf::from(path)),
-                Value::String(_) => Err(anyhow!("allow path entries cannot be empty")),
-                other => Err(anyhow!(
-                    "allow path entries must be strings (found {other:?})"
-                )),
-            })
-            .collect(),
-        Value::Null => Ok(Vec::new()),
-        Value::Object(obj) if obj.is_empty() => Ok(Vec::new()),
-        other => Err(anyhow!(
-            "allow_paths must be an array of strings (found {other:?})"
-        )),
-    }
+fn parse_path_list(entries: &[String]) -> Result<Vec<PathBuf>> {
+    entries
+        .iter()
+        .map(|entry| {
+            if entry.trim().is_empty() {
+                Err(anyhow!("allow path entries cannot be empty"))
+            } else {
+                Ok(PathBuf::from(entry))
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod orchestrator_tests {
     use super::*;
     use anyhow::bail;
-    use serde_json::json;
+    use revaer_config::engine_profile::{
+        AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig,
+    };
     use std::fs;
     use std::path::{Path, PathBuf};
     use tempfile::TempDir;
@@ -1192,14 +1182,14 @@ mod orchestrator_tests {
             par2: "disabled".to_string(),
             flatten: false,
             move_mode: "copy".to_string(),
-            cleanup_keep: json!([]),
-            cleanup_drop: json!([]),
+            cleanup_keep: Vec::new(),
+            cleanup_drop: Vec::new(),
             chmod_file: None,
             chmod_dir: None,
             owner: None,
             group: None,
             umask: None,
-            allow_paths: json!([root.display().to_string()]),
+            allow_paths: vec![root.display().to_string()],
         }
     }
 
@@ -1228,7 +1218,7 @@ mod orchestrator_tests {
             unchoke_slots: None,
             half_open_limit: None,
             stats_interval_ms: None,
-            alt_speed: json!({}),
+            alt_speed: AltSpeedConfig::default(),
             sequential_default: false,
             auto_managed: true.into(),
             auto_manage_prefer_seeds: false.into(),
@@ -1251,15 +1241,15 @@ mod orchestrator_tests {
             coalesce_reads: EngineProfile::default_coalesce_reads(),
             coalesce_writes: EngineProfile::default_coalesce_writes(),
             use_disk_cache_pool: EngineProfile::default_use_disk_cache_pool(),
-            tracker: json!([]),
+            tracker: TrackerConfig::default(),
             enable_lsd: false.into(),
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
-            ip_filter: json!({}),
-            peer_classes: json!({}),
+            ip_filter: IpFilterConfig::default(),
+            peer_classes: PeerClassesConfig::default(),
             outgoing_port_min: None,
             outgoing_port_max: None,
             peer_dscp: None,
@@ -1334,7 +1324,7 @@ mod orchestrator_tests {
         let fsops = FsOpsService::new(events.clone(), metrics);
         let mut policy = sample_fs_policy(temp.path());
         policy.library_root = "   ".to_string();
-        policy.allow_paths = json!([]);
+        policy.allow_paths = Vec::new();
         let orchestrator = Arc::new(TorrentOrchestrator::new(
             Arc::new(StubEngine),
             fsops,
@@ -1382,12 +1372,17 @@ mod orchestrator_tests {
 #[cfg(test)]
 mod engine_refresh_tests {
     use super::*;
-    use revaer_config::{AppProfile, SetupToken};
+    use revaer_config::{
+        AppProfile, SetupToken,
+        engine_profile::{
+            AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig, TrackerProxyConfig,
+            TrackerProxyType,
+        },
+    };
     use revaer_events::EventBus;
     use revaer_torrent_core::{
         AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentWorkflow,
     };
-    use serde_json::json;
     use std::collections::HashMap;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
@@ -1535,14 +1530,14 @@ mod engine_refresh_tests {
             par2: "disabled".to_string(),
             flatten: false,
             move_mode: "copy".to_string(),
-            cleanup_keep: json!([]),
-            cleanup_drop: json!([]),
+            cleanup_keep: Vec::new(),
+            cleanup_drop: Vec::new(),
             chmod_file: None,
             chmod_dir: None,
             owner: None,
             group: None,
             umask: None,
-            allow_paths: json!([]),
+            allow_paths: Vec::new(),
         }
     }
 
@@ -1571,7 +1566,7 @@ mod engine_refresh_tests {
             unchoke_slots: None,
             half_open_limit: None,
             stats_interval_ms: None,
-            alt_speed: json!({}),
+            alt_speed: AltSpeedConfig::default(),
             sequential_default: false,
             auto_managed: true.into(),
             auto_manage_prefer_seeds: false.into(),
@@ -1594,15 +1589,15 @@ mod engine_refresh_tests {
             coalesce_reads: EngineProfile::default_coalesce_reads(),
             coalesce_writes: EngineProfile::default_coalesce_writes(),
             use_disk_cache_pool: EngineProfile::default_use_disk_cache_pool(),
-            tracker: json!([]),
+            tracker: TrackerConfig::default(),
             enable_lsd: false.into(),
             enable_upnp: false.into(),
             enable_natpmp: false.into(),
             enable_pex: false.into(),
             dht_bootstrap_nodes: Vec::new(),
             dht_router_nodes: Vec::new(),
-            ip_filter: json!({}),
-            peer_classes: json!({}),
+            ip_filter: IpFilterConfig::default(),
+            peer_classes: PeerClassesConfig::default(),
             outgoing_port_min: None,
             outgoing_port_max: None,
             peer_dscp: None,
@@ -1679,15 +1674,17 @@ mod engine_refresh_tests {
         let config: Arc<dyn SettingsFacade> = Arc::new(StubConfig { secrets });
 
         let mut profile = engine_profile("proxy-auth");
-        profile.tracker = json!({
-            "proxy": {
-                "host": "proxy.local",
-                "port": 8080,
-                "kind": "socks5",
-                "username_secret": "PROXY_USER",
-                "password_secret": "PROXY_PASS"
-            }
-        });
+        profile.tracker = TrackerConfig {
+            proxy: Some(TrackerProxyConfig {
+                host: "proxy.local".to_string(),
+                port: 8080,
+                username_secret: Some("PROXY_USER".to_string()),
+                password_secret: Some("PROXY_PASS".to_string()),
+                kind: TrackerProxyType::Socks5,
+                proxy_peers: false,
+            }),
+            ..TrackerConfig::default()
+        };
 
         let orchestrator = Arc::new(TorrentOrchestrator::new(
             Arc::clone(&engine),
@@ -1745,7 +1742,10 @@ mod engine_refresh_tests {
         let metrics = Metrics::new()?;
         let fsops = FsOpsService::new(bus.clone(), metrics);
         let mut profile = engine_profile("blocklist");
-        profile.ip_filter = json!({ "blocklist_url": format!("http://{addr}") });
+        profile.ip_filter = IpFilterConfig {
+            blocklist_url: Some(format!("http://{addr}")),
+            ..IpFilterConfig::default()
+        };
         let orchestrator = Arc::new(TorrentOrchestrator::new(
             Arc::clone(&engine),
             fsops,
