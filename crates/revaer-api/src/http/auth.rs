@@ -281,6 +281,24 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn require_factory_reset_allows_invalid_api_key_when_none_exist() -> Result<()> {
+        let state = api_state(AppMode::Active, None, false)?;
+        let app = factory_reset_router_with_state(&state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/")
+                    .header(crate::http::constants::HEADER_API_KEY, "stale:token")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn require_factory_reset_rejects_without_api_key_when_keys_exist() -> Result<()> {
         let state = api_state(AppMode::Active, None, true)?;
         let app = factory_reset_router_with_state(&state);
@@ -290,6 +308,24 @@ mod tests {
                 Request::builder()
                     .method("POST")
                     .uri("/")
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn require_factory_reset_rejects_invalid_api_key_when_keys_exist() -> Result<()> {
+        let state = api_state(AppMode::Active, None, true)?;
+        let app = factory_reset_router_with_state(&state);
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/")
+                    .header(crate::http::constants::HEADER_API_KEY, "stale:token")
                     .body(Body::empty())?,
             )
             .await?;
@@ -452,7 +488,18 @@ pub(crate) async fn require_factory_reset_auth(
             })?;
 
         let Some(auth) = auth else {
-            return Err(ApiError::unauthorized("invalid API key"));
+            let has_api_keys = state.config.has_api_keys().await.map_err(|err| {
+                error!(error = %err, "failed to check API key inventory");
+                ApiError::internal("failed to check API key inventory")
+            })?;
+            if has_api_keys {
+                return Err(ApiError::unauthorized("invalid API key"));
+            }
+            warn!("factory reset allowed without API key because no keys exist");
+            req.extensions_mut().insert(AuthContext::ApiKey {
+                key_id: "bootstrap".to_string(),
+            });
+            return Ok(next.run(req).await);
         };
 
         let rate_snapshot = match state.enforce_rate_limit(&auth.key_id, auth.rate_limit.as_ref()) {

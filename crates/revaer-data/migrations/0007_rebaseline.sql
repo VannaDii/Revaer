@@ -2094,6 +2094,8 @@ $$
 DECLARE
     rec RECORD;
 BEGIN
+    PERFORM set_config('lock_timeout', '5s', true);
+
     FOR rec IN
         SELECT schemaname, tablename
         FROM pg_tables
