@@ -66,6 +66,7 @@ ADR documents capture the rationale behind significant technical decisions.
 - [061](061-api-i18n-openapi-assets.md) – API error i18n and OpenAPI asset constants
 - [062](062-eventbus-publish-guardrails.md) – Event bus publish guardrails and API i18n cleanup
 - [063](063-ci-compliance-cleanup.md) – CI compliance cleanup for test error handling
+- [064](064-factory-reset-error-context.md) – Factory reset error context and allow-path validation
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

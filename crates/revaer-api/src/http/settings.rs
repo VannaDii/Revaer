@@ -69,11 +69,20 @@ pub(crate) async fn factory_reset(
     }
 
     state.config.factory_reset().await.map_err(|err| {
+        let raw_error = root_error_message(&err);
         error!(error = %err, "factory reset failed");
-        ApiError::internal("factory reset failed").with_context_field("error", err.to_string())
+        ApiError::internal("factory reset failed").with_context_field("error", raw_error)
     })?;
 
     Ok(StatusCode::NO_CONTENT)
+}
+
+fn root_error_message(err: &dyn std::error::Error) -> String {
+    let mut current = err;
+    while let Some(source) = current.source() {
+        current = source;
+    }
+    current.to_string()
 }
 
 pub(crate) async fn well_known(
@@ -135,6 +144,7 @@ mod tests {
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
     use std::time::Duration;
+    use std::{error::Error as StdError, fmt};
     use uuid::Uuid;
 
     #[derive(Clone)]
@@ -296,6 +306,40 @@ mod tests {
                 allow_paths: Vec::new(),
             },
         })
+    }
+
+    #[test]
+    fn root_error_message_returns_innermost_source() {
+        #[derive(Debug)]
+        struct InnerError;
+
+        impl fmt::Display for InnerError {
+            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("inner failure")
+            }
+        }
+
+        impl StdError for InnerError {}
+
+        #[derive(Debug)]
+        struct OuterError {
+            source: InnerError,
+        }
+
+        impl fmt::Display for OuterError {
+            fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+                formatter.write_str("outer failure")
+            }
+        }
+
+        impl StdError for OuterError {
+            fn source(&self) -> Option<&(dyn StdError + 'static)> {
+                Some(&self.source)
+            }
+        }
+
+        let err = OuterError { source: InnerError };
+        assert_eq!(root_error_message(&err), "inner failure");
     }
 
     #[tokio::test]

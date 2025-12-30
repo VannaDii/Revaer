@@ -1495,9 +1495,6 @@ async fn validate_label_policy_paths(policies: &[LabelPolicy]) -> Result<()> {
 
 async fn validate_allow_paths(paths: &[String]) -> Result<()> {
     for path in paths {
-        if path.trim().is_empty() {
-            continue;
-        }
         validate_directory_path("fs_policy", "allow_paths", path).await?;
     }
     Ok(())
