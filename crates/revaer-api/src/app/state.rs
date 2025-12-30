@@ -42,6 +42,7 @@ mod tests {
                 id: Uuid::new_v4(),
                 instance_name: "test".to_string(),
                 mode: AppMode::Active,
+                auth_mode: revaer_config::AppAuthMode::ApiKey,
                 version: 1,
                 http_port: 8080,
                 bind_addr: std::net::IpAddr::from([127, 0, 0, 1]),

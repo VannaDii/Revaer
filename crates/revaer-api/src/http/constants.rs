@@ -9,6 +9,7 @@ pub(crate) const HEADER_RATE_LIMIT_LIMIT: &str = "x-ratelimit-limit";
 pub(crate) const HEADER_RATE_LIMIT_REMAINING: &str = "x-ratelimit-remaining";
 pub(crate) const HEADER_RATE_LIMIT_RESET: &str = "x-ratelimit-reset";
 pub(crate) const SSE_KEEP_ALIVE_SECS: u64 = 20;
+pub(crate) const API_KEY_TTL_DAYS: i64 = 14;
 
 pub(crate) const PROBLEM_INTERNAL: &str = "https://revaer.dev/problems/internal";
 pub(crate) const PROBLEM_UNAUTHORIZED: &str = "https://revaer.dev/problems/unauthorized";

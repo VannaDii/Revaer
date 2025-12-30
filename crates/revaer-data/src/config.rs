@@ -38,6 +38,8 @@ pub struct AppProfileRow {
     pub instance_name: String,
     /// Operational mode string (`setup` or `active`).
     pub mode: String,
+    /// Authentication mode string (`api_key` or `none`).
+    pub auth_mode: String,
     /// Monotonic revision number.
     pub version: i64,
     /// API HTTP port.
@@ -1367,6 +1369,24 @@ where
         .execute(executor)
         .await
         .map_err(map_query_err("update app mode"))?;
+    Ok(())
+}
+
+/// Update the application auth mode field.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_app_auth_mode<'e, E>(executor: E, id: Uuid, auth_mode: &str) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_app_auth_mode(_id => $1, _auth_mode => $2)")
+        .bind(id)
+        .bind(auth_mode)
+        .execute(executor)
+        .await
+        .map_err(map_query_err("update app auth mode"))?;
     Ok(())
 }
 

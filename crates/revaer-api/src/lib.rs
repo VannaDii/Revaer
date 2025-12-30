@@ -341,6 +341,7 @@ mod tests {
             id: Uuid::new_v4(),
             instance_name: "revaer".to_string(),
             mode: AppMode::Setup,
+            auth_mode: revaer_config::AppAuthMode::ApiKey,
             version: 1,
             http_port: 7070,
             bind_addr,

@@ -1,6 +1,17 @@
 {
   "components": {
     "schemas": {
+      "ApiKeyRefreshResponse": {
+        "properties": {
+          "api_key_expires_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "api_key_expires_at"
+        ],
+        "type": "object"
+      },
       "ConfigSnapshot": {
         "properties": {
           "app_profile": {
@@ -1602,6 +1613,58 @@
           }
         },
         "summary": "Expose Prometheus metrics"
+      }
+    },
+    "/v1/auth/refresh": {
+      "post": {
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiKeyRefreshResponse"
+                }
+              }
+            },
+            "description": "Updated API key expiry"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Authentication failed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Configuration invalid"
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Rate limit exceeded"
+          }
+        },
+        "security": [
+          {
+            "ApiKeyAuth": []
+          }
+        ],
+        "summary": "Refresh the active API key expiration"
       }
     },
     "/v1/config": {

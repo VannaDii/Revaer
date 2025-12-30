@@ -45,7 +45,8 @@ pub(crate) async fn create_torrent(
     Json(request): Json<TorrentCreateRequest>,
 ) -> Result<StatusCode, ApiError> {
     match context {
-        crate::http::auth::AuthContext::ApiKey { .. } => {}
+        crate::http::auth::AuthContext::ApiKey { .. }
+        | crate::http::auth::AuthContext::Anonymous => {}
         crate::http::auth::AuthContext::SetupToken(_) => {
             return Err(ApiError::unauthorized(
                 "setup authentication context cannot manage torrents",
@@ -75,7 +76,8 @@ pub(crate) async fn create_torrent_authoring(
     Json(request): Json<TorrentAuthorRequest>,
 ) -> Result<Json<TorrentAuthorResponse>, ApiError> {
     match context {
-        crate::http::auth::AuthContext::ApiKey { .. } => {}
+        crate::http::auth::AuthContext::ApiKey { .. }
+        | crate::http::auth::AuthContext::Anonymous => {}
         crate::http::auth::AuthContext::SetupToken(_) => {
             return Err(ApiError::unauthorized(
                 "setup authentication context cannot manage torrents",
@@ -201,7 +203,8 @@ pub(crate) async fn delete_torrent(
     AxumPath(id): AxumPath<Uuid>,
 ) -> Result<StatusCode, ApiError> {
     match context {
-        crate::http::auth::AuthContext::ApiKey { .. } => {}
+        crate::http::auth::AuthContext::ApiKey { .. }
+        | crate::http::auth::AuthContext::Anonymous => {}
         crate::http::auth::AuthContext::SetupToken(_) => {
             return Err(ApiError::unauthorized(
                 "setup authentication context cannot manage torrents",
@@ -224,7 +227,8 @@ pub(crate) async fn select_torrent(
     Json(request): Json<TorrentSelectionRequest>,
 ) -> Result<StatusCode, ApiError> {
     match context {
-        crate::http::auth::AuthContext::ApiKey { .. } => {}
+        crate::http::auth::AuthContext::ApiKey { .. }
+        | crate::http::auth::AuthContext::Anonymous => {}
         crate::http::auth::AuthContext::SetupToken(_) => {
             return Err(ApiError::unauthorized(
                 "setup authentication context cannot manage torrents",
@@ -260,7 +264,8 @@ pub(crate) async fn update_torrent_trackers(
     Json(request): Json<TorrentTrackersRequest>,
 ) -> Result<StatusCode, ApiError> {
     match context {
-        crate::http::auth::AuthContext::ApiKey { .. } => {}
+        crate::http::auth::AuthContext::ApiKey { .. }
+        | crate::http::auth::AuthContext::Anonymous => {}
         crate::http::auth::AuthContext::SetupToken(_) => {
             return Err(ApiError::unauthorized(
                 "setup authentication context cannot manage torrents",
@@ -350,7 +355,8 @@ pub(crate) async fn remove_torrent_trackers(
     Json(request): Json<TorrentTrackersRemoveRequest>,
 ) -> Result<StatusCode, ApiError> {
     match context {
-        crate::http::auth::AuthContext::ApiKey { .. } => {}
+        crate::http::auth::AuthContext::ApiKey { .. }
+        | crate::http::auth::AuthContext::Anonymous => {}
         crate::http::auth::AuthContext::SetupToken(_) => {
             return Err(ApiError::unauthorized(
                 "setup authentication context cannot manage torrents",
@@ -408,7 +414,8 @@ pub(crate) async fn update_torrent_web_seeds(
     Json(request): Json<TorrentWebSeedsRequest>,
 ) -> Result<StatusCode, ApiError> {
     match context {
-        crate::http::auth::AuthContext::ApiKey { .. } => {}
+        crate::http::auth::AuthContext::ApiKey { .. }
+        | crate::http::auth::AuthContext::Anonymous => {}
         crate::http::auth::AuthContext::SetupToken(_) => {
             return Err(ApiError::unauthorized(
                 "setup authentication context cannot manage torrents",
@@ -461,7 +468,8 @@ pub(crate) async fn update_torrent_options(
     Json(request): Json<TorrentOptionsRequest>,
 ) -> Result<StatusCode, ApiError> {
     match context {
-        crate::http::auth::AuthContext::ApiKey { .. } => {}
+        crate::http::auth::AuthContext::ApiKey { .. }
+        | crate::http::auth::AuthContext::Anonymous => {}
         crate::http::auth::AuthContext::SetupToken(_) => {
             return Err(ApiError::unauthorized(
                 "setup authentication context cannot manage torrents",
@@ -522,7 +530,8 @@ pub(crate) async fn action_torrent(
     Json(action): Json<TorrentAction>,
 ) -> Result<StatusCode, ApiError> {
     match context {
-        crate::http::auth::AuthContext::ApiKey { .. } => {}
+        crate::http::auth::AuthContext::ApiKey { .. }
+        | crate::http::auth::AuthContext::Anonymous => {}
         crate::http::auth::AuthContext::SetupToken(_) => {
             return Err(ApiError::unauthorized(
                 "setup authentication context cannot manage torrents",
@@ -1004,6 +1013,7 @@ fn build_add_torrent(
 fn require_api_key(context: crate::http::auth::AuthContext) -> Result<String, ApiError> {
     match context {
         crate::http::auth::AuthContext::ApiKey { key_id } => Ok(key_id),
+        crate::http::auth::AuthContext::Anonymous => Ok("anonymous".to_string()),
         crate::http::auth::AuthContext::SetupToken(_) => Err(ApiError::unauthorized(
             "setup authentication context cannot manage torrents",
         )),
@@ -1895,6 +1905,7 @@ mod tests {
                 id: Uuid::new_v4(),
                 instance_name: "test".to_string(),
                 mode: AppMode::Active,
+                auth_mode: revaer_config::AppAuthMode::ApiKey,
                 version: 1,
                 http_port: 8080,
                 bind_addr: std::net::IpAddr::from([127, 0, 0, 1]),
@@ -1982,6 +1993,7 @@ mod tests {
                 id: Uuid::new_v4(),
                 instance_name: "labels".to_string(),
                 mode: AppMode::Active,
+                auth_mode: revaer_config::AppAuthMode::ApiKey,
                 version: 1,
                 http_port: 8080,
                 bind_addr: std::net::IpAddr::from([127, 0, 0, 1]),

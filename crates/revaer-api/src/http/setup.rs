@@ -16,6 +16,7 @@ use uuid::Uuid;
 
 use crate::app::state::ApiState;
 use crate::http::auth::{AuthContext, extract_setup_token, map_config_error};
+use crate::http::constants::API_KEY_TTL_DAYS;
 use crate::http::errors::ApiError;
 use crate::models::{SetupCompleteResponse, SetupStartRequest, SetupStartResponse};
 
@@ -91,7 +92,7 @@ struct BootstrapApiKey {
 }
 
 fn ensure_bootstrap_api_key(changeset: &mut SettingsChangeset) -> BootstrapApiKey {
-    let expires_at = Utc::now() + ChronoDuration::days(14);
+    let expires_at = Utc::now() + ChronoDuration::days(API_KEY_TTL_DAYS);
     for patch in &mut changeset.api_keys {
         if let ApiKeyPatch::Upsert {
             key_id,

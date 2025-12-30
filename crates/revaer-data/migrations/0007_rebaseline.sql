@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS app_profile (
     id UUID PRIMARY KEY,
     version BIGINT NOT NULL DEFAULT 0,
     mode TEXT NOT NULL CHECK (mode IN ('setup', 'active')),
+    auth_mode TEXT NOT NULL DEFAULT 'api_key' CHECK (auth_mode IN ('api_key', 'none')),
     instance_name TEXT NOT NULL,
     http_port INTEGER NOT NULL DEFAULT 7070,
     bind_addr INET NOT NULL DEFAULT '127.0.0.1',
@@ -35,6 +36,7 @@ CREATE TABLE IF NOT EXISTS app_profile (
 );
 
 ALTER TABLE public.app_profile
+    ADD COLUMN IF NOT EXISTS auth_mode TEXT NOT NULL DEFAULT 'api_key',
     ADD COLUMN IF NOT EXISTS telemetry_level TEXT,
     ADD COLUMN IF NOT EXISTS telemetry_format TEXT,
     ADD COLUMN IF NOT EXISTS telemetry_otel_enabled BOOLEAN,
@@ -818,6 +820,7 @@ RETURNS TABLE (
     id UUID,
     instance_name TEXT,
     mode TEXT,
+    auth_mode TEXT,
     version BIGINT,
     http_port INTEGER,
     bind_addr TEXT,
@@ -834,6 +837,7 @@ BEGIN
     SELECT ap.id,
            ap.instance_name,
            ap.mode,
+           ap.auth_mode,
            ap.version,
            ap.http_port,
            ap.bind_addr::TEXT,
@@ -1449,6 +1453,18 @@ $$
 BEGIN
     UPDATE public.app_profile
     SET mode = _mode
+    WHERE id = _id;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION revaer_config.update_app_auth_mode(
+    _id UUID,
+    _auth_mode TEXT
+) RETURNS VOID AS
+$$
+BEGIN
+    UPDATE public.app_profile
+    SET auth_mode = _auth_mode
     WHERE id = _id;
 END;
 $$ LANGUAGE plpgsql;

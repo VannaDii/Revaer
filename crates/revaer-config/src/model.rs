@@ -119,6 +119,9 @@ pub struct AppProfile {
     pub instance_name: String,
     /// Operating mode (`setup` or `active`).
     pub mode: AppMode,
+    /// Authentication mode for API access.
+    #[serde(default)]
+    pub auth_mode: AppAuthMode,
     /// Monotonic version used to detect concurrent updates.
     pub version: i64,
     /// HTTP port the API server should bind to.
@@ -143,6 +146,72 @@ pub enum AppMode {
     Setup,
     /// Normal operational mode.
     Active,
+}
+
+/// Authentication policy for API access.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AppAuthMode {
+    /// API key authentication is required.
+    #[default]
+    ApiKey,
+    /// Anonymous access is allowed (local networks only).
+    #[serde(rename = "none")]
+    NoAuth,
+}
+
+impl FromStr for AppAuthMode {
+    type Err = ConfigError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "api_key" => Ok(Self::ApiKey),
+            "none" => Ok(Self::NoAuth),
+            other => Err(ConfigError::InvalidField {
+                section: "app_profile".to_string(),
+                field: "auth_mode".to_string(),
+                value: Some(other.to_string()),
+                reason: "invalid auth mode",
+            }),
+        }
+    }
+}
+
+impl AppAuthMode {
+    #[must_use]
+    /// Render the mode as its lowercase string representation.
+    pub const fn as_str(&self) -> &'static str {
+        match self {
+            Self::ApiKey => "api_key",
+            Self::NoAuth => "none",
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AppAuthMode;
+    use std::str::FromStr;
+
+    #[test]
+    fn app_auth_mode_defaults_to_api_key() {
+        assert_eq!(AppAuthMode::default(), AppAuthMode::ApiKey);
+    }
+
+    #[test]
+    fn app_auth_mode_parses_valid_values() {
+        assert_eq!(
+            AppAuthMode::from_str("api_key").unwrap(),
+            AppAuthMode::ApiKey
+        );
+        assert_eq!(AppAuthMode::from_str("none").unwrap(), AppAuthMode::NoAuth);
+    }
+
+    #[test]
+    fn app_auth_mode_as_str_matches_values() {
+        assert_eq!(AppAuthMode::ApiKey.as_str(), "api_key");
+        assert_eq!(AppAuthMode::NoAuth.as_str(), "none");
+    }
 }
 
 impl FromStr for AppMode {

@@ -4673,6 +4673,7 @@ const APP_INFO_FIELDS: &[&str] = &[
     "id",
     "instance_name",
     "mode",
+    "auth_mode",
     "version",
     "http_port",
     "bind_addr",
@@ -5530,6 +5531,10 @@ fn select_options(section: SettingsSection, key: &str, value: &Value) -> Option<
                 | (SettingsSection::EngineProfile, "disk_write_mode")
         );
     let options = match (section, key) {
+        (SettingsSection::AppProfile, "auth_mode") => vec![
+            ("api_key".to_string(), "settings.option.api_key"),
+            ("none".to_string(), "settings.option.no_auth"),
+        ],
         (SettingsSection::EngineProfile, "ipv6_mode") => vec![
             ("disabled".to_string(), "settings.option.disabled"),
             ("enabled".to_string(), "settings.option.enabled"),

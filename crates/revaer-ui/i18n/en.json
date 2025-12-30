@@ -209,6 +209,8 @@
       "telemetry_body": "Log formatting and OpenTelemetry output."
     },
     "option": {
+      "api_key": "API key",
+      "no_auth": "No auth",
       "auto": "Auto",
       "disabled": "Disabled",
       "enabled": "Enabled",
@@ -253,6 +255,7 @@
     "changes_none": "No changes",
     "fields": {
       "app_profile": {
+        "auth_mode": "Auth Mode",
         "bind_addr": "Bind Addr",
         "features": "Features",
         "http_port": "Http Port",
@@ -615,6 +618,10 @@
     "body": "Issue a one-time setup token, then confirm to activate this instance.",
     "token_label": "Setup token",
     "token_placeholder": "setup_1234",
+    "auth_mode_label": "Auth mode",
+    "auth_mode_api_key": "API key (recommended)",
+    "auth_mode_none": "No auth (local network)",
+    "auth_mode_hint": "Only disable auth on trusted local networks.",
     "expires_prefix": "Expires at",
     "issue_token": "Issue token",
     "complete": "Complete setup"
@@ -687,6 +694,7 @@
     "copy_failed": "Copy failed:",
     "action_failed": "Action failed for",
     "options_failed": "Options update failed:",
+    "api_key_refresh_failed": "API key refresh failed.",
     "torrent_placeholder": "Torrent",
     "bulk_done": "Bulk actions completed for",
     "server_restart_unavailable": "Server restart is not available in this build.",

@@ -1,6 +1,7 @@
 {
   "messages": {
     "API key must be provided as key_id:secret": "API key must be provided as key_id:secret",
+    "API key required for token refresh": "API key required for token refresh",
     "authentication required": "authentication required",
     "bad request": "bad request",
     "category is required": "category is required",
@@ -51,6 +52,7 @@
     "hash required": "hash required",
     "internal server error": "internal server error",
     "invalid API key": "invalid API key",
+    "invalid auth mode": "invalid auth mode",
     "invalid authentication context for settings patch": "invalid authentication context for settings patch",
     "invalid app profile id": "invalid app profile id",
     "invalid engine profile id": "invalid engine profile id",

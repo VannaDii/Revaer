@@ -28,5 +28,7 @@ pub mod setup;
 pub mod sse;
 /// Metrics middleware for HTTP requests.
 pub mod telemetry;
+/// API token refresh handlers.
+pub mod tokens;
 /// Torrent-facing HTTP helpers (pagination, filtering, metadata views).
 pub mod torrents;

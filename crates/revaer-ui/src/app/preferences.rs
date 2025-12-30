@@ -21,6 +21,7 @@ pub(crate) const AUTH_MODE_KEY: &str = "revaer.auth.mode";
 pub(crate) const LOCAL_AUTH_USER_KEY: &str = "revaer.auth.user";
 pub(crate) const LOCAL_AUTH_PASS_KEY: &str = "revaer.auth.pass";
 pub(crate) const AUTH_BYPASS_LOCAL_KEY: &str = "revaer.auth.bypass_local";
+pub(crate) const AUTH_ANONYMOUS_KEY: &str = "revaer.auth.anonymous";
 pub(crate) const SSE_LAST_EVENT_ID_KEY: &str = "revaer.sse.last_event_id";
 
 pub(crate) fn load_theme() -> ThemeMode {
@@ -108,6 +109,9 @@ pub(crate) fn load_local_auth() -> Option<LocalAuth> {
 }
 
 pub(crate) fn load_auth_state(mode: AuthMode, allow_anon: bool) -> Option<AuthState> {
+    if allow_anon && load_anonymous_auth() {
+        return Some(AuthState::Anonymous);
+    }
     match mode {
         AuthMode::ApiKey => load_api_key(allow_anon).map(AuthState::ApiKey),
         AuthMode::Local => load_local_auth().map(AuthState::Local),
@@ -129,16 +133,19 @@ pub(crate) fn persist_auth_state(state: &AuthState) {
         AuthState::ApiKey(value) => {
             set_storage(AUTH_MODE_KEY, "api_key");
             set_storage(API_KEY_KEY, value);
+            delete_storage(AUTH_ANONYMOUS_KEY);
             delete_storage(API_KEY_EXPIRES_AT_KEY);
         }
         AuthState::Local(auth) => {
             set_storage(AUTH_MODE_KEY, "local");
             set_storage(LOCAL_AUTH_USER_KEY, &auth.username);
             set_storage(LOCAL_AUTH_PASS_KEY, &auth.password);
+            delete_storage(AUTH_ANONYMOUS_KEY);
             delete_storage(API_KEY_EXPIRES_AT_KEY);
         }
         AuthState::Anonymous => {
             set_storage(AUTH_MODE_KEY, "api_key");
+            set_storage(AUTH_ANONYMOUS_KEY, true);
             delete_storage(API_KEY_KEY);
             delete_storage(LOCAL_AUTH_USER_KEY);
             delete_storage(LOCAL_AUTH_PASS_KEY);
@@ -150,6 +157,7 @@ pub(crate) fn persist_auth_state(state: &AuthState) {
 pub(crate) fn persist_api_key_with_expiry(api_key: &str, expires_at: &str) {
     set_storage(AUTH_MODE_KEY, "api_key");
     set_storage(API_KEY_KEY, api_key);
+    delete_storage(AUTH_ANONYMOUS_KEY);
     if let Some(expires_at_ms) = parse_expires_at_ms(expires_at) {
         set_storage(API_KEY_EXPIRES_AT_KEY, expires_at_ms);
     } else {
@@ -159,6 +167,7 @@ pub(crate) fn persist_api_key_with_expiry(api_key: &str, expires_at: &str) {
 
 pub(crate) fn clear_auth_storage() {
     clear_api_key_storage();
+    delete_storage(AUTH_ANONYMOUS_KEY);
     delete_storage(LOCAL_AUTH_USER_KEY);
     delete_storage(LOCAL_AUTH_PASS_KEY);
 }
@@ -177,8 +186,12 @@ fn parse_expires_at_ms(value: &str) -> Option<i64> {
     }
 }
 
-fn load_api_key_expires_at_ms() -> Option<i64> {
+pub(crate) fn load_api_key_expires_at_ms() -> Option<i64> {
     LocalStorage::get::<i64>(API_KEY_EXPIRES_AT_KEY).ok()
+}
+
+fn load_anonymous_auth() -> bool {
+    LocalStorage::get::<bool>(AUTH_ANONYMOUS_KEY).unwrap_or(false)
 }
 
 pub(crate) fn persist_bypass_local(value: bool) {

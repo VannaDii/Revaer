@@ -33,8 +33,8 @@ pub use engine_profile::{
 };
 pub use error::{ConfigError, ConfigResult};
 pub use model::{
-    ApiKeyAuth, ApiKeyPatch, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigSnapshot,
-    EngineProfile, FsPolicy, LabelKind, LabelPolicy, SecretPatch, SettingsChange,
+    ApiKeyAuth, ApiKeyPatch, ApiKeyRateLimit, AppAuthMode, AppMode, AppProfile, AppliedChanges,
+    ConfigSnapshot, EngineProfile, FsPolicy, LabelKind, LabelPolicy, SecretPatch, SettingsChange,
     SettingsChangeset, SettingsPayload, SetupToken, TelemetryConfig,
 };
 pub use service::{ConfigService, ConfigWatcher, SettingsFacade, SettingsStream};

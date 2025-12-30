@@ -5,8 +5,21 @@
 //! - Token entry is local state so callers can rotate issued tokens without storing input.
 //! - Surface errors verbatim to avoid masking backend setup failures.
 
+use crate::components::daisy::Select;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use yew::prelude::*;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SetupAuthMode {
+    ApiKey,
+    NoAuth,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct SetupCompleteInput {
+    pub token: String,
+    pub auth_mode: SetupAuthMode,
+}
 
 #[derive(Properties, PartialEq)]
 pub(crate) struct SetupPromptProps {
@@ -14,8 +27,11 @@ pub(crate) struct SetupPromptProps {
     pub expires_at: Option<String>,
     pub busy: bool,
     pub error: Option<String>,
+    pub allow_no_auth: bool,
+    pub auth_mode: SetupAuthMode,
+    pub on_auth_mode_change: Callback<SetupAuthMode>,
     pub on_request_token: Callback<()>,
-    pub on_complete: Callback<String>,
+    pub on_complete: Callback<SetupCompleteInput>,
     #[prop_or_default]
     pub class: Classes,
 }
@@ -53,11 +69,26 @@ pub(crate) fn setup_prompt(props: &SetupPromptProps) -> Html {
     let submit = {
         let token_input = token_input.clone();
         let on_complete = props.on_complete.clone();
+        let auth_mode = props.auth_mode;
         Callback::from(move |_| {
             let value = token_input.trim().to_string();
             if !value.is_empty() {
-                on_complete.emit(value);
+                on_complete.emit(SetupCompleteInput {
+                    token: value,
+                    auth_mode,
+                });
             }
+        })
+    };
+
+    let on_auth_change = {
+        let on_auth_mode_change = props.on_auth_mode_change.clone();
+        Callback::from(move |value: AttrValue| {
+            let next = match value.as_str() {
+                "none" => SetupAuthMode::NoAuth,
+                _ => SetupAuthMode::ApiKey,
+            };
+            on_auth_mode_change.emit(next);
         })
     };
 
@@ -81,6 +112,26 @@ pub(crate) fn setup_prompt(props: &SetupPromptProps) -> Html {
                         </label>
                         {if let Some(expires) = props.expires_at.as_ref() {
                             html! { <p class="text-xs text-base-content/60">{format!("{} {expires}", t("setup.expires_prefix"))}</p> }
+                        } else { html!{} }}
+                        {if props.allow_no_auth {
+                            html! {
+                                <label class="form-control gap-1">
+                                    <span class="label-text text-xs">{t("setup.auth_mode_label")}</span>
+                                    <Select
+                                        class="w-full"
+                                        value={Some(AttrValue::from(match props.auth_mode {
+                                            SetupAuthMode::ApiKey => "api_key",
+                                            SetupAuthMode::NoAuth => "none",
+                                        }))}
+                                        options={vec![
+                                            (AttrValue::from("api_key"), AttrValue::from(t("setup.auth_mode_api_key"))),
+                                            (AttrValue::from("none"), AttrValue::from(t("setup.auth_mode_none"))),
+                                        ]}
+                                        onchange={on_auth_change}
+                                    />
+                                    <p class="text-xs text-base-content/60">{t("setup.auth_mode_hint")}</p>
+                                </label>
+                            }
                         } else { html!{} }}
                     </div>
                     {if let Some(err) = props.error.as_ref() {

@@ -37,9 +37,9 @@ use crate::engine_profile::{
 };
 use crate::error::{ConfigError, ConfigResult};
 use crate::model::{
-    ApiKeyAuth, ApiKeyPatch, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigSnapshot,
-    EngineProfile, FsPolicy, LabelPolicy, SettingsChange, SettingsChangeset, SettingsPayload,
-    SetupToken, TelemetryConfig,
+    ApiKeyAuth, ApiKeyPatch, ApiKeyRateLimit, AppAuthMode, AppMode, AppProfile, AppliedChanges,
+    ConfigSnapshot, EngineProfile, FsPolicy, LabelPolicy, SettingsChange, SettingsChangeset,
+    SettingsPayload, SetupToken, TelemetryConfig,
 };
 use crate::validate::{
     ensure_mutable, parse_bind_addr, parse_uuid, validate_api_key_rate_limit, validate_port,
@@ -769,6 +769,7 @@ async fn handle_notification(
 
 fn map_app_profile_row(row: AppProfileRow, label_rows: Vec<LabelPolicyRow>) -> Result<AppProfile> {
     let mode = AppMode::from_str(&row.mode)?;
+    let auth_mode = AppAuthMode::from_str(&row.auth_mode)?;
     let telemetry = TelemetryConfig {
         level: row.telemetry_level,
         format: row.telemetry_format,
@@ -781,6 +782,7 @@ fn map_app_profile_row(row: AppProfileRow, label_rows: Vec<LabelPolicyRow>) -> R
         id: row.id,
         instance_name: row.instance_name,
         mode,
+        auth_mode,
         version: row.version,
         http_port: row.http_port,
         bind_addr: parse_bind_addr(&row.bind_addr)?,
@@ -1101,6 +1103,13 @@ async fn apply_app_profile_update(
         data_config::update_app_mode(tx.as_mut(), app_id, update.mode.as_str())
             .await
             .map_err(map_db_err("config.update_app_mode"))?;
+        mutated = true;
+    }
+    if update.auth_mode != current.auth_mode {
+        ensure_mutable(immutable_keys, "app_profile", "auth_mode")?;
+        data_config::update_app_auth_mode(tx.as_mut(), app_id, update.auth_mode.as_str())
+            .await
+            .map_err(map_db_err("config.update_app_auth_mode"))?;
         mutated = true;
     }
     if update.http_port != current.http_port {

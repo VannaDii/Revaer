@@ -3,7 +3,7 @@ use crate::app::sse::{SseHandle, connect_sse};
 use crate::components::auth::AuthPrompt;
 use crate::components::detail::FileSelectionChange;
 use crate::components::factory_reset::FactoryResetModal;
-use crate::components::setup::SetupPrompt;
+use crate::components::setup::{SetupAuthMode, SetupCompleteInput, SetupPrompt};
 use crate::components::shell::AppShell;
 use crate::components::toast::ToastHost;
 use crate::components::torrent_modals::CopyKind;
@@ -45,9 +45,9 @@ use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
 use preferences::{
     DENSITY_KEY, LOCALE_KEY, MODE_KEY, THEME_KEY, allow_anonymous, api_base_url,
-    clear_auth_storage, load_auth_mode, load_auth_state, load_bypass_local, load_density,
-    load_locale, load_mode, load_theme, persist_api_key_with_expiry, persist_auth_state,
-    persist_bypass_local,
+    clear_auth_storage, load_api_key_expires_at_ms, load_auth_mode, load_auth_state,
+    load_bypass_local, load_density, load_locale, load_mode, load_theme,
+    persist_api_key_with_expiry, persist_auth_state, persist_bypass_local,
 };
 pub(crate) use routes::Route;
 use serde_json::Value;
@@ -67,6 +67,8 @@ mod preferences;
 mod routes;
 mod sse;
 
+const TOKEN_REFRESH_SKEW_MS: i64 = 86_400_000;
+
 #[function_component(RevaerApp)]
 pub fn revaer_app() -> Html {
     let breakpoint = use_state(current_breakpoint);
@@ -85,6 +87,8 @@ pub fn revaer_app() -> Html {
     let sse_handle = use_mut_ref(|| None as Option<SseHandle>);
     let sse_reset = use_state(|| 0u32);
     let refresh_timer = use_mut_ref(|| None as Option<Timeout>);
+    let token_refresh_timer = use_mut_ref(|| None as Option<Timeout>);
+    let token_refresh_tick = use_state(|| 0u32);
     let progress_buffer = use_mut_ref(|| HashMap::<Uuid, ProgressPatch>::new());
     let progress_flush = use_mut_ref(|| None as Option<Interval>);
     let mode = use_selector(|store: &AppStore| store.ui.mode);
@@ -116,6 +120,7 @@ pub fn revaer_app() -> Html {
     let setup_expires = use_selector(|store: &AppStore| store.auth.setup_expires_at.clone());
     let setup_error = use_selector(|store: &AppStore| store.auth.setup_error.clone());
     let setup_busy = use_selector(|store: &AppStore| store.auth.setup_busy);
+    let setup_auth_mode = use_state(|| SetupAuthMode::ApiKey);
     let theme = use_selector(|store: &AppStore| store.ui.theme);
     let toasts = use_selector(|store: &AppStore| store.ui.toasts.clone());
     let add_busy = use_selector(|store: &AppStore| store.ui.busy.add_torrent);
@@ -150,6 +155,7 @@ pub fn revaer_app() -> Html {
     let setup_expires_value = (*setup_expires).clone();
     let setup_error_value = (*setup_error).clone();
     let setup_busy_value = *setup_busy;
+    let setup_auth_mode_value = *setup_auth_mode;
     let theme_value = *theme;
     let mode_value = *mode;
     let density_value = *density;
@@ -328,6 +334,73 @@ pub fn revaer_app() -> Html {
         );
     }
     {
+        let token_refresh_timer = token_refresh_timer.clone();
+        let auth_state = auth_state.clone();
+        let token_refresh_tick = token_refresh_tick.clone();
+        let token_refresh_tick_value = *token_refresh_tick;
+        let api_ctx = (*api_ctx).clone();
+        let dispatch = dispatch.clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
+        use_effect_with_deps(
+            move |(auth_state, _tick)| {
+                let cleanup = || ();
+                token_refresh_timer.borrow_mut().take();
+                let Some(AuthState::ApiKey(api_key)) = auth_state.as_ref().clone() else {
+                    return cleanup;
+                };
+                let now_ms = Date::now() as i64;
+                let delay_ms = if let Some(expires_at_ms) = load_api_key_expires_at_ms() {
+                    if expires_at_ms <= now_ms {
+                        0
+                    } else {
+                        let refresh_at_ms = expires_at_ms.saturating_sub(TOKEN_REFRESH_SKEW_MS);
+                        refresh_at_ms.saturating_sub(now_ms).max(0)
+                    }
+                } else {
+                    0
+                };
+                let delay_ms_u32 = u32::try_from(delay_ms).unwrap_or(u32::MAX);
+                let token_refresh_timer_handle = token_refresh_timer.clone();
+                let dispatch = dispatch.clone();
+                let client = api_ctx.client.clone();
+                let toast_id = toast_id.clone();
+                let token_refresh_tick = token_refresh_tick.clone();
+                let handle = Timeout::new(delay_ms_u32, move || {
+                    token_refresh_timer_handle.borrow_mut().take();
+                    let dispatch = dispatch.clone();
+                    let toast_id = toast_id.clone();
+                    let client = client.clone();
+                    let bundle = bundle.clone();
+                    let token_refresh_tick = token_refresh_tick.clone();
+                    let api_key = api_key.clone();
+                    yew::platform::spawn_local(async move {
+                        let state = dispatch.get();
+                        if !matches!(state.auth.state, Some(AuthState::ApiKey(_))) {
+                            return;
+                        }
+                        match client.refresh_api_key().await {
+                            Ok(response) => {
+                                persist_api_key_with_expiry(&api_key, &response.api_key_expires_at);
+                                token_refresh_tick.set(*token_refresh_tick + 1);
+                            }
+                            Err(err) => {
+                                let detail = detail_or_fallback(
+                                    err.detail.clone(),
+                                    bundle.text("toast.api_key_refresh_failed"),
+                                );
+                                push_toast(&dispatch, &toast_id, ToastKind::Error, detail);
+                            }
+                        }
+                    });
+                });
+                *token_refresh_timer.borrow_mut() = Some(handle);
+                cleanup
+            },
+            (auth_state.clone(), token_refresh_tick_value),
+        );
+    }
+    {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
         let toast_id = toast_id.clone();
@@ -417,12 +490,18 @@ pub fn revaer_app() -> Html {
             });
         })
     };
+    let on_setup_auth_mode_change = {
+        let setup_auth_mode = setup_auth_mode.clone();
+        Callback::from(move |mode: SetupAuthMode| {
+            setup_auth_mode.set(mode);
+        })
+    };
 
     let complete_setup = {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
         let toast_id = toast_id.clone();
-        Callback::from(move |token: String| {
+        Callback::from(move |input: SetupCompleteInput| {
             dispatch.reduce_mut(|store| {
                 store.auth.setup_busy = true;
             });
@@ -430,19 +509,84 @@ pub fn revaer_app() -> Html {
             let client = api_ctx.client.clone();
             let toast_id = toast_id.clone();
             yew::platform::spawn_local(async move {
-                match client.setup_complete(&token).await {
-                    Ok(response) => {
-                        let api_key = response.api_key.clone();
-                        let expires_at = response.api_key_expires_at.clone();
-                        persist_api_key_with_expiry(&api_key, &expires_at);
+                let auth_mode = input.auth_mode;
+                let mut changeset = serde_json::Value::Object(serde_json::Map::new());
+                if auth_mode == SetupAuthMode::NoAuth {
+                    let snapshot = match client.fetch_well_known_snapshot().await {
+                        Ok(value) => value,
+                        Err(err) => {
+                            let message = detail_or_fallback(
+                                err.detail.clone(),
+                                "Setup snapshot request failed.".to_string(),
+                            );
+                            dispatch.reduce_mut(|store| {
+                                store.auth.setup_error = Some(message.clone());
+                                store.auth.setup_busy = false;
+                            });
+                            push_toast(&dispatch, &toast_id, ToastKind::Error, message);
+                            return;
+                        }
+                    };
+                    let mut app_profile = match snapshot.get("app_profile") {
+                        Some(value) => value.clone(),
+                        None => {
+                            let message = "Setup snapshot missing app profile.".to_string();
+                            dispatch.reduce_mut(|store| {
+                                store.auth.setup_error = Some(message.clone());
+                                store.auth.setup_busy = false;
+                            });
+                            push_toast(&dispatch, &toast_id, ToastKind::Error, message);
+                            return;
+                        }
+                    };
+                    let Some(map) = app_profile.as_object_mut() else {
+                        let message = "Setup snapshot app profile is invalid.".to_string();
                         dispatch.reduce_mut(|store| {
-                            store.auth.mode = AuthMode::ApiKey;
-                            store.auth.state = Some(AuthState::ApiKey(api_key));
-                            store.auth.setup_error = None;
-                            store.auth.setup_token = None;
-                            store.auth.setup_expires_at = None;
-                            store.auth.app_mode = AppModeState::Active;
+                            store.auth.setup_error = Some(message.clone());
+                            store.auth.setup_busy = false;
                         });
+                        push_toast(&dispatch, &toast_id, ToastKind::Error, message);
+                        return;
+                    };
+                    map.insert(
+                        "auth_mode".to_string(),
+                        serde_json::Value::String("none".into()),
+                    );
+                    changeset = serde_json::json!({ "app_profile": app_profile });
+                }
+                match client.setup_complete(&input.token, changeset).await {
+                    Ok(response) => {
+                        let snapshot_auth_mode = response
+                            .snapshot
+                            .get("app_profile")
+                            .and_then(|profile| profile.get("auth_mode"))
+                            .and_then(|value| value.as_str());
+                        let use_anonymous = snapshot_auth_mode == Some("none")
+                            || auth_mode == SetupAuthMode::NoAuth;
+                        if use_anonymous {
+                            let state = AuthState::Anonymous;
+                            persist_auth_state(&state);
+                            dispatch.reduce_mut(|store| {
+                                store.auth.mode = AuthMode::ApiKey;
+                                store.auth.state = Some(state);
+                                store.auth.setup_error = None;
+                                store.auth.setup_token = None;
+                                store.auth.setup_expires_at = None;
+                                store.auth.app_mode = AppModeState::Active;
+                            });
+                        } else {
+                            let api_key = response.api_key.clone();
+                            let expires_at = response.api_key_expires_at.clone();
+                            persist_api_key_with_expiry(&api_key, &expires_at);
+                            dispatch.reduce_mut(|store| {
+                                store.auth.mode = AuthMode::ApiKey;
+                                store.auth.state = Some(AuthState::ApiKey(api_key));
+                                store.auth.setup_error = None;
+                                store.auth.setup_token = None;
+                                store.auth.setup_expires_at = None;
+                                store.auth.app_mode = AppModeState::Active;
+                            });
+                        }
                     }
                     Err(err) => {
                         let message = detail_or_fallback(
@@ -1893,6 +2037,9 @@ pub fn revaer_app() -> Html {
                             expires_at={setup_expires_value.clone()}
                             busy={setup_busy_value}
                             error={setup_error_value.clone()}
+                            allow_no_auth={allow_anon}
+                            auth_mode={setup_auth_mode_value}
+                            on_auth_mode_change={on_setup_auth_mode_change.clone()}
                             on_request_token={request_setup_token.clone()}
                             on_complete={complete_setup.clone()}
                         />

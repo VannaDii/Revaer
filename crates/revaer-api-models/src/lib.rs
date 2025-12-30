@@ -194,6 +194,13 @@ pub struct SetupCompleteResponse {
     pub api_key_expires_at: String,
 }
 
+/// API key refresh response payload returned by `/v1/auth/refresh`.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ApiKeyRefreshResponse {
+    /// API key expiry timestamp as an RFC3339 string.
+    pub api_key_expires_at: String,
+}
+
 /// Factory reset request payload accepted by `/admin/factory-reset`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FactoryResetRequest {

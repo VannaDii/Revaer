@@ -136,6 +136,7 @@ mod tests {
             id: uuid::Uuid::nil(),
             instance_name: "test".into(),
             mode: revaer_config::AppMode::Active,
+            auth_mode: revaer_config::AppAuthMode::ApiKey,
             version: 1,
             http_port: 3000,
             bind_addr,

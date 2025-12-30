@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use axum::{extract::State, http::Request, middleware::Next, response::Response};
-use revaer_config::AppMode;
+use revaer_config::{AppAuthMode, AppMode};
 use revaer_telemetry::record_app_mode;
 use tracing::{error, info, warn};
 
@@ -42,6 +42,7 @@ mod tests {
     #[derive(Clone)]
     struct MockConfig {
         mode: AppMode,
+        auth_mode: AppAuthMode,
         api_auth: Option<ApiKeyAuth>,
         has_api_keys: bool,
     }
@@ -53,6 +54,7 @@ mod tests {
                 id: Uuid::new_v4(),
                 instance_name: "demo".to_string(),
                 mode: self.mode.clone(),
+                auth_mode: self.auth_mode,
                 version: 1,
                 http_port: 8080,
                 bind_addr: IpAddr::V4(Ipv4Addr::LOCALHOST),
@@ -162,6 +164,7 @@ mod tests {
 
     fn api_state(
         mode: AppMode,
+        auth_mode: AppAuthMode,
         auth: Option<ApiKeyAuth>,
         has_api_keys: bool,
     ) -> Result<Arc<ApiState>> {
@@ -169,6 +172,7 @@ mod tests {
         Ok(Arc::new(ApiState::new(
             Arc::new(MockConfig {
                 mode,
+                auth_mode,
                 api_auth: auth,
                 has_api_keys,
             }),
@@ -181,7 +185,7 @@ mod tests {
 
     #[tokio::test]
     async fn require_api_key_rejects_missing_and_invalid() -> Result<()> {
-        let state = api_state(AppMode::Active, None, true)?;
+        let state = api_state(AppMode::Active, AppAuthMode::ApiKey, None, true)?;
         let app = router_with_state(&state);
 
         let response = app
@@ -212,7 +216,7 @@ mod tests {
                 replenish_period: Duration::from_secs(60),
             }),
         };
-        let state = api_state(AppMode::Active, Some(auth), true)?;
+        let state = api_state(AppMode::Active, AppAuthMode::ApiKey, Some(auth), true)?;
         let app = router_with_state(&state);
 
         let response = app
@@ -228,8 +232,20 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn require_api_key_allows_anonymous_when_auth_mode_disabled() -> Result<()> {
+        let state = api_state(AppMode::Active, AppAuthMode::NoAuth, None, true)?;
+        let app = router_with_state(&state);
+
+        let response = app
+            .oneshot(Request::builder().uri("/").body(Body::empty())?)
+            .await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn require_setup_token_enforces_mode_and_header() -> Result<()> {
-        let state = api_state(AppMode::Setup, None, true)?;
+        let state = api_state(AppMode::Setup, AppAuthMode::ApiKey, None, true)?;
         let app = setup_router_with_state(&state);
 
         let missing = app
@@ -249,7 +265,7 @@ mod tests {
         assert_eq!(ok.status(), StatusCode::OK);
 
         // Active mode should reject setup tokens.
-        let active_state = api_state(AppMode::Active, None, true)?;
+        let active_state = api_state(AppMode::Active, AppAuthMode::ApiKey, None, true)?;
         let active_app = setup_router_with_state(&active_state);
         let rejected = active_app
             .oneshot(
@@ -265,7 +281,7 @@ mod tests {
 
     #[tokio::test]
     async fn require_factory_reset_allows_without_api_key_when_none_exist() -> Result<()> {
-        let state = api_state(AppMode::Active, None, false)?;
+        let state = api_state(AppMode::Active, AppAuthMode::ApiKey, None, false)?;
         let app = factory_reset_router_with_state(&state);
 
         let response = app
@@ -282,7 +298,7 @@ mod tests {
 
     #[tokio::test]
     async fn require_factory_reset_allows_invalid_api_key_when_none_exist() -> Result<()> {
-        let state = api_state(AppMode::Active, None, false)?;
+        let state = api_state(AppMode::Active, AppAuthMode::ApiKey, None, false)?;
         let app = factory_reset_router_with_state(&state);
 
         let response = app
@@ -300,7 +316,7 @@ mod tests {
 
     #[tokio::test]
     async fn require_factory_reset_rejects_without_api_key_when_keys_exist() -> Result<()> {
-        let state = api_state(AppMode::Active, None, true)?;
+        let state = api_state(AppMode::Active, AppAuthMode::ApiKey, None, true)?;
         let app = factory_reset_router_with_state(&state);
 
         let response = app
@@ -317,7 +333,7 @@ mod tests {
 
     #[tokio::test]
     async fn require_factory_reset_rejects_invalid_api_key_when_keys_exist() -> Result<()> {
-        let state = api_state(AppMode::Active, None, true)?;
+        let state = api_state(AppMode::Active, AppAuthMode::ApiKey, None, true)?;
         let app = factory_reset_router_with_state(&state);
 
         let response = app
@@ -343,7 +359,7 @@ mod tests {
                 replenish_period: Duration::from_secs(60),
             }),
         };
-        let state = api_state(AppMode::Active, Some(auth), true)?;
+        let state = api_state(AppMode::Active, AppAuthMode::ApiKey, Some(auth), true)?;
         let app = factory_reset_router_with_state(&state);
 
         let response = app
@@ -364,6 +380,7 @@ mod tests {
 pub(crate) enum AuthContext {
     SetupToken(String),
     ApiKey { key_id: String },
+    Anonymous,
 }
 
 pub(crate) async fn require_setup_token(
@@ -413,6 +430,11 @@ pub(crate) async fn require_api_key(
 
     if app.mode != AppMode::Active {
         return Err(ApiError::setup_required("system is still in setup mode"));
+    }
+
+    if app.auth_mode == AppAuthMode::NoAuth {
+        req.extensions_mut().insert(AuthContext::Anonymous);
+        return Ok(next.run(req).await);
     }
 
     let api_key_raw = extract_api_key(&req)
@@ -472,6 +494,11 @@ pub(crate) async fn require_factory_reset_auth(
         ApiError::internal("failed to load app profile")
     })?;
     record_app_mode(app.mode.as_str());
+
+    if app.auth_mode == AppAuthMode::NoAuth {
+        req.extensions_mut().insert(AuthContext::Anonymous);
+        return Ok(next.run(req).await);
+    }
 
     if let Some(api_key_raw) = extract_api_key(&req) {
         let (key_id, secret) = api_key_raw
@@ -548,7 +575,7 @@ pub(crate) async fn require_factory_reset_auth(
 pub(crate) fn extract_setup_token(context: AuthContext) -> Result<String, ApiError> {
     match context {
         AuthContext::SetupToken(token) => Ok(token),
-        AuthContext::ApiKey { .. } => Err(ApiError::internal(
+        AuthContext::ApiKey { .. } | AuthContext::Anonymous => Err(ApiError::internal(
             "setup token required for this operation",
         )),
     }

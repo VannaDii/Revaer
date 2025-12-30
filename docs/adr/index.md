@@ -67,6 +67,7 @@ ADR documents capture the rationale behind significant technical decisions.
 - [062](062-eventbus-publish-guardrails.md) – Event bus publish guardrails and API i18n cleanup
 - [063](063-ci-compliance-cleanup.md) – CI compliance cleanup for test error handling
 - [064](064-factory-reset-error-context.md) – Factory reset error context and allow-path validation
+- [065](065-auth-mode-refresh.md) – API key refresh and no-auth setup mode
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

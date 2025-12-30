@@ -9,8 +9,8 @@ use crate::core::logic::build_torrents_path;
 use crate::features::torrents::actions::TorrentAction as UiTorrentAction;
 use crate::features::torrents::state::{TorrentsPaging, TorrentsQueryModel};
 use crate::models::{
-    AddTorrentInput, DashboardResponse, DashboardSnapshot, FsBrowseResponse, HealthResponse,
-    ProblemDetails, QueueStatus, SetupCompleteResponse, SetupStartResponse,
+    AddTorrentInput, ApiKeyRefreshResponse, DashboardResponse, DashboardSnapshot, FsBrowseResponse,
+    HealthResponse, ProblemDetails, QueueStatus, SetupCompleteResponse, SetupStartResponse,
     TorrentAction as ApiTorrentAction, TorrentAuthorRequest, TorrentAuthorResponse,
     TorrentCreateRequest, TorrentDetail, TorrentLabelEntry, TorrentListResponse,
     TorrentOptionsRequest, TorrentSelectionRequest, TrackerHealth, VpnState,
@@ -184,13 +184,25 @@ impl ApiClient {
     pub(crate) async fn setup_complete(
         &self,
         token: &str,
+        changeset: Value,
     ) -> Result<SetupCompleteResponse, ApiError> {
         let mut req = Request::post(&format!("{}{}", self.base_url, "/admin/setup/complete"));
         req = req.header("x-revaer-setup-token", token);
         let req = req
-            .json(&json!({}))
+            .json(&changeset)
             .map_err(|err| ApiError::client(format!("setup payload failed: {err}")))?;
         self.send_json::<SetupCompleteResponse>(req).await
+    }
+
+    pub(crate) async fn fetch_well_known_snapshot(&self) -> Result<Value, ApiError> {
+        let req = Request::get(&format!("{}{}", self.base_url, "/.well-known/revaer.json"));
+        self.send_json(req).await
+    }
+
+    pub(crate) async fn refresh_api_key(&self) -> Result<ApiKeyRefreshResponse, ApiError> {
+        let req = Request::post(&format!("{}{}", self.base_url, "/v1/auth/refresh"));
+        let req = self.apply_auth(req)?;
+        self.send_json(req).await
     }
 
     pub(crate) async fn factory_reset(&self, confirm: &str) -> Result<(), ApiError> {

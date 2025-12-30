@@ -39,6 +39,7 @@ use crate::http::settings::{factory_reset, get_config_snapshot, settings_patch, 
 use crate::http::setup::{setup_complete, setup_start};
 use crate::http::sse::stream_events;
 use crate::http::telemetry::HttpMetricsLayer;
+use crate::http::tokens::refresh_api_key;
 use crate::http::torrents::handlers::{
     action_torrent, create_torrent, create_torrent_authoring, delete_torrent, get_torrent,
     list_torrent_categories, list_torrent_peers, list_torrent_tags, list_torrent_trackers,
@@ -274,6 +275,10 @@ impl ApiServer {
             .route(
                 "/v1/dashboard",
                 get(dashboard).route_layer(require_api.clone()),
+            )
+            .route(
+                "/v1/auth/refresh",
+                post(refresh_api_key).route_layer(require_api.clone()),
             )
             .route(
                 "/v1/config",

@@ -23,6 +23,7 @@ pub(crate) async fn settings_patch(
 ) -> Result<Json<ConfigSnapshot>, ApiError> {
     let key_id = match context {
         AuthContext::ApiKey { key_id } => key_id,
+        AuthContext::Anonymous => "anonymous".to_string(),
         AuthContext::SetupToken(_) => {
             return Err(ApiError::internal(
                 "invalid authentication context for settings patch",
@@ -54,7 +55,7 @@ pub(crate) async fn factory_reset(
     Json(request): Json<FactoryResetRequest>,
 ) -> Result<StatusCode, ApiError> {
     match context {
-        AuthContext::ApiKey { .. } => {}
+        AuthContext::ApiKey { .. } | AuthContext::Anonymous => {}
         AuthContext::SetupToken(_) => {
             return Err(ApiError::unauthorized(
                 "setup authentication context cannot factory reset",
@@ -280,6 +281,7 @@ mod tests {
                 id: Uuid::nil(),
                 instance_name: "test".into(),
                 mode: AppMode::Active,
+                auth_mode: revaer_config::AppAuthMode::ApiKey,
                 version: 1,
                 http_port: 3030,
                 bind_addr,

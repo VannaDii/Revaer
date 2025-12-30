@@ -326,6 +326,7 @@ mod tests {
                 id: Uuid::new_v4(),
                 instance_name: "demo".into(),
                 mode: AppMode::Active,
+                auth_mode: revaer_config::AppAuthMode::ApiKey,
                 version: 1,
                 http_port: 7070,
                 bind_addr: "127.0.0.1".parse().map_err(|_| anyhow!("bind addr"))?,
