@@ -14,7 +14,6 @@ default = ["libtorrent"]
 libtorrent = []
 
 [dependencies]
-anyhow.workspace = true
 async-trait.workspace = true
 tracing.workspace = true
 uuid.workspace = true
@@ -28,6 +27,7 @@ chrono.workspace = true
 cxx = "1.0"
 
 [dev-dependencies]
+anyhow.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
 tempfile = "3.10"

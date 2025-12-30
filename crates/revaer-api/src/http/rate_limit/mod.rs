@@ -1,6 +1,7 @@
 //! API key rate limiting primitives and HTTP header helpers.
 
 use std::convert::TryFrom;
+use std::fmt::{self, Display, Formatter};
 use std::time::{Duration, Instant};
 
 use crate::http::constants::{
@@ -20,6 +21,14 @@ pub(crate) struct RateLimitError {
     pub(crate) limit: u32,
     pub(crate) retry_after: Duration,
 }
+
+impl Display for RateLimitError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str("rate limit exceeded")
+    }
+}
+
+impl std::error::Error for RateLimitError {}
 
 pub(crate) struct RateLimiter {
     pub(crate) config: ApiKeyRateLimit,

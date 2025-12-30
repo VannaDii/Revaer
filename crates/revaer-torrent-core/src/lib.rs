@@ -17,9 +17,11 @@
 //! Engine-agnostic torrent interfaces and DTOs shared across the workspace.
 //! Layout: `model/` (core types, DTOs), `service/` (engine/workflow traits).
 
+pub mod error;
 pub mod model;
 pub mod service;
 
+pub use error::{TorrentError, TorrentResult};
 pub use model::{
     AddTorrent, AddTorrentOptions, EngineEvent, FilePriority, FilePriorityOverride,
     FileSelectionRules, FileSelectionUpdate, PeerChoke, PeerInterest, PeerSnapshot, RemoveTorrent,

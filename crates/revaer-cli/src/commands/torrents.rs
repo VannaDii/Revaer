@@ -383,6 +383,7 @@ pub(crate) fn parse_priority_override(value: &str) -> Result<FilePriorityOverrid
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::{Result, anyhow};
     use chrono::Utc;
     use httpmock::prelude::*;
     use reqwest::Client;
@@ -395,15 +396,18 @@ mod tests {
     use crate::client::{ApiKeyCredential, parse_api_key};
     use crate::output::{format_bytes, format_priority, state_to_str};
 
-    fn context_with(server: &MockServer, api_key: Option<ApiKeyCredential>) -> AppContext {
-        AppContext {
+    fn context_with(server: &MockServer, api_key: Option<ApiKeyCredential>) -> Result<AppContext> {
+        Ok(AppContext {
             client: Client::new(),
-            base_url: server.base_url().parse().expect("valid URL"),
+            base_url: server
+                .base_url()
+                .parse()
+                .map_err(|_| anyhow!("valid URL"))?,
             api_key,
-        }
+        })
     }
 
-    fn context_with_key(server: &MockServer) -> AppContext {
+    fn context_with_key(server: &MockServer) -> Result<AppContext> {
         context_with(
             server,
             Some(ApiKeyCredential {
@@ -447,7 +451,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn torrent_add_issues_post_request() {
+    async fn torrent_add_issues_post_request() -> Result<()> {
         let server = MockServer::start_async().await;
         let id = Uuid::new_v4();
         let magnet = "magnet:?xt=urn:btih:demo";
@@ -493,7 +497,7 @@ mod tests {
             then.status(202);
         });
 
-        let ctx = context_with_key(&server);
+        let ctx = context_with_key(&server)?;
         let args = TorrentAddArgs {
             source: magnet.to_string(),
             name: Some(name.to_string()),
@@ -501,14 +505,13 @@ mod tests {
             storage_mode: None,
         };
 
-        handle_torrent_add(&ctx, args)
-            .await
-            .expect("torrent add should succeed");
+        handle_torrent_add(&ctx, args).await?;
         mock.assert();
+        Ok(())
     }
 
     #[tokio::test]
-    async fn torrent_remove_issues_delete_request() {
+    async fn torrent_remove_issues_delete_request() -> Result<()> {
         let server = MockServer::start_async().await;
         let id = Uuid::new_v4();
 
@@ -524,17 +527,16 @@ mod tests {
             then.status(202);
         });
 
-        let ctx = context_with_key(&server);
+        let ctx = context_with_key(&server)?;
         let args = TorrentRemoveArgs { id };
 
-        handle_torrent_remove(&ctx, args)
-            .await
-            .expect("torrent remove should succeed");
+        handle_torrent_remove(&ctx, args).await?;
         mock.assert();
+        Ok(())
     }
 
     #[tokio::test]
-    async fn torrent_list_renders_table() {
+    async fn torrent_list_renders_table() -> Result<()> {
         let server = MockServer::start_async().await;
         let torrent_id = Uuid::new_v4();
         let now = Utc::now();
@@ -549,14 +551,13 @@ mod tests {
                 .json_body(json!(list));
         });
 
-        let ctx = context_with(&server, None);
-        handle_torrent_list(&ctx, TorrentListArgs::default(), OutputFormat::Table)
-            .await
-            .expect("list should succeed");
+        let ctx = context_with(&server, None)?;
+        handle_torrent_list(&ctx, TorrentListArgs::default(), OutputFormat::Table).await?;
+        Ok(())
     }
 
     #[tokio::test]
-    async fn torrent_status_renders_detail() {
+    async fn torrent_status_renders_detail() -> Result<()> {
         let server = MockServer::start_async().await;
         let torrent_id = Uuid::new_v4();
         let now = Utc::now();
@@ -580,18 +581,18 @@ mod tests {
                 .json_body(json!(detail));
         });
 
-        let ctx = context_with(&server, None);
+        let ctx = context_with(&server, None)?;
         handle_torrent_status(
             &ctx,
             TorrentStatusArgs { id: torrent_id },
             OutputFormat::Table,
         )
-        .await
-        .expect("status should succeed");
+        .await?;
+        Ok(())
     }
 
     #[tokio::test]
-    async fn torrent_select_sends_priorities() {
+    async fn torrent_select_sends_priorities() -> Result<()> {
         let server = MockServer::start_async().await;
         let torrent_id = Uuid::new_v4();
         let path = format!("/v1/torrents/{torrent_id}/select");
@@ -602,7 +603,7 @@ mod tests {
             then.status(200);
         });
 
-        let ctx = context_with_key(&server);
+        let ctx = context_with_key(&server)?;
         let args = TorrentSelectArgs {
             id: torrent_id,
             include: vec!["**/*.mkv".into()],
@@ -613,14 +614,13 @@ mod tests {
                 priority: FilePriority::High,
             }],
         };
-        handle_torrent_select(&ctx, args)
-            .await
-            .expect("select should succeed");
+        handle_torrent_select(&ctx, args).await?;
         mock.assert();
+        Ok(())
     }
 
     #[tokio::test]
-    async fn torrent_action_sequential_with_enable() {
+    async fn torrent_action_sequential_with_enable() -> Result<()> {
         let server = MockServer::start_async().await;
         let torrent_id = Uuid::new_v4();
         let path = format!("/v1/torrents/{torrent_id}/action");
@@ -635,7 +635,7 @@ mod tests {
             then.status(202);
         });
 
-        let ctx = context_with_key(&server);
+        let ctx = context_with_key(&server)?;
         let args = TorrentActionArgs {
             id: torrent_id,
             action: ActionType::Sequential,
@@ -646,14 +646,13 @@ mod tests {
             download_dir: None,
         };
 
-        handle_torrent_action(&ctx, args)
-            .await
-            .expect("action should succeed");
+        handle_torrent_action(&ctx, args).await?;
         mock.assert();
+        Ok(())
     }
 
     #[tokio::test]
-    async fn torrent_action_rate_includes_caps() {
+    async fn torrent_action_rate_includes_caps() -> Result<()> {
         let server = MockServer::start_async().await;
         let torrent_id = Uuid::new_v4();
         let path = format!("/v1/torrents/{torrent_id}/action");
@@ -669,7 +668,7 @@ mod tests {
             then.status(202);
         });
 
-        let ctx = context_with_key(&server);
+        let ctx = context_with_key(&server)?;
         let args = TorrentActionArgs {
             id: torrent_id,
             action: ActionType::Rate,
@@ -680,14 +679,13 @@ mod tests {
             download_dir: None,
         };
 
-        handle_torrent_action(&ctx, args)
-            .await
-            .expect("rate action should succeed");
+        handle_torrent_action(&ctx, args).await?;
         mock.assert();
+        Ok(())
     }
 
     #[tokio::test]
-    async fn stream_events_discards_malformed_payloads() {
+    async fn stream_events_discards_malformed_payloads() -> Result<()> {
         let server = MockServer::start_async().await;
         server.mock(|when, then| {
             when.method(GET).path("/v1/torrents/events");
@@ -696,7 +694,7 @@ mod tests {
                 .body("id:2\ndata:{\"bad\":true}\n\n");
         });
 
-        let ctx = context_with_key(&server);
+        let ctx = context_with_key(&server)?;
         let args = crate::cli::TailArgs {
             torrent: Vec::new(),
             event: Vec::new(),
@@ -706,29 +704,38 @@ mod tests {
         };
         let response = ctx
             .client
-            .get(ctx.base_url.join("/v1/torrents/events").unwrap())
+            .get(
+                ctx.base_url
+                    .join("/v1/torrents/events")
+                    .map_err(|_| anyhow!("invalid events URL"))?,
+            )
             .send()
-            .await
-            .expect("send request");
-        let id = crate::commands::tail::stream_events(response, &args, None)
-            .await
-            .expect("stream should succeed");
+            .await?;
+        let id = crate::commands::tail::stream_events(response, &args, None).await?;
         assert_eq!(id, Some(2));
+        Ok(())
     }
 
     #[test]
-    fn parse_priority_override_rejects_invalid_payload() {
-        let err = parse_priority_override("abc=skip").expect_err("invalid index should fail");
+    fn parse_priority_override_rejects_invalid_payload() -> Result<()> {
+        let err = parse_priority_override("abc=skip")
+            .err()
+            .ok_or_else(|| anyhow!("invalid index should fail"))?;
         assert!(err.contains("index"));
-        let err = parse_priority_override("10=unknown").expect_err("invalid priority");
+        let err = parse_priority_override("10=unknown")
+            .err()
+            .ok_or_else(|| anyhow!("invalid priority"))?;
         assert!(err.contains("unknown priority"));
+        Ok(())
     }
 
     #[test]
-    fn parse_priority_override_accepts_values() {
-        let parsed = parse_priority_override("42=high").expect("valid override");
+    fn parse_priority_override_accepts_values() -> Result<()> {
+        let parsed =
+            parse_priority_override("42=high").map_err(|_| anyhow!("priority override invalid"))?;
         assert_eq!(parsed.index, 42);
         assert_eq!(parsed.priority, FilePriority::High);
+        Ok(())
     }
 
     #[test]
@@ -752,7 +759,7 @@ mod tests {
     }
 
     #[test]
-    fn build_action_payload_requires_enable_flag() {
+    fn build_action_payload_requires_enable_flag() -> CliResult<()> {
         let args = TorrentActionArgs {
             id: Uuid::new_v4(),
             action: ActionType::Sequential,
@@ -762,12 +769,17 @@ mod tests {
             upload: None,
             download_dir: None,
         };
-        let err = build_action_payload(&args).expect_err("missing enable should fail");
-        assert!(matches!(err, CliError::Validation(message) if message.contains("--enable")));
+        let err = build_action_payload(&args)
+            .err()
+            .ok_or_else(|| CliError::validation("expected validation error"))?;
+        if !matches!(err, CliError::Validation(message) if message.contains("--enable")) {
+            return Err(CliError::validation("expected --enable validation error"));
+        }
+        Ok(())
     }
 
     #[test]
-    fn build_action_payload_validates_rate_limits() {
+    fn build_action_payload_validates_rate_limits() -> CliResult<()> {
         let args = TorrentActionArgs {
             id: Uuid::new_v4(),
             action: ActionType::Rate,
@@ -777,9 +789,13 @@ mod tests {
             upload: None,
             download_dir: None,
         };
-        let err =
-            build_action_payload(&args).expect_err("missing rate values should fail validation");
-        assert!(matches!(err, CliError::Validation(message) if message.contains("download")));
+        let err = build_action_payload(&args)
+            .err()
+            .ok_or_else(|| CliError::validation("expected validation error"))?;
+        if !matches!(err, CliError::Validation(message) if message.contains("download")) {
+            return Err(CliError::validation("expected download validation error"));
+        }
+        Ok(())
     }
 
     #[test]
@@ -801,13 +817,22 @@ mod tests {
                 assert_eq!(download_bps, Some(1024));
                 assert_eq!(upload_bps, None);
             }
-            other => panic!("unexpected payload {other:?}"),
+            ApiTorrentAction::Move { .. }
+            | ApiTorrentAction::Pause
+            | ApiTorrentAction::Remove { .. }
+            | ApiTorrentAction::Resume
+            | ApiTorrentAction::Reannounce
+            | ApiTorrentAction::Recheck
+            | ApiTorrentAction::Sequential { .. }
+            | ApiTorrentAction::PieceDeadline { .. } => {
+                return Err(CliError::validation("unexpected payload variant"));
+            }
         }
         Ok(())
     }
 
     #[test]
-    fn build_action_payload_validates_move_path() {
+    fn build_action_payload_validates_move_path() -> CliResult<()> {
         let args = TorrentActionArgs {
             id: Uuid::new_v4(),
             action: ActionType::Move,
@@ -817,9 +842,15 @@ mod tests {
             upload: None,
             download_dir: None,
         };
-        let err =
-            build_action_payload(&args).expect_err("missing download dir should fail validation");
-        assert!(matches!(err, CliError::Validation(message) if message.contains("download-dir")));
+        let err = build_action_payload(&args)
+            .err()
+            .ok_or_else(|| CliError::validation("expected validation error"))?;
+        if !matches!(err, CliError::Validation(message) if message.contains("download-dir")) {
+            return Err(CliError::validation(
+                "expected download-dir validation error",
+            ));
+        }
+        Ok(())
     }
 
     #[test]
@@ -835,14 +866,24 @@ mod tests {
         };
         match build_action_payload(&args)? {
             ApiTorrentAction::Move { download_dir } => assert_eq!(download_dir, "/downloads/new"),
-            other => panic!("unexpected payload {other:?}"),
+            ApiTorrentAction::Pause
+            | ApiTorrentAction::Rate { .. }
+            | ApiTorrentAction::Remove { .. }
+            | ApiTorrentAction::Resume
+            | ApiTorrentAction::Reannounce
+            | ApiTorrentAction::Recheck
+            | ApiTorrentAction::Sequential { .. }
+            | ApiTorrentAction::PieceDeadline { .. } => {
+                return Err(CliError::validation("unexpected payload variant"));
+            }
         }
         Ok(())
     }
 
     #[tokio::test]
-    async fn parse_api_key_accepts_valid_pair() -> CliResult<()> {
-        let parsed = parse_api_key(Some("alpha:bravo".to_string()))?.expect("expected credentials");
+    async fn parse_api_key_accepts_valid_pair() -> Result<()> {
+        let parsed = parse_api_key(Some("alpha:bravo".to_string()))?
+            .ok_or_else(|| anyhow!("expected credentials"))?;
         assert_eq!(parsed.key_id, "alpha");
         assert_eq!(parsed.secret, "bravo");
         Ok(())

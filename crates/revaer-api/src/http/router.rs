@@ -1,11 +1,9 @@
 //! Router construction and server host for the API.
 
 use std::net::SocketAddr;
-use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Result;
 use axum::{
     Router,
     http::{HeaderName, Method, Request, header::CONTENT_TYPE},
@@ -26,6 +24,7 @@ use tracing::Span;
 use crate::TorrentHandles;
 use crate::app::state::ApiState;
 use crate::config::SharedConfig;
+use crate::error::{ApiServerError, ApiServerResult};
 use crate::http::auth::{require_api_key, require_factory_reset_auth, require_setup_token};
 #[cfg(feature = "compat-qb")]
 use crate::http::compat_qb;
@@ -65,8 +64,9 @@ impl ApiServer {
         events: EventBus,
         torrent: Option<TorrentHandles>,
         telemetry: Metrics,
-    ) -> Result<Self> {
-        let openapi = OpenApiDependencies::embedded_at(Path::new("docs/api/openapi.json"));
+    ) -> ApiServerResult<Self> {
+        let openapi_path = crate::openapi_output_path();
+        let openapi = OpenApiDependencies::embedded_at(&openapi_path);
         Self::with_config(Arc::new(config), events, torrent, telemetry, &openapi)
     }
 
@@ -76,7 +76,7 @@ impl ApiServer {
         torrent: Option<TorrentHandles>,
         telemetry: Metrics,
         openapi: &OpenApiDependencies,
-    ) -> Result<Self> {
+    ) -> ApiServerResult<Self> {
         Self::with_config_at(config, events, torrent, telemetry, openapi)
     }
 
@@ -86,7 +86,7 @@ impl ApiServer {
         torrent: Option<TorrentHandles>,
         telemetry: Metrics,
         openapi: &OpenApiDependencies,
-    ) -> Result<Self> {
+    ) -> ApiServerResult<Self> {
         Self::with_dependencies(config, events, torrent, telemetry, openapi)
     }
 
@@ -96,8 +96,13 @@ impl ApiServer {
         torrent: Option<TorrentHandles>,
         telemetry: Metrics,
         openapi: &OpenApiDependencies,
-    ) -> Result<Self> {
-        (openapi.persist)(&openapi.path, &openapi.document)?;
+    ) -> ApiServerResult<Self> {
+        (openapi.persist)(&openapi.path, &openapi.document).map_err(|source| {
+            ApiServerError::OpenApiPersist {
+                path: openapi.path.clone(),
+                source,
+            }
+        })?;
         let state = Self::build_state(
             config,
             telemetry.clone(),
@@ -162,6 +167,7 @@ impl ApiServer {
         let router = Self::build_router(&state);
         let router = Self::mount_optional_compat(router);
         let router = router
+            .layer(middleware::from_fn(crate::i18n::with_locale))
             .layer(cors_layer)
             .route_layer(layered)
             .with_state(state);
@@ -370,10 +376,14 @@ impl ApiServer {
     /// # Errors
     ///
     /// Returns an error if the listener fails to bind or the server terminates unexpectedly.
-    pub async fn serve(self, addr: SocketAddr) -> Result<()> {
-        tracing::info!("Starting API on {}", addr);
-        let listener = TcpListener::bind(addr).await?;
-        axum::serve(listener, self.router.into_make_service()).await?;
+    pub async fn serve(self, addr: SocketAddr) -> ApiServerResult<()> {
+        tracing::info!(addr = %addr, "Starting API listener");
+        let listener = TcpListener::bind(addr)
+            .await
+            .map_err(|source| ApiServerError::Bind { addr, source })?;
+        axum::serve(listener, self.router.into_make_service())
+            .await
+            .map_err(|source| ApiServerError::Serve { source })?;
         Ok(())
     }
 

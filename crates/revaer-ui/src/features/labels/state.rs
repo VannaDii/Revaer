@@ -242,28 +242,44 @@ mod tests {
     use crate::models::{
         TorrentCleanupPolicy, TorrentLabelEntry, TorrentLabelPolicy, TorrentRateLimit,
     };
+    use std::error::Error;
+    use std::io;
+
+    type Result<T> = std::result::Result<T, Box<dyn Error>>;
+
+    fn test_error(message: &'static str) -> Box<dyn Error> {
+        Box::new(io::Error::other(message))
+    }
 
     #[test]
-    fn to_policy_builds_rate_limit() {
+    fn to_policy_builds_rate_limit() -> Result<()> {
         let form = LabelFormState {
             rate_limit_download: "1024".to_string(),
             rate_limit_upload: "2048".to_string(),
             ..LabelFormState::default()
         };
-        let policy = form.to_policy().expect("policy should parse");
-        let rate = policy.rate_limit.expect("rate limit");
+        let policy = form.to_policy()?;
+        let rate = policy
+            .rate_limit
+            .ok_or_else(|| test_error("rate limit missing"))?;
         assert_eq!(rate.download_bps, Some(1024));
         assert_eq!(rate.upload_bps, Some(2048));
+        Ok(())
     }
 
     #[test]
-    fn cleanup_requires_threshold() {
+    fn cleanup_requires_threshold() -> Result<()> {
         let form = LabelFormState {
             cleanup_remove_data: true,
             ..LabelFormState::default()
         };
-        let err = form.to_policy().expect_err("cleanup requires threshold");
-        assert!(err.contains("cleanup policy requires"));
+        match form.to_policy() {
+            Ok(_) => Err(test_error("expected cleanup validation failure")),
+            Err(err) => {
+                assert!(err.contains("cleanup policy requires"));
+                Ok(())
+            }
+        }
     }
 
     #[test]

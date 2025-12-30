@@ -1,17 +1,17 @@
 use std::collections::{HashMap, HashSet};
 
-use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use revaer_events::TorrentState;
 use revaer_torrent_core::{
     AddTorrent, EngineEvent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, StorageMode,
-    TorrentRateLimit,
+    TorrentError, TorrentRateLimit, TorrentResult,
     model::{TorrentAuthorFile, TorrentAuthorRequest, TorrentAuthorResult},
 };
 use serde_json::json;
 use uuid::Uuid;
 
 use super::LibTorrentSession;
+use crate::error::{LibtorrentError, op_failed};
 use crate::types::{EngineRuntimeConfig, EngineSettingsSnapshot};
 use revaer_torrent_core::{FilePriorityOverride, FileSelectionRules};
 
@@ -88,10 +88,10 @@ impl StubTorrent {
 }
 
 impl StubSession {
-    fn torrent_mut(&mut self, id: Uuid) -> Result<&mut StubTorrent> {
+    fn torrent_mut(&mut self, id: Uuid) -> TorrentResult<&mut StubTorrent> {
         self.torrents
             .get_mut(&id)
-            .ok_or_else(|| anyhow!("unknown torrent {id}"))
+            .ok_or(TorrentError::NotFound { torrent_id: id })
     }
 
     /// Seed peer snapshots for a given torrent.
@@ -160,7 +160,7 @@ impl StubSession {
 
 #[async_trait]
 impl LibTorrentSession for StubSession {
-    async fn add_torrent(&mut self, request: &AddTorrent) -> Result<()> {
+    async fn add_torrent(&mut self, request: &AddTorrent) -> TorrentResult<()> {
         let torrent = StubTorrent::from_add(request);
         let download_dir = torrent.download_dir.clone();
         self.torrents.insert(request.id, torrent);
@@ -184,9 +184,13 @@ impl LibTorrentSession for StubSession {
     async fn create_torrent(
         &mut self,
         request: &TorrentAuthorRequest,
-    ) -> Result<TorrentAuthorResult> {
+    ) -> TorrentResult<TorrentAuthorResult> {
         if request.root_path.trim().is_empty() {
-            return Err(anyhow!("root_path is required"));
+            return Err(op_failed(
+                "create_torrent",
+                None,
+                LibtorrentError::MissingField { field: "root_path" },
+            ));
         }
 
         let files = vec![TorrentAuthorFile {
@@ -209,7 +213,7 @@ impl LibTorrentSession for StubSession {
         })
     }
 
-    async fn remove_torrent(&mut self, id: Uuid, _options: &RemoveTorrent) -> Result<()> {
+    async fn remove_torrent(&mut self, id: Uuid, _options: &RemoveTorrent) -> TorrentResult<()> {
         if self.torrents.remove(&id).is_some() {
             self.push_state(id, TorrentState::Stopped);
             self.pending_events.push(EngineEvent::ResumeData {
@@ -218,11 +222,11 @@ impl LibTorrentSession for StubSession {
             });
             Ok(())
         } else {
-            Err(anyhow!("unknown torrent {id} for remove command"))
+            Err(TorrentError::NotFound { torrent_id: id })
         }
     }
 
-    async fn pause_torrent(&mut self, id: Uuid) -> Result<()> {
+    async fn pause_torrent(&mut self, id: Uuid) -> TorrentResult<()> {
         let torrent = self.torrent_mut(id)?;
         torrent.state = TorrentState::Stopped;
         self.push_state(id, TorrentState::Stopped);
@@ -230,7 +234,7 @@ impl LibTorrentSession for StubSession {
         Ok(())
     }
 
-    async fn resume_torrent(&mut self, id: Uuid) -> Result<()> {
+    async fn resume_torrent(&mut self, id: Uuid) -> TorrentResult<()> {
         let torrent = self.torrent_mut(id)?;
         torrent.state = TorrentState::Downloading;
         self.push_state(id, TorrentState::Downloading);
@@ -238,14 +242,18 @@ impl LibTorrentSession for StubSession {
         Ok(())
     }
 
-    async fn set_sequential(&mut self, id: Uuid, sequential: bool) -> Result<()> {
+    async fn set_sequential(&mut self, id: Uuid, sequential: bool) -> TorrentResult<()> {
         let torrent = self.torrent_mut(id)?;
         torrent.sequential = sequential;
         self.refresh_resume(id);
         Ok(())
     }
 
-    async fn update_limits(&mut self, id: Option<Uuid>, limits: &TorrentRateLimit) -> Result<()> {
+    async fn update_limits(
+        &mut self,
+        id: Option<Uuid>,
+        limits: &TorrentRateLimit,
+    ) -> TorrentResult<()> {
         if let Some(target) = id {
             let torrent = self.torrent_mut(target)?;
             torrent.rate_limit = limits.clone();
@@ -264,7 +272,11 @@ impl LibTorrentSession for StubSession {
         Ok(())
     }
 
-    async fn update_selection(&mut self, id: Uuid, rules: &FileSelectionUpdate) -> Result<()> {
+    async fn update_selection(
+        &mut self,
+        id: Uuid,
+        rules: &FileSelectionUpdate,
+    ) -> TorrentResult<()> {
         let torrent = self.torrent_mut(id)?;
         torrent.selection.include.clone_from(&rules.include);
         torrent.selection.exclude.clone_from(&rules.exclude);
@@ -278,7 +290,7 @@ impl LibTorrentSession for StubSession {
         &mut self,
         id: Uuid,
         options: &revaer_torrent_core::model::TorrentOptionsUpdate,
-    ) -> Result<()> {
+    ) -> TorrentResult<()> {
         let torrent = self.torrent_mut(id)?;
         if options.connections_limit.is_some() {
             torrent.connections_limit = options.connections_limit.filter(|value| *value > 0);
@@ -308,7 +320,7 @@ impl LibTorrentSession for StubSession {
         &mut self,
         id: Uuid,
         trackers: &revaer_torrent_core::model::TorrentTrackersUpdate,
-    ) -> Result<()> {
+    ) -> TorrentResult<()> {
         let torrent = self.torrent_mut(id)?;
         let mut seen: HashSet<String> = if trackers.replace {
             HashSet::new()
@@ -332,7 +344,7 @@ impl LibTorrentSession for StubSession {
         &mut self,
         id: Uuid,
         web_seeds: &revaer_torrent_core::model::TorrentWebSeedsUpdate,
-    ) -> Result<()> {
+    ) -> TorrentResult<()> {
         let torrent = self.torrent_mut(id)?;
         let mut seeds = if web_seeds.replace {
             Vec::new()
@@ -356,13 +368,13 @@ impl LibTorrentSession for StubSession {
         id: Uuid,
         piece: u32,
         deadline_ms: Option<u32>,
-    ) -> Result<()> {
+    ) -> TorrentResult<()> {
         let deadlines = self.deadlines.entry(id).or_default();
         deadlines.insert(piece, deadline_ms);
         Ok(())
     }
 
-    async fn load_fastresume(&mut self, id: Uuid, payload: &[u8]) -> Result<()> {
+    async fn load_fastresume(&mut self, id: Uuid, payload: &[u8]) -> TorrentResult<()> {
         let torrent = self.torrent_mut(id)?;
         torrent.resume_payload = Some(payload.to_vec());
         self.pending_events.push(EngineEvent::ResumeData {
@@ -372,15 +384,15 @@ impl LibTorrentSession for StubSession {
         Ok(())
     }
 
-    async fn reannounce(&mut self, id: Uuid) -> Result<()> {
+    async fn reannounce(&mut self, id: Uuid) -> TorrentResult<()> {
         if self.torrents.contains_key(&id) {
             Ok(())
         } else {
-            Err(anyhow!("unknown torrent {id} for reannounce"))
+            Err(TorrentError::NotFound { torrent_id: id })
         }
     }
 
-    async fn move_torrent(&mut self, id: Uuid, download_dir: &str) -> Result<()> {
+    async fn move_torrent(&mut self, id: Uuid, download_dir: &str) -> TorrentResult<()> {
         let torrent = self.torrent_mut(id)?;
         torrent.download_dir = Some(download_dir.to_string());
         self.pending_events.push(EngineEvent::MetadataUpdated {
@@ -395,28 +407,28 @@ impl LibTorrentSession for StubSession {
         Ok(())
     }
 
-    async fn recheck(&mut self, id: Uuid) -> Result<()> {
+    async fn recheck(&mut self, id: Uuid) -> TorrentResult<()> {
         if self.torrents.contains_key(&id) {
             Ok(())
         } else {
-            Err(anyhow!("unknown torrent {id} for recheck"))
+            Err(TorrentError::NotFound { torrent_id: id })
         }
     }
 
-    async fn peers(&mut self, id: Uuid) -> Result<Vec<PeerSnapshot>> {
+    async fn peers(&mut self, id: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
         Ok(self.peer_map.get(&id).cloned().unwrap_or_default())
     }
 
-    async fn poll_events(&mut self) -> Result<Vec<EngineEvent>> {
+    async fn poll_events(&mut self) -> TorrentResult<Vec<EngineEvent>> {
         Ok(std::mem::take(&mut self.pending_events))
     }
 
-    async fn apply_config(&mut self, config: &EngineRuntimeConfig) -> Result<()> {
+    async fn apply_config(&mut self, config: &EngineRuntimeConfig) -> TorrentResult<()> {
         let _ = config;
         Ok(())
     }
 
-    async fn inspect_settings(&mut self) -> Result<EngineSettingsSnapshot> {
+    async fn inspect_settings(&mut self) -> TorrentResult<EngineSettingsSnapshot> {
         Ok(EngineSettingsSnapshot::default())
     }
 }

@@ -18,7 +18,7 @@
 
 use std::path::PathBuf;
 
-use anyhow::Result;
+use revaer_doc_indexer::error::Result;
 use revaer_doc_indexer::run;
 
 /// Entry point for generating the documentation manifest and summaries files.

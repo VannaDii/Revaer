@@ -28,9 +28,7 @@ pub(in crate::http) struct TorrentLabelCatalog {
 }
 
 impl TorrentLabelCatalog {
-    pub(in crate::http) fn from_label_policies(
-        policies: &[LabelPolicy],
-    ) -> Result<Self, ApiError> {
+    pub(in crate::http) fn from_label_policies(policies: &[LabelPolicy]) -> Result<Self, ApiError> {
         let mut catalog = Self::default();
         for policy in policies {
             let name = normalize_label_name(policy.kind.as_str(), &policy.name)?;
@@ -145,8 +143,8 @@ where
         .config
         .apply_changeset(actor, reason, changeset)
         .await
-        .map_err(|err| map_config_error(err, "failed to update torrent labels"))?;
-    let _ = state.events.publish(CoreEvent::SettingsChanged {
+        .map_err(|err| map_config_error(&err, "failed to update torrent labels"))?;
+    state.publish_event(CoreEvent::SettingsChanged {
         description: format!("torrent labels updated by {actor}"),
     });
     Ok(catalog)
@@ -182,20 +180,19 @@ fn apply_label_policy(options: &mut AddTorrentOptions, policy: &TorrentLabelPoli
 }
 
 fn label_policy_to_torrent(policy: &LabelPolicy) -> TorrentLabelPolicy {
-    let rate_limit = if policy.rate_limit_download_bps.is_some()
-        || policy.rate_limit_upload_bps.is_some()
-    {
-        Some(TorrentRateLimit {
-            download_bps: policy
-                .rate_limit_download_bps
-                .and_then(|value| u64::try_from(value).ok()),
-            upload_bps: policy
-                .rate_limit_upload_bps
-                .and_then(|value| u64::try_from(value).ok()),
-        })
-    } else {
-        None
-    };
+    let rate_limit =
+        if policy.rate_limit_download_bps.is_some() || policy.rate_limit_upload_bps.is_some() {
+            Some(TorrentRateLimit {
+                download_bps: policy
+                    .rate_limit_download_bps
+                    .and_then(|value| u64::try_from(value).ok()),
+                upload_bps: policy
+                    .rate_limit_upload_bps
+                    .and_then(|value| u64::try_from(value).ok()),
+            })
+        } else {
+            None
+        };
 
     let remove_data = policy.cleanup_remove_data.unwrap_or(false);
     let cleanup = if policy.cleanup_seed_ratio_limit.is_some()
@@ -242,7 +239,10 @@ fn torrent_policy_to_label(
         .and_then(|limit| limit.upload_bps)
         .and_then(|value| i64::try_from(value).ok());
 
-    let cleanup_seed_ratio_limit = policy.cleanup.as_ref().and_then(|cleanup| cleanup.seed_ratio_limit);
+    let cleanup_seed_ratio_limit = policy
+        .cleanup
+        .as_ref()
+        .and_then(|cleanup| cleanup.seed_ratio_limit);
     let cleanup_seed_time_limit = policy
         .cleanup
         .as_ref()
@@ -271,9 +271,8 @@ fn torrent_policy_to_label(
 pub(in crate::http) fn normalize_label_name(kind: &str, raw: &str) -> Result<String, ApiError> {
     let trimmed = raw.trim();
     if trimmed.is_empty() {
-        return Err(ApiError::bad_request(format!(
-            "{kind} name must not be empty"
-        )));
+        return Err(ApiError::bad_request("label name must not be empty")
+            .with_context_field("label_kind", kind));
     }
     Ok(trimmed.to_string())
 }
@@ -314,9 +313,10 @@ fn validate_cleanup_policy(cleanup: &TorrentCleanupPolicy) -> Result<(), ApiErro
 
 fn ensure_ratio_limit(value: f64, field: &str) -> Result<(), ApiError> {
     if value < 0.0 || !value.is_finite() {
-        return Err(ApiError::bad_request(format!(
-            "{field} must be a non-negative number"
-        )));
+        return Err(
+            ApiError::bad_request("ratio limit must be a non-negative number")
+                .with_context_field("field", field),
+        );
     }
     Ok(())
 }

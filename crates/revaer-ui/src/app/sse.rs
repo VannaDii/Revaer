@@ -11,6 +11,7 @@ use crate::core::events::UiEventEnvelope;
 use crate::core::logic::{SseEndpoint, SseQuery, backoff_delay_ms, build_sse_url};
 use crate::core::store::{SseConnectionState, SseError, SseStatus};
 use crate::services::sse::{SseDecodeError, SseParser, decode_frame};
+use gloo::console;
 use gloo_timers::future::TimeoutFuture;
 use js_sys::Date;
 use js_sys::{Reflect, Uint8Array};
@@ -331,7 +332,7 @@ async fn fetch_stream(
     let headers = Headers::new().map_err(|_| ConnectError::Headers)?;
     apply_auth(&headers, auth);
     if let Some(id) = last_event_id {
-        let _ = headers.set("Last-Event-ID", &id.to_string());
+        set_header(&headers, "Last-Event-ID", &id.to_string());
     }
     init.set_headers(&headers);
 
@@ -352,15 +353,27 @@ async fn fetch_stream(
 fn apply_auth(headers: &Headers, auth: &Option<AuthState>) {
     match auth {
         Some(AuthState::ApiKey(key)) if !key.trim().is_empty() => {
-            let _ = headers.set("x-revaer-api-key", key);
+            set_header(headers, "x-revaer-api-key", key);
         }
         Some(AuthState::Local(auth)) => {
             if let Some(header) = basic_auth_header(auth) {
-                let _ = headers.set("Authorization", &header);
+                set_header(headers, "Authorization", &header);
+            } else {
+                console::error!("basic auth header unavailable");
             }
         }
         _ => {}
     }
+}
+
+fn set_header(headers: &Headers, name: &'static str, value: &str) {
+    if let Err(err) = headers.set(name, value) {
+        log_header_error(name, err);
+    }
+}
+
+fn log_header_error(name: &'static str, err: JsValue) {
+    console::error!("request header set failed", name, err);
 }
 
 fn basic_auth_header(auth: &LocalAuth) -> Option<String> {

@@ -453,14 +453,10 @@ impl TorrentProgress {
     }
 }
 
-const fn to_f64(value: u64) -> f64 {
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "u64 to f64 conversion is required for user-facing percentage reporting"
-    )]
-    {
-        value as f64
-    }
+fn to_f64(value: u64) -> f64 {
+    let high = u32::try_from(value >> 32).unwrap_or(u32::MAX);
+    let low = u32::try_from(value & 0xFFFF_FFFF).unwrap_or(u32::MAX);
+    f64::from(high) * 4_294_967_296.0 + f64::from(low)
 }
 
 /// Individual file exposed by a torrent.
@@ -619,20 +615,31 @@ pub enum EngineEvent {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::error::Error;
+    use std::io;
+
+    type Result<T> = std::result::Result<T, Box<dyn Error>>;
+
+    fn test_error(message: &'static str) -> Box<dyn Error> {
+        Box::new(io::Error::other(message))
+    }
 
     #[test]
-    fn torrent_source_helpers_construct_variants() {
+    fn torrent_source_helpers_construct_variants() -> Result<()> {
         let magnet = TorrentSource::magnet("magnet:?xt=urn:btih:demo");
-        match magnet {
-            TorrentSource::Magnet { uri } => assert!(uri.contains("demo")),
-            TorrentSource::Metainfo { .. } => panic!("expected magnet variant"),
+        if let TorrentSource::Magnet { uri } = magnet {
+            assert!(uri.contains("demo"));
+        } else {
+            return Err(test_error("expected magnet variant"));
         }
 
         let data = vec![1_u8, 2, 3];
         let meta = TorrentSource::metainfo(data.clone());
-        match meta {
-            TorrentSource::Metainfo { bytes } => assert_eq!(bytes, data),
-            TorrentSource::Magnet { .. } => panic!("expected metainfo variant"),
+        if let TorrentSource::Metainfo { bytes } = meta {
+            assert_eq!(bytes, data);
+            Ok(())
+        } else {
+            Err(test_error("expected metainfo variant"))
         }
     }
 

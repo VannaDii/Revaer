@@ -318,6 +318,7 @@ fn map_ip_filter_rule(rule: &IpFilterRule) -> RuntimeIpFilterRule {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::{Result, anyhow};
     use chrono::{TimeZone, Utc};
     use revaer_config::MAX_RATE_LIMIT_BPS;
     use uuid::Uuid;
@@ -504,11 +505,11 @@ mod tests {
     }
 
     #[test]
-    fn ip_filter_is_threaded_into_runtime() {
+    fn ip_filter_is_threaded_into_runtime() -> Result<()> {
         let last_updated_at = Utc
             .with_ymd_and_hms(2024, 1, 1, 0, 0, 0)
             .single()
-            .expect("timestamp");
+            .ok_or_else(|| anyhow!("timestamp invalid"))?;
         let profile = EngineProfile {
             id: Uuid::new_v4(),
             implementation: "libtorrent".into(),
@@ -577,7 +578,10 @@ mod tests {
         };
 
         let plan = EngineRuntimePlan::from_profile(&profile);
-        let filter = plan.runtime.ip_filter.expect("ip filter present");
+        let filter = plan
+            .runtime
+            .ip_filter
+            .ok_or_else(|| anyhow!("ip filter missing"))?;
         assert_eq!(filter.rules.len(), 1);
         assert_eq!(filter.rules[0].start, "10.0.0.0");
         assert_eq!(filter.rules[0].end, "10.255.255.255");
@@ -590,6 +594,7 @@ mod tests {
             filter.last_updated_at.as_deref(),
             Some("2024-01-01T00:00:00+00:00")
         );
+        Ok(())
     }
 
     #[test]

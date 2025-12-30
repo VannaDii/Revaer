@@ -8,6 +8,7 @@
 use crate::core::auth::{AuthState, LocalAuth};
 use crate::core::logic::backoff_delay_ms;
 use crate::services::sse::SseParser;
+use gloo::console;
 use gloo_timers::future::TimeoutFuture;
 use js_sys::{Reflect, Uint8Array};
 use wasm_bindgen::JsCast;
@@ -170,15 +171,27 @@ async fn fetch_stream(
 fn apply_auth(headers: &Headers, auth: &Option<AuthState>) {
     match auth {
         Some(AuthState::ApiKey(key)) if !key.trim().is_empty() => {
-            let _ = headers.set("x-revaer-api-key", key);
+            set_header(headers, "x-revaer-api-key", key);
         }
         Some(AuthState::Local(auth)) => {
             if let Some(header) = basic_auth_header(auth) {
-                let _ = headers.set("Authorization", &header);
+                set_header(headers, "Authorization", &header);
+            } else {
+                console::error!("basic auth header unavailable");
             }
         }
         _ => {}
     }
+}
+
+fn set_header(headers: &Headers, name: &'static str, value: &str) {
+    if let Err(err) = headers.set(name, value) {
+        log_header_error(name, err);
+    }
+}
+
+fn log_header_error(name: &'static str, err: JsValue) {
+    console::error!("request header set failed", name, err);
 }
 
 fn basic_auth_header(auth: &LocalAuth) -> Option<String> {

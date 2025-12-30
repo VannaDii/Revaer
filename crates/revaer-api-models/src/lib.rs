@@ -56,6 +56,18 @@ pub struct ProblemDetails {
     #[serde(skip_serializing_if = "Option::is_none")]
     /// Parameters that failed validation, if applicable.
     pub invalid_params: Option<Vec<ProblemInvalidParam>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    /// Structured context fields associated with the error.
+    pub context: Option<Vec<ProblemContextField>>,
+}
+
+/// Structured context field attached to a [`ProblemDetails`] payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ProblemContextField {
+    /// Context field name.
+    pub name: String,
+    /// Context field value.
+    pub value: String,
 }
 
 /// Invalid parameter pointer surfaced alongside a [`ProblemDetails`] payload.
@@ -1187,6 +1199,14 @@ mod tests {
         FilePriority, FilePriorityOverride, StorageMode, TorrentFile, TorrentProgress,
         TorrentRates, TorrentStatus,
     };
+    use std::error::Error;
+    use std::io;
+
+    type Result<T> = std::result::Result<T, Box<dyn Error>>;
+
+    fn test_error(message: &'static str) -> Box<dyn Error> {
+        Box::new(io::Error::other(message))
+    }
 
     #[test]
     fn torrent_create_request_to_options_maps_fields() {
@@ -1245,32 +1265,42 @@ mod tests {
     }
 
     #[test]
-    fn torrent_create_request_to_source_prefers_magnet() {
+    fn torrent_create_request_to_source_prefers_magnet() -> Result<()> {
         let request = TorrentCreateRequest {
             magnet: Some("magnet:?xt=urn:btih:example".to_string()),
             metainfo: Some(general_purpose::STANDARD.encode(b"payload")),
             ..TorrentCreateRequest::default()
         };
 
-        match request.to_source().expect("source present") {
+        match request
+            .to_source()
+            .ok_or_else(|| test_error("torrent source missing"))?
+        {
             TorrentSource::Magnet { uri } => {
                 assert!(uri.starts_with("magnet:?xt=urn:btih:example"));
+                Ok(())
             }
-            TorrentSource::Metainfo { .. } => panic!("unexpected metainfo source"),
+            TorrentSource::Metainfo { .. } => Err(test_error("unexpected torrent source")),
         }
     }
 
     #[test]
-    fn torrent_create_request_to_source_decodes_metainfo() {
+    fn torrent_create_request_to_source_decodes_metainfo() -> Result<()> {
         let encoded = general_purpose::STANDARD.encode(b"payload-bytes");
         let request = TorrentCreateRequest {
             metainfo: Some(encoded),
             ..TorrentCreateRequest::default()
         };
 
-        match request.to_source().expect("source present") {
-            TorrentSource::Metainfo { bytes } => assert_eq!(bytes, b"payload-bytes"),
-            TorrentSource::Magnet { .. } => panic!("unexpected magnet source"),
+        match request
+            .to_source()
+            .ok_or_else(|| test_error("torrent source missing"))?
+        {
+            TorrentSource::Metainfo { bytes } => {
+                assert_eq!(bytes, b"payload-bytes");
+                Ok(())
+            }
+            TorrentSource::Magnet { .. } => Err(test_error("unexpected torrent source")),
         }
     }
 
@@ -1286,8 +1316,20 @@ mod tests {
     }
 
     #[test]
-    fn torrent_summary_and_detail_from_status_preserves_metadata() {
+    fn torrent_summary_and_detail_from_status_preserves_metadata() -> Result<()> {
         let torrent_id = Uuid::new_v4();
+        let added_at = Utc
+            .timestamp_millis_opt(0)
+            .single()
+            .ok_or_else(|| test_error("invalid timestamp"))?;
+        let completed_at = Utc
+            .timestamp_millis_opt(1_000)
+            .single()
+            .ok_or_else(|| test_error("invalid timestamp"))?;
+        let last_updated = Utc
+            .timestamp_millis_opt(2_000)
+            .single()
+            .ok_or_else(|| test_error("invalid timestamp"))?;
         let status = TorrentStatus {
             id: torrent_id,
             name: Some("Example Torrent".to_string()),
@@ -1316,9 +1358,9 @@ mod tests {
             source: Some("source".to_string()),
             private: Some(true),
             sequential: true,
-            added_at: Utc.timestamp_millis_opt(0).unwrap(),
-            completed_at: Some(Utc.timestamp_millis_opt(1_000).unwrap()),
-            last_updated: Utc.timestamp_millis_opt(2_000).unwrap(),
+            added_at,
+            completed_at: Some(completed_at),
+            last_updated,
         };
 
         let summary = TorrentSummary::from(status.clone()).with_metadata(
@@ -1344,14 +1386,17 @@ mod tests {
 
         let detail = TorrentDetail::from(status);
         assert_eq!(detail.summary.id, torrent_id);
-        let settings = detail.settings.expect("settings should be present");
+        let settings = detail
+            .settings
+            .ok_or_else(|| test_error("settings missing"))?;
         assert_eq!(settings.download_dir.as_deref(), Some("/downloads/movie"));
         assert!(settings.sequential);
         assert!(settings.selection.is_none());
-        let files = detail.files.expect("files should be present");
+        let files = detail.files.ok_or_else(|| test_error("files missing"))?;
         assert_eq!(files.len(), 1);
         assert_eq!(files[0].path, "movie.mkv");
         assert!(files[0].selected);
+        Ok(())
     }
 
     #[test]

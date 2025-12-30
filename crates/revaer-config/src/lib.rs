@@ -20,9 +20,10 @@
 //! (validation/parsing helpers), `service.rs` (`ConfigService` + `SettingsFacade`).
 
 pub mod engine_profile;
+pub mod error;
 pub mod model;
 pub mod service;
-pub(crate) mod validate;
+pub mod validate;
 
 pub use engine_profile::{
     EngineBehaviorConfig, EngineEncryptionPolicy, EngineIpv6Mode, EngineLimitsConfig,
@@ -30,10 +31,10 @@ pub use engine_profile::{
     MAX_RATE_LIMIT_BPS, TrackerAuthConfig, TrackerConfig, TrackerProxyConfig, TrackerProxyType,
     normalize_engine_profile,
 };
+pub use error::{ConfigError, ConfigResult};
 pub use model::{
     ApiKeyAuth, ApiKeyPatch, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigSnapshot,
     EngineProfile, FsPolicy, LabelKind, LabelPolicy, SecretPatch, SettingsChange,
     SettingsChangeset, SettingsPayload, SetupToken, TelemetryConfig,
 };
 pub use service::{ConfigService, ConfigWatcher, SettingsFacade, SettingsStream};
-pub use validate::ConfigError;

@@ -21,6 +21,7 @@
 //! (artifact persistence), `log_stream.rs` (live log broadcasting).
 
 pub mod context;
+pub mod error;
 pub mod init;
 pub mod layers;
 pub mod log_stream;
@@ -31,6 +32,7 @@ pub use context::{
     GlobalContextGuard, current_request_id, current_route, record_app_mode, set_request_context,
     with_request_context,
 };
+pub use error::{Result as TelemetryResult, TelemetryError};
 pub use init::{
     DEFAULT_LOG_LEVEL, LogFormat, LoggingConfig, OpenTelemetryConfig, OpenTelemetryGuard,
     build_sha, init_logging, init_logging_with_otel, log_format_from_config,

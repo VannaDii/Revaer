@@ -17,11 +17,10 @@
 //! Binary entrypoint that wires the Revaer services together and launches the
 //! async orchestrators.
 
-use anyhow::Result;
-use revaer_app::run_app;
+use revaer_app::{AppResult, run_app};
 
 /// Bootstraps the Revaer application and blocks until shutdown.
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> AppResult<()> {
     run_app().await
 }

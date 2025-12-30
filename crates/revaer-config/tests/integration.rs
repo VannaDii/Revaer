@@ -50,6 +50,7 @@ async fn config_service_applies_changes_and_tokens() -> anyhow::Result<()> {
             key_id: "ci-key".to_string(),
             label: Some("ci".to_string()),
             enabled: Some(true),
+            expires_at: None,
             secret: Some("super-secret".to_string()),
             rate_limit: Some(Some(ApiKeyRateLimit {
                 burst: 10,
@@ -72,10 +73,7 @@ async fn config_service_applies_changes_and_tokens() -> anyhow::Result<()> {
     let issued = service
         .issue_setup_token(Duration::from_secs(60), "tester")
         .await?;
-    service
-        .validate_setup_token(&issued.plaintext)
-        .await
-        .expect("setup token should validate before consumption");
+    service.validate_setup_token(&issued.plaintext).await?;
     service.consume_setup_token(&issued.plaintext).await?;
 
     let refreshed = service.snapshot().await?;
@@ -93,12 +91,10 @@ async fn config_service_applies_changes_and_tokens() -> anyhow::Result<()> {
     let auth = service
         .authenticate_api_key("ci-key", "super-secret")
         .await?
-        .expect("api key should authenticate");
+        .ok_or_else(|| anyhow::anyhow!("api key did not authenticate"))?;
     assert_eq!(auth.key_id, "ci-key");
 
-    let updated = tokio::time::timeout(Duration::from_secs(10), stream.next())
-        .await
-        .expect("settings watcher should produce a snapshot")?;
+    let updated = tokio::time::timeout(Duration::from_secs(10), stream.next()).await??;
     assert!(updated.revision >= applied.revision);
     assert_eq!(updated.app_profile.mode, AppMode::Active);
     Ok(())

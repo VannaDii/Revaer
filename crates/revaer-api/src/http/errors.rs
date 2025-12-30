@@ -1,5 +1,6 @@
 //! RFC9457-style API error wrapper.
 
+use std::fmt::{self, Display, Formatter};
 use std::time::Duration;
 
 use axum::{
@@ -16,17 +17,21 @@ use crate::http::constants::{
     PROBLEM_UNAUTHORIZED,
 };
 use crate::http::rate_limit::insert_rate_limit_headers;
-use crate::models::{ProblemDetails, ProblemInvalidParam};
+use crate::models::{ProblemContextField, ProblemDetails, ProblemInvalidParam};
 
 /// Structured API error with optional RFC9457 fields.
 #[derive(Debug)]
-pub(crate) struct ApiError {
-    pub(crate) status: StatusCode,
-    pub(crate) kind: &'static str,
+pub(crate) struct ApiError(Box<ApiErrorInner>);
+
+#[derive(Debug)]
+struct ApiErrorInner {
+    status: StatusCode,
+    kind: &'static str,
     title: &'static str,
-    pub(crate) detail: Option<String>,
-    pub(crate) invalid_params: Option<Vec<ProblemInvalidParam>>,
-    pub(crate) rate_limit: Option<ErrorRateLimitContext>,
+    detail: Option<String>,
+    invalid_params: Option<Vec<ProblemInvalidParam>>,
+    context: Option<Vec<ProblemContextField>>,
+    rate_limit: Option<ErrorRateLimitContext>,
 }
 
 #[derive(Debug)]
@@ -37,34 +42,53 @@ pub(crate) struct ErrorRateLimitContext {
 }
 
 impl ApiError {
-    const fn new(status: StatusCode, kind: &'static str, title: &'static str) -> Self {
-        Self {
+    fn new(status: StatusCode, kind: &'static str, title: &'static str) -> Self {
+        Self(Box::new(ApiErrorInner {
             status,
             kind,
             title,
             detail: None,
             invalid_params: None,
+            context: None,
             rate_limit: None,
-        }
+        }))
     }
 
     pub(crate) fn with_detail(mut self, detail: impl Into<String>) -> Self {
-        self.detail = Some(detail.into());
+        self.0.detail = Some(detail.into());
         self
     }
 
     pub(crate) fn with_invalid_params(mut self, params: Vec<ProblemInvalidParam>) -> Self {
-        self.invalid_params = Some(params);
+        self.0.invalid_params = Some(params);
         self
     }
 
-    pub(crate) const fn with_rate_limit_headers(
+    pub(crate) fn with_context_field(
+        mut self,
+        name: impl Into<String>,
+        value: impl Into<String>,
+    ) -> Self {
+        let entry = ProblemContextField {
+            name: name.into(),
+            value: value.into(),
+        };
+        match self.0.context.as_mut() {
+            Some(fields) => fields.push(entry),
+            None => {
+                self.0.context = Some(vec![entry]);
+            }
+        }
+        self
+    }
+
+    pub(crate) fn with_rate_limit_headers(
         mut self,
         limit: u32,
         remaining: u32,
         retry_after: Option<Duration>,
     ) -> Self {
-        self.rate_limit = Some(ErrorRateLimitContext {
+        self.0.rate_limit = Some(ErrorRateLimitContext {
             limit,
             remaining,
             retry_after,
@@ -149,17 +173,70 @@ impl ApiError {
     }
 }
 
+impl Display for ApiError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str("api error")
+    }
+}
+
+impl std::error::Error for ApiError {}
+
+#[cfg(test)]
+impl ApiError {
+    pub(crate) fn status(&self) -> StatusCode {
+        self.0.status
+    }
+
+    pub(crate) fn kind(&self) -> &'static str {
+        self.0.kind
+    }
+
+    pub(crate) fn detail(&self) -> Option<&str> {
+        self.0.detail.as_deref()
+    }
+
+    pub(crate) fn invalid_params(&self) -> Option<&[ProblemInvalidParam]> {
+        self.0.invalid_params.as_deref()
+    }
+
+    pub(crate) fn rate_limit(&self) -> Option<&ErrorRateLimitContext> {
+        self.0.rate_limit.as_ref()
+    }
+}
+
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
+        let ApiErrorInner {
+            status,
+            kind,
+            title,
+            detail,
+            invalid_params,
+            context,
+            rate_limit,
+        } = *self.0;
+        let locale = crate::i18n::current_locale();
+        let title = crate::i18n::localize_message(locale, title);
+        let detail = detail.map(|detail| crate::i18n::localize_message(locale, &detail));
+        let invalid_params = invalid_params.map(|params| {
+            params
+                .into_iter()
+                .map(|param| ProblemInvalidParam {
+                    pointer: param.pointer,
+                    message: crate::i18n::localize_message(locale, &param.message),
+                })
+                .collect()
+        });
         let body = ProblemDetails {
-            kind: self.kind.to_string(),
-            title: self.title.to_string(),
-            status: self.status.as_u16(),
-            detail: self.detail,
-            invalid_params: self.invalid_params,
+            kind: kind.to_string(),
+            title,
+            status: status.as_u16(),
+            detail,
+            invalid_params,
+            context,
         };
-        let mut response = (self.status, Json(body)).into_response();
-        if let Some(rate) = self.rate_limit {
+        let mut response = (status, Json(body)).into_response();
+        if let Some(rate) = rate_limit {
             insert_rate_limit_headers(
                 response.headers_mut(),
                 rate.limit,

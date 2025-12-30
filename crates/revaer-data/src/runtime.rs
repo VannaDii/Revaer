@@ -18,7 +18,7 @@
 
 use std::path::Path;
 
-use anyhow::{Context, Result, anyhow};
+use crate::error::{DataError, Result};
 use chrono::{DateTime, Utc};
 use revaer_events::TorrentState;
 use revaer_torrent_core::{TorrentFile, TorrentStatus};
@@ -29,6 +29,10 @@ use uuid::Uuid;
 #[derive(Clone)]
 pub struct RuntimeStore {
     pool: PgPool,
+}
+
+fn map_query_err(operation: &'static str) -> impl FnOnce(sqlx::Error) -> DataError {
+    move |source| DataError::QueryFailed { operation, source }
 }
 
 const UPSERT_TORRENT_CALL: &str = r"
@@ -107,7 +111,7 @@ impl RuntimeStore {
         migrator
             .run(&pool)
             .await
-            .context("failed to run runtime migrations")?;
+            .map_err(|source| DataError::MigrationFailed { source })?;
         Ok(Self { pool })
     }
 
@@ -192,7 +196,7 @@ impl RuntimeStore {
             .bind(status.last_updated)
             .execute(&self.pool)
             .await
-            .context("failed to upsert torrent status")?;
+            .map_err(map_query_err("upsert torrent status"))?;
 
         Ok(())
     }
@@ -207,7 +211,7 @@ impl RuntimeStore {
             .bind(torrent_id)
             .execute(&self.pool)
             .await
-            .context("failed to remove torrent from runtime catalog")?;
+            .map_err(map_query_err("remove torrent"))?;
 
         Ok(())
     }
@@ -221,7 +225,7 @@ impl RuntimeStore {
         let rows = sqlx::query(SELECT_TORRENTS_CALL)
             .fetch_all(&self.pool)
             .await
-            .context("failed to load runtime torrent catalog")?;
+            .map_err(map_query_err("load torrent catalog"))?;
 
         let mut statuses = Vec::with_capacity(rows.len());
         for row in rows {
@@ -273,11 +277,12 @@ impl RuntimeStore {
     }
 
     async fn fetch_torrent_files(&self, torrent_id: Uuid) -> Result<Option<Vec<TorrentFile>>> {
-        let rows = sqlx::query("SELECT * FROM revaer_runtime.list_torrent_files(_torrent_id => $1)")
-            .bind(torrent_id)
-            .fetch_all(&self.pool)
-            .await
-            .context("failed to load torrent file list")?;
+        let rows =
+            sqlx::query("SELECT * FROM revaer_runtime.list_torrent_files(_torrent_id => $1)")
+                .bind(torrent_id)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(map_query_err("load torrent file list"))?;
 
         if rows.is_empty() {
             return Ok(None);
@@ -313,14 +318,17 @@ impl RuntimeStore {
         let source = source
             .to_str()
             .map(std::borrow::ToOwned::to_owned)
-            .ok_or_else(|| anyhow!("fs job source path contains invalid UTF-8"))?;
+            .ok_or_else(|| DataError::PathNotUtf8 {
+                field: "fs_job_source",
+                path: source.to_path_buf(),
+            })?;
 
         sqlx::query(FS_JOB_STARTED_CALL)
             .bind(torrent_id)
             .bind(source)
             .execute(&self.pool)
             .await
-            .context("failed to record fs job start")?;
+            .map_err(map_query_err("fs job start"))?;
 
         Ok(())
     }
@@ -340,11 +348,17 @@ impl RuntimeStore {
         let source = source
             .to_str()
             .map(std::borrow::ToOwned::to_owned)
-            .ok_or_else(|| anyhow!("fs job source path contains invalid UTF-8"))?;
+            .ok_or_else(|| DataError::PathNotUtf8 {
+                field: "fs_job_source",
+                path: source.to_path_buf(),
+            })?;
         let destination = destination
             .to_str()
             .map(std::borrow::ToOwned::to_owned)
-            .ok_or_else(|| anyhow!("fs job destination path contains invalid UTF-8"))?;
+            .ok_or_else(|| DataError::PathNotUtf8 {
+                field: "fs_job_destination",
+                path: destination.to_path_buf(),
+            })?;
 
         sqlx::query(FS_JOB_COMPLETED_CALL)
             .bind(torrent_id)
@@ -353,7 +367,7 @@ impl RuntimeStore {
             .bind(transfer_mode)
             .execute(&self.pool)
             .await
-            .context("failed to record fs job completion")?;
+            .map_err(map_query_err("fs job complete"))?;
 
         Ok(())
     }
@@ -368,7 +382,7 @@ impl RuntimeStore {
             .bind(torrent_id)
             .fetch_optional(&self.pool)
             .await
-            .context("failed to load fs job state")?;
+            .map_err(map_query_err("fetch fs job state"))?;
         Ok(row.map(FsJobState::from))
     }
 
@@ -383,7 +397,7 @@ impl RuntimeStore {
             .bind(error)
             .execute(&self.pool)
             .await
-            .context("failed to record fs job failure")?;
+            .map_err(map_query_err("fs job failure"))?;
 
         Ok(())
     }
@@ -419,7 +433,7 @@ fn deserialize_state(label: &str, message: Option<String>) -> TorrentState {
     }
 }
 
-fn file_priority_label(priority: revaer_torrent_core::FilePriority) -> &'static str {
+const fn file_priority_label(priority: revaer_torrent_core::FilePriority) -> &'static str {
     match priority {
         revaer_torrent_core::FilePriority::Skip => "skip",
         revaer_torrent_core::FilePriority::Low => "low",

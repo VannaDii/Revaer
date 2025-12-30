@@ -484,10 +484,41 @@ async fn api_error_from_response(response: Response) -> ApiError {
         .get("Retry-After")
         .and_then(|value| value.parse::<u64>().ok());
     if let Ok(problem) = response.json::<ProblemDetails>().await {
+        let detail = if let Some(params) = problem
+            .invalid_params
+            .as_ref()
+            .filter(|items| !items.is_empty())
+        {
+            if params.len() == 1 {
+                Some(params[0].message.clone())
+            } else {
+                Some(
+                    params
+                        .iter()
+                        .map(|param| format!("{}: {}", param.pointer, param.message))
+                        .collect::<Vec<_>>()
+                        .join("; "),
+                )
+            }
+        } else if let Some(fields) = problem.context.as_ref().filter(|items| !items.is_empty()) {
+            if fields.len() == 1 {
+                Some(fields[0].value.clone())
+            } else {
+                Some(
+                    fields
+                        .iter()
+                        .map(|field| format!("{}: {}", field.name, field.value))
+                        .collect::<Vec<_>>()
+                        .join("; "),
+                )
+            }
+        } else {
+            problem.detail.clone()
+        };
         return ApiError {
             status: problem.status,
             title: problem.title,
-            detail: problem.detail,
+            detail,
             retry_after_secs: retry_after,
         };
     }

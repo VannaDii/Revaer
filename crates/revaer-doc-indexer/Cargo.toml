@@ -9,7 +9,6 @@ repository = "https://github.com/VannaDii/revaer"
 publish = false
 
 [dependencies]
-anyhow = { workspace = true }
 chrono = { workspace = true }
 jsonschema = { workspace = true }
 regex = { workspace = true }

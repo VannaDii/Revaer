@@ -746,7 +746,15 @@ mod tests {
         TorrentRatesView, TorrentSelectionView, TorrentSettingsView,
     };
     use chrono::{DateTime, Utc};
+    use std::error::Error;
+    use std::io;
     use uuid::Uuid;
+
+    type Result<T> = std::result::Result<T, Box<dyn Error>>;
+
+    fn test_error(message: &'static str) -> Box<dyn Error> {
+        Box::new(io::Error::other(message))
+    }
 
     const EPSILON: f64 = 0.000_1;
     const GIB: u64 = 1_073_741_824;
@@ -770,9 +778,10 @@ mod tests {
         }
     }
 
-    fn base_detail(id: Uuid) -> TorrentDetail {
-        let now = DateTime::<Utc>::from_timestamp(1_700_000_000, 0).expect("timestamp");
-        TorrentDetail {
+    fn base_detail(id: Uuid) -> Result<TorrentDetail> {
+        let now = DateTime::<Utc>::from_timestamp(1_700_000_000, 0)
+            .ok_or_else(|| test_error("timestamp invalid"))?;
+        Ok(TorrentDetail {
             summary: TorrentSummary {
                 id,
                 name: Some("demo".into()),
@@ -825,53 +834,67 @@ mod tests {
                     selected: true,
                 },
             ]),
-        }
+        })
     }
 
     #[test]
-    fn progress_updates_fields() {
+    fn progress_updates_fields() -> Result<()> {
         let id = Uuid::from_u128(1);
         let updated = apply_progress(&[base_row(id)], id, 0.25, Some(5), Some(10), Some(20));
-        let first = updated.first().unwrap();
+        let first = updated.first().ok_or_else(|| test_error("missing row"))?;
         assert!((first.progress - 0.25).abs() < EPSILON);
         assert_eq!(first.eta.as_deref(), Some("5s"));
         assert_eq!(first.download_bps, 10);
         assert_eq!(first.upload_bps, 20);
+        Ok(())
     }
 
     #[test]
-    fn rates_update_only_target() {
+    fn rates_update_only_target() -> Result<()> {
         let id_one = Uuid::from_u128(1);
         let id_two = Uuid::from_u128(2);
         let updated = apply_rates(&[base_row(id_one), base_row(id_two)], id_two, 5, 9);
-        let second = updated.iter().find(|r| r.id == id_two).unwrap();
+        let second = updated
+            .iter()
+            .find(|r| r.id == id_two)
+            .ok_or_else(|| test_error("missing row"))?;
         assert_eq!(second.download_bps, 5);
         assert_eq!(second.upload_bps, 9);
-        let first = updated.iter().find(|r| r.id == id_one).unwrap();
+        let first = updated
+            .iter()
+            .find(|r| r.id == id_one)
+            .ok_or_else(|| test_error("missing row"))?;
         assert_eq!(first.download_bps, 0);
+        Ok(())
     }
 
     #[test]
-    fn status_and_remove_work() {
+    fn status_and_remove_work() -> Result<()> {
         let id_one = Uuid::from_u128(1);
         let id_two = Uuid::from_u128(2);
         let status = apply_status(&[base_row(id_one), base_row(id_two)], id_two, "checking");
         assert_eq!(
-            status.iter().find(|r| r.id == id_two).unwrap().status,
+            status
+                .iter()
+                .find(|r| r.id == id_two)
+                .ok_or_else(|| test_error("missing row"))?
+                .status,
             "checking"
         );
         let removed = apply_remove(&status, id_one);
         assert_eq!(removed.len(), 1);
         assert!(removed.iter().all(|r| r.id == id_two));
+        Ok(())
     }
 
     #[test]
-    fn metadata_updates_name_and_path() {
+    fn metadata_updates_name_and_path() -> Result<()> {
         let id = Uuid::from_u128(1);
         let updated = apply_metadata(&[base_row(id)], id, Some("beta"), Some("/new"));
-        let first = updated.first().unwrap();
+        let first = updated.first().ok_or_else(|| test_error("missing row"))?;
         assert_eq!(first.name, "beta");
         assert_eq!(first.path, "/new");
+        Ok(())
     }
 
     #[test]
@@ -888,8 +911,9 @@ mod tests {
     }
 
     #[test]
-    fn summary_conversion_maps_sizes() {
-        let now = DateTime::<Utc>::from_timestamp(1_700_000_000, 0).expect("timestamp");
+    fn summary_conversion_maps_sizes() -> Result<()> {
+        let now = DateTime::<Utc>::from_timestamp(1_700_000_000, 0)
+            .ok_or_else(|| test_error("timestamp invalid"))?;
         let summary = TorrentSummary {
             id: Uuid::nil(),
             name: Some("demo".into()),
@@ -926,10 +950,11 @@ mod tests {
         assert_eq!(row.tracker, "t");
         assert_eq!(row.path, "/p");
         assert_eq!(row.updated, now.format("%Y-%m-%d %H:%M UTC").to_string());
+        Ok(())
     }
 
     #[test]
-    fn append_rows_dedupes_and_updates() {
+    fn append_rows_dedupes_and_updates() -> Result<()> {
         let id_one = Uuid::from_u128(1);
         let id_two = Uuid::from_u128(2);
         let mut state = TorrentsState::default();
@@ -941,33 +966,41 @@ mod tests {
         append_rows(&mut state, vec![updated, base_row(id_two)]);
 
         assert_eq!(state.visible_ids, vec![id_one, id_two]);
-        assert_eq!(state.by_id.get(&id_one).unwrap().name, "beta");
+        let row = state
+            .by_id
+            .get(&id_one)
+            .ok_or_else(|| test_error("missing row"))?;
+        assert_eq!(row.name, "beta");
         assert!(state.selected.contains(&id_one));
+        Ok(())
     }
 
     #[test]
-    fn selectors_split_base_and_progress() {
+    fn selectors_split_base_and_progress() -> Result<()> {
         let id = Uuid::from_u128(42);
         let mut state = TorrentsState::default();
         set_rows(&mut state, vec![base_row(id)]);
         state.selected.insert(id);
 
-        let base = select_torrent_row_base(&state, &id).expect("base slice");
+        let base =
+            select_torrent_row_base(&state, &id).ok_or_else(|| test_error("base slice missing"))?;
         assert_eq!(base.name, "alpha");
         assert_eq!(base.tracker, "t1");
         assert_eq!(base.updated, "2024-01-01 00:00 UTC");
 
-        let progress = select_torrent_progress_slice(&state, &id).expect("progress slice");
+        let progress = select_torrent_progress_slice(&state, &id)
+            .ok_or_else(|| test_error("progress slice missing"))?;
         assert_eq!(progress.status, "downloading");
         assert_eq!(progress.download_bps, 0);
 
         assert!(select_is_selected(&state, &id));
+        Ok(())
     }
 
     #[test]
-    fn update_detail_file_selection_updates_cached_files() {
+    fn update_detail_file_selection_updates_cached_files() -> Result<()> {
         let id = Uuid::from_u128(10);
-        let detail = base_detail(id);
+        let detail = base_detail(id)?;
         let mut state = TorrentsState::default();
         upsert_detail(&mut state, id, detail);
         update_detail_file_selection(&mut state, id, 1, false);
@@ -975,14 +1008,19 @@ mod tests {
             .details_by_id
             .get(&id)
             .and_then(|detail| detail.files.as_ref())
-            .expect("files");
-        assert!(!files.iter().find(|file| file.index == 1).unwrap().selected);
+            .ok_or_else(|| test_error("files missing"))?;
+        let file = files
+            .iter()
+            .find(|file| file.index == 1)
+            .ok_or_else(|| test_error("file missing"))?;
+        assert!(!file.selected);
+        Ok(())
     }
 
     #[test]
-    fn update_detail_file_priority_updates_cached_files() {
+    fn update_detail_file_priority_updates_cached_files() -> Result<()> {
         let id = Uuid::from_u128(11);
-        let detail = base_detail(id);
+        let detail = base_detail(id)?;
         let mut state = TorrentsState::default();
         upsert_detail(&mut state, id, detail);
         update_detail_file_priority(&mut state, id, 0, FilePriority::High);
@@ -990,17 +1028,22 @@ mod tests {
             .details_by_id
             .get(&id)
             .and_then(|detail| detail.files.as_ref())
-            .expect("files");
+            .ok_or_else(|| test_error("files missing"))?;
         assert_eq!(
-            files.iter().find(|file| file.index == 0).unwrap().priority,
+            files
+                .iter()
+                .find(|file| file.index == 0)
+                .ok_or_else(|| test_error("file missing"))?
+                .priority,
             FilePriority::High
         );
+        Ok(())
     }
 
     #[test]
-    fn update_detail_skip_fluff_updates_selection() {
+    fn update_detail_skip_fluff_updates_selection() -> Result<()> {
         let id = Uuid::from_u128(12);
-        let detail = base_detail(id);
+        let detail = base_detail(id)?;
         let mut state = TorrentsState::default();
         upsert_detail(&mut state, id, detail);
         update_detail_skip_fluff(&mut state, id, true);
@@ -1009,14 +1052,15 @@ mod tests {
             .get(&id)
             .and_then(|detail| detail.settings.as_ref())
             .and_then(|settings| settings.selection.as_ref())
-            .expect("selection");
+            .ok_or_else(|| test_error("selection missing"))?;
         assert!(selection.skip_fluff);
+        Ok(())
     }
 
     #[test]
-    fn update_detail_options_updates_settings_fields() {
+    fn update_detail_options_updates_settings_fields() -> Result<()> {
         let id = Uuid::from_u128(13);
-        let detail = base_detail(id);
+        let detail = base_detail(id)?;
         let mut state = TorrentsState::default();
         upsert_detail(&mut state, id, detail);
         let request = TorrentOptionsRequest {
@@ -1030,9 +1074,10 @@ mod tests {
             .details_by_id
             .get(&id)
             .and_then(|detail| detail.settings.as_ref())
-            .expect("settings");
+            .ok_or_else(|| test_error("settings missing"))?;
         assert_eq!(settings.connections_limit, Some(150));
         assert_eq!(settings.pex_enabled, Some(true));
         assert_eq!(settings.queue_position, Some(3));
+        Ok(())
     }
 }

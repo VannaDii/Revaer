@@ -4,9 +4,11 @@ use crate::core::auth::{AuthMode, AuthState, LocalAuth};
 use crate::core::theme::ThemeMode;
 use crate::core::ui::{Density, UiMode};
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode};
+use gloo::console;
 use gloo::storage::{LocalStorage, Storage};
 use gloo::utils::window;
 use js_sys::Date;
+use serde::Serialize;
 use web_sys::Url;
 
 pub(crate) const THEME_KEY: &str = "revaer.theme";
@@ -119,51 +121,51 @@ pub(crate) fn load_last_event_id() -> Option<u64> {
 }
 
 pub(crate) fn persist_last_event_id(id: u64) {
-    let _ = LocalStorage::set(SSE_LAST_EVENT_ID_KEY, id.to_string());
+    set_storage(SSE_LAST_EVENT_ID_KEY, id.to_string());
 }
 
 pub(crate) fn persist_auth_state(state: &AuthState) {
     match state {
         AuthState::ApiKey(value) => {
-            let _ = LocalStorage::set(AUTH_MODE_KEY, "api_key");
-            let _ = LocalStorage::set(API_KEY_KEY, value);
-            let _ = LocalStorage::delete(API_KEY_EXPIRES_AT_KEY);
+            set_storage(AUTH_MODE_KEY, "api_key");
+            set_storage(API_KEY_KEY, value);
+            delete_storage(API_KEY_EXPIRES_AT_KEY);
         }
         AuthState::Local(auth) => {
-            let _ = LocalStorage::set(AUTH_MODE_KEY, "local");
-            let _ = LocalStorage::set(LOCAL_AUTH_USER_KEY, &auth.username);
-            let _ = LocalStorage::set(LOCAL_AUTH_PASS_KEY, &auth.password);
-            let _ = LocalStorage::delete(API_KEY_EXPIRES_AT_KEY);
+            set_storage(AUTH_MODE_KEY, "local");
+            set_storage(LOCAL_AUTH_USER_KEY, &auth.username);
+            set_storage(LOCAL_AUTH_PASS_KEY, &auth.password);
+            delete_storage(API_KEY_EXPIRES_AT_KEY);
         }
         AuthState::Anonymous => {
-            let _ = LocalStorage::set(AUTH_MODE_KEY, "api_key");
-            let _ = LocalStorage::delete(API_KEY_KEY);
-            let _ = LocalStorage::delete(LOCAL_AUTH_USER_KEY);
-            let _ = LocalStorage::delete(LOCAL_AUTH_PASS_KEY);
-            let _ = LocalStorage::delete(API_KEY_EXPIRES_AT_KEY);
+            set_storage(AUTH_MODE_KEY, "api_key");
+            delete_storage(API_KEY_KEY);
+            delete_storage(LOCAL_AUTH_USER_KEY);
+            delete_storage(LOCAL_AUTH_PASS_KEY);
+            delete_storage(API_KEY_EXPIRES_AT_KEY);
         }
     }
 }
 
 pub(crate) fn persist_api_key_with_expiry(api_key: &str, expires_at: &str) {
-    let _ = LocalStorage::set(AUTH_MODE_KEY, "api_key");
-    let _ = LocalStorage::set(API_KEY_KEY, api_key);
+    set_storage(AUTH_MODE_KEY, "api_key");
+    set_storage(API_KEY_KEY, api_key);
     if let Some(expires_at_ms) = parse_expires_at_ms(expires_at) {
-        let _ = LocalStorage::set(API_KEY_EXPIRES_AT_KEY, expires_at_ms);
+        set_storage(API_KEY_EXPIRES_AT_KEY, expires_at_ms);
     } else {
-        let _ = LocalStorage::delete(API_KEY_EXPIRES_AT_KEY);
+        delete_storage(API_KEY_EXPIRES_AT_KEY);
     }
 }
 
 pub(crate) fn clear_auth_storage() {
     clear_api_key_storage();
-    let _ = LocalStorage::delete(LOCAL_AUTH_USER_KEY);
-    let _ = LocalStorage::delete(LOCAL_AUTH_PASS_KEY);
+    delete_storage(LOCAL_AUTH_USER_KEY);
+    delete_storage(LOCAL_AUTH_PASS_KEY);
 }
 
 pub(crate) fn clear_api_key_storage() {
-    let _ = LocalStorage::delete(API_KEY_KEY);
-    let _ = LocalStorage::delete(API_KEY_EXPIRES_AT_KEY);
+    delete_storage(API_KEY_KEY);
+    delete_storage(API_KEY_EXPIRES_AT_KEY);
 }
 
 fn parse_expires_at_ms(value: &str) -> Option<i64> {
@@ -180,7 +182,7 @@ fn load_api_key_expires_at_ms() -> Option<i64> {
 }
 
 pub(crate) fn persist_bypass_local(value: bool) {
-    let _ = LocalStorage::set(AUTH_BYPASS_LOCAL_KEY, value);
+    set_storage(AUTH_BYPASS_LOCAL_KEY, value);
 }
 
 pub(crate) fn allow_anonymous() -> bool {
@@ -238,4 +240,18 @@ pub(crate) fn api_base_url() -> String {
     }
 
     "http://localhost:7070".to_string()
+}
+
+fn set_storage<T: Serialize>(key: &'static str, value: T) {
+    if let Err(err) = LocalStorage::set(key, value) {
+        log_storage_error("set", key, &err.to_string());
+    }
+}
+
+fn delete_storage(key: &'static str) {
+    LocalStorage::delete(key);
+}
+
+fn log_storage_error(operation: &'static str, key: &'static str, detail: &str) {
+    console::error!("storage operation failed", operation, key, detail);
 }

@@ -18,14 +18,19 @@
 //! Layout: bootstrap.rs (wiring), config/, domain/, app/, http/, infra/.
 
 pub mod app;
+pub mod bootstrap;
 pub mod config;
+pub mod error;
 pub mod http;
+pub mod i18n;
 pub mod models;
 pub mod openapi;
+pub mod openapi_assets;
 
+pub use error::{ApiServerError, ApiServerResult};
 pub use http::router::ApiServer;
 pub use http::torrents::TorrentHandles;
-pub use openapi::openapi_document;
+pub use openapi::{openapi_document, openapi_output_path};
 
 #[cfg(test)]
 mod tests {
@@ -61,7 +66,7 @@ mod tests {
         TorrentAction, TorrentCreateRequest, TorrentSelectionRequest, TorrentStateKind,
     };
     use crate::openapi::OpenApiDependencies;
-    use anyhow::Result;
+    use anyhow::{Result, anyhow};
     use async_trait::async_trait;
     #[cfg(feature = "compat-qb")]
     use axum::extract::Form;
@@ -79,7 +84,8 @@ mod tests {
     use futures_util::{StreamExt, future, pin_mut};
     use revaer_config::{
         ApiKeyAuth, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigError,
-        ConfigSnapshot, EngineProfile, FsPolicy, SettingsChangeset, SetupToken, TelemetryConfig,
+        ConfigResult, ConfigSnapshot, EngineProfile, FsPolicy, SettingsChangeset, SetupToken,
+        TelemetryConfig,
         engine_profile::{AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig},
         normalize_engine_profile,
     };
@@ -87,8 +93,8 @@ mod tests {
     use revaer_telemetry::Metrics;
     use revaer_torrent_core::{
         AddTorrent, AddTorrentOptions, FileSelectionUpdate, PeerSnapshot, RemoveTorrent,
-        TorrentInspector, TorrentProgress, TorrentRateLimit, TorrentRates, TorrentSource,
-        TorrentStatus, TorrentWorkflow,
+        TorrentInspector, TorrentProgress, TorrentRateLimit, TorrentRates, TorrentResult,
+        TorrentSource, TorrentStatus, TorrentWorkflow,
     };
     use serde_json::{Value, json};
     use std::collections::HashMap;
@@ -111,11 +117,11 @@ mod tests {
 
     #[async_trait]
     impl TorrentWorkflow for NoopWorkflow {
-        async fn add_torrent(&self, _request: AddTorrent) -> anyhow::Result<()> {
+        async fn add_torrent(&self, _request: AddTorrent) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn remove_torrent(&self, _id: Uuid, _options: RemoveTorrent) -> anyhow::Result<()> {
+        async fn remove_torrent(&self, _id: Uuid, _options: RemoveTorrent) -> TorrentResult<()> {
             Ok(())
         }
     }
@@ -124,21 +130,21 @@ mod tests {
 
     #[async_trait]
     impl TorrentInspector for NoopInspector {
-        async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+        async fn list(&self) -> TorrentResult<Vec<TorrentStatus>> {
             Ok(Vec::new())
         }
 
-        async fn get(&self, _id: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+        async fn get(&self, _id: Uuid) -> TorrentResult<Option<TorrentStatus>> {
             Ok(None)
         }
 
-        async fn peers(&self, _id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+        async fn peers(&self, _id: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
             Ok(Vec::new())
         }
     }
 
     #[tokio::test]
-    async fn torrent_handles_exposes_inner_components() {
+    async fn torrent_handles_exposes_inner_components() -> Result<()> {
         let workflow: Arc<dyn TorrentWorkflow> = Arc::new(NoopWorkflow);
         let inspector: Arc<dyn TorrentInspector> = Arc::new(NoopInspector);
 
@@ -151,21 +157,17 @@ mod tests {
                 source: TorrentSource::magnet("magnet:?xt=urn:btih:demo"),
                 options: AddTorrentOptions::default(),
             })
-            .await
-            .expect("workflow should accept torrent");
+            .await?;
 
-        let listed = handles
-            .inspector()
-            .list()
-            .await
-            .expect("inspector list should succeed");
+        let listed = handles.inspector().list().await?;
         assert!(listed.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn enforce_rate_limit_without_limit_marks_guardrail() {
-        let config = MockConfig::new();
-        let telemetry = Metrics::new().expect("metrics");
+    async fn enforce_rate_limit_without_limit_marks_guardrail() -> Result<()> {
+        let config = MockConfig::new()?;
+        let telemetry = Metrics::new().map_err(|_| anyhow!("metrics init"))?;
         let state = ApiState::new(
             config.shared(),
             telemetry.clone(),
@@ -174,29 +176,28 @@ mod tests {
             None,
         );
 
-        state
-            .enforce_rate_limit("key-1", None)
-            .expect("missing limit should not error");
+        state.enforce_rate_limit("key-1", None)?;
         assert!(
             state
                 .current_health_degraded()
                 .contains(&"api_rate_limit_guard".to_string())
         );
         assert_eq!(telemetry.snapshot().guardrail_violations_total, 1);
+        Ok(())
     }
 
     #[test]
-    fn dummy_payload_covers_all_kinds() {
+    fn dummy_payload_covers_all_kinds() -> Result<()> {
         let tid = Uuid::nil();
         let tid_other = Uuid::from_u128(1);
-        let kinds = (0..10)
-            .map(|tick| {
-                dummy_payload(tick, tid, tid_other)["kind"]
-                    .as_str()
-                    .unwrap()
-                    .to_string()
-            })
-            .collect::<Vec<_>>();
+        let mut kinds = Vec::new();
+        for tick in 0..10 {
+            let payload = dummy_payload(tick, tid, tid_other);
+            let kind = payload["kind"]
+                .as_str()
+                .ok_or_else(|| anyhow!("expected kind string"))?;
+            kinds.push(kind.to_string());
+        }
 
         assert_eq!(
             kinds,
@@ -213,6 +214,7 @@ mod tests {
                 "fsops_failed"
             ]
         );
+        Ok(())
     }
 
     #[test]
@@ -271,108 +273,126 @@ mod tests {
         enabled: bool,
     }
 
+    fn build_engine_profile() -> EngineProfile {
+        EngineProfile {
+            id: Uuid::new_v4(),
+            implementation: "stub".to_string(),
+            listen_port: Some(6881),
+            listen_interfaces: Vec::new(),
+            ipv6_mode: "disabled".to_string(),
+            anonymous_mode: false.into(),
+            force_proxy: false.into(),
+            prefer_rc4: false.into(),
+            allow_multiple_connections_per_ip: false.into(),
+            enable_outgoing_utp: false.into(),
+            enable_incoming_utp: false.into(),
+            dht: true,
+            encryption: "preferred".to_string(),
+            max_active: Some(10),
+            max_download_bps: None,
+            max_upload_bps: None,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
+            connections_limit: None,
+            connections_limit_per_torrent: None,
+            unchoke_slots: None,
+            half_open_limit: None,
+            stats_interval_ms: None,
+            alt_speed: AltSpeedConfig::default(),
+            sequential_default: false,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
+            super_seeding: false.into(),
+            choking_algorithm: EngineProfile::default_choking_algorithm(),
+            seed_choking_algorithm: EngineProfile::default_seed_choking_algorithm(),
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
+            resume_dir: "/tmp/resume".to_string(),
+            download_root: "/tmp/downloads".to_string(),
+            storage_mode: EngineProfile::default_storage_mode(),
+            use_partfile: EngineProfile::default_use_partfile(),
+            disk_read_mode: None,
+            disk_write_mode: None,
+            verify_piece_hashes: EngineProfile::default_verify_piece_hashes(),
+            cache_size: None,
+            cache_expiry: None,
+            coalesce_reads: EngineProfile::default_coalesce_reads(),
+            coalesce_writes: EngineProfile::default_coalesce_writes(),
+            use_disk_cache_pool: EngineProfile::default_use_disk_cache_pool(),
+            tracker: TrackerConfig::default(),
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
+            ip_filter: IpFilterConfig::default(),
+            peer_classes: PeerClassesConfig::default(),
+            outgoing_port_min: None,
+            outgoing_port_max: None,
+            peer_dscp: None,
+        }
+    }
+
+    fn build_app_profile(bind_addr: IpAddr) -> AppProfile {
+        AppProfile {
+            id: Uuid::new_v4(),
+            instance_name: "revaer".to_string(),
+            mode: AppMode::Setup,
+            version: 1,
+            http_port: 7070,
+            bind_addr,
+            telemetry: TelemetryConfig::default(),
+            label_policies: Vec::new(),
+            immutable_keys: Vec::new(),
+        }
+    }
+
+    fn build_fs_policy() -> FsPolicy {
+        FsPolicy {
+            id: Uuid::new_v4(),
+            library_root: "/tmp/library".to_string(),
+            extract: false,
+            par2: "disabled".to_string(),
+            flatten: false,
+            move_mode: "copy".to_string(),
+            cleanup_keep: Vec::new(),
+            cleanup_drop: Vec::new(),
+            chmod_file: None,
+            chmod_dir: None,
+            owner: None,
+            group: None,
+            umask: None,
+            allow_paths: Vec::new(),
+        }
+    }
+
+    fn build_snapshot(bind_addr: IpAddr) -> ConfigSnapshot {
+        let engine_profile = build_engine_profile();
+        ConfigSnapshot {
+            revision: 1,
+            app_profile: build_app_profile(bind_addr),
+            engine_profile: engine_profile.clone(),
+            engine_profile_effective: normalize_engine_profile(&engine_profile),
+            fs_policy: build_fs_policy(),
+        }
+    }
+
     impl MockConfig {
-        fn new() -> Self {
-            let engine_profile = EngineProfile {
-                id: Uuid::new_v4(),
-                implementation: "stub".to_string(),
-                listen_port: Some(6881),
-                listen_interfaces: Vec::new(),
-                ipv6_mode: "disabled".to_string(),
-                anonymous_mode: false.into(),
-                force_proxy: false.into(),
-                prefer_rc4: false.into(),
-                allow_multiple_connections_per_ip: false.into(),
-                enable_outgoing_utp: false.into(),
-                enable_incoming_utp: false.into(),
-                dht: true,
-                encryption: "preferred".to_string(),
-                max_active: Some(10),
-                max_download_bps: None,
-                max_upload_bps: None,
-                seed_ratio_limit: None,
-                seed_time_limit: None,
-                connections_limit: None,
-                connections_limit_per_torrent: None,
-                unchoke_slots: None,
-                half_open_limit: None,
-                stats_interval_ms: None,
-                alt_speed: AltSpeedConfig::default(),
-                sequential_default: false,
-                auto_managed: true.into(),
-                auto_manage_prefer_seeds: false.into(),
-                dont_count_slow_torrents: true.into(),
-                super_seeding: false.into(),
-                choking_algorithm: EngineProfile::default_choking_algorithm(),
-                seed_choking_algorithm: EngineProfile::default_seed_choking_algorithm(),
-                strict_super_seeding: false.into(),
-                optimistic_unchoke_slots: None,
-                max_queued_disk_bytes: None,
-                resume_dir: "/tmp/resume".to_string(),
-                download_root: "/tmp/downloads".to_string(),
-                storage_mode: EngineProfile::default_storage_mode(),
-                use_partfile: EngineProfile::default_use_partfile(),
-                disk_read_mode: None,
-                disk_write_mode: None,
-                verify_piece_hashes: EngineProfile::default_verify_piece_hashes(),
-                cache_size: None,
-                cache_expiry: None,
-                coalesce_reads: EngineProfile::default_coalesce_reads(),
-                coalesce_writes: EngineProfile::default_coalesce_writes(),
-                use_disk_cache_pool: EngineProfile::default_use_disk_cache_pool(),
-                tracker: TrackerConfig::default(),
-                enable_lsd: false.into(),
-                enable_upnp: false.into(),
-                enable_natpmp: false.into(),
-                enable_pex: false.into(),
-                dht_bootstrap_nodes: Vec::new(),
-                dht_router_nodes: Vec::new(),
-                ip_filter: IpFilterConfig::default(),
-                peer_classes: PeerClassesConfig::default(),
-                outgoing_port_min: None,
-                outgoing_port_max: None,
-                peer_dscp: None,
-            };
-            let snapshot = ConfigSnapshot {
-                revision: 1,
-                app_profile: AppProfile {
-                    id: Uuid::new_v4(),
-                    instance_name: "revaer".to_string(),
-                    mode: AppMode::Setup,
-                    version: 1,
-                    http_port: 7070,
-                    bind_addr: IpAddr::from_str("127.0.0.1").expect("ip"),
-                    telemetry: TelemetryConfig::default(),
-                    label_policies: Vec::new(),
-                    immutable_keys: Vec::new(),
-                },
-                engine_profile: engine_profile.clone(),
-                engine_profile_effective: normalize_engine_profile(&engine_profile),
-                fs_policy: FsPolicy {
-                    id: Uuid::new_v4(),
-                    library_root: "/tmp/library".to_string(),
-                    extract: false,
-                    par2: "disabled".to_string(),
-                    flatten: false,
-                    move_mode: "copy".to_string(),
-                    cleanup_keep: Vec::new(),
-                    cleanup_drop: Vec::new(),
-                    chmod_file: None,
-                    chmod_dir: None,
-                    owner: None,
-                    group: None,
-                    umask: None,
-                    allow_paths: Vec::new(),
-                },
-            };
-            Self {
+        fn new() -> Result<Self> {
+            let bind_addr =
+                IpAddr::from_str("127.0.0.1").map_err(|_| anyhow!("invalid bind addr"))?;
+            let snapshot = build_snapshot(bind_addr);
+            Ok(Self {
                 inner: Arc::new(tokio::sync::Mutex::new(MockConfigState {
                     snapshot,
                     tokens: HashMap::new(),
                     api_keys: HashMap::new(),
                 })),
                 fail_snapshot: Arc::new(AtomicBool::new(false)),
-            }
+            })
         }
 
         fn shared(&self) -> SharedConfig {
@@ -411,14 +431,24 @@ mod tests {
 
     #[async_trait]
     impl ConfigFacade for MockConfig {
-        async fn get_app_profile(&self) -> Result<AppProfile> {
+        async fn get_app_profile(&self) -> ConfigResult<AppProfile> {
             Ok(self.inner.lock().await.snapshot.app_profile.clone())
         }
 
-        async fn issue_setup_token(&self, ttl: Duration, _issued_by: &str) -> Result<SetupToken> {
+        async fn issue_setup_token(
+            &self,
+            ttl: Duration,
+            _issued_by: &str,
+        ) -> ConfigResult<SetupToken> {
             let mut guard = self.inner.lock().await;
             let token = format!("token-{}", guard.tokens.len() + 1);
-            let expires_at = Utc::now() + ChronoDuration::from_std(ttl).expect("ttl");
+            let expires_at = Utc::now()
+                + ChronoDuration::from_std(ttl).map_err(|_| ConfigError::InvalidField {
+                    section: "setup_token".to_string(),
+                    field: "ttl".to_string(),
+                    value: Some(ttl.as_secs().to_string()),
+                    reason: "invalid_duration",
+                })?;
             guard.tokens.insert(token.clone(), expires_at);
             drop(guard);
             Ok(SetupToken {
@@ -427,29 +457,29 @@ mod tests {
             })
         }
 
-        async fn validate_setup_token(&self, token: &str) -> Result<()> {
+        async fn validate_setup_token(&self, token: &str) -> ConfigResult<()> {
             let expires = {
                 let guard = self.inner.lock().await;
                 guard
                     .tokens
                     .get(token)
                     .copied()
-                    .ok_or_else(|| anyhow::anyhow!("unknown token"))?
+                    .ok_or(ConfigError::SetupTokenMissing)?
             };
             if expires > Utc::now() {
                 Ok(())
             } else {
-                anyhow::bail!("expired")
+                Err(ConfigError::SetupTokenExpired)
             }
         }
 
-        async fn consume_setup_token(&self, token: &str) -> Result<()> {
+        async fn consume_setup_token(&self, token: &str) -> ConfigResult<()> {
             {
                 let mut guard = self.inner.lock().await;
                 guard
                     .tokens
                     .remove(token)
-                    .ok_or_else(|| anyhow::anyhow!("unknown token"))?;
+                    .ok_or(ConfigError::SetupTokenMissing)?;
             }
             Ok(())
         }
@@ -459,7 +489,7 @@ mod tests {
             _actor: &str,
             _reason: &str,
             mut changeset: SettingsChangeset,
-        ) -> Result<AppliedChanges> {
+        ) -> ConfigResult<AppliedChanges> {
             let mut guard = self.inner.lock().await;
             let mut app_changed = false;
             let mut engine_changed = false;
@@ -518,9 +548,12 @@ mod tests {
             })
         }
 
-        async fn snapshot(&self) -> Result<ConfigSnapshot> {
+        async fn snapshot(&self) -> ConfigResult<ConfigSnapshot> {
             if self.fail_snapshot.load(Ordering::SeqCst) {
-                anyhow::bail!("snapshot unavailable")
+                return Err(ConfigError::Io {
+                    operation: "config.snapshot",
+                    source: std::io::Error::other("stubbed config failure"),
+                });
             }
             Ok(self.inner.lock().await.snapshot.clone())
         }
@@ -529,7 +562,7 @@ mod tests {
             &self,
             key_id: &str,
             secret: &str,
-        ) -> Result<Option<ApiKeyAuth>> {
+        ) -> ConfigResult<Option<ApiKeyAuth>> {
             let auth = {
                 let guard = self.inner.lock().await;
                 guard.api_keys.get(key_id).and_then(|entry| {
@@ -539,12 +572,12 @@ mod tests {
             Ok(auth)
         }
 
-        async fn has_api_keys(&self) -> Result<bool> {
+        async fn has_api_keys(&self) -> ConfigResult<bool> {
             let guard = self.inner.lock().await;
             Ok(!guard.api_keys.is_empty())
         }
 
-        async fn factory_reset(&self) -> Result<()> {
+        async fn factory_reset(&self) -> ConfigResult<()> {
             let mut guard = self.inner.lock().await;
             guard.tokens.clear();
             guard.api_keys.clear();
@@ -584,7 +617,7 @@ mod tests {
 
     #[async_trait]
     impl TorrentWorkflow for StubTorrent {
-        async fn add_torrent(&self, request: AddTorrent) -> anyhow::Result<()> {
+        async fn add_torrent(&self, request: AddTorrent) -> TorrentResult<()> {
             self.added.lock().await.push(request.clone());
             let status = TorrentStatus {
                 id: request.id,
@@ -601,19 +634,19 @@ mod tests {
             Ok(())
         }
 
-        async fn remove_torrent(&self, id: Uuid, _options: RemoveTorrent) -> anyhow::Result<()> {
+        async fn remove_torrent(&self, id: Uuid, _options: RemoveTorrent) -> TorrentResult<()> {
             self.removed.lock().await.push(id);
             self.statuses.lock().await.retain(|status| status.id != id);
             self.actions.lock().await.push((id, "remove".to_string()));
             Ok(())
         }
 
-        async fn pause_torrent(&self, id: Uuid) -> anyhow::Result<()> {
+        async fn pause_torrent(&self, id: Uuid) -> TorrentResult<()> {
             self.actions.lock().await.push((id, "pause".to_string()));
             Ok(())
         }
 
-        async fn resume_torrent(&self, id: Uuid) -> anyhow::Result<()> {
+        async fn resume_torrent(&self, id: Uuid) -> TorrentResult<()> {
             self.actions.lock().await.push((id, "resume".to_string()));
             Ok(())
         }
@@ -622,12 +655,12 @@ mod tests {
             &self,
             id: Uuid,
             rules: FileSelectionUpdate,
-        ) -> anyhow::Result<()> {
+        ) -> TorrentResult<()> {
             self.selections.lock().await.push((id, rules));
             Ok(())
         }
 
-        async fn set_sequential(&self, id: Uuid, enable: bool) -> anyhow::Result<()> {
+        async fn set_sequential(&self, id: Uuid, enable: bool) -> TorrentResult<()> {
             self.actions
                 .lock()
                 .await
@@ -639,7 +672,7 @@ mod tests {
             &self,
             id: Option<Uuid>,
             limits: TorrentRateLimit,
-        ) -> anyhow::Result<()> {
+        ) -> TorrentResult<()> {
             if let Some(id) = id {
                 self.actions.lock().await.push((id, "rate".to_string()));
             }
@@ -647,7 +680,7 @@ mod tests {
             Ok(())
         }
 
-        async fn reannounce(&self, id: Uuid) -> anyhow::Result<()> {
+        async fn reannounce(&self, id: Uuid) -> TorrentResult<()> {
             self.actions
                 .lock()
                 .await
@@ -655,7 +688,7 @@ mod tests {
             Ok(())
         }
 
-        async fn recheck(&self, id: Uuid) -> anyhow::Result<()> {
+        async fn recheck(&self, id: Uuid) -> TorrentResult<()> {
             self.actions.lock().await.push((id, "recheck".to_string()));
             Ok(())
         }
@@ -663,11 +696,11 @@ mod tests {
 
     #[async_trait]
     impl TorrentInspector for StubTorrent {
-        async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+        async fn list(&self) -> TorrentResult<Vec<TorrentStatus>> {
             Ok(self.statuses.lock().await.clone())
         }
 
-        async fn get(&self, id: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+        async fn get(&self, id: Uuid) -> TorrentResult<Option<TorrentStatus>> {
             Ok(self
                 .statuses
                 .lock()
@@ -677,14 +710,14 @@ mod tests {
                 .cloned())
         }
 
-        async fn peers(&self, _id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+        async fn peers(&self, _id: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
             Ok(Vec::new())
         }
     }
 
     #[tokio::test]
     async fn setup_flow_promotes_active_mode() -> Result<()> {
-        let config = MockConfig::new();
+        let config = MockConfig::new()?;
         let events = EventBus::with_capacity(32);
         let mut event_stream = events.subscribe(None);
         let metrics = Metrics::new()?;
@@ -696,9 +729,7 @@ mod tests {
             None,
         ));
 
-        let Json(start) = setup_start(State(state.clone()), None)
-            .await
-            .expect("setup start");
+        let Json(start) = setup_start(State(state.clone()), None).await?;
         assert!(!start.token.is_empty());
 
         let snapshot = config.snapshot().await;
@@ -725,6 +756,7 @@ mod tests {
                 key_id: "bootstrap".to_string(),
                 label: Some("bootstrap".to_string()),
                 enabled: Some(true),
+                expires_at: None,
                 secret: Some("secret".to_string()),
                 rate_limit: None,
             }],
@@ -736,25 +768,23 @@ mod tests {
             Extension(AuthContext::SetupToken(start.token.clone())),
             Json(changeset),
         )
-        .await
-        .expect("setup complete");
+        .await?;
 
-        let snapshot: ConfigSnapshot =
-            serde_json::from_value(response.snapshot.clone()).expect("snapshot");
+        let snapshot: ConfigSnapshot = serde_json::from_value(response.snapshot.clone())?;
         assert_eq!(snapshot.app_profile.mode, AppMode::Active);
         assert!(response.api_key.contains(':'));
         let event = timeout(Duration::from_secs(1), event_stream.next())
             .await
-            .expect("settings event")
-            .expect("event value")
-            .expect("stream recv error");
+            .map_err(|_| anyhow!("settings event timeout"))?
+            .ok_or_else(|| anyhow!("settings event missing"))?
+            .map_err(|_| anyhow!("settings event error"))?;
         assert!(matches!(event.event, CoreEvent::SettingsChanged { .. }));
         Ok(())
     }
 
     #[tokio::test]
     async fn settings_patch_updates_snapshot() -> Result<()> {
-        let config = MockConfig::new();
+        let config = MockConfig::new()?;
         config.set_app_mode(AppMode::Active).await;
         config.insert_api_key("admin", "secret").await;
 
@@ -785,8 +815,7 @@ mod tests {
             }),
             Json(changeset),
         )
-        .await
-        .expect("settings patch");
+        .await?;
 
         assert_eq!(response.app_profile.instance_name, "patched");
         let snapshot = config.snapshot().await;
@@ -796,7 +825,7 @@ mod tests {
 
     #[tokio::test]
     async fn config_snapshot_endpoint_returns_snapshot() -> Result<()> {
-        let config = MockConfig::new();
+        let config = MockConfig::new()?;
         config.set_app_mode(AppMode::Active).await;
         let events = EventBus::with_capacity(4);
         let metrics = Metrics::new()?;
@@ -808,9 +837,7 @@ mod tests {
             None,
         ));
 
-        let Json(snapshot) = get_config_snapshot(State(state.clone()))
-            .await
-            .expect("config snapshot");
+        let Json(snapshot) = get_config_snapshot(State(state.clone())).await?;
         assert_eq!(snapshot.revision, config.snapshot().await.revision);
         Ok(())
     }
@@ -841,7 +868,7 @@ mod tests {
 
     impl TorrentTestHarness {
         async fn new() -> Result<Self> {
-            let config = MockConfig::new();
+            let config = MockConfig::new()?;
             config.set_app_mode(AppMode::Active).await;
             let api_key_id = "operator".to_string();
             config.insert_api_key(&api_key_id, "secret").await;
@@ -983,7 +1010,7 @@ mod tests {
 
     #[tokio::test]
     async fn health_endpoints_reflect_state() -> Result<()> {
-        let config = MockConfig::new();
+        let config = MockConfig::new()?;
         config.set_app_mode(AppMode::Active).await;
         let events = EventBus::with_capacity(8);
         let telemetry = Metrics::new()?;
@@ -995,15 +1022,13 @@ mod tests {
             None,
         ));
 
-        let Json(health_response) = health(State(state.clone())).await.expect("health");
+        let Json(health_response) = health(State(state.clone())).await?;
         assert_eq!(health_response.status, "ok");
 
-        let Json(full) = health_full(State(state.clone()))
-            .await
-            .expect("health full");
+        let Json(full) = health_full(State(state.clone())).await?;
         assert_eq!(full.status, "ok");
 
-        let response = metrics(State(state.clone())).await.expect("metrics");
+        let response = metrics(State(state.clone())).await?;
         assert_eq!(response.status(), StatusCode::OK);
 
         config.set_fail_snapshot(true);
@@ -1013,7 +1038,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sse_stream_resumes_from_last_event() {
+    async fn sse_stream_resumes_from_last_event() -> Result<()> {
         let bus = EventBus::with_capacity(32);
         let torrent_id_1 = Uuid::new_v4();
         let torrent_id_2 = Uuid::new_v4();
@@ -1021,21 +1046,25 @@ mod tests {
         let first_id = bus.publish(CoreEvent::Completed {
             torrent_id: torrent_id_1,
             library_path: "/library/a".to_string(),
-        });
+        })?;
         let second_id = bus.publish(CoreEvent::Completed {
             torrent_id: torrent_id_2,
             library_path: "/library/b".to_string(),
-        });
+        })?;
 
         let stream = event_replay_stream(bus.clone(), Some(first_id));
         pin_mut!(stream);
-        let envelope = stream.next().await.expect("expected event");
+        let envelope = stream
+            .next()
+            .await
+            .ok_or_else(|| anyhow!("expected event"))?;
 
         assert_eq!(envelope.id, second_id);
         match envelope.event {
             CoreEvent::Completed { torrent_id, .. } => assert_eq!(torrent_id, torrent_id_2),
-            other => panic!("unexpected event {other:?}"),
+            _ => return Err(anyhow!("expected completed event")),
         }
+        Ok(())
     }
 
     #[test]
@@ -1102,55 +1131,55 @@ mod tests {
     fn api_error_builders_cover_all_variants() {
         let cases = vec![
             (
-                ApiError::internal("oops"),
+                ApiError::internal("internal server error"),
                 StatusCode::INTERNAL_SERVER_ERROR,
                 PROBLEM_INTERNAL,
                 false,
             ),
             (
-                ApiError::unauthorized("no auth"),
+                ApiError::unauthorized("authentication required"),
                 StatusCode::UNAUTHORIZED,
                 PROBLEM_UNAUTHORIZED,
                 false,
             ),
             (
-                ApiError::bad_request("bad"),
+                ApiError::bad_request("bad request"),
                 StatusCode::BAD_REQUEST,
                 PROBLEM_BAD_REQUEST,
                 false,
             ),
             (
-                ApiError::not_found("gone"),
+                ApiError::not_found("resource not found"),
                 StatusCode::NOT_FOUND,
                 PROBLEM_NOT_FOUND,
                 false,
             ),
             (
-                ApiError::conflict("clash"),
+                ApiError::conflict("conflict"),
                 StatusCode::CONFLICT,
                 PROBLEM_CONFLICT,
                 false,
             ),
             (
-                ApiError::setup_required("setup"),
+                ApiError::setup_required("setup required"),
                 StatusCode::CONFLICT,
                 PROBLEM_SETUP_REQUIRED,
                 false,
             ),
             (
-                ApiError::config_invalid("invalid"),
+                ApiError::config_invalid("configuration invalid"),
                 StatusCode::UNPROCESSABLE_ENTITY,
                 PROBLEM_CONFIG_INVALID,
                 false,
             ),
             (
-                ApiError::service_unavailable("down"),
+                ApiError::service_unavailable("service unavailable"),
                 StatusCode::SERVICE_UNAVAILABLE,
                 PROBLEM_SERVICE_UNAVAILABLE,
                 false,
             ),
             (
-                ApiError::too_many_requests("slow").with_rate_limit_headers(
+                ApiError::too_many_requests("rate limit exceeded").with_rate_limit_headers(
                     10,
                     3,
                     Some(Duration::from_millis(500)),
@@ -1162,31 +1191,52 @@ mod tests {
         ];
 
         for (error, status, kind, with_rate) in cases {
-            assert_eq!(error.status, status);
-            assert_eq!(error.kind, kind);
-            assert_eq!(error.rate_limit.is_some(), with_rate);
+            assert_eq!(error.status(), status);
+            assert_eq!(error.kind(), kind);
+            assert_eq!(error.rate_limit().is_some(), with_rate);
             let response = error.into_response();
             assert_eq!(response.status(), status);
         }
     }
 
     #[test]
-    fn api_error_includes_rate_limit_headers() {
-        let response = ApiError::too_many_requests("throttled")
+    fn api_error_includes_rate_limit_headers() -> Result<()> {
+        let response = ApiError::too_many_requests("rate limit exceeded")
             .with_rate_limit_headers(5, 0, Some(Duration::from_millis(250)))
             .into_response();
         let headers = response.headers();
-        assert_eq!(headers.get(HEADER_RATE_LIMIT_LIMIT).unwrap(), "5");
-        assert_eq!(headers.get(HEADER_RATE_LIMIT_REMAINING).unwrap(), "0");
-        assert_eq!(headers.get(HEADER_RATE_LIMIT_RESET).unwrap(), "1");
-        assert_eq!(headers.get(RETRY_AFTER).unwrap(), "1");
+        assert_eq!(
+            headers
+                .get(HEADER_RATE_LIMIT_LIMIT)
+                .ok_or_else(|| anyhow!("missing rate limit header"))?,
+            "5"
+        );
+        assert_eq!(
+            headers
+                .get(HEADER_RATE_LIMIT_REMAINING)
+                .ok_or_else(|| anyhow!("missing remaining header"))?,
+            "0"
+        );
+        assert_eq!(
+            headers
+                .get(HEADER_RATE_LIMIT_RESET)
+                .ok_or_else(|| anyhow!("missing reset header"))?,
+            "1"
+        );
+        assert_eq!(
+            headers
+                .get(RETRY_AFTER)
+                .ok_or_else(|| anyhow!("missing retry after header"))?,
+            "1"
+        );
+        Ok(())
     }
 
     #[cfg(feature = "compat-qb")]
     #[tokio::test]
-    async fn api_state_tracks_health_and_sessions() {
-        let config: SharedConfig = Arc::new(MockConfig::new());
-        let telemetry = Metrics::new().expect("metrics available");
+    async fn api_state_tracks_health_and_sessions() -> Result<()> {
+        let config: SharedConfig = Arc::new(MockConfig::new()?);
+        let telemetry = Metrics::new().map_err(|_| anyhow!("metrics init"))?;
         let state = ApiServer::build_state(
             config,
             telemetry,
@@ -1206,12 +1256,13 @@ mod tests {
         assert!(!state.validate_qb_session(&session));
 
         state.update_torrent_metrics().await;
+        Ok(())
     }
 
     #[tokio::test]
-    async fn api_server_builds_router_with_mock_config() {
-        let config: SharedConfig = Arc::new(MockConfig::new());
-        let telemetry = Metrics::new().expect("metrics available");
+    async fn api_server_builds_router_with_mock_config() -> Result<()> {
+        let config: SharedConfig = Arc::new(MockConfig::new()?);
+        let telemetry = Metrics::new().map_err(|_| anyhow!("metrics init"))?;
         let events = EventBus::with_capacity(8);
         let openapi_path = std::env::temp_dir().join("revaer-openapi-test.json");
         let persisted = Arc::new(AtomicBool::new(false));
@@ -1231,66 +1282,86 @@ mod tests {
                 }),
             )
         };
-        let server = ApiServer::with_config_at(config, events, None, telemetry, &openapi)
-            .expect("router should build");
+        let server = ApiServer::with_config_at(config, events, None, telemetry, &openapi)?;
 
+        let request = Request::builder()
+            .uri("/health")
+            .body(Body::empty())
+            .map_err(|_| anyhow!("request build"))?;
         let response = server
             .router()
             .clone()
-            .oneshot(
-                Request::builder()
-                    .uri("/health")
-                    .body(Body::empty())
-                    .expect("request"),
-            )
+            .oneshot(request)
             .await
-            .expect("response");
+            .map_err(|_| anyhow!("request failed"))?;
         assert_eq!(response.status(), StatusCode::OK);
         assert!(
             persisted.load(Ordering::SeqCst),
             "OpenAPI persistence should be invoked"
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn sse_stream_emits_event_for_torrent_added() {
+    async fn sse_stream_emits_event_for_torrent_added() -> Result<()> {
         let bus = EventBus::with_capacity(16);
         let publisher = bus.clone();
         let torrent_id = Uuid::new_v4();
         tokio::spawn(async move {
             sleep(Duration::from_millis(10)).await;
-            let _ = publisher.publish(CoreEvent::TorrentAdded {
+            if let Err(error) = publisher.publish(CoreEvent::TorrentAdded {
                 torrent_id,
                 name: "example".to_string(),
-            });
+            }) {
+                tracing::warn!(
+                    event_id = error.event_id(),
+                    event_kind = error.event_kind(),
+                    error = %error,
+                    "failed to publish event"
+                );
+            }
         });
         let stream = event_sse_stream(bus.clone(), None, SseFilter::default());
         pin_mut!(stream);
         match timeout(Duration::from_millis(200), stream.next())
             .await
-            .expect("timed out waiting for SSE event")
+            .map_err(|_| anyhow!("timed out waiting for SSE event"))?
         {
-            Some(Ok(_)) => {}
-            other => panic!("expected SSE event, got {other:?}"),
+            Some(Ok(_)) => Ok(()),
+            _ => Err(anyhow!("expected SSE event")),
         }
     }
 
     #[tokio::test]
-    async fn sse_filter_by_torrent_id() {
+    async fn sse_filter_by_torrent_id() -> Result<()> {
         let bus = EventBus::with_capacity(16);
         let target = Uuid::new_v4();
         let other = Uuid::new_v4();
         let publisher = bus.clone();
 
         tokio::spawn(async move {
-            let _ = publisher.publish(CoreEvent::TorrentAdded {
+            if let Err(error) = publisher.publish(CoreEvent::TorrentAdded {
                 torrent_id: other,
                 name: "other".to_string(),
-            });
-            let _ = publisher.publish(CoreEvent::TorrentAdded {
+            }) {
+                tracing::warn!(
+                    event_id = error.event_id(),
+                    event_kind = error.event_kind(),
+                    error = %error,
+                    "failed to publish event"
+                );
+            }
+            if let Err(error) = publisher.publish(CoreEvent::TorrentAdded {
                 torrent_id: target,
                 name: "matching".to_string(),
-            });
+            }) {
+                tracing::warn!(
+                    event_id = error.event_id(),
+                    event_kind = error.event_kind(),
+                    error = %error,
+                    "failed to publish event"
+                );
+            }
         });
 
         let mut filter = SseFilter::default();
@@ -1303,50 +1374,54 @@ mod tests {
         pin_mut!(stream);
         let envelope = timeout(Duration::from_millis(200), stream.next())
             .await
-            .expect("timed out waiting for filtered event")
-            .expect("stream terminated");
+            .map_err(|_| anyhow!("timed out waiting for filtered event"))?
+            .ok_or_else(|| anyhow!("stream terminated"))?;
         match envelope.event {
             CoreEvent::TorrentAdded { torrent_id, .. } => assert_eq!(torrent_id, target),
-            other => panic!("unexpected event {other:?}"),
+            _ => return Err(anyhow!("unexpected event")),
         }
+        Ok(())
     }
 
     #[test]
-    fn map_config_error_exposes_pointer_for_immutable_field() {
+    fn map_config_error_exposes_pointer_for_immutable_field() -> Result<()> {
         let err = ConfigError::ImmutableField {
             section: "app_profile".to_string(),
             field: "instance_name".to_string(),
         };
-        let api_error = map_config_error(err.into(), "failed");
-        assert_eq!(api_error.status, StatusCode::UNPROCESSABLE_ENTITY);
+        let api_error = map_config_error(&err, "failed");
+        assert_eq!(api_error.status(), StatusCode::UNPROCESSABLE_ENTITY);
         let params = api_error
-            .invalid_params
-            .expect("immutable field should set invalid params");
+            .invalid_params()
+            .ok_or_else(|| anyhow!("missing invalid params"))?;
         assert_eq!(params.len(), 1);
         assert_eq!(params[0].pointer, "/app_profile/instance_name");
         assert!(
             params[0].message.contains("immutable"),
             "message should mention immutability"
         );
+        Ok(())
     }
 
     #[test]
-    fn map_config_error_handles_root_pointer() {
+    fn map_config_error_handles_root_pointer() -> Result<()> {
         let err = ConfigError::InvalidField {
             section: "engine_profile".to_string(),
             field: "<root>".to_string(),
-            message: "changeset must be a JSON object".to_string(),
+            value: None,
+            reason: "changeset must be a JSON object",
         };
-        let api_error = map_config_error(err.into(), "failed");
+        let api_error = map_config_error(&err, "failed");
         let params = api_error
-            .invalid_params
-            .expect("invalid field should set invalid params");
+            .invalid_params()
+            .ok_or_else(|| anyhow!("missing invalid params"))?;
         assert_eq!(params.len(), 1);
         assert_eq!(params[0].pointer, "/engine_profile");
         assert!(
             params[0].message.contains("must be a JSON object"),
             "message should echo validation failure"
         );
+        Ok(())
     }
 
     #[test]
@@ -1400,13 +1475,13 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sse_stream_waits_for_new_events_after_reconnect() {
+    async fn sse_stream_waits_for_new_events_after_reconnect() -> Result<()> {
         let bus = EventBus::with_capacity(32);
         let torrent_id = Uuid::new_v4();
         let last_id = bus.publish(CoreEvent::Completed {
             torrent_id,
             library_path: "/library/a".to_string(),
-        });
+        })?;
 
         let stream = event_replay_stream(bus.clone(), Some(last_id));
         pin_mut!(stream);
@@ -1419,12 +1494,18 @@ mod tests {
                 torrent_id: Uuid::new_v4(),
                 library_path: "/library/b".to_string(),
             });
-            let _ = tx.send(next);
+            if tx.send(next).is_err() {
+                tracing::warn!("failed to send publish id");
+            }
         });
 
-        let envelope = stream.next().await.expect("expected event");
-        let next_id = rx.await.expect("publish id");
+        let envelope = stream
+            .next()
+            .await
+            .ok_or_else(|| anyhow!("expected event"))?;
+        let next_id = rx.await.map_err(|_| anyhow!("publish id"))??;
         assert_eq!(envelope.id, next_id);
+        Ok(())
     }
 
     #[derive(Default)]
@@ -1442,23 +1523,23 @@ mod tests {
 
     #[async_trait]
     impl TorrentInspector for StubInspector {
-        async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+        async fn list(&self) -> TorrentResult<Vec<TorrentStatus>> {
             let snapshot = self.statuses.lock().await.clone();
             Ok(snapshot)
         }
 
-        async fn get(&self, id: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+        async fn get(&self, id: Uuid) -> TorrentResult<Option<TorrentStatus>> {
             let snapshot = self.statuses.lock().await.clone();
             Ok(snapshot.into_iter().find(|status| status.id == id))
         }
 
-        async fn peers(&self, _id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+        async fn peers(&self, _id: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
             Ok(Vec::new())
         }
     }
 
     #[tokio::test]
-    async fn fetch_all_torrents_returns_statuses() {
+    async fn fetch_all_torrents_returns_statuses() -> Result<()> {
         let workflow = Arc::new(RecordingWorkflow::default());
         let workflow_trait: Arc<dyn TorrentWorkflow> = workflow.clone();
         let now = Utc::now();
@@ -1491,16 +1572,15 @@ mod tests {
         let inspector_trait: Arc<dyn TorrentInspector> = inspector.clone();
         let handles = TorrentHandles::new(workflow_trait, inspector_trait);
 
-        let statuses = fetch_all_torrents(&handles)
-            .await
-            .expect("torrent statuses");
+        let statuses = fetch_all_torrents(&handles).await?;
         assert_eq!(statuses.len(), 1);
         assert_eq!(statuses[0].state, TorrentState::Downloading);
         assert_eq!(statuses[0].name.as_deref(), Some("ubuntu.iso"));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn fetch_torrent_status_respects_not_found() {
+    async fn fetch_torrent_status_respects_not_found() -> Result<()> {
         let workflow = Arc::new(RecordingWorkflow::default());
         let inspector = Arc::new(StubInspector::default());
         let handles = TorrentHandles::new(
@@ -1509,9 +1589,10 @@ mod tests {
         );
         let result = fetch_torrent_status(&handles, Uuid::new_v4()).await;
         match result {
-            Err(err) => assert_eq!(err.status, StatusCode::NOT_FOUND),
-            Ok(_) => panic!("expected torrent lookup to fail"),
+            Err(err) => assert_eq!(err.status(), StatusCode::NOT_FOUND),
+            Ok(_) => return Err(anyhow!("expected torrent lookup to fail")),
         }
+        Ok(())
     }
 
     #[derive(Default)]
@@ -1524,17 +1605,25 @@ mod tests {
 
     #[async_trait]
     impl TorrentWorkflow for RecordingWorkflow {
-        async fn add_torrent(&self, request: AddTorrent) -> anyhow::Result<()> {
+        async fn add_torrent(&self, request: AddTorrent) -> TorrentResult<()> {
             if self.should_fail_add {
-                anyhow::bail!("injected failure");
+                return Err(revaer_torrent_core::TorrentError::OperationFailed {
+                    operation: "add_torrent",
+                    torrent_id: Some(request.id),
+                    source: Box::new(std::io::Error::other("injected failure")),
+                });
             }
             self.added.lock().await.push(request);
             Ok(())
         }
 
-        async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> anyhow::Result<()> {
+        async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> TorrentResult<()> {
             if self.should_fail_remove {
-                anyhow::bail!("remove failure");
+                return Err(revaer_torrent_core::TorrentError::OperationFailed {
+                    operation: "remove_torrent",
+                    torrent_id: Some(id),
+                    source: Box::new(std::io::Error::other("remove failure")),
+                });
             }
             self.removed.lock().await.push((id, options));
             Ok(())
@@ -1544,28 +1633,28 @@ mod tests {
             &self,
             _: Uuid,
             _: revaer_torrent_core::model::PieceDeadline,
-        ) -> anyhow::Result<()> {
+        ) -> TorrentResult<()> {
             Ok(())
         }
     }
 
     #[async_trait]
     impl TorrentInspector for RecordingWorkflow {
-        async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+        async fn list(&self) -> TorrentResult<Vec<TorrentStatus>> {
             Ok(Vec::new())
         }
 
-        async fn get(&self, _id: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+        async fn get(&self, _id: Uuid) -> TorrentResult<Option<TorrentStatus>> {
             Ok(None)
         }
 
-        async fn peers(&self, _id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+        async fn peers(&self, _id: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
             Ok(Vec::new())
         }
     }
 
     #[tokio::test]
-    async fn create_torrent_requires_workflow() {
+    async fn create_torrent_requires_workflow() -> Result<()> {
         let request = TorrentCreateRequest {
             id: Uuid::new_v4(),
             magnet: Some("magnet:?xt=urn:btih:example".to_string()),
@@ -1573,18 +1662,20 @@ mod tests {
             ..TorrentCreateRequest::default()
         };
 
-        let config = MockConfig::new();
+        let config = MockConfig::new()?;
         let state = ApiState::new(
             config.shared(),
-            Metrics::new().expect("metrics"),
+            Metrics::new().map_err(|_| anyhow!("metrics init"))?,
             Arc::new(json!({})),
             EventBus::with_capacity(4),
             None,
         );
         let err = dispatch_torrent_add(&state, &request, Vec::new(), Vec::new())
             .await
-            .expect_err("expected workflow to be unavailable");
-        assert_eq!(err.status, StatusCode::SERVICE_UNAVAILABLE);
+            .err()
+            .ok_or_else(|| anyhow!("expected workflow to be unavailable"))?;
+        assert_eq!(err.status(), StatusCode::SERVICE_UNAVAILABLE);
+        Ok(())
     }
 
     #[tokio::test]
@@ -1605,17 +1696,15 @@ mod tests {
         let inspector_trait: Arc<dyn TorrentInspector> = workflow.clone();
         let handles = TorrentHandles::new(workflow_trait, inspector_trait);
 
-        let config = MockConfig::new();
+        let config = MockConfig::new()?;
         let state = ApiState::new(
             config.shared(),
-            Metrics::new().expect("metrics"),
+            Metrics::new().map_err(|_| anyhow!("metrics init"))?,
             Arc::new(json!({})),
             EventBus::with_capacity(4),
             Some(handles),
         );
-        dispatch_torrent_add(&state, &request, Vec::new(), Vec::new())
-            .await
-            .expect("torrent creation should succeed");
+        dispatch_torrent_add(&state, &request, Vec::new(), Vec::new()).await?;
         let recorded_entry = {
             let recorded = workflow.added.lock().await;
             assert_eq!(recorded.len(), 1);
@@ -1626,7 +1715,9 @@ mod tests {
             TorrentSource::Magnet { uri } => {
                 assert!(uri.contains("ubuntu"));
             }
-            TorrentSource::Metainfo { .. } => panic!("expected magnet source"),
+            TorrentSource::Metainfo { .. } => {
+                return Err(anyhow!("expected magnet source"));
+            }
         }
         assert_eq!(
             recorded_entry.options.name_hint.as_deref(),
@@ -1691,12 +1782,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn delete_torrent_requires_workflow() {
+    async fn delete_torrent_requires_workflow() -> Result<()> {
         let id = Uuid::new_v4();
         let err = dispatch_torrent_remove(None, id)
             .await
-            .expect_err("expected workflow to be unavailable");
-        assert_eq!(err.status, StatusCode::SERVICE_UNAVAILABLE);
+            .err()
+            .ok_or_else(|| anyhow!("expected workflow to be unavailable"))?;
+        assert_eq!(err.status(), StatusCode::SERVICE_UNAVAILABLE);
+        Ok(())
     }
 
     #[tokio::test]
@@ -1708,9 +1801,7 @@ mod tests {
         let inspector_trait: Arc<dyn TorrentInspector> = workflow.clone();
         let handles = TorrentHandles::new(workflow_trait, inspector_trait);
 
-        dispatch_torrent_remove(Some(&handles), id)
-            .await
-            .expect("torrent removal should succeed");
+        dispatch_torrent_remove(Some(&handles), id).await?;
 
         {
             let recorded = workflow.removed.lock().await;
@@ -1722,15 +1813,16 @@ mod tests {
     }
 
     #[test]
-    fn decode_cursor_token_rejects_invalid_base64() {
+    fn decode_cursor_token_rejects_invalid_base64() -> Result<()> {
         let err = decode_cursor_token("%%%");
         assert!(err.is_err(), "invalid cursor token should error");
-        let api_err = err.expect_err("expected error");
-        assert_eq!(api_err.status, StatusCode::BAD_REQUEST);
+        let api_err = err.err().ok_or_else(|| anyhow!("expected error"))?;
+        assert_eq!(api_err.status(), StatusCode::BAD_REQUEST);
+        Ok(())
     }
 
     #[test]
-    fn cursor_token_round_trip_preserves_identity() {
+    fn cursor_token_round_trip_preserves_identity() -> Result<()> {
         let status = TorrentStatus {
             id: Uuid::new_v4(),
             last_updated: Utc::now(),
@@ -1751,17 +1843,20 @@ mod tests {
             }),
         };
 
-        let encoded = encode_cursor_from_entry(&entry).expect("cursor encoding should succeed");
-        let decoded = decode_cursor_token(&encoded).expect("cursor decoding should succeed");
+        let encoded = encode_cursor_from_entry(&entry)?;
+        let decoded = decode_cursor_token(&encoded)?;
         assert_eq!(decoded.id, status.id);
         assert_eq!(decoded.last_updated, status.last_updated);
+        Ok(())
     }
 
     #[test]
-    fn parse_state_filter_rejects_unknown_value() {
-        let err =
-            parse_state_filter("mystery").expect_err("unexpected success for unknown state filter");
-        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+    fn parse_state_filter_rejects_unknown_value() -> Result<()> {
+        let err = parse_state_filter("mystery")
+            .err()
+            .ok_or_else(|| anyhow!("unexpected success for unknown state filter"))?;
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
+        Ok(())
     }
 
     #[test]
@@ -1776,7 +1871,7 @@ mod tests {
     #[cfg(feature = "compat-qb")]
     #[tokio::test]
     async fn qb_sync_maindata_maps_status() -> anyhow::Result<()> {
-        let config = MockConfig::new();
+        let config = MockConfig::new()?;
         config.set_app_mode(AppMode::Active).await;
         let events = EventBus::with_capacity(8);
         let metrics = Metrics::new()?;
@@ -1809,11 +1904,10 @@ mod tests {
             Some(handles),
         ));
 
-        let headers = qb_session_headers(&state);
+        let headers = qb_session_headers(&state)?;
         let Json(response) =
             compat_qb::sync_maindata(State(state.clone()), headers, Query(SyncParams::default()))
-                .await
-                .expect("sync");
+                .await?;
 
         assert!(response.full_update);
         assert!(
@@ -1828,7 +1922,7 @@ mod tests {
     #[cfg(feature = "compat-qb")]
     #[tokio::test]
     async fn qb_sync_maindata_returns_incremental_changes() -> anyhow::Result<()> {
-        let config = MockConfig::new();
+        let config = MockConfig::new()?;
         config.set_app_mode(AppMode::Active).await;
         let events = EventBus::with_capacity(8);
         let metrics = Metrics::new()?;
@@ -1862,16 +1956,15 @@ mod tests {
             Some(handles),
         ));
 
-        let _ = events.publish(CoreEvent::TorrentAdded {
+        events.publish(CoreEvent::TorrentAdded {
             torrent_id: sample_id,
             name: "sample".to_string(),
-        });
+        })?;
 
-        let headers = qb_session_headers(&state);
+        let headers = qb_session_headers(&state)?;
         let Json(initial) =
             compat_qb::sync_maindata(State(state.clone()), headers, Query(SyncParams::default()))
-                .await
-                .expect("initial sync");
+                .await?;
         let previous_rid = initial.rid;
         assert!(initial.full_update);
 
@@ -1883,13 +1976,13 @@ mod tests {
             }
         }
 
-        let _ = events.publish(CoreEvent::Progress {
+        events.publish(CoreEvent::Progress {
             torrent_id: sample_id,
             bytes_downloaded: 400,
             bytes_total: 512,
-        });
+        })?;
 
-        let headers = qb_session_headers(&state);
+        let headers = qb_session_headers(&state)?;
         let Json(delta) = compat_qb::sync_maindata(
             State(state.clone()),
             headers,
@@ -1897,8 +1990,7 @@ mod tests {
                 rid: Some(previous_rid),
             }),
         )
-        .await
-        .expect("incremental sync");
+        .await?;
 
         assert!(!delta.full_update);
         assert_eq!(delta.torrents.len(), 1);
@@ -1908,11 +2000,11 @@ mod tests {
 
         stub.statuses.lock().await.clear();
         let latest_rid = delta.rid;
-        let _ = events.publish(CoreEvent::TorrentRemoved {
+        events.publish(CoreEvent::TorrentRemoved {
             torrent_id: sample_id,
-        });
+        })?;
 
-        let headers = qb_session_headers(&state);
+        let headers = qb_session_headers(&state)?;
         let Json(removed_delta) = compat_qb::sync_maindata(
             State(state),
             headers,
@@ -1920,8 +2012,7 @@ mod tests {
                 rid: Some(latest_rid),
             }),
         )
-        .await
-        .expect("removal sync");
+        .await?;
 
         assert!(!removed_delta.full_update);
         assert!(removed_delta.torrents.is_empty());
@@ -1936,7 +2027,7 @@ mod tests {
     #[cfg(feature = "compat-qb")]
     #[tokio::test]
     async fn qb_torrents_add_records_submission() -> anyhow::Result<()> {
-        let config = MockConfig::new();
+        let config = MockConfig::new()?;
         config.set_app_mode(AppMode::Active).await;
         let events = EventBus::with_capacity(8);
         let metrics = Metrics::new()?;
@@ -1956,10 +2047,8 @@ mod tests {
             ..TorrentAddForm::default()
         };
 
-        let headers = qb_session_headers(&state);
-        compat_qb::torrents_add(State(state), headers, Form(form))
-            .await
-            .expect("add torrent");
+        let headers = qb_session_headers(&state)?;
+        compat_qb::torrents_add(State(state), headers, Form(form)).await?;
 
         assert_eq!(stub.added().await.len(), 1);
         Ok(())
@@ -1967,16 +2056,17 @@ mod tests {
 
     #[cfg(feature = "compat-qb")]
     #[test]
-    fn qb_parse_limit_handles_unlimited() {
-        assert_eq!(compat_qb::parse_limit("0").unwrap(), None);
-        assert_eq!(compat_qb::parse_limit("-1").unwrap(), None);
-        assert_eq!(compat_qb::parse_limit("1024").unwrap(), Some(1_024));
+    fn qb_parse_limit_handles_unlimited() -> Result<()> {
+        assert_eq!(compat_qb::parse_limit("0")?, None);
+        assert_eq!(compat_qb::parse_limit("-1")?, None);
+        assert_eq!(compat_qb::parse_limit("1024")?, Some(1_024));
+        Ok(())
     }
 
     #[cfg(feature = "compat-qb")]
     #[tokio::test]
     async fn qb_torrents_info_filters_hashes() -> anyhow::Result<()> {
-        let config = MockConfig::new();
+        let config = MockConfig::new()?;
         config.set_app_mode(AppMode::Active).await;
         let events = EventBus::with_capacity(8);
         let metrics = Metrics::new()?;
@@ -2013,10 +2103,8 @@ mod tests {
             hashes: Some(sample_status.id.simple().to_string()),
         };
 
-        let headers = qb_session_headers(&state);
-        let Json(entries) = compat_qb::torrents_info(State(state), headers, Query(params))
-            .await
-            .expect("torrents info");
+        let headers = qb_session_headers(&state)?;
+        let Json(entries) = compat_qb::torrents_info(State(state), headers, Query(params)).await?;
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].hash, sample_status.id.simple().to_string());
         Ok(())
@@ -2025,7 +2113,7 @@ mod tests {
     #[cfg(feature = "compat-qb")]
     #[tokio::test]
     async fn qb_torrent_pause_resume_apply_actions() -> anyhow::Result<()> {
-        let config = MockConfig::new();
+        let config = MockConfig::new()?;
         config.set_app_mode(AppMode::Active).await;
         let events = EventBus::with_capacity(8);
         let metrics = Metrics::new()?;
@@ -2051,13 +2139,10 @@ mod tests {
         let hashes = sample_status.id.simple().to_string();
         let form = TorrentHashesForm { hashes };
 
-        let headers = qb_session_headers(&state);
+        let headers = qb_session_headers(&state)?;
         compat_qb::torrents_pause(State(state.clone()), headers.clone(), Form(form.clone()))
-            .await
-            .expect("pause");
-        compat_qb::torrents_resume(State(state), headers, Form(form))
-            .await
-            .expect("resume");
+            .await?;
+        compat_qb::torrents_resume(State(state), headers, Form(form)).await?;
 
         let actions = stub.actions().await;
         assert!(actions.iter().any(|(_, action)| action == "pause"));
@@ -2068,7 +2153,7 @@ mod tests {
     #[cfg(feature = "compat-qb")]
     #[tokio::test]
     async fn qb_transfer_limits_accept_positive_values() -> anyhow::Result<()> {
-        let config = MockConfig::new();
+        let config = MockConfig::new()?;
         config.set_app_mode(AppMode::Active).await;
         let events = EventBus::with_capacity(8);
         let metrics = Metrics::new()?;
@@ -2085,25 +2170,23 @@ mod tests {
         let form = TransferLimitForm {
             limit: "2048".to_string(),
         };
-        let headers = qb_session_headers(&state);
+        let headers = qb_session_headers(&state)?;
         compat_qb::transfer_upload_limit(State(state.clone()), headers.clone(), Form(form.clone()))
-            .await
-            .expect("upload limit");
-        compat_qb::transfer_download_limit(State(state), headers, Form(form))
-            .await
-            .expect("download limit");
+            .await?;
+        compat_qb::transfer_download_limit(State(state), headers, Form(form)).await?;
         Ok(())
     }
 
     #[cfg(feature = "compat-qb")]
-    fn qb_session_headers(state: &Arc<ApiState>) -> HeaderMap {
+    fn qb_session_headers(state: &Arc<ApiState>) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
         let sid = state.issue_qb_session();
         headers.insert(
             COOKIE,
-            HeaderValue::from_str(&format!("SID={sid}")).expect("valid cookie header"),
+            HeaderValue::from_str(&format!("SID={sid}"))
+                .map_err(|_| anyhow!("valid cookie header"))?,
         );
-        headers
+        Ok(headers)
     }
 
     #[test]
@@ -2112,7 +2195,7 @@ mod tests {
     }
 
     #[test]
-    fn detail_from_components_embeds_metadata() {
+    fn detail_from_components_embeds_metadata() -> Result<()> {
         let now = Utc::now();
         let status = TorrentStatus {
             id: Uuid::new_v4(),
@@ -2161,8 +2244,13 @@ mod tests {
             Some(10)
         );
         assert_eq!(
-            detail.settings.as_ref().expect("settings present").trackers,
+            detail
+                .settings
+                .as_ref()
+                .ok_or_else(|| anyhow!("expected settings"))?
+                .trackers,
             vec!["http://tracker".to_string()]
         );
+        Ok(())
     }
 }

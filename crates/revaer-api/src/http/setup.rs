@@ -68,7 +68,7 @@ pub(crate) async fn setup_complete(
 
     let snapshot = apply_setup_changes(&state, changeset, &token).await?;
 
-    let _ = state.events.publish(CoreEvent::SettingsChanged {
+    state.publish_event(CoreEvent::SettingsChanged {
         description: format!("setup_complete revision {}", snapshot.revision),
     });
 
@@ -92,19 +92,26 @@ struct BootstrapApiKey {
 
 fn ensure_bootstrap_api_key(changeset: &mut SettingsChangeset) -> BootstrapApiKey {
     let expires_at = Utc::now() + ChronoDuration::days(14);
-    if let Some(key) = changeset.api_keys.iter().find_map(|patch| match patch {
-        ApiKeyPatch::Upsert {
+    for patch in &mut changeset.api_keys {
+        if let ApiKeyPatch::Upsert {
             key_id,
             secret: Some(secret),
+            expires_at: patch_expires_at,
             ..
-        } if !secret.trim().is_empty() => Some(BootstrapApiKey {
-            key_id: key_id.clone(),
-            secret: secret.clone(),
-            expires_at,
-        }),
-        _ => None,
-    }) {
-        return key;
+        } = patch
+        {
+            if secret.trim().is_empty() {
+                continue;
+            }
+            if patch_expires_at.is_none() {
+                *patch_expires_at = Some(expires_at);
+            }
+            return BootstrapApiKey {
+                key_id: key_id.clone(),
+                secret: secret.clone(),
+                expires_at,
+            };
+        }
     }
 
     let key_id = Uuid::new_v4().simple().to_string();
@@ -113,6 +120,7 @@ fn ensure_bootstrap_api_key(changeset: &mut SettingsChangeset) -> BootstrapApiKe
         key_id: key_id.clone(),
         label: Some("bootstrap".to_string()),
         enabled: Some(true),
+        expires_at: Some(expires_at),
         secret: Some(secret.clone()),
         rate_limit: None,
     });
@@ -159,7 +167,7 @@ async fn apply_setup_changes(
         .config
         .apply_changeset("setup", "setup_complete", changeset)
         .await
-        .map_err(|err| map_config_error(err, "failed to apply setup changes"))?;
+        .map_err(|err| map_config_error(&err, "failed to apply setup changes"))?;
 
     if let Err(err) = state.config.consume_setup_token(token).await {
         error!(error = %err, "failed to consume setup token after completion");

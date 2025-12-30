@@ -4,11 +4,73 @@
 #[allow(unsafe_code)]
 pub mod bridge;
 
+/// Errors returned when constructing FFI session handles.
+#[derive(Debug)]
+pub enum SessionHandleError {
+    /// The C++ session constructor returned a null pointer.
+    NullSession,
+}
+
+impl std::fmt::Display for SessionHandleError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::NullSession => formatter.write_str("native session initialization returned null"),
+        }
+    }
+}
+
+impl std::error::Error for SessionHandleError {}
+
+/// Owned handle to the native session pointer.
 #[cfg(feature = "libtorrent")]
-#[allow(unsafe_code, clippy::non_send_fields_in_send_ty)]
-// SAFETY: the C++ session wrapper is created on the main thread and moved into the
-// dedicated worker task exactly once; it is never shared concurrently across threads.
-unsafe impl Send for bridge::ffi::Session {}
+#[allow(unsafe_code)]
+pub struct SessionHandle {
+    inner: *mut bridge::ffi::Session,
+}
+
+#[cfg(feature = "libtorrent")]
+#[allow(unsafe_code)]
+unsafe impl Send for SessionHandle {}
+
+#[cfg(feature = "libtorrent")]
+#[allow(unsafe_code)]
+impl SessionHandle {
+    /// Create a new session handle from the C++ constructor.
+    ///
+    /// # Errors
+    ///
+    /// Returns `SessionHandleError::NullSession` when the native constructor returns null.
+    pub fn new(options: &bridge::ffi::SessionOptions) -> Result<Self, SessionHandleError> {
+        let raw = bridge::ffi::new_session(options).into_raw();
+        if raw.is_null() {
+            return Err(SessionHandleError::NullSession);
+        }
+        Ok(Self { inner: raw })
+    }
+
+    /// Borrow the session mutably, pinned for C++ method calls.
+    pub fn pin_mut(&mut self) -> std::pin::Pin<&mut bridge::ffi::Session> {
+        unsafe { std::pin::Pin::new_unchecked(&mut *self.inner) }
+    }
+}
+
+#[cfg(feature = "libtorrent")]
+#[allow(unsafe_code)]
+impl AsRef<bridge::ffi::Session> for SessionHandle {
+    fn as_ref(&self) -> &bridge::ffi::Session {
+        unsafe { &*self.inner }
+    }
+}
+
+#[cfg(feature = "libtorrent")]
+#[allow(unsafe_code)]
+impl Drop for SessionHandle {
+    fn drop(&mut self) {
+        unsafe {
+            drop(cxx::UniquePtr::from_raw(self.inner));
+        }
+    }
+}
 
 /// Re-export of the generated CXX bindings for consumers within this crate.
 pub use bridge::ffi;

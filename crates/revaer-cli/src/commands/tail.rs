@@ -113,7 +113,7 @@ pub(crate) async fn stream_events(
                         **slot = id;
                     }
                     if let Some(path) = &args.resume_file {
-                        let _ = fs::write(path, id.to_string());
+                        fs::write(path, id.to_string()).map_err(CliError::failure)?;
                     }
                 }
                 match serde_json::from_str::<EventEnvelope>(&payload) {

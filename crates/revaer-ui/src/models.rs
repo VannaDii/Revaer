@@ -394,3 +394,65 @@ fn demo_detail_files() -> Vec<TorrentFileView> {
         },
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::error::Error;
+    use std::io;
+    use uuid::Uuid;
+
+    type Result<T> = std::result::Result<T, Box<dyn Error>>;
+
+    fn test_error(message: &'static str) -> Box<dyn Error> {
+        Box::new(io::Error::other(message))
+    }
+
+    #[test]
+    fn demo_snapshot_populates_expected_fields() {
+        let snapshot = demo_snapshot();
+        assert_eq!(snapshot.download_bps, 142_000_000);
+        assert_eq!(snapshot.upload_bps, 22_000_000);
+        assert_eq!(snapshot.paths.len(), 3);
+        assert_eq!(snapshot.recent_events.len(), 4);
+        assert_eq!(snapshot.queue.depth, 34);
+        assert_eq!(snapshot.vpn.state, "connected");
+    }
+
+    #[test]
+    fn demo_detail_names_match_known_ids() -> Result<()> {
+        let cases = [
+            (
+                Uuid::from_u128(2),
+                "The.Expanse.S01E05.1080p.BluRay.DTS.x264",
+            ),
+            (
+                Uuid::from_u128(3),
+                "Dune.Part.One.2021.2160p.REMUX.DV.DTS-HD.MA.7.1",
+            ),
+            (Uuid::from_u128(4), "Ubuntu-24.04.1-live-server-amd64.iso"),
+            (
+                Uuid::from_u128(5),
+                "Arcane.S02E02.1080p.NF.WEB-DL.DDP5.1.Atmos.x264",
+            ),
+        ];
+        for (id, expected) in cases {
+            let detail =
+                demo_detail(&id.to_string()).ok_or_else(|| test_error("demo detail missing"))?;
+            assert_eq!(detail.summary.name.as_deref(), Some(expected));
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn demo_detail_falls_back_on_invalid_id() -> Result<()> {
+        let detail = demo_detail("not-a-uuid").ok_or_else(|| test_error("demo detail missing"))?;
+        assert_eq!(detail.summary.id, Uuid::nil());
+        assert_eq!(
+            detail.summary.name.as_deref(),
+            Some("Foundation.S02E08.2160p.WEB-DL.DDP5.1.Atmos.HDR10")
+        );
+        assert_eq!(detail.files.as_ref().map(Vec::len), Some(3));
+        Ok(())
+    }
+}

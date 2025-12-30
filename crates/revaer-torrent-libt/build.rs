@@ -1,10 +1,19 @@
 use std::env;
+use std::error::Error;
+use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 const MIN_VERSION: &str = "2.0.10";
 
 fn main() {
+    if let Err(err) = try_main() {
+        eprintln!("{err}");
+        std::process::exit(1);
+    }
+}
+
+fn try_main() -> Result<(), BuildError> {
     println!("cargo:rerun-if-env-changed=LIBTORRENT_INCLUDE_DIR");
     println!("cargo:rerun-if-env-changed=LIBTORRENT_LIB_DIR");
     println!("cargo:rerun-if-env-changed=LIBTORRENT_BUNDLE_DIR");
@@ -17,13 +26,13 @@ fn main() {
     bridge.include(&include_dir);
 
     if let Some((include, lib)) = bundled_paths() {
-        ensure_header_version(&include);
+        ensure_header_version(&include)?;
         bridge.include(&include);
         println!("cargo:rustc-link-search=native={}", lib.display());
         emit_link_libs(vec!["torrent-rasterbar".to_string()]);
         bridge.compile("revaer-libtorrent");
         emit_reruns();
-        return;
+        return Ok(());
     }
 
     for prefix in ["/opt/homebrew", "/usr/local"] {
@@ -53,18 +62,16 @@ fn main() {
     }
 
     if let Some(include_dir) = include_override.as_ref() {
-        ensure_header_version(include_dir);
+        ensure_header_version(include_dir)?;
     } else if lib_dir_override.is_some() {
-        panic!("LIBTORRENT_INCLUDE_DIR must be set to verify libtorrent version");
+        return Err(BuildError::MissingIncludeDir);
     }
 
     if libs.is_empty() {
         let libtorrent = pkg_config::Config::new()
             .atleast_version(MIN_VERSION)
             .probe("libtorrent-rasterbar")
-            .unwrap_or_else(|err| {
-                panic!("libtorrent-rasterbar >= {MIN_VERSION} not found via pkg-config: {err}")
-            });
+            .map_err(BuildError::PkgConfig)?;
         let include_paths = libtorrent.include_paths;
         for path in include_paths {
             bridge.include(path);
@@ -83,6 +90,7 @@ fn main() {
     bridge.compile("revaer-libtorrent");
     emit_link_libs(libs);
     emit_reruns();
+    Ok(())
 }
 
 fn bundled_paths() -> Option<(PathBuf, PathBuf)> {
@@ -109,26 +117,23 @@ fn emit_reruns() {
     println!("cargo:rerun-if-changed=src/ffi/session.cpp");
 }
 
-fn ensure_header_version(include_dir: &Path) {
+fn ensure_header_version(include_dir: &Path) -> Result<(), BuildError> {
     let header = include_dir.join("libtorrent").join("version.hpp");
-    let contents = fs::read_to_string(&header).unwrap_or_else(|err| {
-        panic!(
-            "failed to read libtorrent version header at {}: {err}",
-            header.display()
-        )
-    });
+    let contents =
+        fs::read_to_string(&header).map_err(|source| BuildError::ReadHeader { source })?;
 
-    let major = parse_define(&contents, "LIBTORRENT_VERSION_MAJOR")
-        .unwrap_or_else(|| panic!("missing LIBTORRENT_VERSION_MAJOR in {}", header.display()));
-    let minor = parse_define(&contents, "LIBTORRENT_VERSION_MINOR")
-        .unwrap_or_else(|| panic!("missing LIBTORRENT_VERSION_MINOR in {}", header.display()));
-    let patch = parse_define(&contents, "LIBTORRENT_VERSION_TINY")
-        .unwrap_or_else(|| panic!("missing LIBTORRENT_VERSION_TINY in {}", header.display()));
+    let major =
+        parse_define(&contents, "LIBTORRENT_VERSION_MAJOR").ok_or(BuildError::MissingDefine)?;
+    let minor =
+        parse_define(&contents, "LIBTORRENT_VERSION_MINOR").ok_or(BuildError::MissingDefine)?;
+    let patch =
+        parse_define(&contents, "LIBTORRENT_VERSION_TINY").ok_or(BuildError::MissingDefine)?;
 
-    let required = parse_min_version();
+    let required = parse_min_version()?;
     if (major, minor, patch) < required {
-        panic!("libtorrent version {major}.{minor}.{patch} is below required {MIN_VERSION}");
+        return Err(BuildError::VersionTooOld);
     }
+    Ok(())
 }
 
 fn parse_define(contents: &str, name: &str) -> Option<u32> {
@@ -149,10 +154,47 @@ fn parse_define(contents: &str, name: &str) -> Option<u32> {
     })
 }
 
-fn parse_min_version() -> (u32, u32, u32) {
+fn parse_min_version() -> Result<(u32, u32, u32), BuildError> {
     let mut parts = MIN_VERSION.split('.');
-    let major = parts.next().unwrap_or_default().parse().unwrap_or(0);
-    let minor = parts.next().unwrap_or_default().parse().unwrap_or(0);
-    let patch = parts.next().unwrap_or_default().parse().unwrap_or(0);
-    (major, minor, patch)
+    let major = parse_version_part(parts.next()).ok_or(BuildError::InvalidMinVersion)?;
+    let minor = parse_version_part(parts.next()).ok_or(BuildError::InvalidMinVersion)?;
+    let patch = parse_version_part(parts.next()).ok_or(BuildError::InvalidMinVersion)?;
+    Ok((major, minor, patch))
+}
+
+fn parse_version_part(value: Option<&str>) -> Option<u32> {
+    value.and_then(|part| part.parse::<u32>().ok())
+}
+
+#[derive(Debug)]
+enum BuildError {
+    MissingIncludeDir,
+    PkgConfig(pkg_config::Error),
+    ReadHeader { source: std::io::Error },
+    MissingDefine,
+    InvalidMinVersion,
+    VersionTooOld,
+}
+
+impl fmt::Display for BuildError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            BuildError::MissingIncludeDir => write!(f, "libtorrent include directory missing"),
+            BuildError::PkgConfig(_) => write!(f, "libtorrent pkg-config probe failed"),
+            BuildError::ReadHeader { .. } => write!(f, "libtorrent version header read failed"),
+            BuildError::MissingDefine => write!(f, "libtorrent version header missing field"),
+            BuildError::InvalidMinVersion => write!(f, "invalid libtorrent minimum version"),
+            BuildError::VersionTooOld => write!(f, "libtorrent version is too old"),
+        }
+    }
+}
+
+impl Error for BuildError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            BuildError::PkgConfig(err) => Some(err),
+            BuildError::ReadHeader { source, .. } => Some(source),
+            _ => None,
+        }
+    }
 }

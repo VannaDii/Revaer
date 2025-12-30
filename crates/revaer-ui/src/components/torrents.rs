@@ -20,6 +20,7 @@ use crate::models::{
     TorrentOptionsRequest,
 };
 use crate::{Density, UiMode};
+use gloo::console;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use wasm_bindgen::closure::Closure;
@@ -363,7 +364,9 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                             ShortcutOutcome::FocusSearch => {
                                 if let Some(input) = search_ref.cast::<web_sys::HtmlInputElement>()
                                 {
-                                    let _ = input.focus();
+                                    if let Err(err) = input.focus() {
+                                        console::error!("input focus failed", err);
+                                    }
                                 }
                             }
                             ShortcutOutcome::SelectNext => {
@@ -400,7 +403,9 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                                 if let Some(input) = search_ref.cast::<web_sys::HtmlInputElement>()
                                 {
                                     input.set_value("");
-                                    let _ = input.blur();
+                                    if let Err(err) = input.blur() {
+                                        console::error!("input blur failed", err);
+                                    }
                                     on_search.emit(String::new());
                                 }
                             }
@@ -433,10 +438,12 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                 move || {
                     if attached {
                         if let Some(window_ref) = window {
-                            let _ = window_ref.remove_event_listener_with_callback(
+                            if let Err(err) = window_ref.remove_event_listener_with_callback(
                                 "keydown",
                                 handler.as_ref().unchecked_ref(),
-                            );
+                            ) {
+                                console::error!("keydown listener cleanup failed", err);
+                            }
                         }
                     }
                 }

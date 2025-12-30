@@ -61,6 +61,11 @@ ADR documents capture the rationale behind significant technical decisions.
 - [056](056-factory-reset-bootstrap-auth-fallback.md) – Factory reset auth fallback when no API keys exist
 - [057](057-ui-settings-tabs-controls.md) – UI settings tabs and editor controls
 - [058](058-settings-logs-fs-browser.md) – UI settings controls, logs stream, and filesystem browser
+- [059](059-migration-rebaseline.md) – Migration rebaseline and JSON backfill guardrails
+- [060](060-auth-expiry-error-context.md) – Auth expiry enforcement and structured error context
+- [061](061-api-i18n-openapi-assets.md) – API error i18n and OpenAPI asset constants
+- [062](062-eventbus-publish-guardrails.md) – Event bus publish guardrails and API i18n cleanup
+- [063](063-ci-compliance-cleanup.md) – CI compliance cleanup for test error handling
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

@@ -299,9 +299,8 @@ pub(crate) fn parse_state_filter(value: &str) -> Result<TorrentStateKind, ApiErr
         "completed" => Ok(TorrentStateKind::Completed),
         "failed" => Ok(TorrentStateKind::Failed),
         "stopped" => Ok(TorrentStateKind::Stopped),
-        other => Err(ApiError::bad_request(format!(
-            "state filter '{other}' is not recognised"
-        ))),
+        other => Err(ApiError::bad_request("state filter is not recognised")
+            .with_context_field("state_filter", other)),
     }
 }
 
@@ -326,9 +325,10 @@ pub(crate) fn normalize_trackers(inputs: &[String]) -> Result<Vec<String>, ApiEr
         match url.scheme() {
             "http" | "https" | "udp" => {}
             other => {
-                return Err(ApiError::bad_request(format!(
-                    "tracker scheme '{other}' is not supported (http/https/udp only)"
-                )));
+                return Err(ApiError::bad_request(
+                    "tracker scheme is not supported (http/https/udp only)",
+                )
+                .with_context_field("scheme", other));
             }
         }
         let key = trimmed.to_ascii_lowercase();
@@ -390,12 +390,17 @@ pub(crate) const fn rate_limit_from_limits(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::{Result, anyhow};
     use chrono::{TimeZone, Utc};
     use revaer_events::TorrentState;
     use revaer_torrent_core::{TorrentProgress, TorrentRates};
 
     #[test]
-    fn detail_carries_metadata_and_selection() {
+    fn detail_carries_metadata_and_selection() -> Result<()> {
+        let added_at = Utc
+            .timestamp_millis_opt(0)
+            .single()
+            .ok_or_else(|| anyhow!("invalid timestamp"))?;
         let status = TorrentStatus {
             id: Uuid::new_v4(),
             name: Some("demo".into()),
@@ -417,9 +422,9 @@ mod tests {
             source: None,
             private: None,
             sequential: true,
-            added_at: Utc.timestamp_millis_opt(0).unwrap(),
+            added_at,
             completed_at: None,
-            last_updated: Utc.timestamp_millis_opt(0).unwrap(),
+            last_updated: added_at,
         };
         let metadata = TorrentMetadata::new(TorrentMetadataSeed {
             tags: vec!["tagA".to_string()],
@@ -452,14 +457,14 @@ mod tests {
             Some(1_024)
         );
 
-        let settings = detail.settings.expect("settings should be present");
+        let settings = detail.settings.ok_or_else(|| anyhow!("settings missing"))?;
         assert_eq!(settings.tags, vec!["tagA".to_string()]);
         assert_eq!(settings.trackers, vec!["https://tracker.example/announce"]);
         assert_eq!(
             settings
                 .selection
                 .as_ref()
-                .expect("selection present")
+                .ok_or_else(|| anyhow!("selection missing"))?
                 .include,
             vec!["**/*.mkv".to_string()]
         );
@@ -467,15 +472,16 @@ mod tests {
             settings
                 .selection
                 .as_ref()
-                .expect("selection present")
+                .ok_or_else(|| anyhow!("selection missing"))?
                 .skip_fluff
         );
         assert!(settings.sequential);
         assert_eq!(settings.download_dir.as_deref(), Some("/downloads/demo"));
+        Ok(())
     }
 
     #[test]
-    fn metadata_from_request_tracks_selection_and_limits() {
+    fn metadata_from_request_tracks_selection_and_limits() -> Result<()> {
         let request = crate::models::TorrentCreateRequest {
             tags: vec!["demo".to_string()],
             trackers: vec!["https://tracker.example".to_string()],
@@ -487,8 +493,7 @@ mod tests {
             ..Default::default()
         };
 
-        let trackers =
-            normalize_trackers(&request.trackers).expect("trackers should normalise for test");
+        let trackers = normalize_trackers(&request.trackers)?;
         let mut options = request.to_options();
         options.trackers = trackers;
         let mut metadata = TorrentMetadata::from_options(&options);
@@ -514,16 +519,17 @@ mod tests {
         };
         metadata.apply_rate_limit(&cleared);
         assert!(metadata.rate_limit.is_none());
+        Ok(())
     }
 
     #[test]
-    fn normalize_trackers_validates_and_deduplicates() {
+    fn normalize_trackers_validates_and_deduplicates() -> Result<()> {
         let inputs = vec![
             " https://Tracker.Example/announce ".to_string(),
             "udp://tracker.example/announce".to_string(),
             "https://tracker.example/announce".to_string(),
         ];
-        let trackers = normalize_trackers(&inputs).expect("normalization should succeed");
+        let trackers = normalize_trackers(&inputs)?;
         assert_eq!(
             trackers,
             vec![
@@ -531,32 +537,44 @@ mod tests {
                 "udp://tracker.example/announce".to_string()
             ]
         );
+        Ok(())
     }
 
     #[test]
-    fn normalize_trackers_rejects_unknown_schemes() {
+    fn normalize_trackers_rejects_unknown_schemes() -> Result<()> {
         let inputs = vec!["ftp://tracker.example/announce".to_string()];
-        let err = normalize_trackers(&inputs).expect_err("ftp scheme should be rejected");
-        assert!(
-            format!("{err:?}").contains("ftp"),
-            "expected error to mention unsupported scheme"
-        );
+        match normalize_trackers(&inputs) {
+            Ok(_) => Err(anyhow!("expected tracker normalization failure")),
+            Err(err) => {
+                assert!(
+                    format!("{err:?}").contains("ftp"),
+                    "expected error to mention unsupported scheme"
+                );
+                Ok(())
+            }
+        }
     }
 
     #[test]
-    fn normalize_web_seeds_validates_and_deduplicates() {
+    fn normalize_web_seeds_validates_and_deduplicates() -> Result<()> {
         let inputs = vec![
             " http://seed.example/path ".to_string(),
             "https://seed.example/path".to_string(),
         ];
-        let seeds = normalize_web_seeds(&inputs).expect("web seed normalisation should succeed");
+        let seeds = normalize_web_seeds(&inputs)?;
         assert_eq!(seeds, vec!["http://seed.example/path".to_string()]);
+        Ok(())
     }
 
     #[test]
-    fn normalize_web_seeds_rejects_unknown_scheme() {
+    fn normalize_web_seeds_rejects_unknown_scheme() -> Result<()> {
         let inputs = vec!["ftp://seed.example/file".to_string()];
-        let err = normalize_web_seeds(&inputs).expect_err("ftp should be rejected");
-        assert!(format!("{err:?}").contains("http or https"));
+        match normalize_web_seeds(&inputs) {
+            Ok(_) => Err(anyhow!("expected web seed normalization failure")),
+            Err(err) => {
+                assert!(format!("{err:?}").contains("http or https"));
+                Ok(())
+            }
+        }
     }
 }

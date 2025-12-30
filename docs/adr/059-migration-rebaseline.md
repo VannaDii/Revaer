@@ -1,0 +1,32 @@
+# 059 – Migration Rebaseline And JSON Backfill Guardrails
+
+- Status: Accepted
+- Date: 2025-12-28
+- Context:
+  - Migration sprawl made upgrades brittle and conflicted with the single-file mandate.
+  - JSON columns are banned for settings; backfills must not wipe normalized data on upgrade.
+  - The baseline migration must be idempotent for both new databases and upgrades.
+- Decision:
+  - Collapse migration history into `crates/revaer-data/migrations/0007_rebaseline.sql` and remove prior migration files.
+  - Add upgrade-safe guardrails in the JSON backfill to avoid overwriting normalized data when legacy columns are empty or newly introduced.
+  - Mark the configuration migrator to ignore missing files so existing databases can apply the new baseline cleanly.
+  - Update documentation and dev seed SQL to match the normalized schema.
+- Consequences:
+  - Positive: one deterministic baseline, no JSON columns in the final schema, safer upgrades.
+  - Trade-offs: the baseline SQL is larger and includes legacy steps to support upgrades.
+- Follow-up:
+  - Run the full `just ci` gate and validate factory reset behavior against a real database.
+  - Monitor future schema changes to ensure they append to the consolidated baseline.
+- Motivation:
+  - Ensure migration idempotency and JSON-free settings storage without breaking existing installations.
+- Design notes:
+  - Keep legacy JSON parsing helpers only long enough to migrate data; drop them in the same baseline.
+  - Add trigger drops to make DDL re-entrant when applying the baseline on upgraded databases.
+- Test coverage summary:
+  - `just check` (workspace, all targets, all features).
+- Observability updates:
+  - No telemetry changes required.
+- Risk & rollback plan:
+  - Risk: legacy upgrade paths could still expose migration gaps; rollback by restoring the previous migration set from version control.
+- Dependency rationale:
+  - No new dependencies introduced.

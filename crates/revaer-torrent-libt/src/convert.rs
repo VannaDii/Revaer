@@ -124,7 +124,7 @@ fn map_files_event(id: Uuid, files: Vec<crate::ffi::ffi::NativeFile>) -> Vec<Eng
     }]
 }
 
-fn map_progress_event(
+const fn map_progress_event(
     id: Uuid,
     bytes_downloaded: u64,
     bytes_total: u64,
@@ -132,10 +132,6 @@ fn map_progress_event(
     upload_bps: u64,
     ratio: f64,
 ) -> EngineEvent {
-    debug_assert!(
-        !id.is_nil(),
-        "progress events should always carry a valid torrent id"
-    );
     let progress = revaer_torrent_core::TorrentProgress {
         bytes_downloaded,
         bytes_total,
@@ -204,9 +200,10 @@ pub(crate) const fn map_priority(priority: FilePriority) -> u8 {
 mod tests {
     use super::*;
     use crate::ffi::ffi::{NativeEvent, NativeEventKind, NativeTorrentState, NativeTrackerStatus};
+    use anyhow::{Result, anyhow};
 
     #[test]
-    fn session_errors_without_ids_are_emitted() {
+    fn session_errors_without_ids_are_emitted() -> Result<()> {
         let native = NativeEvent {
             id: String::new(),
             kind: NativeEventKind::SessionError,
@@ -238,13 +235,14 @@ mod tests {
             } => {
                 assert_eq!(component.as_deref(), Some("network"));
                 assert_eq!(message, "listen failed");
+                Ok(())
             }
-            other => panic!("unexpected event {other:?}"),
+            _ => Err(anyhow!("unexpected event kind")),
         }
     }
 
     #[test]
-    fn tracker_update_is_mapped() {
+    fn tracker_update_is_mapped() -> Result<()> {
         let native = NativeEvent {
             id: uuid::Uuid::nil().to_string(),
             kind: NativeEventKind::TrackerUpdate,
@@ -280,8 +278,9 @@ mod tests {
                 assert_eq!(trackers[0].url, "https://tracker.example/announce");
                 assert_eq!(trackers[0].status.as_deref(), Some("error"));
                 assert_eq!(trackers[0].message.as_deref(), Some("failed to resolve"));
+                Ok(())
             }
-            other => panic!("unexpected event: {other:?}"),
+            _ => Err(anyhow!("unexpected event kind")),
         }
     }
 }

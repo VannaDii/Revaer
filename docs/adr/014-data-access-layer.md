@@ -12,7 +12,7 @@
 ## Decision
 
 -   Introduce a dedicated `revaer-data` crate that owns:
-    -   Migration assets for config + runtime schemas in a single init migration (`crates/revaer-data/migrations/0001_db_init.sql`).
+    -   Migration assets for config + runtime schemas in a single baseline migration (`crates/revaer-data/migrations/0007_rebaseline.sql`).
     -   Stored procedures in the `revaer_config` schema that wrap every CRUD/query operation (history, revision bumps, setup tokens, secrets, API keys, config profiles, fs/engine/app mutations).
     -   Rust helpers (`crates/revaer-data/src/config.rs` and `runtime.rs`) that only ever call those stored procedures using named bind notation.
 -   Consumers (config service, fsops tests, orchestrator runtime store, etc.) depend on `revaer-data` instead of embedding SQL. Integration tests that previously queried tables directly now call the DAL API.

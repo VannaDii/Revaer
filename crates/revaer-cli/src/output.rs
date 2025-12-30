@@ -189,12 +189,8 @@ pub(crate) fn format_bytes(bytes: u64) -> String {
     }
 }
 
-const fn bytes_to_f64(value: u64) -> f64 {
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "u64 to f64 conversion is required for human-readable byte formatting"
-    )]
-    {
-        value as f64
-    }
+fn bytes_to_f64(value: u64) -> f64 {
+    let high = u32::try_from(value >> 32).unwrap_or(u32::MAX);
+    let low = u32::try_from(value & 0xFFFF_FFFF).unwrap_or(u32::MAX);
+    f64::from(high) * 4_294_967_296.0 + f64::from(low)
 }

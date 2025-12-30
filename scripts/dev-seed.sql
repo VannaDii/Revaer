@@ -26,9 +26,14 @@ WHERE id = '00000000-0000-0000-0000-000000000002';
 -- Default filesystem policy and allowed paths.
 UPDATE fs_policy
 SET
-    library_root = '/data/library',
-    allow_paths = '["/data/staging", "/data/library"]'::jsonb
+    library_root = '/data/library'
 WHERE id = '00000000-0000-0000-0000-000000000003';
+
+SELECT revaer_config.set_fs_list(
+    '00000000-0000-0000-0000-000000000003',
+    'allow_paths',
+    ARRAY['/data/staging', '/data/library']::TEXT[]
+);
 
 -- Development API key: key_id=dev, secret=revaer_dev
 -- Argon2id hash generated with default parameters.

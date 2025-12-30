@@ -10,8 +10,8 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use chrono::{DateTime, Utc, Weekday};
 use serde::{Deserialize, Serialize};
 
+use crate::error::ConfigError;
 use crate::model::{EngineProfile, Toggle};
-use crate::validate::ConfigError;
 
 /// Upper bound guard rail for rate limits (≈5 Gbps).
 pub const MAX_RATE_LIMIT_BPS: i64 = 5_000_000_000;
@@ -19,6 +19,16 @@ const DEFAULT_DOWNLOAD_ROOT: &str = "/data/staging";
 const DEFAULT_RESUME_DIR: &str = "/var/lib/revaer/state";
 const DEFAULT_STORAGE_MODE: StorageMode = StorageMode::Sparse;
 const MINUTES_PER_DAY: u16 = 24 * 60;
+const ENGINE_SECTION: &str = "engine_profile";
+
+fn engine_invalid_field(field: &str, value: Option<String>, reason: &'static str) -> ConfigError {
+    ConfigError::InvalidField {
+        section: ENGINE_SECTION.to_string(),
+        field: field.to_string(),
+        value,
+        reason,
+    }
+}
 
 /// Effective engine configuration after applying guard rails.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -705,22 +715,19 @@ fn sanitize_limits(profile: &EngineProfile, warnings: &mut Vec<String>) -> Engin
 
 fn sanitize_alt_speed(value: &AltSpeedConfig, warnings: &mut Vec<String>) -> AltSpeedConfig {
     let mut config = value.clone();
-    config.download_bps =
-        clamp_rate_limit("alt_speed.download_bps", config.download_bps, warnings);
+    config.download_bps = clamp_rate_limit("alt_speed.download_bps", config.download_bps, warnings);
     config.upload_bps = clamp_rate_limit("alt_speed.upload_bps", config.upload_bps, warnings);
     config.schedule = sanitize_alt_speed_schedule(config.schedule.take(), warnings);
 
     if config.schedule.is_none() {
         if config.has_caps() {
-            warnings.push(
-                "alt_speed.schedule missing; alternate caps will not be applied".to_string(),
-            );
+            warnings
+                .push("alt_speed.schedule missing; alternate caps will not be applied".to_string());
         }
         AltSpeedConfig::default()
     } else if !config.has_caps() {
         warnings.push(
-            "alt_speed requires download_bps or upload_bps; disabling alternate speeds"
-                .to_string(),
+            "alt_speed requires download_bps or upload_bps; disabling alternate speeds".to_string(),
         );
         AltSpeedConfig::default()
     } else {
@@ -732,18 +739,21 @@ fn sanitize_alt_speed_schedule(
     schedule: Option<AltSpeedSchedule>,
     warnings: &mut Vec<String>,
 ) -> Option<AltSpeedSchedule> {
-    let Some(schedule) = schedule else {
-        return None;
-    };
+    let schedule = schedule?;
 
     if schedule.days.is_empty() {
         warnings.push("alt_speed.schedule.days empty; disabling schedule".to_string());
         return None;
     }
 
-    let start_minutes = schedule.start_minutes.min(MINUTES_PER_DAY - 1);
-    let end_minutes = schedule.end_minutes.min(MINUTES_PER_DAY - 1);
-    if schedule.start_minutes != start_minutes || schedule.end_minutes != end_minutes {
+    let AltSpeedSchedule {
+        mut days,
+        start_minutes: raw_start_minutes,
+        end_minutes: raw_end_minutes,
+    } = schedule;
+    let start_minutes = raw_start_minutes.min(MINUTES_PER_DAY - 1);
+    let end_minutes = raw_end_minutes.min(MINUTES_PER_DAY - 1);
+    if raw_start_minutes != start_minutes || raw_end_minutes != end_minutes {
         warnings.push("alt_speed.schedule times out of range; clamping".to_string());
     }
 
@@ -752,8 +762,7 @@ fn sanitize_alt_speed_schedule(
         return None;
     }
 
-    let mut days = schedule.days.clone();
-    days.sort_by_key(|day| day.number_from_monday());
+    days.sort_by_key(Weekday::number_from_monday);
     days.dedup();
 
     Some(AltSpeedSchedule {
@@ -810,7 +819,7 @@ fn sanitize_stats_interval(
     warnings: &mut Vec<String>,
 ) -> Option<i32> {
     value.and_then(|raw| {
-        let clamped = if raw < 0 {
+        if raw < 0 {
             warnings.push(format!("{label} {raw} is negative; disabling override"));
             None
         } else if raw > i64::from(i32::MAX) {
@@ -818,8 +827,7 @@ fn sanitize_stats_interval(
             Some(i32::MAX)
         } else {
             i32::try_from(raw).ok()
-        };
-        clamped
+        }
     })
 }
 
@@ -839,10 +847,7 @@ fn sanitize_optimistic_unchoke_slots(
     }
 }
 
-fn sanitize_max_queued_disk_bytes(
-    value: Option<i64>,
-    warnings: &mut Vec<String>,
-) -> Option<i64> {
+fn sanitize_max_queued_disk_bytes(value: Option<i64>, warnings: &mut Vec<String>) -> Option<i64> {
     value.and_then(|raw| {
         if raw < 0 {
             warnings.push(format!(
@@ -883,11 +888,29 @@ fn canonical_seed_choking_algorithm(raw: &str, warnings: &mut Vec<String>) -> Se
 }
 
 fn sanitize_storage(profile: &EngineProfile, warnings: &mut Vec<String>) -> EngineStorageConfig {
-    let download_root = sanitize_path(&profile.download_root, DEFAULT_DOWNLOAD_ROOT, "download_root", warnings);
-    let resume_dir = sanitize_path(&profile.resume_dir, DEFAULT_RESUME_DIR, "resume_dir", warnings);
+    let download_root = sanitize_path(
+        &profile.download_root,
+        DEFAULT_DOWNLOAD_ROOT,
+        "download_root",
+        warnings,
+    );
+    let resume_dir = sanitize_path(
+        &profile.resume_dir,
+        DEFAULT_RESUME_DIR,
+        "resume_dir",
+        warnings,
+    );
     let storage_mode = canonical_storage_mode(&profile.storage_mode, warnings);
-    let disk_read_mode = canonical_disk_mode(profile.disk_read_mode.as_deref(), "disk_read_mode", warnings);
-    let disk_write_mode = canonical_disk_mode(profile.disk_write_mode.as_deref(), "disk_write_mode", warnings);
+    let disk_read_mode = canonical_disk_mode(
+        profile.disk_read_mode.as_deref(),
+        "disk_read_mode",
+        warnings,
+    );
+    let disk_write_mode = canonical_disk_mode(
+        profile.disk_write_mode.as_deref(),
+        "disk_write_mode",
+        warnings,
+    );
 
     EngineStorageConfig {
         download_root,
@@ -910,7 +933,9 @@ fn canonical_storage_mode(raw: &str, warnings: &mut Vec<String>) -> StorageMode 
         "sparse" => StorageMode::Sparse,
         "allocate" => StorageMode::Allocate,
         other => {
-            warnings.push(format!("unknown storage_mode '{other}'; defaulting to sparse"));
+            warnings.push(format!(
+                "unknown storage_mode '{other}'; defaulting to sparse"
+            ));
             DEFAULT_STORAGE_MODE
         }
     }
@@ -921,9 +946,7 @@ fn canonical_disk_mode(
     field: &str,
     warnings: &mut Vec<String>,
 ) -> Option<DiskIoMode> {
-    let Some(text) = raw else {
-        return None;
-    };
+    let text = raw?;
     match text.trim().to_ascii_lowercase().as_str() {
         "enable_os_cache" => Some(DiskIoMode::EnableOsCache),
         "disable_os_cache" => Some(DiskIoMode::DisableOsCache),
@@ -950,13 +973,43 @@ fn sanitize_tracker(value: &TrackerConfig, warnings: &mut Vec<String>) -> Tracke
     let mut config = value.clone();
     config.default = sanitize_tracker_list(&config.default, "tracker.default", warnings);
     config.extra = sanitize_tracker_list(&config.extra, "tracker.extra", warnings);
-    config.user_agent = sanitize_optional_string(config.user_agent.take(), "tracker.user_agent", warnings, 255);
-    config.announce_ip = sanitize_optional_string(config.announce_ip.take(), "tracker.announce_ip", warnings, 255);
-    config.listen_interface = sanitize_optional_string(config.listen_interface.take(), "tracker.listen_interface", warnings, 255);
-    config.request_timeout_ms = sanitize_timeout(config.request_timeout_ms, "tracker.request_timeout_ms", warnings);
-    config.ssl_cert = sanitize_optional_string(config.ssl_cert.take(), "tracker.ssl_cert", warnings, 512);
-    config.ssl_private_key = sanitize_optional_string(config.ssl_private_key.take(), "tracker.ssl_private_key", warnings, 512);
-    config.ssl_ca_cert = sanitize_optional_string(config.ssl_ca_cert.take(), "tracker.ssl_ca_cert", warnings, 512);
+    config.user_agent = sanitize_optional_string(
+        config.user_agent.take(),
+        "tracker.user_agent",
+        warnings,
+        255,
+    );
+    config.announce_ip = sanitize_optional_string(
+        config.announce_ip.take(),
+        "tracker.announce_ip",
+        warnings,
+        255,
+    );
+    config.listen_interface = sanitize_optional_string(
+        config.listen_interface.take(),
+        "tracker.listen_interface",
+        warnings,
+        255,
+    );
+    config.request_timeout_ms = sanitize_timeout(
+        config.request_timeout_ms,
+        "tracker.request_timeout_ms",
+        warnings,
+    );
+    config.ssl_cert =
+        sanitize_optional_string(config.ssl_cert.take(), "tracker.ssl_cert", warnings, 512);
+    config.ssl_private_key = sanitize_optional_string(
+        config.ssl_private_key.take(),
+        "tracker.ssl_private_key",
+        warnings,
+        512,
+    );
+    config.ssl_ca_cert = sanitize_optional_string(
+        config.ssl_ca_cert.take(),
+        "tracker.ssl_ca_cert",
+        warnings,
+        512,
+    );
 
     config.proxy = sanitize_tracker_proxy(config.proxy.take(), warnings);
     config.auth = sanitize_tracker_auth(config.auth.take(), warnings);
@@ -964,7 +1017,11 @@ fn sanitize_tracker(value: &TrackerConfig, warnings: &mut Vec<String>) -> Tracke
     config
 }
 
-fn sanitize_tracker_list(values: &[String], field: &str, warnings: &mut Vec<String>) -> Vec<String> {
+fn sanitize_tracker_list(
+    values: &[String],
+    field: &str,
+    warnings: &mut Vec<String>,
+) -> Vec<String> {
     let mut seen = HashSet::new();
     let mut trackers = Vec::new();
     for entry in values {
@@ -1005,11 +1062,11 @@ fn sanitize_optional_string(
 
 fn sanitize_timeout(value: Option<i64>, field: &str, warnings: &mut Vec<String>) -> Option<i64> {
     value.and_then(|timeout| {
-        if !(0..=900_000).contains(&timeout) {
+        if (0..=900_000).contains(&timeout) {
+            Some(timeout)
+        } else {
             warnings.push(format!("{field} must be between 0 and 900000 milliseconds"));
             None
-        } else {
-            Some(timeout)
         }
     })
 }
@@ -1018,15 +1075,14 @@ fn sanitize_tracker_proxy(
     proxy: Option<TrackerProxyConfig>,
     warnings: &mut Vec<String>,
 ) -> Option<TrackerProxyConfig> {
-    let Some(proxy) = proxy else {
-        return None;
-    };
+    let proxy = proxy?;
     if proxy.host.trim().is_empty() {
         warnings.push("tracker.proxy.host is required; disabling proxy".to_string());
         return None;
     }
     if !(1..=65_535).contains(&proxy.port) {
-        warnings.push("tracker.proxy.port must be between 1 and 65535; disabling proxy".to_string());
+        warnings
+            .push("tracker.proxy.port must be between 1 and 65535; disabling proxy".to_string());
         return None;
     }
     Some(proxy)
@@ -1036,24 +1092,19 @@ fn sanitize_tracker_auth(
     auth: Option<TrackerAuthConfig>,
     warnings: &mut Vec<String>,
 ) -> Option<TrackerAuthConfig> {
-    let Some(auth) = auth else {
-        return None;
-    };
+    let auth = auth?;
     let has_secret = auth
         .username_secret
         .as_ref()
-        .map(|value| !value.trim().is_empty())
-        .unwrap_or(false)
+        .is_some_and(|value| !value.trim().is_empty())
         || auth
             .password_secret
             .as_ref()
-            .map(|value| !value.trim().is_empty())
-            .unwrap_or(false)
+            .is_some_and(|value| !value.trim().is_empty())
         || auth
             .cookie_secret
             .as_ref()
-            .map(|value| !value.trim().is_empty())
-            .unwrap_or(false);
+            .is_some_and(|value| !value.trim().is_empty());
     if !has_secret {
         warnings.push("tracker.auth requires at least one secret; disabling auth".to_string());
         return None;
@@ -1150,83 +1201,83 @@ fn sanitize_listen_interfaces(
 fn canonicalize_listen_interface(entry: &str, field: &str) -> Result<String, ConfigError> {
     let trimmed = entry.trim();
     if trimmed.is_empty() {
-        return Err(ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: field.to_string(),
-            message: "entries cannot be empty".to_string(),
-        });
+        return Err(engine_invalid_field(
+            field,
+            Some(entry.to_string()),
+            "entries cannot be empty",
+        ));
     }
     if trimmed.contains(char::is_whitespace) {
-        return Err(ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: field.to_string(),
-            message: "entries cannot contain whitespace".to_string(),
-        });
+        return Err(engine_invalid_field(
+            field,
+            Some(trimmed.to_string()),
+            "entries cannot contain whitespace",
+        ));
     }
 
     if let Some(stripped) = trimmed.strip_prefix('[') {
         let Some(closing) = stripped.find(']') else {
-            return Err(ConfigError::InvalidField {
-                section: "engine_profile".to_string(),
-                field: field.to_string(),
-                message: "IPv6 entries must be bracketed like [::1]:6881".to_string(),
-            });
+            return Err(engine_invalid_field(
+                field,
+                Some(trimmed.to_string()),
+                "IPv6 entries must be bracketed like [::1]:6881",
+            ));
         };
         let host = stripped[..closing].trim();
         let remainder = stripped.get(closing + 1..).unwrap_or("").trim();
         if host.is_empty() || !remainder.starts_with(':') {
-            return Err(ConfigError::InvalidField {
-                section: "engine_profile".to_string(),
-                field: field.to_string(),
-                message: "IPv6 entries must be formatted as [addr]:port".to_string(),
-            });
+            return Err(engine_invalid_field(
+                field,
+                Some(trimmed.to_string()),
+                "IPv6 entries must be formatted as [addr]:port",
+            ));
         }
         let port_text = remainder.trim_start_matches(':').trim();
-        let port = port_text
-            .parse::<i32>()
-            .map_err(|_| ConfigError::InvalidField {
-                section: "engine_profile".to_string(),
-                field: field.to_string(),
-                message: "port must be an integer between 1 and 65535".to_string(),
-            })?;
+        let port = port_text.parse::<i32>().map_err(|_| {
+            engine_invalid_field(
+                field,
+                Some(port_text.to_string()),
+                "port must be an integer between 1 and 65535",
+            )
+        })?;
         if !(1..=65_535).contains(&port) {
-            return Err(ConfigError::InvalidField {
-                section: "engine_profile".to_string(),
-                field: field.to_string(),
-                message: "port must be between 1 and 65535".to_string(),
-            });
+            return Err(engine_invalid_field(
+                field,
+                Some(port_text.to_string()),
+                "port must be between 1 and 65535",
+            ));
         }
         return Ok(format!("[{host}]:{port}"));
     }
 
     let Some((host, port_text)) = trimmed.rsplit_once(':') else {
-        return Err(ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: field.to_string(),
-            message: "entries must be host:port or [ipv6]:port".to_string(),
-        });
+        return Err(engine_invalid_field(
+            field,
+            Some(trimmed.to_string()),
+            "entries must be host:port or [ipv6]:port",
+        ));
     };
     let host = host.trim();
     if host.is_empty() {
-        return Err(ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: field.to_string(),
-            message: "host component cannot be empty".to_string(),
-        });
+        return Err(engine_invalid_field(
+            field,
+            Some(trimmed.to_string()),
+            "host component cannot be empty",
+        ));
     }
-    let port = port_text
-        .parse::<i32>()
-        .map_err(|_| ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: field.to_string(),
-            message: "port must be an integer between 1 and 65535".to_string(),
-        })?;
+    let port = port_text.parse::<i32>().map_err(|_| {
+        engine_invalid_field(
+            field,
+            Some(port_text.to_string()),
+            "port must be an integer between 1 and 65535",
+        )
+    })?;
     if !(1..=65_535).contains(&port) {
-        return Err(ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: field.to_string(),
-            message: "port must be between 1 and 65535".to_string(),
-        });
+        return Err(engine_invalid_field(
+            field,
+            Some(port_text.to_string()),
+            "port must be between 1 and 65535",
+        ));
     }
     Ok(format!("{host}:{port}"))
 }
@@ -1281,7 +1332,9 @@ fn canonicalize_ipv6_mode(raw: &str, warnings: &mut Vec<String>) -> EngineIpv6Mo
         "enabled" | "enable" | "on" | "v6" | "ipv6" => EngineIpv6Mode::Enabled,
         "prefer_v6" | "prefer-v6" | "prefer6" | "prefer" => EngineIpv6Mode::PreferV6,
         other => {
-            warnings.push(format!("unknown ipv6_mode '{other}'; defaulting to 'disabled'"));
+            warnings.push(format!(
+                "unknown ipv6_mode '{other}'; defaulting to 'disabled'"
+            ));
             EngineIpv6Mode::Disabled
         }
     }
@@ -1304,11 +1357,11 @@ fn canonical_encryption(raw: &str, warnings: &mut Vec<String>) -> EngineEncrypti
 fn sanitize_ip_filter(value: &IpFilterConfig, warnings: &mut Vec<String>) -> IpFilterConfig {
     let mut config = value.clone();
     config.cidrs = sanitize_ip_filter_cidrs(&config.cidrs, warnings);
-    if let Some(url) = &config.blocklist_url {
-        if url.trim().is_empty() {
-            warnings.push("ip_filter.blocklist_url empty; clearing".to_string());
-            config.blocklist_url = None;
-        }
+    if let Some(url) = &config.blocklist_url
+        && url.trim().is_empty()
+    {
+        warnings.push("ip_filter.blocklist_url empty; clearing".to_string());
+        config.blocklist_url = None;
     }
     config
 }
@@ -1330,7 +1383,10 @@ fn sanitize_ip_filter_cidrs(values: &[String], warnings: &mut Vec<String>) -> Ve
     cidrs
 }
 
-fn sanitize_peer_classes(value: &PeerClassesConfig, warnings: &mut Vec<String>) -> PeerClassesConfig {
+fn sanitize_peer_classes(
+    value: &PeerClassesConfig,
+    warnings: &mut Vec<String>,
+) -> PeerClassesConfig {
     let mut classes = Vec::new();
     for entry in &value.classes {
         if let Some(class) = sanitize_peer_class_entry(entry, warnings) {
@@ -1354,7 +1410,10 @@ fn sanitize_peer_classes(value: &PeerClassesConfig, warnings: &mut Vec<String>) 
     defaults.sort_unstable();
     defaults.dedup();
 
-    PeerClassesConfig { classes, default: defaults }
+    PeerClassesConfig {
+        classes,
+        default: defaults,
+    }
 }
 
 fn sanitize_peer_class_entry(
@@ -1377,7 +1436,8 @@ fn sanitize_peer_class_entry(
 
     let download_priority = clamp_priority(entry.download_priority, "download_priority", warnings);
     let upload_priority = clamp_priority(entry.upload_priority, "upload_priority", warnings);
-    let connection_limit_factor = sanitize_connection_limit_factor(entry.connection_limit_factor, warnings);
+    let connection_limit_factor =
+        sanitize_connection_limit_factor(entry.connection_limit_factor, warnings);
 
     Some(PeerClassConfig {
         id: entry.id,
@@ -1419,8 +1479,10 @@ fn clamp_priority(value: u8, field: &str, warnings: &mut Vec<String>) -> u8 {
 
 fn clamp_rate_limit(field: &str, value: Option<i64>, warnings: &mut Vec<String>) -> Option<i64> {
     match value {
-        Some(limit) if limit < 0 => {
-            warnings.push(format!("{field} {limit} is negative; disabling override"));
+        Some(limit) if limit <= 0 => {
+            warnings.push(format!(
+                "{field} {limit} is non-positive; disabling override"
+            ));
             None
         }
         Some(limit) if limit > MAX_RATE_LIMIT_BPS => {
@@ -1444,49 +1506,59 @@ pub fn canonicalize_ip_filter_entry(
 ) -> Result<(String, IpFilterRule), ConfigError> {
     let trimmed = entry.trim();
     if trimmed.is_empty() {
-        return Err(ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: field.to_string(),
-            message: "CIDR entries cannot be empty".to_string(),
-        });
+        return Err(engine_invalid_field(
+            field,
+            Some(entry.to_string()),
+            "CIDR entries cannot be empty",
+        ));
     }
 
-    let (network, prefix) = trimmed.split_once('/').ok_or_else(|| ConfigError::InvalidField {
-        section: "engine_profile".to_string(),
-        field: field.to_string(),
-        message: "CIDR entries must include a /prefix".to_string(),
+    let (network, prefix) = trimmed.split_once('/').ok_or_else(|| {
+        engine_invalid_field(
+            field,
+            Some(trimmed.to_string()),
+            "CIDR entries must include a /prefix",
+        )
     })?;
     let network = network.trim();
     let prefix = prefix.trim();
     if network.is_empty() || prefix.is_empty() {
-        return Err(ConfigError::InvalidField {
-            section: "engine_profile".to_string(),
-            field: field.to_string(),
-            message: "CIDR entries must include a network and prefix".to_string(),
-        });
+        return Err(engine_invalid_field(
+            field,
+            Some(trimmed.to_string()),
+            "CIDR entries must include a network and prefix",
+        ));
     }
 
-    let parsed_ip: IpAddr = network.parse().map_err(|_| ConfigError::InvalidField {
-        section: "engine_profile".to_string(),
-        field: field.to_string(),
-        message: "CIDR entries must include a valid IP address".to_string(),
+    let parsed_ip: IpAddr = network.parse().map_err(|_| {
+        engine_invalid_field(
+            field,
+            Some(network.to_string()),
+            "CIDR entries must include a valid IP address",
+        )
     })?;
-    let prefix_len: u8 = prefix.parse().map_err(|_| ConfigError::InvalidField {
-        section: "engine_profile".to_string(),
-        field: field.to_string(),
-        message: "CIDR prefix must be numeric".to_string(),
+    let prefix_len: u8 = prefix.parse().map_err(|_| {
+        engine_invalid_field(
+            field,
+            Some(prefix.to_string()),
+            "CIDR prefix must be numeric",
+        )
     })?;
 
     let (canonical, rule) = match parsed_ip {
         IpAddr::V4(addr) => {
             if prefix_len > 32 {
-                return Err(ConfigError::InvalidField {
-                    section: "engine_profile".to_string(),
-                    field: field.to_string(),
-                    message: "IPv4 prefix must be <= 32".to_string(),
-                });
+                return Err(engine_invalid_field(
+                    field,
+                    Some(prefix_len.to_string()),
+                    "IPv4 prefix must be <= 32",
+                ));
             }
-            let mask = if prefix_len == 0 { 0 } else { u32::MAX << (32 - prefix_len) };
+            let mask = if prefix_len == 0 {
+                0
+            } else {
+                u32::MAX << (32 - prefix_len)
+            };
             let network = u32::from(addr) & mask;
             let start = IpAddr::V4(Ipv4Addr::from(network));
             let end = IpAddr::V4(Ipv4Addr::from(network | !mask));
@@ -1497,14 +1569,18 @@ pub fn canonicalize_ip_filter_entry(
         }
         IpAddr::V6(addr) => {
             if prefix_len > 128 {
-                return Err(ConfigError::InvalidField {
-                    section: "engine_profile".to_string(),
-                    field: field.to_string(),
-                    message: "IPv6 prefix must be <= 128".to_string(),
-                });
+                return Err(engine_invalid_field(
+                    field,
+                    Some(prefix_len.to_string()),
+                    "IPv6 prefix must be <= 128",
+                ));
             }
             let addr_u128 = u128::from(addr);
-            let mask = if prefix_len == 0 { 0 } else { u128::MAX << (128 - prefix_len) };
+            let mask = if prefix_len == 0 {
+                0
+            } else {
+                u128::MAX << (128 - prefix_len)
+            };
             let network = addr_u128 & mask;
             let start = IpAddr::V6(Ipv6Addr::from(network));
             let end = IpAddr::V6(Ipv6Addr::from(network | !mask));
@@ -1525,13 +1601,18 @@ mod tests {
     #[test]
     fn canonicalizes_ipv6_modes() {
         let mut warnings = Vec::new();
-        assert_eq!(canonicalize_ipv6_mode("prefer_v6", &mut warnings), EngineIpv6Mode::PreferV6);
+        assert_eq!(
+            canonicalize_ipv6_mode("prefer_v6", &mut warnings),
+            EngineIpv6Mode::PreferV6
+        );
         assert!(warnings.is_empty());
     }
 
     #[test]
     fn rejects_invalid_cidr_prefix() {
-        let err = canonicalize_ip_filter_entry("10.0.0.0/40", "ip_filter.cidrs").unwrap_err();
-        assert!(matches!(err, ConfigError::InvalidField { .. }));
+        assert!(matches!(
+            canonicalize_ip_filter_entry("10.0.0.0/40", "ip_filter.cidrs"),
+            Err(ConfigError::InvalidField { .. })
+        ));
     }
 }

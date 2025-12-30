@@ -10,7 +10,6 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-anyhow.workspace = true
 async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -26,4 +25,5 @@ thiserror.workspace = true
 revaer-data = { path = "../revaer-data" }
 
 [dev-dependencies]
+anyhow.workspace = true
 revaer-test-support = { path = "../revaer-test-support" }

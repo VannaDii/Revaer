@@ -1,0 +1,33 @@
+# Event Bus Publish Guardrails + API i18n Cleanup
+
+- Status: Accepted
+- Date: 2025-12-28
+- Context:
+  - Event publishing failures were silently ignored, violating the no-error-suppression rule.
+  - Several API error strings were missing i18n keys, breaking the localized error contract.
+  - A few runtime logs still interpolated context into messages and needed structured fields.
+- Decision:
+  - Introduce `EventBusError` and make `EventBus::publish` return `Result` so failures are handled explicitly.
+  - Add publish helpers in runtime services (API state, fsops, libtorrent worker, app bootstrap) that log publish failures with structured fields.
+  - Expand the API i18n bundle to include new error keys used by settings and auth flows.
+  - Move `anyhow` to dev-dependencies for `revaer-api` and remove the remaining debug assert/log interpolation in production paths.
+- Consequences:
+  - Positive outcomes: event publishing is no longer silently ignored; API error messages are consistently localizable; log output stays structured.
+  - Risks or trade-offs: event publish errors are now surfaced via warnings, which may be noisy if the bus is misconfigured.
+- Follow-up:
+  - Implementation tasks: ensure downstream callers handle `EventBusError` where needed; keep i18n bundles in sync with new error keys.
+  - Review checkpoints: confirm `just ci` passes and that SSE/event flows still deliver updates without regressions.
+
+- Motivation:
+  - Align runtime error handling with AGENT.md guardrails and remove hidden failure paths.
+- Design notes:
+  - Event bus publish errors expose `event_id` + `event_kind` for structured logging without embedding context in messages.
+  - API error strings added to `en.json` match the exact keys emitted by handlers.
+- Test coverage summary:
+  - Not run in this change set; run `just ci` before release.
+- Observability updates:
+  - Added structured warning logs when event publishing fails.
+- Risk & rollback plan:
+  - Low risk; revert to prior publish semantics if event logging proves too noisy.
+- Dependency rationale:
+  - No new dependencies added.

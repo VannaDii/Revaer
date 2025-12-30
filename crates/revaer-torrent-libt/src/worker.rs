@@ -6,13 +6,12 @@ use crate::{
     store::{FastResumeStore, StoredTorrentMetadata},
     types::{AltSpeedRuntimeConfig, AltSpeedSchedule, EngineRuntimeConfig},
 };
-use anyhow::{Result, bail};
 use chrono::{DateTime, Datelike, Timelike, Utc};
 use revaer_events::{DiscoveredFile, Event, EventBus, TorrentState};
 use revaer_torrent_core::{
     AddTorrent, EngineEvent, FilePriorityOverride, FileSelectionRules, FileSelectionUpdate,
     RemoveTorrent, StorageMode, TorrentFile, TorrentProgress, TorrentRateLimit, TorrentRates,
-    TorrentSource,
+    TorrentResult, TorrentSource,
     model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate, TrackerStatus},
 };
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -21,6 +20,8 @@ use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
 use tracing::{debug, info, warn};
 use uuid::Uuid;
+
+use crate::error::{LibtorrentError, op_failed};
 
 const ALERT_POLL_INTERVAL: Duration = Duration::from_millis(200);
 const PROGRESS_COALESCE_INTERVAL: Duration = Duration::from_millis(100);
@@ -223,7 +224,8 @@ impl Worker {
         worker
     }
 
-    async fn handle(&mut self, command: EngineCommand) -> Result<()> {
+    async fn handle(&mut self, command: EngineCommand) -> TorrentResult<()> {
+        let operation = command.operation();
         match command {
             EngineCommand::Add(request) => self.handle_add(*request).await?,
             EngineCommand::CreateTorrent {
@@ -274,18 +276,18 @@ impl Worker {
             }
             EngineCommand::QueryPeers { id, respond_to } => {
                 let result = self.session.peers(id).await;
-                let _ = respond_to.send(result);
+                Self::send_response(respond_to, result, operation, Some(id));
             }
             EngineCommand::InspectSettings { respond_to } => {
                 let result = self.session.inspect_settings().await;
-                let _ = respond_to.send(result);
+                Self::send_response(respond_to, result, operation, None);
             }
         }
 
         self.flush_session_events().await
     }
 
-    async fn handle_add(&mut self, request: AddTorrent) -> Result<()> {
+    async fn handle_add(&mut self, request: AddTorrent) -> TorrentResult<()> {
         let mut request = request;
         self.backfill_request_from_resume(&mut request);
 
@@ -376,11 +378,11 @@ impl Worker {
         &mut self,
         request: revaer_torrent_core::model::TorrentAuthorRequest,
         respond_to: tokio::sync::oneshot::Sender<
-            anyhow::Result<revaer_torrent_core::model::TorrentAuthorResult>,
+            TorrentResult<revaer_torrent_core::model::TorrentAuthorResult>,
         >,
-    ) -> Result<()> {
+    ) -> TorrentResult<()> {
         let result = self.session.create_torrent(&request).await;
-        let _ = respond_to.send(result);
+        Self::send_response(respond_to, result, "create_torrent", None);
         Ok(())
     }
 
@@ -468,7 +470,7 @@ impl Worker {
         download_dir: &mut Option<String>,
         priorities: &mut Vec<FilePriorityOverride>,
         sequential: &mut bool,
-    ) -> Result<Vec<String>> {
+    ) -> TorrentResult<Vec<String>> {
         let mut reasons = Vec::new();
         if let Some(stored) = self.resume_cache.get(&torrent_id).cloned() {
             let selection_differs = stored.selection.include != selection.include
@@ -517,7 +519,7 @@ impl Worker {
         &mut self,
         torrent_id: Uuid,
         rate_limit: &TorrentRateLimit,
-    ) -> Result<()> {
+    ) -> TorrentResult<()> {
         if !has_rate_limit(rate_limit) {
             return Ok(());
         }
@@ -613,7 +615,7 @@ impl Worker {
         });
     }
 
-    async fn handle_remove(&mut self, id: Uuid, options: RemoveTorrent) -> Result<()> {
+    async fn handle_remove(&mut self, id: Uuid, options: RemoveTorrent) -> TorrentResult<()> {
         self.session.remove_torrent(id, &options).await?;
         let mut store_ok = true;
         if let Some(store) = &self.store {
@@ -647,15 +649,15 @@ impl Worker {
         Ok(())
     }
 
-    async fn handle_pause(&mut self, id: Uuid) -> Result<()> {
+    async fn handle_pause(&mut self, id: Uuid) -> TorrentResult<()> {
         self.session.pause_torrent(id).await
     }
 
-    async fn handle_resume(&mut self, id: Uuid) -> Result<()> {
+    async fn handle_resume(&mut self, id: Uuid) -> TorrentResult<()> {
         self.session.resume_torrent(id).await
     }
 
-    async fn handle_set_sequential(&mut self, id: Uuid, sequential: bool) -> Result<()> {
+    async fn handle_set_sequential(&mut self, id: Uuid, sequential: bool) -> TorrentResult<()> {
         self.session.set_sequential(id, sequential).await?;
         debug!(torrent_id = %id, sequential, "updated sequential flag");
         self.update_metadata(id, |meta| {
@@ -668,7 +670,7 @@ impl Worker {
         &mut self,
         id: Option<Uuid>,
         limits: TorrentRateLimit,
-    ) -> Result<()> {
+    ) -> TorrentResult<()> {
         self.session.update_limits(id, &limits).await?;
         debug!(
             torrent_id = ?id,
@@ -697,7 +699,7 @@ impl Worker {
         &mut self,
         id: Uuid,
         rules: FileSelectionUpdate,
-    ) -> Result<()> {
+    ) -> TorrentResult<()> {
         self.session.update_selection(id, &rules).await?;
         debug!(
             torrent_id = %id,
@@ -724,7 +726,7 @@ impl Worker {
         &mut self,
         id: Uuid,
         options: TorrentOptionsUpdate,
-    ) -> Result<()> {
+    ) -> TorrentResult<()> {
         let paused = options.paused;
         let options = TorrentOptionsUpdate {
             comment: None,
@@ -778,7 +780,7 @@ impl Worker {
         &mut self,
         id: Uuid,
         trackers: TorrentTrackersUpdate,
-    ) -> Result<()> {
+    ) -> TorrentResult<()> {
         self.session.update_trackers(id, &trackers).await?;
         let mut deduped = Vec::new();
         let mut seen = HashSet::new();
@@ -809,7 +811,7 @@ impl Worker {
         &mut self,
         id: Uuid,
         web_seeds: TorrentWebSeedsUpdate,
-    ) -> Result<()> {
+    ) -> TorrentResult<()> {
         self.session.update_web_seeds(id, &web_seeds).await?;
         let mut deduped = Vec::new();
         let mut seen = HashSet::new();
@@ -836,23 +838,29 @@ impl Worker {
         Ok(())
     }
 
-    async fn handle_reannounce(&mut self, id: Uuid) -> Result<()> {
+    async fn handle_reannounce(&mut self, id: Uuid) -> TorrentResult<()> {
         self.session.reannounce(id).await?;
         info!(torrent_id = %id, "reannounce requested");
         Ok(())
     }
 
-    async fn handle_move(&mut self, id: Uuid, download_dir: String) -> Result<()> {
+    async fn handle_move(&mut self, id: Uuid, download_dir: String) -> TorrentResult<()> {
         let target = download_dir.trim();
         if target.is_empty() {
-            bail!("download directory is required for move");
+            return Err(op_failed(
+                "move_torrent",
+                Some(id),
+                LibtorrentError::MissingField {
+                    field: "download_dir",
+                },
+            ));
         }
         self.session.move_torrent(id, target).await?;
         info!(torrent_id = %id, download_dir = %target, "move requested");
         Ok(())
     }
 
-    async fn handle_recheck(&mut self, id: Uuid) -> Result<()> {
+    async fn handle_recheck(&mut self, id: Uuid) -> TorrentResult<()> {
         self.session.recheck(id).await?;
         info!(torrent_id = %id, "recheck requested");
         Ok(())
@@ -863,7 +871,7 @@ impl Worker {
         id: Uuid,
         piece: u32,
         deadline_ms: Option<u32>,
-    ) -> Result<()> {
+    ) -> TorrentResult<()> {
         self.session
             .set_piece_deadline(id, piece, deadline_ms)
             .await?;
@@ -871,7 +879,7 @@ impl Worker {
         Ok(())
     }
 
-    async fn handle_apply_config(&mut self, config: EngineRuntimeConfig) -> Result<()> {
+    async fn handle_apply_config(&mut self, config: EngineRuntimeConfig) -> TorrentResult<()> {
         self.session.apply_config(&config).await?;
         self.base_limits = TorrentRateLimit {
             download_bps: map_limit(config.download_rate_limit),
@@ -898,12 +906,12 @@ impl Worker {
         Ok(())
     }
 
-    async fn reconcile_alt_speed(&mut self) -> Result<()> {
+    async fn reconcile_alt_speed(&mut self) -> TorrentResult<()> {
         let now = Utc::now();
         self.reconcile_alt_speed_with_now(now).await
     }
 
-    async fn reconcile_alt_speed_with_now(&mut self, now: DateTime<Utc>) -> Result<()> {
+    async fn reconcile_alt_speed_with_now(&mut self, now: DateTime<Utc>) -> TorrentResult<()> {
         let Some(plan) = self.alt_speed.as_mut() else {
             return Ok(());
         };
@@ -930,7 +938,7 @@ impl Worker {
         Ok(())
     }
 
-    async fn flush_session_events(&mut self) -> Result<()> {
+    async fn flush_session_events(&mut self) -> TorrentResult<()> {
         match self.session.poll_events().await {
             Ok(events) => {
                 let mut actions = Vec::new();
@@ -1037,7 +1045,7 @@ impl Worker {
                 size_bytes: file.size_bytes,
             })
             .collect();
-        let _ = self.events.publish(Event::FilesDiscovered {
+        self.publish_event(Event::FilesDiscovered {
             torrent_id,
             files: discovered,
         });
@@ -1060,7 +1068,7 @@ impl Worker {
             );
             return;
         }
-        let _ = self.events.publish(Event::Progress {
+        self.publish_event(Event::Progress {
             torrent_id,
             bytes_downloaded: progress.bytes_downloaded,
             bytes_total: progress.bytes_total,
@@ -1071,9 +1079,7 @@ impl Worker {
     fn handle_state_changed(&mut self, torrent_id: Uuid, state: TorrentState) {
         self.update_cleanup_state(torrent_id, &state);
         let failed = matches!(&state, TorrentState::Failed { .. });
-        let _ = self
-            .events
-            .publish(Event::StateChanged { torrent_id, state });
+        self.publish_event(Event::StateChanged { torrent_id, state });
         if !failed {
             self.mark_recovered("session");
         }
@@ -1087,11 +1093,11 @@ impl Worker {
     ) {
         self.update_cleanup_state(torrent_id, &TorrentState::Completed);
         self.evaluate_cleanup_goal(torrent_id, 0.0, actions);
-        let _ = self.events.publish(Event::StateChanged {
+        self.publish_event(Event::StateChanged {
             torrent_id,
             state: TorrentState::Completed,
         });
-        let _ = self.events.publish(Event::Completed {
+        self.publish_event(Event::Completed {
             torrent_id,
             library_path,
         });
@@ -1125,7 +1131,7 @@ impl Worker {
                 meta.private = private;
             }
         });
-        let _ = self.events.publish(Event::MetadataUpdated {
+        self.publish_event(Event::MetadataUpdated {
             torrent_id,
             name,
             download_dir,
@@ -1141,7 +1147,7 @@ impl Worker {
 
     fn handle_error(&mut self, torrent_id: Uuid, message: String) {
         let detail = message.clone();
-        let _ = self.events.publish(Event::StateChanged {
+        self.publish_event(Event::StateChanged {
             torrent_id,
             state: TorrentState::Failed { message },
         });
@@ -1278,7 +1284,7 @@ impl Worker {
         }
     }
 
-    async fn apply_actions(&mut self, actions: Vec<PendingAction>) -> Result<()> {
+    async fn apply_actions(&mut self, actions: Vec<PendingAction>) -> TorrentResult<()> {
         let mut seen = HashSet::new();
         for action in actions {
             match action {
@@ -1310,7 +1316,7 @@ impl Worker {
             .name_hint
             .clone()
             .unwrap_or_else(|| format!("torrent-{}", request.id));
-        let _ = self.events.publish(Event::TorrentAdded {
+        self.publish_event(Event::TorrentAdded {
             torrent_id: request.id,
             name,
         });
@@ -1345,7 +1351,7 @@ impl Worker {
     }
 
     fn publish_selection_reconciled(&self, torrent_id: Uuid, reason: impl Into<String>) {
-        let _ = self.events.publish(Event::SelectionReconciled {
+        self.publish_event(Event::SelectionReconciled {
             torrent_id,
             reason: reason.into(),
         });
@@ -1432,7 +1438,7 @@ impl Worker {
         let inserted = self.health.insert(component.to_string());
         if inserted {
             let degraded = self.health.iter().cloned().collect::<Vec<_>>();
-            let _ = self.events.publish(Event::HealthChanged { degraded });
+            self.publish_event(Event::HealthChanged { degraded });
             if let Some(detail) = detail {
                 warn!(
                     component = component,
@@ -1454,8 +1460,34 @@ impl Worker {
     fn mark_recovered(&mut self, component: &str) {
         if self.health.remove(component) {
             let degraded = self.health.iter().cloned().collect::<Vec<_>>();
-            let _ = self.events.publish(Event::HealthChanged { degraded });
+            self.publish_event(Event::HealthChanged { degraded });
             info!(component = component, "engine component recovered");
+        }
+    }
+
+    fn publish_event(&self, event: Event) {
+        if let Err(error) = self.events.publish(event) {
+            warn!(
+                event_id = error.event_id(),
+                event_kind = error.event_kind(),
+                error = %error,
+                "failed to publish event"
+            );
+        }
+    }
+
+    fn send_response<T>(
+        respond_to: tokio::sync::oneshot::Sender<TorrentResult<T>>,
+        result: TorrentResult<T>,
+        operation: &'static str,
+        torrent_id: Option<Uuid>,
+    ) {
+        if respond_to.send(result).is_err() {
+            warn!(
+                operation,
+                torrent_id = ?torrent_id,
+                "engine response channel closed"
+            );
         }
     }
 }
@@ -1522,7 +1554,7 @@ mod tests {
         store::{FastResumeStore, StoredTorrentMetadata},
         types::EngineSettingsSnapshot,
     };
-    use anyhow::Result;
+    use anyhow::{Result, anyhow};
     use async_trait::async_trait;
     use chrono::{TimeZone, Utc, Weekday};
     use revaer_events::{Event, EventBus, TorrentState};
@@ -1564,34 +1596,38 @@ mod tests {
 
     #[async_trait]
     impl LibTorrentSession for DeadlineSession {
-        async fn add_torrent(&mut self, _request: &AddTorrent) -> Result<()> {
+        async fn add_torrent(&mut self, _request: &AddTorrent) -> TorrentResult<()> {
             Ok(())
         }
 
         async fn create_torrent(
             &mut self,
             _request: &revaer_torrent_core::model::TorrentAuthorRequest,
-        ) -> Result<revaer_torrent_core::model::TorrentAuthorResult> {
+        ) -> TorrentResult<revaer_torrent_core::model::TorrentAuthorResult> {
             Ok(revaer_torrent_core::model::TorrentAuthorResult::default())
         }
 
-        async fn remove_torrent(&mut self, _id: Uuid, _options: &RemoveTorrent) -> Result<()> {
+        async fn remove_torrent(
+            &mut self,
+            _id: Uuid,
+            _options: &RemoveTorrent,
+        ) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn pause_torrent(&mut self, _id: Uuid) -> Result<()> {
+        async fn pause_torrent(&mut self, _id: Uuid) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn resume_torrent(&mut self, _id: Uuid) -> Result<()> {
+        async fn resume_torrent(&mut self, _id: Uuid) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn set_sequential(&mut self, _id: Uuid, _sequential: bool) -> Result<()> {
+        async fn set_sequential(&mut self, _id: Uuid, _sequential: bool) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn load_fastresume(&mut self, _id: Uuid, _payload: &[u8]) -> Result<()> {
+        async fn load_fastresume(&mut self, _id: Uuid, _payload: &[u8]) -> TorrentResult<()> {
             Ok(())
         }
 
@@ -1599,7 +1635,7 @@ mod tests {
             &mut self,
             _id: Option<Uuid>,
             _limits: &TorrentRateLimit,
-        ) -> Result<()> {
+        ) -> TorrentResult<()> {
             Ok(())
         }
 
@@ -1607,7 +1643,7 @@ mod tests {
             &mut self,
             _id: Uuid,
             _rules: &FileSelectionUpdate,
-        ) -> Result<()> {
+        ) -> TorrentResult<()> {
             Ok(())
         }
 
@@ -1615,7 +1651,7 @@ mod tests {
             &mut self,
             _id: Uuid,
             _options: &revaer_torrent_core::model::TorrentOptionsUpdate,
-        ) -> Result<()> {
+        ) -> TorrentResult<()> {
             Ok(())
         }
 
@@ -1623,7 +1659,7 @@ mod tests {
             &mut self,
             _id: Uuid,
             _trackers: &revaer_torrent_core::model::TorrentTrackersUpdate,
-        ) -> Result<()> {
+        ) -> TorrentResult<()> {
             Ok(())
         }
 
@@ -1631,35 +1667,35 @@ mod tests {
             &mut self,
             _id: Uuid,
             _web_seeds: &revaer_torrent_core::model::TorrentWebSeedsUpdate,
-        ) -> Result<()> {
+        ) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn reannounce(&mut self, _id: Uuid) -> Result<()> {
+        async fn reannounce(&mut self, _id: Uuid) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn move_torrent(&mut self, _id: Uuid, _download_dir: &str) -> Result<()> {
+        async fn move_torrent(&mut self, _id: Uuid, _download_dir: &str) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn recheck(&mut self, _id: Uuid) -> Result<()> {
+        async fn recheck(&mut self, _id: Uuid) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn peers(&mut self, _id: Uuid) -> Result<Vec<PeerSnapshot>> {
+        async fn peers(&mut self, _id: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
             Ok(Vec::new())
         }
 
-        async fn poll_events(&mut self) -> Result<Vec<EngineEvent>> {
+        async fn poll_events(&mut self) -> TorrentResult<Vec<EngineEvent>> {
             Ok(Vec::new())
         }
 
-        async fn apply_config(&mut self, _config: &EngineRuntimeConfig) -> Result<()> {
+        async fn apply_config(&mut self, _config: &EngineRuntimeConfig) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn inspect_settings(&mut self) -> Result<EngineSettingsSnapshot> {
+        async fn inspect_settings(&mut self) -> TorrentResult<EngineSettingsSnapshot> {
             Ok(EngineSettingsSnapshot::default())
         }
 
@@ -1668,7 +1704,7 @@ mod tests {
             id: Uuid,
             piece: u32,
             deadline_ms: Option<u32>,
-        ) -> Result<()> {
+        ) -> TorrentResult<()> {
             self.deadlines.lock().await.push((id, piece, deadline_ms));
             Ok(())
         }
@@ -1707,26 +1743,32 @@ mod tests {
             .handle(EngineCommand::Add(Box::new(descriptor.clone())))
             .await?;
 
-        match next_event_with_timeout(&mut stream, 50).await {
-            Some(Event::TorrentAdded { torrent_id, name }) => {
+        let added_event = next_event_with_timeout(&mut stream, 50)
+            .await
+            .ok_or_else(|| anyhow!("expected torrent added event"))?;
+        match added_event {
+            Event::TorrentAdded { torrent_id, name } => {
                 assert_eq!(torrent_id, descriptor.id);
                 assert_eq!(name, "example.torrent");
             }
-            other => panic!("expected torrent added event, got {other:?}"),
+            _ => return Err(anyhow!("expected torrent added event")),
         }
 
-        match next_event_with_timeout(&mut stream, 50).await {
-            Some(Event::StateChanged { torrent_id, state }) => {
+        let queued_event = next_event_with_timeout(&mut stream, 50)
+            .await
+            .ok_or_else(|| anyhow!("expected queued state change"))?;
+        match queued_event {
+            Event::StateChanged { torrent_id, state } => {
                 assert_eq!(torrent_id, descriptor.id);
                 assert!(matches!(state, TorrentState::Queued));
             }
-            other => panic!("expected queued state change, got {other:?}"),
+            _ => return Err(anyhow!("expected queued state change")),
         }
 
         let metadata = worker
             .resume_cache
             .get(&descriptor.id)
-            .expect("metadata stored");
+            .ok_or_else(|| anyhow!("expected stored metadata"))?;
         assert_eq!(metadata.auto_managed, Some(false));
         assert_eq!(metadata.queue_position, Some(3));
         assert_eq!(metadata.pex_enabled, Some(false));
@@ -1755,15 +1797,16 @@ mod tests {
 
         worker
             .handle(EngineCommand::Add(Box::new(descriptor)))
-            .await
-            .expect("add should succeed");
+            .await?;
 
         let cached = worker
             .resume_cache
             .get(&torrent_id)
             .cloned()
-            .expect("metadata persisted");
-        let limit = cached.rate_limit.expect("rate limit persisted to metadata");
+            .ok_or_else(|| anyhow!("expected persisted metadata"))?;
+        let limit = cached
+            .rate_limit
+            .ok_or_else(|| anyhow!("expected rate limit metadata"))?;
         assert_eq!(limit.download_bps, Some(12_000));
         assert_eq!(limit.upload_bps, Some(6_000));
         assert_eq!(
@@ -1807,7 +1850,9 @@ mod tests {
             })
             .await?;
 
-        let peers = rx.await.expect("response channel")?;
+        let peers = rx
+            .await
+            .map_err(|_| anyhow!("expected response channel"))??;
         assert_eq!(peers.len(), 1);
         assert_eq!(peers[0].endpoint, peer.endpoint);
         assert_eq!(peers[0].download_bps, peer.download_bps);
@@ -1832,8 +1877,7 @@ mod tests {
 
         worker
             .handle(EngineCommand::Add(Box::new(descriptor)))
-            .await
-            .expect("add should succeed");
+            .await?;
 
         let persisted = worker
             .resume_cache
@@ -1858,8 +1902,7 @@ mod tests {
 
         worker
             .handle(EngineCommand::Add(Box::new(descriptor)))
-            .await
-            .expect("add should succeed");
+            .await?;
 
         let update = TorrentOptionsUpdate {
             connections_limit: Some(16),
@@ -1885,7 +1928,7 @@ mod tests {
             .resume_cache
             .get(&torrent_id)
             .cloned()
-            .expect("metadata persisted");
+            .ok_or_else(|| anyhow!("expected persisted metadata"))?;
         assert_eq!(metadata.connections_limit, Some(16));
         assert_eq!(metadata.pex_enabled, Some(false));
         assert_eq!(metadata.super_seeding, Some(true));
@@ -1910,8 +1953,7 @@ mod tests {
 
         worker
             .handle(EngineCommand::Add(Box::new(descriptor)))
-            .await
-            .expect("add should succeed");
+            .await?;
         while next_event_with_timeout(&mut stream, 10).await.is_some() {}
 
         let update = TorrentOptionsUpdate {
@@ -1962,8 +2004,7 @@ mod tests {
 
         worker
             .handle(EngineCommand::Add(Box::new(descriptor)))
-            .await
-            .expect("add should succeed");
+            .await?;
         let _ = next_event_with_timeout(&mut stream, 50).await;
         let _ = next_event_with_timeout(&mut stream, 50).await;
 
@@ -1988,12 +2029,14 @@ mod tests {
                     break;
                 }
                 Some(Event::MetadataUpdated { .. }) => {}
-                other => panic!("expected paused state change, got {other:?}"),
+                Some(_) => {
+                    return Err(anyhow!("expected paused state change"));
+                }
+                None => break,
             }
         }
-        let Some((event_id, state)) = paused_event else {
-            panic!("state change not observed after pause");
-        };
+        let (event_id, state) =
+            paused_event.ok_or_else(|| anyhow!("state change not observed after pause"))?;
         assert_eq!(event_id, torrent_id);
         assert!(matches!(state, TorrentState::Stopped));
 
@@ -2018,12 +2061,14 @@ mod tests {
                     break;
                 }
                 Some(Event::MetadataUpdated { .. }) => {}
-                other => panic!("expected resumed state change, got {other:?}"),
+                Some(_) => {
+                    return Err(anyhow!("expected resumed state change"));
+                }
+                None => break,
             }
         }
-        let Some((event_id, state)) = resumed_event else {
-            panic!("state change not observed after resume");
-        };
+        let (event_id, state) =
+            resumed_event.ok_or_else(|| anyhow!("state change not observed after resume"))?;
         assert_eq!(event_id, torrent_id);
         assert!(matches!(state, TorrentState::Downloading));
 
@@ -2066,8 +2111,7 @@ mod tests {
 
         worker
             .handle(EngineCommand::Add(Box::new(descriptor)))
-            .await
-            .expect("add should succeed");
+            .await?;
 
         worker
             .handle(EngineCommand::UpdateTrackers {
@@ -2093,7 +2137,7 @@ mod tests {
             .resume_cache
             .get(&torrent_id)
             .cloned()
-            .expect("metadata persisted");
+            .ok_or_else(|| anyhow!("expected persisted metadata"))?;
         assert_eq!(
             metadata.trackers,
             vec!["https://tracker.example/announce".to_string()]
@@ -2181,8 +2225,7 @@ mod tests {
 
         worker
             .handle(EngineCommand::Add(Box::new(descriptor)))
-            .await
-            .expect("add should succeed");
+            .await?;
 
         let mut saw_seed_state = false;
         for _ in 0..3 {
@@ -2203,7 +2246,7 @@ mod tests {
             .resume_cache
             .get(&torrent_id)
             .cloned()
-            .expect("metadata persisted");
+            .ok_or_else(|| anyhow!("expected persisted metadata"))?;
         assert_eq!(persisted.seed_mode, Some(true));
         assert_eq!(persisted.hash_check_sample_pct, Some(5));
         Ok(())
@@ -2244,12 +2287,14 @@ mod tests {
                     break;
                 }
                 Some(Event::MetadataUpdated { .. }) => {}
-                other => panic!("expected stopped state change, got {other:?}"),
+                Some(_) => {
+                    return Err(anyhow!("expected stopped state change"));
+                }
+                None => break,
             }
         }
-        let Some((torrent_id, state)) = observed else {
-            panic!("state change not observed after remove");
-        };
+        let (torrent_id, state) =
+            observed.ok_or_else(|| anyhow!("state change not observed after remove"))?;
         assert_eq!(torrent_id, descriptor.id);
         assert!(matches!(state, TorrentState::Stopped));
 
@@ -2348,11 +2393,10 @@ mod tests {
         worker.apply_actions(actions).await?;
 
         if let Some(goal) = worker.cleanup_goals.get_mut(&torrent_id) {
-            goal.seeding_since = Some(
-                Instant::now()
-                    .checked_sub(Duration::from_secs(10))
-                    .expect("test clock should allow subtraction"),
-            );
+            let adjusted = Instant::now()
+                .checked_sub(Duration::from_secs(10))
+                .ok_or_else(|| anyhow!("expected instant subtraction"))?;
+            goal.seeding_since = Some(adjusted);
         }
 
         let mut actions = Vec::new();
@@ -2394,12 +2438,14 @@ mod tests {
                     break;
                 }
                 Some(Event::MetadataUpdated { .. }) => {}
-                other => panic!("expected stopped state, got {other:?}"),
+                Some(_) => {
+                    return Err(anyhow!("expected stopped state"));
+                }
+                None => break,
             }
         }
-        let Some((torrent_id, state)) = paused_event else {
-            panic!("state change not observed after pause");
-        };
+        let (torrent_id, state) =
+            paused_event.ok_or_else(|| anyhow!("state change not observed after pause"))?;
         assert_eq!(torrent_id, descriptor.id);
         assert!(matches!(state, TorrentState::Stopped));
 
@@ -2414,12 +2460,14 @@ mod tests {
                     break;
                 }
                 Some(Event::MetadataUpdated { .. }) => {}
-                other => panic!("expected downloading state, got {other:?}"),
+                Some(_) => {
+                    return Err(anyhow!("expected downloading state"));
+                }
+                None => break,
             }
         }
-        let Some((torrent_id, state)) = resumed_event else {
-            panic!("state change not observed after resume");
-        };
+        let (torrent_id, state) =
+            resumed_event.ok_or_else(|| anyhow!("state change not observed after resume"))?;
         assert_eq!(torrent_id, descriptor.id);
         assert!(matches!(state, TorrentState::Downloading));
 
@@ -2533,8 +2581,10 @@ mod tests {
         let persisted = entries
             .into_iter()
             .find(|entry| entry.torrent_id == descriptor.id)
-            .expect("stored metadata present");
-        let persisted_meta = persisted.metadata.expect("metadata persisted");
+            .ok_or_else(|| anyhow!("expected stored metadata"))?;
+        let persisted_meta = persisted
+            .metadata
+            .ok_or_else(|| anyhow!("expected persisted metadata"))?;
         assert_eq!(persisted_meta.selection.include, update.include);
         assert_eq!(persisted_meta.selection.exclude, update.exclude);
         assert_eq!(persisted_meta.priorities.len(), 1);
@@ -2589,7 +2639,7 @@ mod tests {
 
         match next_event_with_timeout(&mut stream, 50).await {
             Some(Event::Progress { torrent_id: id, .. }) => assert_eq!(id, torrent_id),
-            other => panic!("expected progress event, got {other:?}"),
+            _ => return Err(anyhow!("expected progress event")),
         }
 
         // Immediate second update should be suppressed to honour the coalescing budget.
@@ -2690,7 +2740,7 @@ mod tests {
             Some(Event::HealthChanged { degraded }) => {
                 assert_eq!(degraded, vec!["rate_limiter"]);
             }
-            other => panic!("expected health changed event, got {other:?}"),
+            _ => return Err(anyhow!("expected health changed event")),
         }
 
         // Drain the progress event that follows the degradation notification.
@@ -2728,7 +2778,7 @@ mod tests {
             Some(Event::HealthChanged { degraded }) => {
                 assert!(degraded.is_empty(), "expected recovery event");
             }
-            other => panic!("expected health recovery event, got {other:?}"),
+            _ => return Err(anyhow!("expected health recovery event")),
         }
 
         Ok(())
@@ -2754,7 +2804,7 @@ mod tests {
             Some(Event::HealthChanged { degraded }) => {
                 assert_eq!(degraded, vec!["network".to_string()]);
             }
-            other => panic!("expected health change event, got {other:?}"),
+            _ => return Err(anyhow!("expected health change event")),
         }
 
         Ok(())
@@ -2785,7 +2835,7 @@ mod tests {
             Some(Event::HealthChanged { degraded }) => {
                 assert_eq!(degraded, vec!["tracker".to_string()]);
             }
-            other => panic!("expected tracker degradation event, got {other:?}"),
+            _ => return Err(anyhow!("expected tracker degradation event")),
         }
 
         let mut actions = Vec::new();
@@ -2805,7 +2855,7 @@ mod tests {
             Some(Event::HealthChanged { degraded }) => {
                 assert!(degraded.is_empty(), "expected tracker recovery");
             }
-            other => panic!("expected tracker recovery event, got {other:?}"),
+            _ => return Err(anyhow!("expected tracker recovery event")),
         }
 
         Ok(())
@@ -2892,7 +2942,7 @@ mod tests {
         let active_monday = Utc
             .with_ymd_and_hms(2024, 1, 1, 1, 30, 0)
             .single()
-            .expect("valid datetime");
+            .ok_or_else(|| anyhow!("expected valid datetime"))?;
         worker.reconcile_alt_speed_with_now(active_monday).await?;
         assert_eq!(worker.global_limits.download_bps, Some(10_000));
         assert!(worker.alt_speed.as_ref().is_some_and(|plan| plan.active));
@@ -2900,7 +2950,7 @@ mod tests {
         let inactive_tuesday = Utc
             .with_ymd_and_hms(2024, 1, 2, 3, 0, 0)
             .single()
-            .expect("valid datetime");
+            .ok_or_else(|| anyhow!("expected valid datetime"))?;
         worker
             .reconcile_alt_speed_with_now(inactive_tuesday)
             .await?;
@@ -2910,7 +2960,7 @@ mod tests {
     }
 
     #[test]
-    fn alt_speed_schedule_handles_wraparound() {
+    fn alt_speed_schedule_handles_wraparound() -> Result<()> {
         let schedule = AltSpeedSchedule {
             days: vec![Weekday::Mon],
             start_minutes: 22 * 60,
@@ -2920,54 +2970,63 @@ mod tests {
         let late_monday = Utc
             .with_ymd_and_hms(2024, 1, 1, 23, 0, 0)
             .single()
-            .expect("valid datetime");
+            .ok_or_else(|| anyhow!("expected valid datetime"))?;
         assert!(is_alt_speed_active(&schedule, late_monday));
 
         let early_monday = Utc
             .with_ymd_and_hms(2024, 1, 1, 1, 0, 0)
             .single()
-            .expect("valid datetime");
+            .ok_or_else(|| anyhow!("expected valid datetime"))?;
         assert!(is_alt_speed_active(&schedule, early_monday));
 
         let tuesday = Utc
             .with_ymd_and_hms(2024, 1, 2, 10, 0, 0)
             .single()
-            .expect("valid datetime");
+            .ok_or_else(|| anyhow!("expected valid datetime"))?;
         assert!(!is_alt_speed_active(&schedule, tuesday));
+        Ok(())
     }
 
     struct ErrorSession;
 
     #[async_trait::async_trait]
     impl LibTorrentSession for ErrorSession {
-        async fn add_torrent(&mut self, _request: &AddTorrent) -> Result<()> {
+        async fn add_torrent(&mut self, _request: &AddTorrent) -> TorrentResult<()> {
             Ok(())
         }
 
         async fn create_torrent(
             &mut self,
             _request: &revaer_torrent_core::model::TorrentAuthorRequest,
-        ) -> Result<revaer_torrent_core::model::TorrentAuthorResult> {
-            Err(anyhow::anyhow!("simulated session failure"))
+        ) -> TorrentResult<revaer_torrent_core::model::TorrentAuthorResult> {
+            Err(op_failed(
+                "create_torrent",
+                None,
+                std::io::Error::other("simulated session failure"),
+            ))
         }
 
-        async fn remove_torrent(&mut self, _id: Uuid, _options: &RemoveTorrent) -> Result<()> {
+        async fn remove_torrent(
+            &mut self,
+            _id: Uuid,
+            _options: &RemoveTorrent,
+        ) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn pause_torrent(&mut self, _id: Uuid) -> Result<()> {
+        async fn pause_torrent(&mut self, _id: Uuid) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn resume_torrent(&mut self, _id: Uuid) -> Result<()> {
+        async fn resume_torrent(&mut self, _id: Uuid) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn set_sequential(&mut self, _id: Uuid, _sequential: bool) -> Result<()> {
+        async fn set_sequential(&mut self, _id: Uuid, _sequential: bool) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn load_fastresume(&mut self, _id: Uuid, _payload: &[u8]) -> Result<()> {
+        async fn load_fastresume(&mut self, _id: Uuid, _payload: &[u8]) -> TorrentResult<()> {
             Ok(())
         }
 
@@ -2975,7 +3034,7 @@ mod tests {
             &mut self,
             _id: Uuid,
             _options: &revaer_torrent_core::model::TorrentOptionsUpdate,
-        ) -> Result<()> {
+        ) -> TorrentResult<()> {
             Ok(())
         }
 
@@ -2983,7 +3042,7 @@ mod tests {
             &mut self,
             _id: Uuid,
             _trackers: &revaer_torrent_core::model::TorrentTrackersUpdate,
-        ) -> Result<()> {
+        ) -> TorrentResult<()> {
             Ok(())
         }
 
@@ -2991,7 +3050,7 @@ mod tests {
             &mut self,
             _id: Uuid,
             _web_seeds: &revaer_torrent_core::model::TorrentWebSeedsUpdate,
-        ) -> Result<()> {
+        ) -> TorrentResult<()> {
             Ok(())
         }
 
@@ -2999,7 +3058,7 @@ mod tests {
             &mut self,
             _id: Option<Uuid>,
             _limits: &TorrentRateLimit,
-        ) -> Result<()> {
+        ) -> TorrentResult<()> {
             Ok(())
         }
 
@@ -3007,24 +3066,28 @@ mod tests {
             &mut self,
             _id: Uuid,
             _rules: &FileSelectionUpdate,
-        ) -> Result<()> {
+        ) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn reannounce(&mut self, _id: Uuid) -> Result<()> {
+        async fn reannounce(&mut self, _id: Uuid) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn move_torrent(&mut self, _id: Uuid, _download_dir: &str) -> Result<()> {
+        async fn move_torrent(&mut self, _id: Uuid, _download_dir: &str) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn recheck(&mut self, _id: Uuid) -> Result<()> {
+        async fn recheck(&mut self, _id: Uuid) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn peers(&mut self, _id: Uuid) -> Result<Vec<PeerSnapshot>> {
-            Err(anyhow::anyhow!("simulated session failure"))
+        async fn peers(&mut self, _id: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
+            Err(op_failed(
+                "peers",
+                Some(_id),
+                std::io::Error::other("simulated session failure"),
+            ))
         }
 
         async fn set_piece_deadline(
@@ -3032,25 +3095,29 @@ mod tests {
             _id: Uuid,
             _piece: u32,
             _deadline_ms: Option<u32>,
-        ) -> Result<()> {
+        ) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn apply_config(&mut self, _config: &EngineRuntimeConfig) -> Result<()> {
+        async fn apply_config(&mut self, _config: &EngineRuntimeConfig) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn inspect_settings(&mut self) -> Result<EngineSettingsSnapshot> {
+        async fn inspect_settings(&mut self) -> TorrentResult<EngineSettingsSnapshot> {
             Ok(EngineSettingsSnapshot::default())
         }
 
-        async fn poll_events(&mut self) -> Result<Vec<EngineEvent>> {
-            Err(anyhow::anyhow!("simulated session failure"))
+        async fn poll_events(&mut self) -> TorrentResult<Vec<EngineEvent>> {
+            Err(op_failed(
+                "poll_events",
+                None,
+                std::io::Error::other("simulated session failure"),
+            ))
         }
     }
 
     #[tokio::test]
-    async fn session_poll_failure_marks_engine_degraded() {
+    async fn session_poll_failure_marks_engine_degraded() -> Result<()> {
         let bus = EventBus::with_capacity(8);
         let session: Box<dyn LibTorrentSession> = Box::new(ErrorSession);
         let mut worker = Worker::new(bus.clone(), session, None);
@@ -3062,7 +3129,8 @@ mod tests {
             Some(Event::HealthChanged { degraded }) => {
                 assert_eq!(degraded, vec!["session"]);
             }
-            other => panic!("expected session degradation event, got {other:?}"),
+            _ => return Err(anyhow!("expected session degradation event")),
         }
+        Ok(())
     }
 }

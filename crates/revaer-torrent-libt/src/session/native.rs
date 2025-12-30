@@ -1,6 +1,6 @@
-use anyhow::{Result, anyhow};
+use crate::error::{LibtorrentError, op_failed};
+use crate::ffi::{SessionHandle, SessionHandleError};
 use async_trait::async_trait;
-use cxx::UniquePtr;
 use uuid::Uuid;
 
 use crate::convert::{map_native_event, map_priority};
@@ -9,7 +9,7 @@ use crate::types::{EngineRuntimeConfig, EngineSettingsSnapshot};
 use ffi::SourceKind;
 use revaer_torrent_core::{
     AddTorrent, EngineEvent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentRateLimit,
-    TorrentSource,
+    TorrentResult, TorrentSource,
     model::{TorrentAuthorFile, TorrentAuthorRequest, TorrentAuthorResult, TrackerAuth},
 };
 use tracing::warn;
@@ -18,21 +18,25 @@ use super::LibTorrentSession;
 use super::options::EngineOptionsPlan;
 
 pub(super) struct NativeSession {
-    inner: UniquePtr<ffi::Session>,
+    inner: SessionHandle,
 }
 
-pub(super) fn create_session() -> Result<Box<dyn LibTorrentSession>> {
+pub(super) fn create_session() -> TorrentResult<Box<dyn LibTorrentSession>> {
     let options = base_options();
     let inner = initialize_session(&options)?;
     Ok(Box::new(NativeSession { inner }))
 }
 
 impl NativeSession {
-    fn map_error(message: String) -> Result<()> {
+    fn map_error(operation: &'static str, message: String) -> TorrentResult<()> {
         if message.is_empty() {
             Ok(())
         } else {
-            Err(anyhow!(message))
+            Err(op_failed(
+                operation,
+                None,
+                LibtorrentError::NativeFailure { operation, message },
+            ))
         }
     }
 
@@ -60,18 +64,14 @@ impl NativeSession {
 
     #[cfg(all(test, feature = "libtorrent"))]
     fn inspect_storage_state(&self) -> ffi::EngineStorageState {
-        self.inner
-            .as_ref()
-            .expect("native session must be initialized")
-            .inspect_storage_state()
+        let inner = self.inner.as_ref();
+        inner.inspect_storage_state()
     }
 
     #[cfg(all(test, feature = "libtorrent"))]
     fn inspect_peer_class_state(&self) -> ffi::EnginePeerClassState {
-        self.inner
-            .as_ref()
-            .expect("native session must be initialized")
-            .inspect_peer_class_state()
+        let inner = self.inner.as_ref();
+        inner.inspect_peer_class_state()
     }
 }
 
@@ -84,13 +84,16 @@ const fn base_options() -> ffi::SessionOptions {
     }
 }
 
-fn initialize_session(options: &ffi::SessionOptions) -> Result<UniquePtr<ffi::Session>> {
-    let inner = ffi::new_session(options);
-    if inner.is_null() {
-        Err(anyhow!("failed to initialize libtorrent session"))
-    } else {
-        Ok(inner)
-    }
+fn initialize_session(options: &ffi::SessionOptions) -> TorrentResult<SessionHandle> {
+    SessionHandle::new(options).map_err(|err| match err {
+        SessionHandleError::NullSession => op_failed(
+            "initialize_session",
+            None,
+            LibtorrentError::SessionUnavailable {
+                operation: "initialize_session",
+            },
+        ),
+    })
 }
 
 const fn map_max_connections(limit: Option<i32>) -> (i32, bool) {
@@ -290,7 +293,7 @@ pub(super) mod test_support {
 }
 
 #[cfg(all(test, feature = "libtorrent"))]
-fn create_native_session_for_tests() -> Result<NativeSession> {
+fn create_native_session_for_tests() -> TorrentResult<NativeSession> {
     let options = base_options();
     let inner = initialize_session(&options)?;
     Ok(NativeSession { inner })
@@ -298,7 +301,7 @@ fn create_native_session_for_tests() -> Result<NativeSession> {
 
 #[async_trait]
 impl LibTorrentSession for NativeSession {
-    async fn add_torrent(&mut self, request: &AddTorrent) -> Result<()> {
+    async fn add_torrent(&mut self, request: &AddTorrent) -> TorrentResult<()> {
         let mut add_request = ffi::AddTorrentRequest {
             id: request.id.to_string(),
             source_kind: match request.source {
@@ -356,58 +359,69 @@ impl LibTorrentSession for NativeSession {
 
         let session = self.inner.pin_mut();
         let result = session.add_torrent(&add_request);
-        Self::map_error(result)
+        Self::map_error("add_torrent", result)
     }
 
     async fn create_torrent(
         &mut self,
         request: &TorrentAuthorRequest,
-    ) -> Result<TorrentAuthorResult> {
+    ) -> TorrentResult<TorrentAuthorResult> {
         let create_request = map_author_request(request);
         let session = self.inner.pin_mut();
         let result = session.create_torrent(&create_request);
         if !result.error.is_empty() {
-            return Err(anyhow!(result.error));
+            return Err(op_failed(
+                "create_torrent",
+                None,
+                LibtorrentError::NativeFailure {
+                    operation: "create_torrent",
+                    message: result.error,
+                },
+            ));
         }
         Ok(map_author_result(result))
     }
 
-    async fn remove_torrent(&mut self, id: Uuid, options: &RemoveTorrent) -> Result<()> {
+    async fn remove_torrent(&mut self, id: Uuid, options: &RemoveTorrent) -> TorrentResult<()> {
         let key = id.to_string();
         let session = self.inner.pin_mut();
         let result = session.remove_torrent(&key, options.with_data);
-        Self::map_error(result)
+        Self::map_error("remove_torrent", result)
     }
 
-    async fn pause_torrent(&mut self, id: Uuid) -> Result<()> {
+    async fn pause_torrent(&mut self, id: Uuid) -> TorrentResult<()> {
         let key = id.to_string();
         let session = self.inner.pin_mut();
         let result = session.pause_torrent(&key);
-        Self::map_error(result)
+        Self::map_error("pause_torrent", result)
     }
 
-    async fn resume_torrent(&mut self, id: Uuid) -> Result<()> {
+    async fn resume_torrent(&mut self, id: Uuid) -> TorrentResult<()> {
         let key = id.to_string();
         let session = self.inner.pin_mut();
         let result = session.resume_torrent(&key);
-        Self::map_error(result)
+        Self::map_error("resume_torrent", result)
     }
 
-    async fn set_sequential(&mut self, id: Uuid, sequential: bool) -> Result<()> {
+    async fn set_sequential(&mut self, id: Uuid, sequential: bool) -> TorrentResult<()> {
         let key = id.to_string();
         let session = self.inner.pin_mut();
         let result = session.set_sequential(&key, sequential);
-        Self::map_error(result)
+        Self::map_error("set_sequential", result)
     }
 
-    async fn load_fastresume(&mut self, id: Uuid, payload: &[u8]) -> Result<()> {
+    async fn load_fastresume(&mut self, id: Uuid, payload: &[u8]) -> TorrentResult<()> {
         let key = id.to_string();
         let session = self.inner.pin_mut();
         let result = session.load_fastresume(&key, payload);
-        Self::map_error(result)
+        Self::map_error("load_fastresume", result)
     }
 
-    async fn update_limits(&mut self, id: Option<Uuid>, limits: &TorrentRateLimit) -> Result<()> {
+    async fn update_limits(
+        &mut self,
+        id: Option<Uuid>,
+        limits: &TorrentRateLimit,
+    ) -> TorrentResult<()> {
         let request = ffi::LimitRequest {
             apply_globally: id.is_none(),
             id: id.map_or_else(String::new, |value| value.to_string()),
@@ -420,10 +434,14 @@ impl LibTorrentSession for NativeSession {
         };
         let session = self.inner.pin_mut();
         let result = session.update_limits(&request);
-        Self::map_error(result)
+        Self::map_error("update_limits", result)
     }
 
-    async fn update_selection(&mut self, id: Uuid, rules: &FileSelectionUpdate) -> Result<()> {
+    async fn update_selection(
+        &mut self,
+        id: Uuid,
+        rules: &FileSelectionUpdate,
+    ) -> TorrentResult<()> {
         let priorities = rules
             .priorities
             .iter()
@@ -442,14 +460,14 @@ impl LibTorrentSession for NativeSession {
         };
         let session = self.inner.pin_mut();
         let result = session.update_selection(&request);
-        Self::map_error(result)
+        Self::map_error("update_selection", result)
     }
 
     async fn update_options(
         &mut self,
         id: Uuid,
         options: &revaer_torrent_core::model::TorrentOptionsUpdate,
-    ) -> Result<()> {
+    ) -> TorrentResult<()> {
         let mut request = ffi::UpdateOptionsRequest {
             id: id.to_string(),
             max_connections: 0,
@@ -507,34 +525,34 @@ impl LibTorrentSession for NativeSession {
 
         let session = self.inner.pin_mut();
         let result = session.update_options(&request);
-        Self::map_error(result)
+        Self::map_error("update_options", result)
     }
 
-    async fn reannounce(&mut self, id: Uuid) -> Result<()> {
+    async fn reannounce(&mut self, id: Uuid) -> TorrentResult<()> {
         let key = id.to_string();
         let session = self.inner.pin_mut();
         let result = session.reannounce(&key);
-        Self::map_error(result)
+        Self::map_error("reannounce", result)
     }
 
-    async fn move_torrent(&mut self, id: Uuid, download_dir: &str) -> Result<()> {
+    async fn move_torrent(&mut self, id: Uuid, download_dir: &str) -> TorrentResult<()> {
         let request = ffi::MoveTorrentRequest {
             id: id.to_string(),
             download_dir: download_dir.to_string(),
         };
         let session = self.inner.pin_mut();
         let result = session.move_torrent(&request);
-        Self::map_error(result)
+        Self::map_error("move_torrent", result)
     }
 
-    async fn recheck(&mut self, id: Uuid) -> Result<()> {
+    async fn recheck(&mut self, id: Uuid) -> TorrentResult<()> {
         let key = id.to_string();
         let session = self.inner.pin_mut();
         let result = session.recheck(&key);
-        Self::map_error(result)
+        Self::map_error("recheck", result)
     }
 
-    async fn peers(&mut self, id: Uuid) -> Result<Vec<PeerSnapshot>> {
+    async fn peers(&mut self, id: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
         let key = id.to_string();
         let session = self.inner.pin_mut();
         let peers = session.list_peers(&key);
@@ -545,7 +563,7 @@ impl LibTorrentSession for NativeSession {
         &mut self,
         id: Uuid,
         trackers: &revaer_torrent_core::model::TorrentTrackersUpdate,
-    ) -> Result<()> {
+    ) -> TorrentResult<()> {
         let request = ffi::UpdateTrackersRequest {
             id: id.to_string(),
             trackers: trackers.trackers.clone(),
@@ -553,14 +571,14 @@ impl LibTorrentSession for NativeSession {
         };
         let session = self.inner.pin_mut();
         let result = session.update_trackers(&request);
-        Self::map_error(result)
+        Self::map_error("update_trackers", result)
     }
 
     async fn update_web_seeds(
         &mut self,
         id: Uuid,
         web_seeds: &revaer_torrent_core::model::TorrentWebSeedsUpdate,
-    ) -> Result<()> {
+    ) -> TorrentResult<()> {
         let request = ffi::UpdateWebSeedsRequest {
             id: id.to_string(),
             web_seeds: web_seeds.web_seeds.clone(),
@@ -568,7 +586,7 @@ impl LibTorrentSession for NativeSession {
         };
         let session = self.inner.pin_mut();
         let result = session.update_web_seeds(&request);
-        Self::map_error(result)
+        Self::map_error("update_web_seeds", result)
     }
 
     async fn set_piece_deadline(
@@ -576,37 +594,45 @@ impl LibTorrentSession for NativeSession {
         id: Uuid,
         piece: u32,
         deadline_ms: Option<u32>,
-    ) -> Result<()> {
+    ) -> TorrentResult<()> {
         let (deadline, has_deadline) = match deadline_ms {
             Some(value) => {
-                let deadline = i32::try_from(value)
-                    .map_err(|_| anyhow!("deadline exceeds supported range"))?;
+                let deadline = i32::try_from(value).map_err(|_| {
+                    op_failed(
+                        "set_piece_deadline",
+                        Some(id),
+                        LibtorrentError::InvalidInput {
+                            field: "deadline_ms",
+                            reason: "deadline exceeds supported range",
+                        },
+                    )
+                })?;
                 (deadline, true)
             }
             None => (0, false),
         };
         let session = self.inner.pin_mut();
         let result = session.set_piece_deadline(&id.to_string(), piece, deadline, has_deadline);
-        Self::map_error(result)
+        Self::map_error("set_piece_deadline", result)
     }
 
-    async fn apply_config(&mut self, config: &EngineRuntimeConfig) -> Result<()> {
+    async fn apply_config(&mut self, config: &EngineRuntimeConfig) -> TorrentResult<()> {
         let plan = EngineOptionsPlan::from_runtime_config(config);
         for warning in &plan.warnings {
             warn!(%warning, "native engine guard rail applied");
         }
         let session = self.inner.pin_mut();
         let result = session.apply_engine_profile(&plan.options);
-        Self::map_error(result)
+        Self::map_error("apply_config", result)
     }
 
-    async fn inspect_settings(&mut self) -> Result<EngineSettingsSnapshot> {
+    async fn inspect_settings(&mut self) -> TorrentResult<EngineSettingsSnapshot> {
         let session = self.inner.pin_mut();
         let snapshot = session.inspect_settings_state();
         Ok(Self::map_settings_snapshot(snapshot))
     }
 
-    async fn poll_events(&mut self) -> Result<Vec<EngineEvent>> {
+    async fn poll_events(&mut self) -> TorrentResult<Vec<EngineEvent>> {
         let session = self.inner.pin_mut();
         let raw_events = session.poll_events();
         let mut events = Vec::with_capacity(raw_events.len());
@@ -626,6 +652,7 @@ mod tests {
     use super::*;
     use crate::ffi::ffi::{NativeEvent, NativeEventKind, NativeTorrentState};
     use crate::types::{IpFilterRule, IpFilterRuntimeConfig, Ipv6Mode, PeerClassRuntimeConfig};
+    use anyhow::{Result, anyhow};
     use revaer_torrent_core::{
         AddTorrent, AddTorrentOptions, EngineEvent, FileSelectionRules, TorrentSource,
         model::TorrentAuthorRequest,
@@ -633,6 +660,8 @@ mod tests {
     use std::{convert::TryFrom, fs, path::Path, time::Duration};
     use tokio::time::sleep;
     use uuid::Uuid;
+
+    type TorrentResult<T> = Result<T>;
 
     const SEED_PIECE_LENGTH: i64 = 16_384;
     const VALID_PIECE_HASH: [u8; 20] = [
@@ -652,13 +681,14 @@ mod tests {
     }
 
     fn write_seed_payload(root: &Path) -> std::io::Result<()> {
-        let piece_len =
-            usize::try_from(SEED_PIECE_LENGTH).expect("seed piece length must fit in usize");
+        let piece_len = usize::try_from(SEED_PIECE_LENGTH).map_err(|_| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid piece length")
+        })?;
         fs::write(root.join("sample"), vec![0_u8; piece_len])
     }
 
     #[tokio::test]
-    async fn native_session_accepts_configuration_and_add() -> Result<()> {
+    async fn native_session_accepts_configuration_and_add() -> TorrentResult<()> {
         let mut harness = NativeSessionHarness::new()?;
         let config = harness.runtime_config();
         harness.session.apply_config(&config).await?;
@@ -681,7 +711,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn native_session_accepts_seed_mode_with_metainfo() -> Result<()> {
+    async fn native_session_accepts_seed_mode_with_metainfo() -> TorrentResult<()> {
         let mut harness = NativeSessionHarness::new()?;
         let config = harness.runtime_config();
         harness.session.apply_config(&config).await?;
@@ -701,7 +731,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn native_session_moves_storage_and_reports_metadata() -> Result<()> {
+    async fn native_session_moves_storage_and_reports_metadata() -> TorrentResult<()> {
         let mut harness = NativeSessionHarness::new()?;
         let config = harness.runtime_config();
         harness.session.apply_config(&config).await?;
@@ -744,7 +774,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn native_session_rejects_hash_sample_on_mismatch() -> Result<()> {
+    async fn native_session_rejects_hash_sample_on_mismatch() -> TorrentResult<()> {
         let mut harness = NativeSessionHarness::new()?;
         let config = harness.runtime_config();
         harness.session.apply_config(&config).await?;
@@ -764,16 +794,23 @@ mod tests {
             .session
             .add_torrent(&descriptor)
             .await
-            .expect_err("hash sample should fail for mismatched data");
-        assert!(
-            err.to_string().contains("seed-mode sample failed")
-                || err.to_string().contains("hash mismatch")
-        );
+            .err()
+            .ok_or_else(|| anyhow!("expected hash sample failure"))?;
+        let revaer_torrent_core::TorrentError::OperationFailed { source, .. } = err else {
+            return Err(anyhow!("expected operation failure"));
+        };
+        let source = source
+            .downcast::<LibtorrentError>()
+            .map_err(|_| anyhow!("expected libtorrent error"))?;
+        let LibtorrentError::NativeFailure { message, .. } = *source else {
+            return Err(anyhow!("expected native failure"));
+        };
+        assert!(message.contains("seed-mode sample failed") || message.contains("hash mismatch"));
         Ok(())
     }
 
     #[tokio::test]
-    async fn native_session_rejects_seed_mode_for_magnets() -> Result<()> {
+    async fn native_session_rejects_seed_mode_for_magnets() -> TorrentResult<()> {
         let mut harness = NativeSessionHarness::new()?;
         let config = harness.runtime_config();
         harness.session.apply_config(&config).await?;
@@ -793,16 +830,23 @@ mod tests {
             .session
             .add_torrent(&descriptor)
             .await
-            .expect_err("seed mode without metainfo should be rejected");
-        assert!(
-            err.to_string()
-                .contains("seed_mode requires metainfo payload")
-        );
+            .err()
+            .ok_or_else(|| anyhow!("expected seed mode rejection"))?;
+        let revaer_torrent_core::TorrentError::OperationFailed { source, .. } = err else {
+            return Err(anyhow!("expected operation failure"));
+        };
+        let source = source
+            .downcast::<LibtorrentError>()
+            .map_err(|_| anyhow!("expected libtorrent error"))?;
+        let LibtorrentError::NativeFailure { message, .. } = *source else {
+            return Err(anyhow!("expected native failure"));
+        };
+        assert!(message.contains("seed_mode requires metainfo payload"));
         Ok(())
     }
 
     #[tokio::test]
-    async fn native_session_applies_rate_limits() -> Result<()> {
+    async fn native_session_applies_rate_limits() -> TorrentResult<()> {
         let mut harness = NativeSessionHarness::new()?;
         let mut config = harness.runtime_config();
         config.listen_port = Some(68_81);
@@ -855,7 +899,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn native_session_accepts_v2_magnet() -> Result<()> {
+    async fn native_session_accepts_v2_magnet() -> TorrentResult<()> {
         let mut harness = NativeSessionHarness::new()?;
         let config = harness.runtime_config();
         harness.session.apply_config(&config).await?;
@@ -873,7 +917,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn native_session_accepts_explicit_listen_interfaces() -> Result<()> {
+    async fn native_session_accepts_explicit_listen_interfaces() -> TorrentResult<()> {
         let mut harness = NativeSessionHarness::new()?;
         let mut config = harness.runtime_config();
         config.listen_interfaces = vec!["0.0.0.0:7000".into(), "[::]:7000".into()];
@@ -885,7 +929,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn native_session_applies_ip_filter() -> Result<()> {
+    async fn native_session_applies_ip_filter() -> TorrentResult<()> {
         let mut harness = NativeSessionHarness::new()?;
         let mut config = harness.runtime_config();
         config.ip_filter = Some(IpFilterRuntimeConfig {
@@ -903,7 +947,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn native_session_applies_peer_classes() -> Result<()> {
+    async fn native_session_applies_peer_classes() -> TorrentResult<()> {
         let mut harness = NativeSessionHarness::new()?;
         let mut config = harness.runtime_config();
         config.peer_classes = vec![PeerClassRuntimeConfig {
@@ -924,7 +968,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn native_session_authors_torrent_from_file() -> Result<()> {
+    async fn native_session_authors_torrent_from_file() -> TorrentResult<()> {
         let mut harness = NativeSessionHarness::new()?;
         let config = harness.runtime_config();
         harness.session.apply_config(&config).await?;
@@ -954,7 +998,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn native_session_applies_disk_cache_settings() -> Result<()> {
+    async fn native_session_applies_disk_cache_settings() -> TorrentResult<()> {
         #[derive(Copy, Clone)]
         struct StorageFlags(u8);
         impl StorageFlags {

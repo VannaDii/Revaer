@@ -10,7 +10,7 @@ repository.workspace = true
 authors.workspace = true
 
 [dependencies]
-anyhow.workspace = true
+thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 revaer-api = { path = "../revaer-api" }
@@ -21,6 +21,7 @@ revaer-torrent-core = { path = "../revaer-torrent-core" }
 revaer-torrent-libt = { path = "../revaer-torrent-libt", default-features = false }
 revaer-events = { path = "../revaer-events" }
 revaer-runtime = { path = "../revaer-runtime" }
+revaer-data = { path = "../revaer-data" }
 uuid.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
@@ -29,6 +30,7 @@ serde_json.workspace = true
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip"] }
 
 [dev-dependencies]
+anyhow.workspace = true
 tempfile = "3.10"
 
 [features]

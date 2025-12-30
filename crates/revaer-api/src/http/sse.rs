@@ -4,7 +4,6 @@ use std::convert::Infallible;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Result;
 use async_stream::stream;
 use axum::{
     extract::{Query, State},
@@ -76,7 +75,8 @@ pub(crate) fn build_sse_filter(query: &SseQuery) -> Result<SseFilter, ApiError> 
     if let Some(torrent) = query.torrent.as_deref() {
         for value in split_comma_separated(torrent) {
             let parsed = Uuid::parse_str(&value).map_err(|_| {
-                ApiError::bad_request(format!("torrent filter '{value}' is not a valid UUID"))
+                ApiError::bad_request("torrent filter is not a valid UUID")
+                    .with_context_field("torrent_filter", value.clone())
             })?;
             filter.torrent_ids.insert(parsed);
         }
@@ -85,9 +85,8 @@ pub(crate) fn build_sse_filter(query: &SseQuery) -> Result<SseFilter, ApiError> 
     if let Some(events) = query.event.as_deref() {
         for value in split_comma_separated(events) {
             if !EVENT_KIND_WHITELIST.contains(&value.as_str()) {
-                return Err(ApiError::bad_request(format!(
-                    "event filter '{value}' is not recognised"
-                )));
+                return Err(ApiError::bad_request("event filter is not recognised")
+                    .with_context_field("event_filter", value));
             }
             filter.event_kinds.insert(value);
         }
@@ -326,19 +325,21 @@ pub(crate) fn event_sse_stream(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::{Result, anyhow};
     use std::time::Duration;
 
     #[test]
-    fn build_sse_filter_parses_filters() {
+    fn build_sse_filter_parses_filters() -> Result<()> {
         let query = SseQuery {
             torrent: Some(format!("{},{}", Uuid::nil(), Uuid::from_u128(1))),
             event: Some("progress,completed".to_string()),
             state: Some("downloading,completed".to_string()),
         };
-        let filter = build_sse_filter(&query).expect("filter builds");
+        let filter = build_sse_filter(&query)?;
         assert_eq!(filter.torrent_ids.len(), 2);
         assert_eq!(filter.event_kinds.len(), 2);
         assert_eq!(filter.states.len(), 2);
+        Ok(())
     }
 
     #[test]
@@ -404,25 +405,30 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn sse_stream_emits_event_for_torrent_added() {
+    async fn sse_stream_emits_event_for_torrent_added() -> Result<()> {
         let bus = EventBus::with_capacity(16);
         let publisher = bus.clone();
         let torrent_id = Uuid::new_v4();
         tokio::spawn(async move {
             sleep(Duration::from_millis(10)).await;
-            let _ = publisher.publish(CoreEvent::TorrentAdded {
+            if let Err(error) = publisher.publish(CoreEvent::TorrentAdded {
                 torrent_id,
                 name: "example".to_string(),
-            });
+            }) {
+                tracing::warn!(
+                    event_id = error.event_id(),
+                    event_kind = error.event_kind(),
+                    error = %error,
+                    "failed to publish event"
+                );
+            }
         });
         let stream = event_sse_stream(bus.clone(), None, SseFilter::default());
         futures_util::pin_mut!(stream);
-        match tokio::time::timeout(Duration::from_millis(200), stream.next())
-            .await
-            .expect("timed out waiting for SSE event")
-        {
-            Some(Ok(_)) => {}
-            other => panic!("expected SSE event, got {other:?}"),
+        match tokio::time::timeout(Duration::from_millis(200), stream.next()).await? {
+            Some(Ok(_)) => Ok(()),
+            Some(Err(err)) => Err(anyhow!(err)),
+            None => Err(anyhow!("expected SSE event")),
         }
     }
 }

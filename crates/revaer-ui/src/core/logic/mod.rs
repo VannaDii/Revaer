@@ -581,6 +581,14 @@ pub fn compute_window(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::error::Error;
+    use std::io;
+
+    type Result<T> = std::result::Result<T, Box<dyn Error>>;
+
+    fn test_error(message: &'static str) -> Box<dyn Error> {
+        Box::new(io::Error::other(message))
+    }
 
     #[test]
     fn parse_rate_input_handles_empty_and_values() {
@@ -645,7 +653,7 @@ mod tests {
     }
 
     #[test]
-    fn build_add_payload_parses_tags_and_fields() {
+    fn build_add_payload_parses_tags_and_fields() -> Result<()> {
         let payload = build_add_payload(
             "magnet:?xt=urn:btih:abc",
             "tv",
@@ -655,13 +663,14 @@ mod tests {
             "",
             false,
         )
-        .unwrap();
+        .map_err(|_| test_error("build add payload failed"))?;
         assert_eq!(payload.category.as_deref(), Some("tv"));
         assert_eq!(payload.save_path.as_deref(), Some("/data"));
         assert_eq!(
             payload.tags,
             Some(vec!["4k".to_string(), "hevc".to_string()])
         );
+        Ok(())
     }
 
     #[test]
@@ -795,12 +804,16 @@ mod tests {
     }
 
     #[test]
-    fn plan_columns_collapses_optionals() {
-        let (xs_visible, xs_overflow) = plan_columns(crate::breakpoints::XS.max_width.unwrap());
+    fn plan_columns_collapses_optionals() -> Result<()> {
+        let xs_max = crate::breakpoints::XS
+            .max_width
+            .ok_or_else(|| test_error("missing XS max width"))?;
+        let (xs_visible, xs_overflow) = plan_columns(xs_max);
         assert!(xs_visible.contains(&"status"));
         assert!(xs_overflow.contains(&"eta"));
         let (lg_visible, lg_overflow) = plan_columns(crate::breakpoints::LG.min_width);
         assert!(lg_visible.contains(&"size"));
         assert!(lg_overflow.is_empty());
+        Ok(())
     }
 }

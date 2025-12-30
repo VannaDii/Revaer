@@ -2696,6 +2696,7 @@ dependencies = [
  "reqwest",
  "revaer-api",
  "revaer-config",
+ "revaer-data",
  "revaer-events",
  "revaer-fsops",
  "revaer-runtime",
@@ -2704,6 +2705,7 @@ dependencies = [
  "revaer-torrent-libt",
  "serde_json",
  "tempfile",
+ "thiserror 2.0.17",
  "tokio",
  "tokio-stream",
  "tracing",
@@ -2777,7 +2779,6 @@ dependencies = [
 name = "revaer-doc-indexer"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "chrono",
  "jsonschema",
  "regex",
@@ -2812,6 +2813,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tempfile",
+ "thiserror 2.0.17",
  "tokio",
  "tokio-stream",
  "tracing",
@@ -2831,7 +2833,6 @@ dependencies = [
 name = "revaer-telemetry"
 version = "0.1.0"
 dependencies = [
- "anyhow",
  "once_cell",
  "opentelemetry",
  "opentelemetry_sdk",
@@ -2864,6 +2865,7 @@ dependencies = [
  "chrono",
  "revaer-events",
  "serde",
+ "thiserror 2.0.17",
  "tokio",
  "uuid",
 ]

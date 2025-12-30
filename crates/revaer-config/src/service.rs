@@ -5,14 +5,13 @@
 //! `SettingsFacade`/`ConfigService` implementation and history/persistence
 //! glue.
 
-use anyhow::{Context, Result, anyhow, ensure};
 use argon2::Argon2;
 use argon2::password_hash::{
     Error as PasswordHashError, PasswordHash, PasswordHasher, PasswordVerifier, SaltString,
     rand_core::OsRng,
 };
 use async_trait::async_trait;
-use chrono::{Duration as ChronoDuration, Utc, Weekday};
+use chrono::{DateTime, Duration as ChronoDuration, Utc, Weekday};
 use rand::Rng;
 use rand::distr::Alphanumeric;
 use revaer_data::config::{
@@ -30,53 +29,56 @@ use tokio::time::sleep;
 use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
+use crate::SecretPatch;
 use crate::engine_profile::{
     AltSpeedConfig, AltSpeedSchedule, IpFilterConfig, PeerClassConfig, PeerClassesConfig,
-    TrackerAuthConfig, TrackerConfig, TrackerProxyConfig, TrackerProxyType, normalize_engine_profile,
+    TrackerAuthConfig, TrackerConfig, TrackerProxyConfig, TrackerProxyType,
+    normalize_engine_profile,
 };
+use crate::error::{ConfigError, ConfigResult};
 use crate::model::{
     ApiKeyAuth, ApiKeyPatch, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigSnapshot,
     EngineProfile, FsPolicy, LabelPolicy, SettingsChange, SettingsChangeset, SettingsPayload,
     SetupToken, TelemetryConfig,
 };
-use crate::SecretPatch;
 use crate::validate::{
-    ConfigError, ensure_mutable, parse_bind_addr, parse_uuid, validate_api_key_rate_limit,
-    validate_port,
+    ensure_mutable, parse_bind_addr, parse_uuid, validate_api_key_rate_limit, validate_port,
 };
 
 const APP_PROFILE_ID: &str = "00000000-0000-0000-0000-000000000001";
 const ENGINE_PROFILE_ID: &str = "00000000-0000-0000-0000-000000000002";
 const FS_POLICY_ID: &str = "00000000-0000-0000-0000-000000000003";
 
+type Result<T> = ConfigResult<T>;
+
 #[async_trait]
 /// Abstraction over configuration backends used by the application service.
 pub trait SettingsFacade: Send + Sync {
     /// Retrieve the current application profile.
-    async fn get_app_profile(&self) -> Result<AppProfile>;
+    async fn get_app_profile(&self) -> ConfigResult<AppProfile>;
     /// Retrieve the current engine profile.
-    async fn get_engine_profile(&self) -> Result<EngineProfile>;
+    async fn get_engine_profile(&self) -> ConfigResult<EngineProfile>;
     /// Retrieve the current filesystem policy.
-    async fn get_fs_policy(&self) -> Result<FsPolicy>;
+    async fn get_fs_policy(&self) -> ConfigResult<FsPolicy>;
     /// Retrieve a secret value by name if present.
-    async fn get_secret(&self, name: &str) -> Result<Option<String>>;
+    async fn get_secret(&self, name: &str) -> ConfigResult<Option<String>>;
     /// Subscribe to configuration change notifications.
-    async fn subscribe_changes(&self) -> Result<SettingsStream>;
+    async fn subscribe_changes(&self) -> ConfigResult<SettingsStream>;
     /// Apply a structured changeset attributed to an actor and reason.
     async fn apply_changeset(
         &self,
         actor: &str,
         reason: &str,
         changeset: SettingsChangeset,
-    ) -> Result<AppliedChanges>;
+    ) -> ConfigResult<AppliedChanges>;
     /// Issue a new setup token with a given TTL.
-    async fn issue_setup_token(&self, ttl: Duration, issued_by: &str) -> Result<SetupToken>;
+    async fn issue_setup_token(&self, ttl: Duration, issued_by: &str) -> ConfigResult<SetupToken>;
     /// Permanently consume a setup token.
-    async fn consume_setup_token(&self, token: &str) -> Result<()>;
+    async fn consume_setup_token(&self, token: &str) -> ConfigResult<()>;
     /// Check whether any API keys are configured.
-    async fn has_api_keys(&self) -> Result<bool>;
+    async fn has_api_keys(&self) -> ConfigResult<bool>;
     /// Perform a factory reset of configuration + runtime tables.
-    async fn factory_reset(&self) -> Result<()>;
+    async fn factory_reset(&self) -> ConfigResult<()>;
 }
 
 // Models are defined in model.rs.
@@ -92,13 +94,16 @@ pub struct SettingsStream {
 impl SettingsStream {
     /// Receive the next configuration change notification, falling back to polling if the
     /// LISTEN connection encounters an error.
-    pub async fn next(&mut self) -> Option<Result<SettingsChange>> {
+    pub async fn next(&mut self) -> Option<ConfigResult<SettingsChange>> {
         match self.listener.recv().await {
             Ok(notification) => {
                 let result = handle_notification(&self.pool, notification).await;
                 Some(result)
             }
-            Err(err) => Some(Err(err.into())),
+            Err(err) => Some(Err(ConfigError::Database {
+                operation: "config.settings_stream.recv",
+                source: err,
+            })),
         }
     }
 }
@@ -118,14 +123,14 @@ impl ConfigService {
     /// Returns an error if the `PostgreSQL` connection cannot be established or
     /// migrations fail to run.
     #[instrument(name = "config_service.new", skip(database_url))]
-    pub async fn new(database_url: impl Into<String>) -> Result<Self> {
+    pub async fn new(database_url: impl Into<String>) -> ConfigResult<Self> {
         let database_url = database_url.into();
         let pool = PgPoolOptions::new()
             .max_connections(8)
             .acquire_timeout(Duration::from_secs(10))
             .connect(&database_url)
             .await
-            .with_context(|| "failed to connect to PostgreSQL for configuration service")?;
+            .map_err(map_sqlx_err("config.connect"))?;
 
         apply_migrations(&pool).await?;
 
@@ -143,7 +148,7 @@ impl ConfigService {
     /// # Errors
     ///
     /// Returns an error if any underlying configuration query fails.
-    pub async fn snapshot(&self) -> Result<ConfigSnapshot> {
+    pub async fn snapshot(&self) -> ConfigResult<ConfigSnapshot> {
         let app = fetch_app_profile(&self.pool).await?;
         let engine = fetch_engine_profile(&self.pool).await?;
         let effective_engine = normalize_engine_profile(&engine);
@@ -167,7 +172,7 @@ impl ConfigService {
     pub async fn watch_settings(
         &self,
         poll_interval: Duration,
-    ) -> Result<(ConfigSnapshot, ConfigWatcher)> {
+    ) -> ConfigResult<(ConfigSnapshot, ConfigWatcher)> {
         let snapshot = self.snapshot().await?;
         let stream = match self.subscribe_changes().await {
             Ok(stream) => Some(stream),
@@ -193,38 +198,52 @@ impl ConfigService {
     ///
     /// Returns an error if database access fails, token verification fails, or
     /// the token is expired or missing.
-    pub async fn validate_setup_token(&self, token: &str) -> Result<()> {
-        let mut tx = self.pool.begin().await?;
-        data_config::cleanup_expired_setup_tokens(tx.as_mut()).await?;
+    pub async fn validate_setup_token(&self, token: &str) -> ConfigResult<()> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(map_sqlx_err("config.validate_setup_token.begin"))?;
+        data_config::cleanup_expired_setup_tokens(tx.as_mut())
+            .await
+            .map_err(map_db_err("config.validate_setup_token.cleanup"))?;
 
         let active = data_config::fetch_active_setup_token(tx.as_mut())
             .await
-            .context("failed to query setup tokens")?;
+            .map_err(map_db_err("config.validate_setup_token.fetch_active"))?;
 
         let Some(active) = active else {
-            tx.rollback().await?;
-            return Err(anyhow!("no active setup token"));
+            tx.rollback()
+                .await
+                .map_err(map_sqlx_err("config.validate_setup_token.rollback"))?;
+            return Err(ConfigError::SetupTokenMissing);
         };
 
         if active.expires_at <= Utc::now() {
-            tx.rollback().await?;
-            return Err(anyhow!("setup token expired"));
+            tx.rollback()
+                .await
+                .map_err(map_sqlx_err("config.validate_setup_token.rollback"))?;
+            return Err(ConfigError::SetupTokenExpired);
         }
 
         let matches = match verify_secret(&active.token_hash, token) {
             Ok(result) => result,
             Err(err) => {
-                tx.rollback().await?;
+                tx.rollback()
+                    .await
+                    .map_err(map_sqlx_err("config.validate_setup_token.rollback"))?;
                 return Err(err);
             }
         };
 
-        tx.rollback().await?;
+        tx.rollback()
+            .await
+            .map_err(map_sqlx_err("config.validate_setup_token.rollback"))?;
 
         if matches {
             Ok(())
         } else {
-            Err(anyhow!("invalid setup token"))
+            Err(ConfigError::SetupTokenInvalid)
         }
     }
 
@@ -238,16 +257,22 @@ impl ConfigService {
         &self,
         key_id: &str,
         secret: &str,
-    ) -> Result<Option<ApiKeyAuth>> {
+    ) -> ConfigResult<Option<ApiKeyAuth>> {
         let record = data_config::fetch_api_key_auth(&self.pool, key_id)
             .await
-            .context("failed to verify API key")?;
+            .map_err(map_db_err("config.authenticate_api_key.fetch"))?;
 
         let Some(record) = record else {
             return Ok(None);
         };
 
         if !record.enabled {
+            return Ok(None);
+        }
+
+        if let Some(expires_at) = record.expires_at
+            && expires_at <= Utc::now()
+        {
             return Ok(None);
         }
 
@@ -258,10 +283,19 @@ impl ConfigService {
 
         let rate_limit = match (record.rate_limit_burst, record.rate_limit_per_seconds) {
             (Some(burst), Some(per_seconds)) => {
-                let burst = u32::try_from(burst)
-                    .context("invalid rate_limit burst for API key")?;
-                let per_seconds = u64::try_from(per_seconds)
-                    .context("invalid rate_limit per_seconds for API key")?;
+                let burst = u32::try_from(burst).map_err(|_err| ConfigError::InvalidField {
+                    section: "api_keys".to_string(),
+                    field: "rate_limit.burst".to_string(),
+                    value: Some(burst.to_string()),
+                    reason: "invalid rate limit burst",
+                })?;
+                let per_seconds =
+                    u64::try_from(per_seconds).map_err(|_err| ConfigError::InvalidField {
+                        section: "api_keys".to_string(),
+                        field: "rate_limit.per_seconds".to_string(),
+                        value: Some(per_seconds.to_string()),
+                        reason: "invalid rate limit per seconds",
+                    })?;
                 let limit = ApiKeyRateLimit {
                     burst,
                     replenish_period: Duration::from_secs(per_seconds),
@@ -296,7 +330,7 @@ impl ConfigWatcher {
     ///
     /// Returns an error if polling or LISTEN handling fails while fetching the
     /// next configuration snapshot.
-    pub async fn next(&mut self) -> Result<ConfigSnapshot> {
+    pub async fn next(&mut self) -> ConfigResult<ConfigSnapshot> {
         loop {
             if let Some(snapshot) = self.listen_once().await? {
                 return Ok(snapshot);
@@ -380,10 +414,17 @@ impl SettingsFacade for ConfigService {
     }
 
     async fn get_secret(&self, name: &str) -> Result<Option<String>> {
-        let record = data_config::fetch_secret_by_name(&self.pool, name).await?;
+        let record = data_config::fetch_secret_by_name(&self.pool, name)
+            .await
+            .map_err(map_db_err("config.get_secret.fetch"))?;
         record
             .map(|row| {
-                String::from_utf8(row.ciphertext).context("secret payload is not valid UTF-8")
+                String::from_utf8(row.ciphertext).map_err(|_err| ConfigError::InvalidField {
+                    section: "settings_secret".to_string(),
+                    field: name.to_string(),
+                    value: None,
+                    reason: "payload is not valid UTF-8",
+                })
             })
             .transpose()
     }
@@ -391,11 +432,11 @@ impl SettingsFacade for ConfigService {
     async fn subscribe_changes(&self) -> Result<SettingsStream> {
         let mut listener = PgListener::connect(&self.database_url)
             .await
-            .context("failed to open LISTEN connection")?;
+            .map_err(map_sqlx_err("config.subscribe_changes.connect"))?;
         listener
             .listen(SETTINGS_CHANNEL)
             .await
-            .context("failed to LISTEN on settings channel")?;
+            .map_err(map_sqlx_err("config.subscribe_changes.listen"))?;
 
         Ok(SettingsStream {
             pool: self.pool.clone(),
@@ -409,7 +450,11 @@ impl SettingsFacade for ConfigService {
         _reason: &str,
         changeset: SettingsChangeset,
     ) -> Result<AppliedChanges> {
-        let mut tx = self.pool.begin().await?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(map_sqlx_err("config.apply_changeset.begin"))?;
 
         let current_app = fetch_app_profile_tx(&mut tx).await?;
         let immutable_keys: HashSet<String> = current_app.immutable_keys.iter().cloned().collect();
@@ -417,21 +462,24 @@ impl SettingsFacade for ConfigService {
         let mut applied_app: Option<AppProfile> = None;
         let mut applied_engine: Option<EngineProfile> = None;
         let mut applied_fs: Option<FsPolicy> = None;
-        let mut any_change = false;
-
-        if let Some(app_update) = changeset.app_profile {
-            if apply_app_profile_update(&mut tx, &current_app, &app_update, &immutable_keys)
-                .await?
-            {
-                applied_app = Some(fetch_app_profile_tx(&mut tx).await?);
-                any_change = true;
-            }
-        }
+        let mut any_change = if let Some(app_update) = changeset.app_profile
+            && apply_app_profile_update(&mut tx, &current_app, &app_update, &immutable_keys).await?
+        {
+            applied_app = Some(fetch_app_profile_tx(&mut tx).await?);
+            true
+        } else {
+            false
+        };
 
         if let Some(engine_update) = changeset.engine_profile {
             let current_engine = fetch_engine_profile(tx.as_mut()).await?;
-            if apply_engine_profile_update(&mut tx, &current_engine, &engine_update, &immutable_keys)
-                .await?
+            if apply_engine_profile_update(
+                &mut tx,
+                &current_engine,
+                &engine_update,
+                &immutable_keys,
+            )
+            .await?
             {
                 applied_engine = Some(fetch_engine_profile(tx.as_mut()).await?);
                 any_change = true;
@@ -469,14 +517,20 @@ impl SettingsFacade for ConfigService {
             || applied_fs.is_some()
             || api_keys_changed;
         if secrets_changed && !mutated_via_triggers {
-            data_config::bump_revision(tx.as_mut(), "settings_secret").await?;
+            data_config::bump_revision(tx.as_mut(), "settings_secret")
+                .await
+                .map_err(map_db_err("config.apply_changeset.bump_revision"))?;
         }
 
         let revision = fetch_revision(tx.as_mut()).await?;
         if any_change {
-            tx.commit().await?;
+            tx.commit()
+                .await
+                .map_err(map_sqlx_err("config.apply_changeset.commit"))?;
         } else {
-            tx.rollback().await?;
+            tx.rollback()
+                .await
+                .map_err(map_sqlx_err("config.apply_changeset.rollback"))?;
         }
 
         Ok(AppliedChanges {
@@ -488,16 +542,33 @@ impl SettingsFacade for ConfigService {
     }
 
     async fn issue_setup_token(&self, ttl: Duration, issued_by: &str) -> Result<SetupToken> {
-        ensure!(
-            ttl.as_secs() > 0 || ttl.subsec_nanos() > 0,
-            "setup token TTL must be positive"
-        );
+        if ttl.as_secs() == 0 && ttl.subsec_nanos() == 0 {
+            return Err(ConfigError::InvalidField {
+                section: "setup_token".to_string(),
+                field: "ttl".to_string(),
+                value: Some(ttl.as_millis().to_string()),
+                reason: "must be positive",
+            });
+        }
         let chrono_ttl =
-            ChronoDuration::from_std(ttl).context("setup token TTL exceeds supported range")?;
+            ChronoDuration::from_std(ttl).map_err(|_err| ConfigError::InvalidField {
+                section: "setup_token".to_string(),
+                field: "ttl".to_string(),
+                value: Some(ttl.as_millis().to_string()),
+                reason: "ttl exceeds supported range",
+            })?;
 
-        let mut tx = self.pool.begin().await?;
-        data_config::cleanup_expired_setup_tokens(tx.as_mut()).await?;
-        data_config::invalidate_active_setup_tokens(tx.as_mut()).await?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(map_sqlx_err("config.issue_setup_token.begin"))?;
+        data_config::cleanup_expired_setup_tokens(tx.as_mut())
+            .await
+            .map_err(map_db_err("config.issue_setup_token.cleanup"))?;
+        data_config::invalidate_active_setup_tokens(tx.as_mut())
+            .await
+            .map_err(map_db_err("config.issue_setup_token.invalidate"))?;
 
         let plaintext = generate_token(32);
         let token_hash = hash_secret(&plaintext)?;
@@ -510,9 +581,11 @@ impl SettingsFacade for ConfigService {
         };
         data_config::insert_setup_token(tx.as_mut(), &insert)
             .await
-            .context("failed to persist setup token")?;
+            .map_err(map_db_err("config.issue_setup_token.insert"))?;
 
-        tx.commit().await?;
+        tx.commit()
+            .await
+            .map_err(map_sqlx_err("config.issue_setup_token.commit"))?;
 
         info!(
             issued_by,
@@ -528,40 +601,54 @@ impl SettingsFacade for ConfigService {
     }
 
     async fn consume_setup_token(&self, token: &str) -> Result<()> {
-        let mut tx = self.pool.begin().await?;
-        data_config::cleanup_expired_setup_tokens(tx.as_mut()).await?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(map_sqlx_err("config.consume_setup_token.begin"))?;
+        data_config::cleanup_expired_setup_tokens(tx.as_mut())
+            .await
+            .map_err(map_db_err("config.consume_setup_token.cleanup"))?;
 
         let active = data_config::fetch_active_setup_token(tx.as_mut())
             .await
-            .context("failed to query setup tokens")?;
+            .map_err(map_db_err("config.consume_setup_token.fetch_active"))?;
 
         let Some(active) = active else {
-            tx.rollback().await?;
+            tx.rollback()
+                .await
+                .map_err(map_sqlx_err("config.consume_setup_token.rollback"))?;
             warn!("setup token consumption attempted without an active token");
-            return Err(anyhow!("no active setup token"));
+            return Err(ConfigError::SetupTokenMissing);
         };
 
         if active.expires_at <= Utc::now() {
             data_config::mark_setup_token_consumed(tx.as_mut(), active.id)
                 .await
-                .context("failed to expire stale token")?;
-            tx.commit().await?;
+                .map_err(map_db_err("config.consume_setup_token.expire"))?;
+            tx.commit()
+                .await
+                .map_err(map_sqlx_err("config.consume_setup_token.commit"))?;
             warn!("setup token expired prior to consumption");
-            return Err(anyhow!("setup token expired"));
+            return Err(ConfigError::SetupTokenExpired);
         }
 
         let matches = verify_secret(&active.token_hash, token)?;
         if !matches {
-            tx.rollback().await?;
+            tx.rollback()
+                .await
+                .map_err(map_sqlx_err("config.consume_setup_token.rollback"))?;
             warn!("setup token consumption failed due to invalid secret");
-            return Err(anyhow!("invalid setup token"));
+            return Err(ConfigError::SetupTokenInvalid);
         }
 
         data_config::mark_setup_token_consumed(tx.as_mut(), active.id)
             .await
-            .context("failed to consume setup token")?;
+            .map_err(map_db_err("config.consume_setup_token.consume"))?;
 
-        tx.commit().await?;
+        tx.commit()
+            .await
+            .map_err(map_sqlx_err("config.consume_setup_token.commit"))?;
         info!("setup token consumed successfully");
         Ok(())
     }
@@ -569,12 +656,14 @@ impl SettingsFacade for ConfigService {
     async fn has_api_keys(&self) -> Result<bool> {
         let keys = data_config::fetch_api_keys(&self.pool)
             .await
-            .context("failed to load API keys")?;
+            .map_err(map_db_err("config.has_api_keys.fetch"))?;
         Ok(!keys.is_empty())
     }
 
     async fn factory_reset(&self) -> Result<()> {
-        data_config::factory_reset(&self.pool).await?;
+        data_config::factory_reset(&self.pool)
+            .await
+            .map_err(map_db_err("config.factory_reset"))?;
         info!("factory reset completed");
         Ok(())
     }
@@ -583,7 +672,10 @@ impl SettingsFacade for ConfigService {
 async fn apply_migrations(pool: &sqlx::PgPool) -> Result<()> {
     data_config::run_migrations(pool)
         .await
-        .context("failed to apply configuration migrations")?;
+        .map_err(|source| ConfigError::DataAccess {
+            operation: "config.migrations",
+            source,
+        })?;
     Ok(())
 }
 
@@ -591,23 +683,21 @@ async fn fetch_app_profile(pool: &sqlx::PgPool) -> Result<AppProfile> {
     let id = parse_uuid(APP_PROFILE_ID)?;
     let row = data_config::fetch_app_profile_row(pool, id)
         .await
-        .context("failed to load app_profile row")?;
+        .map_err(map_db_err("config.fetch_app_profile.row"))?;
     let labels = data_config::fetch_app_label_policies(pool, id)
         .await
-        .context("failed to load app label policies")?;
+        .map_err(map_db_err("config.fetch_app_profile.labels"))?;
     map_app_profile_row(row, labels)
 }
 
-async fn fetch_app_profile_tx(
-    tx: &mut Transaction<'_, Postgres>,
-) -> Result<AppProfile> {
+async fn fetch_app_profile_tx(tx: &mut Transaction<'_, Postgres>) -> Result<AppProfile> {
     let id = parse_uuid(APP_PROFILE_ID)?;
     let row = data_config::fetch_app_profile_row(tx.as_mut(), id)
         .await
-        .context("failed to load app_profile row")?;
+        .map_err(map_db_err("config.fetch_app_profile_tx.row"))?;
     let labels = data_config::fetch_app_label_policies(tx.as_mut(), id)
         .await
-        .context("failed to load app label policies")?;
+        .map_err(map_db_err("config.fetch_app_profile_tx.labels"))?;
     map_app_profile_row(row, labels)
 }
 
@@ -618,7 +708,7 @@ where
     let id = parse_uuid(ENGINE_PROFILE_ID)?;
     let row = data_config::fetch_engine_profile_row(executor, id)
         .await
-        .context("failed to load engine_profile")?;
+        .map_err(map_db_err("config.fetch_engine_profile.row"))?;
     Ok(map_engine_profile_row(row))
 }
 
@@ -629,7 +719,7 @@ where
     let id = parse_uuid(FS_POLICY_ID)?;
     let row = data_config::fetch_fs_policy_row(executor, id)
         .await
-        .context("failed to load fs_policy")?;
+        .map_err(map_db_err("config.fetch_fs_policy.row"))?;
     Ok(map_fs_policy_row(row))
 }
 
@@ -639,7 +729,7 @@ where
 {
     data_config::fetch_revision(executor)
         .await
-        .context("failed to load settings revision")
+        .map_err(map_db_err("config.fetch_revision"))
 }
 
 async fn handle_notification(
@@ -651,11 +741,11 @@ async fn handle_notification(
     let table = parts
         .next()
         .map(str::to_string)
-        .ok_or_else(|| anyhow!("invalid notification payload '{payload}'"))?;
+        .ok_or(ConfigError::NotificationPayloadInvalid)?;
     let revision = parts
         .next()
         .and_then(|s| s.parse::<i64>().ok())
-        .ok_or_else(|| anyhow!("missing revision in notification payload '{payload}'"))?;
+        .ok_or(ConfigError::NotificationPayloadMissingRevision)?;
     let operation = parts.next().unwrap_or("UNKNOWN").to_string();
 
     let payload = match table.as_str() {
@@ -936,30 +1026,29 @@ fn parse_weekday_label(value: &str) -> Option<Weekday> {
     }
 }
 
-async fn validate_directory_path(
-    section: &str,
-    field: &str,
-    path: &str,
-) -> Result<(), ConfigError> {
+async fn validate_directory_path(section: &str, field: &str, path: &str) -> Result<()> {
     if path.trim().is_empty() {
         return Err(ConfigError::InvalidField {
             section: section.to_string(),
             field: field.to_string(),
-            message: "path must not be empty".to_string(),
+            value: Some(path.to_string()),
+            reason: "path must not be empty",
         });
     }
     let metadata = fs::metadata(path)
         .await
-        .map_err(|err| ConfigError::InvalidField {
+        .map_err(|_err| ConfigError::InvalidField {
             section: section.to_string(),
             field: field.to_string(),
-            message: format!("{path}: {err}"),
+            value: Some(path.to_string()),
+            reason: "path must exist",
         })?;
     if !metadata.is_dir() {
         return Err(ConfigError::InvalidField {
             section: section.to_string(),
             field: field.to_string(),
-            message: format!("{path}: not a directory"),
+            value: Some(path.to_string()),
+            reason: "path must be a directory",
         });
     }
     Ok(())
@@ -995,32 +1084,38 @@ async fn apply_app_profile_update(
         return Err(ConfigError::InvalidField {
             section: "app_profile".to_string(),
             field: "id".to_string(),
-            message: "invalid app profile id".to_string(),
-        }
-        .into());
+            value: Some(update.id.to_string()),
+            reason: "invalid app profile id",
+        });
     }
 
-    let mut mutated = false;
-    if update.instance_name != current.instance_name {
+    let mut mutated = update.instance_name != current.instance_name;
+    if mutated {
         ensure_mutable(immutable_keys, "app_profile", "instance_name")?;
-        data_config::update_app_instance_name(tx.as_mut(), app_id, &update.instance_name).await?;
-        mutated = true;
+        data_config::update_app_instance_name(tx.as_mut(), app_id, &update.instance_name)
+            .await
+            .map_err(map_db_err("config.update_app_instance_name"))?;
     }
     if update.mode != current.mode {
         ensure_mutable(immutable_keys, "app_profile", "mode")?;
-        data_config::update_app_mode(tx.as_mut(), app_id, update.mode.as_str()).await?;
+        data_config::update_app_mode(tx.as_mut(), app_id, update.mode.as_str())
+            .await
+            .map_err(map_db_err("config.update_app_mode"))?;
         mutated = true;
     }
     if update.http_port != current.http_port {
         ensure_mutable(immutable_keys, "app_profile", "http_port")?;
         validate_port(update.http_port, "app_profile", "http_port")?;
-        data_config::update_app_http_port(tx.as_mut(), app_id, update.http_port).await?;
+        data_config::update_app_http_port(tx.as_mut(), app_id, update.http_port)
+            .await
+            .map_err(map_db_err("config.update_app_http_port"))?;
         mutated = true;
     }
     if update.bind_addr != current.bind_addr {
         ensure_mutable(immutable_keys, "app_profile", "bind_addr")?;
         data_config::update_app_bind_addr(tx.as_mut(), app_id, &update.bind_addr.to_string())
-            .await?;
+            .await
+            .map_err(map_db_err("config.update_app_bind_addr"))?;
         mutated = true;
     }
     if update.telemetry != current.telemetry {
@@ -1034,7 +1129,8 @@ async fn apply_app_profile_update(
             update.telemetry.otel_service_name.as_deref(),
             update.telemetry.otel_endpoint.as_deref(),
         )
-        .await?;
+        .await
+        .map_err(map_db_err("config.update_app_telemetry"))?;
         mutated = true;
     }
     if update.label_policies != current.label_policies {
@@ -1045,7 +1141,9 @@ async fn apply_app_profile_update(
     }
     if update.immutable_keys != current.immutable_keys {
         ensure_mutable(immutable_keys, "app_profile", "immutable_keys")?;
-        data_config::update_app_immutable_keys(tx.as_mut(), app_id, &update.immutable_keys).await?;
+        data_config::update_app_immutable_keys(tx.as_mut(), app_id, &update.immutable_keys)
+            .await
+            .map_err(map_db_err("config.update_app_immutable_keys"))?;
         mutated = true;
     }
 
@@ -1067,9 +1165,9 @@ async fn apply_engine_profile_update(
         return Err(ConfigError::InvalidField {
             section: "engine_profile".to_string(),
             field: "id".to_string(),
-            message: "invalid engine profile id".to_string(),
-        }
-        .into());
+            value: Some(update.id.to_string()),
+            reason: "invalid engine profile id",
+        });
     }
 
     if update == current {
@@ -1100,13 +1198,33 @@ async fn apply_fs_policy_update(
         return Err(ConfigError::InvalidField {
             section: "fs_policy".to_string(),
             field: "id".to_string(),
-            message: "invalid filesystem policy id".to_string(),
-        }
-        .into());
+            value: Some(update.id.to_string()),
+            reason: "invalid filesystem policy id",
+        });
     }
 
     let mut mutated = false;
-    if update.library_root != current.library_root {
+    mutated |=
+        apply_fs_policy_string_updates(tx, policy_id, current, update, immutable_keys).await?;
+    mutated |=
+        apply_fs_policy_boolean_updates(tx, policy_id, current, update, immutable_keys).await?;
+    mutated |=
+        apply_fs_policy_array_updates(tx, policy_id, current, update, immutable_keys).await?;
+    mutated |=
+        apply_fs_policy_optional_updates(tx, policy_id, current, update, immutable_keys).await?;
+
+    Ok(mutated)
+}
+
+async fn apply_fs_policy_string_updates(
+    tx: &mut Transaction<'_, Postgres>,
+    policy_id: Uuid,
+    current: &FsPolicy,
+    update: &FsPolicy,
+    immutable_keys: &HashSet<String>,
+) -> Result<bool> {
+    let library_root_changed = update.library_root != current.library_root;
+    if library_root_changed {
         ensure_mutable(immutable_keys, "fs_policy", "library_root")?;
         validate_directory_path("fs_policy", "library_root", &update.library_root).await?;
         data_config::update_fs_string_field(
@@ -1115,21 +1233,11 @@ async fn apply_fs_policy_update(
             FsStringField::LibraryRoot,
             &update.library_root,
         )
-        .await?;
-        mutated = true;
+        .await
+        .map_err(map_db_err("config.update_fs_string_field.library_root"))?;
     }
-    if update.extract != current.extract {
-        ensure_mutable(immutable_keys, "fs_policy", "extract")?;
-        data_config::update_fs_boolean_field(
-            tx.as_mut(),
-            policy_id,
-            FsBooleanField::Extract,
-            update.extract,
-        )
-        .await?;
-        mutated = true;
-    }
-    if update.par2 != current.par2 {
+    let par2_changed = update.par2 != current.par2;
+    if par2_changed {
         ensure_mutable(immutable_keys, "fs_policy", "par2")?;
         data_config::update_fs_string_field(
             tx.as_mut(),
@@ -1137,21 +1245,11 @@ async fn apply_fs_policy_update(
             FsStringField::Par2,
             &update.par2,
         )
-        .await?;
-        mutated = true;
+        .await
+        .map_err(map_db_err("config.update_fs_string_field.par2"))?;
     }
-    if update.flatten != current.flatten {
-        ensure_mutable(immutable_keys, "fs_policy", "flatten")?;
-        data_config::update_fs_boolean_field(
-            tx.as_mut(),
-            policy_id,
-            FsBooleanField::Flatten,
-            update.flatten,
-        )
-        .await?;
-        mutated = true;
-    }
-    if update.move_mode != current.move_mode {
+    let move_mode_changed = update.move_mode != current.move_mode;
+    if move_mode_changed {
         ensure_mutable(immutable_keys, "fs_policy", "move_mode")?;
         data_config::update_fs_string_field(
             tx.as_mut(),
@@ -1159,10 +1257,55 @@ async fn apply_fs_policy_update(
             FsStringField::MoveMode,
             &update.move_mode,
         )
-        .await?;
-        mutated = true;
+        .await
+        .map_err(map_db_err("config.update_fs_string_field.move_mode"))?;
     }
-    if update.cleanup_keep != current.cleanup_keep {
+    Ok(library_root_changed || par2_changed || move_mode_changed)
+}
+
+async fn apply_fs_policy_boolean_updates(
+    tx: &mut Transaction<'_, Postgres>,
+    policy_id: Uuid,
+    current: &FsPolicy,
+    update: &FsPolicy,
+    immutable_keys: &HashSet<String>,
+) -> Result<bool> {
+    let extract_changed = update.extract != current.extract;
+    if extract_changed {
+        ensure_mutable(immutable_keys, "fs_policy", "extract")?;
+        data_config::update_fs_boolean_field(
+            tx.as_mut(),
+            policy_id,
+            FsBooleanField::Extract,
+            update.extract,
+        )
+        .await
+        .map_err(map_db_err("config.update_fs_boolean_field.extract"))?;
+    }
+    let flatten_changed = update.flatten != current.flatten;
+    if flatten_changed {
+        ensure_mutable(immutable_keys, "fs_policy", "flatten")?;
+        data_config::update_fs_boolean_field(
+            tx.as_mut(),
+            policy_id,
+            FsBooleanField::Flatten,
+            update.flatten,
+        )
+        .await
+        .map_err(map_db_err("config.update_fs_boolean_field.flatten"))?;
+    }
+    Ok(extract_changed || flatten_changed)
+}
+
+async fn apply_fs_policy_array_updates(
+    tx: &mut Transaction<'_, Postgres>,
+    policy_id: Uuid,
+    current: &FsPolicy,
+    update: &FsPolicy,
+    immutable_keys: &HashSet<String>,
+) -> Result<bool> {
+    let cleanup_keep_changed = update.cleanup_keep != current.cleanup_keep;
+    if cleanup_keep_changed {
         ensure_mutable(immutable_keys, "fs_policy", "cleanup_keep")?;
         data_config::update_fs_array_field(
             tx.as_mut(),
@@ -1170,10 +1313,11 @@ async fn apply_fs_policy_update(
             FsArrayField::CleanupKeep,
             &update.cleanup_keep,
         )
-        .await?;
-        mutated = true;
+        .await
+        .map_err(map_db_err("config.update_fs_array_field.cleanup_keep"))?;
     }
-    if update.cleanup_drop != current.cleanup_drop {
+    let cleanup_drop_changed = update.cleanup_drop != current.cleanup_drop;
+    if cleanup_drop_changed {
         ensure_mutable(immutable_keys, "fs_policy", "cleanup_drop")?;
         data_config::update_fs_array_field(
             tx.as_mut(),
@@ -1181,65 +1325,11 @@ async fn apply_fs_policy_update(
             FsArrayField::CleanupDrop,
             &update.cleanup_drop,
         )
-        .await?;
-        mutated = true;
+        .await
+        .map_err(map_db_err("config.update_fs_array_field.cleanup_drop"))?;
     }
-    if update.chmod_file != current.chmod_file {
-        ensure_mutable(immutable_keys, "fs_policy", "chmod_file")?;
-        data_config::update_fs_optional_string_field(
-            tx.as_mut(),
-            policy_id,
-            FsOptionalStringField::ChmodFile,
-            update.chmod_file.as_deref(),
-        )
-        .await?;
-        mutated = true;
-    }
-    if update.chmod_dir != current.chmod_dir {
-        ensure_mutable(immutable_keys, "fs_policy", "chmod_dir")?;
-        data_config::update_fs_optional_string_field(
-            tx.as_mut(),
-            policy_id,
-            FsOptionalStringField::ChmodDir,
-            update.chmod_dir.as_deref(),
-        )
-        .await?;
-        mutated = true;
-    }
-    if update.owner != current.owner {
-        ensure_mutable(immutable_keys, "fs_policy", "owner")?;
-        data_config::update_fs_optional_string_field(
-            tx.as_mut(),
-            policy_id,
-            FsOptionalStringField::Owner,
-            update.owner.as_deref(),
-        )
-        .await?;
-        mutated = true;
-    }
-    if update.group != current.group {
-        ensure_mutable(immutable_keys, "fs_policy", "group")?;
-        data_config::update_fs_optional_string_field(
-            tx.as_mut(),
-            policy_id,
-            FsOptionalStringField::Group,
-            update.group.as_deref(),
-        )
-        .await?;
-        mutated = true;
-    }
-    if update.umask != current.umask {
-        ensure_mutable(immutable_keys, "fs_policy", "umask")?;
-        data_config::update_fs_optional_string_field(
-            tx.as_mut(),
-            policy_id,
-            FsOptionalStringField::Umask,
-            update.umask.as_deref(),
-        )
-        .await?;
-        mutated = true;
-    }
-    if update.allow_paths != current.allow_paths {
+    let allow_paths_changed = update.allow_paths != current.allow_paths;
+    if allow_paths_changed {
         ensure_mutable(immutable_keys, "fs_policy", "allow_paths")?;
         validate_allow_paths(&update.allow_paths).await?;
         data_config::update_fs_array_field(
@@ -1248,11 +1338,84 @@ async fn apply_fs_policy_update(
             FsArrayField::AllowPaths,
             &update.allow_paths,
         )
-        .await?;
-        mutated = true;
+        .await
+        .map_err(map_db_err("config.update_fs_array_field.allow_paths"))?;
     }
+    Ok(cleanup_keep_changed || cleanup_drop_changed || allow_paths_changed)
+}
 
-    Ok(mutated)
+async fn apply_fs_policy_optional_updates(
+    tx: &mut Transaction<'_, Postgres>,
+    policy_id: Uuid,
+    current: &FsPolicy,
+    update: &FsPolicy,
+    immutable_keys: &HashSet<String>,
+) -> Result<bool> {
+    let chmod_file_changed = update.chmod_file != current.chmod_file;
+    if chmod_file_changed {
+        ensure_mutable(immutable_keys, "fs_policy", "chmod_file")?;
+        data_config::update_fs_optional_string_field(
+            tx.as_mut(),
+            policy_id,
+            FsOptionalStringField::ChmodFile,
+            update.chmod_file.as_deref(),
+        )
+        .await
+        .map_err(map_db_err(
+            "config.update_fs_optional_string_field.chmod_file",
+        ))?;
+    }
+    let chmod_dir_changed = update.chmod_dir != current.chmod_dir;
+    if chmod_dir_changed {
+        ensure_mutable(immutable_keys, "fs_policy", "chmod_dir")?;
+        data_config::update_fs_optional_string_field(
+            tx.as_mut(),
+            policy_id,
+            FsOptionalStringField::ChmodDir,
+            update.chmod_dir.as_deref(),
+        )
+        .await
+        .map_err(map_db_err(
+            "config.update_fs_optional_string_field.chmod_dir",
+        ))?;
+    }
+    let owner_changed = update.owner != current.owner;
+    if owner_changed {
+        ensure_mutable(immutable_keys, "fs_policy", "owner")?;
+        data_config::update_fs_optional_string_field(
+            tx.as_mut(),
+            policy_id,
+            FsOptionalStringField::Owner,
+            update.owner.as_deref(),
+        )
+        .await
+        .map_err(map_db_err("config.update_fs_optional_string_field.owner"))?;
+    }
+    let group_changed = update.group != current.group;
+    if group_changed {
+        ensure_mutable(immutable_keys, "fs_policy", "group")?;
+        data_config::update_fs_optional_string_field(
+            tx.as_mut(),
+            policy_id,
+            FsOptionalStringField::Group,
+            update.group.as_deref(),
+        )
+        .await
+        .map_err(map_db_err("config.update_fs_optional_string_field.group"))?;
+    }
+    let umask_changed = update.umask != current.umask;
+    if umask_changed {
+        ensure_mutable(immutable_keys, "fs_policy", "umask")?;
+        data_config::update_fs_optional_string_field(
+            tx.as_mut(),
+            policy_id,
+            FsOptionalStringField::Umask,
+            update.umask.as_deref(),
+        )
+        .await
+        .map_err(map_db_err("config.update_fs_optional_string_field.umask"))?;
+    }
+    Ok(chmod_file_changed || chmod_dir_changed || owner_changed || group_changed || umask_changed)
 }
 
 async fn apply_label_policies(
@@ -1288,28 +1451,28 @@ async fn apply_label_policies(
         cleanup_remove_data.push(policy.cleanup_remove_data);
     }
 
-    data_config::replace_app_label_policies(
-        tx.as_mut(),
-        app_id,
-        &kinds,
-        &names,
-        &download_dirs,
-        &rate_limit_download_bps,
-        &rate_limit_upload_bps,
-        &queue_positions,
-        &auto_managed,
-        &seed_ratio_limits,
-        &seed_time_limits,
-        &cleanup_seed_ratio_limits,
-        &cleanup_seed_time_limits,
-        &cleanup_remove_data,
-    )
-    .await?;
+    let update = data_config::AppLabelPoliciesUpdate {
+        kinds: &kinds,
+        names: &names,
+        download_dirs: &download_dirs,
+        rate_limit_download_bps: &rate_limit_download_bps,
+        rate_limit_upload_bps: &rate_limit_upload_bps,
+        queue_positions: &queue_positions,
+        auto_managed: &auto_managed,
+        seed_ratio_limits: &seed_ratio_limits,
+        seed_time_limits: &seed_time_limits,
+        cleanup_seed_ratio_limits: &cleanup_seed_ratio_limits,
+        cleanup_seed_time_limits: &cleanup_seed_time_limits,
+        cleanup_remove_data: &cleanup_remove_data,
+    };
+    data_config::replace_app_label_policies(tx.as_mut(), app_id, &update)
+        .await
+        .map_err(map_db_err("config.replace_app_label_policies"))?;
 
     Ok(())
 }
 
-async fn validate_label_policy_paths(policies: &[LabelPolicy]) -> Result<(), ConfigError> {
+async fn validate_label_policy_paths(policies: &[LabelPolicy]) -> Result<()> {
     for policy in policies {
         if let Some(path) = policy.download_dir.as_deref() {
             if path.trim().is_empty() {
@@ -1317,7 +1480,11 @@ async fn validate_label_policy_paths(policies: &[LabelPolicy]) -> Result<(), Con
             }
             validate_directory_path(
                 "app_profile",
-                &format!("features.{}.{}.download_dir", policy.kind.as_str(), policy.name),
+                &format!(
+                    "features.{}.{}.download_dir",
+                    policy.kind.as_str(),
+                    policy.name
+                ),
                 path,
             )
             .await?;
@@ -1326,7 +1493,7 @@ async fn validate_label_policy_paths(policies: &[LabelPolicy]) -> Result<(), Con
     Ok(())
 }
 
-async fn validate_allow_paths(paths: &[String]) -> Result<(), ConfigError> {
+async fn validate_allow_paths(paths: &[String]) -> Result<()> {
     for path in paths {
         if path.trim().is_empty() {
             continue;
@@ -1337,11 +1504,26 @@ async fn validate_allow_paths(paths: &[String]) -> Result<(), ConfigError> {
 }
 
 async fn bump_app_profile_version(tx: &mut Transaction<'_, Postgres>, app_id: Uuid) -> Result<()> {
-    data_config::bump_app_profile_version(tx.as_mut(), app_id).await?;
+    data_config::bump_app_profile_version(tx.as_mut(), app_id)
+        .await
+        .map_err(map_db_err("config.bump_app_profile_version"))?;
     Ok(())
 }
 
 async fn persist_engine_profile(
+    tx: &mut Transaction<'_, Postgres>,
+    profile: &EngineProfile,
+) -> Result<()> {
+    persist_engine_profile_core(tx, profile).await?;
+    persist_engine_profile_lists(tx, profile).await?;
+    persist_engine_profile_ip_filter(tx, profile).await?;
+    persist_engine_profile_alt_speed(tx, profile).await?;
+    persist_engine_profile_tracker(tx, profile).await?;
+    persist_engine_profile_peer_classes(tx, profile).await?;
+    Ok(())
+}
+
+async fn persist_engine_profile_core(
     tx: &mut Transaction<'_, Postgres>,
     profile: &EngineProfile,
 ) -> Result<()> {
@@ -1413,30 +1595,50 @@ async fn persist_engine_profile(
                 .and_then(|value| i32::try_from(value).ok()),
         },
     )
-    .await?;
+    .await
+    .map_err(map_db_err("config.update_engine_profile"))?;
+    Ok(())
+}
 
+async fn persist_engine_profile_lists(
+    tx: &mut Transaction<'_, Postgres>,
+    profile: &EngineProfile,
+) -> Result<()> {
     data_config::set_engine_list_values(
         tx.as_mut(),
         profile.id,
         "listen_interfaces",
         &profile.listen_interfaces,
     )
-    .await?;
+    .await
+    .map_err(map_db_err(
+        "config.set_engine_list_values.listen_interfaces",
+    ))?;
     data_config::set_engine_list_values(
         tx.as_mut(),
         profile.id,
         "dht_bootstrap_nodes",
         &profile.dht_bootstrap_nodes,
     )
-    .await?;
+    .await
+    .map_err(map_db_err(
+        "config.set_engine_list_values.dht_bootstrap_nodes",
+    ))?;
     data_config::set_engine_list_values(
         tx.as_mut(),
         profile.id,
         "dht_router_nodes",
         &profile.dht_router_nodes,
     )
-    .await?;
+    .await
+    .map_err(map_db_err("config.set_engine_list_values.dht_router_nodes"))?;
+    Ok(())
+}
 
+async fn persist_engine_profile_ip_filter(
+    tx: &mut Transaction<'_, Postgres>,
+    profile: &EngineProfile,
+) -> Result<()> {
     let ip_filter = data_config::IpFilterUpdate {
         blocklist_url: profile.ip_filter.blocklist_url.as_deref(),
         etag: profile.ip_filter.etag.as_deref(),
@@ -1444,20 +1646,30 @@ async fn persist_engine_profile(
         last_error: profile.ip_filter.last_error.as_deref(),
         cidrs: &profile.ip_filter.cidrs,
     };
-    data_config::set_engine_ip_filter(tx.as_mut(), profile.id, &ip_filter).await?;
+    data_config::set_engine_ip_filter(tx.as_mut(), profile.id, &ip_filter)
+        .await
+        .map_err(map_db_err("config.set_engine_ip_filter"))?;
+    Ok(())
+}
 
-    let (schedule_start, schedule_end, days) = match &profile.alt_speed.schedule {
-        Some(schedule) => (
-            Some(i32::from(schedule.start_minutes)),
-            Some(i32::from(schedule.end_minutes)),
-            schedule
-                .days
-                .iter()
-                .map(|day| weekday_label(*day).to_string())
-                .collect::<Vec<_>>(),
-        ),
-        None => (None, None, Vec::new()),
-    };
+async fn persist_engine_profile_alt_speed(
+    tx: &mut Transaction<'_, Postgres>,
+    profile: &EngineProfile,
+) -> Result<()> {
+    let (schedule_start, schedule_end, days) = profile.alt_speed.schedule.as_ref().map_or_else(
+        || (None, None, Vec::new()),
+        |schedule| {
+            (
+                Some(i32::from(schedule.start_minutes)),
+                Some(i32::from(schedule.end_minutes)),
+                schedule
+                    .days
+                    .iter()
+                    .map(|day| weekday_label(*day).to_string())
+                    .collect::<Vec<_>>(),
+            )
+        },
+    );
     let alt_speed = data_config::AltSpeedUpdate {
         download_bps: profile.alt_speed.download_bps,
         upload_bps: profile.alt_speed.upload_bps,
@@ -1465,10 +1677,26 @@ async fn persist_engine_profile(
         schedule_end_minutes: schedule_end,
         days: &days,
     };
-    data_config::set_engine_alt_speed(tx.as_mut(), profile.id, &alt_speed).await?;
+    data_config::set_engine_alt_speed(tx.as_mut(), profile.id, &alt_speed)
+        .await
+        .map_err(map_db_err("config.set_engine_alt_speed"))?;
+    Ok(())
+}
 
-    let proxy_host = profile.tracker.proxy.as_ref().map(|proxy| proxy.host.as_str());
-    let proxy_port = profile.tracker.proxy.as_ref().map(|proxy| i32::from(proxy.port));
+async fn persist_engine_profile_tracker(
+    tx: &mut Transaction<'_, Postgres>,
+    profile: &EngineProfile,
+) -> Result<()> {
+    let proxy_host = profile
+        .tracker
+        .proxy
+        .as_ref()
+        .map(|proxy| proxy.host.as_str());
+    let proxy_port = profile
+        .tracker
+        .proxy
+        .as_ref()
+        .map(|proxy| i32::from(proxy.port));
     let proxy_kind = profile
         .tracker
         .proxy
@@ -1488,8 +1716,7 @@ async fn persist_engine_profile(
         .tracker
         .proxy
         .as_ref()
-        .map(|proxy| proxy.proxy_peers)
-        .unwrap_or(false);
+        .is_some_and(|proxy| proxy.proxy_peers);
 
     let auth_username_secret = profile
         .tracker
@@ -1507,6 +1734,15 @@ async fn persist_engine_profile(
         .as_ref()
         .and_then(|auth| auth.cookie_secret.as_deref());
 
+    let announce = data_config::TrackerAnnouncePolicy {
+        announce_to_all: profile.tracker.announce_to_all,
+        replace_trackers: profile.tracker.replace,
+    };
+    let proxy = data_config::TrackerProxyPolicy { proxy_peers };
+    let tls = data_config::TrackerTlsPolicy {
+        verify: profile.tracker.ssl_tracker_verify,
+    };
+
     let tracker = data_config::TrackerConfigUpdate {
         user_agent: profile.tracker.user_agent.as_deref(),
         announce_ip: profile.tracker.announce_ip.as_deref(),
@@ -1515,26 +1751,33 @@ async fn persist_engine_profile(
             .tracker
             .request_timeout_ms
             .and_then(|value| i32::try_from(value).ok()),
-        announce_to_all: profile.tracker.announce_to_all,
-        replace_trackers: profile.tracker.replace,
+        announce,
         proxy_host,
         proxy_port,
         proxy_kind,
         proxy_username_secret,
         proxy_password_secret,
-        proxy_peers,
+        proxy,
         ssl_cert: profile.tracker.ssl_cert.as_deref(),
         ssl_private_key: profile.tracker.ssl_private_key.as_deref(),
         ssl_ca_cert: profile.tracker.ssl_ca_cert.as_deref(),
-        ssl_tracker_verify: profile.tracker.ssl_tracker_verify,
+        tls,
         auth_username_secret,
         auth_password_secret,
         auth_cookie_secret,
         default_urls: &profile.tracker.default,
         extra_urls: &profile.tracker.extra,
     };
-    data_config::set_tracker_config(tx.as_mut(), profile.id, &tracker).await?;
+    data_config::set_tracker_config(tx.as_mut(), profile.id, &tracker)
+        .await
+        .map_err(map_db_err("config.set_tracker_config"))?;
+    Ok(())
+}
 
+async fn persist_engine_profile_peer_classes(
+    tx: &mut Transaction<'_, Postgres>,
+    profile: &EngineProfile,
+) -> Result<()> {
     let mut class_ids = Vec::new();
     let mut labels = Vec::new();
     let mut download_priorities = Vec::new();
@@ -1569,7 +1812,9 @@ async fn persist_engine_profile(
         ignore_unchoke_slots: &ignore_unchoke_slots,
         default_class_ids: &default_class_ids,
     };
-    data_config::set_peer_classes(tx.as_mut(), profile.id, &peer_classes).await?;
+    data_config::set_peer_classes(tx.as_mut(), profile.id, &peer_classes)
+        .await
+        .map_err(map_db_err("config.set_peer_classes"))?;
     Ok(())
 }
 
@@ -1587,8 +1832,14 @@ fn normalize_engine_profile_for_storage(profile: &EngineProfile) -> EngineProfil
         allow_multiple_connections_per_ip: effective.network.allow_multiple_connections_per_ip,
         enable_outgoing_utp: effective.network.enable_outgoing_utp,
         enable_incoming_utp: effective.network.enable_incoming_utp,
-        outgoing_port_min: effective.network.outgoing_ports.map(|range| i32::from(range.start)),
-        outgoing_port_max: effective.network.outgoing_ports.map(|range| i32::from(range.end)),
+        outgoing_port_min: effective
+            .network
+            .outgoing_ports
+            .map(|range| i32::from(range.start)),
+        outgoing_port_max: effective
+            .network
+            .outgoing_ports
+            .map(|range| i32::from(range.end)),
         peer_dscp: effective.network.peer_dscp.map(i32::from),
         dht: effective.network.enable_dht,
         encryption: effective.network.encryption.as_str().to_string(),
@@ -1639,7 +1890,7 @@ fn normalize_engine_profile_for_storage(profile: &EngineProfile) -> EngineProfil
         dht_bootstrap_nodes: effective.network.dht_bootstrap_nodes.clone(),
         dht_router_nodes: effective.network.dht_router_nodes.clone(),
         ip_filter: effective.network.ip_filter.clone(),
-        peer_classes: effective.peer_classes.clone(),
+        peer_classes: effective.peer_classes,
     }
 }
 
@@ -1647,7 +1898,21 @@ fn ensure_engine_profile_mutable(
     current: &EngineProfile,
     update: &EngineProfile,
     immutable_keys: &HashSet<String>,
-) -> Result<(), ConfigError> {
+) -> Result<()> {
+    ensure_engine_profile_connection_mutable(current, update, immutable_keys)?;
+    ensure_engine_profile_privacy_mutable(current, update, immutable_keys)?;
+    ensure_engine_profile_limits_mutable(current, update, immutable_keys)?;
+    ensure_engine_profile_behavior_mutable(current, update, immutable_keys)?;
+    ensure_engine_profile_storage_mutable(current, update, immutable_keys)?;
+    ensure_engine_profile_tracker_mutable(current, update, immutable_keys)?;
+    Ok(())
+}
+
+fn ensure_engine_profile_connection_mutable(
+    current: &EngineProfile,
+    update: &EngineProfile,
+    immutable_keys: &HashSet<String>,
+) -> Result<()> {
     if update.implementation != current.implementation {
         ensure_mutable(immutable_keys, "engine_profile", "implementation")?;
     }
@@ -1659,24 +1924,6 @@ fn ensure_engine_profile_mutable(
     }
     if update.ipv6_mode != current.ipv6_mode {
         ensure_mutable(immutable_keys, "engine_profile", "ipv6_mode")?;
-    }
-    if update.anonymous_mode != current.anonymous_mode {
-        ensure_mutable(immutable_keys, "engine_profile", "anonymous_mode")?;
-    }
-    if update.force_proxy != current.force_proxy {
-        ensure_mutable(immutable_keys, "engine_profile", "force_proxy")?;
-    }
-    if update.prefer_rc4 != current.prefer_rc4 {
-        ensure_mutable(immutable_keys, "engine_profile", "prefer_rc4")?;
-    }
-    if update.allow_multiple_connections_per_ip != current.allow_multiple_connections_per_ip {
-        ensure_mutable(immutable_keys, "engine_profile", "allow_multiple_connections_per_ip")?;
-    }
-    if update.enable_outgoing_utp != current.enable_outgoing_utp {
-        ensure_mutable(immutable_keys, "engine_profile", "enable_outgoing_utp")?;
-    }
-    if update.enable_incoming_utp != current.enable_incoming_utp {
-        ensure_mutable(immutable_keys, "engine_profile", "enable_incoming_utp")?;
     }
     if update.outgoing_port_min != current.outgoing_port_min {
         ensure_mutable(immutable_keys, "engine_profile", "outgoing_port_min")?;
@@ -1693,6 +1940,56 @@ fn ensure_engine_profile_mutable(
     if update.encryption != current.encryption {
         ensure_mutable(immutable_keys, "engine_profile", "encryption")?;
     }
+    if update.enable_lsd != current.enable_lsd {
+        ensure_mutable(immutable_keys, "engine_profile", "enable_lsd")?;
+    }
+    if update.enable_upnp != current.enable_upnp {
+        ensure_mutable(immutable_keys, "engine_profile", "enable_upnp")?;
+    }
+    if update.enable_natpmp != current.enable_natpmp {
+        ensure_mutable(immutable_keys, "engine_profile", "enable_natpmp")?;
+    }
+    if update.enable_pex != current.enable_pex {
+        ensure_mutable(immutable_keys, "engine_profile", "enable_pex")?;
+    }
+    Ok(())
+}
+
+fn ensure_engine_profile_privacy_mutable(
+    current: &EngineProfile,
+    update: &EngineProfile,
+    immutable_keys: &HashSet<String>,
+) -> Result<()> {
+    if update.anonymous_mode != current.anonymous_mode {
+        ensure_mutable(immutable_keys, "engine_profile", "anonymous_mode")?;
+    }
+    if update.force_proxy != current.force_proxy {
+        ensure_mutable(immutable_keys, "engine_profile", "force_proxy")?;
+    }
+    if update.prefer_rc4 != current.prefer_rc4 {
+        ensure_mutable(immutable_keys, "engine_profile", "prefer_rc4")?;
+    }
+    if update.allow_multiple_connections_per_ip != current.allow_multiple_connections_per_ip {
+        ensure_mutable(
+            immutable_keys,
+            "engine_profile",
+            "allow_multiple_connections_per_ip",
+        )?;
+    }
+    if update.enable_outgoing_utp != current.enable_outgoing_utp {
+        ensure_mutable(immutable_keys, "engine_profile", "enable_outgoing_utp")?;
+    }
+    if update.enable_incoming_utp != current.enable_incoming_utp {
+        ensure_mutable(immutable_keys, "engine_profile", "enable_incoming_utp")?;
+    }
+    Ok(())
+}
+
+fn ensure_engine_profile_limits_mutable(
+    current: &EngineProfile,
+    update: &EngineProfile,
+    immutable_keys: &HashSet<String>,
+) -> Result<()> {
     if update.max_active != current.max_active {
         ensure_mutable(immutable_keys, "engine_profile", "max_active")?;
     }
@@ -1712,7 +2009,11 @@ fn ensure_engine_profile_mutable(
         ensure_mutable(immutable_keys, "engine_profile", "connections_limit")?;
     }
     if update.connections_limit_per_torrent != current.connections_limit_per_torrent {
-        ensure_mutable(immutable_keys, "engine_profile", "connections_limit_per_torrent")?;
+        ensure_mutable(
+            immutable_keys,
+            "engine_profile",
+            "connections_limit_per_torrent",
+        )?;
     }
     if update.unchoke_slots != current.unchoke_slots {
         ensure_mutable(immutable_keys, "engine_profile", "unchoke_slots")?;
@@ -1726,6 +2027,14 @@ fn ensure_engine_profile_mutable(
     if update.stats_interval_ms != current.stats_interval_ms {
         ensure_mutable(immutable_keys, "engine_profile", "stats_interval_ms")?;
     }
+    Ok(())
+}
+
+fn ensure_engine_profile_behavior_mutable(
+    current: &EngineProfile,
+    update: &EngineProfile,
+    immutable_keys: &HashSet<String>,
+) -> Result<()> {
     if update.sequential_default != current.sequential_default {
         ensure_mutable(immutable_keys, "engine_profile", "sequential_default")?;
     }
@@ -1756,6 +2065,14 @@ fn ensure_engine_profile_mutable(
     if update.max_queued_disk_bytes != current.max_queued_disk_bytes {
         ensure_mutable(immutable_keys, "engine_profile", "max_queued_disk_bytes")?;
     }
+    Ok(())
+}
+
+fn ensure_engine_profile_storage_mutable(
+    current: &EngineProfile,
+    update: &EngineProfile,
+    immutable_keys: &HashSet<String>,
+) -> Result<()> {
     if update.resume_dir != current.resume_dir {
         ensure_mutable(immutable_keys, "engine_profile", "resume_dir")?;
     }
@@ -1792,20 +2109,16 @@ fn ensure_engine_profile_mutable(
     if update.use_disk_cache_pool != current.use_disk_cache_pool {
         ensure_mutable(immutable_keys, "engine_profile", "use_disk_cache_pool")?;
     }
+    Ok(())
+}
+
+fn ensure_engine_profile_tracker_mutable(
+    current: &EngineProfile,
+    update: &EngineProfile,
+    immutable_keys: &HashSet<String>,
+) -> Result<()> {
     if update.tracker != current.tracker {
         ensure_mutable(immutable_keys, "engine_profile", "tracker")?;
-    }
-    if update.enable_lsd != current.enable_lsd {
-        ensure_mutable(immutable_keys, "engine_profile", "enable_lsd")?;
-    }
-    if update.enable_upnp != current.enable_upnp {
-        ensure_mutable(immutable_keys, "engine_profile", "enable_upnp")?;
-    }
-    if update.enable_natpmp != current.enable_natpmp {
-        ensure_mutable(immutable_keys, "engine_profile", "enable_natpmp")?;
-    }
-    if update.enable_pex != current.enable_pex {
-        ensure_mutable(immutable_keys, "engine_profile", "enable_pex")?;
     }
     if update.dht_bootstrap_nodes != current.dht_bootstrap_nodes {
         ensure_mutable(immutable_keys, "engine_profile", "dht_bootstrap_nodes")?;
@@ -1819,11 +2132,9 @@ fn ensure_engine_profile_mutable(
     if update.peer_classes != current.peer_classes {
         ensure_mutable(immutable_keys, "engine_profile", "peer_classes")?;
     }
-
     Ok(())
 }
-
-fn weekday_label(day: Weekday) -> &'static str {
+const fn weekday_label(day: Weekday) -> &'static str {
     match day {
         Weekday::Mon => "mon",
         Weekday::Tue => "tue",
@@ -1833,6 +2144,15 @@ fn weekday_label(day: Weekday) -> &'static str {
         Weekday::Sat => "sat",
         Weekday::Sun => "sun",
     }
+}
+
+struct ApiKeyUpdate<'a> {
+    key_id: &'a str,
+    label: Option<&'a str>,
+    enabled: Option<bool>,
+    expires_at: Option<DateTime<Utc>>,
+    secret: Option<&'a str>,
+    rate_limit: Option<&'a Option<ApiKeyRateLimit>>,
 }
 
 async fn apply_api_key_patches(
@@ -1855,19 +2175,19 @@ async fn apply_api_key_patches(
                 key_id,
                 label,
                 enabled,
+                expires_at,
                 secret,
                 rate_limit,
             } => {
-                changed |= upsert_api_key(
-                    tx,
-                    immutable_keys,
+                let update = ApiKeyUpdate {
                     key_id,
-                    label.as_deref(),
-                    *enabled,
-                    secret.as_deref(),
-                    rate_limit.as_ref(),
-                )
-                .await?;
+                    label: label.as_deref(),
+                    enabled: *enabled,
+                    expires_at: *expires_at,
+                    secret: secret.as_deref(),
+                    rate_limit: rate_limit.as_ref(),
+                };
+                changed |= upsert_api_key(tx, immutable_keys, &update).await?;
             }
         }
     }
@@ -1881,93 +2201,95 @@ async fn delete_api_key(
     key_id: &str,
 ) -> Result<bool> {
     ensure_mutable(immutable_keys, "auth_api_keys", "key_id")?;
-    let affected = data_config::delete_api_key(tx.as_mut(), key_id).await?;
+    let affected = data_config::delete_api_key(tx.as_mut(), key_id)
+        .await
+        .map_err(map_db_err("config.delete_api_key"))?;
     Ok(affected > 0)
 }
 
 async fn upsert_api_key(
     tx: &mut Transaction<'_, Postgres>,
     immutable_keys: &HashSet<String>,
-    key_id: &str,
-    label: Option<&str>,
-    enabled: Option<bool>,
-    secret: Option<&str>,
-    rate_limit: Option<&Option<ApiKeyRateLimit>>,
+    update: &ApiKeyUpdate<'_>,
 ) -> Result<bool> {
     ensure_mutable(immutable_keys, "auth_api_keys", "key_id")?;
-    let existing = data_config::fetch_api_key_hash(tx.as_mut(), key_id).await?;
+    let existing = data_config::fetch_api_key_hash(tx.as_mut(), update.key_id)
+        .await
+        .map_err(map_db_err("config.fetch_api_key_hash"))?;
 
     if existing.is_some() {
-        update_api_key(
-            tx,
-            immutable_keys,
-            key_id,
-            label,
-            enabled,
-            secret,
-            rate_limit,
-        )
-        .await
+        update_api_key(tx, immutable_keys, update).await
     } else {
-        insert_api_key(
-            tx,
-            immutable_keys,
-            key_id,
-            label,
-            enabled,
-            secret,
-            rate_limit,
-        )
-        .await
+        insert_api_key(tx, immutable_keys, update).await
     }
 }
 
 async fn update_api_key(
     tx: &mut Transaction<'_, Postgres>,
     immutable_keys: &HashSet<String>,
-    key_id: &str,
-    label: Option<&str>,
-    enabled: Option<bool>,
-    secret: Option<&str>,
-    rate_limit: Option<&Option<ApiKeyRateLimit>>,
+    update: &ApiKeyUpdate<'_>,
 ) -> Result<bool> {
-    let changed_secret = if let Some(value) = secret {
+    let changed_secret = if let Some(value) = update.secret {
         ensure_mutable(immutable_keys, "auth_api_keys", "secret")?;
         let hash = hash_secret(value)?;
-        data_config::update_api_key_hash(tx.as_mut(), key_id, &hash).await?;
+        data_config::update_api_key_hash(tx.as_mut(), update.key_id, &hash)
+            .await
+            .map_err(map_db_err("config.update_api_key_hash"))?;
         true
     } else {
         false
     };
 
-    let changed_label = if let Some(text) = label {
+    let changed_label = if let Some(text) = update.label {
         ensure_mutable(immutable_keys, "auth_api_keys", "label")?;
-        data_config::update_api_key_label(tx.as_mut(), key_id, Some(text)).await?;
+        data_config::update_api_key_label(tx.as_mut(), update.key_id, Some(text))
+            .await
+            .map_err(map_db_err("config.update_api_key_label"))?;
         true
     } else {
         false
     };
 
-    let changed_enabled = if let Some(flag) = enabled {
+    let changed_enabled = if let Some(flag) = update.enabled {
         ensure_mutable(immutable_keys, "auth_api_keys", "enabled")?;
-        data_config::update_api_key_enabled(tx.as_mut(), key_id, flag).await?;
+        data_config::update_api_key_enabled(tx.as_mut(), update.key_id, flag)
+            .await
+            .map_err(map_db_err("config.update_api_key_enabled"))?;
         true
     } else {
         false
     };
 
-    let changed_rate_limit = if let Some(limit_value) = rate_limit {
+    let changed_expires_at = if update.expires_at.is_some() {
+        ensure_mutable(immutable_keys, "auth_api_keys", "expires_at")?;
+        data_config::update_api_key_expires_at(tx.as_mut(), update.key_id, update.expires_at)
+            .await
+            .map_err(map_db_err("config.update_api_key_expires_at"))?;
+        true
+    } else {
+        false
+    };
+
+    let changed_rate_limit = if let Some(limit_value) = update.rate_limit {
         ensure_mutable(immutable_keys, "auth_api_keys", "rate_limit")?;
         match limit_value {
             Some(limit) => {
                 validate_api_key_rate_limit(limit)?;
                 let burst = i32::try_from(limit.burst).ok();
                 let per_seconds = i64::try_from(limit.replenish_period.as_secs()).ok();
-                data_config::update_api_key_rate_limit(tx.as_mut(), key_id, burst, per_seconds)
-                    .await?;
+                data_config::update_api_key_rate_limit(
+                    tx.as_mut(),
+                    update.key_id,
+                    burst,
+                    per_seconds,
+                )
+                .await
+                .map_err(map_db_err("config.update_api_key_rate_limit"))?;
             }
             None => {
-                data_config::update_api_key_rate_limit(tx.as_mut(), key_id, None, None).await?;
+                data_config::update_api_key_rate_limit(tx.as_mut(), update.key_id, None, None)
+                    .await
+                    .map_err(map_db_err("config.update_api_key_rate_limit"))?;
             }
         }
         true
@@ -1975,59 +2297,64 @@ async fn update_api_key(
         false
     };
 
-    Ok(changed_secret || changed_label || changed_enabled || changed_rate_limit)
+    Ok(changed_secret
+        || changed_label
+        || changed_enabled
+        || changed_expires_at
+        || changed_rate_limit)
 }
 
 async fn insert_api_key(
     tx: &mut Transaction<'_, Postgres>,
     immutable_keys: &HashSet<String>,
-    key_id: &str,
-    label: Option<&str>,
-    enabled: Option<bool>,
-    secret: Option<&str>,
-    rate_limit: Option<&Option<ApiKeyRateLimit>>,
+    update: &ApiKeyUpdate<'_>,
 ) -> Result<bool> {
-    let Some(secret_value) = secret else {
+    let Some(secret_value) = update.secret else {
         return Err(ConfigError::InvalidField {
             section: "auth_api_keys".to_string(),
             field: "secret".to_string(),
-            message: "required when creating a new API key".to_string(),
-        }
-        .into());
+            value: None,
+            reason: "required when creating a new API key",
+        });
     };
 
     ensure_mutable(immutable_keys, "auth_api_keys", "secret")?;
-    if label.is_some() {
+    if update.label.is_some() {
         ensure_mutable(immutable_keys, "auth_api_keys", "label")?;
     }
-    if enabled.is_some() {
+    if update.enabled.is_some() {
         ensure_mutable(immutable_keys, "auth_api_keys", "enabled")?;
     }
-    if rate_limit.is_some() {
+    if update.expires_at.is_some() {
+        ensure_mutable(immutable_keys, "auth_api_keys", "expires_at")?;
+    }
+    if update.rate_limit.is_some() {
         ensure_mutable(immutable_keys, "auth_api_keys", "rate_limit")?;
     }
 
     let hash = hash_secret(secret_value)?;
-    let enabled_flag = enabled.unwrap_or(true);
-    if let Some(Some(limit)) = rate_limit {
+    let enabled_flag = update.enabled.unwrap_or(true);
+    if let Some(Some(limit)) = update.rate_limit {
         validate_api_key_rate_limit(limit)?;
     }
-    data_config::insert_api_key(
-        tx.as_mut(),
-        key_id,
-        &hash,
-        label,
-        enabled_flag,
-        rate_limit
+    let new_key = data_config::NewApiKey {
+        key_id: update.key_id,
+        hash: &hash,
+        label: update.label,
+        enabled: enabled_flag,
+        burst: update
+            .rate_limit
             .and_then(|limit| limit.as_ref())
-            .map(|limit| i32::try_from(limit.burst).ok())
-            .flatten(),
-        rate_limit
+            .and_then(|limit| i32::try_from(limit.burst).ok()),
+        per_seconds: update
+            .rate_limit
             .and_then(|limit| limit.as_ref())
-            .map(|limit| i64::try_from(limit.replenish_period.as_secs()).ok())
-            .flatten(),
-    )
-    .await?;
+            .and_then(|limit| i64::try_from(limit.replenish_period.as_secs()).ok()),
+        expires_at: update.expires_at,
+    };
+    data_config::insert_api_key(tx.as_mut(), &new_key)
+        .await
+        .map_err(map_db_err("config.insert_api_key"))?;
 
     Ok(true)
 }
@@ -2043,12 +2370,16 @@ async fn apply_secret_patches(
         match patch {
             SecretPatch::Set { name, value } => {
                 ensure_mutable(immutable_keys, "settings_secret", name)?;
-                data_config::upsert_secret(tx.as_mut(), name, value.as_bytes(), actor).await?;
+                data_config::upsert_secret(tx.as_mut(), name, value.as_bytes(), actor)
+                    .await
+                    .map_err(map_db_err("config.upsert_secret"))?;
                 changed = true;
             }
             SecretPatch::Delete { name } => {
                 ensure_mutable(immutable_keys, "settings_secret", name)?;
-                let affected = data_config::delete_secret(tx.as_mut(), name).await?;
+                let affected = data_config::delete_secret(tx.as_mut(), name)
+                    .await
+                    .map_err(map_db_err("config.delete_secret"))?;
                 if affected > 0 {
                     changed = true;
                 }
@@ -2070,42 +2401,61 @@ fn hash_secret(input: &str) -> Result<String> {
     let argon = Argon2::default();
     let hash = argon
         .hash_password(input.as_bytes(), &salt)
-        .map_err(|err| anyhow!("failed to hash secret material: {err}"))?;
+        .map_err(|detail| ConfigError::SecretHashFailed { detail })?;
     Ok(hash.to_string())
 }
 
 fn verify_secret(expected_hash: &str, candidate: &str) -> Result<bool> {
-    let parsed =
-        PasswordHash::new(expected_hash).map_err(|err| anyhow!("invalid stored hash: {err}"))?;
+    let parsed = PasswordHash::new(expected_hash)
+        .map_err(|detail| ConfigError::StoredHashInvalid { detail })?;
     match Argon2::default().verify_password(candidate.as_bytes(), &parsed) {
         Ok(()) => Ok(true),
         Err(PasswordHashError::Password) => Ok(false),
-        Err(err) => Err(anyhow!("failed to verify secret: {err}")),
+        Err(detail) => Err(ConfigError::SecretVerifyFailed { detail }),
     }
+}
+
+fn map_db_err(operation: &'static str) -> impl FnOnce(revaer_data::DataError) -> ConfigError {
+    move |source| ConfigError::DataAccess { operation, source }
+}
+
+fn map_sqlx_err(operation: &'static str) -> impl FnOnce(sqlx::Error) -> ConfigError {
+    move |source| ConfigError::Database { operation, source }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::anyhow;
     use std::str::FromStr;
 
     #[test]
-    fn app_mode_parses_and_formats() {
-        assert_eq!(AppMode::from_str("setup").unwrap(), AppMode::Setup);
-        assert_eq!(AppMode::from_str("active").unwrap(), AppMode::Active);
+    fn app_mode_parses_and_formats() -> anyhow::Result<()> {
+        assert_eq!(AppMode::from_str("setup")?, AppMode::Setup);
+        assert_eq!(AppMode::from_str("active")?, AppMode::Active);
         assert!(AppMode::from_str("invalid").is_err());
         assert_eq!(AppMode::Setup.as_str(), "setup");
         assert_eq!(AppMode::Active.as_str(), "active");
+        Ok(())
     }
 
     #[test]
-    fn validate_port_accepts_valid_range() {
-        validate_port(8080, "app_profile", "http_port").expect("port should validate");
+    fn validate_port_accepts_valid_range() -> anyhow::Result<()> {
+        validate_port(8080, "app_profile", "http_port")?;
+        Ok(())
     }
 
     #[test]
-    fn validate_port_rejects_out_of_range() {
-        let err = validate_port(0, "app_profile", "http_port").unwrap_err();
-        assert!(err.to_string().contains("between 1 and 65535"));
+    fn validate_port_rejects_out_of_range() -> anyhow::Result<()> {
+        let err = validate_port(0, "app_profile", "http_port")
+            .err()
+            .ok_or_else(|| anyhow!("expected invalid field error"))?;
+        match err {
+            ConfigError::InvalidField { reason, .. } => {
+                assert_eq!(reason, "must be between 1 and 65535");
+                Ok(())
+            }
+            _ => Err(anyhow!("unexpected config error variant")),
+        }
     }
 }

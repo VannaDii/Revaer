@@ -9,7 +9,7 @@ use revaer_events::{Event as CoreEvent, EventBus, TorrentState};
 use revaer_telemetry::Metrics;
 use revaer_torrent_core::TorrentStatus;
 use serde_json::Value;
-use tracing::warn;
+use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::TorrentHandles;
@@ -22,10 +22,10 @@ mod tests {
     use super::*;
     use anyhow::Result;
     use async_trait::async_trait;
-    use revaer_config::{AppMode, AppProfile, TelemetryConfig};
+    use revaer_config::{AppMode, AppProfile, ConfigError, ConfigResult, TelemetryConfig};
     use revaer_torrent_core::{
         AddTorrent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentRateLimit,
-        TorrentWorkflow,
+        TorrentResult, TorrentWorkflow,
     };
     use serde_json::json;
     use tokio::runtime::Runtime;
@@ -37,7 +37,7 @@ mod tests {
 
     #[async_trait]
     impl ConfigFacade for NoopConfig {
-        async fn get_app_profile(&self) -> Result<AppProfile> {
+        async fn get_app_profile(&self) -> ConfigResult<AppProfile> {
             Ok(AppProfile {
                 id: Uuid::new_v4(),
                 instance_name: "test".to_string(),
@@ -55,16 +55,31 @@ mod tests {
             &self,
             _: Duration,
             _: &str,
-        ) -> Result<revaer_config::SetupToken> {
-            Err(anyhow::anyhow!("not implemented"))
+        ) -> ConfigResult<revaer_config::SetupToken> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "setup_token".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
 
-        async fn validate_setup_token(&self, _: &str) -> Result<()> {
-            Err(anyhow::anyhow!("not implemented"))
+        async fn validate_setup_token(&self, _: &str) -> ConfigResult<()> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "setup_token".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
 
-        async fn consume_setup_token(&self, _: &str) -> Result<()> {
-            Err(anyhow::anyhow!("not implemented"))
+        async fn consume_setup_token(&self, _: &str) -> ConfigResult<()> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "setup_token".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
 
         async fn apply_changeset(
@@ -72,28 +87,43 @@ mod tests {
             _: &str,
             _: &str,
             _: revaer_config::SettingsChangeset,
-        ) -> Result<revaer_config::AppliedChanges> {
-            Err(anyhow::anyhow!("not implemented"))
+        ) -> ConfigResult<revaer_config::AppliedChanges> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "changeset".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
 
-        async fn snapshot(&self) -> Result<revaer_config::ConfigSnapshot> {
-            Err(anyhow::anyhow!("not implemented"))
+        async fn snapshot(&self) -> ConfigResult<revaer_config::ConfigSnapshot> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "snapshot".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
 
         async fn authenticate_api_key(
             &self,
             _: &str,
             _: &str,
-        ) -> Result<Option<revaer_config::ApiKeyAuth>> {
+        ) -> ConfigResult<Option<revaer_config::ApiKeyAuth>> {
             Ok(None)
         }
 
-        async fn has_api_keys(&self) -> Result<bool> {
+        async fn has_api_keys(&self) -> ConfigResult<bool> {
             Ok(false)
         }
 
-        async fn factory_reset(&self) -> Result<()> {
-            Err(anyhow::anyhow!("not implemented"))
+        async fn factory_reset(&self) -> ConfigResult<()> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "factory_reset".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
     }
 
@@ -115,31 +145,31 @@ mod tests {
 
     #[async_trait]
     impl TorrentWorkflow for RecordingWorkflow {
-        async fn add_torrent(&self, _: AddTorrent) -> anyhow::Result<()> {
+        async fn add_torrent(&self, _: AddTorrent) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn remove_torrent(&self, _: Uuid, _: RemoveTorrent) -> anyhow::Result<()> {
+        async fn remove_torrent(&self, _: Uuid, _: RemoveTorrent) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn pause_torrent(&self, _: Uuid) -> anyhow::Result<()> {
+        async fn pause_torrent(&self, _: Uuid) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn resume_torrent(&self, _: Uuid) -> anyhow::Result<()> {
+        async fn resume_torrent(&self, _: Uuid) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn set_sequential(&self, _: Uuid, _: bool) -> anyhow::Result<()> {
+        async fn set_sequential(&self, _: Uuid, _: bool) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn update_limits(&self, _: Option<Uuid>, _: TorrentRateLimit) -> anyhow::Result<()> {
+        async fn update_limits(&self, _: Option<Uuid>, _: TorrentRateLimit) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn update_selection(&self, _: Uuid, _: FileSelectionUpdate) -> anyhow::Result<()> {
+        async fn update_selection(&self, _: Uuid, _: FileSelectionUpdate) -> TorrentResult<()> {
             Ok(())
         }
 
@@ -147,7 +177,7 @@ mod tests {
             &self,
             _: Uuid,
             _: revaer_torrent_core::model::TorrentTrackersUpdate,
-        ) -> anyhow::Result<()> {
+        ) -> TorrentResult<()> {
             Ok(())
         }
 
@@ -155,15 +185,15 @@ mod tests {
             &self,
             _: Uuid,
             _: revaer_torrent_core::model::TorrentWebSeedsUpdate,
-        ) -> anyhow::Result<()> {
+        ) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn reannounce(&self, _: Uuid) -> anyhow::Result<()> {
+        async fn reannounce(&self, _: Uuid) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn recheck(&self, _: Uuid) -> anyhow::Result<()> {
+        async fn recheck(&self, _: Uuid) -> TorrentResult<()> {
             Ok(())
         }
 
@@ -171,22 +201,22 @@ mod tests {
             &self,
             _: Uuid,
             _: revaer_torrent_core::model::PieceDeadline,
-        ) -> anyhow::Result<()> {
+        ) -> TorrentResult<()> {
             Ok(())
         }
     }
 
     #[async_trait]
     impl revaer_torrent_core::TorrentInspector for RecordingWorkflow {
-        async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+        async fn list(&self) -> TorrentResult<Vec<TorrentStatus>> {
             Ok(self.statuses.read().await.clone())
         }
 
-        async fn get(&self, _: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+        async fn get(&self, _: Uuid) -> TorrentResult<Option<TorrentStatus>> {
             Ok(None)
         }
 
-        async fn peers(&self, id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+        async fn peers(&self, id: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
             Ok(self
                 .peers
                 .read()
@@ -198,9 +228,9 @@ mod tests {
     }
 
     #[test]
-    fn add_and_remove_degraded_components_emit_events() {
+    fn add_and_remove_degraded_components_emit_events() -> Result<()> {
         let events = EventBus::with_capacity(4);
-        let metrics = Metrics::new().expect("metrics");
+        let metrics = Metrics::new()?;
         let state = ApiState::new(
             Arc::new(NoopConfig),
             metrics,
@@ -208,7 +238,7 @@ mod tests {
             events.clone(),
             None,
         );
-        let runtime = Runtime::new().expect("runtime");
+        let runtime = Runtime::new()?;
         let mut stream = events.subscribe(None);
 
         assert!(state.add_degraded_component("db"));
@@ -216,14 +246,14 @@ mod tests {
 
         let envelope = runtime
             .block_on(async { stream.next().await })
-            .expect("health event emitted")
-            .expect("stream recv error");
+            .ok_or_else(|| anyhow::anyhow!("health event missing"))??;
         assert!(matches!(envelope.event, CoreEvent::HealthChanged { .. }));
         assert!(state.remove_degraded_component("db"));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn update_torrent_metrics_handles_stub_handles() {
+    async fn update_torrent_metrics_handles_stub_handles() -> Result<()> {
         let status = TorrentStatus {
             id: Uuid::new_v4(),
             name: Some("demo".into()),
@@ -245,21 +275,22 @@ mod tests {
         let handles = TorrentHandles::new(workflow.clone(), workflow);
         let state = ApiState::new(
             Arc::new(NoopConfig),
-            Metrics::new().expect("metrics"),
+            Metrics::new()?,
             Arc::new(json!({})),
             EventBus::with_capacity(4),
             Some(handles),
         );
 
         state.update_torrent_metrics().await;
+        Ok(())
     }
 
     #[test]
-    fn update_metadata_inserts_defaults() {
+    fn update_metadata_inserts_defaults() -> Result<()> {
         let id = Uuid::new_v4();
         let state = ApiState::new(
             Arc::new(NoopConfig),
-            Metrics::new().expect("metrics"),
+            Metrics::new()?,
             Arc::new(json!({})),
             EventBus::with_capacity(4),
             None,
@@ -269,6 +300,7 @@ mod tests {
         let metadata = state.get_metadata(&id);
         assert_eq!(metadata.tags, vec!["tag-a".to_string()]);
         assert!(metadata.selection.priorities.is_empty());
+        Ok(())
     }
 }
 
@@ -328,9 +360,7 @@ impl ApiState {
         guard.dedup();
         let snapshot = guard.clone();
         drop(guard);
-        let _ = self
-            .events
-            .publish(CoreEvent::HealthChanged { degraded: snapshot });
+        self.publish_event(CoreEvent::HealthChanged { degraded: snapshot });
         true
     }
 
@@ -343,10 +373,19 @@ impl ApiState {
         }
         let snapshot = guard.clone();
         drop(guard);
-        let _ = self
-            .events
-            .publish(CoreEvent::HealthChanged { degraded: snapshot });
+        self.publish_event(CoreEvent::HealthChanged { degraded: snapshot });
         true
+    }
+
+    pub(crate) fn publish_event(&self, event: CoreEvent) {
+        if let Err(error) = self.events.publish(event) {
+            warn!(
+                event_id = error.event_id(),
+                event_kind = error.event_kind(),
+                error = %error,
+                "failed to publish event"
+            );
+        }
     }
 
     pub(crate) fn record_torrent_metrics(&self, statuses: &[TorrentStatus]) {
@@ -477,8 +516,12 @@ impl ApiState {
     }
 
     fn lock_guard<'a, T>(mutex: &'a Mutex<T>, name: &'a str) -> MutexGuard<'a, T> {
-        mutex.lock().unwrap_or_else(|err| {
-            panic!("failed to lock {name}: {err}");
-        })
+        match mutex.lock() {
+            Ok(guard) => guard,
+            Err(err) => {
+                error!(mutex = name, error = ?err, "mutex poisoned");
+                err.into_inner()
+            }
+        }
     }
 }

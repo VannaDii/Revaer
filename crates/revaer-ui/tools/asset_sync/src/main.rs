@@ -25,3 +25,14 @@ fn main() -> Result<()> {
     asset_sync::run()?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::main;
+
+    #[test]
+    fn main_runs_asset_sync() {
+        let result = main();
+        assert!(result.is_ok(), "asset sync main failed: {result:?}");
+    }
+}

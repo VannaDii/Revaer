@@ -4,7 +4,6 @@
 //! - Pure data carriers used by the configuration service and API.
 //! - Keeps domain types separate from IO/wiring code in `lib.rs`.
 
-use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::net::IpAddr;
@@ -15,9 +14,10 @@ use uuid::Uuid;
 use crate::engine_profile::{
     AltSpeedConfig, EngineProfileEffective, IpFilterConfig, PeerClassesConfig, TrackerConfig,
 };
+use crate::error::{ConfigError, ConfigResult};
 
 /// Telemetry configuration stored alongside the app profile.
-#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub struct TelemetryConfig {
     /// Optional log level override.
     #[serde(default)]
@@ -47,13 +47,15 @@ pub enum LabelKind {
 }
 
 impl FromStr for LabelKind {
-    type Err = anyhow::Error;
+    type Err = ConfigError;
 
-    fn from_str(value: &str) -> Result<Self> {
+    fn from_str(value: &str) -> ConfigResult<Self> {
         match value {
             "category" => Ok(Self::Category),
             "tag" => Ok(Self::Tag),
-            other => Err(anyhow!("invalid label kind '{other}'")),
+            other => Err(ConfigError::InvalidLabelKind {
+                value: other.to_string(),
+            }),
         }
     }
 }
@@ -144,13 +146,15 @@ pub enum AppMode {
 }
 
 impl FromStr for AppMode {
-    type Err = anyhow::Error;
+    type Err = ConfigError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "setup" => Ok(Self::Setup),
             "active" => Ok(Self::Active),
-            other => Err(anyhow!("invalid app mode '{other}'")),
+            other => Err(ConfigError::InvalidAppMode {
+                value: other.to_string(),
+            }),
         }
     }
 }
@@ -420,7 +424,7 @@ impl EngineProfile {
 }
 
 /// Filesystem policy configuration.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FsPolicy {
     /// Primary key for the filesystem policy row.
     pub id: Uuid,
@@ -467,6 +471,9 @@ pub enum ApiKeyPatch {
         label: Option<String>,
         /// Optional enabled flag override.
         enabled: Option<bool>,
+        /// Optional expiration timestamp (RFC3339).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        expires_at: Option<DateTime<Utc>>,
         /// Optional new secret value.
         secret: Option<String>,
         /// Optional rate limit configuration payload.
@@ -619,19 +626,14 @@ mod duration_seconds {
     use serde::{Deserialize, Deserializer, Serializer};
     use std::time::Duration;
 
-    pub(super) fn serialize<S>(
-        duration: &Duration,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    pub(super) fn serialize<S>(duration: &Duration, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         serializer.serialize_u64(duration.as_secs())
     }
 
-    pub(super) fn deserialize<'de, D>(
-        deserializer: D,
-    ) -> Result<Duration, D::Error>
+    pub(super) fn deserialize<'de, D>(deserializer: D) -> Result<Duration, D::Error>
     where
         D: Deserializer<'de>,
     {

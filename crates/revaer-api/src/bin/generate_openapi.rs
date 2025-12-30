@@ -16,19 +16,18 @@
 
 //! Helper binary that exports the generated `OpenAPI` document to `docs/api/`.
 
-use std::path::Path;
-
 use anyhow::Result;
 use serde_json::Value;
+use std::path::Path;
 
 /// Serialises the generated `OpenAPI` document to `docs/api/openapi.json`.
 fn main() -> Result<()> {
     let document = revaer_api::openapi_document();
-    export_openapi(
-        &document,
-        Path::new("docs/api/openapi.json"),
-        |path, doc| revaer_telemetry::persist_openapi(path, doc).map(|_| ()),
-    )?;
+    let target = revaer_api::openapi_output_path();
+    export_openapi(&document, &target, |path, doc| {
+        revaer_telemetry::persist_openapi(path, doc)?;
+        Ok(())
+    })?;
     Ok(())
 }
 
@@ -82,7 +81,7 @@ mod tests {
         super::main().context("expected openapi export to succeed")?;
 
         drop(guard);
-        let openapi_path = docs_dir.join("openapi.json");
+        let openapi_path = temp_root.join(revaer_api::openapi_output_path());
         let payload = fs::read_to_string(&openapi_path)
             .with_context(|| format!("failed to read {}", openapi_path.display()))?;
         assert!(
@@ -97,7 +96,7 @@ mod tests {
     #[test]
     fn export_openapi_uses_injected_persister() -> Result<()> {
         let document = json!({ "openapi": "3.1.0" });
-        let target = PathBuf::from("docs/api/openapi.json");
+        let target = revaer_api::openapi_output_path();
         let mut persisted = false;
 
         export_openapi(&document, &target, |path, payload| {

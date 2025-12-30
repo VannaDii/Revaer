@@ -6,7 +6,7 @@
   - The project is unreleased and migration history does not need to remain split.
   - A single init migration simplifies new environment bootstrap and reduces ordering drift.
 - Decision:
-  - Collapse all SQL migrations in `crates/revaer-data/migrations` into `0001_db_init.sql`.
+  - Collapse all SQL migrations in `crates/revaer-data/migrations` into `0007_rebaseline.sql`.
   - Remove the remaining numbered migration files after consolidation.
   - Reset the local dev database in `just db-start` if the migration history no longer matches.
   - Clean llvm-cov artifacts before coverage to keep `just ci` output free of stale-data warnings.

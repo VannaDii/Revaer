@@ -1,5 +1,6 @@
 //! Shared client utilities, error types, and telemetry wiring for the CLI.
 
+use std::fmt::{self, Display, Formatter};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::anyhow;
@@ -48,6 +49,14 @@ impl CliError {
         }
     }
 }
+
+impl Display for CliError {
+    fn fmt(&self, formatter: &mut Formatter<'_>) -> fmt::Result {
+        formatter.write_str("cli error")
+    }
+}
+
+impl std::error::Error for CliError {}
 
 /// Dependencies constructed from environment flags and CLI options.
 #[derive(Clone)]
@@ -136,12 +145,15 @@ impl TelemetryEmitter {
             timestamp_ms: timestamp_now_ms(),
         };
 
-        let _ = self
+        if let Err(err) = self
             .client
             .post(self.endpoint.clone())
             .json(&event)
             .send()
-            .await;
+            .await
+        {
+            tracing::debug!(error = %err, "telemetry emit failed");
+        }
     }
 }
 
@@ -241,6 +253,7 @@ pub(crate) async fn classify_problem(response: reqwest::Response) -> CliError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::Result;
     use httpmock::MockServer;
     use httpmock::prelude::*;
 
@@ -252,7 +265,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn telemetry_emitter_emits_event() {
+    async fn telemetry_emitter_emits_event() -> Result<()> {
         let server = MockServer::start_async().await;
         let mock = server.mock(|when, then| {
             when.method(POST).path("/telemetry");
@@ -263,7 +276,7 @@ mod tests {
             client: Client::new(),
             endpoint: format!("{}/telemetry", server.base_url())
                 .parse()
-                .expect("valid URL"),
+                .map_err(|_| anyhow::anyhow!("invalid URL"))?,
         };
 
         emitter
@@ -271,5 +284,6 @@ mod tests {
             .await;
 
         mock.assert();
+        Ok(())
     }
 }

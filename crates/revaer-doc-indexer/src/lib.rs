@@ -22,7 +22,7 @@
 //! - No IO outside the provided docs root; callers supply paths for determinism.
 //! - Markdown parsing is kept minimal and deterministic (no HTML).
 
-use anyhow::{Context, Result, anyhow};
+use crate::error::{DocIndexError, Result};
 use chrono::Utc;
 use regex::Regex;
 use serde::Serialize;
@@ -32,6 +32,8 @@ use std::fs;
 use std::path::PathBuf;
 use std::path::{Component, Path};
 use walkdir::WalkDir;
+
+pub mod error;
 
 /// Manifest entry for a single markdown page.
 #[derive(Serialize, Clone)]
@@ -63,7 +65,9 @@ struct Manifest {
 /// or the manifest fails schema validation/writing.
 pub fn run(docs_root: &Path, schema_path: &Path) -> Result<()> {
     if !docs_root.exists() {
-        return Err(anyhow!("Docs path {} does not exist", docs_root.display()));
+        return Err(DocIndexError::DocsRootMissing {
+            path: docs_root.to_path_buf(),
+        });
     }
 
     let mut entries = Vec::new();
@@ -81,11 +85,17 @@ pub fn run(docs_root: &Path, schema_path: &Path) -> Result<()> {
             continue;
         }
 
-        let raw = fs::read_to_string(path)
-            .with_context(|| format!("Failed to read {}", path.display()))?;
+        let raw = fs::read_to_string(path).map_err(|source| DocIndexError::ReadMarkdown {
+            path: path.to_path_buf(),
+            source,
+        })?;
 
-        let maybe_page = parse_markdown(&raw, path, docs_root)
-            .with_context(|| format!("Failed to parse markdown for {}", path.display()))?;
+        let maybe_page = parse_markdown(&raw, path, docs_root).map_err(|source| {
+            DocIndexError::ParseMarkdown {
+                path: path.to_path_buf(),
+                source: Box::new(source),
+            }
+        })?;
 
         if let Some(page) = maybe_page {
             entries.push(page);
@@ -102,21 +112,34 @@ pub fn run(docs_root: &Path, schema_path: &Path) -> Result<()> {
 
     validate_manifest(&manifest, schema_path)?;
 
-    fs::create_dir_all(docs_root.join("llm"))
-        .with_context(|| format!("Failed to create {}", docs_root.join("llm").display()))?;
+    let llm_dir = docs_root.join("llm");
+    fs::create_dir_all(&llm_dir).map_err(|source| DocIndexError::CreateDir {
+        path: llm_dir,
+        source,
+    })?;
 
     let manifest_path = docs_root.join("llm/manifest.json");
     let summaries_path = docs_root.join("llm/summaries.json");
 
     let manifest_json =
-        serde_json::to_string_pretty(&manifest).context("Failed to serialise manifest payload")?;
-    fs::write(&manifest_path, manifest_json)
-        .with_context(|| format!("Failed to write {}", manifest_path.display()))?;
+        serde_json::to_string_pretty(&manifest).map_err(|source| DocIndexError::SerializeJson {
+            label: "manifest",
+            source,
+        })?;
+    fs::write(&manifest_path, manifest_json).map_err(|source| DocIndexError::WriteOutput {
+        path: manifest_path.clone(),
+        source,
+    })?;
 
     let summaries_json =
-        serde_json::to_string_pretty(&entries).context("Failed to serialise summary payload")?;
-    fs::write(&summaries_path, summaries_json)
-        .with_context(|| format!("Failed to write {}", summaries_path.display()))?;
+        serde_json::to_string_pretty(&entries).map_err(|source| DocIndexError::SerializeJson {
+            label: "summaries",
+            source,
+        })?;
+    fs::write(&summaries_path, summaries_json).map_err(|source| DocIndexError::WriteOutput {
+        path: summaries_path.clone(),
+        source,
+    })?;
 
     println!(
         "Generated {} entries → {}",
@@ -149,8 +172,14 @@ fn parse_markdown(raw: &str, path: &Path, docs_root: &Path) -> Result<Option<Ent
     let mut summary_lines: Vec<String> = Vec::new();
     let mut headings: Vec<String> = Vec::new();
     let mut capture_summary = false;
-    let h1_regex = Regex::new(r"^# (.+)$").context("Failed to compile H1 regex")?;
-    let h2_regex = Regex::new(r"^## (.+)$").context("Failed to compile H2 regex")?;
+    let h1_regex = Regex::new(r"^# (.+)$").map_err(|source| DocIndexError::RegexCompile {
+        pattern: "^# (.+)$",
+        source,
+    })?;
+    let h2_regex = Regex::new(r"^## (.+)$").map_err(|source| DocIndexError::RegexCompile {
+        pattern: "^## (.+)$",
+        source,
+    })?;
 
     for line in raw.lines() {
         if title.is_none() {
@@ -194,16 +223,18 @@ fn parse_markdown(raw: &str, path: &Path, docs_root: &Path) -> Result<Option<Ent
     };
 
     if summary.chars().count() < 10 {
-        return Err(anyhow!(
-            "Summary too short for {} ({} chars)",
-            path.display(),
-            summary.chars().count()
-        ));
+        return Err(DocIndexError::SummaryTooShort {
+            path: path.to_path_buf(),
+            chars: summary.chars().count(),
+        });
     }
 
-    let relative = path
-        .strip_prefix(docs_root)
-        .with_context(|| format!("{} lives outside docs root", path.display()))?;
+    let relative =
+        path.strip_prefix(docs_root)
+            .map_err(|_| DocIndexError::PathOutsideDocsRoot {
+                path: path.to_path_buf(),
+                root: docs_root.to_path_buf(),
+            })?;
     let mut id = relative
         .to_string_lossy()
         .replace(std::path::MAIN_SEPARATOR, "/");
@@ -292,7 +323,7 @@ fn fallback_summary(raw: &str) -> Result<String> {
         .join(" ");
 
     if limited.is_empty() {
-        return Err(anyhow!("Unable to derive fallback summary"));
+        return Err(DocIndexError::FallbackSummaryMissing);
     }
 
     Ok(limited)
@@ -332,23 +363,32 @@ fn slugify(value: &str) -> String {
 }
 
 fn validate_manifest(manifest: &Manifest, schema_path: &Path) -> Result<()> {
-    let schema_str = fs::read_to_string(schema_path).with_context(|| {
-        format!(
-            "Failed to read JSON schema at {}. Run `just docs-index` after adding schema.json.",
-            schema_path.display()
-        )
-    })?;
+    let schema_str =
+        fs::read_to_string(schema_path).map_err(|source| DocIndexError::SchemaRead {
+            path: schema_path.to_path_buf(),
+            source,
+        })?;
 
     let schema_value: serde_json::Value =
-        serde_json::from_str(&schema_str).context("Invalid JSON schema format")?;
+        serde_json::from_str(&schema_str).map_err(|source| DocIndexError::SchemaParse {
+            path: schema_path.to_path_buf(),
+            source,
+        })?;
     let schema_ref: &'static serde_json::Value = Box::leak(Box::new(schema_value));
-    let compiled = jsonschema::Validator::new(schema_ref).context("Schema compilation failed")?;
+    let compiled =
+        jsonschema::Validator::new(schema_ref).map_err(|err| DocIndexError::SchemaCompile {
+            detail: err.to_string(),
+        })?;
     let manifest_value =
-        serde_json::to_value(manifest).context("Failed to serialise manifest for validation")?;
+        serde_json::to_value(manifest).map_err(|source| DocIndexError::SerializeJson {
+            label: "manifest_validate",
+            source,
+        })?;
 
     if let Err(error) = compiled.validate(&manifest_value) {
-        eprintln!("Schema validation error: {error}");
-        return Err(anyhow!("Manifest failed schema validation"));
+        return Err(DocIndexError::ManifestInvalid {
+            detail: error.to_string(),
+        });
     }
 
     Ok(())
@@ -359,6 +399,7 @@ mod tests {
     use super::*;
     use serde_json::Value;
     use std::env;
+    use std::error::Error;
     use std::io::Write;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -367,15 +408,12 @@ mod tests {
     }
 
     impl TempDir {
-        fn new() -> Self {
-            let nanos = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("clock went backwards")
-                .as_nanos();
+        fn new() -> std::result::Result<Self, Box<dyn Error>> {
+            let nanos = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
             let mut root = env::temp_dir();
             root.push(format!("revaer-doc-indexer-{nanos}-{}", std::process::id()));
-            fs::create_dir_all(&root).expect("create temp dir");
-            Self { path: root }
+            fs::create_dir_all(&root)?;
+            Ok(Self { path: root })
         }
 
         fn path(&self) -> &Path {
@@ -389,17 +427,18 @@ mod tests {
         }
     }
 
-    fn write_file(path: &Path, contents: &str) {
+    fn write_file(path: &Path, contents: &str) -> std::result::Result<(), Box<dyn Error>> {
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).expect("create parent");
+            fs::create_dir_all(parent)?;
         }
-        let mut file = fs::File::create(path).expect("create file");
-        file.write_all(contents.as_bytes()).expect("write file");
+        let mut file = fs::File::create(path)?;
+        file.write_all(contents.as_bytes())?;
+        Ok(())
     }
 
     #[test]
-    fn run_generates_manifest_and_summaries() -> Result<()> {
-        let temp = TempDir::new();
+    fn run_generates_manifest_and_summaries() -> std::result::Result<(), Box<dyn Error>> {
+        let temp = TempDir::new()?;
         let docs_root = temp.path().join("docs");
         let schema_path = docs_root.join("llm/schema.json");
 
@@ -430,7 +469,7 @@ mod tests {
             }
         }"#;
 
-        write_file(&schema_path, schema);
+        write_file(&schema_path, schema)?;
 
         let markdown = "# Getting Started
 > Welcome to Revaer
@@ -442,11 +481,11 @@ mod tests {
 - Bullet one
 - Bullet two
 ";
-        write_file(&docs_root.join("guide.md"), markdown);
+        write_file(&docs_root.join("guide.md"), markdown)?;
 
         // Confirm skip logic ignores underscores and SUMMARY.md.
-        write_file(&docs_root.join("_drafts/draft.md"), "# Draft\n");
-        write_file(&docs_root.join("SUMMARY.md"), "# Summary\n");
+        write_file(&docs_root.join("_drafts/draft.md"), "# Draft\n")?;
+        write_file(&docs_root.join("SUMMARY.md"), "# Summary\n")?;
 
         run(&docs_root, &schema_path)?;
 
@@ -460,7 +499,7 @@ mod tests {
         let manifest: Value = serde_json::from_str(&manifest_json)?;
         let entries = manifest["entries"]
             .as_array()
-            .expect("entries array missing");
+            .ok_or_else(|| std::io::Error::other("entries array missing"))?;
         assert_eq!(entries.len(), 1);
         let entry = &entries[0];
         assert_eq!(entry["id"], "guide");
@@ -472,32 +511,35 @@ mod tests {
         assert_eq!(entry["href"], "/guide/");
         let tags = entry["tags"]
             .as_array()
-            .expect("tags should be an array")
+            .ok_or_else(|| std::io::Error::other("tags array missing"))?
             .iter()
-            .map(|value| value.as_str().unwrap().to_string())
-            .collect::<Vec<_>>();
+            .map(|value| value.as_str().map(str::to_string))
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| std::io::Error::other("tag value missing"))?;
         assert_eq!(tags, vec!["features", "usage"]);
 
         let summaries_json = fs::read_to_string(&summaries_path)?;
         let summaries: Value = serde_json::from_str(&summaries_json)?;
-        assert_eq!(summaries.as_array().unwrap().len(), 1);
+        let summaries = summaries
+            .as_array()
+            .ok_or_else(|| std::io::Error::other("summaries array missing"))?;
+        assert_eq!(summaries.len(), 1);
 
         Ok(())
     }
 
     #[test]
-    fn run_fails_for_missing_docs_root() {
+    fn run_fails_for_missing_docs_root() -> std::result::Result<(), Box<dyn Error>> {
         let missing = PathBuf::from("target/non-existent-docs");
         let error = run(&missing, &missing.join("llm/schema.json"))
-            .expect_err("missing docs root should error");
-        assert!(
-            error.to_string().contains("does not exist"),
-            "unexpected error message: {error}"
-        );
+            .err()
+            .ok_or_else(|| std::io::Error::other("missing docs root should error"))?;
+        assert!(matches!(error, DocIndexError::DocsRootMissing { .. }));
+        Ok(())
     }
 
     #[test]
-    fn parse_markdown_extracts_title_summary_and_tags() -> Result<()> {
+    fn parse_markdown_extracts_title_summary_and_tags() -> std::result::Result<(), Box<dyn Error>> {
         let docs_root = PathBuf::from("docs");
         let path = docs_root.join("subdir/page.md");
         let markdown = "# Example Page
@@ -509,7 +551,8 @@ mod tests {
 Additional text.
 ";
 
-        let entry = parse_markdown(markdown, &path, &docs_root)?.expect("entry should be produced");
+        let entry = parse_markdown(markdown, &path, &docs_root)?
+            .ok_or_else(|| std::io::Error::other("entry missing"))?;
         assert_eq!(entry.id, "subdir/page");
         assert_eq!(entry.title, "Example Page");
         assert_eq!(entry.summary, "Concise summary line.");
@@ -522,7 +565,7 @@ Additional text.
     }
 
     #[test]
-    fn parse_markdown_respects_fallback_summary() -> Result<()> {
+    fn parse_markdown_respects_fallback_summary() -> std::result::Result<(), Box<dyn Error>> {
         let docs_root = PathBuf::from("docs");
         let path = docs_root.join("fallback.md");
         let markdown = "# Title
@@ -533,8 +576,8 @@ Paragraph one introduces the concept.
 ## Details
 More text.
 ";
-        let entry =
-            parse_markdown(markdown, &path, &docs_root)?.expect("fallback entry should exist");
+        let entry = parse_markdown(markdown, &path, &docs_root)?
+            .ok_or_else(|| std::io::Error::other("fallback entry missing"))?;
         assert!(
             entry
                 .summary
@@ -546,12 +589,12 @@ More text.
     }
 
     #[test]
-    fn fallback_summary_rejects_empty_content() {
-        let err = fallback_summary("# Title\n\n## Heading\n").expect_err("should fail");
-        assert!(
-            err.to_string()
-                .contains("Unable to derive fallback summary")
-        );
+    fn fallback_summary_rejects_empty_content() -> std::result::Result<(), Box<dyn Error>> {
+        let err = fallback_summary("# Title\n\n## Heading\n")
+            .err()
+            .ok_or_else(|| std::io::Error::other("expected failure"))?;
+        assert!(matches!(err, DocIndexError::FallbackSummaryMissing));
+        Ok(())
     }
 
     #[test]
@@ -584,8 +627,8 @@ More text.
     }
 
     #[test]
-    fn validate_manifest_detects_schema_mismatch() {
-        let temp = TempDir::new();
+    fn validate_manifest_detects_schema_mismatch() -> std::result::Result<(), Box<dyn Error>> {
+        let temp = TempDir::new()?;
         let schema_path = temp.path().join("schema.json");
         write_file(
             &schema_path,
@@ -598,7 +641,7 @@ More text.
                     "entries": { "type": "array" }
                 }
             }"#,
-        );
+        )?;
 
         let manifest = Manifest {
             version: "0.1.0".into(),
@@ -607,11 +650,9 @@ More text.
         };
 
         let err = validate_manifest(&manifest, &schema_path)
-            .expect_err("pattern mismatch should fail validation");
-        assert!(
-            err.to_string()
-                .contains("Manifest failed schema validation"),
-            "unexpected error: {err}"
-        );
+            .err()
+            .ok_or_else(|| std::io::Error::other("pattern mismatch should fail validation"))?;
+        assert!(matches!(err, DocIndexError::ManifestInvalid { .. }));
+        Ok(())
     }
 }

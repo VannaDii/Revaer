@@ -1060,7 +1060,10 @@ fn fetch_browser_entries(
                 state.parent = response.parent;
             }),
             Err(err) => {
-                let detail = err.detail.clone().unwrap_or_else(|| err.to_string());
+                let detail = err
+                    .detail
+                    .clone()
+                    .unwrap_or_else(|| "Filesystem lookup failed.".to_string());
                 on_error_toast.emit(detail.clone());
                 update_browser_state(&path_browser, |state| {
                     state.busy = false;
@@ -4966,7 +4969,7 @@ fn update_label_policy_entry(
     field_key: &str,
     kind: LabelKind,
     name: &str,
-    update: impl FnOnce(&mut Map<String, Value>),
+    mut update: impl FnMut(&mut Map<String, Value>),
 ) {
     update_label_policy_entry_with_error(draft, field_key, kind, name, |policy| {
         update(policy);
@@ -4979,7 +4982,7 @@ fn update_label_policy_entry_with_error(
     field_key: &str,
     kind: LabelKind,
     name: &str,
-    update: impl FnOnce(&mut Map<String, Value>) -> Option<String>,
+    mut update: impl FnMut(&mut Map<String, Value>) -> Option<String>,
 ) {
     update_field(draft, field_key, |field| {
         let mut entries = field.value.as_array().cloned().unwrap_or_default();
@@ -5420,7 +5423,10 @@ fn control_for_field(section: SettingsSection, key: &str, value: &Value) -> Fiel
     if matches!((section, key), (SettingsSection::AppProfile, "telemetry")) {
         return FieldControl::Telemetry;
     }
-    if matches!((section, key), (SettingsSection::AppProfile, "label_policies")) {
+    if matches!(
+        (section, key),
+        (SettingsSection::AppProfile, "label_policies")
+    ) {
         return FieldControl::LabelPolicies;
     }
     if matches!(

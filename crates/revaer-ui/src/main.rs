@@ -15,21 +15,21 @@
 )]
 //! Revaer UI wasm entry point and native stub fallback.
 
-fn main() {
-    #[cfg(target_arch = "wasm32")]
+#[cfg(target_arch = "wasm32")]
+fn main() -> Result<(), std::io::Error> {
     revaer_ui::run_app();
+    Ok(())
+}
 
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        use std::io::{self, Write};
+#[cfg(not(target_arch = "wasm32"))]
+fn main() -> Result<(), std::io::Error> {
+    use std::io::{self, Write};
 
-        let mut stderr = io::stderr().lock();
-        if let Err(err) = stderr.write_all(
-            b"The revaer-ui binary is intended for wasm32; build with `trunk build` or `cargo build --target wasm32-unknown-unknown`.\n",
-        ) {
-            panic!("failed to write warning: {err}");
-        }
-    }
+    let mut stderr = io::stderr().lock();
+    stderr.write_all(
+        b"The revaer-ui binary is intended for wasm32; build with `trunk build` or `cargo build --target wasm32-unknown-unknown`.\n",
+    )?;
+    Ok(())
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
@@ -37,8 +37,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn native_main_writes_warning() {
+    fn native_main_writes_warning() -> std::io::Result<()> {
         // Ensure the native stub executes without panicking.
-        main();
+        main()
     }
 }

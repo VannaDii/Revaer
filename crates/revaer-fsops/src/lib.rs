@@ -15,8 +15,10 @@
 )]
 
 //! Filesystem post-processing pipeline for completed torrents.
-//! Layout: `service.rs` (pipeline + IO), future `model/` and `policy/` modules to follow.
+//! Layout: `error.rs` (error types), `service.rs` (pipeline + IO).
 
+pub mod error;
 pub mod service;
 
+pub use error::{FsOpsError, FsOpsResult};
 pub use service::*;

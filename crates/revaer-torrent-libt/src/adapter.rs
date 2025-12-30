@@ -1,16 +1,17 @@
 //! Safe wrapper around the libtorrent worker and FFI bindings.
 
-use anyhow::{Result, anyhow};
 use tokio::sync::{mpsc, oneshot};
 use uuid::Uuid;
 
 use crate::command::EngineCommand;
+use crate::error::op_failed;
 use crate::store::FastResumeStore;
 use crate::types::{EngineRuntimeConfig, EngineSettingsSnapshot};
 use crate::worker;
 use revaer_events::EventBus;
 use revaer_torrent_core::{
     AddTorrent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentEngine, TorrentRateLimit,
+    TorrentResult,
     model::{
         PieceDeadline, TorrentAuthorRequest, TorrentAuthorResult, TorrentOptionsUpdate,
         TorrentTrackersUpdate, TorrentWebSeedsUpdate,
@@ -31,7 +32,7 @@ impl LibtorrentEngine {
     /// # Errors
     ///
     /// Returns an error if the native libtorrent session cannot be initialized.
-    pub fn new(events: EventBus) -> Result<Self> {
+    pub fn new(events: EventBus) -> TorrentResult<Self> {
         Self::build(events, None)
     }
 
@@ -40,7 +41,7 @@ impl LibtorrentEngine {
     /// # Errors
     ///
     /// Returns an error if the native libtorrent session cannot be initialized.
-    pub fn with_resume_store(events: EventBus, store: FastResumeStore) -> Result<Self> {
+    pub fn with_resume_store(events: EventBus, store: FastResumeStore) -> TorrentResult<Self> {
         Self::build(events, Some(store))
     }
 
@@ -49,7 +50,7 @@ impl LibtorrentEngine {
     /// # Errors
     ///
     /// Returns an error if the configuration could not be enqueued for the background worker.
-    pub async fn apply_runtime_config(&self, config: EngineRuntimeConfig) -> Result<()> {
+    pub async fn apply_runtime_config(&self, config: EngineRuntimeConfig) -> TorrentResult<()> {
         self.send_command(EngineCommand::ApplyConfig(Box::new(config)))
             .await
     }
@@ -59,15 +60,15 @@ impl LibtorrentEngine {
     /// # Errors
     ///
     /// Returns an error if the settings snapshot cannot be retrieved.
-    pub async fn inspect_settings(&self) -> Result<EngineSettingsSnapshot> {
+    pub async fn inspect_settings(&self) -> TorrentResult<EngineSettingsSnapshot> {
         let (respond_to, rx) = oneshot::channel();
         self.send_command(EngineCommand::InspectSettings { respond_to })
             .await?;
         rx.await
-            .map_err(|err| anyhow!("settings snapshot response dropped: {err}"))?
+            .map_err(|err| op_failed("inspect_settings", None, err))?
     }
 
-    fn build(events: EventBus, store: Option<FastResumeStore>) -> Result<Self> {
+    fn build(events: EventBus, store: Option<FastResumeStore>) -> TorrentResult<Self> {
         let session = crate::session::create_session()?;
         let (commands, rx) = mpsc::channel(COMMAND_BUFFER);
         if let Some(store_ref) = store.as_ref() {
@@ -78,22 +79,27 @@ impl LibtorrentEngine {
         Ok(Self { commands })
     }
 
-    async fn send_command(&self, command: EngineCommand) -> Result<()> {
+    async fn send_command(&self, command: EngineCommand) -> TorrentResult<()> {
+        let operation = command.operation();
+        let torrent_id = command.torrent_id();
         self.commands
             .send(command)
             .await
-            .map_err(|err| anyhow!("failed to enqueue libtorrent command: {err}"))
+            .map_err(|err| op_failed(operation, torrent_id, err))
     }
 }
 
 #[async_trait::async_trait]
 impl TorrentEngine for LibtorrentEngine {
-    async fn add_torrent(&self, request: AddTorrent) -> Result<()> {
+    async fn add_torrent(&self, request: AddTorrent) -> TorrentResult<()> {
         self.send_command(EngineCommand::Add(Box::new(request)))
             .await
     }
 
-    async fn create_torrent(&self, request: TorrentAuthorRequest) -> Result<TorrentAuthorResult> {
+    async fn create_torrent(
+        &self,
+        request: TorrentAuthorRequest,
+    ) -> TorrentResult<TorrentAuthorResult> {
         let (respond_to, rx) = oneshot::channel();
         self.send_command(EngineCommand::CreateTorrent {
             request,
@@ -101,66 +107,74 @@ impl TorrentEngine for LibtorrentEngine {
         })
         .await?;
         rx.await
-            .map_err(|err| anyhow!("torrent authoring response dropped: {err}"))?
+            .map_err(|err| op_failed("create_torrent", None, err))?
     }
 
-    async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> Result<()> {
+    async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> TorrentResult<()> {
         self.send_command(EngineCommand::Remove { id, options })
             .await
     }
 
-    async fn pause_torrent(&self, id: Uuid) -> Result<()> {
+    async fn pause_torrent(&self, id: Uuid) -> TorrentResult<()> {
         self.send_command(EngineCommand::Pause { id }).await
     }
 
-    async fn resume_torrent(&self, id: Uuid) -> Result<()> {
+    async fn resume_torrent(&self, id: Uuid) -> TorrentResult<()> {
         self.send_command(EngineCommand::Resume { id }).await
     }
 
-    async fn set_sequential(&self, id: Uuid, sequential: bool) -> Result<()> {
+    async fn set_sequential(&self, id: Uuid, sequential: bool) -> TorrentResult<()> {
         self.send_command(EngineCommand::SetSequential { id, sequential })
             .await
     }
 
-    async fn update_limits(&self, id: Option<Uuid>, limits: TorrentRateLimit) -> Result<()> {
+    async fn update_limits(&self, id: Option<Uuid>, limits: TorrentRateLimit) -> TorrentResult<()> {
         self.send_command(EngineCommand::UpdateLimits { id, limits })
             .await
     }
 
-    async fn update_selection(&self, id: Uuid, rules: FileSelectionUpdate) -> Result<()> {
+    async fn update_selection(&self, id: Uuid, rules: FileSelectionUpdate) -> TorrentResult<()> {
         self.send_command(EngineCommand::UpdateSelection { id, rules })
             .await
     }
 
-    async fn update_options(&self, id: Uuid, options: TorrentOptionsUpdate) -> Result<()> {
+    async fn update_options(&self, id: Uuid, options: TorrentOptionsUpdate) -> TorrentResult<()> {
         self.send_command(EngineCommand::UpdateOptions { id, options })
             .await
     }
 
-    async fn update_trackers(&self, id: Uuid, trackers: TorrentTrackersUpdate) -> Result<()> {
+    async fn update_trackers(
+        &self,
+        id: Uuid,
+        trackers: TorrentTrackersUpdate,
+    ) -> TorrentResult<()> {
         self.send_command(EngineCommand::UpdateTrackers { id, trackers })
             .await
     }
 
-    async fn update_web_seeds(&self, id: Uuid, web_seeds: TorrentWebSeedsUpdate) -> Result<()> {
+    async fn update_web_seeds(
+        &self,
+        id: Uuid,
+        web_seeds: TorrentWebSeedsUpdate,
+    ) -> TorrentResult<()> {
         self.send_command(EngineCommand::UpdateWebSeeds { id, web_seeds })
             .await
     }
 
-    async fn reannounce(&self, id: Uuid) -> Result<()> {
+    async fn reannounce(&self, id: Uuid) -> TorrentResult<()> {
         self.send_command(EngineCommand::Reannounce { id }).await
     }
 
-    async fn move_torrent(&self, id: Uuid, download_dir: String) -> Result<()> {
+    async fn move_torrent(&self, id: Uuid, download_dir: String) -> TorrentResult<()> {
         self.send_command(EngineCommand::MoveStorage { id, download_dir })
             .await
     }
 
-    async fn recheck(&self, id: Uuid) -> Result<()> {
+    async fn recheck(&self, id: Uuid) -> TorrentResult<()> {
         self.send_command(EngineCommand::Recheck { id }).await
     }
 
-    async fn set_piece_deadline(&self, id: Uuid, deadline: PieceDeadline) -> Result<()> {
+    async fn set_piece_deadline(&self, id: Uuid, deadline: PieceDeadline) -> TorrentResult<()> {
         self.send_command(EngineCommand::SetPieceDeadline {
             id,
             piece: deadline.piece,
@@ -169,12 +183,12 @@ impl TorrentEngine for LibtorrentEngine {
         .await
     }
 
-    async fn peers(&self, id: Uuid) -> Result<Vec<PeerSnapshot>> {
+    async fn peers(&self, id: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
         let (respond_to, rx) = oneshot::channel();
         self.send_command(EngineCommand::QueryPeers { id, respond_to })
             .await?;
         rx.await
-            .map_err(|err| anyhow!("peer query response dropped: {err}"))?
+            .map_err(|err| op_failed("query_peers", Some(id), err))?
     }
 }
 
@@ -186,6 +200,7 @@ mod tests {
         ChokingAlgorithm, EncryptionPolicy, EngineRuntimeConfig, Ipv6Mode, SeedChokingAlgorithm,
         StorageMode, TrackerRuntimeConfig,
     };
+    use anyhow::Result;
     use revaer_torrent_core::{
         AddTorrentOptions, TorrentSource,
         model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},

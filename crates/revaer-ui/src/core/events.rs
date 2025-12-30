@@ -52,3 +52,39 @@ impl UiEventEnvelope {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Utc;
+    use uuid::Uuid;
+
+    #[test]
+    fn from_core_wraps_core_event() {
+        let event = CoreEvent::TorrentAdded {
+            torrent_id: Uuid::nil(),
+            name: "demo".to_string(),
+        };
+        let envelope = CoreEnvelope {
+            id: 42,
+            timestamp: Utc::now(),
+            event: event.clone(),
+        };
+        let wrapped = UiEventEnvelope::from_core(envelope.clone());
+        assert_eq!(wrapped.id, Some(42));
+        assert_eq!(wrapped.timestamp, envelope.timestamp.to_rfc3339());
+        assert_eq!(wrapped.event, UiEvent::Core(event));
+    }
+
+    #[test]
+    fn legacy_envelope_uses_static_timestamp() {
+        let event = UiEvent::SystemRates {
+            download_bps: 1,
+            upload_bps: 2,
+        };
+        let wrapped = UiEventEnvelope::legacy(event.clone(), None);
+        assert_eq!(wrapped.id, None);
+        assert_eq!(wrapped.timestamp, "legacy");
+        assert_eq!(wrapped.event, event);
+    }
+}

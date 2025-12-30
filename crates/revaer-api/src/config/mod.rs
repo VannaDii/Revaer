@@ -3,39 +3,42 @@
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::Result;
 use async_trait::async_trait;
 use revaer_config::{
-    ApiKeyAuth, AppProfile, AppliedChanges, ConfigService, ConfigSnapshot, SettingsChangeset,
-    SettingsFacade, SetupToken,
+    ApiKeyAuth, AppProfile, AppliedChanges, ConfigResult, ConfigService, ConfigSnapshot,
+    SettingsChangeset, SettingsFacade, SetupToken,
 };
 
 /// Trait defining the configuration backend used by the API layer.
 #[async_trait]
 pub trait ConfigFacade: Send + Sync {
     /// Retrieve the current application profile (mode, bind address, etc.).
-    async fn get_app_profile(&self) -> Result<AppProfile>;
+    async fn get_app_profile(&self) -> ConfigResult<AppProfile>;
     /// Issue a new setup token that expires after the provided duration.
-    async fn issue_setup_token(&self, ttl: Duration, issued_by: &str) -> Result<SetupToken>;
+    async fn issue_setup_token(&self, ttl: Duration, issued_by: &str) -> ConfigResult<SetupToken>;
     /// Validate that a setup token remains active without consuming it.
-    async fn validate_setup_token(&self, token: &str) -> Result<()>;
+    async fn validate_setup_token(&self, token: &str) -> ConfigResult<()>;
     /// Consume a setup token, preventing subsequent reuse.
-    async fn consume_setup_token(&self, token: &str) -> Result<()>;
+    async fn consume_setup_token(&self, token: &str) -> ConfigResult<()>;
     /// Apply a configuration changeset attributed to the supplied actor.
     async fn apply_changeset(
         &self,
         actor: &str,
         reason: &str,
         changeset: SettingsChangeset,
-    ) -> Result<AppliedChanges>;
+    ) -> ConfigResult<AppliedChanges>;
     /// Obtain a strongly typed snapshot of the current configuration.
-    async fn snapshot(&self) -> Result<ConfigSnapshot>;
+    async fn snapshot(&self) -> ConfigResult<ConfigSnapshot>;
     /// Validate API credentials and return the associated authorisation scope.
-    async fn authenticate_api_key(&self, key_id: &str, secret: &str) -> Result<Option<ApiKeyAuth>>;
+    async fn authenticate_api_key(
+        &self,
+        key_id: &str,
+        secret: &str,
+    ) -> ConfigResult<Option<ApiKeyAuth>>;
     /// Check whether any API keys are configured.
-    async fn has_api_keys(&self) -> Result<bool>;
+    async fn has_api_keys(&self) -> ConfigResult<bool>;
     /// Perform a factory reset of configuration + runtime tables.
-    async fn factory_reset(&self) -> Result<()>;
+    async fn factory_reset(&self) -> ConfigResult<()>;
 }
 
 /// Shared reference to the configuration backend.
@@ -43,19 +46,19 @@ pub type SharedConfig = Arc<dyn ConfigFacade>;
 
 #[async_trait]
 impl ConfigFacade for ConfigService {
-    async fn get_app_profile(&self) -> Result<AppProfile> {
+    async fn get_app_profile(&self) -> ConfigResult<AppProfile> {
         <Self as SettingsFacade>::get_app_profile(self).await
     }
 
-    async fn issue_setup_token(&self, ttl: Duration, issued_by: &str) -> Result<SetupToken> {
+    async fn issue_setup_token(&self, ttl: Duration, issued_by: &str) -> ConfigResult<SetupToken> {
         <Self as SettingsFacade>::issue_setup_token(self, ttl, issued_by).await
     }
 
-    async fn validate_setup_token(&self, token: &str) -> Result<()> {
+    async fn validate_setup_token(&self, token: &str) -> ConfigResult<()> {
         Self::validate_setup_token(self, token).await
     }
 
-    async fn consume_setup_token(&self, token: &str) -> Result<()> {
+    async fn consume_setup_token(&self, token: &str) -> ConfigResult<()> {
         <Self as SettingsFacade>::consume_setup_token(self, token).await
     }
 
@@ -64,23 +67,27 @@ impl ConfigFacade for ConfigService {
         actor: &str,
         reason: &str,
         changeset: SettingsChangeset,
-    ) -> Result<AppliedChanges> {
+    ) -> ConfigResult<AppliedChanges> {
         <Self as SettingsFacade>::apply_changeset(self, actor, reason, changeset).await
     }
 
-    async fn snapshot(&self) -> Result<ConfigSnapshot> {
+    async fn snapshot(&self) -> ConfigResult<ConfigSnapshot> {
         Self::snapshot(self).await
     }
 
-    async fn authenticate_api_key(&self, key_id: &str, secret: &str) -> Result<Option<ApiKeyAuth>> {
+    async fn authenticate_api_key(
+        &self,
+        key_id: &str,
+        secret: &str,
+    ) -> ConfigResult<Option<ApiKeyAuth>> {
         Self::authenticate_api_key(self, key_id, secret).await
     }
 
-    async fn has_api_keys(&self) -> Result<bool> {
+    async fn has_api_keys(&self) -> ConfigResult<bool> {
         <Self as SettingsFacade>::has_api_keys(self).await
     }
 
-    async fn factory_reset(&self) -> Result<()> {
+    async fn factory_reset(&self) -> ConfigResult<()> {
         <Self as SettingsFacade>::factory_reset(self).await
     }
 }
@@ -88,10 +95,9 @@ impl ConfigFacade for ConfigService {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anyhow::anyhow;
     use chrono::Utc;
     use revaer_config::{
-        TelemetryConfig,
+        ConfigError, ConfigResult, TelemetryConfig,
         engine_profile::{AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig},
         normalize_engine_profile,
     };
@@ -120,18 +126,23 @@ mod tests {
         }
     }
 
-    fn sample_app_profile() -> AppProfile {
-        AppProfile {
+    fn sample_app_profile() -> ConfigResult<AppProfile> {
+        let bind_addr = "127.0.0.1"
+            .parse()
+            .map_err(|_| ConfigError::InvalidBindAddr {
+                value: "127.0.0.1".to_string(),
+            })?;
+        Ok(AppProfile {
             id: uuid::Uuid::nil(),
             instance_name: "test".into(),
             mode: revaer_config::AppMode::Active,
             version: 1,
             http_port: 3000,
-            bind_addr: "127.0.0.1".parse().expect("bind addr"),
+            bind_addr,
             telemetry: TelemetryConfig::default(),
             label_policies: Vec::new(),
             immutable_keys: Vec::new(),
-        }
+        })
     }
 
     fn sample_engine_profile() -> revaer_config::EngineProfile {
@@ -227,12 +238,16 @@ mod tests {
 
     #[async_trait]
     impl ConfigFacade for RecordingConfig {
-        async fn get_app_profile(&self) -> Result<AppProfile> {
+        async fn get_app_profile(&self) -> ConfigResult<AppProfile> {
             self.calls.lock().await.push_back("get_app_profile");
             Ok(self.profile.clone())
         }
 
-        async fn issue_setup_token(&self, _ttl: Duration, _issued_by: &str) -> Result<SetupToken> {
+        async fn issue_setup_token(
+            &self,
+            _ttl: Duration,
+            _issued_by: &str,
+        ) -> ConfigResult<SetupToken> {
             self.calls.lock().await.push_back("issue_setup_token");
             Ok(SetupToken {
                 plaintext: "token".into(),
@@ -240,12 +255,12 @@ mod tests {
             })
         }
 
-        async fn validate_setup_token(&self, _token: &str) -> Result<()> {
+        async fn validate_setup_token(&self, _token: &str) -> ConfigResult<()> {
             self.calls.lock().await.push_back("validate_setup_token");
             Ok(())
         }
 
-        async fn consume_setup_token(&self, _token: &str) -> Result<()> {
+        async fn consume_setup_token(&self, _token: &str) -> ConfigResult<()> {
             self.calls.lock().await.push_back("consume_setup_token");
             Ok(())
         }
@@ -255,12 +270,17 @@ mod tests {
             _actor: &str,
             _reason: &str,
             _changeset: SettingsChangeset,
-        ) -> Result<AppliedChanges> {
+        ) -> ConfigResult<AppliedChanges> {
             self.calls.lock().await.push_back("apply_changeset");
-            Err(anyhow!("not implemented"))
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "<root>".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
 
-        async fn snapshot(&self) -> Result<ConfigSnapshot> {
+        async fn snapshot(&self) -> ConfigResult<ConfigSnapshot> {
             self.calls.lock().await.push_back("snapshot");
             Ok(self.snapshot.clone())
         }
@@ -269,43 +289,40 @@ mod tests {
             &self,
             _key_id: &str,
             _secret: &str,
-        ) -> Result<Option<ApiKeyAuth>> {
+        ) -> ConfigResult<Option<ApiKeyAuth>> {
             self.calls.lock().await.push_back("authenticate_api_key");
             Ok(None)
         }
 
-        async fn has_api_keys(&self) -> Result<bool> {
+        async fn has_api_keys(&self) -> ConfigResult<bool> {
             self.calls.lock().await.push_back("has_api_keys");
             Ok(true)
         }
 
-        async fn factory_reset(&self) -> Result<()> {
+        async fn factory_reset(&self) -> ConfigResult<()> {
             self.calls.lock().await.push_back("factory_reset");
             Ok(())
         }
     }
 
     #[tokio::test]
-    async fn shared_config_trait_invokes_expected_methods() {
-        let profile = sample_app_profile();
+    async fn shared_config_trait_invokes_expected_methods() -> ConfigResult<()> {
+        let profile = sample_app_profile()?;
         let engine_profile = sample_engine_profile();
         let snapshot = sample_snapshot(&profile, &engine_profile);
         let config = RecordingConfig::new(profile.clone(), snapshot.clone());
         let shared: SharedConfig = Arc::new(config.clone());
 
-        let _ = shared.get_app_profile().await.expect("profile");
-        let _ = shared.snapshot().await.expect("snapshot");
+        let _ = shared.get_app_profile().await?;
+        let _ = shared.snapshot().await?;
         let _ = shared
             .issue_setup_token(Duration::from_secs(30), "tester")
             .await;
         let _ = shared.validate_setup_token("token").await;
         let _ = shared.consume_setup_token("token").await;
-        let _ = shared
-            .authenticate_api_key("id", "secret")
-            .await
-            .expect("auth result");
-        let _ = shared.has_api_keys().await.expect("has api keys");
-        shared.factory_reset().await.expect("reset");
+        let _ = shared.authenticate_api_key("id", "secret").await?;
+        let _ = shared.has_api_keys().await?;
+        shared.factory_reset().await?;
 
         let calls = config.pop_calls().await;
         assert_eq!(
@@ -321,5 +338,6 @@ mod tests {
                 "factory_reset"
             ]
         );
+        Ok(())
     }
 }

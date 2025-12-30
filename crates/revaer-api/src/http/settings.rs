@@ -34,14 +34,14 @@ pub(crate) async fn settings_patch(
         .config
         .apply_changeset(&key_id, "api_patch", changeset)
         .await
-        .map_err(|err| map_config_error(err, "failed to apply settings changes"))?;
+        .map_err(|err| map_config_error(&err, "failed to apply settings changes"))?;
 
     let snapshot = state.config.snapshot().await.map_err(|err| {
         error!(error = %err, "failed to load configuration snapshot");
         ApiError::internal("failed to load configuration snapshot")
     })?;
 
-    let _ = state.events.publish(CoreEvent::SettingsChanged {
+    state.publish_event(CoreEvent::SettingsChanged {
         description: format!("settings_patch revision {}", snapshot.revision),
     });
 
@@ -70,7 +70,7 @@ pub(crate) async fn factory_reset(
 
     state.config.factory_reset().await.map_err(|err| {
         error!(error = %err, "factory reset failed");
-        ApiError::internal(err.to_string())
+        ApiError::internal("factory reset failed").with_context_field("error", err.to_string())
     })?;
 
     Ok(StatusCode::NO_CONTENT)
@@ -100,20 +100,22 @@ pub(crate) fn invalid_params_for_config_error(error: &ConfigError) -> Vec<Proble
     match error {
         ConfigError::ImmutableField { section, field } => vec![ProblemInvalidParam {
             pointer: crate::http::auth::pointer_for(section, field),
-            message: format!("field '{field}' in '{section}' is immutable"),
+            message: "field is immutable".to_string(),
         }],
         ConfigError::InvalidField {
             section,
             field,
-            message,
+            reason,
+            ..
         } => vec![ProblemInvalidParam {
             pointer: crate::http::auth::pointer_for(section, field),
-            message: message.clone(),
+            message: (*reason).to_string(),
         }],
         ConfigError::UnknownField { section, field } => vec![ProblemInvalidParam {
             pointer: crate::http::auth::pointer_for(section, field),
-            message: format!("unknown field '{field}' in '{section}'"),
+            message: "unknown field".to_string(),
         }],
+        _ => Vec::new(),
     }
 }
 
@@ -125,7 +127,7 @@ mod tests {
     use async_trait::async_trait;
     use chrono::Utc;
     use revaer_config::{
-        ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigError, ConfigSnapshot,
+        ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigError, ConfigResult, ConfigSnapshot,
         EngineProfile, FsPolicy, SettingsChangeset, SetupToken, TelemetryConfig,
         engine_profile::{AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig},
         normalize_engine_profile,
@@ -142,22 +144,26 @@ mod tests {
 
     #[async_trait]
     impl ConfigFacade for StubConfig {
-        async fn get_app_profile(&self) -> Result<AppProfile> {
+        async fn get_app_profile(&self) -> ConfigResult<AppProfile> {
             Ok(self.snapshot.app_profile.clone())
         }
 
-        async fn issue_setup_token(&self, _ttl: Duration, _issued_by: &str) -> Result<SetupToken> {
+        async fn issue_setup_token(
+            &self,
+            _ttl: Duration,
+            _issued_by: &str,
+        ) -> ConfigResult<SetupToken> {
             Ok(SetupToken {
                 plaintext: "token".into(),
                 expires_at: Utc::now(),
             })
         }
 
-        async fn validate_setup_token(&self, _token: &str) -> Result<()> {
+        async fn validate_setup_token(&self, _token: &str) -> ConfigResult<()> {
             Ok(())
         }
 
-        async fn consume_setup_token(&self, _token: &str) -> Result<()> {
+        async fn consume_setup_token(&self, _token: &str) -> ConfigResult<()> {
             Ok(())
         }
 
@@ -166,11 +172,14 @@ mod tests {
             _actor: &str,
             _reason: &str,
             _changeset: SettingsChangeset,
-        ) -> Result<AppliedChanges> {
-            Err(anyhow!("not implemented"))
+        ) -> ConfigResult<AppliedChanges> {
+            Err(ConfigError::Io {
+                operation: "settings.apply_changeset",
+                source: std::io::Error::other("stubbed config failure"),
+            })
         }
 
-        async fn snapshot(&self) -> Result<ConfigSnapshot> {
+        async fn snapshot(&self) -> ConfigResult<ConfigSnapshot> {
             Ok(self.snapshot.clone())
         }
 
@@ -178,20 +187,23 @@ mod tests {
             &self,
             _key_id: &str,
             _secret: &str,
-        ) -> Result<Option<ApiKeyAuth>> {
+        ) -> ConfigResult<Option<ApiKeyAuth>> {
             Ok(None)
         }
 
-        async fn has_api_keys(&self) -> Result<bool> {
+        async fn has_api_keys(&self) -> ConfigResult<bool> {
             Ok(true)
         }
 
-        async fn factory_reset(&self) -> Result<()> {
+        async fn factory_reset(&self) -> ConfigResult<()> {
             Ok(())
         }
     }
 
-    fn sample_snapshot() -> ConfigSnapshot {
+    fn sample_snapshot() -> Result<ConfigSnapshot> {
+        let bind_addr = "127.0.0.1"
+            .parse()
+            .map_err(|_| anyhow!("invalid bind address"))?;
         let engine_profile = EngineProfile {
             id: Uuid::nil(),
             implementation: "stub".into(),
@@ -252,7 +264,7 @@ mod tests {
             outgoing_port_max: None,
             peer_dscp: None,
         };
-        ConfigSnapshot {
+        Ok(ConfigSnapshot {
             revision: 11,
             app_profile: AppProfile {
                 id: Uuid::nil(),
@@ -260,7 +272,7 @@ mod tests {
                 mode: AppMode::Active,
                 version: 1,
                 http_port: 3030,
-                bind_addr: "127.0.0.1".parse().expect("bind addr"),
+                bind_addr,
                 telemetry: TelemetryConfig::default(),
                 label_policies: Vec::new(),
                 immutable_keys: Vec::new(),
@@ -283,16 +295,16 @@ mod tests {
                 umask: None,
                 allow_paths: Vec::new(),
             },
-        }
+        })
     }
 
     #[tokio::test]
-    async fn settings_patch_rejects_setup_token_context() {
+    async fn settings_patch_rejects_setup_token_context() -> Result<()> {
         let state = Arc::new(ApiState::new(
             Arc::new(StubConfig {
-                snapshot: sample_snapshot(),
+                snapshot: sample_snapshot()?,
             }),
-            Metrics::new().expect("metrics"),
+            Metrics::new()?,
             Arc::new(serde_json::json!({})),
             EventBus::new(),
             None,
@@ -305,22 +317,23 @@ mod tests {
         )
         .await;
         assert!(result.is_err(), "setup tokens cannot patch settings");
+        Ok(())
     }
 
     #[tokio::test]
-    async fn well_known_returns_snapshot() {
-        let snapshot = sample_snapshot();
+    async fn well_known_returns_snapshot() -> Result<()> {
+        let snapshot = sample_snapshot()?;
         let state = Arc::new(ApiState::new(
             Arc::new(StubConfig {
                 snapshot: snapshot.clone(),
             }),
-            Metrics::new().expect("metrics"),
+            Metrics::new()?,
             Arc::new(serde_json::json!({})),
             EventBus::new(),
             None,
         ));
 
-        let Json(body) = well_known(State(state)).await.expect("well_known");
+        let Json(body) = well_known(State(state)).await?;
         assert_eq!(body.revision, snapshot.revision);
         assert_eq!(
             body.engine_profile.listen_port,
@@ -330,6 +343,7 @@ mod tests {
             body.engine_profile_effective.network.listen_port,
             snapshot.engine_profile_effective.network.listen_port
         );
+        Ok(())
     }
 
     #[test]
@@ -347,7 +361,8 @@ mod tests {
         let invalids = invalid_params_for_config_error(&ConfigError::InvalidField {
             section: "fs_policy".into(),
             field: "move_mode".into(),
-            message: "bad value".into(),
+            value: None,
+            reason: "bad value",
         });
         assert_eq!(invalids[0].pointer, "/fs_policy/move_mode");
         assert_eq!(invalids[0].message, "bad value");

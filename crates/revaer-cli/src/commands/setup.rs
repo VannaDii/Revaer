@@ -90,8 +90,8 @@ pub(crate) async fn handle_setup_complete(
 
     let mut engine_profile = snapshot.engine_profile;
     engine_profile.implementation = "libtorrent".to_string();
-    engine_profile.resume_dir = resume_dir.clone();
-    engine_profile.download_root = download_root.clone();
+    engine_profile.resume_dir.clone_from(&resume_dir);
+    engine_profile.download_root.clone_from(&download_root);
 
     let fs_policy = build_fs_policy_patch(
         snapshot.fs_policy,
@@ -108,6 +108,7 @@ pub(crate) async fn handle_setup_complete(
             key_id: api_key_id.clone(),
             label: Some(args.api_key_label.clone()),
             enabled: Some(true),
+            expires_at: None,
             secret: Some(api_key_secret.clone()),
             rate_limit: None,
         }],
@@ -157,12 +158,9 @@ async fn fetch_well_known_snapshot(ctx: &AppContext) -> CliResult<ConfigSnapshot
         .join("/.well-known/revaer.json")
         .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
 
-    let response = ctx
-        .client
-        .get(url)
-        .send()
-        .await
-        .map_err(|err| CliError::failure(anyhow!("request to /.well-known/revaer.json failed: {err}")))?;
+    let response = ctx.client.get(url).send().await.map_err(|err| {
+        CliError::failure(anyhow!("request to /.well-known/revaer.json failed: {err}"))
+    })?;
 
     if response.status().is_success() {
         response
@@ -224,6 +222,7 @@ pub(crate) fn resolve_passphrase(args: &SetupCompleteArgs) -> CliResult<String> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::{Result, anyhow};
     use chrono::Utc;
     use httpmock::prelude::*;
     use reqwest::Client;
@@ -239,15 +238,18 @@ mod tests {
 
     use crate::client::ApiKeyCredential;
 
-    fn context_with(server: &MockServer, api_key: Option<ApiKeyCredential>) -> AppContext {
-        AppContext {
+    fn context_with(server: &MockServer, api_key: Option<ApiKeyCredential>) -> Result<AppContext> {
+        Ok(AppContext {
             client: Client::new(),
-            base_url: server.base_url().parse().expect("valid URL"),
+            base_url: server
+                .base_url()
+                .parse()
+                .map_err(|_| anyhow!("valid URL"))?,
             api_key,
-        }
+        })
     }
 
-    fn context_with_key(server: &MockServer) -> AppContext {
+    fn context_with_key(server: &MockServer) -> Result<AppContext> {
         context_with(
             server,
             Some(ApiKeyCredential {
@@ -257,7 +259,7 @@ mod tests {
         )
     }
 
-    fn sample_snapshot() -> ConfigSnapshot {
+    fn sample_snapshot() -> Result<ConfigSnapshot> {
         let engine_profile = EngineProfile {
             id: Uuid::new_v4(),
             implementation: "libtorrent".into(),
@@ -318,7 +320,7 @@ mod tests {
             outgoing_port_max: None,
             peer_dscp: None,
         };
-        ConfigSnapshot {
+        Ok(ConfigSnapshot {
             revision: 42,
             app_profile: AppProfile {
                 id: Uuid::new_v4(),
@@ -326,7 +328,7 @@ mod tests {
                 mode: AppMode::Active,
                 version: 1,
                 http_port: 7070,
-                bind_addr: "127.0.0.1".parse().unwrap(),
+                bind_addr: "127.0.0.1".parse().map_err(|_| anyhow!("bind addr"))?,
                 telemetry: TelemetryConfig {
                     level: Some("info".to_string()),
                     ..TelemetryConfig::default()
@@ -352,11 +354,11 @@ mod tests {
                 umask: None,
                 allow_paths: Vec::new(),
             },
-        }
+        })
     }
 
     #[tokio::test]
-    async fn setup_start_posts_payload() {
+    async fn setup_start_posts_payload() -> Result<()> {
         let server = MockServer::start_async().await;
         let mock = server.mock(|when, then| {
             when.method(POST)
@@ -370,7 +372,7 @@ mod tests {
                 }));
         });
 
-        let ctx = context_with(&server, None);
+        let ctx = context_with(&server, None)?;
         handle_setup_start(
             &ctx,
             SetupStartArgs {
@@ -378,13 +380,13 @@ mod tests {
                 ttl_seconds: Some(600),
             },
         )
-        .await
-        .expect("setup start should succeed");
+        .await?;
         mock.assert();
+        Ok(())
     }
 
     #[tokio::test]
-    async fn setup_start_surfaces_problem_details() {
+    async fn setup_start_surfaces_problem_details() -> Result<()> {
         let server = MockServer::start_async().await;
         server.mock(|when, then| {
             when.method(POST).path("/admin/setup/start");
@@ -393,7 +395,7 @@ mod tests {
                 .json_body(json!({"title": "bad request", "detail": "missing precondition", "status": 400}));
         });
 
-        let ctx = context_with(&server, None);
+        let ctx = context_with(&server, None)?;
         let err = handle_setup_start(
             &ctx,
             SetupStartArgs {
@@ -402,16 +404,18 @@ mod tests {
             },
         )
         .await
-        .expect_err("validation error expected");
+        .err()
+        .ok_or_else(|| anyhow!("expected validation error"))?;
         assert!(
             matches!(err, CliError::Validation(message) if message.contains("missing precondition"))
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn setup_complete_submits_changeset() {
+    async fn setup_complete_submits_changeset() -> Result<()> {
         let server = MockServer::start_async().await;
-        let snapshot = sample_snapshot();
+        let snapshot = sample_snapshot()?;
         let well_known_snapshot = snapshot.clone();
         server.mock(|when, then| {
             when.method(GET).path("/.well-known/revaer.json");
@@ -432,7 +436,7 @@ mod tests {
                 }));
         });
 
-        let ctx = context_with(&server, None);
+        let ctx = context_with(&server, None)?;
         let args = SetupCompleteArgs {
             token: Some("token-1".to_string()),
             instance: "demo".to_string(),
@@ -446,17 +450,17 @@ mod tests {
             passphrase: Some("secret".to_string()),
         };
 
-        handle_setup_complete(&ctx, args)
-            .await
-            .expect("setup complete should succeed");
+        handle_setup_complete(&ctx, args).await?;
         mock.assert();
+        Ok(())
     }
 
     #[test]
-    fn build_fs_policy_patch_merges_allow_paths() {
-        let policy = sample_snapshot().fs_policy;
+    fn build_fs_policy_patch_merges_allow_paths() -> Result<()> {
+        let policy = sample_snapshot()?.fs_policy;
         let updated = build_fs_policy_patch(policy, "/library", "/downloads", "/downloads");
         assert_eq!(updated.allow_paths, vec!["/downloads", "/library"]);
+        Ok(())
     }
 
     #[test]
@@ -479,7 +483,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn handle_tail_writes_resume_file() {
+    async fn handle_tail_writes_resume_file() -> Result<()> {
         let server = MockServer::start_async().await;
         let torrent_id = Uuid::new_v4();
         let event = revaer_events::EventEnvelope {
@@ -487,7 +491,7 @@ mod tests {
             timestamp: Utc::now(),
             event: revaer_events::Event::TorrentRemoved { torrent_id },
         };
-        let payload = serde_json::to_string(&event).expect("event JSON");
+        let payload = serde_json::to_string(&event).map_err(|_| anyhow!("event JSON"))?;
         server.mock(move |when, then| {
             when.method(GET).path("/v1/torrents/events");
             then.status(200)
@@ -495,7 +499,7 @@ mod tests {
                 .body(format!("id:3\ndata:{payload}\n\n"));
         });
 
-        let ctx = context_with_key(&server);
+        let ctx = context_with_key(&server)?;
         let resume_path = std::env::temp_dir().join("revaer-cli-setup-tail.txt");
         let args = crate::cli::TailArgs {
             torrent: Vec::new(),
@@ -514,7 +518,8 @@ mod tests {
             result.is_err(),
             "tail should keep running and be cancelled by timeout"
         );
-        let saved = std::fs::read_to_string(resume_path).expect("resume file");
+        let saved = std::fs::read_to_string(resume_path)?;
         assert_eq!(saved.trim(), "3");
+        Ok(())
     }
 }

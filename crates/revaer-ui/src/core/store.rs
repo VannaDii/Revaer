@@ -323,6 +323,65 @@ pub const fn select_sse_status_summary(store: &AppStore) -> SseStatusSummary {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_store_seeds_auth_and_ui_state() {
+        let store = AppStore::default();
+        assert_eq!(store.ui.theme, ThemeMode::Dark);
+        assert_eq!(store.ui.mode, UiMode::Simple);
+        assert_eq!(store.ui.density, Density::Normal);
+        assert_eq!(store.ui.locale, DEFAULT_LOCALE);
+        assert!(store.ui.toasts.is_empty());
+
+        assert_eq!(store.auth.mode, AuthMode::ApiKey);
+        assert_eq!(store.auth.app_mode, AppModeState::Loading);
+        assert!(!store.auth.bypass_local);
+        assert!(store.auth.state.is_none());
+    }
+
+    #[test]
+    fn default_sse_status_marks_connecting() {
+        let status = SseStatus::default();
+        assert_eq!(status.state, SseConnectionState::Reconnecting);
+        assert_eq!(
+            status.last_error.as_ref().map(|err| err.message.as_str()),
+            Some("connecting")
+        );
+    }
+
+    #[test]
+    fn selectors_return_expected_snapshots() {
+        let mut store = AppStore::default();
+        store.system.rates = SystemRates {
+            download_bps: 12,
+            upload_bps: 34,
+        };
+        store.system.sse_status = SseStatus {
+            state: SseConnectionState::Connected,
+            backoff_ms: Some(1_000),
+            next_retry_at_ms: Some(5_000),
+            last_event_id: Some(9),
+            last_error: None,
+            auth_mode: Some("api_key".to_string()),
+        };
+
+        assert_eq!(
+            select_system_rates(&store),
+            SystemRates {
+                download_bps: 12,
+                upload_bps: 34,
+            }
+        );
+        let summary = select_sse_status_summary(&store);
+        assert_eq!(summary.state, SseConnectionState::Connected);
+        assert_eq!(summary.next_retry_at_ms, Some(5_000));
+        assert!(!summary.has_error);
+    }
+}
+
 /// Result of applying a normalized SSE envelope.
 #[cfg(target_arch = "wasm32")]
 #[derive(Clone, Debug, PartialEq)]

@@ -17,11 +17,13 @@
 //! Core event bus for the Revaer platform.
 //! Layout: `topics.rs` (identifiers), `payloads.rs` (event types), `routing.rs` (bus helpers).
 
+pub mod error;
 pub mod payloads;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod routing;
 pub mod topics;
 
+pub use error::{EventBusError, EventBusResult};
 pub use payloads::{
     DEFAULT_REPLAY_CAPACITY, DiscoveredFile, Event, EventEnvelope, EventId, TorrentState,
 };

@@ -72,6 +72,7 @@ pub(crate) async fn handle_config_set(ctx: &AppContext, args: ConfigSetArgs) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::{Result, anyhow};
     use httpmock::prelude::*;
     use reqwest::Client;
     use serde_json::json;
@@ -79,15 +80,18 @@ mod tests {
 
     use crate::client::ApiKeyCredential;
 
-    fn context_with(server: &MockServer, api_key: Option<ApiKeyCredential>) -> AppContext {
-        AppContext {
+    fn context_with(server: &MockServer, api_key: Option<ApiKeyCredential>) -> Result<AppContext> {
+        Ok(AppContext {
             client: Client::new(),
-            base_url: server.base_url().parse().expect("valid URL"),
+            base_url: server
+                .base_url()
+                .parse()
+                .map_err(|_| anyhow!("valid URL"))?,
             api_key,
-        }
+        })
     }
 
-    fn context_with_key(server: &MockServer) -> AppContext {
+    fn context_with_key(server: &MockServer) -> Result<AppContext> {
         context_with(
             server,
             Some(ApiKeyCredential {
@@ -97,7 +101,7 @@ mod tests {
         )
     }
 
-    fn sample_snapshot() -> ConfigSnapshot {
+    fn sample_snapshot() -> Result<ConfigSnapshot> {
         let engine_profile = revaer_config::EngineProfile {
             id: Uuid::new_v4(),
             implementation: "libtorrent".into(),
@@ -158,7 +162,7 @@ mod tests {
             outgoing_port_max: None,
             peer_dscp: None,
         };
-        ConfigSnapshot {
+        Ok(ConfigSnapshot {
             revision: 1,
             app_profile: revaer_config::AppProfile {
                 id: Uuid::new_v4(),
@@ -166,7 +170,7 @@ mod tests {
                 mode: revaer_config::AppMode::Active,
                 version: 1,
                 http_port: 7070,
-                bind_addr: "127.0.0.1".parse().unwrap(),
+                bind_addr: "127.0.0.1".parse().map_err(|_| anyhow!("bind addr"))?,
                 telemetry: revaer_config::TelemetryConfig::default(),
                 label_policies: Vec::new(),
                 immutable_keys: Vec::new(),
@@ -189,11 +193,11 @@ mod tests {
                 umask: None,
                 allow_paths: Vec::new(),
             },
-        }
+        })
     }
 
     #[tokio::test]
-    async fn config_set_sends_payload() {
+    async fn config_set_sends_payload() -> Result<()> {
         let server = MockServer::start_async().await;
         let mock = server.mock(|when, then| {
             when.method(PATCH)
@@ -202,18 +206,22 @@ mod tests {
             then.status(200);
         });
 
-        let ctx = context_with_key(&server);
+        let ctx = context_with_key(&server)?;
         let file_path =
             std::env::temp_dir().join(format!("revaer-cli-config-{}.json", Uuid::new_v4()));
-        std::fs::write(
-            &file_path,
-            r#"{
-                "app_profile": { "instance_name": "custom" },
-                "api_keys": [],
-                "secrets": []
-            }"#,
-        )
-        .expect("write settings");
+        let mut app_profile = sample_snapshot()?.app_profile;
+        app_profile.id = Uuid::parse_str("00000000-0000-0000-0000-000000000001")
+            .map_err(|_| anyhow!("valid app profile id"))?;
+        let changeset = revaer_config::SettingsChangeset {
+            app_profile: Some(app_profile),
+            engine_profile: None,
+            fs_policy: None,
+            api_keys: Vec::new(),
+            secrets: Vec::new(),
+        };
+        let payload = serde_json::to_string(&changeset)
+            .map_err(|_| anyhow!("serialize settings changeset"))?;
+        std::fs::write(&file_path, payload)?;
 
         handle_config_set(
             &ctx,
@@ -221,16 +229,16 @@ mod tests {
                 file: file_path.clone(),
             },
         )
-        .await
-        .expect("settings patch should succeed");
+        .await?;
         mock.assert();
-        let _ = std::fs::remove_file(file_path);
+        std::fs::remove_file(&file_path)?;
+        Ok(())
     }
 
     #[tokio::test]
-    async fn config_get_fetches_snapshot() {
+    async fn config_get_fetches_snapshot() -> Result<()> {
         let server = MockServer::start_async().await;
-        let snapshot = sample_snapshot();
+        let snapshot = sample_snapshot()?;
         let mock = server.mock(move |when, then| {
             when.method(GET)
                 .path("/v1/config")
@@ -240,10 +248,9 @@ mod tests {
                 .json_body(json!(snapshot));
         });
 
-        let ctx = context_with_key(&server);
-        handle_config_get(&ctx, OutputFormat::Table)
-            .await
-            .expect("config get should succeed");
+        let ctx = context_with_key(&server)?;
+        handle_config_get(&ctx, OutputFormat::Table).await?;
         mock.assert();
+        Ok(())
     }
 }

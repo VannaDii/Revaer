@@ -18,6 +18,7 @@ const MAX_LOG_LINES: usize = 600;
 pub(crate) struct LogsPageProps {
     pub base_url: String,
     pub auth_state: Option<AuthState>,
+    pub on_error_toast: Callback<String>,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -38,6 +39,7 @@ pub(crate) fn logs_page(props: &LogsPageProps) -> Html {
     {
         let base_url = props.base_url.clone();
         let auth_state = props.auth_state.clone();
+        let on_error_toast = props.on_error_toast.clone();
         let lines = lines.clone();
         let status = status.clone();
         let handle_ref = handle_ref.clone();
@@ -57,8 +59,11 @@ pub(crate) fn logs_page(props: &LogsPageProps) -> Html {
                 };
                 let on_error = {
                     let status = status.clone();
+                    let on_error_toast = on_error_toast.clone();
                     Callback::from(move |message: String| {
+                        let toast_message = message.clone();
                         status.set(LogStreamStatus::Error(message));
+                        on_error_toast.emit(toast_message);
                     })
                 };
                 let handle =

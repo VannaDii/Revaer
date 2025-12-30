@@ -23,7 +23,7 @@ use std::{
     sync::{Arc, Mutex, MutexGuard},
 };
 
-use anyhow::{Context, Result, anyhow, bail, ensure};
+use crate::error::{FsOpsError, FsOpsResult};
 use chrono::{DateTime, Utc};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use revaer_config::FsPolicy;
@@ -217,8 +217,8 @@ impl FsOpsService {
     /// # Errors
     ///
     /// Returns an error if any filesystem post-processing step fails.
-    pub fn apply(&self, request: FsOpsRequest<'_>) -> Result<()> {
-        let _ = self.events.publish(Event::FsopsStarted {
+    pub fn apply(&self, request: FsOpsRequest<'_>) -> FsOpsResult<()> {
+        self.publish_event(Event::FsopsStarted {
             torrent_id: request.torrent_id,
         });
 
@@ -228,7 +228,7 @@ impl FsOpsService {
             Ok(meta) => {
                 self.mark_recovered();
                 self.record_job_completed(request.torrent_id, &meta);
-                let _ = self.events.publish(Event::FsopsCompleted {
+                self.publish_event(Event::FsopsCompleted {
                     torrent_id: request.torrent_id,
                 });
                 Ok(())
@@ -237,7 +237,7 @@ impl FsOpsService {
                 let detail = format!("{error:#}");
                 self.mark_degraded(&detail);
                 self.record_job_failed(request.torrent_id, detail.clone());
-                let _ = self.events.publish(Event::FsopsFailed {
+                self.publish_event(Event::FsopsFailed {
                     torrent_id: request.torrent_id,
                     message: detail,
                 });
@@ -246,7 +246,7 @@ impl FsOpsService {
         }
     }
 
-    fn execute_pipeline(&self, request: &FsOpsRequest<'_>) -> Result<FsOpsMeta> {
+    fn execute_pipeline(&self, request: &FsOpsRequest<'_>) -> FsOpsResult<FsOpsMeta> {
         let torrent_id = request.torrent_id;
         let policy = request.policy;
         let source_path = request.source_path;
@@ -286,19 +286,22 @@ impl FsOpsService {
         meta: &mut FsOpsMeta,
         meta_path: &Path,
         policy: &FsPolicy,
-    ) -> Result<()> {
-        let root_value = policy.library_root.clone();
+    ) -> FsOpsResult<()> {
+        let root_value = policy.library_root.as_str();
         self.execute_step(
             torrent_id,
             meta,
             meta_path,
             StepKind::ValidatePolicy,
             StepPersistence::new(false, false, false),
-            move |_meta| {
-                ensure!(
-                    !root_value.trim().is_empty(),
-                    "filesystem policy library root cannot be empty"
-                );
+            |_meta| {
+                if root_value.trim().is_empty() {
+                    return Err(FsOpsError::InvalidPolicy {
+                        field: "library_root",
+                        reason: "empty",
+                        value: Some(root_value.to_string()),
+                    });
+                }
                 Ok(StepOutcome::Completed(Some(format!(
                     "library_root={root_value}"
                 ))))
@@ -313,7 +316,7 @@ impl FsOpsService {
         meta_path: &Path,
         policy: &FsPolicy,
         root: &Path,
-    ) -> Result<()> {
+    ) -> FsOpsResult<()> {
         let allow_paths = policy.allow_paths.clone();
         let root_clone = root.to_path_buf();
         self.execute_step(
@@ -336,7 +339,7 @@ impl FsOpsService {
         meta_path: &Path,
         root: &Path,
         meta_dir: &Path,
-    ) -> Result<()> {
+    ) -> FsOpsResult<()> {
         let root_clone = root.to_path_buf();
         let meta_dir_clone = meta_dir.to_path_buf();
         self.execute_step(
@@ -346,16 +349,14 @@ impl FsOpsService {
             StepKind::PrepareDirectories,
             StepPersistence::new(false, true, false),
             move |_meta| {
-                fs::create_dir_all(&root_clone).with_context(|| {
-                    format!(
-                        "failed to create library root directory at {}",
-                        root_clone.display()
-                    )
+                fs::create_dir_all(&root_clone).map_err(|source| {
+                    FsOpsError::io("prepare_directories.create_root", &root_clone, source)
                 })?;
-                fs::create_dir_all(&meta_dir_clone).with_context(|| {
-                    format!(
-                        "failed to create fsops metadata directory at {}",
-                        meta_dir_clone.display()
+                fs::create_dir_all(&meta_dir_clone).map_err(|source| {
+                    FsOpsError::io(
+                        "prepare_directories.create_meta_dir",
+                        &meta_dir_clone,
+                        source,
                     )
                 })?;
                 Ok(StepOutcome::Completed(Some(format!(
@@ -372,7 +373,7 @@ impl FsOpsService {
         meta: &mut FsOpsMeta,
         meta_path: &Path,
         policy: &FsPolicy,
-    ) -> Result<()> {
+    ) -> FsOpsResult<()> {
         self.execute_step(
             torrent_id,
             meta,
@@ -397,7 +398,7 @@ impl FsOpsService {
         meta: &mut FsOpsMeta,
         meta_path: &Path,
         source_path: &Path,
-    ) -> Result<()> {
+    ) -> FsOpsResult<()> {
         let explicit_source = source_path.to_path_buf();
         self.execute_step(
             torrent_id,
@@ -413,11 +414,13 @@ impl FsOpsService {
                 let canonical = candidate
                     .canonicalize()
                     .unwrap_or_else(|_| candidate.clone());
-                ensure!(
-                    canonical.exists(),
-                    "fsops source path {} does not exist",
-                    canonical.display()
-                );
+                if !canonical.exists() {
+                    return Err(FsOpsError::InvalidInput {
+                        field: "source_path",
+                        reason: "missing",
+                        value: Some(canonical.to_string_lossy().into_owned()),
+                    });
+                }
                 let encoded = canonical.to_string_lossy().into_owned();
                 meta.source_path = Some(encoded);
                 if meta.staging_path.is_none() {
@@ -437,7 +440,7 @@ impl FsOpsService {
         meta: &mut FsOpsMeta,
         meta_path: &Path,
         meta_dir: &Path,
-    ) -> Result<()> {
+    ) -> FsOpsResult<()> {
         let seed = meta_dir.join("work");
         let label = torrent_id.to_string();
         self.execute_step(
@@ -452,11 +455,8 @@ impl FsOpsService {
                     .work_dir
                     .as_ref()
                     .map_or_else(|| default_work_dir.clone(), PathBuf::from);
-                fs::create_dir_all(&work_dir_path).with_context(|| {
-                    format!(
-                        "failed to prepare fsops work directory at {}",
-                        work_dir_path.display()
-                    )
+                fs::create_dir_all(&work_dir_path).map_err(|source_err| {
+                    FsOpsError::io("prepare_work_dir.create_dir", &work_dir_path, source_err)
                 })?;
                 meta.work_dir = Some(work_dir_path.to_string_lossy().into_owned());
                 Ok(StepOutcome::Completed(Some(format!(
@@ -473,7 +473,7 @@ impl FsOpsService {
         meta: &mut FsOpsMeta,
         meta_path: &Path,
         policy: &FsPolicy,
-    ) -> Result<()> {
+    ) -> FsOpsResult<()> {
         let extract_enabled = policy.extract;
         self.execute_step(
             torrent_id,
@@ -493,7 +493,9 @@ impl FsOpsService {
                 } else if let Some(source) = meta.source_path.as_ref() {
                     PathBuf::from(source)
                 } else {
-                    bail!("fsops source path not initialized before extraction");
+                    return Err(FsOpsError::MissingState {
+                        field: "source_path",
+                    });
                 };
                 if staging.is_dir() {
                     return Ok(StepOutcome::Skipped(Some(
@@ -504,21 +506,15 @@ impl FsOpsService {
                     .work_dir
                     .as_ref()
                     .map(PathBuf::from)
-                    .ok_or_else(|| anyhow!("fsops work directory not prepared"))?;
+                    .ok_or(FsOpsError::MissingState { field: "work_dir" })?;
                 let extraction_target = work_dir.join("extracted");
                 if extraction_target.exists() {
-                    fs::remove_dir_all(&extraction_target).with_context(|| {
-                        format!(
-                            "failed to reset extraction directory {}",
-                            extraction_target.display()
-                        )
+                    fs::remove_dir_all(&extraction_target).map_err(|source| {
+                        FsOpsError::io("extract.reset_directory", &extraction_target, source)
                     })?;
                 }
-                fs::create_dir_all(&extraction_target).with_context(|| {
-                    format!(
-                        "failed to create extraction directory {}",
-                        extraction_target.display()
-                    )
+                fs::create_dir_all(&extraction_target).map_err(|source| {
+                    FsOpsError::io("extract.create_directory", &extraction_target, source)
                 })?;
                 Self::extract_archive(&staging, &extraction_target)?;
                 meta.staging_path = Some(extraction_target.to_string_lossy().into_owned());
@@ -536,7 +532,7 @@ impl FsOpsService {
         meta: &mut FsOpsMeta,
         meta_path: &Path,
         policy: &FsPolicy,
-    ) -> Result<()> {
+    ) -> FsOpsResult<()> {
         let flatten_enabled = policy.flatten;
         self.execute_step(
             torrent_id,
@@ -548,25 +544,25 @@ impl FsOpsService {
                 if !flatten_enabled {
                     return Ok(StepOutcome::Skipped(Some("flatten disabled".into())));
                 }
-                let staging = meta
-                    .staging_path
-                    .as_ref()
-                    .map(PathBuf::from)
-                    .ok_or_else(|| anyhow!("staging path unavailable before flatten step"))?;
+                let staging = meta.staging_path.as_ref().map(PathBuf::from).ok_or(
+                    FsOpsError::MissingState {
+                        field: "staging_path",
+                    },
+                )?;
                 if !staging.is_dir() {
                     return Ok(StepOutcome::Skipped(Some(
                         "staging path is not a directory".into(),
                     )));
                 }
-                let mut entries = fs::read_dir(&staging)
-                    .with_context(|| {
-                        format!(
-                            "failed to enumerate staging directory {}",
-                            staging.display()
-                        )
-                    })?
-                    .filter_map(Result::ok)
-                    .collect::<Vec<_>>();
+                let mut entries = Vec::new();
+                for entry in fs::read_dir(&staging)
+                    .map_err(|source| FsOpsError::io("flatten.read_dir", &staging, source))?
+                {
+                    let entry = entry.map_err(|source| {
+                        FsOpsError::io("flatten.read_dir_entry", &staging, source)
+                    })?;
+                    entries.push(entry);
+                }
                 if entries.len() != 1 || !entries[0].path().is_dir() {
                     return Ok(StepOutcome::Skipped(Some(
                         "staging directory not a single-nested tree".into(),
@@ -589,7 +585,7 @@ impl FsOpsService {
         meta_path: &Path,
         policy: &FsPolicy,
         root: &Path,
-    ) -> Result<()> {
+    ) -> FsOpsResult<()> {
         let move_mode = policy.move_mode.as_str();
         let root_clone = root.to_path_buf();
         let torrent_label = torrent_id.to_string();
@@ -600,11 +596,11 @@ impl FsOpsService {
             StepKind::Transfer,
             StepPersistence::new(false, true, false),
             move |meta| {
-                let staging = meta
-                    .staging_path
-                    .as_ref()
-                    .map(PathBuf::from)
-                    .ok_or_else(|| anyhow!("staging path unavailable before transfer"))?;
+                let staging = meta.staging_path.as_ref().map(PathBuf::from).ok_or(
+                    FsOpsError::MissingState {
+                        field: "staging_path",
+                    },
+                )?;
                 let destination = meta.artifact_path.as_ref().map_or_else(
                     || {
                         let inferred = staging
@@ -618,8 +614,8 @@ impl FsOpsService {
                 );
 
                 if let Some(parent) = destination.parent() {
-                    fs::create_dir_all(parent).with_context(|| {
-                        format!("failed to create destination parent {}", parent.display())
+                    fs::create_dir_all(parent).map_err(|source| {
+                        FsOpsError::io("transfer.create_parent", parent, source)
                     })?;
                 }
 
@@ -633,18 +629,12 @@ impl FsOpsService {
                         )));
                     }
                     if destination.is_file() {
-                        fs::remove_file(&destination).with_context(|| {
-                            format!(
-                                "failed to replace existing file at {}",
-                                destination.display()
-                            )
+                        fs::remove_file(&destination).map_err(|source| {
+                            FsOpsError::io("transfer.remove_file", &destination, source)
                         })?;
                     } else {
-                        fs::remove_dir_all(&destination).with_context(|| {
-                            format!(
-                                "failed to replace existing directory at {}",
-                                destination.display()
-                            )
+                        fs::remove_dir_all(&destination).map_err(|source| {
+                            FsOpsError::io("transfer.remove_dir", &destination, source)
                         })?;
                     }
                 }
@@ -653,7 +643,13 @@ impl FsOpsService {
                     "copy" => Self::copy_tree(&staging, &destination)?,
                     "move" => Self::move_tree(&staging, &destination)?,
                     "hardlink" => Self::hardlink_tree(&staging, &destination)?,
-                    other => bail!("unsupported FsOps move_mode '{other}'"),
+                    other => {
+                        return Err(FsOpsError::InvalidPolicy {
+                            field: "move_mode",
+                            reason: "unsupported",
+                            value: Some(other.to_string()),
+                        });
+                    }
                 }
 
                 let mode_string = move_mode.to_string();
@@ -674,7 +670,7 @@ impl FsOpsService {
         meta: &mut FsOpsMeta,
         meta_path: &Path,
         policy: &FsPolicy,
-    ) -> Result<()> {
+    ) -> FsOpsResult<()> {
         let chmod_file = policy.chmod_file.clone();
         let chmod_dir = policy.chmod_dir.clone();
         let owner = policy.owner.clone();
@@ -733,7 +729,7 @@ impl FsOpsService {
         meta: &mut FsOpsMeta,
         meta_path: &Path,
         policy: &FsPolicy,
-    ) -> Result<()> {
+    ) -> FsOpsResult<()> {
         self.execute_step(
             torrent_id,
             meta,
@@ -771,7 +767,12 @@ impl FsOpsService {
         )
     }
 
-    fn run_finalise(&self, torrent_id: Uuid, meta: &mut FsOpsMeta, meta_path: &Path) -> Result<()> {
+    fn run_finalise(
+        &self,
+        torrent_id: Uuid,
+        meta: &mut FsOpsMeta,
+        meta_path: &Path,
+    ) -> FsOpsResult<()> {
         self.execute_step(
             torrent_id,
             meta,
@@ -781,8 +782,13 @@ impl FsOpsService {
             |meta| {
                 if let Some(work_dir) = meta.work_dir.as_ref().map(PathBuf::from)
                     && work_dir.exists()
+                    && let Err(err) = fs::remove_dir_all(&work_dir)
                 {
-                    fs::remove_dir_all(&work_dir).ok();
+                    warn!(
+                        error = %err,
+                        path = %work_dir.display(),
+                        "failed to remove fsops work directory"
+                    );
                 }
                 meta.completed = true;
                 meta.updated_at = Utc::now();
@@ -796,7 +802,7 @@ impl FsOpsService {
     }
 
     fn emit_progress(&self, torrent_id: Uuid, step: &str) {
-        let _ = self.events.publish(Event::FsopsProgress {
+        self.publish_event(Event::FsopsProgress {
             torrent_id,
             step: step.to_string(),
         });
@@ -808,7 +814,7 @@ impl FsOpsService {
         policy_id: Uuid,
         meta_path: &Path,
         source_path: &Path,
-    ) -> Result<FsOpsMeta> {
+    ) -> FsOpsResult<FsOpsMeta> {
         let mut meta = if meta_path.exists() {
             self.emit_progress(torrent_id, "load_meta");
             load_meta(meta_path)?
@@ -838,9 +844,9 @@ impl FsOpsService {
         step: StepKind,
         persistence: StepPersistence,
         op: F,
-    ) -> Result<()>
+    ) -> FsOpsResult<()>
     where
-        F: FnOnce(&mut FsOpsMeta) -> Result<StepOutcome>,
+        F: FnOnce(&mut FsOpsMeta) -> FsOpsResult<StepOutcome>,
     {
         if meta.step_status(step) == Some(StepStatus::Completed)
             && (step != StepKind::Finalise || meta.completed)
@@ -872,14 +878,20 @@ impl FsOpsService {
             }
             Err(err) => {
                 let detail = err.to_string();
-                let _ = self.record_step(
+                if let Err(record_err) = self.record_step(
                     meta,
                     meta_path,
                     step,
                     StepStatus::Failed,
                     Some(&detail),
                     persistence.failure,
-                );
+                ) {
+                    error!(
+                        error = %record_err,
+                        step = step.as_str(),
+                        "failed to persist fsops failure step"
+                    );
+                }
                 Err(err)
             }
         }
@@ -893,7 +905,7 @@ impl FsOpsService {
         status: StepStatus,
         detail: Option<&str>,
         persist: bool,
-    ) -> Result<()> {
+    ) -> FsOpsResult<()> {
         let changed = meta.update_step(step, status, detail.map(str::to_string));
         if changed {
             if persist {
@@ -904,7 +916,7 @@ impl FsOpsService {
         Ok(())
     }
 
-    fn extract_archive(source: &Path, target: &Path) -> Result<()> {
+    fn extract_archive(source: &Path, target: &Path) -> FsOpsResult<()> {
         let extension = source
             .extension()
             .and_then(|ext| ext.to_str())
@@ -912,59 +924,57 @@ impl FsOpsService {
 
         match extension.as_deref() {
             Some("zip") => Self::extract_zip(source, target),
-            Some(other) => bail!("unsupported archive format '{other}'"),
-            None => bail!(
-                "unsupported archive without extension at {}",
-                source.display()
-            ),
+            Some(other) => Err(FsOpsError::Unsupported {
+                operation: "extract_archive",
+                value: Some(other.to_string()),
+            }),
+            None => Err(FsOpsError::InvalidInput {
+                field: "archive_extension",
+                reason: "missing",
+                value: Some(source.to_string_lossy().into_owned()),
+            }),
         }
     }
 
-    fn extract_zip(source: &Path, target: &Path) -> Result<()> {
-        let file = File::open(source).with_context(|| {
-            format!("failed to open archive {} for extraction", source.display())
-        })?;
+    fn extract_zip(source: &Path, target: &Path) -> FsOpsResult<()> {
+        let file = File::open(source)
+            .map_err(|source_err| FsOpsError::io("extract_zip.open", source, source_err))?;
         let mut archive = ZipArchive::new(file)
-            .with_context(|| format!("failed to decode zip archive {}", source.display()))?;
+            .map_err(|source_err| FsOpsError::zip("extract_zip.decode", source, source_err))?;
 
         for index in 0..archive.len() {
-            let mut entry = archive.by_index(index).with_context(|| {
-                format!("failed to read entry {index} from {}", source.display())
+            let mut entry = archive.by_index(index).map_err(|source_err| {
+                FsOpsError::zip("extract_zip.read_entry", source, source_err)
             })?;
             let entry_path = Self::sanitize_archive_path(entry.name())?;
             let mut destination = target.to_path_buf();
             destination.push(&entry_path);
 
             if entry.name().ends_with('/') {
-                fs::create_dir_all(&destination).with_context(|| {
-                    format!(
-                        "failed to create extracted directory {}",
-                        destination.display()
-                    )
+                fs::create_dir_all(&destination).map_err(|source_err| {
+                    FsOpsError::io("extract_zip.create_dir", &destination, source_err)
                 })?;
                 continue;
             }
 
             if let Some(parent) = destination.parent() {
-                fs::create_dir_all(parent).with_context(|| {
-                    format!("failed to prepare extraction parent {}", parent.display())
+                fs::create_dir_all(parent).map_err(|source_err| {
+                    FsOpsError::io("extract_zip.create_parent", parent, source_err)
                 })?;
             }
 
-            let mut output = File::create(&destination).with_context(|| {
-                format!("failed to create extracted file {}", destination.display())
+            let mut output = File::create(&destination).map_err(|source_err| {
+                FsOpsError::io("extract_zip.create_file", &destination, source_err)
             })?;
-            io::copy(&mut entry, &mut output)
-                .with_context(|| format!("failed to extract file {}", destination.display()))?;
+            io::copy(&mut entry, &mut output).map_err(|source_err| {
+                FsOpsError::io("extract_zip.copy", &destination, source_err)
+            })?;
 
             #[cfg(unix)]
             if let Some(mode) = entry.unix_mode() {
                 let perms = fs::Permissions::from_mode(mode);
-                fs::set_permissions(&destination, perms).with_context(|| {
-                    format!(
-                        "failed to apply extracted file permissions to {}",
-                        destination.display()
-                    )
+                fs::set_permissions(&destination, perms).map_err(|source_err| {
+                    FsOpsError::io("extract_zip.set_permissions", &destination, source_err)
                 })?;
             }
         }
@@ -972,80 +982,76 @@ impl FsOpsService {
         Ok(())
     }
 
-    fn sanitize_archive_path(entry: &str) -> Result<PathBuf> {
+    fn sanitize_archive_path(entry: &str) -> FsOpsResult<PathBuf> {
         let path = Path::new(entry);
-        ensure!(
-            !path.is_absolute(),
-            "archive entry '{entry}' may not be absolute"
-        );
+        if path.is_absolute() {
+            return Err(FsOpsError::InvalidInput {
+                field: "archive_entry",
+                reason: "absolute_path",
+                value: Some(entry.to_string()),
+            });
+        }
 
         let mut sanitized = PathBuf::new();
         for component in path.components() {
             match component {
                 Component::Normal(segment) => sanitized.push(segment),
                 Component::CurDir => {}
-                _ => bail!("archive entry '{entry}' contains invalid segments"),
+                _ => {
+                    return Err(FsOpsError::InvalidInput {
+                        field: "archive_entry",
+                        reason: "invalid_segment",
+                        value: Some(entry.to_string()),
+                    });
+                }
             }
         }
 
         Ok(sanitized)
     }
 
-    fn copy_tree(source: &Path, destination: &Path) -> Result<()> {
+    fn copy_tree(source: &Path, destination: &Path) -> FsOpsResult<()> {
         if source.is_file() {
             if let Some(parent) = destination.parent() {
-                fs::create_dir_all(parent).with_context(|| {
-                    format!("failed to create destination parent {}", parent.display())
+                fs::create_dir_all(parent).map_err(|source_err| {
+                    FsOpsError::io("copy_tree.create_parent", parent, source_err)
                 })?;
             }
-            fs::copy(source, destination).with_context(|| {
-                format!(
-                    "failed to copy {} to {}",
-                    source.display(),
-                    destination.display()
-                )
+            fs::copy(source, destination).map_err(|source_err| {
+                FsOpsError::io("copy_tree.copy_file", destination, source_err)
             })?;
             return Ok(());
         }
 
-        fs::create_dir_all(destination).with_context(|| {
-            format!(
-                "failed to create destination directory {}",
-                destination.display()
-            )
+        fs::create_dir_all(destination).map_err(|source_err| {
+            FsOpsError::io("copy_tree.create_dir", destination, source_err)
         })?;
 
         for entry in WalkDir::new(source) {
-            let entry = entry.with_context(|| {
-                format!("failed to traverse {} while copying tree", source.display())
-            })?;
-            let relative = entry.path().strip_prefix(source).with_context(|| {
-                format!(
-                    "failed to strip prefix {} from {}",
-                    source.display(),
-                    entry.path().display()
-                )
-            })?;
+            let entry = entry
+                .map_err(|source_err| FsOpsError::walkdir("copy_tree.walk", source, source_err))?;
+            let relative =
+                entry
+                    .path()
+                    .strip_prefix(source)
+                    .map_err(|_| FsOpsError::InvalidInput {
+                        field: "source_path",
+                        reason: "strip_prefix",
+                        value: Some(entry.path().to_string_lossy().into_owned()),
+                    })?;
             let target_path = destination.join(relative);
             if entry.file_type().is_dir() {
-                fs::create_dir_all(&target_path).with_context(|| {
-                    format!(
-                        "failed to create destination directory {}",
-                        target_path.display()
-                    )
+                fs::create_dir_all(&target_path).map_err(|source_err| {
+                    FsOpsError::io("copy_tree.create_dir", &target_path, source_err)
                 })?;
             } else {
                 if let Some(parent) = target_path.parent() {
-                    fs::create_dir_all(parent).with_context(|| {
-                        format!("failed to create destination parent {}", parent.display())
+                    fs::create_dir_all(parent).map_err(|source_err| {
+                        FsOpsError::io("copy_tree.create_parent", parent, source_err)
                     })?;
                 }
-                fs::copy(entry.path(), &target_path).with_context(|| {
-                    format!(
-                        "failed to copy {} to {}",
-                        entry.path().display(),
-                        target_path.display()
-                    )
+                fs::copy(entry.path(), &target_path).map_err(|source_err| {
+                    FsOpsError::io("copy_tree.copy_entry", &target_path, source_err)
                 })?;
             }
         }
@@ -1053,87 +1059,67 @@ impl FsOpsService {
         Ok(())
     }
 
-    fn move_tree(source: &Path, destination: &Path) -> Result<()> {
+    fn move_tree(source: &Path, destination: &Path) -> FsOpsResult<()> {
         match fs::rename(source, destination) {
             Ok(()) => Ok(()),
             Err(_rename_err) => {
-                Self::copy_tree(source, destination).with_context(|| {
-                    format!(
-                        "failed to move {}; copy fallback also failed",
-                        source.display()
-                    )
-                })?;
-                fs::remove_dir_all(source)
-                    .or_else(|_| fs::remove_file(source))
-                    .with_context(|| {
-                        format!(
-                            "failed to remove source path {} after fallback copy",
-                            source.display()
-                        )
-                    })?;
+                Self::copy_tree(source, destination)?;
+                if let Err(remove_err) = fs::remove_dir_all(source) {
+                    if let Err(file_err) = fs::remove_file(source) {
+                        return Err(FsOpsError::io("move_tree.cleanup", source, file_err));
+                    }
+                    if remove_err.kind() != io::ErrorKind::NotFound {
+                        return Err(FsOpsError::io("move_tree.cleanup", source, remove_err));
+                    }
+                }
                 Ok(())
             }
         }
     }
 
-    fn hardlink_tree(source: &Path, destination: &Path) -> Result<()> {
+    fn hardlink_tree(source: &Path, destination: &Path) -> FsOpsResult<()> {
         if source.is_file() {
             if let Some(parent) = destination.parent() {
-                fs::create_dir_all(parent).with_context(|| {
-                    format!("failed to create destination parent {}", parent.display())
+                fs::create_dir_all(parent).map_err(|source_err| {
+                    FsOpsError::io("hardlink_tree.create_parent", parent, source_err)
                 })?;
             }
-            fs::hard_link(source, destination).with_context(|| {
-                format!(
-                    "failed to hardlink {} to {}",
-                    source.display(),
-                    destination.display()
-                )
+            fs::hard_link(source, destination).map_err(|source_err| {
+                FsOpsError::io("hardlink_tree.link_file", destination, source_err)
             })?;
             return Ok(());
         }
 
-        fs::create_dir_all(destination).with_context(|| {
-            format!(
-                "failed to create destination directory {}",
-                destination.display()
-            )
+        fs::create_dir_all(destination).map_err(|source_err| {
+            FsOpsError::io("hardlink_tree.create_dir", destination, source_err)
         })?;
 
         for entry in WalkDir::new(source) {
-            let entry = entry.with_context(|| {
-                format!(
-                    "failed to traverse {} while hardlinking tree",
-                    source.display()
-                )
+            let entry = entry.map_err(|source_err| {
+                FsOpsError::walkdir("hardlink_tree.walk", source, source_err)
             })?;
-            let relative = entry.path().strip_prefix(source).with_context(|| {
-                format!(
-                    "failed to strip prefix {} from {}",
-                    source.display(),
-                    entry.path().display()
-                )
-            })?;
+            let relative =
+                entry
+                    .path()
+                    .strip_prefix(source)
+                    .map_err(|_| FsOpsError::InvalidInput {
+                        field: "source_path",
+                        reason: "strip_prefix",
+                        value: Some(entry.path().to_string_lossy().into_owned()),
+                    })?;
             let target_path = destination.join(relative);
             if entry.file_type().is_dir() {
-                fs::create_dir_all(&target_path).with_context(|| {
-                    format!(
-                        "failed to create destination directory {}",
-                        target_path.display()
-                    )
+                fs::create_dir_all(&target_path).map_err(|source_err| {
+                    FsOpsError::io("hardlink_tree.create_dir", &target_path, source_err)
                 })?;
             } else {
                 if let Some(parent) = target_path.parent() {
-                    fs::create_dir_all(parent).with_context(|| {
-                        format!("failed to create destination parent {}", parent.display())
+                    fs::create_dir_all(parent).map_err(|source_err| {
+                        FsOpsError::io("hardlink_tree.create_parent", parent, source_err)
                     })?;
                 }
-                fs::hard_link(entry.path(), &target_path).with_context(|| {
-                    format!(
-                        "failed to hardlink {} to {}",
-                        entry.path().display(),
-                        target_path.display()
-                    )
+                fs::hard_link(entry.path(), &target_path).map_err(|source_err| {
+                    FsOpsError::io("hardlink_tree.link_entry", &target_path, source_err)
                 })?;
             }
         }
@@ -1148,7 +1134,7 @@ impl FsOpsService {
         owner: Option<&str>,
         group: Option<&str>,
         umask: Option<&str>,
-    ) -> Result<String> {
+    ) -> FsOpsResult<String> {
         #[cfg(not(unix))]
         {
             let mut requested = Vec::new();
@@ -1167,26 +1153,23 @@ impl FsOpsService {
             if umask.is_some() {
                 requested.push("umask");
             }
-            bail!(
-                "filesystem permission adjustments ({}) require a Unix-like platform",
-                requested.join(", ")
-            );
+            return Err(FsOpsError::Unsupported {
+                operation: "apply_permissions",
+                value: Some(requested.join(",")),
+            });
         }
 
         #[cfg(unix)]
         {
             let file_spec = file_mode
-                .map(Self::parse_octal_mode)
-                .transpose()
-                .context("invalid file chmod specification")?;
+                .map(|value| Self::parse_octal_mode("chmod_file", value))
+                .transpose()?;
             let dir_spec = dir_mode
-                .map(Self::parse_octal_mode)
-                .transpose()
-                .context("invalid directory chmod specification")?;
+                .map(|value| Self::parse_octal_mode("chmod_dir", value))
+                .transpose()?;
             let umask_spec = umask
-                .map(Self::parse_octal_mode)
-                .transpose()
-                .context("invalid umask specification")?;
+                .map(|value| Self::parse_octal_mode("umask", value))
+                .transpose()?;
 
             let file_mode = match (file_spec, umask_spec) {
                 (Some(mode), _) => Some((mode, false)),
@@ -1200,27 +1183,21 @@ impl FsOpsService {
             };
 
             for entry in WalkDir::new(destination) {
-                let entry = entry.with_context(|| {
-                    format!(
-                        "failed to traverse {} while adjusting permissions",
-                        destination.display()
-                    )
+                let entry = entry.map_err(|source_err| {
+                    FsOpsError::walkdir("apply_permissions.walk", destination, source_err)
                 })?;
                 let path = entry.path();
                 if entry.file_type().is_dir() {
                     if let Some((mode, _)) = dir_mode {
                         let perms = fs::Permissions::from_mode(mode);
-                        fs::set_permissions(path, perms).with_context(|| {
-                            format!(
-                                "failed to apply directory permissions to {}",
-                                path.display()
-                            )
+                        fs::set_permissions(path, perms).map_err(|source_err| {
+                            FsOpsError::io("apply_permissions.set_dir", path, source_err)
                         })?;
                     }
                 } else if let Some((mode, _)) = file_mode {
                     let perms = fs::Permissions::from_mode(mode);
-                    fs::set_permissions(path, perms).with_context(|| {
-                        format!("failed to apply file permissions to {}", path.display())
+                    fs::set_permissions(path, perms).map_err(|source_err| {
+                        FsOpsError::io("apply_permissions.set_file", path, source_err)
                     })?;
                 }
             }
@@ -1254,7 +1231,7 @@ impl FsOpsService {
         destination: &Path,
         owner: Option<&str>,
         group: Option<&str>,
-    ) -> Result<Vec<String>> {
+    ) -> FsOpsResult<Vec<String>> {
         let owner = owner.map(Self::resolve_owner).transpose()?;
         let group = group.map(Self::resolve_group).transpose()?;
         if owner.is_none() && group.is_none() {
@@ -1265,15 +1242,15 @@ impl FsOpsService {
         let gid = group.as_ref().map(|(gid, _)| *gid);
 
         for entry in WalkDir::new(destination) {
-            let entry = entry.with_context(|| {
-                format!(
-                    "failed to traverse {} while adjusting ownership",
-                    destination.display()
-                )
+            let entry = entry.map_err(|source_err| {
+                FsOpsError::walkdir("apply_ownership.walk", destination, source_err)
             })?;
             let path = entry.path();
-            chown(path, uid, gid)
-                .with_context(|| format!("failed to apply ownership to {}", path.display()))?;
+            chown(path, uid, gid).map_err(|source_err| FsOpsError::Nix {
+                operation: "apply_ownership.chown",
+                path: path.to_path_buf(),
+                source: source_err,
+            })?;
         }
 
         let mut detail = Vec::new();
@@ -1291,38 +1268,67 @@ impl FsOpsService {
         _destination: &Path,
         owner: Option<&str>,
         group: Option<&str>,
-    ) -> Result<Vec<String>> {
+    ) -> FsOpsResult<Vec<String>> {
         if owner.is_some() || group.is_some() {
-            bail!("ownership adjustments require a Unix-like platform");
+            return Err(FsOpsError::Unsupported {
+                operation: "apply_ownership",
+                value: Some("unix_only".to_string()),
+            });
         }
         Ok(Vec::new())
     }
 
     #[cfg(unix)]
-    fn resolve_owner(spec: &str) -> Result<(Uid, String)> {
+    fn resolve_owner(spec: &str) -> FsOpsResult<(Uid, String)> {
         let trimmed = spec.trim();
-        ensure!(!trimmed.is_empty(), "owner specification cannot be empty");
+        if trimmed.is_empty() {
+            return Err(FsOpsError::InvalidInput {
+                field: "owner",
+                reason: "empty",
+                value: Some(spec.to_string()),
+            });
+        }
         if let Ok(id) = trimmed.parse::<u32>() {
             let uid = Uid::from_raw(id);
             return Ok((uid, format!("uid({id})")));
         }
         let user = User::from_name(trimmed)
-            .with_context(|| format!("failed to resolve user '{trimmed}'"))?
-            .ok_or_else(|| anyhow!("user '{trimmed}' not found"))?;
+            .map_err(|source_err| FsOpsError::UserLookup {
+                user: trimmed.to_string(),
+                source: source_err,
+            })?
+            .ok_or_else(|| FsOpsError::InvalidInput {
+                field: "owner",
+                reason: "not_found",
+                value: Some(trimmed.to_string()),
+            })?;
         Ok((user.uid, format!("{trimmed}({})", user.uid.as_raw())))
     }
 
     #[cfg(unix)]
-    fn resolve_group(spec: &str) -> Result<(Gid, String)> {
+    fn resolve_group(spec: &str) -> FsOpsResult<(Gid, String)> {
         let trimmed = spec.trim();
-        ensure!(!trimmed.is_empty(), "group specification cannot be empty");
+        if trimmed.is_empty() {
+            return Err(FsOpsError::InvalidInput {
+                field: "group",
+                reason: "empty",
+                value: Some(spec.to_string()),
+            });
+        }
         if let Ok(id) = trimmed.parse::<u32>() {
             let gid = Gid::from_raw(id);
             return Ok((gid, format!("gid({id})")));
         }
         let group = Group::from_name(trimmed)
-            .with_context(|| format!("failed to resolve group '{trimmed}'"))?
-            .ok_or_else(|| anyhow!("group '{trimmed}' not found"))?;
+            .map_err(|source_err| FsOpsError::GroupLookup {
+                group: trimmed.to_string(),
+                source: source_err,
+            })?
+            .ok_or_else(|| FsOpsError::InvalidInput {
+                field: "group",
+                reason: "not_found",
+                value: Some(trimmed.to_string()),
+            })?;
         Ok((group.gid, format!("{trimmed}({})", group.gid.as_raw())))
     }
 
@@ -1331,7 +1337,18 @@ impl FsOpsService {
 
         let mut files = Vec::new();
         let mut directories = Vec::new();
-        for entry in WalkDir::new(destination).into_iter().filter_map(Result::ok) {
+        for entry in WalkDir::new(destination) {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(err) => {
+                    warn!(
+                        error = %err,
+                        path = %destination.display(),
+                        "failed to traverse cleanup destination"
+                    );
+                    continue;
+                }
+            };
             if entry.path() == destination {
                 continue;
             }
@@ -1345,11 +1362,18 @@ impl FsOpsService {
         for entry in files {
             match rules.evaluate(entry.path()) {
                 RuleDecision::Include => {}
-                RuleDecision::Skip => {
-                    if fs::remove_file(entry.path()).is_ok() {
+                RuleDecision::Skip => match fs::remove_file(entry.path()) {
+                    Ok(()) => {
                         removed += 1;
                     }
-                }
+                    Err(err) => {
+                        warn!(
+                            error = %err,
+                            path = %entry.path().display(),
+                            "failed to remove cleanup file"
+                        );
+                    }
+                },
             }
         }
 
@@ -1360,13 +1384,23 @@ impl FsOpsService {
             match rules.evaluate(entry.path()) {
                 RuleDecision::Include => {}
                 RuleDecision::Skip => {
-                    if entry
-                        .path()
-                        .read_dir()
-                        .map(|mut iter| iter.next().is_none())
-                        .unwrap_or(false)
-                    {
-                        fs::remove_dir(entry.path()).ok();
+                    let is_empty = match entry.path().read_dir() {
+                        Ok(mut iter) => iter.next().is_none(),
+                        Err(err) => {
+                            warn!(
+                                error = %err,
+                                path = %entry.path().display(),
+                                "failed to read cleanup directory"
+                            );
+                            false
+                        }
+                    };
+                    if is_empty && let Err(err) = fs::remove_dir(entry.path()) {
+                        warn!(
+                            error = %err,
+                            path = %entry.path().display(),
+                            "failed to remove cleanup directory"
+                        );
                     }
                 }
             }
@@ -1375,9 +1409,13 @@ impl FsOpsService {
         removed
     }
 
-    fn parse_octal_mode(value: &str) -> Result<u32> {
+    fn parse_octal_mode(field: &'static str, value: &str) -> FsOpsResult<u32> {
         let trimmed = value.trim_start_matches("0o");
-        u32::from_str_radix(trimmed, 8).context("invalid octal mode")
+        u32::from_str_radix(trimmed, 8).map_err(|_| FsOpsError::InvalidInput {
+            field,
+            reason: "invalid_octal",
+            value: Some(value.to_string()),
+        })
     }
 
     fn mark_degraded(&self, detail: &str) {
@@ -1386,16 +1424,18 @@ impl FsOpsService {
             drop(guard);
             warn!(
                 component = HEALTH_COMPONENT,
-                "fsops pipeline still degraded: {detail}"
+                detail = detail,
+                "fsops pipeline still degraded"
             );
         } else {
             *guard = true;
             drop(guard);
             warn!(
                 component = HEALTH_COMPONENT,
-                "fsops pipeline degraded: {detail}"
+                detail = detail,
+                "fsops pipeline degraded"
             );
-            let _ = self.events.publish(Event::HealthChanged {
+            self.publish_event(Event::HealthChanged {
                 degraded: vec![HEALTH_COMPONENT.to_string()],
             });
         }
@@ -1405,9 +1445,7 @@ impl FsOpsService {
         let mut guard = self.lock_health_flag();
         if std::mem::take(&mut *guard) {
             drop(guard);
-            let _ = self
-                .events
-                .publish(Event::HealthChanged { degraded: vec![] });
+            self.publish_event(Event::HealthChanged { degraded: vec![] });
             info!(component = HEALTH_COMPONENT, "fsops pipeline recovered");
         }
     }
@@ -1493,6 +1531,17 @@ impl FsOpsService {
                     });
                 }
             }
+        }
+    }
+
+    fn publish_event(&self, event: Event) {
+        if let Err(error) = self.events.publish(event) {
+            warn!(
+                event_id = error.event_id(),
+                event_kind = error.event_kind(),
+                error = %error,
+                "failed to publish event"
+            );
         }
     }
 
@@ -1589,21 +1638,20 @@ impl FsOpsMeta {
     }
 }
 
-fn load_meta(path: &Path) -> Result<FsOpsMeta> {
+fn load_meta(path: &Path) -> FsOpsResult<FsOpsMeta> {
     let raw = fs::read_to_string(path)
-        .with_context(|| format!("failed to read fsops metadata file at {}", path.display()))?;
+        .map_err(|source_err| FsOpsError::io("meta.read", path, source_err))?;
     serde_json::from_str(&raw)
-        .with_context(|| format!("failed to parse fsops metadata JSON at {}", path.display()))
+        .map_err(|source_err| FsOpsError::json("meta.parse", path, source_err))
 }
 
-fn persist_meta(path: &Path, meta: &FsOpsMeta) -> Result<()> {
+fn persist_meta(path: &Path, meta: &FsOpsMeta) -> FsOpsResult<()> {
     let serialised = serde_json::to_string_pretty(meta)
-        .context("failed to serialise fsops metadata for persistence")?;
-    fs::write(path, serialised)
-        .with_context(|| format!("failed to persist fsops metadata at {}", path.display()))
+        .map_err(|source_err| FsOpsError::json("meta.serialize", path, source_err))?;
+    fs::write(path, serialised).map_err(|source_err| FsOpsError::io("meta.write", path, source_err))
 }
 
-fn enforce_allow_paths(root: &Path, allow_paths: &[String]) -> Result<()> {
+fn enforce_allow_paths(root: &Path, allow_paths: &[String]) -> FsOpsResult<()> {
     let allows = parse_path_list(allow_paths)?;
     if allows.is_empty() {
         return Ok(());
@@ -1624,21 +1672,27 @@ fn enforce_allow_paths(root: &Path, allow_paths: &[String]) -> Result<()> {
         }
     }
 
-    ensure!(
-        permitted,
-        "library root {} is not permitted by fs policy allow_paths",
-        root_abs.display()
-    );
+    if !permitted {
+        return Err(FsOpsError::InvalidPolicy {
+            field: "allow_paths",
+            reason: "root_not_permitted",
+            value: Some(root_abs.to_string_lossy().into_owned()),
+        });
+    }
 
     Ok(())
 }
 
-fn parse_path_list(entries: &[String]) -> Result<Vec<PathBuf>> {
+fn parse_path_list(entries: &[String]) -> FsOpsResult<Vec<PathBuf>> {
     entries
         .iter()
         .map(|entry| {
             if entry.trim().is_empty() {
-                Err(anyhow!("allow path entries cannot be empty"))
+                Err(FsOpsError::InvalidPolicy {
+                    field: "allow_paths",
+                    reason: "empty_entry",
+                    value: Some(entry.clone()),
+                })
             } else {
                 Ok(PathBuf::from(entry))
             }
@@ -1653,9 +1707,9 @@ struct RuleSet {
 }
 
 impl RuleSet {
-    fn from_policy(policy: &FsPolicy) -> Result<Self> {
-        let include_patterns = parse_glob_list(&policy.cleanup_keep)?;
-        let mut exclude_patterns = parse_glob_list(&policy.cleanup_drop)?;
+    fn from_policy(policy: &FsPolicy) -> FsOpsResult<Self> {
+        let include_patterns = parse_glob_list(&policy.cleanup_keep, "cleanup_keep")?;
+        let mut exclude_patterns = parse_glob_list(&policy.cleanup_drop, "cleanup_drop")?;
 
         if exclude_patterns
             .iter()
@@ -1670,8 +1724,8 @@ impl RuleSet {
         }
 
         Ok(Self {
-            include: build_globset(include_patterns)?,
-            exclude: build_globset(exclude_patterns)?,
+            include: build_globset(include_patterns, "cleanup_keep")?,
+            exclude: build_globset(exclude_patterns, "cleanup_drop")?,
         })
     }
 
@@ -1706,12 +1760,16 @@ enum RuleDecision {
     Skip,
 }
 
-fn parse_glob_list(entries: &[String]) -> Result<Vec<String>> {
+fn parse_glob_list(entries: &[String], field: &'static str) -> FsOpsResult<Vec<String>> {
     entries
         .iter()
         .map(|pattern| {
             if pattern.trim().is_empty() {
-                Err(anyhow!("glob patterns cannot be empty strings"))
+                Err(FsOpsError::InvalidPolicy {
+                    field,
+                    reason: "empty_pattern",
+                    value: Some(pattern.clone()),
+                })
             } else {
                 Ok(pattern.clone())
             }
@@ -1719,7 +1777,7 @@ fn parse_glob_list(entries: &[String]) -> Result<Vec<String>> {
         .collect()
 }
 
-fn build_globset(patterns: Vec<String>) -> Result<Option<GlobSet>> {
+fn build_globset(patterns: Vec<String>, field: &'static str) -> FsOpsResult<Option<GlobSet>> {
     if patterns.is_empty() {
         return Ok(None);
     }
@@ -1728,22 +1786,24 @@ fn build_globset(patterns: Vec<String>) -> Result<Option<GlobSet>> {
     for pattern in patterns {
         builder.add(
             Glob::new(&pattern)
-                .with_context(|| format!("invalid glob pattern '{pattern}' in fsops policy"))?,
+                .map_err(|source_err| FsOpsError::glob(field, pattern.clone(), source_err))?,
         );
     }
-    Ok(Some(
-        builder.build().context("failed to compile glob patterns")?,
-    ))
+    Ok(Some(builder.build().map_err(|source_err| {
+        FsOpsError::glob(field, "<set>".to_string(), source_err)
+    })?))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anyhow::anyhow;
+    use anyhow::Result;
     use std::io::Write;
     use tempfile::TempDir;
     use tokio::runtime::Runtime;
     use tokio_stream::StreamExt;
+
+    type TestResult<T> = Result<T>;
 
     fn sample_policy(root: &Path) -> FsPolicy {
         FsPolicy {
@@ -1765,11 +1825,13 @@ mod tests {
     }
 
     #[test]
-    fn build_glob_set_matches_expected_paths() -> Result<()> {
+    fn build_glob_set_matches_expected_paths() -> TestResult<()> {
         let policy = sample_policy(Path::new("/data"));
-        let patterns = parse_glob_list(&policy.cleanup_keep)?;
-        let glob_rules = build_globset(patterns)?;
-        let glob_set = glob_rules.expect("glob rules should be present");
+        let patterns = parse_glob_list(&policy.cleanup_keep, "cleanup_keep")?;
+        let glob_rules = build_globset(patterns, "cleanup_keep")?;
+        let glob_set = glob_rules.ok_or(FsOpsError::MissingState {
+            field: "glob_rules",
+        })?;
 
         assert!(glob_set.is_match("/data/library/movie/file.mkv"));
         assert!(!glob_set.is_match("/data/library/movie/file.srt"));
@@ -1779,7 +1841,7 @@ mod tests {
     }
 
     #[test]
-    fn rule_set_evaluates_include_and_exclude() -> Result<()> {
+    fn rule_set_evaluates_include_and_exclude() -> TestResult<()> {
         let policy = FsPolicy {
             id: Uuid::new_v4(),
             library_root: "/tmp/library".to_string(),
@@ -1814,20 +1876,45 @@ mod tests {
     }
 
     #[test]
-    fn parse_path_list_rejects_invalid_entries() {
-        let values = vec!["".to_string(), "/tmp".to_string()];
-        let err = parse_path_list(&values).expect_err("invalid inputs should fail");
-        assert!(format!("{err:#}").contains("allow path entries"));
+    fn parse_path_list_rejects_invalid_entries() -> TestResult<()> {
+        let values = vec![String::new(), "/tmp".to_string()];
+        let err = parse_path_list(&values)
+            .err()
+            .ok_or(FsOpsError::MissingState {
+                field: "expected_invalid_path_list_error",
+            })?;
+        assert!(matches!(
+            err,
+            FsOpsError::InvalidPolicy {
+                field: "allow_paths",
+                reason: "empty_entry",
+                ..
+            }
+        ));
+        Ok(())
     }
 
     #[test]
-    fn parse_glob_list_rejects_non_strings() {
-        let values = vec!["".to_string()];
-        let err = parse_glob_list(&values).expect_err("empty pattern should fail");
-        assert!(format!("{err:#}").contains("glob patterns cannot be empty"));
+    fn parse_glob_list_rejects_non_strings() -> TestResult<()> {
+        let values = vec![String::new()];
+        let err =
+            parse_glob_list(&values, "cleanup_keep")
+                .err()
+                .ok_or(FsOpsError::MissingState {
+                    field: "expected_empty_glob_error",
+                })?;
+        assert!(matches!(
+            err,
+            FsOpsError::InvalidPolicy {
+                field: "cleanup_keep",
+                reason: "empty_pattern",
+                ..
+            }
+        ));
+        Ok(())
     }
 
-    fn write_zip_archive(archive: &Path, entries: &[(&str, &[u8])]) -> Result<()> {
+    fn write_zip_archive(archive: &Path, entries: &[(&str, &[u8])]) -> TestResult<()> {
         let file = File::create(archive)?;
         let mut zip = zip::ZipWriter::new(file);
         let options = zip::write::FileOptions::default();
@@ -1840,14 +1927,14 @@ mod tests {
     }
 
     #[test]
-    fn prepare_directories_fails_for_file_path() {
+    fn prepare_directories_fails_for_file_path() -> TestResult<()> {
         let events = EventBus::with_capacity(4);
-        let metrics = Metrics::new().expect("metrics");
+        let metrics = Metrics::new()?;
         let service = FsOpsService::new(events, metrics);
 
-        let temp = TempDir::new().expect("tempdir");
+        let temp = TempDir::new()?;
         let file_root = temp.path().join("not_a_dir");
-        fs::write(&file_root, "file").expect("write file");
+        fs::write(&file_root, "file")?;
         let meta_dir = temp.path().join("meta");
         let meta_path = temp.path().join("meta.json");
 
@@ -1861,10 +1948,11 @@ mod tests {
             result.is_err(),
             "expected directory creation to fail on file path"
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn pipeline_flattens_single_directory() -> Result<()> {
+    async fn pipeline_flattens_single_directory() -> TestResult<()> {
         let bus = EventBus::with_capacity(8);
         let metrics = Metrics::new()?;
         let service = FsOpsService::new(bus, metrics);
@@ -1891,7 +1979,13 @@ mod tests {
             .join(META_DIR_NAME)
             .join(format!("{torrent_id}{META_SUFFIX}"));
         let meta = load_meta(&meta_path)?;
-        let artifact = PathBuf::from(meta.artifact_path.as_ref().expect("artifact path set"));
+        let artifact_path = meta
+            .artifact_path
+            .as_ref()
+            .ok_or(FsOpsError::MissingState {
+                field: "artifact_path",
+            })?;
+        let artifact = PathBuf::from(artifact_path);
         assert!(artifact.ends_with("Season1"));
         assert!(artifact.join("episode.mkv").exists());
 
@@ -1899,7 +1993,7 @@ mod tests {
     }
 
     #[test]
-    fn pipeline_extracts_archive_and_cleans_junk() -> Result<()> {
+    fn pipeline_extracts_archive_and_cleans_junk() -> TestResult<()> {
         let bus = EventBus::with_capacity(8);
         let metrics = Metrics::new()?;
         let service = FsOpsService::new(bus.clone(), metrics);
@@ -1935,7 +2029,10 @@ mod tests {
             .join(META_DIR_NAME)
             .join(format!("{torrent_id}{META_SUFFIX}"));
         let meta = load_meta(&meta_path)?;
-        let artifact_dir = PathBuf::from(meta.artifact_path.expect("artifact path set"));
+        let artifact_path = meta.artifact_path.ok_or(FsOpsError::MissingState {
+            field: "artifact_path",
+        })?;
+        let artifact_dir = PathBuf::from(artifact_path);
         assert!(artifact_dir.exists());
         assert!(
             artifact_dir.join("Season1").join("episode1.mkv").exists(),
@@ -1953,7 +2050,7 @@ mod tests {
     }
 
     #[test]
-    fn enforce_allow_paths_accepts_parent_directory() -> Result<()> {
+    fn enforce_allow_paths_accepts_parent_directory() -> TestResult<()> {
         let temp = TempDir::new()?;
         let root = temp.path().join("library");
         let allow = vec![temp.path().display().to_string()];
@@ -1962,7 +2059,7 @@ mod tests {
     }
 
     #[test]
-    fn rule_set_expands_skip_fluff_preset() -> Result<()> {
+    fn rule_set_expands_skip_fluff_preset() -> TestResult<()> {
         let mut policy = sample_policy(Path::new("/data"));
         policy.cleanup_drop = vec![SKIP_FLUFF_PRESET.to_string()];
 
@@ -1972,20 +2069,29 @@ mod tests {
     }
 
     #[test]
-    fn extract_archive_rejects_unknown_extensions() -> Result<()> {
+    fn extract_archive_rejects_unknown_extensions() -> TestResult<()> {
         let temp = TempDir::new()?;
         let source = temp.path().join("payload.rar");
         fs::write(&source, b"junk")?;
         let target = temp.path().join("target");
 
         let err = FsOpsService::extract_archive(&source, &target)
-            .expect_err("unsupported archive should fail");
-        assert!(format!("{err:#}").contains("unsupported archive format"));
+            .err()
+            .ok_or(FsOpsError::MissingState {
+                field: "expected_unsupported_archive_error",
+            })?;
+        assert!(matches!(
+            err,
+            FsOpsError::Unsupported {
+                operation: "extract_archive",
+                ..
+            }
+        ));
         Ok(())
     }
 
     #[test]
-    fn execute_step_records_failure_status() -> Result<()> {
+    fn execute_step_records_failure_status() -> TestResult<()> {
         let temp = TempDir::new()?;
         let bus = EventBus::with_capacity(4);
         let metrics = Metrics::new()?;
@@ -2000,7 +2106,13 @@ mod tests {
             &meta_path,
             StepKind::ValidatePolicy,
             StepPersistence::new(true, true, true),
-            |_meta| Err(anyhow!("boom")),
+            |_meta| {
+                Err(FsOpsError::InvalidInput {
+                    field: "test_step",
+                    reason: "boom",
+                    value: None,
+                })
+            },
         );
         assert!(result.is_err());
         let persisted = load_meta(&meta_path)?;
@@ -2013,7 +2125,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn hardlink_tree_reuses_inodes() -> Result<()> {
+    fn hardlink_tree_reuses_inodes() -> TestResult<()> {
         let temp = TempDir::new()?;
         let source = temp.path().join("source");
         fs::create_dir_all(&source)?;
@@ -2033,7 +2145,7 @@ mod tests {
     }
 
     #[test]
-    fn sanitize_archive_path_rejects_unsafe_inputs() {
+    fn sanitize_archive_path_rejects_unsafe_inputs() -> TestResult<()> {
         assert!(
             FsOpsService::sanitize_archive_path("/abs/path").is_err(),
             "absolute entries should be rejected"
@@ -2042,13 +2154,13 @@ mod tests {
             FsOpsService::sanitize_archive_path("../escape").is_err(),
             "parent traversal should be rejected"
         );
-        let normalised =
-            FsOpsService::sanitize_archive_path("nested/./file.txt").expect("relative path");
+        let normalised = FsOpsService::sanitize_archive_path("nested/./file.txt")?;
         assert_eq!(normalised, PathBuf::from("nested/file.txt"));
+        Ok(())
     }
 
     #[test]
-    fn cleanup_destination_removes_matching_entries() -> Result<()> {
+    fn cleanup_destination_removes_matching_entries() -> TestResult<()> {
         let temp = TempDir::new()?;
         let root = temp.path().join("artifact");
         fs::create_dir_all(root.join("keep"))?;
@@ -2114,17 +2226,18 @@ mod tests {
     }
 
     #[test]
-    fn parse_octal_mode_validates_values() {
+    fn parse_octal_mode_validates_values() -> TestResult<()> {
         assert_eq!(
-            FsOpsService::parse_octal_mode("0o755").expect("mode"),
+            FsOpsService::parse_octal_mode("chmod_file", "0o755")?,
             0o755
         );
-        assert!(FsOpsService::parse_octal_mode("not-a-mode").is_err());
+        assert!(FsOpsService::parse_octal_mode("chmod_file", "not-a-mode").is_err());
+        Ok(())
     }
 
     #[cfg(unix)]
     #[test]
-    fn apply_permissions_honours_umask_defaults() -> Result<()> {
+    fn apply_permissions_honours_umask_defaults() -> TestResult<()> {
         let temp = TempDir::new()?;
         let root = temp.path().join("artifact");
         fs::create_dir_all(&root)?;
@@ -2147,7 +2260,7 @@ mod tests {
     }
 
     #[test]
-    fn set_permissions_step_skips_without_artifact_path() -> Result<()> {
+    fn set_permissions_step_skips_without_artifact_path() -> TestResult<()> {
         let temp = TempDir::new()?;
         let bus = EventBus::with_capacity(4);
         let metrics = Metrics::new()?;
@@ -2166,7 +2279,7 @@ mod tests {
     }
 
     #[test]
-    fn cleanup_step_skips_when_no_rules_configured() -> Result<()> {
+    fn cleanup_step_skips_when_no_rules_configured() -> TestResult<()> {
         let temp = TempDir::new()?;
         let bus = EventBus::with_capacity(4);
         let metrics = Metrics::new()?;
@@ -2193,7 +2306,7 @@ mod tests {
     }
 
     #[test]
-    fn transfer_step_skips_when_destination_already_positioned() -> Result<()> {
+    fn transfer_step_skips_when_destination_already_positioned() -> TestResult<()> {
         let temp = TempDir::new()?;
         let bus = EventBus::with_capacity(4);
         let metrics = Metrics::new()?;
@@ -2223,7 +2336,7 @@ mod tests {
     }
 
     #[test]
-    fn resume_short_circuits_completed_pipeline() -> Result<()> {
+    fn resume_short_circuits_completed_pipeline() -> TestResult<()> {
         let temp = TempDir::new()?;
         let bus = EventBus::with_capacity(4);
         let metrics = Metrics::new()?;
@@ -2261,12 +2374,21 @@ mod tests {
         let runtime = Runtime::new()?;
         let completed = runtime.block_on(async {
             while let Some(result) = stream.next().await {
-                let envelope = result?;
+                let envelope = match result {
+                    Ok(envelope) => envelope,
+                    Err(err) => {
+                        return Err(FsOpsError::InvalidInput {
+                            field: "event_stream",
+                            reason: "recv_error",
+                            value: Some(err.to_string()),
+                        });
+                    }
+                };
                 if matches!(
                     envelope.event,
                     Event::FsopsCompleted { torrent_id: id } if id == torrent_id
                 ) {
-                    return Ok::<bool, anyhow::Error>(true);
+                    return Ok(true);
                 }
             }
             Ok(false)

@@ -7,7 +7,8 @@
 use std::convert::TryFrom;
 use std::time::Duration;
 
-use anyhow::{Context, Result};
+use crate::error::{Result, TelemetryError};
+use prometheus::core::Collector;
 use prometheus::{Encoder, IntCounter, IntCounterVec, IntGauge, Opts, Registry, TextEncoder};
 use serde::Serialize;
 
@@ -19,6 +20,22 @@ pub struct Metrics {
 
 struct MetricsInner {
     registry: Registry,
+    http_requests_total: IntCounterVec,
+    events_emitted_total: IntCounterVec,
+    fsops_steps_total: IntCounterVec,
+    active_torrents: IntGauge,
+    queue_depth: IntGauge,
+    engine_bytes_in: IntGauge,
+    engine_bytes_out: IntGauge,
+    config_watch_latency_ms: IntGauge,
+    config_apply_latency_ms: IntGauge,
+    config_update_failures_total: IntCounter,
+    config_watch_slow_total: IntCounter,
+    guardrail_violations_total: IntCounter,
+    rate_limit_throttled_total: IntCounter,
+}
+
+struct MetricsCollectors {
     http_requests_total: IntCounterVec,
     events_emitted_total: IntCounterVec,
     fsops_steps_total: IntCounterVec,
@@ -63,87 +80,9 @@ impl Metrics {
     /// Returns an error if any of the Prometheus collectors cannot be
     /// registered.
     pub fn new() -> Result<Self> {
-        let registry = Registry::new();
-
-        let http_requests_total = IntCounterVec::new(
-            Opts::new("http_requests_total", "Total HTTP requests received"),
-            &["route", "code"],
-        )?;
-        let events_emitted_total = IntCounterVec::new(
-            Opts::new("events_emitted_total", "Domain events emitted by type"),
-            &["type"],
-        )?;
-        let fsops_steps_total = IntCounterVec::new(
-            Opts::new(
-                "fsops_steps_total",
-                "Filesystem post-processing steps executed by status",
-            ),
-            &["step", "status"],
-        )?;
-        let active_torrents =
-            IntGauge::with_opts(Opts::new("active_torrents", "Number of active torrents"))?;
-        let queue_depth =
-            IntGauge::with_opts(Opts::new("queue_depth", "Queued torrent operations"))?;
-        let engine_bytes_in =
-            IntGauge::with_opts(Opts::new("engine_bytes_in", "Bytes received by the engine"))?;
-        let engine_bytes_out =
-            IntGauge::with_opts(Opts::new("engine_bytes_out", "Bytes sent by the engine"))?;
-        let config_watch_latency_ms = IntGauge::with_opts(Opts::new(
-            "config_watch_latency_ms",
-            "Time spent waiting for configuration updates (ms)",
-        ))?;
-        let config_apply_latency_ms = IntGauge::with_opts(Opts::new(
-            "config_apply_latency_ms",
-            "Time taken to apply configuration updates (ms)",
-        ))?;
-        let config_update_failures_total = IntCounter::with_opts(Opts::new(
-            "config_update_failures_total",
-            "Configuration update failures",
-        ))?;
-        let config_watch_slow_total = IntCounter::with_opts(Opts::new(
-            "config_watch_slow_total",
-            "Configuration updates exceeding the latency guard rail",
-        ))?;
-        let guardrail_violations_total = IntCounter::with_opts(Opts::new(
-            "config_guardrail_violations_total",
-            "Configuration and setup guardrail violations",
-        ))?;
-        let rate_limit_throttled_total = IntCounter::with_opts(Opts::new(
-            "api_rate_limit_throttled_total",
-            "Requests rejected due to API rate limiting",
-        ))?;
-
-        registry.register(Box::new(http_requests_total.clone()))?;
-        registry.register(Box::new(events_emitted_total.clone()))?;
-        registry.register(Box::new(fsops_steps_total.clone()))?;
-        registry.register(Box::new(active_torrents.clone()))?;
-        registry.register(Box::new(queue_depth.clone()))?;
-        registry.register(Box::new(engine_bytes_in.clone()))?;
-        registry.register(Box::new(engine_bytes_out.clone()))?;
-        registry.register(Box::new(config_watch_latency_ms.clone()))?;
-        registry.register(Box::new(config_apply_latency_ms.clone()))?;
-        registry.register(Box::new(config_update_failures_total.clone()))?;
-        registry.register(Box::new(config_watch_slow_total.clone()))?;
-        registry.register(Box::new(guardrail_violations_total.clone()))?;
-        registry.register(Box::new(rate_limit_throttled_total.clone()))?;
-
+        let inner = MetricsInner::new(Registry::new())?;
         Ok(Self {
-            inner: std::sync::Arc::new(MetricsInner {
-                registry,
-                http_requests_total,
-                events_emitted_total,
-                fsops_steps_total,
-                active_torrents,
-                queue_depth,
-                engine_bytes_in,
-                engine_bytes_out,
-                config_watch_latency_ms,
-                config_apply_latency_ms,
-                config_update_failures_total,
-                config_watch_slow_total,
-                guardrail_violations_total,
-                rate_limit_throttled_total,
-            }),
+            inner: std::sync::Arc::new(inner),
         })
     }
 
@@ -237,8 +176,8 @@ impl Metrics {
         let mut buffer = Vec::new();
         encoder
             .encode(&metric_families, &mut buffer)
-            .context("failed to encode Prometheus metrics")?;
-        String::from_utf8(buffer).context("metrics output was not valid UTF-8")
+            .map_err(|source| TelemetryError::MetricsEncode { source })?;
+        String::from_utf8(buffer).map_err(|source| TelemetryError::MetricsUtf8 { source })
     }
 
     /// Take a point-in-time snapshot of the most relevant gauges and counters.
@@ -260,6 +199,172 @@ impl Metrics {
     pub(crate) fn duration_to_ms(duration: Duration) -> i64 {
         i64::try_from(duration.as_millis()).unwrap_or(i64::MAX)
     }
+}
+
+impl MetricsInner {
+    fn new(registry: Registry) -> Result<Self> {
+        let collectors = MetricsCollectors::new()?;
+        collectors.register_all(&registry)?;
+        let MetricsCollectors {
+            http_requests_total,
+            events_emitted_total,
+            fsops_steps_total,
+            active_torrents,
+            queue_depth,
+            engine_bytes_in,
+            engine_bytes_out,
+            config_watch_latency_ms,
+            config_apply_latency_ms,
+            config_update_failures_total,
+            config_watch_slow_total,
+            guardrail_violations_total,
+            rate_limit_throttled_total,
+        } = collectors;
+
+        Ok(Self {
+            registry,
+            http_requests_total,
+            events_emitted_total,
+            fsops_steps_total,
+            active_torrents,
+            queue_depth,
+            engine_bytes_in,
+            engine_bytes_out,
+            config_watch_latency_ms,
+            config_apply_latency_ms,
+            config_update_failures_total,
+            config_watch_slow_total,
+            guardrail_violations_total,
+            rate_limit_throttled_total,
+        })
+    }
+}
+
+impl MetricsCollectors {
+    fn new() -> Result<Self> {
+        Ok(Self {
+            http_requests_total: counter_vec(
+                "http_requests_total",
+                "Total HTTP requests received",
+                &["route", "code"],
+            )?,
+            events_emitted_total: counter_vec(
+                "events_emitted_total",
+                "Domain events emitted by type",
+                &["type"],
+            )?,
+            fsops_steps_total: counter_vec(
+                "fsops_steps_total",
+                "Filesystem post-processing steps executed by status",
+                &["step", "status"],
+            )?,
+            active_torrents: gauge("active_torrents", "Number of active torrents")?,
+            queue_depth: gauge("queue_depth", "Queued torrent operations")?,
+            engine_bytes_in: gauge("engine_bytes_in", "Bytes received by the engine")?,
+            engine_bytes_out: gauge("engine_bytes_out", "Bytes sent by the engine")?,
+            config_watch_latency_ms: gauge(
+                "config_watch_latency_ms",
+                "Time spent waiting for configuration updates (ms)",
+            )?,
+            config_apply_latency_ms: gauge(
+                "config_apply_latency_ms",
+                "Time taken to apply configuration updates (ms)",
+            )?,
+            config_update_failures_total: counter(
+                "config_update_failures_total",
+                "Configuration update failures",
+            )?,
+            config_watch_slow_total: counter(
+                "config_watch_slow_total",
+                "Configuration updates exceeding the latency guard rail",
+            )?,
+            guardrail_violations_total: counter(
+                "config_guardrail_violations_total",
+                "Configuration and setup guardrail violations",
+            )?,
+            rate_limit_throttled_total: counter(
+                "api_rate_limit_throttled_total",
+                "Requests rejected due to API rate limiting",
+            )?,
+        })
+    }
+
+    fn register_all(&self, registry: &Registry) -> Result<()> {
+        register_collector(
+            registry,
+            "http_requests_total",
+            self.http_requests_total.clone(),
+        )?;
+        register_collector(
+            registry,
+            "events_emitted_total",
+            self.events_emitted_total.clone(),
+        )?;
+        register_collector(
+            registry,
+            "fsops_steps_total",
+            self.fsops_steps_total.clone(),
+        )?;
+        register_collector(registry, "active_torrents", self.active_torrents.clone())?;
+        register_collector(registry, "queue_depth", self.queue_depth.clone())?;
+        register_collector(registry, "engine_bytes_in", self.engine_bytes_in.clone())?;
+        register_collector(registry, "engine_bytes_out", self.engine_bytes_out.clone())?;
+        register_collector(
+            registry,
+            "config_watch_latency_ms",
+            self.config_watch_latency_ms.clone(),
+        )?;
+        register_collector(
+            registry,
+            "config_apply_latency_ms",
+            self.config_apply_latency_ms.clone(),
+        )?;
+        register_collector(
+            registry,
+            "config_update_failures_total",
+            self.config_update_failures_total.clone(),
+        )?;
+        register_collector(
+            registry,
+            "config_watch_slow_total",
+            self.config_watch_slow_total.clone(),
+        )?;
+        register_collector(
+            registry,
+            "config_guardrail_violations_total",
+            self.guardrail_violations_total.clone(),
+        )?;
+        register_collector(
+            registry,
+            "api_rate_limit_throttled_total",
+            self.rate_limit_throttled_total.clone(),
+        )?;
+        Ok(())
+    }
+}
+
+fn counter_vec(name: &'static str, help: &'static str, labels: &[&str]) -> Result<IntCounterVec> {
+    IntCounterVec::new(Opts::new(name, help), labels)
+        .map_err(|source| TelemetryError::MetricsCollector { name, source })
+}
+
+fn counter(name: &'static str, help: &'static str) -> Result<IntCounter> {
+    IntCounter::with_opts(Opts::new(name, help))
+        .map_err(|source| TelemetryError::MetricsCollector { name, source })
+}
+
+fn gauge(name: &'static str, help: &'static str) -> Result<IntGauge> {
+    IntGauge::with_opts(Opts::new(name, help))
+        .map_err(|source| TelemetryError::MetricsCollector { name, source })
+}
+
+fn register_collector<C>(registry: &Registry, name: &'static str, collector: C) -> Result<()>
+where
+    C: Collector + Clone + 'static,
+{
+    registry
+        .register(Box::new(collector))
+        .map_err(|source| TelemetryError::MetricsRegister { name, source })
 }
 
 #[cfg(test)]

@@ -52,7 +52,9 @@ async fn runtime_store_persists_status_and_fs_jobs() -> anyhow::Result<()> {
     store.upsert_status(&status).await?;
     let mut statuses = store.load_statuses().await?;
     assert_eq!(statuses.len(), 1);
-    let persisted = statuses.pop().expect("persisted status missing");
+    let persisted = statuses
+        .pop()
+        .ok_or_else(|| anyhow::anyhow!("persisted status missing"))?;
     assert_eq!(persisted.id, torrent_id);
     assert_eq!(persisted.state, TorrentState::Downloading);
 
@@ -64,7 +66,7 @@ async fn runtime_store_persists_status_and_fs_jobs() -> anyhow::Result<()> {
     let job_state = store
         .fetch_fs_job_state(torrent_id)
         .await?
-        .expect("fs job state present");
+        .ok_or_else(|| anyhow::anyhow!("fs job state missing"))?;
     assert_eq!(job_state.status, "moved");
     assert_eq!(job_state.attempt, 1);
     assert_eq!(job_state.src_path, "/tmp/source");
@@ -73,10 +75,7 @@ async fn runtime_store_persists_status_and_fs_jobs() -> anyhow::Result<()> {
     assert!(store.load_statuses().await?.is_empty());
 
     let failed_id = Uuid::new_v4();
-    store
-        .mark_fs_job_failed(failed_id, "boom")
-        .await
-        .expect("failure should persist");
+    store.mark_fs_job_failed(failed_id, "boom").await?;
     let failed_state = store.fetch_fs_job_state(failed_id).await?;
     assert!(
         failed_state.is_none(),

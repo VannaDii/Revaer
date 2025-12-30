@@ -1,8 +1,8 @@
 use crate::types::{EngineRuntimeConfig, EngineSettingsSnapshot};
-use anyhow::Result;
 use async_trait::async_trait;
 use revaer_torrent_core::{
     AddTorrent, EngineEvent, FileSelectionUpdate, PeerSnapshot, RemoveTorrent, TorrentRateLimit,
+    TorrentResult,
 };
 use uuid::Uuid;
 
@@ -28,7 +28,7 @@ pub trait LibTorrentSession: Send {
     /// # Errors
     ///
     /// Returns an error if the native bridge rejects the request.
-    async fn add_torrent(&mut self, request: &AddTorrent) -> Result<()>;
+    async fn add_torrent(&mut self, request: &AddTorrent) -> TorrentResult<()>;
     /// Author a new `.torrent` metainfo payload.
     ///
     /// # Errors
@@ -37,49 +37,57 @@ pub trait LibTorrentSession: Send {
     async fn create_torrent(
         &mut self,
         request: &revaer_torrent_core::model::TorrentAuthorRequest,
-    ) -> Result<revaer_torrent_core::model::TorrentAuthorResult>;
+    ) -> TorrentResult<revaer_torrent_core::model::TorrentAuthorResult>;
     /// Remove a torrent from the session.
     ///
     /// # Errors
     ///
     /// Returns an error if the torrent cannot be removed.
-    async fn remove_torrent(&mut self, id: Uuid, options: &RemoveTorrent) -> Result<()>;
+    async fn remove_torrent(&mut self, id: Uuid, options: &RemoveTorrent) -> TorrentResult<()>;
     /// Pause an active torrent.
     ///
     /// # Errors
     ///
     /// Returns an error if the session fails to process the pause request.
-    async fn pause_torrent(&mut self, id: Uuid) -> Result<()>;
+    async fn pause_torrent(&mut self, id: Uuid) -> TorrentResult<()>;
     /// Resume a paused torrent.
     ///
     /// # Errors
     ///
     /// Returns an error if the session fails to resume the torrent.
-    async fn resume_torrent(&mut self, id: Uuid) -> Result<()>;
+    async fn resume_torrent(&mut self, id: Uuid) -> TorrentResult<()>;
     /// Toggle sequential download behavior.
     ///
     /// # Errors
     ///
     /// Returns an error if the sequential preference cannot be persisted.
-    async fn set_sequential(&mut self, id: Uuid, sequential: bool) -> Result<()>;
+    async fn set_sequential(&mut self, id: Uuid, sequential: bool) -> TorrentResult<()>;
     /// Load fast-resume payload for a torrent.
     ///
     /// # Errors
     ///
     /// Returns an error if the payload cannot be applied.
-    async fn load_fastresume(&mut self, id: Uuid, payload: &[u8]) -> Result<()>;
+    async fn load_fastresume(&mut self, id: Uuid, payload: &[u8]) -> TorrentResult<()>;
     /// Apply rate limits globally or to a specific torrent.
     ///
     /// # Errors
     ///
     /// Returns an error if the limits cannot be persisted.
-    async fn update_limits(&mut self, id: Option<Uuid>, limits: &TorrentRateLimit) -> Result<()>;
+    async fn update_limits(
+        &mut self,
+        id: Option<Uuid>,
+        limits: &TorrentRateLimit,
+    ) -> TorrentResult<()>;
     /// Update file selection rules for a torrent.
     ///
     /// # Errors
     ///
     /// Returns an error if the rules cannot be applied.
-    async fn update_selection(&mut self, id: Uuid, rules: &FileSelectionUpdate) -> Result<()>;
+    async fn update_selection(
+        &mut self,
+        id: Uuid,
+        rules: &FileSelectionUpdate,
+    ) -> TorrentResult<()>;
     /// Update per-torrent options after admission.
     ///
     /// # Errors
@@ -89,7 +97,7 @@ pub trait LibTorrentSession: Send {
         &mut self,
         id: Uuid,
         options: &revaer_torrent_core::model::TorrentOptionsUpdate,
-    ) -> Result<()>;
+    ) -> TorrentResult<()>;
     /// Replace or append trackers for a torrent.
     ///
     /// # Errors
@@ -99,7 +107,7 @@ pub trait LibTorrentSession: Send {
         &mut self,
         id: Uuid,
         trackers: &revaer_torrent_core::model::TorrentTrackersUpdate,
-    ) -> Result<()>;
+    ) -> TorrentResult<()>;
     /// Replace or append web seeds for a torrent.
     ///
     /// # Errors
@@ -109,7 +117,7 @@ pub trait LibTorrentSession: Send {
         &mut self,
         id: Uuid,
         web_seeds: &revaer_torrent_core::model::TorrentWebSeedsUpdate,
-    ) -> Result<()>;
+    ) -> TorrentResult<()>;
     /// Set or clear a deadline for a specific piece.
     ///
     /// # Errors
@@ -120,49 +128,49 @@ pub trait LibTorrentSession: Send {
         id: Uuid,
         piece: u32,
         deadline_ms: Option<u32>,
-    ) -> Result<()>;
+    ) -> TorrentResult<()>;
     /// Trigger tracker reannounce for a torrent.
     ///
     /// # Errors
     ///
     /// Returns an error if the request cannot be queued.
-    async fn reannounce(&mut self, id: Uuid) -> Result<()>;
+    async fn reannounce(&mut self, id: Uuid) -> TorrentResult<()>;
     /// Move torrent storage to a new download directory.
     ///
     /// # Errors
     ///
     /// Returns an error if the move cannot be scheduled.
-    async fn move_torrent(&mut self, id: Uuid, download_dir: &str) -> Result<()>;
+    async fn move_torrent(&mut self, id: Uuid, download_dir: &str) -> TorrentResult<()>;
     /// Verify on-disk data for a torrent.
     ///
     /// # Errors
     ///
     /// Returns an error if the recheck cannot be scheduled.
-    async fn recheck(&mut self, id: Uuid) -> Result<()>;
+    async fn recheck(&mut self, id: Uuid) -> TorrentResult<()>;
     /// Inspect connected peers for a torrent.
     ///
     /// # Errors
     ///
     /// Returns an error if peer metadata cannot be fetched.
-    async fn peers(&mut self, id: Uuid) -> Result<Vec<PeerSnapshot>>;
+    async fn peers(&mut self, id: Uuid) -> TorrentResult<Vec<PeerSnapshot>>;
     /// Drain pending events from the session.
     ///
     /// # Errors
     ///
     /// Returns an error if fetching the events fails.
-    async fn poll_events(&mut self) -> Result<Vec<EngineEvent>>;
+    async fn poll_events(&mut self) -> TorrentResult<Vec<EngineEvent>>;
     /// Apply a runtime configuration profile.
     ///
     /// # Errors
     ///
     /// Returns an error if the configuration cannot be applied.
-    async fn apply_config(&mut self, config: &EngineRuntimeConfig) -> Result<()>;
+    async fn apply_config(&mut self, config: &EngineRuntimeConfig) -> TorrentResult<()>;
     /// Inspect applied native session settings.
     ///
     /// # Errors
     ///
     /// Returns an error if settings cannot be retrieved.
-    async fn inspect_settings(&mut self) -> Result<EngineSettingsSnapshot>;
+    async fn inspect_settings(&mut self) -> TorrentResult<EngineSettingsSnapshot>;
 }
 
 /// Construct a libtorrent session using the native bindings when available.
@@ -170,7 +178,7 @@ pub trait LibTorrentSession: Send {
 /// # Errors
 ///
 /// Returns an error if the native session cannot be initialized.
-pub fn create_session() -> Result<Box<dyn LibTorrentSession>> {
+pub fn create_session() -> TorrentResult<Box<dyn LibTorrentSession>> {
     #[cfg(feature = "libtorrent")]
     {
         native::create_session()

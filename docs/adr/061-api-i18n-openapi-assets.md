@@ -1,0 +1,28 @@
+# API i18n error localization and OpenAPI assets
+
+- Status: Accepted
+- Date: 2025-12-29
+- Context:
+  - API error responses needed localization via `Accept-Language` without introducing new dependencies.
+  - `openapi.rs` could not retain hard-coded asset paths while still embedding the spec.
+- Decision:
+  - Add a lightweight API i18n module that selects a locale from `Accept-Language`, loads an embedded bundle, and localizes error titles/details/invalid params with fallback to the original string.
+  - Centralize embedded OpenAPI assets in a dedicated module so `openapi.rs` is path-free.
+  - Alternatives considered: key-based localization in all error constructors (larger refactor); relying on client-only localization (does not meet API requirement).
+- Design notes:
+  - Locale parsing accepts the first supported tag and falls back to `en`.
+  - Translation load failures are logged once and degrade to identity translations.
+  - OpenAPI asset constants are crate-private to avoid leaking filesystem structure.
+- Test coverage summary:
+  - Added unit coverage for locale parsing, translation availability, and fallback behavior in the i18n module.
+- Observability updates:
+  - Translation load failures emit a structured error log with the locale.
+- Consequences:
+  - Error responses now pass through a localization hook; untranslated strings remain unchanged.
+  - OpenAPI asset paths are centralized for easier maintenance.
+- Risk & rollback plan:
+  - Risk: missing translation keys fall back to the original message. Roll back by removing i18n middleware and restoring direct error serialization.
+- Dependency rationale:
+  - No new dependencies; reused existing `serde_json` and standard library types.
+- Follow-up:
+  - Expand message coverage in `crates/revaer-api/i18n/en.json` as new error strings are added.

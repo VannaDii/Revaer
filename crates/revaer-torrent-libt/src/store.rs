@@ -3,14 +3,15 @@ use std::ffi::OsStr;
 use std::fs;
 use std::path::PathBuf;
 
-use anyhow::{Context, Result};
 use chrono::{DateTime, Utc};
 use revaer_torrent_core::{
-    FilePriorityOverride, FileSelectionRules, StorageMode, TorrentCleanupPolicy, TorrentRateLimit,
+    FilePriorityOverride, FileSelectionRules, StorageMode, TorrentCleanupPolicy, TorrentError,
+    TorrentRateLimit, TorrentResult,
 };
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::error::{LibtorrentError, op_failed};
 const META_SUFFIX: &str = ".meta.json";
 const FASTRESUME_SUFFIX: &str = ".fastresume";
 
@@ -144,10 +145,11 @@ impl FastResumeStore {
     /// # Errors
     ///
     /// Returns an error if the directory cannot be created.
-    pub fn ensure_initialized(&self) -> Result<()> {
+    pub fn ensure_initialized(&self) -> TorrentResult<()> {
         if !self.base_dir.exists() {
-            fs::create_dir_all(&self.base_dir)
-                .with_context(|| format!("failed to create resume_dir {}", self.display()))?;
+            fs::create_dir_all(&self.base_dir).map_err(|source| {
+                Self::store_io_error("fastresume_init", None, self.base_dir.clone(), source)
+            })?;
         }
         Ok(())
     }
@@ -157,40 +159,38 @@ impl FastResumeStore {
     /// # Errors
     ///
     /// Returns an error if a fastresume payload or metadata file cannot be read or decoded.
-    pub fn load_all(&self) -> Result<Vec<StoredTorrentState>> {
+    pub fn load_all(&self) -> TorrentResult<Vec<StoredTorrentState>> {
         if !self.base_dir.exists() {
             return Ok(Vec::new());
         }
 
         let mut map: HashMap<Uuid, StoredTorrentState> = HashMap::new();
-        for entry in fs::read_dir(&self.base_dir)
-            .with_context(|| format!("failed to read resume_dir {}", self.display()))?
-        {
-            let entry = entry?;
+        for entry in fs::read_dir(&self.base_dir).map_err(|source| {
+            Self::store_io_error("fastresume_load", None, self.base_dir.clone(), source)
+        })? {
+            let entry = entry.map_err(|source| {
+                Self::store_io_error("fastresume_load_entry", None, self.base_dir.clone(), source)
+            })?;
             let path = entry.path();
             let Some(file_name) = path.file_name().and_then(OsStr::to_str) else {
                 continue;
             };
 
             if let Some(id) = strip_suffix(file_name, FASTRESUME_SUFFIX) {
-                let payload = fs::read(&path).with_context(|| {
-                    format!(
-                        "failed to read fastresume payload for torrent {id} at {}",
-                        path.display()
-                    )
+                let payload = fs::read(&path).map_err(|source| {
+                    Self::store_io_error("fastresume_read", Some(id), path.clone(), source)
                 })?;
                 map.entry(id)
                     .or_insert_with(|| StoredTorrentState::new(id))
                     .fastresume = Some(payload);
             } else if let Some(id) = strip_suffix(file_name, META_SUFFIX) {
-                let data = fs::read_to_string(&path).with_context(|| {
-                    format!(
-                        "failed to read metadata for torrent {id} at {}",
-                        path.display()
-                    )
+                let data = fs::read_to_string(&path).map_err(|source| {
+                    Self::store_io_error("metadata_read", Some(id), path.clone(), source)
                 })?;
-                let metadata: StoredTorrentMetadata = serde_json::from_str(&data)
-                    .with_context(|| format!("failed to parse metadata JSON for torrent {id}"))?;
+                let metadata: StoredTorrentMetadata =
+                    serde_json::from_str(&data).map_err(|source| {
+                        Self::store_parse_error("metadata_parse", Some(id), path.clone(), source)
+                    })?;
                 map.entry(id)
                     .or_insert_with(|| StoredTorrentState::new(id))
                     .metadata = Some(metadata);
@@ -205,13 +205,11 @@ impl FastResumeStore {
     /// # Errors
     ///
     /// Returns an error if the payload cannot be written.
-    pub fn write_fastresume(&self, torrent_id: Uuid, payload: &[u8]) -> Result<()> {
+    pub fn write_fastresume(&self, torrent_id: Uuid, payload: &[u8]) -> TorrentResult<()> {
         self.ensure_initialized()?;
-        fs::write(self.fastresume_path(&torrent_id), payload).with_context(|| {
-            format!(
-                "failed to persist fastresume for torrent {torrent_id} at {}",
-                self.fastresume_path(&torrent_id).display()
-            )
+        let path = self.fastresume_path(&torrent_id);
+        fs::write(&path, payload).map_err(|source| {
+            Self::store_io_error("fastresume_write", Some(torrent_id), path, source)
         })?;
         Ok(())
     }
@@ -221,17 +219,25 @@ impl FastResumeStore {
     /// # Errors
     ///
     /// Returns an error if the metadata cannot be encoded or written.
-    pub fn write_metadata(&self, torrent_id: Uuid, metadata: &StoredTorrentMetadata) -> Result<()> {
+    pub fn write_metadata(
+        &self,
+        torrent_id: Uuid,
+        metadata: &StoredTorrentMetadata,
+    ) -> TorrentResult<()> {
         self.ensure_initialized()?;
         let mut metadata = metadata.clone();
         metadata.updated_at = Utc::now();
-        let json = serde_json::to_string_pretty(&metadata)
-            .with_context(|| format!("failed to encode metadata for torrent {torrent_id}"))?;
-        fs::write(self.metadata_path(&torrent_id), json).with_context(|| {
-            format!(
-                "failed to persist metadata for torrent {torrent_id} at {}",
-                self.metadata_path(&torrent_id).display()
+        let json = serde_json::to_string_pretty(&metadata).map_err(|source| {
+            Self::store_parse_error(
+                "metadata_encode",
+                Some(torrent_id),
+                self.metadata_path(&torrent_id),
+                source,
             )
+        })?;
+        let path = self.metadata_path(&torrent_id);
+        fs::write(&path, json).map_err(|source| {
+            Self::store_io_error("metadata_write", Some(torrent_id), path, source)
         })?;
         Ok(())
     }
@@ -241,23 +247,27 @@ impl FastResumeStore {
     /// # Errors
     ///
     /// Returns an error if the stored files cannot be deleted.
-    pub fn remove(&self, torrent_id: Uuid) -> Result<()> {
+    pub fn remove(&self, torrent_id: Uuid) -> TorrentResult<()> {
         let fastresume_path = self.fastresume_path(&torrent_id);
         if fastresume_path.exists() {
-            fs::remove_file(&fastresume_path).with_context(|| {
-                format!(
-                    "failed to remove fastresume for torrent {torrent_id} at {}",
-                    fastresume_path.display()
+            fs::remove_file(&fastresume_path).map_err(|source| {
+                Self::store_io_error(
+                    "fastresume_remove",
+                    Some(torrent_id),
+                    fastresume_path.clone(),
+                    source,
                 )
             })?;
         }
 
         let metadata_path = self.metadata_path(&torrent_id);
         if metadata_path.exists() {
-            fs::remove_file(&metadata_path).with_context(|| {
-                format!(
-                    "failed to remove metadata for torrent {torrent_id} at {}",
-                    metadata_path.display()
+            fs::remove_file(&metadata_path).map_err(|source| {
+                Self::store_io_error(
+                    "metadata_remove",
+                    Some(torrent_id),
+                    metadata_path.clone(),
+                    source,
                 )
             })?;
         }
@@ -274,8 +284,38 @@ impl FastResumeStore {
         self.base_dir.join(format!("{torrent_id}{META_SUFFIX}"))
     }
 
-    fn display(&self) -> String {
-        self.base_dir.display().to_string()
+    fn store_io_error(
+        operation: &'static str,
+        torrent_id: Option<Uuid>,
+        path: PathBuf,
+        source: std::io::Error,
+    ) -> TorrentError {
+        op_failed(
+            operation,
+            torrent_id,
+            LibtorrentError::StoreIo {
+                operation,
+                path,
+                source,
+            },
+        )
+    }
+
+    fn store_parse_error(
+        operation: &'static str,
+        torrent_id: Option<Uuid>,
+        path: PathBuf,
+        source: serde_json::Error,
+    ) -> TorrentError {
+        op_failed(
+            operation,
+            torrent_id,
+            LibtorrentError::StoreParse {
+                operation,
+                path,
+                source,
+            },
+        )
     }
 }
 
@@ -288,6 +328,7 @@ fn strip_suffix(file_name: &str, suffix: &str) -> Option<Uuid> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::{Result, anyhow};
     use tempfile::TempDir;
 
     fn sample_metadata() -> StoredTorrentMetadata {
@@ -375,11 +416,10 @@ mod tests {
 
         let mut loaded = store.load_all()?;
         assert_eq!(loaded.len(), 1);
-        let state = loaded.pop().expect("state missing");
+        let state = loaded.pop().ok_or_else(|| anyhow!("state missing"))?;
         assert_eq!(state.torrent_id, torrent_id);
         assert_eq!(state.fastresume, Some(resume_blob));
-        assert!(state.metadata.is_some());
-        let stored_meta = state.metadata.unwrap();
+        let stored_meta = state.metadata.ok_or_else(|| anyhow!("metadata missing"))?;
         assert_eq!(stored_meta.selection.include.len(), 1);
         assert_eq!(stored_meta.priorities.len(), 1);
         assert!(stored_meta.sequential);
@@ -439,8 +479,17 @@ mod tests {
         let meta_path = temp.path().join(format!("{torrent_id}{META_SUFFIX}"));
         fs::write(&meta_path, "not-json")?;
 
-        let err = store.load_all().expect_err("corrupt metadata should fail");
-        assert!(err.to_string().contains("failed to parse metadata JSON"));
+        let err = store
+            .load_all()
+            .err()
+            .ok_or_else(|| anyhow!("expected corrupt metadata error"))?;
+        let TorrentError::OperationFailed { source, .. } = err else {
+            return Err(anyhow!("expected operation failure"));
+        };
+        let source = source
+            .downcast::<LibtorrentError>()
+            .map_err(|_| anyhow!("expected libtorrent error"))?;
+        assert!(matches!(*source, LibtorrentError::StoreParse { .. }));
         Ok(())
     }
 }

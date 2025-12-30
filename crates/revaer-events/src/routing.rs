@@ -1,10 +1,12 @@
 //! Event bus routing helpers.
 
+use crate::error::{EventBusError, EventBusResult};
 use crate::payloads::{DEFAULT_REPLAY_CAPACITY, Event, EventEnvelope, EventId};
 use chrono::Utc;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex, MutexGuard};
 use tokio::sync::broadcast;
+use tokio::sync::broadcast::error::TryRecvError;
 use tokio::sync::broadcast::{Receiver, Sender};
 use tokio_stream::wrappers::BroadcastStream;
 
@@ -50,7 +52,12 @@ impl EventBus {
     }
 
     /// Publish a new event to all subscribers.
-    pub fn send(&self, event: Event) -> EventId {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the event cannot be delivered to the broadcast channel.
+    pub fn send(&self, event: Event) -> EventBusResult<EventId> {
+        let kind = event.kind();
         let mut next = self
             .next_id
             .lock()
@@ -67,17 +74,28 @@ impl EventBus {
         {
             let mut replay = self.lock_replay();
             if replay.len() == self.replay_capacity {
-                let _ = replay.pop_front();
+                replay.pop_front();
             }
             replay.push_back(envelope.clone());
         }
-        let _ = self.sender.send(envelope);
-        id
+        if self.sender.receiver_count() == 0 {
+            return Ok(id);
+        }
+        if self.sender.send(envelope).is_err() {
+            return Err(EventBusError::SendFailed {
+                event_id: id,
+                event_kind: kind,
+            });
+        }
+        Ok(id)
     }
 
     /// Publish and return the assigned event id.
-    #[must_use]
-    pub fn publish(&self, event: Event) -> EventId {
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the event cannot be delivered to the broadcast channel.
+    pub fn publish(&self, event: Event) -> EventBusResult<EventId> {
         self.send(event)
     }
 
@@ -103,7 +121,10 @@ impl EventBus {
             .collect::<Vec<_>>();
         drop(replay);
         for env in past {
-            let _ = rx.try_recv();
+            match rx.try_recv() {
+                Ok(_) | Err(TryRecvError::Empty | TryRecvError::Lagged(_)) => {}
+                Err(TryRecvError::Closed) => break,
+            }
             if self.sender.send(env).is_err() {
                 break;
             }
@@ -127,38 +148,40 @@ impl Default for EventBus {
 mod tests {
     use super::*;
     use crate::payloads::Event;
+    use std::error::Error;
     use tokio_stream::StreamExt;
 
     #[tokio::test]
-    async fn publish_and_replay_from_id() {
+    async fn publish_and_replay_from_id() -> Result<(), Box<dyn std::error::Error>> {
         let bus = EventBus::with_capacity(4);
         let first = bus.publish(Event::SettingsChanged {
             description: "init".into(),
-        });
+        })?;
         let second = bus.publish(Event::HealthChanged {
             degraded: vec!["x".into()],
-        });
+        })?;
 
         assert_eq!(bus.last_event_id(), Some(second));
         let backlog = bus.backlog_since(first);
         assert_eq!(backlog.len(), 1);
         assert_eq!(backlog[0].id, second);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn subscribe_streams_events_and_filters_errors() {
+    async fn subscribe_streams_events_and_filters_errors() -> Result<(), Box<dyn Error>> {
         let bus = EventBus::new();
         let mut stream = bus.subscribe(None);
         let id = bus.publish(Event::SelectionReconciled {
             torrent_id: uuid::Uuid::nil(),
             reason: "policy".into(),
-        });
+        })?;
         let envelope = stream
             .next()
             .await
-            .expect("stream item")
-            .expect("broadcast ok");
+            .ok_or_else(|| std::io::Error::other("stream item missing"))??;
         assert_eq!(envelope.id, id);
         assert!(matches!(envelope.event, Event::SelectionReconciled { .. }));
+        Ok(())
     }
 }

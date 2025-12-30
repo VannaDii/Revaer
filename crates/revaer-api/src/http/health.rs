@@ -135,8 +135,8 @@ mod tests {
     use async_trait::async_trait;
     use chrono::Utc;
     use revaer_config::{
-        ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigSnapshot, EngineProfile, FsPolicy,
-        SettingsChangeset, SetupToken, TelemetryConfig,
+        ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigError, ConfigResult, ConfigSnapshot,
+        EngineProfile, FsPolicy, SettingsChangeset, SetupToken, TelemetryConfig,
         engine_profile::{AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig},
         normalize_engine_profile,
     };
@@ -166,9 +166,12 @@ mod tests {
             }
         }
 
-        fn maybe_fail<T>(&self, value: T) -> Result<T> {
+        fn maybe_fail<T>(&self, operation: &'static str, value: T) -> ConfigResult<T> {
             if self.fail {
-                Err(anyhow!("config unavailable"))
+                Err(ConfigError::Io {
+                    operation,
+                    source: std::io::Error::other("stubbed config failure"),
+                })
             } else {
                 Ok(value)
             }
@@ -177,23 +180,30 @@ mod tests {
 
     #[async_trait]
     impl ConfigFacade for StubConfig {
-        async fn get_app_profile(&self) -> Result<AppProfile> {
-            self.maybe_fail(self.snapshot.app_profile.clone())
+        async fn get_app_profile(&self) -> ConfigResult<AppProfile> {
+            self.maybe_fail("health.get_app_profile", self.snapshot.app_profile.clone())
         }
 
-        async fn issue_setup_token(&self, _ttl: Duration, _issued_by: &str) -> Result<SetupToken> {
-            self.maybe_fail(SetupToken {
-                plaintext: "token".into(),
-                expires_at: Utc::now(),
-            })
+        async fn issue_setup_token(
+            &self,
+            _ttl: Duration,
+            _issued_by: &str,
+        ) -> ConfigResult<SetupToken> {
+            self.maybe_fail(
+                "health.issue_setup_token",
+                SetupToken {
+                    plaintext: "token".into(),
+                    expires_at: Utc::now(),
+                },
+            )
         }
 
-        async fn validate_setup_token(&self, _token: &str) -> Result<()> {
-            self.maybe_fail(())
+        async fn validate_setup_token(&self, _token: &str) -> ConfigResult<()> {
+            self.maybe_fail("health.validate_setup_token", ())
         }
 
-        async fn consume_setup_token(&self, _token: &str) -> Result<()> {
-            self.maybe_fail(())
+        async fn consume_setup_token(&self, _token: &str) -> ConfigResult<()> {
+            self.maybe_fail("health.consume_setup_token", ())
         }
 
         async fn apply_changeset(
@@ -201,33 +211,37 @@ mod tests {
             _actor: &str,
             _reason: &str,
             _changeset: SettingsChangeset,
-        ) -> Result<AppliedChanges> {
-            self.maybe_fail(())?;
-            Err(anyhow!("not implemented"))
+        ) -> ConfigResult<AppliedChanges> {
+            self.maybe_fail("health.apply_changeset", ())?;
+            Err(ConfigError::Io {
+                operation: "health.apply_changeset",
+                source: std::io::Error::other("stubbed config failure"),
+            })
         }
 
-        async fn snapshot(&self) -> Result<ConfigSnapshot> {
-            self.maybe_fail(self.snapshot.clone())
+        async fn snapshot(&self) -> ConfigResult<ConfigSnapshot> {
+            self.maybe_fail("health.snapshot", self.snapshot.clone())
         }
 
         async fn authenticate_api_key(
             &self,
             _key_id: &str,
             _secret: &str,
-        ) -> Result<Option<ApiKeyAuth>> {
-            self.maybe_fail(None)
+        ) -> ConfigResult<Option<ApiKeyAuth>> {
+            self.maybe_fail("health.authenticate_api_key", None)
         }
 
-        async fn has_api_keys(&self) -> Result<bool> {
-            self.maybe_fail(true)
+        async fn has_api_keys(&self) -> ConfigResult<bool> {
+            self.maybe_fail("health.has_api_keys", true)
         }
 
-        async fn factory_reset(&self) -> Result<()> {
-            self.maybe_fail(())
+        async fn factory_reset(&self) -> ConfigResult<()> {
+            self.maybe_fail("health.factory_reset", ())
         }
     }
 
     fn sample_snapshot(mode: AppMode) -> ConfigSnapshot {
+        let bind_addr = std::net::IpAddr::from([127, 0, 0, 1]);
         let engine_profile = EngineProfile {
             id: Uuid::nil(),
             implementation: "stub".into(),
@@ -296,7 +310,7 @@ mod tests {
                 mode,
                 version: 1,
                 http_port: 3030,
-                bind_addr: "127.0.0.1".parse().expect("bind addr"),
+                bind_addr,
                 telemetry: TelemetryConfig::default(),
                 label_policies: Vec::new(),
                 immutable_keys: Vec::new(),
@@ -323,9 +337,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn health_success_clears_degraded_component() {
+    async fn health_success_clears_degraded_component() -> Result<()> {
         let config: Arc<dyn ConfigFacade> = Arc::new(StubConfig::healthy(AppMode::Active));
-        let telemetry = Metrics::new().expect("metrics");
+        let telemetry = Metrics::new()?;
         let state = Arc::new(ApiState::new(
             config,
             telemetry,
@@ -335,18 +349,19 @@ mod tests {
         ));
         state.add_degraded_component("database");
 
-        let response = health(State(state.clone())).await.expect("health ok");
+        let response = health(State(state.clone())).await?;
         assert_eq!(response.0.status, "ok");
         assert!(
             state.current_health_degraded().is_empty(),
             "database component should be cleared on success"
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn health_failure_marks_database_degraded() {
+    async fn health_failure_marks_database_degraded() -> Result<()> {
         let config: Arc<dyn ConfigFacade> = Arc::new(StubConfig::failing(AppMode::Active));
-        let telemetry = Metrics::new().expect("metrics");
+        let telemetry = Metrics::new()?;
         let state = Arc::new(ApiState::new(
             config,
             telemetry,
@@ -355,10 +370,11 @@ mod tests {
             None,
         ));
 
-        let Err(err) = health(State(state.clone())).await else {
-            panic!("expected failure")
-        };
-        assert_eq!(err.status, StatusCode::SERVICE_UNAVAILABLE);
+        let err = health(State(state.clone()))
+            .await
+            .err()
+            .ok_or_else(|| anyhow!("expected failure"))?;
+        assert_eq!(err.status(), StatusCode::SERVICE_UNAVAILABLE);
         assert!(
             state
                 .current_health_degraded()
@@ -366,12 +382,13 @@ mod tests {
                 .any(|component| component == "database"),
             "database component should be marked degraded on failure"
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn dashboard_maps_config_errors_to_internal() {
+    async fn dashboard_maps_config_errors_to_internal() -> Result<()> {
         let config: Arc<dyn ConfigFacade> = Arc::new(StubConfig::failing(AppMode::Active));
-        let telemetry = Metrics::new().expect("metrics");
+        let telemetry = Metrics::new()?;
         let state = Arc::new(ApiState::new(
             config,
             telemetry,
@@ -380,10 +397,12 @@ mod tests {
             None,
         ));
 
-        let Err(result) = dashboard(State(state)).await else {
-            panic!("expected dashboard failure")
-        };
-        assert_eq!(result.status, StatusCode::INTERNAL_SERVER_ERROR);
-        assert_eq!(result.kind, crate::http::constants::PROBLEM_INTERNAL);
+        let result = dashboard(State(state))
+            .await
+            .err()
+            .ok_or_else(|| anyhow!("expected dashboard failure"))?;
+        assert_eq!(result.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(result.kind(), crate::http::constants::PROBLEM_INTERNAL);
+        Ok(())
     }
 }

@@ -793,7 +793,7 @@ async fn apply_to_hashes<Fut, F>(
 ) -> Result<(), ApiError>
 where
     F: FnMut(Arc<dyn revaer_torrent_core::TorrentWorkflow>, Uuid) -> Fut,
-    Fut: std::future::Future<Output = anyhow::Result<()>>,
+    Fut: std::future::Future<Output = revaer_torrent_core::TorrentResult<()>>,
 {
     let handles = state
         .torrent
@@ -829,9 +829,9 @@ async fn resolve_hashes(handles: &TorrentHandles, hashes: &str) -> Result<Vec<Uu
         match Uuid::parse_str(hash.as_str()) {
             Ok(id) => ids.push(id),
             Err(_) => {
-                return Err(ApiError::bad_request(format!(
-                    "invalid torrent hash '{hash}'"
-                )));
+                return Err(
+                    ApiError::bad_request("invalid torrent hash").with_context_field("hash", hash)
+                );
             }
         }
     }
@@ -940,14 +940,10 @@ fn ensure_session(state: &Arc<ApiState>, headers: &HeaderMap) -> Result<String, 
     }
 }
 
-const fn bytes_to_f64(value: u64) -> f64 {
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "u64 to f64 conversion is required for qBittorrent compatibility fields"
-    )]
-    {
-        value as f64
-    }
+fn bytes_to_f64(value: u64) -> f64 {
+    let high = u32::try_from(value >> 32).unwrap_or(u32::MAX);
+    let low = u32::try_from(value & 0xFFFF_FFFF).unwrap_or(u32::MAX);
+    f64::from(high) * 4_294_967_296.0 + f64::from(low)
 }
 
 fn sid_from_headers(headers: &HeaderMap) -> Option<String> {
@@ -1048,34 +1044,32 @@ mod tests {
         response::IntoResponse,
     };
     use revaer_config::{
-        ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigSnapshot, SettingsChangeset,
-        SetupToken,
+        ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigError, ConfigResult, ConfigSnapshot,
+        SettingsChangeset, SetupToken,
     };
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
     use revaer_torrent_core::{
-        AddTorrent, PeerSnapshot, TorrentInspector, TorrentProgress, TorrentRates, TorrentStatus,
-        TorrentWorkflow,
+        AddTorrent, PeerSnapshot, TorrentInspector, TorrentProgress, TorrentRates, TorrentResult,
+        TorrentStatus, TorrentWorkflow,
     };
     use serde_json::Value;
     use std::{sync::Arc, time::Duration};
 
     #[tokio::test]
     async fn login_emits_cookie_and_accepts_credentials() -> Result<()> {
-        let state = test_state();
-        let response = login(State(Arc::clone(&state)), Form(LoginForm::default()))
-            .await
-            .expect("login should succeed");
+        let state = test_state()?;
+        let response = login(State(Arc::clone(&state)), Form(LoginForm::default())).await?;
         let headers = response.headers().clone();
         let cookie = headers
             .get(SET_COOKIE)
-            .expect("session cookie present")
+            .ok_or_else(|| anyhow!("expected session cookie"))?
             .to_str()?;
-        let session = cookie_value(cookie, "sid").expect("sid present in cookie");
+        let session = cookie_value(cookie, "sid").ok_or_else(|| anyhow!("expected sid cookie"))?;
         assert_eq!(
             headers
                 .get(CONTENT_TYPE)
-                .expect("content type present")
+                .ok_or_else(|| anyhow!("expected content type"))?
                 .to_str()?,
             "text/plain; charset=utf-8"
         );
@@ -1088,34 +1082,29 @@ mod tests {
                 password: Some("secret".into()),
             }),
         )
-        .await
-        .expect("login with credentials should still succeed");
+        .await?;
         Ok(())
     }
 
     #[tokio::test]
     async fn logout_revokes_session_and_clears_cookie() -> Result<()> {
-        let state = test_state();
-        let response = login(State(Arc::clone(&state)), Form(LoginForm::default()))
-            .await
-            .expect("login succeeds");
+        let state = test_state()?;
+        let response = login(State(Arc::clone(&state)), Form(LoginForm::default())).await?;
         let cookie = response
             .headers()
             .get(SET_COOKIE)
-            .expect("cookie present")
+            .ok_or_else(|| anyhow!("expected cookie"))?
             .to_str()?;
-        let sid = cookie_value(cookie, "sid").expect("sid present");
+        let sid = cookie_value(cookie, "sid").ok_or_else(|| anyhow!("expected sid cookie"))?;
         assert!(state.validate_qb_session(&sid));
 
-        let headers = header_with_sid(&sid);
-        let response = logout(State(Arc::clone(&state)), headers)
-            .await
-            .expect("logout succeeds");
+        let headers = header_with_sid(&sid)?;
+        let response = logout(State(Arc::clone(&state)), headers).await?;
         assert_eq!(
             response
                 .headers()
                 .get(SET_COOKIE)
-                .expect("logout cookie present")
+                .ok_or_else(|| anyhow!("expected logout cookie"))?
                 .to_str()?,
             "SID=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax"
         );
@@ -1124,54 +1113,48 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn version_endpoints_require_session() {
-        let state = test_state();
+    async fn version_endpoints_require_session() -> Result<()> {
+        let state = test_state()?;
         let headers = HeaderMap::new();
         let result = app_version(State(Arc::clone(&state)), headers).await;
-        let error = match result {
-            Ok(response) => {
-                let response = response.into_response();
-                panic!(
-                    "expected auth failure but received status {}",
-                    response.status()
-                );
-            }
-            Err(err) => err,
+        let response = match result {
+            Ok(response) => response.into_response(),
+            Err(err) => err.into_response(),
         };
-        let response = error.into_response();
-        assert_eq!(response.status(), StatusCode::FORBIDDEN);
+        if response.status() != StatusCode::FORBIDDEN {
+            return Err(anyhow!("expected forbidden status"));
+        }
+        Ok(())
     }
 
     #[tokio::test]
     async fn version_endpoints_emit_plain_text_when_authenticated() -> Result<()> {
-        let state = test_state();
+        let state = test_state()?;
         let sid = state.issue_qb_session();
-        let headers = header_with_sid(&sid);
+        let headers = header_with_sid(&sid)?;
         let response = app_version(State(Arc::clone(&state)), headers)
-            .await
-            .expect("version request succeeds")
+            .await?
             .into_response();
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             response
                 .headers()
                 .get(CONTENT_TYPE)
-                .expect("content type present")
+                .ok_or_else(|| anyhow!("expected content type"))?
                 .to_str()?,
             "text/plain; charset=utf-8"
         );
 
-        let headers = header_with_sid(&state.issue_qb_session());
+        let headers = header_with_sid(&state.issue_qb_session())?;
         let response = app_webapi_version(State(state), headers)
-            .await
-            .expect("webapi version succeeds")
+            .await?
             .into_response();
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(
             response
                 .headers()
                 .get(CONTENT_TYPE)
-                .expect("content type present")
+                .ok_or_else(|| anyhow!("expected content type"))?
                 .to_str()?,
             "text/plain; charset=utf-8"
         );
@@ -1207,9 +1190,9 @@ mod tests {
             ..TorrentMetadata::default()
         };
 
-        let state = state_with_handles(vec![status.clone()], vec![(status.id, metadata)]);
+        let state = state_with_handles(vec![status.clone()], vec![(status.id, metadata)])?;
         let sid = state.issue_qb_session();
-        let headers = header_with_sid(&sid);
+        let headers = header_with_sid(&sid)?;
         let Json(body) = torrents_properties(
             State(state),
             headers,
@@ -1217,8 +1200,7 @@ mod tests {
                 hash: status.id.simple().to_string(),
             }),
         )
-        .await
-        .expect("properties should resolve");
+        .await?;
 
         assert_eq!(body.hash, status.id.simple().to_string());
         assert_eq!(body.name, "demo");
@@ -1239,9 +1221,9 @@ mod tests {
             ..TorrentMetadata::default()
         };
 
-        let state = state_with_handles(vec![status.clone()], vec![(status.id, metadata)]);
+        let state = state_with_handles(vec![status.clone()], vec![(status.id, metadata)])?;
         let sid = state.issue_qb_session();
-        let headers = header_with_sid(&sid);
+        let headers = header_with_sid(&sid)?;
         let Json(entries) = torrents_trackers(
             State(state),
             headers,
@@ -1249,8 +1231,7 @@ mod tests {
                 hash: status.id.simple().to_string(),
             }),
         )
-        .await
-        .expect("trackers should resolve");
+        .await?;
 
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].url, "udp://tracker.test/announce");
@@ -1259,9 +1240,9 @@ mod tests {
 
     #[tokio::test]
     async fn torrent_peers_returns_empty_list() -> Result<()> {
-        let state = state_with_handles(Vec::new(), Vec::new());
+        let state = state_with_handles(Vec::new(), Vec::new())?;
         let sid = state.issue_qb_session();
-        let headers = header_with_sid(&sid);
+        let headers = header_with_sid(&sid)?;
         let Json(peers) = sync_torrent_peers(
             State(state),
             headers,
@@ -1270,8 +1251,7 @@ mod tests {
                 rid: Some(42),
             }),
         )
-        .await
-        .expect("peers should resolve");
+        .await?;
 
         assert_eq!(peers.rid, 42);
         assert!(peers.peers.is_empty());
@@ -1280,18 +1260,14 @@ mod tests {
 
     #[tokio::test]
     async fn categories_and_tags_endpoints_round_trip() -> Result<()> {
-        let state = test_state();
+        let state = test_state()?;
         let sid = state.issue_qb_session();
-        let headers = header_with_sid(&sid);
+        let headers = header_with_sid(&sid)?;
 
-        let Json(categories) = list_categories(State(Arc::clone(&state)), headers.clone())
-            .await
-            .expect("categories should resolve");
+        let Json(categories) = list_categories(State(Arc::clone(&state)), headers.clone()).await?;
         assert!(categories.is_empty());
 
-        let Json(tags) = list_tags(State(Arc::clone(&state)), headers.clone())
-            .await
-            .expect("tags should resolve");
+        let Json(tags) = list_tags(State(Arc::clone(&state)), headers.clone()).await?;
         assert!(tags.is_empty());
 
         create_category(
@@ -1302,8 +1278,7 @@ mod tests {
                 save_path: Some("/downloads".into()),
             }),
         )
-        .await
-        .expect("create category");
+        .await?;
 
         create_tags(
             State(Arc::clone(&state)),
@@ -1312,54 +1287,53 @@ mod tests {
                 tags: Some("alpha,beta".into()),
             }),
         )
-        .await
-        .expect("create tags");
+        .await?;
 
-        let Json(categories) = list_categories(State(Arc::clone(&state)), header_with_sid(&sid))
-            .await
-            .expect("categories should resolve");
+        let Json(categories) =
+            list_categories(State(Arc::clone(&state)), header_with_sid(&sid)?).await?;
         assert_eq!(categories.len(), 1);
-        let entry = categories.get("movies").expect("category entry");
+        let entry = categories
+            .get("movies")
+            .ok_or_else(|| anyhow!("expected category entry"))?;
         assert_eq!(entry.save_path, "/downloads");
 
-        let Json(tags) = list_tags(State(state), header_with_sid(&sid))
-            .await
-            .expect("tags should resolve");
+        let Json(tags) = list_tags(State(state), header_with_sid(&sid)?).await?;
         assert_eq!(tags, vec!["alpha".to_string(), "beta".to_string()]);
 
         Ok(())
     }
 
-    fn header_with_sid(sid: &str) -> HeaderMap {
+    fn header_with_sid(sid: &str) -> Result<HeaderMap> {
         let mut headers = HeaderMap::new();
         headers.insert(
             COOKIE,
-            HeaderValue::from_str(&format!("SID={sid}")).expect("valid cookie header"),
+            HeaderValue::from_str(&format!("SID={sid}"))
+                .map_err(|_| anyhow!("expected valid cookie header"))?,
         );
-        headers
+        Ok(headers)
     }
 
-    fn test_state() -> Arc<ApiState> {
+    fn test_state() -> Result<Arc<ApiState>> {
         let config: Arc<dyn ConfigFacade> = Arc::new(TestConfig::default());
-        Arc::new(ApiState::new(
+        Ok(Arc::new(ApiState::new(
             config,
-            Metrics::new().expect("metrics init"),
+            Metrics::new().map_err(|_| anyhow!("metrics init"))?,
             Arc::new(Value::Null),
             EventBus::with_capacity(4),
             None,
-        ))
+        )))
     }
 
     fn state_with_handles(
         statuses: Vec<TorrentStatus>,
         metadata: Vec<(Uuid, TorrentMetadata)>,
-    ) -> Arc<ApiState> {
+    ) -> Result<Arc<ApiState>> {
         let config: Arc<dyn ConfigFacade> = Arc::new(TestConfig::default());
         let handles =
             TorrentHandles::new(Arc::new(StubWorkflow), Arc::new(StubInspector { statuses }));
         let state = Arc::new(ApiState::new(
             config,
-            Metrics::new().expect("metrics init"),
+            Metrics::new().map_err(|_| anyhow!("metrics init"))?,
             Arc::new(Value::Null),
             EventBus::with_capacity(4),
             Some(handles),
@@ -1367,7 +1341,7 @@ mod tests {
         for (id, data) in metadata {
             state.set_metadata(id, data);
         }
-        state
+        Ok(state)
     }
 
     #[derive(Clone, Default)]
@@ -1377,7 +1351,7 @@ mod tests {
 
     #[async_trait]
     impl ConfigFacade for TestConfig {
-        async fn get_app_profile(&self) -> Result<AppProfile> {
+        async fn get_app_profile(&self) -> ConfigResult<AppProfile> {
             Ok(AppProfile {
                 id: Uuid::new_v4(),
                 instance_name: "compat".to_string(),
@@ -1391,16 +1365,29 @@ mod tests {
             })
         }
 
-        async fn issue_setup_token(&self, _ttl: Duration, _issued_by: &str) -> Result<SetupToken> {
-            Err(anyhow!("not implemented in tests"))
+        async fn issue_setup_token(
+            &self,
+            _ttl: Duration,
+            _issued_by: &str,
+        ) -> ConfigResult<SetupToken> {
+            Err(ConfigError::Io {
+                operation: "compat_qb.issue_setup_token",
+                source: std::io::Error::other("stubbed config failure"),
+            })
         }
 
-        async fn validate_setup_token(&self, _token: &str) -> Result<()> {
-            Err(anyhow!("not implemented in tests"))
+        async fn validate_setup_token(&self, _token: &str) -> ConfigResult<()> {
+            Err(ConfigError::Io {
+                operation: "compat_qb.validate_setup_token",
+                source: std::io::Error::other("stubbed config failure"),
+            })
         }
 
-        async fn consume_setup_token(&self, _token: &str) -> Result<()> {
-            Err(anyhow!("not implemented in tests"))
+        async fn consume_setup_token(&self, _token: &str) -> ConfigResult<()> {
+            Err(ConfigError::Io {
+                operation: "compat_qb.consume_setup_token",
+                source: std::io::Error::other("stubbed config failure"),
+            })
         }
 
         async fn apply_changeset(
@@ -1408,7 +1395,7 @@ mod tests {
             _actor: &str,
             _reason: &str,
             changeset: SettingsChangeset,
-        ) -> Result<AppliedChanges> {
+        ) -> ConfigResult<AppliedChanges> {
             if let Some(app_profile) = changeset.app_profile.as_ref() {
                 *self.label_policies.lock().await = app_profile.label_policies.clone();
             }
@@ -1420,24 +1407,30 @@ mod tests {
             })
         }
 
-        async fn snapshot(&self) -> Result<ConfigSnapshot> {
-            Err(anyhow!("not implemented in tests"))
+        async fn snapshot(&self) -> ConfigResult<ConfigSnapshot> {
+            Err(ConfigError::Io {
+                operation: "compat_qb.snapshot",
+                source: std::io::Error::other("stubbed config failure"),
+            })
         }
 
         async fn authenticate_api_key(
             &self,
             _key_id: &str,
             _secret: &str,
-        ) -> Result<Option<ApiKeyAuth>> {
+        ) -> ConfigResult<Option<ApiKeyAuth>> {
             Ok(None)
         }
 
-        async fn has_api_keys(&self) -> Result<bool> {
+        async fn has_api_keys(&self) -> ConfigResult<bool> {
             Ok(true)
         }
 
-        async fn factory_reset(&self) -> Result<()> {
-            Err(anyhow!("not implemented in tests"))
+        async fn factory_reset(&self) -> ConfigResult<()> {
+            Err(ConfigError::Io {
+                operation: "compat_qb.factory_reset",
+                source: std::io::Error::other("stubbed config failure"),
+            })
         }
     }
 
@@ -1446,11 +1439,11 @@ mod tests {
 
     #[async_trait]
     impl TorrentWorkflow for StubWorkflow {
-        async fn add_torrent(&self, _request: AddTorrent) -> anyhow::Result<()> {
+        async fn add_torrent(&self, _request: AddTorrent) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn remove_torrent(&self, _id: Uuid, _options: RemoveTorrent) -> anyhow::Result<()> {
+        async fn remove_torrent(&self, _id: Uuid, _options: RemoveTorrent) -> TorrentResult<()> {
             Ok(())
         }
     }
@@ -1461,15 +1454,15 @@ mod tests {
 
     #[async_trait]
     impl TorrentInspector for StubInspector {
-        async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+        async fn list(&self) -> TorrentResult<Vec<TorrentStatus>> {
             Ok(self.statuses.clone())
         }
 
-        async fn get(&self, id: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+        async fn get(&self, id: Uuid) -> TorrentResult<Option<TorrentStatus>> {
             Ok(self.statuses.iter().find(|status| status.id == id).cloned())
         }
 
-        async fn peers(&self, _id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+        async fn peers(&self, _id: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
             Ok(Vec::new())
         }
     }

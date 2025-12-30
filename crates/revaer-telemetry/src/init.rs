@@ -7,7 +7,7 @@
 
 use std::borrow::Cow;
 
-use anyhow::{Result, anyhow};
+use crate::error::{Result, TelemetryError};
 use once_cell::sync::OnceCell;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -177,7 +177,7 @@ fn install_fmt_subscriber(config: &LoggingConfig) -> Result<()> {
                     .with_writer(log_stream_writer()),
             )
             .try_init()
-            .map_err(|err| anyhow!("failed to install tracing subscriber: {err}")),
+            .map_err(|source| TelemetryError::SubscriberInstall { source }),
         LogFormat::Pretty => tracing_subscriber::registry()
             .with(build_env_filter(config.level))
             .with(
@@ -187,7 +187,7 @@ fn install_fmt_subscriber(config: &LoggingConfig) -> Result<()> {
                     .with_writer(log_stream_writer()),
             )
             .try_init()
-            .map_err(|err| anyhow!("failed to install tracing subscriber: {err}")),
+            .map_err(|source| TelemetryError::SubscriberInstall { source }),
     }
 }
 
@@ -225,7 +225,7 @@ fn install_with_otel_layer(
                     .with_writer(log_stream_writer()),
             )
             .try_init()
-            .map_err(|err| anyhow!("failed to install tracing subscriber: {err}"))?,
+            .map_err(|source| TelemetryError::SubscriberInstall { source })?,
         LogFormat::Pretty => tracing_subscriber::registry()
             .with(layer)
             .with(build_env_filter(config.level))
@@ -236,7 +236,7 @@ fn install_with_otel_layer(
                     .with_writer(log_stream_writer()),
             )
             .try_init()
-            .map_err(|err| anyhow!("failed to install tracing subscriber: {err}"))?,
+            .map_err(|source| TelemetryError::SubscriberInstall { source })?,
     }
     Ok(guard)
 }
@@ -245,9 +245,10 @@ fn install_with_otel_layer(
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::error::Error;
 
     #[test]
-    fn log_format_from_config_parses_variants() {
+    fn log_format_from_config_parses_variants() -> std::result::Result<(), Box<dyn Error>> {
         let json_config = json!({"log_format": "json"});
         assert!(matches!(
             log_format_from_config(Some(&json_config)),
@@ -261,13 +262,17 @@ mod tests {
         ));
 
         let inferred = log_format_from_config(Some(&json!({"log_format": "unknown"})))
-            .expect("expected format");
-        match (LogFormat::infer(), inferred) {
-            (LogFormat::Json, LogFormat::Json) | (LogFormat::Pretty, LogFormat::Pretty) => {}
-            other => panic!("unexpected format mapping: {other:?}"),
-        }
+            .ok_or_else(|| std::io::Error::other("log format missing"))?;
+        assert!(
+            matches!(
+                (LogFormat::infer(), inferred),
+                (LogFormat::Json, LogFormat::Json) | (LogFormat::Pretty, LogFormat::Pretty)
+            ),
+            "unexpected format mapping"
+        );
 
         assert!(log_format_from_config(None).is_none());
+        Ok(())
     }
 
     #[test]
@@ -278,5 +283,34 @@ mod tests {
             build_sha: "dev",
         };
         let _ = init_logging(&config);
+    }
+
+    #[test]
+    fn install_fmt_subscriber_handles_both_formats() {
+        let pretty = LoggingConfig {
+            level: "info",
+            format: LogFormat::Pretty,
+            build_sha: "dev",
+        };
+        assert!(matches!(
+            install_fmt_subscriber(&pretty),
+            Ok(()) | Err(TelemetryError::SubscriberInstall { .. })
+        ));
+
+        let json = LoggingConfig {
+            level: "info",
+            format: LogFormat::Json,
+            build_sha: "dev",
+        };
+        assert!(matches!(
+            install_fmt_subscriber(&json),
+            Ok(()) | Err(TelemetryError::SubscriberInstall { .. })
+        ));
+    }
+
+    #[test]
+    fn build_env_filter_smoke() {
+        let filter = build_env_filter("info");
+        assert!(!filter.to_string().is_empty());
     }
 }

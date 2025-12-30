@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use crate::engine_config::EngineRuntimePlan;
-use anyhow::{Result, anyhow, ensure};
+use crate::error::{AppError, AppResult};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use reqwest::{Client, header::IF_NONE_MATCH};
@@ -21,9 +21,9 @@ use revaer_fsops::{FsOpsRequest, FsOpsService};
 use revaer_runtime::RuntimeStore;
 use revaer_telemetry::Metrics;
 use revaer_torrent_core::{
-    AddTorrent, FilePriority, FileSelectionUpdate, RemoveTorrent, TorrentEngine, TorrentFile,
-    TorrentInspector, TorrentProgress, TorrentRateLimit, TorrentRates, TorrentStatus,
-    TorrentWorkflow,
+    AddTorrent, FilePriority, FileSelectionUpdate, RemoveTorrent, TorrentEngine, TorrentError,
+    TorrentFile, TorrentInspector, TorrentProgress, TorrentRateLimit, TorrentRates, TorrentResult,
+    TorrentStatus, TorrentWorkflow,
     model::{
         PeerSnapshot, TorrentAuthorRequest, TorrentAuthorResult, TorrentOptionsUpdate,
         TorrentTrackersUpdate, TorrentWebSeedsUpdate,
@@ -37,7 +37,7 @@ use uuid::Uuid;
 
 #[async_trait]
 pub(crate) trait EngineConfigurator: Send + Sync {
-    async fn apply_engine_plan(&self, plan: &EngineRuntimePlan) -> Result<()>;
+    async fn apply_engine_plan(&self, plan: &EngineRuntimePlan) -> TorrentResult<()>;
 }
 
 const BLOCKLIST_REFRESH_INTERVAL: Duration = Duration::from_secs(30 * 60);
@@ -70,8 +70,11 @@ impl LibtorrentOrchestratorDeps {
         events: &EventBus,
         metrics: &Metrics,
         runtime: Option<RuntimeStore>,
-    ) -> Result<Self> {
-        let engine = Arc::new(LibtorrentEngine::new(events.clone())?);
+    ) -> AppResult<Self> {
+        let engine = Arc::new(
+            LibtorrentEngine::new(events.clone())
+                .map_err(|err| AppError::torrent("libtorrent_engine.new", err))?,
+        );
         let fsops = runtime.as_ref().map_or_else(
             || FsOpsService::new(events.clone(), metrics.clone()),
             |store| FsOpsService::new(events.clone(), metrics.clone()).with_runtime(store.clone()),
@@ -88,7 +91,7 @@ impl LibtorrentOrchestratorDeps {
 #[cfg(feature = "libtorrent")]
 #[async_trait]
 impl EngineConfigurator for LibtorrentEngine {
-    async fn apply_engine_plan(&self, plan: &EngineRuntimePlan) -> Result<()> {
+    async fn apply_engine_plan(&self, plan: &EngineRuntimePlan) -> TorrentResult<()> {
         self.apply_runtime_config(plan.runtime.clone()).await
     }
 }
@@ -142,7 +145,7 @@ where
     }
 
     /// Delegate torrent admission to the engine.
-    pub(crate) async fn add_torrent(&self, request: AddTorrent) -> Result<()> {
+    pub(crate) async fn add_torrent(&self, request: AddTorrent) -> TorrentResult<()> {
         self.engine.add_torrent(request).await
     }
 
@@ -150,39 +153,48 @@ where
     pub(crate) async fn create_torrent(
         &self,
         request: TorrentAuthorRequest,
-    ) -> Result<TorrentAuthorResult> {
+    ) -> TorrentResult<TorrentAuthorResult> {
         self.ensure_authoring_path_allowed(&request.root_path)
-            .await?;
+            .await
+            .map_err(|err| app_error_to_torrent("create_torrent.validate_path", None, err))?;
         self.engine.create_torrent(request).await
     }
 
     /// Apply the filesystem policy to a completed torrent.
-    pub(crate) async fn apply_fsops(&self, torrent_id: Uuid) -> Result<()> {
+    pub(crate) async fn apply_fsops(&self, torrent_id: Uuid) -> AppResult<()> {
         let policy = self.fs_policy.read().await.clone();
-        let snapshot = self
-            .catalog
-            .get(torrent_id)
-            .await
-            .ok_or_else(|| anyhow!("torrent status unavailable for fsops application"))?;
+        let snapshot =
+            self.catalog
+                .get(torrent_id)
+                .await
+                .ok_or_else(|| AppError::MissingState {
+                    field: "torrent_status",
+                    value: Some(torrent_id.to_string()),
+                })?;
         let source = snapshot
             .library_path
             .as_deref()
-            .ok_or_else(|| anyhow!("library path missing for torrent {torrent_id}"))?;
+            .ok_or_else(|| AppError::MissingState {
+                field: "library_path",
+                value: Some(torrent_id.to_string()),
+            })?;
         let source_path = PathBuf::from(source);
-        self.fsops.apply(FsOpsRequest {
-            torrent_id,
-            source_path: &source_path,
-            policy: &policy,
-        })
+        self.fsops
+            .apply(FsOpsRequest {
+                torrent_id,
+                source_path: &source_path,
+                policy: &policy,
+            })
+            .map_err(|err| AppError::fsops("fsops.apply", err))
     }
 
-    async fn ensure_authoring_path_allowed(&self, root: &str) -> Result<()> {
+    async fn ensure_authoring_path_allowed(&self, root: &str) -> AppResult<()> {
         let policy = self.fs_policy.read().await.clone();
         let root_path = PathBuf::from(root);
         enforce_allow_paths(&root_path, &policy.allow_paths)
     }
 
-    async fn handle_event(&self, event: &Event) -> Result<()> {
+    async fn handle_event(&self, event: &Event) -> AppResult<()> {
         self.catalog.observe(event).await;
         self.persist_runtime(event).await;
         if let Event::Completed { torrent_id, .. } = event {
@@ -245,8 +257,15 @@ where
         *guard = policy;
     }
 
+    async fn apply_engine_plan(&self, plan: &EngineRuntimePlan) -> AppResult<()> {
+        self.engine
+            .apply_engine_plan(plan)
+            .await
+            .map_err(|err| AppError::torrent("engine.apply_plan", err))
+    }
+
     /// Update the engine profile and propagate changes to the underlying engine.
-    pub(crate) async fn update_engine_profile(&self, profile: EngineProfile) -> Result<()> {
+    pub(crate) async fn update_engine_profile(&self, profile: EngineProfile) -> AppResult<()> {
         {
             let mut guard = self.engine_profile.write().await;
             *guard = profile.clone();
@@ -268,14 +287,15 @@ where
             "applying engine profile update"
         );
 
-        self.engine.apply_engine_plan(&plan).await?;
+        self.apply_engine_plan(&plan).await?;
         self.engine
             .update_limits(None, plan.global_rate_limit())
-            .await?;
+            .await
+            .map_err(|err| AppError::torrent("engine.update_limits", err))?;
         Ok(())
     }
 
-    async fn refresh_ip_filter(&self, plan: &mut EngineRuntimePlan) -> Result<()> {
+    async fn refresh_ip_filter(&self, plan: &mut EngineRuntimePlan) -> AppResult<()> {
         let previous = plan.effective.network.ip_filter.clone();
         let mut runtime_filter =
             plan.runtime
@@ -369,7 +389,7 @@ where
         Ok(())
     }
 
-    async fn resolve_tracker_auth(&self, plan: &mut EngineRuntimePlan) -> Result<()> {
+    async fn resolve_tracker_auth(&self, plan: &mut EngineRuntimePlan) -> AppResult<()> {
         let Some(config) = &self.config else {
             return Ok(());
         };
@@ -382,7 +402,11 @@ where
         if auth.username.is_none()
             && let Some(secret) = &auth.username_secret
         {
-            match config.get_secret(secret).await? {
+            match config
+                .get_secret(secret)
+                .await
+                .map_err(|err| AppError::config("config.get_secret", err))?
+            {
                 Some(value) => auth.username = Some(value),
                 None => warnings.push(format!(
                     "tracker.auth.username_secret '{secret}' is not set"
@@ -392,7 +416,11 @@ where
         if auth.password.is_none()
             && let Some(secret) = &auth.password_secret
         {
-            match config.get_secret(secret).await? {
+            match config
+                .get_secret(secret)
+                .await
+                .map_err(|err| AppError::config("config.get_secret", err))?
+            {
                 Some(value) => auth.password = Some(value),
                 None => warnings.push(format!(
                     "tracker.auth.password_secret '{secret}' is not set"
@@ -402,7 +430,11 @@ where
         if auth.cookie.is_none()
             && let Some(secret) = &auth.cookie_secret
         {
-            match config.get_secret(secret).await? {
+            match config
+                .get_secret(secret)
+                .await
+                .map_err(|err| AppError::config("config.get_secret", err))?
+            {
                 Some(value) => auth.cookie = Some(value),
                 None => warnings.push(format!("tracker.auth.cookie_secret '{secret}' is not set")),
             }
@@ -415,7 +447,7 @@ where
         Ok(())
     }
 
-    async fn resolve_proxy_auth(&self, plan: &mut EngineRuntimePlan) -> Result<()> {
+    async fn resolve_proxy_auth(&self, plan: &mut EngineRuntimePlan) -> AppResult<()> {
         let Some(config) = &self.config else {
             return Ok(());
         };
@@ -428,7 +460,11 @@ where
         if proxy.username.is_none()
             && let Some(secret) = &proxy.username_secret
         {
-            match config.get_secret(secret).await? {
+            match config
+                .get_secret(secret)
+                .await
+                .map_err(|err| AppError::config("config.get_secret", err))?
+            {
                 Some(value) => proxy.username = Some(value),
                 None => warnings.push(format!(
                     "tracker.proxy.username_secret '{secret}' is not set"
@@ -438,7 +474,11 @@ where
         if proxy.password.is_none()
             && let Some(secret) = &proxy.password_secret
         {
-            match config.get_secret(secret).await? {
+            match config
+                .get_secret(secret)
+                .await
+                .map_err(|err| AppError::config("config.get_secret", err))?
+            {
                 Some(value) => proxy.password = Some(value),
                 None => warnings.push(format!(
                     "tracker.proxy.password_secret '{secret}' is not set"
@@ -453,7 +493,11 @@ where
         Ok(())
     }
 
-    async fn load_blocklist(&self, url: &str, etag: Option<String>) -> Result<BlocklistResolution> {
+    async fn load_blocklist(
+        &self,
+        url: &str,
+        etag: Option<String>,
+    ) -> AppResult<BlocklistResolution> {
         let cached = self.ip_filter_cache.read().await.clone();
         if let Some(cache) = cached.as_ref()
             && cache.url == url
@@ -475,7 +519,10 @@ where
             request = request.header(IF_NONE_MATCH, tag);
         }
 
-        let response = request.send().await?;
+        let response = request
+            .send()
+            .await
+            .map_err(|err| AppError::http("blocklist.fetch", url.to_string(), err))?;
         if response.status() == reqwest::StatusCode::NOT_MODIFIED {
             if let Some(cache) = cached {
                 let now = Utc::now();
@@ -494,14 +541,18 @@ where
                     skipped: 0,
                 });
             }
-            return Err(anyhow!("blocklist returned 304 without cached rules"));
+            return Err(AppError::MissingState {
+                field: "blocklist_cache",
+                value: Some(url.to_string()),
+            });
         }
 
         if !response.status().is_success() {
-            return Err(anyhow!(
-                "blocklist fetch failed with status {}",
-                response.status()
-            ));
+            return Err(AppError::HttpStatus {
+                operation: "blocklist.fetch",
+                url: url.to_string(),
+                status: response.status().as_u16(),
+            });
         }
 
         let etag_header = response
@@ -509,7 +560,10 @@ where
             .get(reqwest::header::ETAG)
             .and_then(|value| value.to_str().ok())
             .map(str::to_string);
-        let body = response.text().await?;
+        let body = response
+            .text()
+            .await
+            .map_err(|err| AppError::http("blocklist.read_body", url.to_string(), err))?;
         let parsed = parse_blocklist(&body)?;
         let now = Utc::now();
         let merged_etag = etag_header.clone().or(etag);
@@ -545,7 +599,7 @@ where
         config: &dyn SettingsFacade,
         previous: &IpFilterConfig,
         updated: &IpFilterConfig,
-    ) -> Result<()> {
+    ) -> AppResult<()> {
         if previous.etag == updated.etag
             && previous.last_updated_at == updated.last_updated_at
             && previous.last_error == updated.last_error
@@ -564,12 +618,17 @@ where
         };
         config
             .apply_changeset("system", "ip_filter_refresh", changeset)
-            .await?;
+            .await
+            .map_err(|err| AppError::config("config.apply_changeset", err))?;
         Ok(())
     }
 
     /// Remove the torrent from the engine.
-    pub(crate) async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> Result<()> {
+    pub(crate) async fn remove_torrent(
+        &self,
+        id: Uuid,
+        options: RemoveTorrent,
+    ) -> TorrentResult<()> {
         self.engine.remove_torrent(id, options).await
     }
 }
@@ -586,7 +645,7 @@ struct ParsedBlocklist {
     skipped: usize,
 }
 
-fn parse_blocklist(body: &str) -> Result<ParsedBlocklist> {
+fn parse_blocklist(body: &str) -> AppResult<ParsedBlocklist> {
     let mut rules = Vec::new();
     let mut seen = HashSet::new();
     let mut skipped = 0usize;
@@ -606,9 +665,11 @@ fn parse_blocklist(body: &str) -> Result<ParsedBlocklist> {
                 if seen.insert(canonical.to_ascii_lowercase()) {
                     rules.push(runtime_rule_from_config(&rule));
                     if rules.len() > MAX_BLOCKLIST_RULES {
-                        return Err(anyhow!(
-                            "blocklist contains more than {MAX_BLOCKLIST_RULES} entries"
-                        ));
+                        return Err(AppError::InvalidConfig {
+                            field: "ip_filter.blocklist_url",
+                            reason: "too_many_entries",
+                            value: Some(MAX_BLOCKLIST_RULES.to_string()),
+                        });
                     }
                 }
             }
@@ -673,7 +734,7 @@ pub(crate) async fn spawn_libtorrent_orchestrator(
     engine_profile: EngineProfile,
     deps: LibtorrentOrchestratorDeps,
     config: Option<Arc<dyn SettingsFacade>>,
-) -> Result<(
+) -> AppResult<(
     Arc<LibtorrentEngine>,
     Arc<TorrentOrchestrator<LibtorrentEngine>>,
     JoinHandle<()>,
@@ -713,46 +774,42 @@ impl<E> TorrentWorkflow for TorrentOrchestrator<E>
 where
     E: TorrentEngine + EngineConfigurator + 'static,
 {
-    async fn add_torrent(&self, request: AddTorrent) -> anyhow::Result<()> {
+    async fn add_torrent(&self, request: AddTorrent) -> TorrentResult<()> {
         Self::add_torrent(self, request).await
     }
 
     async fn create_torrent(
         &self,
         request: TorrentAuthorRequest,
-    ) -> anyhow::Result<TorrentAuthorResult> {
+    ) -> TorrentResult<TorrentAuthorResult> {
         Self::create_torrent(self, request).await
     }
 
-    async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> anyhow::Result<()> {
+    async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> TorrentResult<()> {
         Self::remove_torrent(self, id, options).await
     }
 
-    async fn pause_torrent(&self, id: Uuid) -> anyhow::Result<()> {
+    async fn pause_torrent(&self, id: Uuid) -> TorrentResult<()> {
         self.engine.pause_torrent(id).await
     }
 
-    async fn resume_torrent(&self, id: Uuid) -> anyhow::Result<()> {
+    async fn resume_torrent(&self, id: Uuid) -> TorrentResult<()> {
         self.engine.resume_torrent(id).await
     }
 
-    async fn set_sequential(&self, id: Uuid, sequential: bool) -> anyhow::Result<()> {
+    async fn set_sequential(&self, id: Uuid, sequential: bool) -> TorrentResult<()> {
         self.engine.set_sequential(id, sequential).await
     }
 
-    async fn update_limits(
-        &self,
-        id: Option<Uuid>,
-        limits: TorrentRateLimit,
-    ) -> anyhow::Result<()> {
+    async fn update_limits(&self, id: Option<Uuid>, limits: TorrentRateLimit) -> TorrentResult<()> {
         self.engine.update_limits(id, limits).await
     }
 
-    async fn update_selection(&self, id: Uuid, rules: FileSelectionUpdate) -> anyhow::Result<()> {
+    async fn update_selection(&self, id: Uuid, rules: FileSelectionUpdate) -> TorrentResult<()> {
         self.engine.update_selection(id, rules).await
     }
 
-    async fn update_options(&self, id: Uuid, options: TorrentOptionsUpdate) -> anyhow::Result<()> {
+    async fn update_options(&self, id: Uuid, options: TorrentOptionsUpdate) -> TorrentResult<()> {
         self.engine.update_options(id, options).await
     }
 
@@ -760,7 +817,7 @@ where
         &self,
         id: Uuid,
         trackers: TorrentTrackersUpdate,
-    ) -> anyhow::Result<()> {
+    ) -> TorrentResult<()> {
         self.engine.update_trackers(id, trackers).await
     }
 
@@ -768,19 +825,19 @@ where
         &self,
         id: Uuid,
         web_seeds: TorrentWebSeedsUpdate,
-    ) -> anyhow::Result<()> {
+    ) -> TorrentResult<()> {
         self.engine.update_web_seeds(id, web_seeds).await
     }
 
-    async fn reannounce(&self, id: Uuid) -> anyhow::Result<()> {
+    async fn reannounce(&self, id: Uuid) -> TorrentResult<()> {
         self.engine.reannounce(id).await
     }
 
-    async fn move_torrent(&self, id: Uuid, download_dir: String) -> anyhow::Result<()> {
+    async fn move_torrent(&self, id: Uuid, download_dir: String) -> TorrentResult<()> {
         self.engine.move_torrent(id, download_dir).await
     }
 
-    async fn recheck(&self, id: Uuid) -> anyhow::Result<()> {
+    async fn recheck(&self, id: Uuid) -> TorrentResult<()> {
         self.engine.recheck(id).await
     }
 }
@@ -791,15 +848,15 @@ impl<E> TorrentInspector for TorrentOrchestrator<E>
 where
     E: TorrentEngine + EngineConfigurator + 'static,
 {
-    async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+    async fn list(&self) -> TorrentResult<Vec<TorrentStatus>> {
         Ok(self.catalog.list().await)
     }
 
-    async fn get(&self, id: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+    async fn get(&self, id: Uuid) -> TorrentResult<Option<TorrentStatus>> {
         Ok(self.catalog.get(id).await)
     }
 
-    async fn peers(&self, id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+    async fn peers(&self, id: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
         self.engine.peers(id).await
     }
 }
@@ -1091,17 +1148,25 @@ impl TorrentCatalog {
     }
 }
 
-const fn bytes_to_f64(value: u64) -> f64 {
-    #[expect(
-        clippy::cast_precision_loss,
-        reason = "u64 to f64 conversion is needed for user-facing ratio reporting"
-    )]
-    {
-        value as f64
+fn bytes_to_f64(value: u64) -> f64 {
+    let high = u32::try_from(value >> 32).unwrap_or(u32::MAX);
+    let low = u32::try_from(value & 0xFFFF_FFFF).unwrap_or(u32::MAX);
+    f64::from(high) * 4_294_967_296.0 + f64::from(low)
+}
+
+fn app_error_to_torrent(
+    operation: &'static str,
+    torrent_id: Option<Uuid>,
+    err: AppError,
+) -> TorrentError {
+    TorrentError::OperationFailed {
+        operation,
+        torrent_id,
+        source: Box::new(err),
     }
 }
 
-fn enforce_allow_paths(root: &Path, allow_paths: &[String]) -> Result<()> {
+fn enforce_allow_paths(root: &Path, allow_paths: &[String]) -> AppResult<()> {
     let allows = parse_path_list(allow_paths)?;
     if allows.is_empty() {
         return Ok(());
@@ -1119,20 +1184,23 @@ fn enforce_allow_paths(root: &Path, allow_paths: &[String]) -> Result<()> {
         }
     }
 
-    ensure!(
-        false,
-        "authoring root {} is not permitted by fs policy allow_paths",
-        root_abs.display()
-    );
-    Ok(())
+    Err(AppError::InvalidConfig {
+        field: "allow_paths",
+        reason: "root_not_permitted",
+        value: Some(root_abs.to_string_lossy().into_owned()),
+    })
 }
 
-fn parse_path_list(entries: &[String]) -> Result<Vec<PathBuf>> {
+fn parse_path_list(entries: &[String]) -> AppResult<Vec<PathBuf>> {
     entries
         .iter()
         .map(|entry| {
             if entry.trim().is_empty() {
-                Err(anyhow!("allow path entries cannot be empty"))
+                Err(AppError::InvalidConfig {
+                    field: "allow_paths",
+                    reason: "empty_entry",
+                    value: Some(entry.clone()),
+                })
             } else {
                 Ok(PathBuf::from(entry))
             }
@@ -1143,7 +1211,6 @@ fn parse_path_list(entries: &[String]) -> Result<Vec<PathBuf>> {
 #[cfg(test)]
 mod orchestrator_tests {
     use super::*;
-    use anyhow::bail;
     use revaer_config::engine_profile::{
         AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig,
     };
@@ -1153,23 +1220,25 @@ mod orchestrator_tests {
     use tokio::time::{Duration, timeout};
     use tokio_stream::StreamExt;
 
+    type TestResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
+
     #[derive(Default)]
     struct StubEngine;
 
     #[async_trait]
     impl TorrentEngine for StubEngine {
-        async fn add_torrent(&self, _request: AddTorrent) -> anyhow::Result<()> {
+        async fn add_torrent(&self, _request: AddTorrent) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn remove_torrent(&self, _id: Uuid, _options: RemoveTorrent) -> anyhow::Result<()> {
+        async fn remove_torrent(&self, _id: Uuid, _options: RemoveTorrent) -> TorrentResult<()> {
             Ok(())
         }
     }
 
     #[async_trait]
     impl EngineConfigurator for StubEngine {
-        async fn apply_engine_plan(&self, _plan: &EngineRuntimePlan) -> Result<()> {
+        async fn apply_engine_plan(&self, _plan: &EngineRuntimePlan) -> TorrentResult<()> {
             Ok(())
         }
     }
@@ -1257,7 +1326,7 @@ mod orchestrator_tests {
     }
 
     #[tokio::test]
-    async fn completed_event_triggers_fsops_pipeline() -> Result<()> {
+    async fn completed_event_triggers_fsops_pipeline() -> TestResult<()> {
         let temp = TempDir::new()?;
         let policy = sample_fs_policy(temp.path());
         let events = EventBus::with_capacity(16);
@@ -1288,21 +1357,35 @@ mod orchestrator_tests {
 
         timeout(Duration::from_secs(5), async {
             while let Some(result) = stream.next().await {
-                let envelope = result?;
+                let envelope = result.map_err(|err| AppError::InvalidConfig {
+                    field: "event_stream",
+                    reason: "recv_error",
+                    value: Some(err.to_string()),
+                })?;
                 match envelope.event {
                     Event::FsopsCompleted { torrent_id: id } if id == torrent_id => {
-                        return Ok::<(), anyhow::Error>(());
+                        return Ok::<(), Box<dyn std::error::Error + Send + Sync>>(());
                     }
                     Event::FsopsFailed {
                         torrent_id: id,
                         ref message,
                     } if id == torrent_id => {
-                        bail!("fsops failed unexpectedly: {message}");
+                        return Err(AppError::InvalidConfig {
+                            field: "fsops",
+                            reason: "unexpected_failure",
+                            value: Some(message.clone()),
+                        }
+                        .into());
                     }
                     _ => {}
                 }
             }
-            bail!("event stream closed before fsops completion observed");
+            Err(AppError::InvalidConfig {
+                field: "fsops",
+                reason: "stream_closed",
+                value: None,
+            }
+            .into())
         })
         .await??;
 
@@ -1317,7 +1400,7 @@ mod orchestrator_tests {
     }
 
     #[tokio::test]
-    async fn completed_event_with_invalid_policy_emits_failure() -> Result<()> {
+    async fn completed_event_with_invalid_policy_emits_failure() -> TestResult<()> {
         let temp = TempDir::new()?;
         let events = EventBus::with_capacity(8);
         let metrics = Metrics::new()?;
@@ -1351,18 +1434,32 @@ mod orchestrator_tests {
 
         timeout(Duration::from_secs(3), async {
             while let Some(event) = stream.next().await {
-                let envelope = event?;
+                let envelope = event.map_err(|err| AppError::InvalidConfig {
+                    field: "event_stream",
+                    reason: "recv_error",
+                    value: Some(err.to_string()),
+                })?;
                 match envelope.event {
                     Event::FsopsFailed { torrent_id: id, .. } if id == torrent_id => {
-                        return Ok::<(), anyhow::Error>(());
+                        return Ok::<(), Box<dyn std::error::Error + Send + Sync>>(());
                     }
                     Event::FsopsCompleted { torrent_id: id } if id == torrent_id => {
-                        bail!("fsops unexpectedly succeeded with invalid policy");
+                        return Err(AppError::InvalidConfig {
+                            field: "fsops",
+                            reason: "unexpected_success",
+                            value: None,
+                        }
+                        .into());
                     }
                     _ => {}
                 }
             }
-            bail!("no fsops failure observed before stream closed");
+            Err(AppError::InvalidConfig {
+                field: "fsops",
+                reason: "stream_closed",
+                value: None,
+            }
+            .into())
         })
         .await??;
         Ok(())
@@ -1388,6 +1485,8 @@ mod engine_refresh_tests {
     use tokio::net::TcpListener;
     use tokio::sync::RwLock;
 
+    type TestResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
+
     #[derive(Default)]
     struct RecordingEngine {
         applied: RwLock<Vec<EngineRuntimePlan>>,
@@ -1403,26 +1502,26 @@ mod engine_refresh_tests {
 
     #[async_trait]
     impl TorrentEngine for RecordingEngine {
-        async fn add_torrent(&self, _request: AddTorrent) -> anyhow::Result<()> {
+        async fn add_torrent(&self, _request: AddTorrent) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> anyhow::Result<()> {
+        async fn remove_torrent(&self, id: Uuid, options: RemoveTorrent) -> TorrentResult<()> {
             self.removed.write().await.push((id, options));
             Ok(())
         }
 
-        async fn pause_torrent(&self, id: Uuid) -> anyhow::Result<()> {
+        async fn pause_torrent(&self, id: Uuid) -> TorrentResult<()> {
             self.paused.write().await.push(id);
             Ok(())
         }
 
-        async fn resume_torrent(&self, id: Uuid) -> anyhow::Result<()> {
+        async fn resume_torrent(&self, id: Uuid) -> TorrentResult<()> {
             self.resumed.write().await.push(id);
             Ok(())
         }
 
-        async fn set_sequential(&self, id: Uuid, sequential: bool) -> anyhow::Result<()> {
+        async fn set_sequential(&self, id: Uuid, sequential: bool) -> TorrentResult<()> {
             self.sequential.write().await.push((id, sequential));
             Ok(())
         }
@@ -1431,7 +1530,7 @@ mod engine_refresh_tests {
             &self,
             id: Option<Uuid>,
             limits: TorrentRateLimit,
-        ) -> anyhow::Result<()> {
+        ) -> TorrentResult<()> {
             self.limits.write().await.push((id, limits));
             Ok(())
         }
@@ -1440,17 +1539,17 @@ mod engine_refresh_tests {
             &self,
             id: Uuid,
             rules: FileSelectionUpdate,
-        ) -> anyhow::Result<()> {
+        ) -> TorrentResult<()> {
             self.selections.write().await.push((id, rules));
             Ok(())
         }
 
-        async fn reannounce(&self, id: Uuid) -> anyhow::Result<()> {
+        async fn reannounce(&self, id: Uuid) -> TorrentResult<()> {
             self.reannounced.write().await.push(id);
             Ok(())
         }
 
-        async fn recheck(&self, id: Uuid) -> anyhow::Result<()> {
+        async fn recheck(&self, id: Uuid) -> TorrentResult<()> {
             self.rechecked.write().await.push(id);
             Ok(())
         }
@@ -1458,7 +1557,7 @@ mod engine_refresh_tests {
 
     #[async_trait]
     impl EngineConfigurator for RecordingEngine {
-        async fn apply_engine_plan(&self, plan: &EngineRuntimePlan) -> Result<()> {
+        async fn apply_engine_plan(&self, plan: &EngineRuntimePlan) -> TorrentResult<()> {
             self.applied.write().await.push(plan.clone());
             Ok(())
         }
@@ -1470,24 +1569,26 @@ mod engine_refresh_tests {
 
     #[async_trait]
     impl SettingsFacade for StubConfig {
-        async fn get_app_profile(&self) -> Result<AppProfile> {
-            Err(anyhow!("not implemented"))
+        async fn get_app_profile(&self) -> revaer_config::ConfigResult<AppProfile> {
+            Err(revaer_config::ConfigError::NotificationPayloadInvalid)
         }
 
-        async fn get_engine_profile(&self) -> Result<EngineProfile> {
-            Err(anyhow!("not implemented"))
+        async fn get_engine_profile(&self) -> revaer_config::ConfigResult<EngineProfile> {
+            Err(revaer_config::ConfigError::NotificationPayloadInvalid)
         }
 
-        async fn get_fs_policy(&self) -> Result<FsPolicy> {
-            Err(anyhow!("not implemented"))
+        async fn get_fs_policy(&self) -> revaer_config::ConfigResult<FsPolicy> {
+            Err(revaer_config::ConfigError::NotificationPayloadInvalid)
         }
 
-        async fn get_secret(&self, name: &str) -> Result<Option<String>> {
+        async fn get_secret(&self, name: &str) -> revaer_config::ConfigResult<Option<String>> {
             Ok(self.secrets.get(name).cloned())
         }
 
-        async fn subscribe_changes(&self) -> Result<revaer_config::SettingsStream> {
-            Err(anyhow!("not implemented"))
+        async fn subscribe_changes(
+            &self,
+        ) -> revaer_config::ConfigResult<revaer_config::SettingsStream> {
+            Err(revaer_config::ConfigError::NotificationPayloadInvalid)
         }
 
         async fn apply_changeset(
@@ -1495,7 +1596,7 @@ mod engine_refresh_tests {
             _actor: &str,
             _reason: &str,
             _changeset: SettingsChangeset,
-        ) -> Result<revaer_config::AppliedChanges> {
+        ) -> revaer_config::ConfigResult<revaer_config::AppliedChanges> {
             Ok(revaer_config::AppliedChanges {
                 revision: 0,
                 app_profile: None,
@@ -1504,20 +1605,24 @@ mod engine_refresh_tests {
             })
         }
 
-        async fn issue_setup_token(&self, _ttl: Duration, _issued_by: &str) -> Result<SetupToken> {
-            Err(anyhow!("not implemented"))
+        async fn issue_setup_token(
+            &self,
+            _ttl: Duration,
+            _issued_by: &str,
+        ) -> revaer_config::ConfigResult<SetupToken> {
+            Err(revaer_config::ConfigError::SetupTokenMissing)
         }
 
-        async fn consume_setup_token(&self, _token: &str) -> Result<()> {
-            Err(anyhow!("not implemented"))
+        async fn consume_setup_token(&self, _token: &str) -> revaer_config::ConfigResult<()> {
+            Err(revaer_config::ConfigError::SetupTokenInvalid)
         }
 
-        async fn has_api_keys(&self) -> Result<bool> {
+        async fn has_api_keys(&self) -> revaer_config::ConfigResult<bool> {
             Ok(false)
         }
 
-        async fn factory_reset(&self) -> Result<()> {
-            Err(anyhow!("not implemented"))
+        async fn factory_reset(&self) -> revaer_config::ConfigResult<()> {
+            Err(revaer_config::ConfigError::NotificationPayloadInvalid)
         }
     }
 
@@ -1605,7 +1710,7 @@ mod engine_refresh_tests {
     }
 
     #[tokio::test]
-    async fn update_engine_profile_notifies_engine() -> Result<()> {
+    async fn update_engine_profile_notifies_engine() -> TestResult<()> {
         let engine = Arc::new(RecordingEngine::default());
         let bus = EventBus::new();
         let metrics = Metrics::new()?;
@@ -1623,10 +1728,7 @@ mod engine_refresh_tests {
         let mut updated = engine_profile("updated");
         updated.max_download_bps = Some(1_500_000);
         updated.max_upload_bps = Some(750_000);
-        orchestrator
-            .update_engine_profile(updated.clone())
-            .await
-            .expect("profile update");
+        orchestrator.update_engine_profile(updated.clone()).await?;
 
         let applied_plans = {
             let guard = engine.applied.read().await;
@@ -1662,7 +1764,7 @@ mod engine_refresh_tests {
     }
 
     #[tokio::test]
-    async fn update_engine_profile_resolves_proxy_secrets() -> Result<()> {
+    async fn update_engine_profile_resolves_proxy_secrets() -> TestResult<()> {
         let engine = Arc::new(RecordingEngine::default());
         let bus = EventBus::new();
         let metrics = Metrics::new()?;
@@ -1696,31 +1798,36 @@ mod engine_refresh_tests {
             Some(config),
         ));
 
-        orchestrator
-            .update_engine_profile(profile)
-            .await
-            .expect("profile update");
+        orchestrator.update_engine_profile(profile).await?;
 
-        let applied = engine
-            .applied
-            .read()
-            .await
-            .last()
-            .cloned()
-            .expect("runtime config applied");
-        let proxy = applied
-            .runtime
-            .tracker
-            .proxy
-            .as_ref()
-            .expect("proxy config present");
+        let applied =
+            engine
+                .applied
+                .read()
+                .await
+                .last()
+                .cloned()
+                .ok_or_else(|| AppError::MissingState {
+                    field: "runtime_plan",
+                    value: None,
+                })?;
+        let proxy =
+            applied
+                .runtime
+                .tracker
+                .proxy
+                .as_ref()
+                .ok_or_else(|| AppError::MissingState {
+                    field: "tracker_proxy",
+                    value: None,
+                })?;
         assert_eq!(proxy.username.as_deref(), Some("proxy-user"));
         assert_eq!(proxy.password.as_deref(), Some("proxy-pass"));
         Ok(())
     }
 
     #[tokio::test]
-    async fn blocklist_is_fetched_and_cached() -> Result<()> {
+    async fn blocklist_is_fetched_and_cached() -> TestResult<()> {
         let listener = TcpListener::bind("127.0.0.1:0").await?;
         let addr = listener.local_addr()?;
         let server = tokio::spawn(async move {
@@ -1756,46 +1863,60 @@ mod engine_refresh_tests {
             None,
         ));
 
-        orchestrator
-            .update_engine_profile(profile.clone())
-            .await
-            .expect("blocklist applied");
+        orchestrator.update_engine_profile(profile.clone()).await?;
         let _ = server.await;
 
-        let first_plan = engine
-            .applied
-            .read()
-            .await
-            .last()
-            .cloned()
-            .expect("runtime config applied");
-        let filter = first_plan
-            .runtime
-            .ip_filter
-            .as_ref()
-            .expect("ip filter present");
+        let first_plan =
+            engine
+                .applied
+                .read()
+                .await
+                .last()
+                .cloned()
+                .ok_or_else(|| AppError::MissingState {
+                    field: "runtime_plan",
+                    value: None,
+                })?;
+        let filter =
+            first_plan
+                .runtime
+                .ip_filter
+                .as_ref()
+                .ok_or_else(|| AppError::MissingState {
+                    field: "ip_filter",
+                    value: None,
+                })?;
         assert_eq!(filter.rules.len(), 1);
         assert_eq!(filter.rules[0].start, "10.0.0.1");
 
         // Subsequent updates reuse the cached rules even if the server is gone.
-        orchestrator
-            .update_engine_profile(profile)
-            .await
-            .expect("cache apply");
-        let cached = engine
-            .applied
-            .read()
-            .await
-            .last()
-            .cloned()
-            .expect("cached runtime config");
-        let cached_filter = cached.runtime.ip_filter.as_ref().expect("cached filter");
+        orchestrator.update_engine_profile(profile).await?;
+        let cached =
+            engine
+                .applied
+                .read()
+                .await
+                .last()
+                .cloned()
+                .ok_or_else(|| AppError::MissingState {
+                    field: "cached_runtime_plan",
+                    value: None,
+                })?;
+        let cached_filter =
+            cached
+                .runtime
+                .ip_filter
+                .as_ref()
+                .ok_or_else(|| AppError::MissingState {
+                    field: "cached_ip_filter",
+                    value: None,
+                })?;
         assert_eq!(cached_filter.rules.len(), 1);
         Ok(())
     }
 
     #[tokio::test]
-    async fn update_engine_profile_clamps_before_applying() -> Result<()> {
+    async fn update_engine_profile_clamps_before_applying() -> TestResult<()> {
         let engine = Arc::new(RecordingEngine::default());
         let bus = EventBus::new();
         let metrics = Metrics::new()?;
@@ -1841,7 +1962,7 @@ mod engine_refresh_tests {
     }
 
     #[tokio::test]
-    async fn workflow_operations_forward_to_engine() -> Result<()> {
+    async fn workflow_operations_forward_to_engine() -> TestResult<()> {
         let engine = Arc::new(RecordingEngine::default());
         let bus = EventBus::new();
         let metrics = Metrics::new()?;
@@ -1930,7 +2051,7 @@ mod engine_refresh_tests {
     }
 
     #[tokio::test]
-    async fn torrent_catalog_tracks_event_evolution() -> Result<()> {
+    async fn torrent_catalog_tracks_event_evolution() -> TestResult<()> {
         let catalog = TorrentCatalog::new();
         let id = Uuid::new_v4();
         let other = Uuid::new_v4();
@@ -1993,10 +2114,19 @@ mod engine_refresh_tests {
         assert_eq!(statuses.len(), 2);
         assert_eq!(statuses.remove(0).id, other, "sorted by name first");
 
-        let status = catalog.get(id).await.expect("status");
+        let status = catalog
+            .get(id)
+            .await
+            .ok_or_else(|| AppError::MissingState {
+                field: "torrent_status",
+                value: Some(id.to_string()),
+            })?;
         assert_eq!(status.progress.bytes_total, 1_024);
         assert!(matches!(status.state, TorrentState::Failed { .. }));
-        let files = status.files.expect("files mapped");
+        let files = status.files.ok_or_else(|| AppError::MissingState {
+            field: "torrent_files",
+            value: Some(id.to_string()),
+        })?;
         assert_eq!(files[0].index, 0);
         assert_eq!(files[1].index, 1);
         Ok(())

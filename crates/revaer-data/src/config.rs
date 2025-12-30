@@ -1,6 +1,6 @@
 //! Configuration schema migrations and helpers shared across crates.
 
-use anyhow::{Context, Result};
+use crate::error::{DataError, Result};
 use chrono::{DateTime, Utc};
 use sqlx::postgres::PgRow;
 use sqlx::{Executor, FromRow, PgPool, Postgres, Row};
@@ -9,6 +9,10 @@ use uuid::Uuid;
 /// LISTEN/NOTIFY channel for configuration revision broadcasts.
 pub const SETTINGS_CHANNEL: &str = "revaer_settings_changed";
 
+fn map_query_err(operation: &'static str) -> impl FnOnce(sqlx::Error) -> DataError {
+    move |source| DataError::QueryFailed { operation, source }
+}
+
 /// Apply all configuration-related migrations (shared with runtime).
 ///
 /// # Errors
@@ -16,11 +20,12 @@ pub const SETTINGS_CHANNEL: &str = "revaer_settings_changed";
 /// Returns an error when migration execution fails.
 pub async fn run_migrations(pool: &PgPool) -> Result<()> {
     // Migrations cover configuration, tracker normalization, and peer class state.
-    let migrator = sqlx::migrate!("./migrations");
+    let mut migrator = sqlx::migrate!("./migrations");
+    migrator.set_ignore_missing(true);
     migrator
         .run(pool)
         .await
-        .context("failed to execute configuration migrations")?;
+        .map_err(|source| DataError::MigrationFailed { source })?;
     Ok(())
 }
 
@@ -362,7 +367,6 @@ impl StorageToggleSet {
     }
 }
 
-
 /// Raw projection of the `engine_profile` table.
 #[derive(Debug, Clone)]
 pub struct EngineProfileRow {
@@ -466,7 +470,7 @@ pub struct EngineProfileRow {
     pub dht_router_nodes: Vec<String>,
     /// IP filter blocklist URL.
     pub ip_filter_blocklist_url: Option<String>,
-    /// IP filter blocklist ETag.
+    /// IP filter blocklist `ETag`.
     pub ip_filter_etag: Option<String>,
     /// Timestamp of last successful blocklist refresh.
     pub ip_filter_last_updated_at: Option<DateTime<Utc>>,
@@ -522,130 +526,141 @@ pub struct EngineProfileRow {
     pub stats_interval_ms: Option<i32>,
 }
 
-impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
-    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        let enable_lsd: bool = row.try_get("enable_lsd")?;
-        let enable_upnp: bool = row.try_get("enable_upnp")?;
-        let enable_natpmp: bool = row.try_get("enable_natpmp")?;
-        let enable_pex: bool = row.try_get("enable_pex")?;
-        let anonymous_mode: bool = row.try_get("anonymous_mode")?;
-        let force_proxy: bool = row.try_get("force_proxy")?;
-        let prefer_rc4: bool = row.try_get("prefer_rc4")?;
-        let allow_multiple_connections_per_ip: bool =
-            row.try_get("allow_multiple_connections_per_ip")?;
-        let enable_outgoing_utp: bool = row.try_get("enable_outgoing_utp")?;
-        let enable_incoming_utp: bool = row.try_get("enable_incoming_utp")?;
-        let auto_managed: bool = row.try_get("auto_managed")?;
-        let auto_manage_prefer_seeds: bool = row.try_get("auto_manage_prefer_seeds")?;
-        let dont_count_slow_torrents: bool = row.try_get("dont_count_slow_torrents")?;
-        let sequential_default: bool = row.try_get("sequential_default")?;
-        let super_seeding: bool = row.try_get("super_seeding")?;
-        let strict_super_seeding: bool = row.try_get("strict_super_seeding")?;
-        let use_partfile: bool = row.try_get("use_partfile")?;
-        let coalesce_reads: bool = row.try_get("coalesce_reads")?;
-        let coalesce_writes: bool = row.try_get("coalesce_writes")?;
-        let use_disk_cache_pool: bool = row.try_get("use_disk_cache_pool")?;
-        let verify_piece_hashes: bool = row.try_get("verify_piece_hashes")?;
+#[derive(Debug, Clone, Copy)]
+struct EngineProfileToggleFlags {
+    queue: QueuePolicySet,
+    seeding: SeedingToggleSet,
+    storage: StorageToggleSet,
+    nat: NatToggleSet,
+    privacy: PrivacyToggleSet,
+}
 
+impl EngineProfileToggleFlags {
+    fn from_row(row: &PgRow) -> std::result::Result<Self, sqlx::Error> {
         Ok(Self {
-            id: row.try_get("id")?,
-            implementation: row.try_get("implementation")?,
-            listen_port: row.try_get("listen_port")?,
-            dht: row.try_get("dht")?,
-            encryption: row.try_get("encryption")?,
-            max_active: row.try_get("max_active")?,
-            max_download_bps: row.try_get("max_download_bps")?,
-            max_upload_bps: row.try_get("max_upload_bps")?,
-            seed_ratio_limit: row.try_get("seed_ratio_limit")?,
-            seed_time_limit: row.try_get("seed_time_limit")?,
             queue: QueuePolicySet::from_flags([
-                auto_managed,
-                auto_manage_prefer_seeds,
-                dont_count_slow_torrents,
+                row.try_get("auto_managed")?,
+                row.try_get("auto_manage_prefer_seeds")?,
+                row.try_get("dont_count_slow_torrents")?,
             ]),
             seeding: SeedingToggleSet::from_flags([
-                sequential_default,
-                super_seeding,
-                strict_super_seeding,
+                row.try_get("sequential_default")?,
+                row.try_get("super_seeding")?,
+                row.try_get("strict_super_seeding")?,
             ]),
-            choking_algorithm: row.try_get("choking_algorithm")?,
-            seed_choking_algorithm: row.try_get("seed_choking_algorithm")?,
-            optimistic_unchoke_slots: row.try_get("optimistic_unchoke_slots")?,
-            max_queued_disk_bytes: row.try_get("max_queued_disk_bytes")?,
-            resume_dir: row.try_get("resume_dir")?,
-            download_root: row.try_get("download_root")?,
-            storage_mode: row.try_get("storage_mode")?,
             storage: StorageToggleSet::from_flags([
-                use_partfile,
-                coalesce_reads,
-                coalesce_writes,
-                use_disk_cache_pool,
+                row.try_get("use_partfile")?,
+                row.try_get("coalesce_reads")?,
+                row.try_get("coalesce_writes")?,
+                row.try_get("use_disk_cache_pool")?,
             ]),
-            disk_read_mode: row.try_get("disk_read_mode")?,
-            disk_write_mode: row.try_get("disk_write_mode")?,
-            verify_piece_hashes,
-            cache_size: row.try_get("cache_size")?,
-            cache_expiry: row.try_get("cache_expiry")?,
-            tracker_user_agent: row.try_get("tracker_user_agent")?,
-            tracker_announce_ip: row.try_get("tracker_announce_ip")?,
-            tracker_listen_interface: row.try_get("tracker_listen_interface")?,
-            tracker_request_timeout_ms: row.try_get("tracker_request_timeout_ms")?,
-            tracker_announce_to_all: row.try_get("tracker_announce_to_all")?,
-            tracker_replace_trackers: row.try_get("tracker_replace_trackers")?,
-            tracker_proxy_host: row.try_get("tracker_proxy_host")?,
-            tracker_proxy_port: row.try_get("tracker_proxy_port")?,
-            tracker_proxy_kind: row.try_get("tracker_proxy_kind")?,
-            tracker_proxy_username_secret: row.try_get("tracker_proxy_username_secret")?,
-            tracker_proxy_password_secret: row.try_get("tracker_proxy_password_secret")?,
-            tracker_auth_username_secret: row.try_get("tracker_auth_username_secret")?,
-            tracker_auth_password_secret: row.try_get("tracker_auth_password_secret")?,
-            tracker_auth_cookie_secret: row.try_get("tracker_auth_cookie_secret")?,
-            tracker_ssl_cert: row.try_get("tracker_ssl_cert")?,
-            tracker_ssl_private_key: row.try_get("tracker_ssl_private_key")?,
-            tracker_ssl_ca_cert: row.try_get("tracker_ssl_ca_cert")?,
-            tracker_ssl_verify: row.try_get("tracker_ssl_verify")?,
-            tracker_proxy_peers: row.try_get("tracker_proxy_peers")?,
-            tracker_default_urls: row.try_get("tracker_default_urls")?,
-            tracker_extra_urls: row.try_get("tracker_extra_urls")?,
-            nat: NatToggleSet::from_flags([enable_lsd, enable_upnp, enable_natpmp, enable_pex]),
-            dht_bootstrap_nodes: row.try_get("dht_bootstrap_nodes")?,
-            dht_router_nodes: row.try_get("dht_router_nodes")?,
-            ip_filter_blocklist_url: row.try_get("ip_filter_blocklist_url")?,
-            ip_filter_etag: row.try_get("ip_filter_etag")?,
-            ip_filter_last_updated_at: row.try_get("ip_filter_last_updated_at")?,
-            ip_filter_last_error: row.try_get("ip_filter_last_error")?,
-            ip_filter_cidrs: row.try_get("ip_filter_cidrs")?,
-            peer_class_ids: row.try_get("peer_class_ids")?,
-            peer_class_labels: row.try_get("peer_class_labels")?,
-            peer_class_download_priorities: row.try_get("peer_class_download_priorities")?,
-            peer_class_upload_priorities: row.try_get("peer_class_upload_priorities")?,
-            peer_class_connection_limit_factors: row.try_get("peer_class_connection_limit_factors")?,
-            peer_class_ignore_unchoke_slots: row.try_get("peer_class_ignore_unchoke_slots")?,
-            peer_class_default_ids: row.try_get("peer_class_default_ids")?,
-            listen_interfaces: row.try_get("listen_interfaces")?,
-            ipv6_mode: row.try_get("ipv6_mode")?,
+            nat: NatToggleSet::from_flags([
+                row.try_get("enable_lsd")?,
+                row.try_get("enable_upnp")?,
+                row.try_get("enable_natpmp")?,
+                row.try_get("enable_pex")?,
+            ]),
             privacy: PrivacyToggleSet::from_flags([
-                anonymous_mode,
-                force_proxy,
-                prefer_rc4,
-                allow_multiple_connections_per_ip,
-                enable_outgoing_utp,
-                enable_incoming_utp,
+                row.try_get("anonymous_mode")?,
+                row.try_get("force_proxy")?,
+                row.try_get("prefer_rc4")?,
+                row.try_get("allow_multiple_connections_per_ip")?,
+                row.try_get("enable_outgoing_utp")?,
+                row.try_get("enable_incoming_utp")?,
             ]),
-            outgoing_port_min: row.try_get("outgoing_port_min")?,
-            outgoing_port_max: row.try_get("outgoing_port_max")?,
-            peer_dscp: row.try_get("peer_dscp")?,
-            connections_limit: row.try_get("connections_limit")?,
-            connections_limit_per_torrent: row.try_get("connections_limit_per_torrent")?,
-            unchoke_slots: row.try_get("unchoke_slots")?,
-            half_open_limit: row.try_get("half_open_limit")?,
-            alt_speed_download_bps: row.try_get("alt_speed_download_bps")?,
-            alt_speed_upload_bps: row.try_get("alt_speed_upload_bps")?,
-            alt_speed_schedule_start_minutes: row.try_get("alt_speed_schedule_start_minutes")?,
-            alt_speed_schedule_end_minutes: row.try_get("alt_speed_schedule_end_minutes")?,
-            alt_speed_days: row.try_get("alt_speed_days")?,
-            stats_interval_ms: row.try_get("stats_interval_ms")?,
         })
+    }
+}
+
+macro_rules! engine_profile_row_from_row {
+    ($row:ident, $toggles:ident) => {
+        EngineProfileRow {
+            id: $row.try_get("id")?,
+            implementation: $row.try_get("implementation")?,
+            listen_port: $row.try_get("listen_port")?,
+            dht: $row.try_get("dht")?,
+            encryption: $row.try_get("encryption")?,
+            max_active: $row.try_get("max_active")?,
+            max_download_bps: $row.try_get("max_download_bps")?,
+            max_upload_bps: $row.try_get("max_upload_bps")?,
+            seed_ratio_limit: $row.try_get("seed_ratio_limit")?,
+            seed_time_limit: $row.try_get("seed_time_limit")?,
+            queue: $toggles.queue,
+            seeding: $toggles.seeding,
+            choking_algorithm: $row.try_get("choking_algorithm")?,
+            seed_choking_algorithm: $row.try_get("seed_choking_algorithm")?,
+            optimistic_unchoke_slots: $row.try_get("optimistic_unchoke_slots")?,
+            max_queued_disk_bytes: $row.try_get("max_queued_disk_bytes")?,
+            resume_dir: $row.try_get("resume_dir")?,
+            download_root: $row.try_get("download_root")?,
+            storage_mode: $row.try_get("storage_mode")?,
+            storage: $toggles.storage,
+            disk_read_mode: $row.try_get("disk_read_mode")?,
+            disk_write_mode: $row.try_get("disk_write_mode")?,
+            verify_piece_hashes: $row.try_get("verify_piece_hashes")?,
+            cache_size: $row.try_get("cache_size")?,
+            cache_expiry: $row.try_get("cache_expiry")?,
+            tracker_user_agent: $row.try_get("tracker_user_agent")?,
+            tracker_announce_ip: $row.try_get("tracker_announce_ip")?,
+            tracker_listen_interface: $row.try_get("tracker_listen_interface")?,
+            tracker_request_timeout_ms: $row.try_get("tracker_request_timeout_ms")?,
+            tracker_announce_to_all: $row.try_get("tracker_announce_to_all")?,
+            tracker_replace_trackers: $row.try_get("tracker_replace_trackers")?,
+            tracker_proxy_host: $row.try_get("tracker_proxy_host")?,
+            tracker_proxy_port: $row.try_get("tracker_proxy_port")?,
+            tracker_proxy_kind: $row.try_get("tracker_proxy_kind")?,
+            tracker_proxy_username_secret: $row.try_get("tracker_proxy_username_secret")?,
+            tracker_proxy_password_secret: $row.try_get("tracker_proxy_password_secret")?,
+            tracker_auth_username_secret: $row.try_get("tracker_auth_username_secret")?,
+            tracker_auth_password_secret: $row.try_get("tracker_auth_password_secret")?,
+            tracker_auth_cookie_secret: $row.try_get("tracker_auth_cookie_secret")?,
+            tracker_ssl_cert: $row.try_get("tracker_ssl_cert")?,
+            tracker_ssl_private_key: $row.try_get("tracker_ssl_private_key")?,
+            tracker_ssl_ca_cert: $row.try_get("tracker_ssl_ca_cert")?,
+            tracker_ssl_verify: $row.try_get("tracker_ssl_verify")?,
+            tracker_proxy_peers: $row.try_get("tracker_proxy_peers")?,
+            tracker_default_urls: $row.try_get("tracker_default_urls")?,
+            tracker_extra_urls: $row.try_get("tracker_extra_urls")?,
+            nat: $toggles.nat,
+            dht_bootstrap_nodes: $row.try_get("dht_bootstrap_nodes")?,
+            dht_router_nodes: $row.try_get("dht_router_nodes")?,
+            ip_filter_blocklist_url: $row.try_get("ip_filter_blocklist_url")?,
+            ip_filter_etag: $row.try_get("ip_filter_etag")?,
+            ip_filter_last_updated_at: $row.try_get("ip_filter_last_updated_at")?,
+            ip_filter_last_error: $row.try_get("ip_filter_last_error")?,
+            ip_filter_cidrs: $row.try_get("ip_filter_cidrs")?,
+            peer_class_ids: $row.try_get("peer_class_ids")?,
+            peer_class_labels: $row.try_get("peer_class_labels")?,
+            peer_class_download_priorities: $row.try_get("peer_class_download_priorities")?,
+            peer_class_upload_priorities: $row.try_get("peer_class_upload_priorities")?,
+            peer_class_connection_limit_factors: $row
+                .try_get("peer_class_connection_limit_factors")?,
+            peer_class_ignore_unchoke_slots: $row.try_get("peer_class_ignore_unchoke_slots")?,
+            peer_class_default_ids: $row.try_get("peer_class_default_ids")?,
+            listen_interfaces: $row.try_get("listen_interfaces")?,
+            ipv6_mode: $row.try_get("ipv6_mode")?,
+            privacy: $toggles.privacy,
+            outgoing_port_min: $row.try_get("outgoing_port_min")?,
+            outgoing_port_max: $row.try_get("outgoing_port_max")?,
+            peer_dscp: $row.try_get("peer_dscp")?,
+            connections_limit: $row.try_get("connections_limit")?,
+            connections_limit_per_torrent: $row.try_get("connections_limit_per_torrent")?,
+            unchoke_slots: $row.try_get("unchoke_slots")?,
+            half_open_limit: $row.try_get("half_open_limit")?,
+            alt_speed_download_bps: $row.try_get("alt_speed_download_bps")?,
+            alt_speed_upload_bps: $row.try_get("alt_speed_upload_bps")?,
+            alt_speed_schedule_start_minutes: $row.try_get("alt_speed_schedule_start_minutes")?,
+            alt_speed_schedule_end_minutes: $row.try_get("alt_speed_schedule_end_minutes")?,
+            alt_speed_days: $row.try_get("alt_speed_days")?,
+            stats_interval_ms: $row.try_get("stats_interval_ms")?,
+        }
+    };
+}
+
+impl<'r> FromRow<'r, PgRow> for EngineProfileRow {
+    fn from_row(row: &'r PgRow) -> std::result::Result<Self, sqlx::Error> {
+        let toggles = EngineProfileToggleFlags::from_row(row)?;
+        Ok(engine_profile_row_from_row!(row, toggles))
     }
 }
 
@@ -702,6 +717,8 @@ pub struct ApiKeyRow {
     pub label: Option<String>,
     /// Whether the key is currently enabled.
     pub enabled: bool,
+    /// Optional expiration timestamp for the key.
+    pub expires_at: Option<DateTime<Utc>>,
     /// Optional API key rate limit burst.
     pub rate_limit_burst: Option<i32>,
     /// Optional API key rate limit period in seconds.
@@ -717,6 +734,8 @@ pub struct ApiKeyAuthRow {
     pub enabled: bool,
     /// Optional human-readable label.
     pub label: Option<String>,
+    /// Optional expiration timestamp for the key.
+    pub expires_at: Option<DateTime<Utc>>,
     /// Optional API key rate limit burst.
     pub rate_limit_burst: Option<i32>,
     /// Optional API key rate limit period in seconds.
@@ -732,7 +751,6 @@ pub struct SecretRow {
     pub ciphertext: Vec<u8>,
 }
 
-
 /// Input payload for inserting a setup token.
 #[derive(Debug, Clone)]
 pub struct NewSetupToken<'a> {
@@ -744,6 +762,24 @@ pub struct NewSetupToken<'a> {
     pub issued_by: &'a str,
 }
 
+/// Input payload for inserting an API key.
+#[derive(Debug, Clone)]
+pub struct NewApiKey<'a> {
+    /// Key identifier.
+    pub key_id: &'a str,
+    /// Hashed secret value.
+    pub hash: &'a str,
+    /// Optional human-readable label.
+    pub label: Option<&'a str>,
+    /// Whether the key is currently enabled.
+    pub enabled: bool,
+    /// Optional API key rate limit burst.
+    pub burst: Option<i32>,
+    /// Optional API key rate limit period in seconds.
+    pub per_seconds: Option<i64>,
+    /// Optional expiration timestamp for the key.
+    pub expires_at: Option<DateTime<Utc>>,
+}
 
 /// Manually bump the configuration revision for a table that lacks triggers.
 ///
@@ -758,7 +794,7 @@ where
         .bind(source_table)
         .fetch_one(executor)
         .await
-        .context("failed to bump settings revision")
+        .map_err(map_query_err("bump settings revision"))
 }
 
 /// Remove expired setup tokens that have not been consumed.
@@ -773,7 +809,7 @@ where
     sqlx::query("SELECT revaer_config.cleanup_expired_setup_tokens()")
         .execute(executor)
         .await
-        .context("failed to remove expired setup tokens")?;
+        .map_err(map_query_err("cleanup expired setup tokens"))?;
     Ok(())
 }
 
@@ -789,7 +825,7 @@ where
     sqlx::query("SELECT revaer_config.invalidate_active_setup_tokens()")
         .execute(executor)
         .await
-        .context("failed to invalidate active setup tokens")?;
+        .map_err(map_query_err("invalidate active setup tokens"))?;
     Ok(())
 }
 
@@ -810,7 +846,7 @@ where
         .bind(token.issued_by)
     .execute(executor)
     .await
-    .context("failed to persist setup token")?;
+    .map_err(map_query_err("insert setup token"))?;
     Ok(())
 }
 
@@ -827,7 +863,7 @@ where
         .bind(token_id)
         .execute(executor)
         .await
-        .context("failed to consume setup token")?;
+        .map_err(map_query_err("consume setup token"))?;
     Ok(())
 }
 
@@ -843,7 +879,7 @@ where
     sqlx::query("SELECT revaer_config.factory_reset()")
         .execute(executor)
         .await
-        .context("failed to execute factory reset")?;
+        .map_err(map_query_err("execute factory reset"))?;
     Ok(())
 }
 
@@ -860,7 +896,7 @@ where
         .bind(name)
         .fetch_optional(executor)
         .await
-        .context("failed to load secret row by name")
+        .map_err(map_query_err("fetch secret by name"))
 }
 
 /// String columns on `fs_policy` that store textual values.
@@ -965,7 +1001,7 @@ where
     .bind(id)
     .fetch_one(executor)
     .await
-    .context("failed to load app_profile row")
+    .map_err(map_query_err("fetch app profile row"))
 }
 
 /// Load label policies for the application profile.
@@ -986,7 +1022,7 @@ where
     .bind(profile_id)
     .fetch_all(executor)
     .await
-    .context("failed to load app_label_policies rows")
+    .map_err(map_query_err("list app label policies"))
 }
 
 /// Load the engine profile row for the provided identifier.
@@ -1004,7 +1040,7 @@ where
     .bind(id)
     .fetch_one(executor)
     .await
-    .context("failed to load engine_profile row")
+    .map_err(map_query_err("fetch engine profile row"))
 }
 
 /// Load the filesystem policy row for the provided identifier.
@@ -1020,7 +1056,7 @@ where
         .bind(id)
         .fetch_one(executor)
         .await
-        .context("failed to load fs_policy row")
+        .map_err(map_query_err("fetch fs policy row"))
 }
 
 /// Fetch the monotonic configuration revision.
@@ -1035,7 +1071,7 @@ where
     sqlx::query_scalar("SELECT revaer_config.fetch_revision()")
         .fetch_one(executor)
         .await
-        .context("failed to load settings revision")
+        .map_err(map_query_err("fetch settings revision"))
 }
 
 /// Fetch API keys for configuration reads.
@@ -1050,7 +1086,7 @@ where
     sqlx::query_as::<_, ApiKeyRow>("SELECT * FROM revaer_config.fetch_api_keys()")
         .fetch_all(executor)
         .await
-        .context("failed to fetch auth_api_keys rows")
+        .map_err(map_query_err("fetch api keys"))
 }
 
 /// Fetch a single active setup token row (if any) for the caller.
@@ -1065,7 +1101,7 @@ where
     sqlx::query_as::<_, ActiveTokenRow>("SELECT * FROM revaer_config.fetch_active_setup_token()")
         .fetch_optional(executor)
         .await
-        .context("failed to fetch active setup token")
+        .map_err(map_query_err("fetch active setup token"))
 }
 
 /// Fetch the API key authentication material for a given key identifier.
@@ -1083,7 +1119,7 @@ where
     .bind(key_id)
     .fetch_optional(executor)
     .await
-    .context("failed to fetch API key auth material")
+    .map_err(map_query_err("fetch api key auth"))
 }
 
 /// Fetch the hashed secret for a given API key.
@@ -1101,7 +1137,7 @@ where
     .bind(key_id)
     .fetch_one(executor)
     .await
-    .context("failed to fetch auth_api_keys.hash")
+    .map_err(map_query_err("fetch api key hash"))
 }
 
 /// Delete an API key.
@@ -1118,7 +1154,7 @@ where
             .bind(key_id)
             .fetch_one(executor)
             .await
-            .context("failed to delete auth_api_keys row")?;
+            .map_err(map_query_err("delete api key"))?;
     Ok(u64::try_from(removed).unwrap_or_default())
 }
 
@@ -1136,7 +1172,7 @@ where
         .bind(hash)
         .execute(executor)
         .await
-        .context("failed to update auth_api_keys.hash")?;
+        .map_err(map_query_err("update api key hash"))?;
     Ok(())
 }
 
@@ -1158,7 +1194,7 @@ where
         .bind(label)
         .execute(executor)
         .await
-        .context("failed to update auth_api_keys.label")?;
+        .map_err(map_query_err("update api key label"))?;
     Ok(())
 }
 
@@ -1176,7 +1212,7 @@ where
         .bind(enabled)
         .execute(executor)
         .await
-        .context("failed to update auth_api_keys.enabled")?;
+        .map_err(map_query_err("update api key enabled"))?;
     Ok(())
 }
 
@@ -1202,7 +1238,7 @@ where
         .bind(per_seconds)
         .execute(executor)
         .await
-        .context("failed to update auth_api_keys.rate_limit")?;
+        .map_err(map_query_err("update api key rate limit"))?;
     Ok(())
 }
 
@@ -1211,30 +1247,45 @@ where
 /// # Errors
 ///
 /// Returns an error when the insert fails.
-pub async fn insert_api_key<'e, E>(
-    executor: E,
-    key_id: &str,
-    hash: &str,
-    label: Option<&str>,
-    enabled: bool,
-    burst: Option<i32>,
-    per_seconds: Option<i64>,
-) -> Result<()>
+pub async fn insert_api_key<'e, E>(executor: E, new_key: &NewApiKey<'_>) -> Result<()>
 where
     E: Executor<'e, Database = Postgres>,
 {
     sqlx::query(
-        "SELECT revaer_config.insert_api_key(_key_id => $1, _hash => $2, _label => $3, _enabled => $4, _burst => $5, _per_seconds => $6)",
+        "SELECT revaer_config.insert_api_key(_key_id => $1, _hash => $2, _label => $3, _enabled => $4, _burst => $5, _per_seconds => $6, _expires_at => $7)",
     )
-    .bind(key_id)
-    .bind(hash)
-    .bind(label)
-    .bind(enabled)
-    .bind(burst)
-    .bind(per_seconds)
+    .bind(new_key.key_id)
+    .bind(new_key.hash)
+    .bind(new_key.label)
+    .bind(new_key.enabled)
+    .bind(new_key.burst)
+    .bind(new_key.per_seconds)
+    .bind(new_key.expires_at)
     .execute(executor)
     .await
-    .context("failed to insert auth_api_keys row")?;
+    .map_err(map_query_err("insert api key"))?;
+    Ok(())
+}
+
+/// Update API key expiration.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_api_key_expires_at<'e, E>(
+    executor: E,
+    key_id: &str,
+    expires_at: Option<DateTime<Utc>>,
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_api_key_expires_at(_key_id => $1, _expires_at => $2)")
+        .bind(key_id)
+        .bind(expires_at)
+        .execute(executor)
+        .await
+        .map_err(map_query_err("update api key expires at"))?;
     Ok(())
 }
 
@@ -1258,7 +1309,7 @@ where
         .bind(actor)
         .execute(executor)
         .await
-        .context("failed to upsert settings_secret row")?;
+        .map_err(map_query_err("upsert secret"))?;
     Ok(())
 }
 
@@ -1275,7 +1326,7 @@ where
         .bind(name)
         .fetch_one(executor)
         .await
-        .context("failed to delete settings_secret row")?;
+        .map_err(map_query_err("delete secret"))?;
     Ok(u64::try_from(removed).unwrap_or_default())
 }
 
@@ -1297,7 +1348,7 @@ where
         .bind(instance_name)
         .execute(executor)
         .await
-        .context("failed to update app_profile.instance_name")?;
+        .map_err(map_query_err("update app instance name"))?;
     Ok(())
 }
 
@@ -1315,7 +1366,7 @@ where
         .bind(mode)
         .execute(executor)
         .await
-        .context("failed to update app_profile.mode")?;
+        .map_err(map_query_err("update app mode"))?;
     Ok(())
 }
 
@@ -1333,7 +1384,7 @@ where
         .bind(http_port)
         .execute(executor)
         .await
-        .context("failed to update app_profile.http_port")?;
+        .map_err(map_query_err("update app http port"))?;
     Ok(())
 }
 
@@ -1351,7 +1402,7 @@ where
         .bind(bind_addr)
         .execute(executor)
         .await
-        .context("failed to update app_profile.bind_addr")?;
+        .map_err(map_query_err("update app bind addr"))?;
     Ok(())
 }
 
@@ -1383,8 +1434,37 @@ where
         .bind(otel_endpoint)
         .execute(executor)
         .await
-        .context("failed to update app_profile.telemetry")?;
+        .map_err(map_query_err("update app telemetry"))?;
     Ok(())
+}
+
+/// Input payload for replacing application label policies.
+#[derive(Debug, Clone)]
+pub struct AppLabelPoliciesUpdate<'a> {
+    /// Label kinds.
+    pub kinds: &'a [String],
+    /// Label names.
+    pub names: &'a [String],
+    /// Optional download directories.
+    pub download_dirs: &'a [Option<String>],
+    /// Optional download rate limits in bytes per second.
+    pub rate_limit_download_bps: &'a [Option<i64>],
+    /// Optional upload rate limits in bytes per second.
+    pub rate_limit_upload_bps: &'a [Option<i64>],
+    /// Optional queue positions.
+    pub queue_positions: &'a [Option<i32>],
+    /// Optional auto-managed flags.
+    pub auto_managed: &'a [Option<bool>],
+    /// Optional seed ratio limits.
+    pub seed_ratio_limits: &'a [Option<f64>],
+    /// Optional seed time limits in seconds.
+    pub seed_time_limits: &'a [Option<i64>],
+    /// Optional cleanup seed ratio limits.
+    pub cleanup_seed_ratio_limits: &'a [Option<f64>],
+    /// Optional cleanup seed time limits in seconds.
+    pub cleanup_seed_time_limits: &'a [Option<i64>],
+    /// Optional cleanup remove data flags.
+    pub cleanup_remove_data: &'a [Option<bool>],
 }
 
 /// Replace the application label policies.
@@ -1395,18 +1475,7 @@ where
 pub async fn replace_app_label_policies<'e, E>(
     executor: E,
     id: Uuid,
-    kinds: &[String],
-    names: &[String],
-    download_dirs: &[Option<String>],
-    rate_limit_download_bps: &[Option<i64>],
-    rate_limit_upload_bps: &[Option<i64>],
-    queue_positions: &[Option<i32>],
-    auto_managed: &[Option<bool>],
-    seed_ratio_limits: &[Option<f64>],
-    seed_time_limits: &[Option<i64>],
-    cleanup_seed_ratio_limits: &[Option<f64>],
-    cleanup_seed_time_limits: &[Option<i64>],
-    cleanup_remove_data: &[Option<bool>],
+    update: &AppLabelPoliciesUpdate<'_>,
 ) -> Result<()>
 where
     E: Executor<'e, Database = Postgres>,
@@ -1415,21 +1484,21 @@ where
         "SELECT revaer_config.replace_app_label_policies(_profile_id => $1, _kinds => $2, _names => $3, _download_dirs => $4, _rate_limit_download_bps => $5, _rate_limit_upload_bps => $6, _queue_positions => $7, _auto_managed => $8, _seed_ratio_limits => $9, _seed_time_limits => $10, _cleanup_seed_ratio_limits => $11, _cleanup_seed_time_limits => $12, _cleanup_remove_data => $13)",
     )
         .bind(id)
-        .bind(kinds)
-        .bind(names)
-        .bind(download_dirs)
-        .bind(rate_limit_download_bps)
-        .bind(rate_limit_upload_bps)
-        .bind(queue_positions)
-        .bind(auto_managed)
-        .bind(seed_ratio_limits)
-        .bind(seed_time_limits)
-        .bind(cleanup_seed_ratio_limits)
-        .bind(cleanup_seed_time_limits)
-        .bind(cleanup_remove_data)
+        .bind(update.kinds)
+        .bind(update.names)
+        .bind(update.download_dirs)
+        .bind(update.rate_limit_download_bps)
+        .bind(update.rate_limit_upload_bps)
+        .bind(update.queue_positions)
+        .bind(update.auto_managed)
+        .bind(update.seed_ratio_limits)
+        .bind(update.seed_time_limits)
+        .bind(update.cleanup_seed_ratio_limits)
+        .bind(update.cleanup_seed_time_limits)
+        .bind(update.cleanup_remove_data)
         .execute(executor)
         .await
-        .context("failed to update app_profile label policies")?;
+        .map_err(map_query_err("replace app label policies"))?;
     Ok(())
 }
 
@@ -1451,7 +1520,7 @@ where
         .bind(immutable_keys)
         .execute(executor)
         .await
-        .context("failed to update app_profile.immutable_keys")?;
+        .map_err(map_query_err("update app immutable keys"))?;
     Ok(())
 }
 
@@ -1468,8 +1537,31 @@ where
         .bind(id)
         .execute(executor)
         .await
-        .context("failed to bump app_profile.version")?;
+        .map_err(map_query_err("bump app profile version"))?;
     Ok(())
+}
+
+/// Tracker announce policy update payload.
+#[derive(Debug, Clone)]
+pub struct TrackerAnnouncePolicy {
+    /// Whether to announce to all tiers.
+    pub announce_to_all: bool,
+    /// Whether to replace trackers on add.
+    pub replace_trackers: bool,
+}
+
+/// Tracker proxy policy update payload.
+#[derive(Debug, Clone)]
+pub struct TrackerProxyPolicy {
+    /// Whether to proxy peer connections.
+    pub proxy_peers: bool,
+}
+
+/// Tracker TLS policy update payload.
+#[derive(Debug, Clone)]
+pub struct TrackerTlsPolicy {
+    /// Whether to verify tracker TLS certificates.
+    pub verify: bool,
 }
 
 /// Tracker configuration update payload used for persistence.
@@ -1483,10 +1575,8 @@ pub struct TrackerConfigUpdate<'a> {
     pub listen_interface: Option<&'a str>,
     /// Tracker request timeout in milliseconds.
     pub request_timeout_ms: Option<i32>,
-    /// Whether to announce to all tiers.
-    pub announce_to_all: bool,
-    /// Whether to replace trackers on add.
-    pub replace_trackers: bool,
+    /// Tracker announce policy.
+    pub announce: TrackerAnnouncePolicy,
     /// Tracker proxy host.
     pub proxy_host: Option<&'a str>,
     /// Tracker proxy port.
@@ -1497,16 +1587,16 @@ pub struct TrackerConfigUpdate<'a> {
     pub proxy_username_secret: Option<&'a str>,
     /// Secret name for tracker proxy password.
     pub proxy_password_secret: Option<&'a str>,
-    /// Whether to proxy peer connections.
-    pub proxy_peers: bool,
+    /// Tracker proxy policy.
+    pub proxy: TrackerProxyPolicy,
     /// Optional client certificate path for tracker TLS.
     pub ssl_cert: Option<&'a str>,
     /// Optional client private key path for tracker TLS.
     pub ssl_private_key: Option<&'a str>,
     /// Optional CA certificate bundle path for tracker TLS.
     pub ssl_ca_cert: Option<&'a str>,
-    /// Whether to verify tracker TLS certificates.
-    pub ssl_tracker_verify: bool,
+    /// Tracker TLS policy.
+    pub tls: TrackerTlsPolicy,
     /// Secret name for tracker auth username.
     pub auth_username_secret: Option<&'a str>,
     /// Secret name for tracker auth password.
@@ -1524,7 +1614,7 @@ pub struct TrackerConfigUpdate<'a> {
 pub struct IpFilterUpdate<'a> {
     /// IP filter blocklist URL.
     pub blocklist_url: Option<&'a str>,
-    /// IP filter blocklist ETag.
+    /// IP filter blocklist `ETag`.
     pub etag: Option<&'a str>,
     /// Timestamp of last successful blocklist refresh.
     pub last_updated_at: Option<DateTime<Utc>>,
@@ -1713,7 +1803,7 @@ where
     .bind(profile.stats_interval_ms)
     .execute(executor)
     .await
-    .context("failed to update engine_profile")?;
+    .map_err(map_query_err("update engine profile"))?;
     Ok(())
 }
 
@@ -1739,7 +1829,7 @@ where
     .bind(values)
     .execute(executor)
     .await
-    .context("failed to update engine profile list values")?;
+    .map_err(map_query_err("set engine list values"))?;
     Ok(())
 }
 
@@ -1767,7 +1857,7 @@ where
     .bind(update.cidrs)
     .execute(executor)
     .await
-    .context("failed to update engine ip filter")?;
+    .map_err(map_query_err("set engine ip filter"))?;
     Ok(())
 }
 
@@ -1795,7 +1885,7 @@ where
     .bind(update.days)
     .execute(executor)
     .await
-    .context("failed to update engine alt speed")?;
+    .map_err(map_query_err("set engine alt speed"))?;
     Ok(())
 }
 
@@ -1820,18 +1910,18 @@ where
     .bind(update.announce_ip)
     .bind(update.listen_interface)
     .bind(update.request_timeout_ms)
-    .bind(update.announce_to_all)
-    .bind(update.replace_trackers)
+    .bind(update.announce.announce_to_all)
+    .bind(update.announce.replace_trackers)
     .bind(update.proxy_host)
     .bind(update.proxy_port)
     .bind(update.proxy_kind)
     .bind(update.proxy_username_secret)
     .bind(update.proxy_password_secret)
-    .bind(update.proxy_peers)
+    .bind(update.proxy.proxy_peers)
     .bind(update.ssl_cert)
     .bind(update.ssl_private_key)
     .bind(update.ssl_ca_cert)
-    .bind(update.ssl_tracker_verify)
+    .bind(update.tls.verify)
     .bind(update.auth_username_secret)
     .bind(update.auth_password_secret)
     .bind(update.auth_cookie_secret)
@@ -1839,7 +1929,7 @@ where
     .bind(update.extra_urls)
     .execute(executor)
     .await
-    .context("failed to update tracker configuration")?;
+    .map_err(map_query_err("set tracker configuration"))?;
     Ok(())
 }
 
@@ -1869,7 +1959,7 @@ where
     .bind(update.default_class_ids)
     .execute(executor)
     .await
-    .context("failed to update peer classes")?;
+    .map_err(map_query_err("set peer classes"))?;
     Ok(())
 }
 
@@ -1895,7 +1985,7 @@ where
     .bind(value)
     .execute(executor)
     .await
-    .context("failed to update fs_policy string field")?;
+    .map_err(map_query_err("update fs string field"))?;
     Ok(())
 }
 
@@ -1921,7 +2011,7 @@ where
     .bind(value)
     .execute(executor)
     .await
-    .context("failed to update fs_policy boolean field")?;
+    .map_err(map_query_err("update fs boolean field"))?;
     Ok(())
 }
 
@@ -1947,7 +2037,7 @@ where
     .bind(values)
     .execute(executor)
     .await
-    .context("failed to update fs_policy array field")?;
+    .map_err(map_query_err("update fs array field"))?;
     Ok(())
 }
 
@@ -1973,7 +2063,7 @@ where
     .bind(value)
     .execute(executor)
     .await
-    .context("failed to update fs_policy optional string field")?;
+    .map_err(map_query_err("update fs optional string field"))?;
     Ok(())
 }
 

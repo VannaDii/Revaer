@@ -110,7 +110,8 @@ pub(crate) async fn create_torrent_authoring(
         .await
         .map_err(|err| {
             error!(error = %err, "failed to author torrent");
-            ApiError::bad_request(err.to_string())
+            ApiError::bad_request("torrent authoring rejected")
+                .with_context_field("error", err.to_string())
         })?;
     Ok(Json(TorrentAuthorResponse::from_core(result)))
 }
@@ -119,7 +120,7 @@ pub(crate) async fn list_torrent_categories(
     State(state): State<Arc<ApiState>>,
     Extension(context): Extension<crate::http::auth::AuthContext>,
 ) -> Result<Json<Vec<TorrentLabelEntry>>, ApiError> {
-    let _ = require_api_key(context)?;
+    require_api_key(context)?;
     let catalog = load_label_catalog(state.as_ref()).await?;
     let mut entries: Vec<TorrentLabelEntry> = catalog
         .categories
@@ -160,7 +161,7 @@ pub(crate) async fn list_torrent_tags(
     State(state): State<Arc<ApiState>>,
     Extension(context): Extension<crate::http::auth::AuthContext>,
 ) -> Result<Json<Vec<TorrentLabelEntry>>, ApiError> {
-    let _ = require_api_key(context)?;
+    require_api_key(context)?;
     let catalog = load_label_catalog(state.as_ref()).await?;
     let mut entries: Vec<TorrentLabelEntry> = catalog
         .tags
@@ -212,9 +213,7 @@ pub(crate) async fn delete_torrent(
     info!(torrent_id = %id, "torrent removal requested");
     state.remove_metadata(&id);
     state.update_torrent_metrics().await;
-    let _ = state
-        .events
-        .publish(CoreEvent::TorrentRemoved { torrent_id: id });
+    state.publish_event(CoreEvent::TorrentRemoved { torrent_id: id });
     Ok(StatusCode::NO_CONTENT)
 }
 
@@ -1014,13 +1013,17 @@ fn require_api_key(context: crate::http::auth::AuthContext) -> Result<String, Ap
 #[cfg(test)]
 mod tests {
     use super::*;
+    use anyhow::{Result, anyhow};
     use axum::http::StatusCode;
-    use revaer_config::{ApiKeyAuth, AppMode, AppProfile, LabelPolicy, SettingsChangeset, TelemetryConfig};
+    use revaer_config::{
+        ApiKeyAuth, AppMode, AppProfile, ConfigError, ConfigResult, LabelPolicy, SettingsChangeset,
+        TelemetryConfig,
+    };
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
     use revaer_torrent_core::{
         AddTorrent, FileSelectionUpdate, PeerChoke, PeerInterest, PeerSnapshot, RemoveTorrent,
-        TorrentCleanupPolicy, TorrentLabelPolicy, TorrentRateLimit, TorrentStatus,
+        TorrentCleanupPolicy, TorrentLabelPolicy, TorrentRateLimit, TorrentResult, TorrentStatus,
         model::{
             PieceDeadline, TorrentAuthorFile, TorrentAuthorResult, TorrentOptionsUpdate,
             TorrentTrackersUpdate,
@@ -1032,7 +1035,7 @@ mod tests {
     use tokio::sync::Mutex as AsyncMutex;
 
     #[test]
-    fn build_add_torrent_rejects_seed_ratio_override() {
+    fn build_add_torrent_rejects_seed_ratio_override() -> Result<()> {
         let request = TorrentCreateRequest {
             id: Uuid::new_v4(),
             magnet: Some(
@@ -1043,16 +1046,18 @@ mod tests {
         };
 
         let err = build_add_torrent(&request, Vec::new(), Vec::new(), None)
-            .expect_err("seed ratio overrides rejected");
-        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+            .err()
+            .ok_or_else(|| anyhow!("expected seed ratio override error"))?;
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
         assert_eq!(
-            err.detail.as_deref(),
+            err.detail(),
             Some("seed_ratio_limit overrides are not supported per-torrent")
         );
+        Ok(())
     }
 
     #[test]
-    fn build_add_torrent_rejects_seed_time_override() {
+    fn build_add_torrent_rejects_seed_time_override() -> Result<()> {
         let request = TorrentCreateRequest {
             id: Uuid::new_v4(),
             magnet: Some(
@@ -1063,16 +1068,18 @@ mod tests {
         };
 
         let err = build_add_torrent(&request, Vec::new(), Vec::new(), None)
-            .expect_err("seed time overrides rejected");
-        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+            .err()
+            .ok_or_else(|| anyhow!("expected seed time override error"))?;
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
         assert_eq!(
-            err.detail.as_deref(),
+            err.detail(),
             Some("seed_time_limit overrides are not supported per-torrent")
         );
+        Ok(())
     }
 
     #[test]
-    fn build_add_torrent_rejects_sample_without_seed_mode() {
+    fn build_add_torrent_rejects_sample_without_seed_mode() -> Result<()> {
         let request = TorrentCreateRequest {
             id: Uuid::new_v4(),
             magnet: Some(
@@ -1084,12 +1091,14 @@ mod tests {
         };
 
         let err = build_add_torrent(&request, Vec::new(), Vec::new(), None)
-            .expect_err("sample requires seed mode");
-        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+            .err()
+            .ok_or_else(|| anyhow!("expected seed mode error"))?;
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
+        Ok(())
     }
 
     #[test]
-    fn build_add_torrent_rejects_sample_above_bounds() {
+    fn build_add_torrent_rejects_sample_above_bounds() -> Result<()> {
         let request = TorrentCreateRequest {
             id: Uuid::new_v4(),
             magnet: Some(
@@ -1101,12 +1110,14 @@ mod tests {
         };
 
         let err = build_add_torrent(&request, Vec::new(), Vec::new(), None)
-            .expect_err("sample over 100 is rejected");
-        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+            .err()
+            .ok_or_else(|| anyhow!("expected sample bounds error"))?;
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
+        Ok(())
     }
 
     #[test]
-    fn build_add_torrent_rejects_negative_queue_position() {
+    fn build_add_torrent_rejects_negative_queue_position() -> Result<()> {
         let request = TorrentCreateRequest {
             id: Uuid::new_v4(),
             magnet: Some(
@@ -1117,12 +1128,14 @@ mod tests {
         };
 
         let err = build_add_torrent(&request, Vec::new(), Vec::new(), None)
-            .expect_err("negative queue position rejected");
-        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+            .err()
+            .ok_or_else(|| anyhow!("expected queue position error"))?;
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
+        Ok(())
     }
 
     #[test]
-    fn build_add_torrent_rejects_private_without_trackers() {
+    fn build_add_torrent_rejects_private_without_trackers() -> Result<()> {
         let request = TorrentCreateRequest {
             id: Uuid::new_v4(),
             magnet: Some(
@@ -1134,12 +1147,14 @@ mod tests {
         };
 
         let err = build_add_torrent(&request, Vec::new(), Vec::new(), None)
-            .expect_err("private torrents require trackers when replacing");
-        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+            .err()
+            .ok_or_else(|| anyhow!("expected tracker requirement error"))?;
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
+        Ok(())
     }
 
     #[test]
-    fn build_add_torrent_accepts_v2_magnet() {
+    fn build_add_torrent_accepts_v2_magnet() -> Result<()> {
         let request = TorrentCreateRequest {
             id: Uuid::new_v4(),
             magnet: Some(
@@ -1149,12 +1164,12 @@ mod tests {
             ..TorrentCreateRequest::default()
         };
 
-        let result = build_add_torrent(&request, Vec::new(), Vec::new(), None);
-        assert!(result.is_ok(), "v2 magnet should be accepted");
+        build_add_torrent(&request, Vec::new(), Vec::new(), None)?;
+        Ok(())
     }
 
     #[test]
-    fn build_add_torrent_applies_category_policy() {
+    fn build_add_torrent_applies_category_policy() -> Result<()> {
         let request = TorrentCreateRequest {
             id: Uuid::new_v4(),
             magnet: Some("magnet:?xt=urn:btih:abc".to_string()),
@@ -1181,8 +1196,7 @@ mod tests {
             },
         );
 
-        let add = build_add_torrent(&request, Vec::new(), Vec::new(), Some(&catalog))
-            .expect("policy should apply");
+        let add = build_add_torrent(&request, Vec::new(), Vec::new(), Some(&catalog))?;
         assert_eq!(
             add.options.download_dir.as_deref(),
             Some("/downloads/movies")
@@ -1198,10 +1212,11 @@ mod tests {
                 remove_data: true,
             })
         );
+        Ok(())
     }
 
     #[test]
-    fn build_add_torrent_applies_tag_policy_without_overrides() {
+    fn build_add_torrent_applies_tag_policy_without_overrides() -> Result<()> {
         let request = TorrentCreateRequest {
             id: Uuid::new_v4(),
             magnet: Some("magnet:?xt=urn:btih:def".to_string()),
@@ -1223,11 +1238,11 @@ mod tests {
             },
         );
 
-        let add = build_add_torrent(&request, Vec::new(), Vec::new(), Some(&catalog))
-            .expect("policy should apply");
+        let add = build_add_torrent(&request, Vec::new(), Vec::new(), Some(&catalog))?;
         assert_eq!(add.options.rate_limit.download_bps, Some(100));
         assert_eq!(add.options.rate_limit.upload_bps, Some(500));
         assert_eq!(add.options.auto_managed, Some(false));
+        Ok(())
     }
 
     fn sample_author_result() -> TorrentAuthorResult {
@@ -1257,34 +1272,34 @@ mod tests {
 
     #[async_trait::async_trait]
     impl revaer_torrent_core::TorrentWorkflow for AuthoringWorkflow {
-        async fn add_torrent(&self, _: AddTorrent) -> anyhow::Result<()> {
+        async fn add_torrent(&self, _: AddTorrent) -> TorrentResult<()> {
             Ok(())
         }
 
         async fn create_torrent(
             &self,
             request: revaer_torrent_core::model::TorrentAuthorRequest,
-        ) -> anyhow::Result<TorrentAuthorResult> {
+        ) -> TorrentResult<TorrentAuthorResult> {
             self.created.lock().await.push(request);
             Ok(sample_author_result())
         }
 
-        async fn remove_torrent(&self, _: Uuid, _: RemoveTorrent) -> anyhow::Result<()> {
+        async fn remove_torrent(&self, _: Uuid, _: RemoveTorrent) -> TorrentResult<()> {
             Ok(())
         }
     }
 
     #[async_trait::async_trait]
     impl revaer_torrent_core::TorrentInspector for AuthoringWorkflow {
-        async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+        async fn list(&self) -> TorrentResult<Vec<TorrentStatus>> {
             Ok(Vec::new())
         }
 
-        async fn get(&self, _: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+        async fn get(&self, _: Uuid) -> TorrentResult<Option<TorrentStatus>> {
             Ok(None)
         }
 
-        async fn peers(&self, _: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+        async fn peers(&self, _: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
             Ok(Vec::new())
         }
     }
@@ -1295,30 +1310,24 @@ mod tests {
 
     #[async_trait::async_trait]
     impl revaer_torrent_core::TorrentInspector for StaticInspector {
-        async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+        async fn list(&self) -> TorrentResult<Vec<TorrentStatus>> {
             Ok(vec![self.status.clone()])
         }
 
-        async fn get(&self, id: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+        async fn get(&self, id: Uuid) -> TorrentResult<Option<TorrentStatus>> {
             Ok((id == self.status.id).then(|| self.status.clone()))
         }
 
-        async fn peers(&self, _: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+        async fn peers(&self, _: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
             Ok(Vec::new())
         }
     }
 
     #[tokio::test]
-    async fn create_torrent_authoring_dispatches_and_returns_payload() {
+    async fn create_torrent_authoring_dispatches_and_returns_payload() -> Result<()> {
         let workflow = Arc::new(AuthoringWorkflow::default());
         let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
-        let state = Arc::new(ApiState::new(
-            Arc::new(DummyConfig),
-            Metrics::new().expect("metrics"),
-            Arc::new(json!({})),
-            EventBus::with_capacity(4),
-            Some(handles),
-        ));
+        let state = api_state_with(Some(handles))?;
 
         let request = TorrentAuthorRequest {
             root_path: "/data/demo".to_string(),
@@ -1343,8 +1352,7 @@ mod tests {
             }),
             Json(request.clone()),
         )
-        .await
-        .expect("authoring should succeed");
+        .await?;
 
         assert_eq!(response.magnet_uri, "magnet:?xt=urn:btih:demo");
         assert_eq!(response.info_hash, "deadbeef");
@@ -1375,10 +1383,11 @@ mod tests {
         );
         assert_eq!(recorded.piece_length, None);
         assert!(recorded.file_rules.skip_fluff);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn get_torrent_exposes_comment_source_private() {
+    async fn get_torrent_exposes_comment_source_private() -> Result<()> {
         let torrent_id = Uuid::new_v4();
         let status = TorrentStatus {
             id: torrent_id,
@@ -1390,34 +1399,23 @@ mod tests {
         let workflow = Arc::new(RecordingWorkflow::default());
         let inspector = Arc::new(StaticInspector { status });
         let handles = TorrentHandles::new(workflow, inspector);
-        let state = Arc::new(ApiState::new(
-            Arc::new(DummyConfig),
-            Metrics::new().expect("metrics"),
-            Arc::new(json!({})),
-            EventBus::with_capacity(4),
-            Some(handles),
-        ));
+        let state = api_state_with(Some(handles))?;
 
-        let Json(detail) = get_torrent(State(state), AxumPath(torrent_id))
-            .await
-            .expect("detail should resolve");
-        let settings = detail.settings.expect("settings available");
+        let Json(detail) = get_torrent(State(state), AxumPath(torrent_id)).await?;
+        let settings = detail
+            .settings
+            .ok_or_else(|| anyhow!("expected settings"))?;
         assert_eq!(settings.comment.as_deref(), Some("note"));
         assert_eq!(settings.source.as_deref(), Some("source"));
         assert_eq!(settings.private, Some(true));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn list_torrent_trackers_returns_metadata() {
+    async fn list_torrent_trackers_returns_metadata() -> Result<()> {
         let workflow = Arc::new(RecordingWorkflow::default());
         let handles = TorrentHandles::new(workflow.clone(), workflow);
-        let state = Arc::new(ApiState::new(
-            Arc::new(DummyConfig),
-            Metrics::new().expect("metrics"),
-            Arc::new(json!({})),
-            EventBus::with_capacity(4),
-            Some(handles),
-        ));
+        let state = api_state_with(Some(handles))?;
         let torrent_id = Uuid::new_v4();
         state.set_metadata(
             torrent_id,
@@ -1430,24 +1428,18 @@ mod tests {
             },
         );
 
-        let Json(response) = list_torrent_trackers(State(state.clone()), AxumPath(torrent_id))
-            .await
-            .expect("list should succeed");
+        let Json(response) =
+            list_torrent_trackers(State(state.clone()), AxumPath(torrent_id)).await?;
         assert_eq!(response.trackers.len(), 2);
         assert!(response.trackers.iter().all(|entry| entry.status.is_none()));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn list_torrent_peers_returns_snapshot() {
+    async fn list_torrent_peers_returns_snapshot() -> Result<()> {
         let workflow = Arc::new(RecordingWorkflow::default());
         let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
-        let state = Arc::new(ApiState::new(
-            Arc::new(DummyConfig),
-            Metrics::new().expect("metrics"),
-            Arc::new(json!({})),
-            EventBus::with_capacity(4),
-            Some(handles),
-        ));
+        let state = api_state_with(Some(handles))?;
         let torrent_id = Uuid::new_v4();
         workflow
             .set_peers(
@@ -1470,26 +1462,19 @@ mod tests {
             )
             .await;
 
-        let Json(peers) = list_torrent_peers(State(state), AxumPath(torrent_id))
-            .await
-            .expect("peers should be listed");
+        let Json(peers) = list_torrent_peers(State(state), AxumPath(torrent_id)).await?;
         assert_eq!(peers.len(), 1);
         assert_eq!(peers[0].endpoint, "192.0.2.1:6881");
         assert!(peers[0].interest.local);
         assert!(peers[0].interest.remote);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn update_torrent_options_rejects_comment_updates() {
+    async fn update_torrent_options_rejects_comment_updates() -> Result<()> {
         let workflow = Arc::new(RecordingWorkflow::default());
         let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
-        let state = Arc::new(ApiState::new(
-            Arc::new(DummyConfig),
-            Metrics::new().expect("metrics"),
-            Arc::new(json!({})),
-            EventBus::with_capacity(4),
-            Some(handles),
-        ));
+        let state = api_state_with(Some(handles))?;
         let torrent_id = Uuid::new_v4();
 
         let err = update_torrent_options(
@@ -1504,28 +1489,24 @@ mod tests {
             }),
         )
         .await
-        .expect_err("comment updates rejected");
+        .err()
+        .ok_or_else(|| anyhow!("expected comment update error"))?;
 
-        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
         assert_eq!(
-            err.detail.as_deref(),
+            err.detail(),
             Some("comment updates are not supported post-add")
         );
         let updates = workflow.take_options_updates().await;
         assert!(updates.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn update_torrent_options_rejects_source_updates() {
+    async fn update_torrent_options_rejects_source_updates() -> Result<()> {
         let workflow = Arc::new(RecordingWorkflow::default());
         let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
-        let state = Arc::new(ApiState::new(
-            Arc::new(DummyConfig),
-            Metrics::new().expect("metrics"),
-            Arc::new(json!({})),
-            EventBus::with_capacity(4),
-            Some(handles),
-        ));
+        let state = api_state_with(Some(handles))?;
         let torrent_id = Uuid::new_v4();
 
         let err = update_torrent_options(
@@ -1540,28 +1521,24 @@ mod tests {
             }),
         )
         .await
-        .expect_err("source updates rejected");
+        .err()
+        .ok_or_else(|| anyhow!("expected source update error"))?;
 
-        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
         assert_eq!(
-            err.detail.as_deref(),
+            err.detail(),
             Some("source updates are not supported post-add")
         );
         let updates = workflow.take_options_updates().await;
         assert!(updates.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn update_torrent_options_rejects_private_updates() {
+    async fn update_torrent_options_rejects_private_updates() -> Result<()> {
         let workflow = Arc::new(RecordingWorkflow::default());
         let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
-        let state = Arc::new(ApiState::new(
-            Arc::new(DummyConfig),
-            Metrics::new().expect("metrics"),
-            Arc::new(json!({})),
-            EventBus::with_capacity(4),
-            Some(handles),
-        ));
+        let state = api_state_with(Some(handles))?;
         let torrent_id = Uuid::new_v4();
 
         let err = update_torrent_options(
@@ -1576,28 +1553,24 @@ mod tests {
             }),
         )
         .await
-        .expect_err("private updates rejected");
+        .err()
+        .ok_or_else(|| anyhow!("expected private update error"))?;
 
-        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
         assert_eq!(
-            err.detail.as_deref(),
+            err.detail(),
             Some("private flag updates are not supported post-add")
         );
         let updates = workflow.take_options_updates().await;
         assert!(updates.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn update_torrent_options_rejects_seed_ratio_override() {
+    async fn update_torrent_options_rejects_seed_ratio_override() -> Result<()> {
         let workflow = Arc::new(RecordingWorkflow::default());
         let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
-        let state = Arc::new(ApiState::new(
-            Arc::new(DummyConfig),
-            Metrics::new().expect("metrics"),
-            Arc::new(json!({})),
-            EventBus::with_capacity(4),
-            Some(handles),
-        ));
+        let state = api_state_with(Some(handles))?;
         let torrent_id = Uuid::new_v4();
 
         let err = update_torrent_options(
@@ -1612,28 +1585,24 @@ mod tests {
             }),
         )
         .await
-        .expect_err("seed ratio updates rejected");
+        .err()
+        .ok_or_else(|| anyhow!("expected seed ratio update error"))?;
 
-        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
         assert_eq!(
-            err.detail.as_deref(),
+            err.detail(),
             Some("seed_ratio_limit overrides are not supported per-torrent")
         );
         let updates = workflow.take_options_updates().await;
         assert!(updates.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn update_torrent_options_rejects_seed_time_override() {
+    async fn update_torrent_options_rejects_seed_time_override() -> Result<()> {
         let workflow = Arc::new(RecordingWorkflow::default());
         let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
-        let state = Arc::new(ApiState::new(
-            Arc::new(DummyConfig),
-            Metrics::new().expect("metrics"),
-            Arc::new(json!({})),
-            EventBus::with_capacity(4),
-            Some(handles),
-        ));
+        let state = api_state_with(Some(handles))?;
         let torrent_id = Uuid::new_v4();
 
         let err = update_torrent_options(
@@ -1648,28 +1617,24 @@ mod tests {
             }),
         )
         .await
-        .expect_err("seed time updates rejected");
+        .err()
+        .ok_or_else(|| anyhow!("expected seed time update error"))?;
 
-        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
         assert_eq!(
-            err.detail.as_deref(),
+            err.detail(),
             Some("seed_time_limit overrides are not supported per-torrent")
         );
         let updates = workflow.take_options_updates().await;
         assert!(updates.is_empty());
+        Ok(())
     }
 
     #[tokio::test]
-    async fn remove_torrent_trackers_filters_and_replaces() {
+    async fn remove_torrent_trackers_filters_and_replaces() -> Result<()> {
         let workflow = Arc::new(RecordingWorkflow::default());
         let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
-        let state = Arc::new(ApiState::new(
-            Arc::new(DummyConfig),
-            Metrics::new().expect("metrics"),
-            Arc::new(json!({})),
-            EventBus::with_capacity(4),
-            Some(handles),
-        ));
+        let state = api_state_with(Some(handles))?;
         let torrent_id = Uuid::new_v4();
         state.set_metadata(
             torrent_id,
@@ -1692,8 +1657,7 @@ mod tests {
                 trackers: vec!["https://tracker.example/announce".to_string()],
             }),
         )
-        .await
-        .expect("removal should succeed");
+        .await?;
 
         let updates = workflow.take_tracker_updates().await;
         assert_eq!(updates.len(), 1);
@@ -1705,19 +1669,14 @@ mod tests {
 
         let metadata = state.get_metadata(&torrent_id);
         assert_eq!(metadata.trackers, vec!["udp://backup/announce".to_string()]);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn move_action_updates_metadata_and_dispatches() {
+    async fn move_action_updates_metadata_and_dispatches() -> Result<()> {
         let workflow = Arc::new(RecordingWorkflow::default());
         let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
-        let state = Arc::new(ApiState::new(
-            Arc::new(DummyConfig),
-            Metrics::new().expect("metrics"),
-            Arc::new(json!({})),
-            EventBus::with_capacity(4),
-            Some(handles),
-        ));
+        let state = api_state_with(Some(handles))?;
         let torrent_id = Uuid::new_v4();
 
         let response = action_torrent(
@@ -1730,8 +1689,7 @@ mod tests {
                 download_dir: "/downloads/new".to_string(),
             }),
         )
-        .await
-        .expect("action should succeed");
+        .await?;
 
         assert_eq!(response, StatusCode::ACCEPTED);
         let moves = workflow.take_moves().await;
@@ -1740,19 +1698,14 @@ mod tests {
 
         let metadata = state.get_metadata(&torrent_id);
         assert_eq!(metadata.download_dir.as_deref(), Some("/downloads/new"));
+        Ok(())
     }
 
     #[tokio::test]
-    async fn piece_deadline_action_dispatches() {
+    async fn piece_deadline_action_dispatches() -> Result<()> {
         let workflow = Arc::new(RecordingWorkflow::default());
         let handles = TorrentHandles::new(workflow.clone(), workflow.clone());
-        let state = Arc::new(ApiState::new(
-            Arc::new(DummyConfig),
-            Metrics::new().expect("metrics"),
-            Arc::new(json!({})),
-            EventBus::with_capacity(4),
-            Some(handles),
-        ));
+        let state = api_state_with(Some(handles))?;
         let torrent_id = Uuid::new_v4();
 
         let response = action_torrent(
@@ -1766,8 +1719,7 @@ mod tests {
                 deadline_ms: Some(1_500),
             }),
         )
-        .await
-        .expect("action should succeed");
+        .await?;
 
         assert_eq!(response, StatusCode::ACCEPTED);
         let deadlines = workflow.take_deadlines().await;
@@ -1775,6 +1727,7 @@ mod tests {
         assert_eq!(deadlines[0].0, torrent_id);
         assert_eq!(deadlines[0].1.piece, 7);
         assert_eq!(deadlines[0].1.deadline_ms, Some(1_500));
+        Ok(())
     }
 
     #[derive(Default)]
@@ -1788,31 +1741,31 @@ mod tests {
 
     #[async_trait::async_trait]
     impl revaer_torrent_core::TorrentWorkflow for RecordingWorkflow {
-        async fn add_torrent(&self, _: AddTorrent) -> anyhow::Result<()> {
+        async fn add_torrent(&self, _: AddTorrent) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn remove_torrent(&self, _: Uuid, _: RemoveTorrent) -> anyhow::Result<()> {
+        async fn remove_torrent(&self, _: Uuid, _: RemoveTorrent) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn pause_torrent(&self, _: Uuid) -> anyhow::Result<()> {
+        async fn pause_torrent(&self, _: Uuid) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn resume_torrent(&self, _: Uuid) -> anyhow::Result<()> {
+        async fn resume_torrent(&self, _: Uuid) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn set_sequential(&self, _: Uuid, _: bool) -> anyhow::Result<()> {
+        async fn set_sequential(&self, _: Uuid, _: bool) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn update_limits(&self, _: Option<Uuid>, _: TorrentRateLimit) -> anyhow::Result<()> {
+        async fn update_limits(&self, _: Option<Uuid>, _: TorrentRateLimit) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn update_selection(&self, _: Uuid, _: FileSelectionUpdate) -> anyhow::Result<()> {
+        async fn update_selection(&self, _: Uuid, _: FileSelectionUpdate) -> TorrentResult<()> {
             Ok(())
         }
 
@@ -1820,7 +1773,7 @@ mod tests {
             &self,
             _: Uuid,
             update: revaer_torrent_core::model::TorrentOptionsUpdate,
-        ) -> anyhow::Result<()> {
+        ) -> TorrentResult<()> {
             self.options_updates.lock().await.push(update);
             Ok(())
         }
@@ -1829,7 +1782,7 @@ mod tests {
             &self,
             _: Uuid,
             trackers: revaer_torrent_core::model::TorrentTrackersUpdate,
-        ) -> anyhow::Result<()> {
+        ) -> TorrentResult<()> {
             self.tracker_updates.lock().await.push(trackers);
             Ok(())
         }
@@ -1838,28 +1791,24 @@ mod tests {
             &self,
             _: Uuid,
             _: revaer_torrent_core::model::TorrentWebSeedsUpdate,
-        ) -> anyhow::Result<()> {
+        ) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn reannounce(&self, _: Uuid) -> anyhow::Result<()> {
+        async fn reannounce(&self, _: Uuid) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn move_torrent(&self, id: Uuid, download_dir: String) -> anyhow::Result<()> {
+        async fn move_torrent(&self, id: Uuid, download_dir: String) -> TorrentResult<()> {
             self.moves.lock().await.push((id, download_dir));
             Ok(())
         }
 
-        async fn recheck(&self, _: Uuid) -> anyhow::Result<()> {
+        async fn recheck(&self, _: Uuid) -> TorrentResult<()> {
             Ok(())
         }
 
-        async fn set_piece_deadline(
-            &self,
-            id: Uuid,
-            deadline: PieceDeadline,
-        ) -> anyhow::Result<()> {
+        async fn set_piece_deadline(&self, id: Uuid, deadline: PieceDeadline) -> TorrentResult<()> {
             self.deadlines.lock().await.push((id, deadline));
             Ok(())
         }
@@ -1867,15 +1816,15 @@ mod tests {
 
     #[async_trait::async_trait]
     impl revaer_torrent_core::TorrentInspector for RecordingWorkflow {
-        async fn list(&self) -> anyhow::Result<Vec<TorrentStatus>> {
+        async fn list(&self) -> TorrentResult<Vec<TorrentStatus>> {
             Ok(Vec::new())
         }
 
-        async fn get(&self, _: Uuid) -> anyhow::Result<Option<TorrentStatus>> {
+        async fn get(&self, _: Uuid) -> TorrentResult<Option<TorrentStatus>> {
             Ok(None)
         }
 
-        async fn peers(&self, id: Uuid) -> anyhow::Result<Vec<PeerSnapshot>> {
+        async fn peers(&self, id: Uuid) -> TorrentResult<Vec<PeerSnapshot>> {
             Ok(self
                 .peers
                 .lock()
@@ -1920,11 +1869,28 @@ mod tests {
         }
     }
 
+    fn api_state_with_config(
+        config: Arc<dyn crate::config::ConfigFacade>,
+        handles: Option<TorrentHandles>,
+    ) -> Result<Arc<ApiState>> {
+        Ok(Arc::new(ApiState::new(
+            config,
+            Metrics::new().map_err(|_| anyhow!("metrics init"))?,
+            Arc::new(json!({})),
+            EventBus::with_capacity(4),
+            handles,
+        )))
+    }
+
+    fn api_state_with(handles: Option<TorrentHandles>) -> Result<Arc<ApiState>> {
+        api_state_with_config(Arc::new(DummyConfig), handles)
+    }
+
     struct DummyConfig;
 
     #[async_trait::async_trait]
     impl crate::config::ConfigFacade for DummyConfig {
-        async fn get_app_profile(&self) -> anyhow::Result<AppProfile> {
+        async fn get_app_profile(&self) -> ConfigResult<AppProfile> {
             Ok(AppProfile {
                 id: Uuid::new_v4(),
                 instance_name: "test".to_string(),
@@ -1942,15 +1908,20 @@ mod tests {
             &self,
             _: Duration,
             _: &str,
-        ) -> anyhow::Result<revaer_config::SetupToken> {
-            Err(anyhow::anyhow!("not implemented"))
+        ) -> ConfigResult<revaer_config::SetupToken> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "setup_token".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
 
-        async fn validate_setup_token(&self, _: &str) -> anyhow::Result<()> {
+        async fn validate_setup_token(&self, _: &str) -> ConfigResult<()> {
             Ok(())
         }
 
-        async fn consume_setup_token(&self, _: &str) -> anyhow::Result<()> {
+        async fn consume_setup_token(&self, _: &str) -> ConfigResult<()> {
             Ok(())
         }
 
@@ -1959,19 +1930,25 @@ mod tests {
             _: &str,
             _: &str,
             _: SettingsChangeset,
-        ) -> anyhow::Result<revaer_config::AppliedChanges> {
-            Err(anyhow::anyhow!("not implemented"))
+        ) -> ConfigResult<revaer_config::AppliedChanges> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "changeset".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
 
-        async fn snapshot(&self) -> anyhow::Result<revaer_config::ConfigSnapshot> {
-            Err(anyhow::anyhow!("not implemented"))
+        async fn snapshot(&self) -> ConfigResult<revaer_config::ConfigSnapshot> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "snapshot".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
 
-        async fn authenticate_api_key(
-            &self,
-            _: &str,
-            _: &str,
-        ) -> anyhow::Result<Option<ApiKeyAuth>> {
+        async fn authenticate_api_key(&self, _: &str, _: &str) -> ConfigResult<Option<ApiKeyAuth>> {
             Ok(Some(ApiKeyAuth {
                 key_id: "key".to_string(),
                 label: Some("label".to_string()),
@@ -1979,12 +1956,17 @@ mod tests {
             }))
         }
 
-        async fn has_api_keys(&self) -> anyhow::Result<bool> {
+        async fn has_api_keys(&self) -> ConfigResult<bool> {
             Ok(true)
         }
 
-        async fn factory_reset(&self) -> anyhow::Result<()> {
-            Err(anyhow::anyhow!("not implemented"))
+        async fn factory_reset(&self) -> ConfigResult<()> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "factory_reset".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
     }
 
@@ -1995,7 +1977,7 @@ mod tests {
 
     #[async_trait::async_trait]
     impl crate::config::ConfigFacade for LabelConfig {
-        async fn get_app_profile(&self) -> anyhow::Result<AppProfile> {
+        async fn get_app_profile(&self) -> ConfigResult<AppProfile> {
             Ok(AppProfile {
                 id: Uuid::new_v4(),
                 instance_name: "labels".to_string(),
@@ -2013,15 +1995,20 @@ mod tests {
             &self,
             _: Duration,
             _: &str,
-        ) -> anyhow::Result<revaer_config::SetupToken> {
-            Err(anyhow::anyhow!("not implemented"))
+        ) -> ConfigResult<revaer_config::SetupToken> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "setup_token".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
 
-        async fn validate_setup_token(&self, _: &str) -> anyhow::Result<()> {
+        async fn validate_setup_token(&self, _: &str) -> ConfigResult<()> {
             Ok(())
         }
 
-        async fn consume_setup_token(&self, _: &str) -> anyhow::Result<()> {
+        async fn consume_setup_token(&self, _: &str) -> ConfigResult<()> {
             Ok(())
         }
 
@@ -2030,7 +2017,7 @@ mod tests {
             _: &str,
             _: &str,
             changeset: SettingsChangeset,
-        ) -> anyhow::Result<revaer_config::AppliedChanges> {
+        ) -> ConfigResult<revaer_config::AppliedChanges> {
             if let Some(app_profile) = changeset.app_profile.as_ref() {
                 *self.label_policies.lock().await = app_profile.label_policies.clone();
             }
@@ -2042,15 +2029,16 @@ mod tests {
             })
         }
 
-        async fn snapshot(&self) -> anyhow::Result<revaer_config::ConfigSnapshot> {
-            Err(anyhow::anyhow!("not implemented"))
+        async fn snapshot(&self) -> ConfigResult<revaer_config::ConfigSnapshot> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "snapshot".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
 
-        async fn authenticate_api_key(
-            &self,
-            _: &str,
-            _: &str,
-        ) -> anyhow::Result<Option<ApiKeyAuth>> {
+        async fn authenticate_api_key(&self, _: &str, _: &str) -> ConfigResult<Option<ApiKeyAuth>> {
             Ok(Some(ApiKeyAuth {
                 key_id: "key".to_string(),
                 label: Some("label".to_string()),
@@ -2058,33 +2046,30 @@ mod tests {
             }))
         }
 
-        async fn has_api_keys(&self) -> anyhow::Result<bool> {
+        async fn has_api_keys(&self) -> ConfigResult<bool> {
             Ok(true)
         }
 
-        async fn factory_reset(&self) -> anyhow::Result<()> {
-            Err(anyhow::anyhow!("not implemented"))
+        async fn factory_reset(&self) -> ConfigResult<()> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "factory_reset".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
     }
 
     #[tokio::test]
-    async fn torrent_label_endpoints_round_trip() {
+    async fn torrent_label_endpoints_round_trip() -> Result<()> {
         let config: Arc<dyn crate::config::ConfigFacade> = Arc::new(LabelConfig::default());
-        let state = Arc::new(ApiState::new(
-            config,
-            Metrics::new().expect("metrics"),
-            Arc::new(json!({})),
-            EventBus::with_capacity(4),
-            None,
-        ));
+        let state = api_state_with_config(config, None)?;
         let context = crate::http::auth::AuthContext::ApiKey {
             key_id: "key".to_string(),
         };
 
         let Json(categories) =
-            list_torrent_categories(State(Arc::clone(&state)), Extension(context.clone()))
-                .await
-                .expect("categories should list");
+            list_torrent_categories(State(Arc::clone(&state)), Extension(context.clone())).await?;
         assert!(categories.is_empty());
 
         let Json(category) = upsert_torrent_category(
@@ -2097,8 +2082,7 @@ mod tests {
                 ..TorrentLabelPolicy::default()
             }),
         )
-        .await
-        .expect("category upsert");
+        .await?;
         assert_eq!(category.name, "movies");
         assert_eq!(
             category.policy.download_dir.as_deref(),
@@ -2106,9 +2090,8 @@ mod tests {
         );
         assert_eq!(category.policy.auto_managed, Some(false));
 
-        let Json(tags) = list_torrent_tags(State(Arc::clone(&state)), Extension(context.clone()))
-            .await
-            .expect("tags should list");
+        let Json(tags) =
+            list_torrent_tags(State(Arc::clone(&state)), Extension(context.clone())).await?;
         assert!(tags.is_empty());
 
         let Json(tag) = upsert_torrent_tag(
@@ -2117,19 +2100,15 @@ mod tests {
             AxumPath("alpha".to_string()),
             Json(TorrentLabelPolicy::default()),
         )
-        .await
-        .expect("tag upsert");
+        .await?;
         assert_eq!(tag.name, "alpha");
 
         let Json(categories) =
-            list_torrent_categories(State(Arc::clone(&state)), Extension(context.clone()))
-                .await
-                .expect("categories should list");
+            list_torrent_categories(State(Arc::clone(&state)), Extension(context.clone())).await?;
         assert_eq!(categories.len(), 1);
 
-        let Json(tags) = list_torrent_tags(State(state), Extension(context))
-            .await
-            .expect("tags should list");
+        let Json(tags) = list_torrent_tags(State(state), Extension(context)).await?;
         assert_eq!(tags.len(), 1);
+        Ok(())
     }
 }

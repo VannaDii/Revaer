@@ -23,6 +23,7 @@ pub mod adapter;
 pub mod command;
 #[cfg(feature = "libtorrent")]
 pub mod convert;
+pub mod error;
 #[cfg(feature = "libtorrent")]
 pub mod ffi;
 /// Session abstraction and native/stub implementations.

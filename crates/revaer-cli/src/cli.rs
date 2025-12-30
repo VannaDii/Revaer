@@ -386,20 +386,26 @@ fn parse_existing_directory(path: &str) -> Result<PathBuf, String> {
 mod tests {
     use super::*;
     use crate::client::{CliError, parse_api_key, parse_url, timestamp_now_ms};
+    use anyhow::{Result, anyhow};
 
     #[test]
-    fn parse_url_rejects_invalid_input() {
-        let err = parse_url("not-a-url").expect_err("invalid URL should fail");
+    fn parse_url_rejects_invalid_input() -> Result<()> {
+        let err = parse_url("not-a-url")
+            .err()
+            .ok_or_else(|| anyhow!("expected invalid URL error"))?;
         assert!(err.contains("invalid URL"));
+        Ok(())
     }
 
     #[test]
-    fn parse_api_key_requires_secret() {
+    fn parse_api_key_requires_secret() -> Result<()> {
         let err = parse_api_key(Some("key_only:".to_string()))
-            .expect_err("expected missing secret to fail");
+            .err()
+            .ok_or_else(|| anyhow!("expected missing secret error"))?;
         assert!(
             matches!(err, CliError::Validation(message) if message.contains("cannot be empty"))
         );
+        Ok(())
     }
 
     #[test]
@@ -433,20 +439,30 @@ mod tests {
     }
 
     #[test]
-    fn parse_existing_file_verifies_path() {
+    fn parse_existing_file_verifies_path() -> Result<()> {
         let tmp = std::env::temp_dir().join(format!("revaer-cli-{}.txt", Uuid::new_v4()));
-        std::fs::write(&tmp, b"ok").expect("write temp file");
-        assert!(parse_existing_file(tmp.to_str().unwrap()).is_ok());
+        std::fs::write(&tmp, b"ok")?;
+        let tmp_path = tmp.to_str().ok_or_else(|| anyhow!("invalid temp path"))?;
+        assert!(parse_existing_file(tmp_path).is_ok());
         let missing =
             std::env::temp_dir().join(format!("revaer-cli-missing-{}.txt", Uuid::new_v4()));
-        assert!(parse_existing_file(missing.to_str().unwrap()).is_err());
+        let missing_path = missing
+            .to_str()
+            .ok_or_else(|| anyhow!("invalid missing path"))?;
+        assert!(parse_existing_file(missing_path).is_err());
+        Ok(())
     }
 
     #[test]
-    fn parse_existing_directory_verifies_path() {
+    fn parse_existing_directory_verifies_path() -> Result<()> {
         let dir = std::env::temp_dir();
-        assert!(parse_existing_directory(dir.to_str().unwrap()).is_ok());
+        let dir_path = dir.to_str().ok_or_else(|| anyhow!("invalid dir path"))?;
+        assert!(parse_existing_directory(dir_path).is_ok());
         let missing = dir.join(format!("revaer-cli-dir-{}", Uuid::new_v4()));
-        assert!(parse_existing_directory(missing.to_str().unwrap()).is_err());
+        let missing_path = missing
+            .to_str()
+            .ok_or_else(|| anyhow!("invalid missing dir path"))?;
+        assert!(parse_existing_directory(missing_path).is_err());
+        Ok(())
     }
 }

@@ -19,8 +19,8 @@ mod tests {
     use async_trait::async_trait;
     use chrono::Utc;
     use revaer_config::{
-        ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigSnapshot, EngineProfile, FsPolicy,
-        SettingsChangeset, SetupToken, TelemetryConfig,
+        ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigError, ConfigResult, ConfigSnapshot,
+        EngineProfile, FsPolicy, SettingsChangeset, SetupToken, TelemetryConfig,
         engine_profile::{AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig},
         normalize_engine_profile,
     };
@@ -34,22 +34,26 @@ mod tests {
 
     #[async_trait]
     impl ConfigFacade for StubConfig {
-        async fn get_app_profile(&self) -> Result<AppProfile> {
+        async fn get_app_profile(&self) -> ConfigResult<AppProfile> {
             Ok(sample_snapshot().app_profile)
         }
 
-        async fn issue_setup_token(&self, _ttl: Duration, _issued_by: &str) -> Result<SetupToken> {
+        async fn issue_setup_token(
+            &self,
+            _ttl: Duration,
+            _issued_by: &str,
+        ) -> ConfigResult<SetupToken> {
             Ok(SetupToken {
                 plaintext: "token".into(),
                 expires_at: Utc::now(),
             })
         }
 
-        async fn validate_setup_token(&self, _token: &str) -> Result<()> {
+        async fn validate_setup_token(&self, _token: &str) -> ConfigResult<()> {
             Ok(())
         }
 
-        async fn consume_setup_token(&self, _token: &str) -> Result<()> {
+        async fn consume_setup_token(&self, _token: &str) -> ConfigResult<()> {
             Ok(())
         }
 
@@ -58,11 +62,14 @@ mod tests {
             _actor: &str,
             _reason: &str,
             _changeset: SettingsChangeset,
-        ) -> Result<AppliedChanges> {
-            Err(anyhow!("not implemented"))
+        ) -> ConfigResult<AppliedChanges> {
+            Err(ConfigError::Io {
+                operation: "docs.apply_changeset",
+                source: std::io::Error::other("stubbed config failure"),
+            })
         }
 
-        async fn snapshot(&self) -> Result<ConfigSnapshot> {
+        async fn snapshot(&self) -> ConfigResult<ConfigSnapshot> {
             Ok(sample_snapshot())
         }
 
@@ -70,20 +77,21 @@ mod tests {
             &self,
             _key_id: &str,
             _secret: &str,
-        ) -> Result<Option<ApiKeyAuth>> {
+        ) -> ConfigResult<Option<ApiKeyAuth>> {
             Ok(None)
         }
 
-        async fn has_api_keys(&self) -> Result<bool> {
+        async fn has_api_keys(&self) -> ConfigResult<bool> {
             Ok(true)
         }
 
-        async fn factory_reset(&self) -> Result<()> {
+        async fn factory_reset(&self) -> ConfigResult<()> {
             Ok(())
         }
     }
 
     fn sample_snapshot() -> ConfigSnapshot {
+        let bind_addr = std::net::IpAddr::from([127, 0, 0, 1]);
         let engine_profile = EngineProfile {
             id: Uuid::nil(),
             implementation: "stub".into(),
@@ -152,7 +160,7 @@ mod tests {
                 mode: AppMode::Setup,
                 version: 1,
                 http_port: 3030,
-                bind_addr: "127.0.0.1".parse().expect("bind addr"),
+                bind_addr,
                 telemetry: TelemetryConfig::default(),
                 label_policies: Vec::new(),
                 immutable_keys: Vec::new(),
@@ -179,9 +187,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn openapi_handler_clones_embedded_document() {
+    async fn openapi_handler_clones_embedded_document() -> Result<()> {
         let config: Arc<dyn ConfigFacade> = Arc::new(StubConfig);
-        let telemetry = Metrics::new().expect("metrics");
+        let telemetry = Metrics::new()?;
         let document = Arc::new(serde_json::json!({"hello": "world"}));
         let state = Arc::new(ApiState::new(
             config,
@@ -198,40 +206,29 @@ mod tests {
             2,
             "document should be cloned per request"
         );
+        Ok(())
     }
 
     #[tokio::test]
-    async fn stub_config_exposes_expected_behavior() {
+    async fn stub_config_exposes_expected_behavior() -> Result<()> {
         let config = StubConfig;
         let token = config
             .issue_setup_token(Duration::from_secs(30), "tester")
-            .await
-            .expect("token issued");
+            .await?;
         assert_eq!(token.plaintext, "token");
 
-        config
-            .validate_setup_token("token")
-            .await
-            .expect("validation should succeed");
-        config
-            .consume_setup_token("token")
-            .await
-            .expect("consumption should succeed");
+        config.validate_setup_token("token").await?;
+        config.consume_setup_token("token").await?;
 
         let err = config
-            .apply_changeset(
-                "actor",
-                "reason",
-                SettingsChangeset::default(),
-            )
+            .apply_changeset("actor", "reason", SettingsChangeset::default())
             .await
-            .expect_err("apply should be unimplemented");
-        assert!(err.to_string().contains("not implemented"));
+            .err()
+            .ok_or_else(|| anyhow!("expected apply error"))?;
+        assert!(matches!(err, ConfigError::Io { .. }));
 
-        let auth = config
-            .authenticate_api_key("id", "secret")
-            .await
-            .expect("authentication call succeeds");
+        let auth = config.authenticate_api_key("id", "secret").await?;
         assert!(auth.is_none());
+        Ok(())
     }
 }

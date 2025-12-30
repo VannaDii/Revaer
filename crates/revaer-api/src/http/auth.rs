@@ -26,8 +26,8 @@ mod tests {
         routing::{get, post},
     };
     use revaer_config::{
-        ApiKeyAuth, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigSnapshot,
-        SettingsChangeset, SetupToken, TelemetryConfig,
+        ApiKeyAuth, ApiKeyRateLimit, AppMode, AppProfile, AppliedChanges, ConfigError,
+        ConfigResult, ConfigSnapshot, SettingsChangeset, SetupToken, TelemetryConfig,
     };
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
@@ -48,7 +48,7 @@ mod tests {
 
     #[async_trait]
     impl crate::config::ConfigFacade for MockConfig {
-        async fn get_app_profile(&self) -> Result<AppProfile> {
+        async fn get_app_profile(&self) -> ConfigResult<AppProfile> {
             Ok(AppProfile {
                 id: Uuid::new_v4(),
                 instance_name: "demo".to_string(),
@@ -62,16 +62,31 @@ mod tests {
             })
         }
 
-        async fn issue_setup_token(&self, _: Duration, _: &str) -> Result<SetupToken> {
-            Err(anyhow::anyhow!("not implemented"))
+        async fn issue_setup_token(&self, _: Duration, _: &str) -> ConfigResult<SetupToken> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "setup_token".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
 
-        async fn validate_setup_token(&self, _: &str) -> Result<()> {
-            Err(anyhow::anyhow!("not implemented"))
+        async fn validate_setup_token(&self, _: &str) -> ConfigResult<()> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "setup_token".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
 
-        async fn consume_setup_token(&self, _: &str) -> Result<()> {
-            Err(anyhow::anyhow!("not implemented"))
+        async fn consume_setup_token(&self, _: &str) -> ConfigResult<()> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "setup_token".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
 
         async fn apply_changeset(
@@ -79,24 +94,39 @@ mod tests {
             _: &str,
             _: &str,
             _: SettingsChangeset,
-        ) -> Result<AppliedChanges> {
-            Err(anyhow::anyhow!("not implemented"))
+        ) -> ConfigResult<AppliedChanges> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "changeset".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
 
-        async fn snapshot(&self) -> Result<ConfigSnapshot> {
-            Err(anyhow::anyhow!("not implemented"))
+        async fn snapshot(&self) -> ConfigResult<ConfigSnapshot> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "snapshot".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
 
-        async fn authenticate_api_key(&self, _: &str, _: &str) -> Result<Option<ApiKeyAuth>> {
+        async fn authenticate_api_key(&self, _: &str, _: &str) -> ConfigResult<Option<ApiKeyAuth>> {
             Ok(self.api_auth.clone())
         }
 
-        async fn has_api_keys(&self) -> Result<bool> {
+        async fn has_api_keys(&self) -> ConfigResult<bool> {
             Ok(self.has_api_keys)
         }
 
-        async fn factory_reset(&self) -> Result<()> {
-            Err(anyhow::anyhow!("not implemented"))
+        async fn factory_reset(&self) -> ConfigResult<()> {
+            Err(ConfigError::InvalidField {
+                section: "config".to_string(),
+                field: "factory_reset".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
         }
     }
 
@@ -130,9 +160,13 @@ mod tests {
             ))
     }
 
-    fn api_state(mode: AppMode, auth: Option<ApiKeyAuth>, has_api_keys: bool) -> Arc<ApiState> {
-        let metrics = Metrics::new().expect("metrics");
-        Arc::new(ApiState::new(
+    fn api_state(
+        mode: AppMode,
+        auth: Option<ApiKeyAuth>,
+        has_api_keys: bool,
+    ) -> Result<Arc<ApiState>> {
+        let metrics = Metrics::new()?;
+        Ok(Arc::new(ApiState::new(
             Arc::new(MockConfig {
                 mode,
                 api_auth: auth,
@@ -142,19 +176,18 @@ mod tests {
             Arc::new(json!({})),
             EventBus::with_capacity(4),
             None,
-        ))
+        )))
     }
 
     #[tokio::test]
-    async fn require_api_key_rejects_missing_and_invalid() {
-        let state = api_state(AppMode::Active, None, true);
+    async fn require_api_key_rejects_missing_and_invalid() -> Result<()> {
+        let state = api_state(AppMode::Active, None, true)?;
         let app = router_with_state(&state);
 
         let response = app
             .clone()
-            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
+            .oneshot(Request::builder().uri("/").body(Body::empty())?)
+            .await?;
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
         let response = app
@@ -162,16 +195,15 @@ mod tests {
                 Request::builder()
                     .uri("/")
                     .header(crate::http::constants::HEADER_API_KEY, "invalid")
-                    .body(Body::empty())
-                    .unwrap(),
+                    .body(Body::empty())?,
             )
-            .await
-            .unwrap();
+            .await?;
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn require_api_key_allows_authenticated_request() {
+    async fn require_api_key_allows_authenticated_request() -> Result<()> {
         let auth = ApiKeyAuth {
             key_id: "demo".to_string(),
             label: Some("label".to_string()),
@@ -180,7 +212,7 @@ mod tests {
                 replenish_period: Duration::from_secs(60),
             }),
         };
-        let state = api_state(AppMode::Active, Some(auth), true);
+        let state = api_state(AppMode::Active, Some(auth), true)?;
         let app = router_with_state(&state);
 
         let response = app
@@ -188,24 +220,22 @@ mod tests {
                 Request::builder()
                     .uri("/")
                     .header(crate::http::constants::HEADER_API_KEY, "demo:secret-token")
-                    .body(Body::empty())
-                    .unwrap(),
+                    .body(Body::empty())?,
             )
-            .await
-            .unwrap();
+            .await?;
         assert_eq!(response.status(), StatusCode::OK);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn require_setup_token_enforces_mode_and_header() {
-        let state = api_state(AppMode::Setup, None, true);
+    async fn require_setup_token_enforces_mode_and_header() -> Result<()> {
+        let state = api_state(AppMode::Setup, None, true)?;
         let app = setup_router_with_state(&state);
 
         let missing = app
             .clone()
-            .oneshot(Request::builder().uri("/").body(Body::empty()).unwrap())
-            .await
-            .unwrap();
+            .oneshot(Request::builder().uri("/").body(Body::empty())?)
+            .await?;
         assert_eq!(missing.status(), StatusCode::UNAUTHORIZED);
 
         let ok = app
@@ -213,31 +243,29 @@ mod tests {
                 Request::builder()
                     .uri("/")
                     .header(crate::http::constants::HEADER_SETUP_TOKEN, "token-123")
-                    .body(Body::empty())
-                    .unwrap(),
+                    .body(Body::empty())?,
             )
-            .await
-            .unwrap();
+            .await?;
         assert_eq!(ok.status(), StatusCode::OK);
 
         // Active mode should reject setup tokens.
-        let active_app = setup_router_with_state(&api_state(AppMode::Active, None, true));
+        let active_state = api_state(AppMode::Active, None, true)?;
+        let active_app = setup_router_with_state(&active_state);
         let rejected = active_app
             .oneshot(
                 Request::builder()
                     .uri("/")
                     .header(crate::http::constants::HEADER_SETUP_TOKEN, "token-123")
-                    .body(Body::empty())
-                    .unwrap(),
+                    .body(Body::empty())?,
             )
-            .await
-            .unwrap();
+            .await?;
         assert_eq!(rejected.status(), StatusCode::CONFLICT);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn require_factory_reset_allows_without_api_key_when_none_exist() {
-        let state = api_state(AppMode::Active, None, false);
+    async fn require_factory_reset_allows_without_api_key_when_none_exist() -> Result<()> {
+        let state = api_state(AppMode::Active, None, false)?;
         let app = factory_reset_router_with_state(&state);
 
         let response = app
@@ -245,17 +273,16 @@ mod tests {
                 Request::builder()
                     .method("POST")
                     .uri("/")
-                    .body(Body::empty())
-                    .unwrap(),
+                    .body(Body::empty())?,
             )
-            .await
-            .unwrap();
+            .await?;
         assert_eq!(response.status(), StatusCode::OK);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn require_factory_reset_rejects_without_api_key_when_keys_exist() {
-        let state = api_state(AppMode::Active, None, true);
+    async fn require_factory_reset_rejects_without_api_key_when_keys_exist() -> Result<()> {
+        let state = api_state(AppMode::Active, None, true)?;
         let app = factory_reset_router_with_state(&state);
 
         let response = app
@@ -263,16 +290,15 @@ mod tests {
                 Request::builder()
                     .method("POST")
                     .uri("/")
-                    .body(Body::empty())
-                    .unwrap(),
+                    .body(Body::empty())?,
             )
-            .await
-            .unwrap();
+            .await?;
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn require_factory_reset_accepts_valid_api_key() {
+    async fn require_factory_reset_accepts_valid_api_key() -> Result<()> {
         let auth = ApiKeyAuth {
             key_id: "demo".to_string(),
             label: Some("label".to_string()),
@@ -281,7 +307,7 @@ mod tests {
                 replenish_period: Duration::from_secs(60),
             }),
         };
-        let state = api_state(AppMode::Active, Some(auth), true);
+        let state = api_state(AppMode::Active, Some(auth), true)?;
         let app = factory_reset_router_with_state(&state);
 
         let response = app
@@ -290,12 +316,11 @@ mod tests {
                     .method("POST")
                     .uri("/")
                     .header(crate::http::constants::HEADER_API_KEY, "demo:secret-token")
-                    .body(Body::empty())
-                    .unwrap(),
+                    .body(Body::empty())?,
             )
-            .await
-            .unwrap();
+            .await?;
         assert_eq!(response.status(), StatusCode::OK);
+        Ok(())
     }
 }
 
@@ -506,22 +531,24 @@ pub(crate) fn extract_api_key(req: &Request<axum::body::Body>) -> Option<String>
     None
 }
 
-pub(crate) fn map_config_error(err: anyhow::Error, context: &'static str) -> ApiError {
-    match err.downcast::<revaer_config::ConfigError>() {
-        Ok(config_err) => {
-            warn!(error = %config_err, "{context}");
-            let mut api_error = ApiError::config_invalid(config_err.to_string());
-            let params = invalid_params_for_config_error(&config_err);
-            if !params.is_empty() {
-                api_error = api_error.with_invalid_params(params);
-            }
-            api_error
-        }
-        Err(other) => {
-            error!(error = %other, "{context}");
-            ApiError::internal(context)
-        }
+pub(crate) fn map_config_error(
+    err: &revaer_config::ConfigError,
+    context: &'static str,
+) -> ApiError {
+    warn!(error = %err, operation = context, "config error");
+    let mut api_error =
+        ApiError::config_invalid("configuration invalid").with_context_field("operation", context);
+    let params = invalid_params_for_config_error(err);
+    if !params.is_empty() {
+        api_error = api_error.with_invalid_params(params);
     }
+    if let revaer_config::ConfigError::InvalidField {
+        value: Some(value), ..
+    } = &err
+    {
+        api_error = api_error.with_context_field("value", value.clone());
+    }
+    api_error
 }
 
 pub(crate) fn pointer_for(section: &str, field: &str) -> String {

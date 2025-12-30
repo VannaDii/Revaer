@@ -348,9 +348,11 @@ fn write_lock(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::error::Error;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     static TEMP_COUNTER: AtomicUsize = AtomicUsize::new(0);
+    type TestResult = Result<(), Box<dyn Error>>;
 
     fn css_fixture() -> String {
         let mut css = String::from("/* test */\n.btn { display: inline-flex; }\n");
@@ -366,16 +368,16 @@ mod tests {
     }
 
     impl TempRoot {
-        fn new() -> Self {
+        fn new() -> Result<Self, std::io::Error> {
             let pid = std::process::id();
             loop {
                 let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
                 let mut path = std::env::temp_dir();
                 path.push(format!("asset-sync-test-{pid}-{counter}"));
                 match fs::create_dir(&path) {
-                    Ok(()) => return Self { path },
+                    Ok(()) => return Ok(Self { path }),
                     Err(err) if err.kind() == std::io::ErrorKind::AlreadyExists => {}
-                    Err(err) => panic!("create temp root: {err}"),
+                    Err(err) => return Err(err),
                 }
             }
         }
@@ -387,54 +389,57 @@ mod tests {
         }
     }
 
-    fn write_vendor_fixture(root: &Path, css: &str) {
+    fn write_vendor_fixture(root: &Path, css: &str) -> Result<(), std::io::Error> {
         let css_path = root.join(VENDOR_ROOT).join("html/assets/app.css");
         if let Some(parent) = css_path.parent() {
-            fs::create_dir_all(parent).expect("create css parent");
+            fs::create_dir_all(parent)?;
         }
-        fs::write(&css_path, css).expect("write css");
+        fs::write(&css_path, css)?;
 
         let images_path = root.join(VENDOR_ROOT).join("html/images");
-        fs::create_dir_all(&images_path).expect("create images dir");
-        fs::write(images_path.join("logo.png"), "png").expect("write image");
+        fs::create_dir_all(&images_path)?;
+        fs::write(images_path.join("logo.png"), "png")?;
 
         let js_path = root.join(VENDOR_ROOT).join("public/js");
-        fs::create_dir_all(&js_path).expect("create js dir");
-        fs::write(js_path.join("app.js"), "console.log('ok');").expect("write js");
+        fs::create_dir_all(&js_path)?;
+        fs::write(js_path.join("app.js"), "console.log('ok');")?;
+        Ok(())
     }
 
     #[test]
-    fn sync_assets_writes_outputs_and_lock() {
-        let temp_root = TempRoot::new();
+    fn sync_assets_writes_outputs_and_lock() -> TestResult {
+        let temp_root = TempRoot::new()?;
         let css_content = css_fixture();
-        write_vendor_fixture(&temp_root.path, &css_content);
+        write_vendor_fixture(&temp_root.path, &css_content)?;
 
-        sync_assets(&temp_root.path).expect("sync assets");
+        sync_assets(&temp_root.path)?;
 
         let output_css = temp_root.path.join(OUTPUT_ROOT).join("assets/app.css");
-        let css_contents = fs::read_to_string(&output_css).expect("read output css");
+        let css_contents = fs::read_to_string(&output_css)?;
         assert_eq!(css_contents, css_content);
 
         let lock_path = temp_root.path.join(OUTPUT_ROOT).join("ASSET_LOCK.txt");
-        let lock_contents = fs::read_to_string(&lock_path).expect("read lock");
-        let css_hash = sha256_hex(&output_css).expect("hash css");
+        let lock_contents = fs::read_to_string(&lock_path)?;
+        let css_hash = sha256_hex(&output_css)?;
         assert!(lock_contents.contains(&format!("app.css sha256 {css_hash}")));
 
         let images_dir = temp_root.path.join(OUTPUT_ROOT).join("images");
         assert!(images_dir.join("logo.png").is_file());
         let js_dir = temp_root.path.join(OUTPUT_ROOT).join("js");
         assert!(js_dir.join("app.js").is_file());
+        Ok(())
     }
 
     #[test]
-    fn invalid_css_fails_validation() {
-        let temp_root = TempRoot::new();
-        write_vendor_fixture(&temp_root.path, "body { color: black; }");
+    fn invalid_css_fails_validation() -> TestResult {
+        let temp_root = TempRoot::new()?;
+        write_vendor_fixture(&temp_root.path, "body { color: black; }")?;
 
         let result = sync_assets(&temp_root.path);
-        match result {
-            Err(AssetSyncError::CssInvalid { .. }) => {}
-            other => panic!("expected CssInvalid error, got {other:?}"),
-        }
+        assert!(
+            matches!(result, Err(AssetSyncError::CssInvalid { .. })),
+            "expected CssInvalid error, got {result:?}"
+        );
+        Ok(())
     }
 }

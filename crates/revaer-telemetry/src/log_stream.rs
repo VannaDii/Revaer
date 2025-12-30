@@ -63,11 +63,16 @@ impl LogStreamWriter {
     }
 
     fn emit_lines(&self, lines: Vec<String>) {
+        if self.sender.receiver_count() == 0 {
+            return;
+        }
         for line in lines {
             if line.is_empty() {
                 continue;
             }
-            let _ = self.sender.send(line);
+            if self.sender.send(line).is_err() {
+                break;
+            }
         }
     }
 }
@@ -88,7 +93,7 @@ impl Write for LogStreamWriter {
 impl Drop for LogStreamWriter {
     fn drop(&mut self) {
         if let Some(line) = self.buffer.finish() {
-            let _ = self.sender.send(line);
+            self.emit_lines(vec![line]);
         }
     }
 }
@@ -139,7 +144,9 @@ fn trim_line(line: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::LineBuffer;
+    use super::{LineBuffer, log_stream_receiver, log_stream_writer};
+    use std::io::Write;
+    use tracing_subscriber::fmt::MakeWriter;
 
     #[test]
     fn line_buffer_splits_on_newlines() {
@@ -162,5 +169,27 @@ mod tests {
         let mut buffer = LineBuffer::default();
         let lines = buffer.push(b"alpha\r\n");
         assert_eq!(lines, vec!["alpha".to_string()]);
+    }
+
+    #[test]
+    fn log_stream_writer_emits_lines_and_flushes_on_drop() -> std::io::Result<()> {
+        let mut log_receiver = log_stream_receiver();
+        let make_writer = log_stream_writer();
+        {
+            let mut writer = make_writer.make_writer();
+            writer.write_all(b"alpha\nbeta\npartial")?;
+        }
+
+        let mut lines = Vec::new();
+        for _ in 0..5 {
+            if let Ok(line) = log_receiver.try_recv() {
+                lines.push(line);
+            }
+        }
+
+        assert!(lines.contains(&"alpha".to_string()));
+        assert!(lines.contains(&"beta".to_string()));
+        assert!(lines.contains(&"partial".to_string()));
+        Ok(())
     }
 }

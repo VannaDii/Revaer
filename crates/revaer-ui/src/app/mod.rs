@@ -36,6 +36,7 @@ use crate::models::{
     TorrentOptionsRequest, TorrentSelectionRequest, demo_detail, demo_snapshot,
 };
 use crate::services::sse::SseDecodeError;
+use gloo::console;
 use gloo::events::EventListener;
 use gloo::storage::{LocalStorage, Storage};
 use gloo::utils::window;
@@ -354,18 +355,16 @@ pub fn revaer_app() -> Html {
                             });
                         }
                         Err(err) => {
-                            let message = err.detail.clone().unwrap_or_else(|| err.to_string());
+                            let message = detail_or_fallback(
+                                err.detail.clone(),
+                                "Health check failed.".to_string(),
+                            );
                             dispatch.reduce_mut(|store| {
                                 store.auth.setup_error = Some(message.clone());
                                 store.auth.app_mode = AppModeState::Active;
                                 store.health.basic = None;
                             });
-                            push_toast(
-                                &dispatch,
-                                &toast_id,
-                                ToastKind::Error,
-                                format!("Health check failed: {message}"),
-                            );
+                            push_toast(&dispatch, &toast_id, ToastKind::Error, message);
                         }
                     }
                 });
@@ -401,16 +400,14 @@ pub fn revaer_app() -> Html {
                                 store.auth.setup_error = None;
                             });
                         } else {
-                            let message = err.detail.clone().unwrap_or_else(|| err.to_string());
+                            let message = detail_or_fallback(
+                                err.detail.clone(),
+                                "Setup token request failed.".to_string(),
+                            );
                             dispatch.reduce_mut(|store| {
                                 store.auth.setup_error = Some(message.clone());
                             });
-                            push_toast(
-                                &dispatch,
-                                &toast_id,
-                                ToastKind::Error,
-                                format!("Setup token request failed: {message}"),
-                            );
+                            push_toast(&dispatch, &toast_id, ToastKind::Error, message);
                         }
                     }
                 }
@@ -448,7 +445,10 @@ pub fn revaer_app() -> Html {
                         });
                     }
                     Err(err) => {
-                        let message = err.detail.clone().unwrap_or_else(|| err.to_string());
+                        let message = detail_or_fallback(
+                            err.detail.clone(),
+                            "Setup completion failed.".to_string(),
+                        );
                         dispatch.reduce_mut(|store| {
                             store.auth.setup_error = Some(message.clone());
                         });
@@ -1110,12 +1110,11 @@ pub fn revaer_app() -> Html {
                         );
                     }
                     Err(err) => {
-                        push_toast(
-                            &dispatch,
-                            &toast_id,
-                            ToastKind::Error,
-                            format!("{} {err}", bundle.text("settings.test_failed")),
+                        let message = detail_or_fallback(
+                            err.detail.clone(),
+                            bundle.text("settings.test_failed"),
                         );
+                        push_toast(&dispatch, &toast_id, ToastKind::Error, message);
                     }
                 }
                 test_busy.set(false);
@@ -1163,13 +1162,12 @@ pub fn revaer_app() -> Html {
                         config_error.set(None);
                     }
                     Err(err) => {
-                        config_error.set(Some(err.to_string()));
-                        push_toast(
-                            &dispatch,
-                            &toast_id,
-                            ToastKind::Error,
-                            format!("{} {err}", bundle.text("settings.config_failed")),
+                        let message = detail_or_fallback(
+                            err.detail.clone(),
+                            bundle.text("settings.config_failed"),
                         );
+                        config_error.set(Some(message.clone()));
+                        push_toast(&dispatch, &toast_id, ToastKind::Error, message);
                     }
                 }
                 config_busy.set(false);
@@ -1217,14 +1215,12 @@ pub fn revaer_app() -> Html {
                         );
                     }
                     Err(err) => {
-                        let detail = err.detail.clone().unwrap_or_else(|| err.to_string());
-                        config_error.set(Some(detail.clone()));
-                        push_toast(
-                            &dispatch,
-                            &toast_id,
-                            ToastKind::Error,
-                            format!("{} {detail}", bundle.text("settings.save_failed")),
+                        let detail = detail_or_fallback(
+                            err.detail.clone(),
+                            bundle.text("settings.save_failed"),
                         );
+                        config_error.set(Some(detail.clone()));
+                        push_toast(&dispatch, &toast_id, ToastKind::Error, detail);
                     }
                 }
                 config_save_busy.set(false);
@@ -1237,6 +1233,16 @@ pub fn revaer_app() -> Html {
             if let Some(navigator) = navigator.clone() {
                 navigator.push(&Route::Logs);
             }
+        })
+    };
+    let on_logs_error = {
+        let dispatch = dispatch.clone();
+        let toast_id = toast_id.clone();
+        Callback::from(move |message: String| {
+            if message.trim().is_empty() {
+                return;
+            }
+            push_toast(&dispatch, &toast_id, ToastKind::Error, message);
         })
     };
     let on_factory_reset = {
@@ -1280,23 +1286,21 @@ pub fn revaer_app() -> Html {
                         });
                         factory_reset_busy.set(false);
                         factory_reset_open.set(false);
-                        if let Err(err) = window().location().reload() {
+                        if window().location().reload().is_err() {
                             push_toast(
                                 &dispatch,
                                 &toast_id,
                                 ToastKind::Error,
-                                format!("Factory reset completed, reload failed: {err:?}"),
+                                "Factory reset completed but reload failed.".to_string(),
                             );
                         }
                     }
                     Err(err) => {
-                        let detail = err.detail.clone().unwrap_or_else(|| err.to_string());
-                        push_toast(
-                            &dispatch,
-                            &toast_id,
-                            ToastKind::Error,
-                            format!("Factory reset failed: {detail}"),
+                        let detail = detail_or_fallback(
+                            err.detail.clone(),
+                            "Factory reset failed.".to_string(),
                         );
+                        push_toast(&dispatch, &toast_id, ToastKind::Error, detail);
                         factory_reset_busy.set(false);
                         factory_reset_open.set(true);
                     }
@@ -1346,12 +1350,9 @@ pub fn revaer_app() -> Html {
                         };
                         push_toast(&dispatch, &toast_id, ToastKind::Success, message);
                     }
-                    Err(err) => push_toast(
-                        &dispatch,
-                        &toast_id,
-                        ToastKind::Error,
-                        format!("{} {err}", bundle.text("toast.copy_failed")),
-                    ),
+                    Err(err) => {
+                        push_toast(&dispatch, &toast_id, ToastKind::Error, err);
+                    }
                 }
             });
         })
@@ -1372,12 +1373,9 @@ pub fn revaer_app() -> Html {
                         ToastKind::Success,
                         bundle.text("toast.copied"),
                     ),
-                    Err(err) => push_toast(
-                        &dispatch,
-                        &toast_id,
-                        ToastKind::Error,
-                        format!("{} {err}", bundle.text("toast.copy_failed")),
-                    ),
+                    Err(err) => {
+                        push_toast(&dispatch, &toast_id, ToastKind::Error, err);
+                    }
                 }
             });
         })
@@ -1428,12 +1426,11 @@ pub fn revaer_app() -> Html {
                         )
                         .await;
                     }
-                    Err(err) => push_toast(
-                        &dispatch,
-                        &toast_id,
-                        ToastKind::Error,
-                        format!("{} {err}", bundle.text("toast.add_failed")),
-                    ),
+                    Err(err) => {
+                        let message =
+                            detail_or_fallback(err.detail.clone(), bundle.text("toast.add_failed"));
+                        push_toast(&dispatch, &toast_id, ToastKind::Error, message);
+                    }
                 }
                 dispatch.reduce_mut(|store| {
                     store.ui.busy.add_torrent = false;
@@ -1479,15 +1476,14 @@ pub fn revaer_app() -> Html {
                         );
                     }
                     Err(err) => {
-                        dispatch.reduce_mut(|store| {
-                            store.torrents.create_error = Some(err.to_string());
-                        });
-                        push_toast(
-                            &dispatch,
-                            &toast_id,
-                            ToastKind::Error,
-                            format!("{} {err}", bundle.text("toast.create_failed")),
+                        let message = detail_or_fallback(
+                            err.detail.clone(),
+                            bundle.text("toast.create_failed"),
                         );
+                        dispatch.reduce_mut(|store| {
+                            store.torrents.create_error = Some(message.clone());
+                        });
+                        push_toast(&dispatch, &toast_id, ToastKind::Error, message);
                     }
                 }
                 dispatch.reduce_mut(|store| {
@@ -1631,12 +1627,11 @@ pub fn revaer_app() -> Html {
                     .update_torrent_selection(&id.to_string(), &request)
                     .await
                 {
-                    push_toast(
-                        &dispatch,
-                        &toast_id,
-                        ToastKind::Error,
-                        format!("{} {err}", bundle.text("toast.file_selection_failed")),
+                    let message = detail_or_fallback(
+                        err.detail.clone(),
+                        bundle.text("toast.file_selection_failed"),
                     );
+                    push_toast(&dispatch, &toast_id, ToastKind::Error, message);
                     if let Some(detail) = fetch_torrent_detail_with_retry(
                         client,
                         dispatch.clone(),
@@ -1672,12 +1667,9 @@ pub fn revaer_app() -> Html {
                     .update_torrent_options(&id.to_string(), &request)
                     .await
                 {
-                    push_toast(
-                        &dispatch,
-                        &toast_id,
-                        ToastKind::Error,
-                        format!("{} {err}", bundle.text("toast.options_failed")),
-                    );
+                    let message =
+                        detail_or_fallback(err.detail.clone(), bundle.text("toast.options_failed"));
+                    push_toast(&dispatch, &toast_id, ToastKind::Error, message);
                     if let Some(detail) = fetch_torrent_detail_with_retry(
                         client,
                         dispatch.clone(),
@@ -1775,6 +1767,7 @@ pub fn revaer_app() -> Html {
                                 <LogsPage
                                     base_url={settings_base_url.clone()}
                                     auth_state={auth_state_for_routes.clone()}
+                                    on_error_toast={on_logs_error.clone()}
                                 />
                             },
                             Route::Torrents => html! {
@@ -1982,7 +1975,7 @@ async fn fetch_torrent_list_with_retry(
                         &dispatch,
                         &toast_id,
                         ToastKind::Error,
-                        format!("{} {err}", bundle.text("toast.list_failed")),
+                        detail_or_fallback(err.detail.clone(), bundle.text("toast.list_failed")),
                     ),
                 }
             } else {
@@ -1990,7 +1983,7 @@ async fn fetch_torrent_list_with_retry(
                     &dispatch,
                     &toast_id,
                     ToastKind::Error,
-                    format!("{} {err}", bundle.text("toast.list_failed")),
+                    detail_or_fallback(err.detail.clone(), bundle.text("toast.list_failed")),
                 );
             }
         }
@@ -1998,7 +1991,7 @@ async fn fetch_torrent_list_with_retry(
             &dispatch,
             &toast_id,
             ToastKind::Error,
-            format!("{} {err}", bundle.text("toast.list_failed")),
+            detail_or_fallback(err.detail.clone(), bundle.text("toast.list_failed")),
         ),
     }
 }
@@ -2029,7 +2022,10 @@ async fn fetch_torrent_detail_with_retry(
                             &dispatch,
                             &toast_id,
                             ToastKind::Error,
-                            format!("{} {err}", bundle.text("toast.detail_failed")),
+                            detail_or_fallback(
+                                err.detail.clone(),
+                                bundle.text("toast.detail_failed"),
+                            ),
                         );
                         None
                     }
@@ -2039,7 +2035,7 @@ async fn fetch_torrent_detail_with_retry(
                     &dispatch,
                     &toast_id,
                     ToastKind::Error,
-                    format!("{} {err}", bundle.text("toast.detail_failed")),
+                    detail_or_fallback(err.detail.clone(), bundle.text("toast.detail_failed")),
                 );
                 None
             }
@@ -2049,7 +2045,7 @@ async fn fetch_torrent_detail_with_retry(
                 &dispatch,
                 &toast_id,
                 ToastKind::Error,
-                format!("{} {err}", bundle.text("toast.detail_failed")),
+                detail_or_fallback(err.detail.clone(), bundle.text("toast.detail_failed")),
             );
             None
         }
@@ -2145,7 +2141,13 @@ fn spawn_bulk_actions(
                     current.completed = current.completed.saturating_add(1);
                     match result {
                         Ok(_) => current.successes.push(id),
-                        Err(err) => current.failures.push(format!("{display_name}: {err}")),
+                        Err(err) => {
+                            let message = detail_or_fallback(
+                                err.detail.clone(),
+                                bundle.text("toast.detail_failed"),
+                            );
+                            current.failures.push(format!("{display_name}: {message}"));
+                        }
                     }
                     current.completed == current.total
                 };
@@ -2235,7 +2237,9 @@ fn replace_url_query(path: &str, hash: &str, query: &str) {
         url.push_str(hash);
     }
     if let Ok(history) = window().history() {
-        let _ = history.replace_state_with_url(&JsValue::NULL, "", Some(&url));
+        if let Err(err) = history.replace_state_with_url(&JsValue::NULL, "", Some(&url)) {
+            log_dom_error("history.replace_state_with_url", err);
+        }
     }
 }
 
@@ -2273,6 +2277,13 @@ fn push_toast(
     });
 }
 
+fn detail_or_fallback(detail: Option<String>, fallback: String) -> String {
+    match detail {
+        Some(value) if !value.trim().is_empty() => value,
+        _ => fallback,
+    }
+}
+
 async fn copy_text_to_clipboard(text: String) -> Result<(), String> {
     let clipboard = window().navigator().clipboard();
     let promise = clipboard.write_text(&text);
@@ -2285,7 +2296,9 @@ async fn copy_text_to_clipboard(text: String) -> Result<(), String> {
 fn apply_breakpoint(bp: Breakpoint) {
     if let Some(document) = window().document() {
         if let Some(body) = document.body() {
-            let _ = body.set_attribute("data-bp", bp.name);
+            if let Err(err) = body.set_attribute("data-bp", bp.name) {
+                log_dom_error("body.set_attribute", err);
+            }
         }
     }
 }
@@ -2293,7 +2306,9 @@ fn apply_breakpoint(bp: Breakpoint) {
 fn apply_theme(theme: ThemeMode) {
     if let Some(document) = window().document() {
         if let Some(root) = document.document_element() {
-            let _ = root.set_attribute("data-theme", theme.as_str());
+            if let Err(err) = root.set_attribute("data-theme", theme.as_str()) {
+                log_dom_error("root.set_attribute", err);
+            }
         }
     }
 }
@@ -2301,9 +2316,15 @@ fn apply_theme(theme: ThemeMode) {
 fn apply_direction(is_rtl: bool) {
     if let Some(document) = window().document() {
         if let Some(root) = document.document_element() {
-            let _ = root.set_attribute("dir", if is_rtl { "rtl" } else { "ltr" });
+            if let Err(err) = root.set_attribute("dir", if is_rtl { "rtl" } else { "ltr" }) {
+                log_dom_error("root.set_attribute", err);
+            }
         }
     }
+}
+
+fn log_dom_error(operation: &'static str, err: JsValue) {
+    console::error!("dom operation failed", operation, err);
 }
 
 fn locale_flag(locale: LocaleCode) -> &'static str {

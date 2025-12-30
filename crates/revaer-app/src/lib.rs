@@ -23,8 +23,11 @@ pub mod bootstrap;
 /// Engine profile normalisation and runtime mapping.
 #[cfg(feature = "libtorrent")]
 pub mod engine_config;
+/// Application-wide error types.
+pub mod error;
 /// Torrent orchestrator wiring.
 #[cfg(feature = "libtorrent")]
 pub mod orchestrator;
 
 pub use bootstrap::run_app;
+pub use error::{AppError, AppResult};
