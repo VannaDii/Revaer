@@ -203,7 +203,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                 <ul
                                     tabindex="0"
                                     role="menu"
-                                    class="dropdown-content menu bg-base-100 rounded-box mt-2 w-44 p-1 shadow">
+                                    class="dropdown-content menu bg-base-100 rounded-box mt-2 w-44 p-1 shadow z-50">
                                     <li>
                                         <button
                                             onclick={{

@@ -33,6 +33,7 @@ pub(crate) const EVENT_KIND_WHITELIST: &[&str] = &[
     "progress",
     "state_changed",
     "completed",
+    "metadata_updated",
     "torrent_removed",
     "fsops_started",
     "fsops_progress",
