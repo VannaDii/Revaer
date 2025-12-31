@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Working with ADRs - Revaer Documentation</title>
+        <title>ADRs - Revaer Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-1b56cd91.js";
+            window.path_to_searchindex_js = "../searchindex-7e302c5f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-285d88ed.js"></script>
+        <script src="../toc-4ed2c651.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -177,8 +177,16 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="architecture-decision-records"><a class="header" href="#architecture-decision-records">Architecture Decision Records</a></h1>
-<p>ADR documents capture the rationale behind significant technical decisions.</p>
+                        <h1 id="adrs"><a class="header" href="#adrs">ADRs</a></h1>
+<h2 id="suggested-use-workflow"><a class="header" href="#suggested-use-workflow">Suggested Use Workflow</a></h2>
+<ol>
+<li>Create a new ADR using the template in <code>docs/adr/template.md</code>.</li>
+<li>Give it a sequential identifier (e.g., <code>001</code>, <code>002</code>) and a concise title.</li>
+<li>Capture context, decision, consequences, and follow-up actions.</li>
+<li>Append the new ADR entry to the end of the Catalogue list above.</li>
+<li>Append the same entry under <code>ADRs</code> in <code>docs/SUMMARY.md</code>, keeping it nested so the sidebar stays collapsed.</li>
+<li>Reference ADRs from code comments or docs where the decision applies.</li>
+</ol>
 <h2 id="catalogue"><a class="header" href="#catalogue">Catalogue</a></h2>
 <ul>
 <li><a href="001-configuration-revisioning.html">001</a> – Configuration revisioning</li>
@@ -217,14 +225,41 @@
 <li><a href="034-ui-sse-store-apiclient.html">034</a> – UI SSE normalization and ApiClient singleton</li>
 <li><a href="035-advisory-rustsec-2021-0065.html">035</a> – Advisory RUSTSEC-2021-0065 temporary ignore</li>
 <li><a href="036-asset-sync-test-stability.html">036</a> – Asset sync test stability under parallel runs</li>
+<li><a href="037-ui-row-slices-system-rates.html">037</a> – UI row slices and system-rate store wiring</li>
+<li><a href="038-ui-api-models-filters-paging.html">038</a> – UI shared API models and torrent query paging state</li>
+<li><a href="039-ui-store-api-rate-limit.html">039</a> – UI store, API coverage, and rate-limit retries</li>
+<li><a href="040-ui-labels-policy.html">040</a> – UI label policy editor and API wiring</li>
+<li><a href="041-ui-health-shortcuts.html">041</a> – UI health view and label shortcuts</li>
+<li><a href="042-ui-metrics-copy.html">042</a> – UI metrics copy button</li>
+<li><a href="043-ui-settings-bypass-auth.html">043</a> – UI settings bypass local auth toggle</li>
+<li><a href="044-ui-api-client-options-selection.html">044</a> – UI ApiClient torrent options/selection endpoints</li>
+<li><a href="045-ui-icon-system.html">045</a> – UI icon components and icon button standardization</li>
+<li><a href="046-ui-torrent-filters-pagination.html">046</a> – UI torrent filters, pagination, and URL sync</li>
+<li><a href="047-ui-torrent-updated-column.html">047</a> – UI torrent list updated timestamp column</li>
+<li><a href="048-ui-torrent-actions-bulk-controls.html">048</a> – UI torrent row actions, bulk controls, and rate/remove dialogs</li>
+<li><a href="049-ui-detail-overview-files-options.html">049</a> – UI detail drawer overview/files/options</li>
+<li><a href="050-ui-torrent-fab-create-modals.html">050</a> – UI torrent FAB, add modal, and create-torrent authoring flow</li>
+<li><a href="051-ui-api-models-primitives.html">051</a> – UI shared API models and UX primitives</li>
+<li><a href="052-ui-nexus-dashboard.html">052</a> – UI dashboard migration to Nexus vendor layout</li>
+<li><a href="053-ui-dashboard-hardline-rebuild.html">053</a> – UI dashboard hardline rebuild</li>
+<li><a href="054-ui-dashboard-nexus-parity.html">054</a> – UI dashboard Nexus parity tweaks</li>
+<li><a href="055-factory-reset-bootstrap-api-key.html">055</a> – Factory reset and bootstrap API key</li>
+<li><a href="056-factory-reset-bootstrap-auth-fallback.html">056</a> – Factory reset auth fallback when no API keys exist</li>
+<li><a href="057-ui-settings-tabs-controls.html">057</a> – UI settings tabs and editor controls</li>
+<li><a href="058-settings-logs-fs-browser.html">058</a> – UI settings controls, logs stream, and filesystem browser</li>
+<li><a href="059-migration-rebaseline.html">059</a> – Migration rebaseline and JSON backfill guardrails</li>
+<li><a href="060-auth-expiry-error-context.html">060</a> – Auth expiry enforcement and structured error context</li>
+<li><a href="061-api-i18n-openapi-assets.html">061</a> – API error i18n and OpenAPI asset constants</li>
+<li><a href="062-eventbus-publish-guardrails.html">062</a> – Event bus publish guardrails and API i18n cleanup</li>
+<li><a href="063-ci-compliance-cleanup.html">063</a> – CI compliance cleanup for test error handling</li>
+<li><a href="064-factory-reset-error-context.html">064</a> – Factory reset error context and allow-path validation</li>
+<li><a href="065-auth-mode-refresh.html">065</a> – API key refresh and no-auth setup mode</li>
+<li><a href="066-factory-reset-sse-setup.html">066</a> – Factory reset UX fallback and SSE setup gating</li>
+<li><a href="067-logs-ansi-rendering.html">067</a> – Logs ANSI rendering and bounded buffer</li>
+<li><a href="068-agent-compliance-clippy-cargo.html">068</a> – Agent compliance clippy cargo linting</li>
+<li><a href="069-docs-mdbook-mermaid-version.html">069</a> – Pin mdbook-mermaid for docs builds</li>
+<li><a href="template.html">Template</a> – ADR template</li>
 </ul>
-<h2 id="suggested-workflow"><a class="header" href="#suggested-workflow">Suggested Workflow</a></h2>
-<ol>
-<li>Create a new ADR using the template in <code>docs/adr/template.md</code>.</li>
-<li>Give it a sequential identifier (e.g., <code>001</code>, <code>002</code>) and a concise title.</li>
-<li>Capture context, decision, consequences, and follow-up actions.</li>
-<li>Reference ADRs from code comments or docs where the decision applies.</li>
-</ol>
 
                     </main>
 
@@ -234,7 +269,7 @@
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../adr/001-configuration-revisioning.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../adr/template.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -248,7 +283,7 @@
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../adr/001-configuration-revisioning.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../adr/template.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
