@@ -200,12 +200,18 @@ dev: sync-assets
     wait $api_pid $ui_pid
 
 docs-install:
+    required_mdbook_mermaid_version="0.17.0"; \
     if ! command -v mdbook >/dev/null 2>&1; then \
         cargo install --locked mdbook; \
-    fi
+    fi; \
     if ! command -v mdbook-mermaid >/dev/null 2>&1; then \
-        cargo install --locked mdbook-mermaid; \
-    fi
+        cargo install --locked mdbook-mermaid --version "$required_mdbook_mermaid_version"; \
+    else \
+        current_mdbook_mermaid_version="$(mdbook-mermaid --version | awk '{print $2}')"; \
+        if [ "$current_mdbook_mermaid_version" != "$required_mdbook_mermaid_version" ]; then \
+            cargo install --locked mdbook-mermaid --version "$required_mdbook_mermaid_version" --force; \
+        fi; \
+    fi; \
     mdbook-mermaid install ./docs
 
 docs-build:
@@ -224,6 +230,7 @@ docs-link-check:
     lychee --verbose --no-progress docs || true
 
 docs:
+    just docs-install
     just docs-build
     just docs-index
 

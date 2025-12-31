@@ -70,6 +70,8 @@ ADR documents capture the rationale behind significant technical decisions.
 - [065](065-auth-mode-refresh.md) – API key refresh and no-auth setup mode
 - [066](066-factory-reset-sse-setup.md) – Factory reset UX fallback and SSE setup gating
 - [067](067-logs-ansi-rendering.md) – Logs ANSI rendering and bounded buffer
+- [068](068-agent-compliance-clippy-cargo.md) – Agent compliance clippy cargo linting
+- [069](069-docs-mdbook-mermaid-version.md) – Pin mdbook-mermaid for docs builds
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

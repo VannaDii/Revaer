@@ -1,0 +1,28 @@
+# Agent Compliance: Clippy Cargo Lints
+
+- Status: Accepted
+- Date: 2025-12-31
+- Context:
+  - AGENT.md mandates clippy::cargo in the crate-level deny list for every lib/main.
+  - Several crate roots were missing clippy::cargo, which is a documented compliance violation.
+- Decision:
+  - Add clippy::cargo to every crate-level lint deny list alongside clippy::all/pedantic/nursery.
+  - Keep existing unsafe-code policies intact (FFI-only allowances remain scoped).
+- Consequences:
+  - Positive outcomes: consistent lint coverage across crates; future clippy::cargo issues surface early.
+  - Risks or trade-offs: additional lint findings may require follow-up fixes in future changes.
+- Follow-up:
+  - Run just ci to confirm the lint gate passes across the workspace.
+  - Monitor future changes for clippy::cargo warnings introduced by new code.
+- Motivation:
+  - Align all crates with AGENT.md lint requirements and eliminate policy drift.
+- Design notes:
+  - Automated, minimal insertion of clippy::cargo after clippy::pedantic in existing deny lists.
+- Test coverage summary:
+  - just ci (full pipeline) is required before hand-off; run after edits.
+- Observability updates:
+  - None.
+- Risk & rollback plan:
+  - Roll back the lint list changes if they conflict with a required exception, then document a targeted ADR.
+- Dependency rationale:
+  - No new dependencies added.

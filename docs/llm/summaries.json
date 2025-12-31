@@ -258,7 +258,7 @@
   {
     "id": "adr/027-choking-and-super-seeding",
     "title": "Choking Strategy And Super-Seeding Configuration",
-    "summary": "Status: Accepted Date: 2025-12-14 Context: TORRENT_GAPS requires configurable choke/unchoke strategy and super-seeding defaults. We must keep config/runtime/FFI/native paths aligned while preserving safe defaults. API and persistence need to surface new knobs without regressing existing behaviour. Decision: Added engine profile fields for choking (choking_algorithm, seed_choking_algorithm, strict_super_seeding, optimistic_unchoke_slots, max_queued_disk_bytes) and super_seeding. Normalise/validate values with guard-rail warnings; persist via a single stored-proc update path and migration 0006_choking_and_super_seeding.sql. Thread new options through runtime config, FFI structs, and native session (settings_pack + per-torrent flags). Per-torrent super_seeding overrides are stored with metadata. Updated API models/OpenAPI and added tests covering canonicalisation, clamping, and FFI planning. Consequences: Engine",
+    "summary": "Status: Accepted Date: 2025-12-14 Context: TORRENT_GAPS requires configurable choke/unchoke strategy and super-seeding defaults. We must keep config/runtime/FFI/native paths aligned while preserving safe defaults. API and persistence need to surface new knobs without regressing existing behaviour. Decision: Added engine profile fields for choking (choking_algorithm, seed_choking_algorithm, strict_super_seeding, optimistic_unchoke_slots, max_queued_disk_bytes) and super_seeding. Normalise/validate values with guard-rail warnings; persist via a single stored-proc update path and migration 0006_choking_and_super_seeding.sql (consolidated into 0007_rebaseline.sql per ADR 030). Thread new options through runtime config, FFI structs, and native session (settings_pack + per-torrent flags). Per-torrent super_seeding overrides are stored with metadata. Updated API models/OpenAPI and added tests covering canonicalisation,",
     "tags": [],
     "href": "/adr/027-choking-and-super-seeding/"
   },
@@ -268,6 +268,460 @@
     "summary": "Status: Accepted Date: 2025-12-17 Context: Libtorrent deprecation warnings and Phase 1 compatibility gaps required us to move away from deprecated tracker TLS fields and finish the qBittorrent façade. The façade needed tracker, peer, and properties endpoints so qBittorrent clients can query Revaer without custom plugins. Changes must comply with the AGENT.md gates (no unused code, warnings-as-errors, tests/coverage via just ci). Decision: Thread tracker TLS settings (trust store, verification flags, client cert/key) through config → runtime → FFI/native without using deprecated libtorrent fields, and cover with native tests. Expose qBittorrent-compatible endpoints for torrent properties, trackers, peer sync, categories, and tags; return",
     "tags": [],
     "href": "/adr/028-qbittorrent-parity-and-tracker-tls/"
+  },
+  {
+    "id": "adr/029-torrent-authoring-labels-and-metadata",
+    "title": "Torrent Authoring, Labels, and Metadata Updates",
+    "summary": "Status: Accepted Date: 2025-12-23 Context: Remaining torrent gaps required authoring support plus consistent comment/source/private visibility. Category/tag defaults and cleanup policies needed a shared storage path and validation. Changes must comply with AGENT.md (no dead code, tests, docs, OpenAPI sync). Decision: Expose a create-torrent authoring endpoint that routes through the workflow and libtorrent bindings. Surface comment/source/private fields in status/settings, allow comment updates only, and validate private tracker requirements on add. Persist label policies in app_profile.features, provide list/upsert endpoints for categories/tags, and apply policy defaults (including cleanup) on add. Consequences: API clients can author torrents, set label defaults, and observe comment/source/private metadata",
+    "tags": [],
+    "href": "/adr/029-torrent-authoring-labels-and-metadata/"
+  },
+  {
+    "id": "adr/030-migration-consolidation",
+    "title": "030 – Migration Consolidation for Initial Setup",
+    "summary": "Status: Accepted Date: 2025-12-23 Context: The project is unreleased and migration history does not need to remain split. A single init migration simplifies new environment bootstrap and reduces ordering drift. Decision: Collapse all SQL migrations in crates/revaer-data/migrations into 0007_rebaseline.sql. Remove the remaining numbered migration files after consolidation. Reset the local dev database in just db-start if the migration history no longer matches. Clean llvm-cov artifacts before coverage to keep just ci output free of stale-data warnings. Consequences: **Positive**: Fresh databases start from one deterministic migration; fewer files to track. **Trade-offs**: Historical migration boundaries are lost and existing dev databases must",
+    "tags": [],
+    "href": "/adr/030-migration-consolidation/"
+  },
+  {
+    "id": "adr/031-ui-asset-sync",
+    "title": "UI Nexus Asset Sync Tooling",
+    "summary": "Status: Accepted Date: 2025-12-23 Context: The UI consumes Nexus HTML/CSS/JS as vendored, compiled assets with no JS toolchain in dev/CI. We need deterministic sync of vendor CSS, images, and JS into crates/revaer-ui/static/ so Trunk can serve them. Output consistency must be verifiable in CI without relying on external asset pipelines. Decision: Add a Rust CLI tool (asset_sync) that copies Nexus assets into static/nexus, validates the CSS, and writes a lock file. Wire the tool into just so dev, build, and CI checks always run the sync first. Update the UI entry HTML to copy the full static directory and load",
+    "tags": [],
+    "href": "/adr/031-ui-asset-sync/"
+  },
+  {
+    "id": "adr/032-torrent-ffi-audit-closeout",
+    "title": "Torrent FFI Audit Closeout",
+    "summary": "Status: Accepted Date: 2025-12-23 Context: The torrent FFI audit identified drift between API/runtime/FFI/native behavior (metadata updates, seed limits, proxy handling, IPv6 mode) and missing CI coverage for native tests. The engine must remain a thin wrapper around libtorrent; unsupported knobs must be rejected early, and native settings must be auditable. Decision: Reject unsupported metadata and per-torrent seed limit updates at the API boundary. Remove Rust-side seeding enforcement and rely on native session settings only. Enforce libtorrent version checks at build time and fail when unsupported. Add native settings inspection hooks and native integration tests for proxy auth, seed limits, and",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/032-torrent-ffi-audit-closeout/"
+  },
+  {
+    "id": "adr/033-ui-sse-auth-setup",
+    "title": "UI SSE + Auth/Setup Wiring",
+    "summary": "Status: Accepted Date: 2025-12-24 Context: Motivation: finalize first-run setup gating and SSE updates while keeping auth headers on every request. Constraints: EventSource cannot set headers; SSE must fall back cleanly; avoid new dependencies. Decision: Implement a fetch-stream SSE runner with AbortController, bounded backoff, and fallback endpoint selection. Parse SSE frames into typed envelopes when possible and throttle list refreshes when updates are incomplete. Keep auth/setup flow in app state and attach API key or Basic auth for SSE streams. Alternatives considered: EventSource with query param auth, periodic polling, or WebSockets (rejected for header limitations or higher complexity). Consequences: Positive outcomes:",
+    "tags": [],
+    "href": "/adr/033-ui-sse-auth-setup/"
+  },
+  {
+    "id": "adr/034-ui-sse-store-apiclient",
+    "title": "UI SSE normalization, progress coalescing, and ApiClient singleton",
+    "summary": "Status: Accepted Date: 2025-12-24 Context: The UI SSE pipeline needed legacy payload normalization, replay support, and render-friendly progress handling. App state was still split across use_state, and API clients were being constructed per call. The dashboard checklist requires a single SSE reducer path and a singleton ApiClient via context. Decision: Normalize SSE payloads into UiEventEnvelope and route all updates through one reducer path in the app shell. Persist and replay Last-Event-ID, add SSE query filters derived from store state, and coalesce progress updates on a fixed cadence. Introduce an ApiCtx context that owns a single ApiClient instance with mutable auth",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/034-ui-sse-store-apiclient/"
+  },
+  {
+    "id": "adr/035-advisory-rustsec-2021-0065",
+    "title": "Advisory RUSTSEC-2021-0065 Temporary Ignore",
+    "summary": "Status: Accepted Date: 2025-12-24 Context: The UI depends on yewdux, which transitively pulls anymap and triggers advisory RUSTSEC-2021-0065 (unmaintained). There is no maintained replacement for anymap within the pinned yewdux 0.9.x line, and upgrading yewdux would require a Yew major upgrade. cargo-audit is configured to deny warnings, so ignoring the advisory requires explicit documentation and a remediation plan. Decision: Add RUSTSEC-2021-0065 to .secignore while yewdux requires anymap. Track yewdux upgrades or alternatives that remove anymap and remove the ignore when available. No runtime mitigation is required beyond limiting use to the UI state store. Consequences: CI remains green while upstream",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/035-advisory-rustsec-2021-0065/"
+  },
+  {
+    "id": "adr/036-asset-sync-test-stability",
+    "title": "Asset sync test stability under parallel runs",
+    "summary": "Status: Accepted Date: 2025-12-24 Context: cargo llvm-cov runs tests in parallel and surfaced a flaky asset_sync test. The temp directory helper used timestamp-based names that could collide under parallel execution. CI requires just ci (including coverage) to pass reliably without intermittent failures. Decision: Replace the time-based temp directory naming with a process id + atomic counter. Retry on AlreadyExists to ensure unique per-test directories without new dependencies. Consequences: Asset sync tests are deterministic under parallel runners and coverage instrumentation. No new crates or runtime behavior changes. Follow-up: None.",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/036-asset-sync-test-stability/"
+  },
+  {
+    "id": "adr/037-ui-row-slices-system-rates",
+    "title": "UI row slices and system-rate store wiring",
+    "summary": "Status: Accepted Date: 2025-12-24 Context: The checklist requires row-level selectors and ID-based list rendering to avoid full-row re-renders. System rates must live in the AppStore alongside SSE connection state. UI components should remain free of API side effects while still subscribing to yewdux slices. Decision: Add TorrentRowBase and TorrentProgressSlice selectors and render list rows via ID-based components that subscribe only to slices. Keep bulk selection state in AppStore and expose selectors for selection and system rates. Store SystemRates in SystemState and update it from both dashboard fetches and SSE system-rate events. Consequences: List rows re-render only when their slice changes,",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/037-ui-row-slices-system-rates/"
+  },
+  {
+    "id": "adr/038-ui-api-models-filters-paging",
+    "title": "UI shared API models and torrent query paging state",
+    "summary": "Status: Accepted Date: 2025-12-24 Context: The UI duplicated API DTOs, causing drift from backend shapes and blocking checklist compliance. Torrent list fetching needed a real query/paging model to align with the API list response. SSE fsops events required a stable store cache separate from row state. Decision: Extract shared API DTOs into a new revaer-api-models crate and re-export from revaer-api. Update the UI to consume shared DTOs, map list/detail views from API shapes, and parse list responses with next cursors. Add TorrentsQueryModel, TorrentsPaging, and fsops_by_id to the torrent store and update SSE to fill fsops state. Consequences: API DTOs are",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/038-ui-api-models-filters-paging/"
+  },
+  {
+    "id": "adr/039-ui-store-api-rate-limit",
+    "title": "UI store, API coverage, and rate-limit retries",
+    "summary": "Status: Accepted Date: 2025-12-24 Context: Shared UI state (theme, toasts, label/health caches) needed to live in the AppStore to match the yewdux architecture rule. The API client needed coverage for health, metrics, and label list endpoints to unblock upcoming screens. Rate-limit responses required user-visible backoff messaging and a safe retry path for idempotent fetches. Decision: Move shell theme/toast/busy state into the AppStore and populate label/health caches from API calls. Extend the UI API client with health/full, metrics, and label list endpoints, leaving option/selection/authoring calls for later UI wiring. Handle 429 responses for torrent list/detail fetches with Retry-After backoff and a",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/039-ui-store-api-rate-limit/"
+  },
+  {
+    "id": "adr/040-ui-labels-policy",
+    "title": "040 – UI Label Policies (Task Record)",
+    "summary": "Status: In Progress Date: 2025-10-24",
+    "tags": [
+      "consequences",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "follow-up",
+      "motivation",
+      "observability-updates",
+      "risk-rollback",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/040-ui-labels-policy/"
+  },
+  {
+    "id": "adr/041-ui-health-shortcuts",
+    "title": "041 – UI Health View + Label Shortcuts (Task Record)",
+    "summary": "Status: In Progress Date: 2025-10-24",
+    "tags": [
+      "consequences",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "follow-up",
+      "motivation",
+      "observability-updates",
+      "risk-rollback",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/041-ui-health-shortcuts/"
+  },
+  {
+    "id": "adr/042-ui-metrics-copy",
+    "title": "042 - UI Metrics Copy Button (Task Record)",
+    "summary": "Status: In Progress Date: 2025-12-24",
+    "tags": [
+      "consequences",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/042-ui-metrics-copy/"
+  },
+  {
+    "id": "adr/043-ui-settings-bypass-auth",
+    "title": "043 - UI Settings Bypass Local Auth Toggle (Task Record)",
+    "summary": "Status: In Progress Date: 2025-12-24",
+    "tags": [
+      "consequences",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/043-ui-settings-bypass-auth/"
+  },
+  {
+    "id": "adr/044-ui-api-client-options-selection",
+    "title": "044 - UI ApiClient Torrent Options/Selection Endpoints (Task Record)",
+    "summary": "Status: In Progress Date: 2025-12-24",
+    "tags": [
+      "consequences",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/044-ui-api-client-options-selection/"
+  },
+  {
+    "id": "adr/045-ui-icon-system",
+    "title": "UI Icon System and Icon Buttons",
+    "summary": "Status: Accepted Date: 2025-12-24 Context: Motivation: eliminate inline SVGs and standardize icon usage per the dashboard checklist. Constraints: reuse Nexus/DaisyUI styling, avoid new dependencies, keep accessibility consistent. Decision: Summary: add a shared icon module under components/atoms/icons and a reusable IconButton component for icon-only actions. Design notes: provide IconProps (size, class, optional title) and IconVariant for outline/solid arrows; reuse existing .icon-btn styles for consistent hover/focus behavior. Alternatives considered: keep inline SVGs or introduce an external icon crate; rejected to avoid duplication and dependencies. Consequences: Positive outcomes: centralized icon rendering, consistent sizing, and cleaner shell/dashboard markup. Risks/trade-offs: visual regressions if CSS assumptions",
+    "tags": [],
+    "href": "/adr/045-ui-icon-system/"
+  },
+  {
+    "id": "adr/046-ui-torrent-filters-pagination",
+    "title": "UI Torrent Filters, Pagination, and URL Sync",
+    "summary": "Status: Accepted Date: 2025-12-24 Context: Motivation: expose torrent filters in the URL and support paged list loading without breaking the normalized store. Constraints: reuse existing API query semantics, avoid new dependencies, and keep URL updates inside app-level routing. Decision: Summary: parse/filter query params from the router location, update the URL when filters change, and add an explicit Load more flow that appends rows. Design notes: use build_torrent_filter_query for URL-only filters, keep refresh fetches cursor-free, and append rows only when a cursor is provided for pagination. Alternatives considered: store cursor in the URL or auto-load more on scroll; rejected to keep",
+    "tags": [],
+    "href": "/adr/046-ui-torrent-filters-pagination/"
+  },
+  {
+    "id": "adr/047-ui-torrent-updated-column",
+    "title": "UI Torrent List Updated Timestamp Column",
+    "summary": "Status: Accepted Date: 2025-12-24 Context: Motivation: surface the last updated timestamp alongside the existing list columns. Constraints: avoid new dependencies and keep row slices stable for list rendering performance. Decision: Summary: store a formatted updated timestamp string in the torrent row base slice and render it as an optional column. Alternatives considered: compute formatting in the component layer or add a relative time utility; rejected to keep row rendering pure and avoid new helpers. Consequences: Positive outcomes: list rows now include an explicit updated timestamp column with overflow fallback. Risks/trade-offs: updated timestamps refresh only when list data is refreshed, not",
+    "tags": [],
+    "href": "/adr/047-ui-torrent-updated-column/"
+  },
+  {
+    "id": "adr/048-ui-torrent-actions-bulk-controls",
+    "title": "ADR 048: UI torrent row actions, bulk controls, and rate/remove dialogs",
+    "summary": "Status: Accepted Date: 2025-12-24 Context: Motivation: complete torrent list row actions and bulk controls with confirm/rate UX and concurrency safety. Constraints: no new dependencies, no unwrap/expect in non-test code, yewdux-managed shared state, and clean just ci. Decision: Add UI action variants (reannounce, sequential on/off, rate) and map them to API actions. Introduce row action menus plus remove/rate dialogs with input validation and delete-data toggle. Implement a bulk-action runner with a concurrency cap, failure aggregation, and drawer-close logic when multi-select remains. Alternatives considered: per-item toasts with sequential execution (rejected for spam and slow UX). Consequences: Positive: consistent row/bulk actions, safer removals,",
+    "tags": [],
+    "href": "/adr/048-ui-torrent-actions-bulk-controls/"
+  },
+  {
+    "id": "adr/049-ui-detail-overview-files-options",
+    "title": "UI detail drawer overview/files/options",
+    "summary": "Status: Accepted Date: 2025-12-24",
+    "tags": [
+      "consequences",
+      "context",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/049-ui-detail-overview-files-options/"
+  },
+  {
+    "id": "adr/050-ui-torrent-fab-create-modals",
+    "title": "UI torrent FAB + create modals",
+    "summary": "Status: Accepted Date: 2025-12-24 Context: The torrent UX checklist requires FAB-driven add/create modals and initial rate limits. API calls must stay in the app layer with shared DTOs, and UI state lives in yewdux. Decision: Implement a floating action button that opens Add and Create torrent modals. Wire POST /v1/torrents/create through the ApiClient and surface results + copy actions. Move UI preferences (mode/density/locale) into the shared store for consistent access. Alternatives considered: Keep the add panel inline in the list view (rejected; no FAB flow). Let modal components call the API directly (rejected; breaks layering rules). Consequences: Adds modal UX",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/050-ui-torrent-fab-create-modals/"
+  },
+  {
+    "id": "adr/051-ui-api-models-primitives",
+    "title": "UI shared API models and UX primitives",
+    "summary": "Status: Accepted Date: 2025-12-25 Context: The UI and CLI duplicated health/setup/dashboard DTOs, increasing drift risk against the API. The torrent toolbar and labels views lacked debounced search, multi-select, and reusable empty/bulk primitives. The UI checklist requires shared API models and a component primitive set with prop-driven configuration. Decision: Move health, setup-start, and dashboard DTOs into revaer-api-models and consume them from the API, UI, and CLI. Add shared UI primitives (SearchInput with debounce, MultiSelect, EmptyState, BulkActionBar) and extend existing inputs/buttons for prop coverage. Refactor torrent filters and label empty state to use the new primitives while retaining text-input fallback for tags",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/051-ui-api-models-primitives/"
+  },
+  {
+    "id": "adr/052-ui-nexus-dashboard",
+    "title": "UI dashboard migration to Nexus vendor layout",
+    "summary": "Status: Accepted Date: 2025-12-25 Context: Align the dashboard and shell UI with the vendored Nexus HTML to remove drift. Remove the blocking SSE overlay and replace it with a non-blocking connectivity surface. Preserve routing and layout classes so Nexus CSS can remain authoritative. Decision: Replace the old dashboard and shell markup with Nexus vendor partials and dashboard structure. Introduce SSE connectivity state in the store with a drawer-footer indicator and modal. Remove legacy dashboard CSS overrides and ensure vendor app.css is the primary styling source. Consequences: Positive: Nexus parity, simpler shell structure, non-blocking connectivity UX. Risks: UI copy/labels diverge from",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/052-ui-nexus-dashboard/"
+  },
+  {
+    "id": "adr/053-ui-dashboard-hardline-rebuild",
+    "title": "UI: Hardline Nexus Dashboard Rebuild and Settings Wiring",
+    "summary": "Status: Accepted Date: 2025-12-26 Context: The Home dashboard must match the vendored Nexus HTML structure and DaisyUI component patterns. Navigation and shell need to be simplified to Home/Torrents/Settings with a non-blocking SSE indicator. Settings must remain reachable even when auth is missing and show a config snapshot. Decision: Rebuild dashboard sections to mirror Nexus markup (stats cards, storage status, recent events, tracker health, queue summary). Align AppShell sidebar/topbar with Nexus partial structure and move the SSE indicator to the sidebar footer. Wire Settings to fetch /v1/config and provide test-connection actions while keeping auth overlays off the Settings route. Disable wasm-opt",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/053-ui-dashboard-hardline-rebuild/"
+  },
+  {
+    "id": "adr/054-ui-dashboard-nexus-parity",
+    "title": "UI Dashboard Nexus Parity Tweaks",
+    "summary": "Status: Accepted Date: 2025-12-27 Context: Dashboard cards drifted from the vendored Nexus markup and referenced missing i18n keys. Connectivity modal included fields outside the required SSE status spec. Constraints: keep Nexus layout structure, use DaisyUI semantic tokens, avoid new dependencies. Decision: Rework the storage usage and tracker health cards to match Nexus layout structure and available translation keys. Align queue summary/global summary labels to existing nav/dashboard strings. Trim the SSE connectivity modal to the required fields and labels. Replace dashboard recent events table markup with a DaisyUI list layout. Limit SSE indicator label expansion to the sidebar expanded state only.",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/054-ui-dashboard-nexus-parity/"
+  },
+  {
+    "id": "adr/055-factory-reset-bootstrap-api-key",
+    "title": "Factory Reset and Bootstrap API Key",
+    "summary": "Status: Accepted Date: 2025-12-27 Context: Need a safe factory reset workflow that keeps navigation available while enforcing confirmation. Setup completion must return a bootstrap API key with a 14-day client-side expiry. Raw reset errors must surface to the UI for operator visibility. Decision: Add revaer_config.factory_reset() stored procedure and /admin/factory-reset API endpoint guarded by API key auth. Ensure setup completion provisions or reuses a bootstrap API key and returns it with an expiry timestamp. Persist the bootstrap API key with expiry in local storage and require manual dismissal for error toasts. Consequences: Factory reset clears configuration/runtime data and returns the system",
+    "tags": [],
+    "href": "/adr/055-factory-reset-bootstrap-api-key/"
+  },
+  {
+    "id": "adr/056-factory-reset-bootstrap-auth-fallback",
+    "title": "Factory reset bootstrap auth fallback",
+    "summary": "Status: Accepted Date: 2025-12-28 Context: Factory reset requires API key auth, but existing installs can be in active mode with zero API keys (pre-bootstrap). Without a key, the UI cannot authenticate and the system has no recovery path. The reset path must still use stored procedures and surface raw errors when the reset fails. Decision: Add a has_api_keys capability to the config facade so the API can detect empty key inventories. Introduce a factory-reset-specific auth gate that accepts valid API keys, or allows the reset when no API keys exist (logging a warning). Keep confirmation phrase validation unchanged. Consequences: Provides",
+    "tags": [],
+    "href": "/adr/056-factory-reset-bootstrap-auth-fallback/"
+  },
+  {
+    "id": "adr/057-ui-settings-tabs-controls",
+    "title": "UI settings tabs and editor controls",
+    "summary": "Status: Accepted Date: 2025-12-28 Context: The settings screen exposed raw configuration values without meaningful grouping or editing controls. Torrent operators need quick access to download, seeding, network, and storage controls with clear defaults. Settings patches must flow through the existing API and honor immutable fields. Decision: Rebuild the settings UI as tabbed panels aligned with torrent workflows (connection, downloads, seeding, network, storage, system). Drive all editable controls from the config snapshot and submit targeted /v1/config changesets per group. Treat immutable fields and effective engine snapshots as read-only with copy-to-clipboard affordances. Consequences: Settings are now grouped for faster navigation and support",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/057-ui-settings-tabs-controls/"
+  },
+  {
+    "id": "adr/058-settings-logs-fs-browser",
+    "title": "UI Settings Controls, Logs Stream, and Filesystem Browser",
+    "summary": "Status: Accepted Date: 2025-12-28 Context: Motivation: replace JSON settings editing with structured controls, add an on-demand logs view, and provide a server-backed filesystem browser for path selection. Constraints: keep stored-procedure access, avoid new dependencies, and only stream logs while the Logs route is active. Decision: Added an SSE logs stream backed by a log broadcast writer and a Logs UI route that connects only while mounted. Added a filesystem browse endpoint and path picker UI for directory selection, with server-side path validation for label policy download dirs. Reworked settings into tabbed sections with a single draft/save bar and structured field",
+    "tags": [],
+    "href": "/adr/058-settings-logs-fs-browser/"
+  },
+  {
+    "id": "adr/059-migration-rebaseline",
+    "title": "059 – Migration Rebaseline And JSON Backfill Guardrails",
+    "summary": "Status: Accepted Date: 2025-12-28 Context: Migration sprawl made upgrades brittle and conflicted with the single-file mandate. JSON columns are banned for settings; backfills must not wipe normalized data on upgrade. The baseline migration must be idempotent for both new databases and upgrades. Decision: Collapse migration history into crates/revaer-data/migrations/0007_rebaseline.sql and remove prior migration files. Add upgrade-safe guardrails in the JSON backfill to avoid overwriting normalized data when legacy columns are empty or newly introduced. Mark the configuration migrator to ignore missing files so existing databases can apply the new baseline cleanly. Update documentation and dev seed SQL to match the normalized",
+    "tags": [],
+    "href": "/adr/059-migration-rebaseline/"
+  },
+  {
+    "id": "adr/060-auth-expiry-error-context",
+    "title": "Auth Expiry + Error Context Fields",
+    "summary": "Status: Accepted Date: 2025-12-28 Context: Factory reset failures must surface raw error details to clients without embedding context in error messages. Setup completion must issue an API key that expires after 14 days, and expiration must be enforced server-side. JSONB-based helpers are disallowed; legacy helpers must be removed while preserving upgrade paths. Decision: Add an optional expires_at timestamp to auth_api_keys and extend API key upsert helpers to persist it. Extend RFC9457 ProblemDetails with structured context fields so raw error details can be returned separately from constant error messages. Purge JSONB-based helper functions during migration to keep final database surfaces JSON-free.",
+    "tags": [],
+    "href": "/adr/060-auth-expiry-error-context/"
+  },
+  {
+    "id": "adr/061-api-i18n-openapi-assets",
+    "title": "API i18n error localization and OpenAPI assets",
+    "summary": "Status: Accepted Date: 2025-12-29 Context: API error responses needed localization via Accept-Language without introducing new dependencies. openapi.rs could not retain hard-coded asset paths while still embedding the spec. Decision: Add a lightweight API i18n module that selects a locale from Accept-Language, loads an embedded bundle, and localizes error titles/details/invalid params with fallback to the original string. Centralize embedded OpenAPI assets in a dedicated module so openapi.rs is path-free. Alternatives considered: key-based localization in all error constructors (larger refactor); relying on client-only localization (does not meet API requirement). Design notes: Locale parsing accepts the first supported tag and falls back to",
+    "tags": [],
+    "href": "/adr/061-api-i18n-openapi-assets/"
+  },
+  {
+    "id": "adr/062-eventbus-publish-guardrails",
+    "title": "Event Bus Publish Guardrails + API i18n Cleanup",
+    "summary": "Status: Accepted Date: 2025-12-28 Context: Event publishing failures were silently ignored, violating the no-error-suppression rule. Several API error strings were missing i18n keys, breaking the localized error contract. A few runtime logs still interpolated context into messages and needed structured fields. Decision: Introduce EventBusError and make EventBus::publish return Result so failures are handled explicitly. Add publish helpers in runtime services (API state, fsops, libtorrent worker, app bootstrap) that log publish failures with structured fields. Expand the API i18n bundle to include new error keys used by settings and auth flows. Move anyhow to dev-dependencies for revaer-api and remove the remaining",
+    "tags": [],
+    "href": "/adr/062-eventbus-publish-guardrails/"
+  },
+  {
+    "id": "adr/063-ci-compliance-cleanup",
+    "title": "CI compliance cleanup for test error handling",
+    "summary": "Status: Accepted Date: 2025-12-30 Context: Motivation: restore just ci compliance and remove explicit panic/unwrap patterns in tests to align with AGENT error-handling rules. Constraints: keep coverage ≥ 80% and avoid new dependencies while satisfying clippy::pedantic. Decision: Replace explicit panic!/unwrap usages in tests with Result-returning flows and let...else patterns. Exercise must-use values in tests to avoid lint violations. Consequences: Positive outcomes: lint clean, tests remain deterministic, and coverage stays above the gate. Risks or trade-offs: slightly more verbose test code; added Result plumbing in tests. Follow-up: Implementation tasks: keep new tests using Result and let...else patterns when adding coverage. Review checkpoints:",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/063-ci-compliance-cleanup/"
+  },
+  {
+    "id": "adr/064-factory-reset-error-context",
+    "title": "Factory reset hardening and allow-path validation",
+    "summary": "Status: Accepted Date: 2025-12-30 Context: Motivation: surface actionable factory reset failures, prevent long-running resets from hanging, and tighten allow-path validation for directory entries. Constraints: preserve API i18n behavior, keep error context structured, and avoid new dependencies or inline SQL outside migrations. Decision: Derive the deepest error source string for factory reset failures and return it in structured context. Allow factory resets to proceed without API keys when no keys exist, even if a stale API key header is present. Add a lock timeout in the factory reset stored procedure to avoid indefinite blocking. Validate each allow-path entry as a non-empty",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/064-factory-reset-error-context/"
+  },
+  {
+    "id": "adr/065-auth-mode-refresh",
+    "title": "API key refresh and no-auth setup mode",
+    "summary": "Status: Accepted Date: 2025-12-30 Context: Motivation: keep API keys valid without manual re-auth, and allow local setup flows to opt into anonymous access. Constraints: no new dependencies, stored-procedure-only config writes, and API errors localized through i18n. Decision: Add app_profile.auth_mode with api_key/none and allow anonymous auth when none is configured. Introduce /v1/auth/refresh to extend API key expiry without rotation, and schedule refresh in the UI before expiry. Persist anonymous auth state for no-auth setups and reuse the well-known snapshot for setup changeset construction. Store API key expirations in local storage and refresh with a 24-hour safety skew. Consequences: Positive outcomes: no-auth",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/065-auth-mode-refresh/"
+  },
+  {
+    "id": "adr/066-factory-reset-sse-setup",
+    "title": "Factory reset UX fallback and SSE setup gating",
+    "summary": "Status: Accepted Date: 2025-12-30 Context: Motivation: SSE returns 409 when the server is in setup mode, leaving the UI stuck after factory reset or manual setup transitions. Constraints: keep the UI non-blocking, avoid API key reuse after reset, and keep state transitions client-driven without new dependencies. Decision: Gate SSE connection on AppModeState and surface a disconnected status when the server is in setup mode. Treat SSE 409 responses as a setup signal: clear auth state and move the app into setup mode in the store. Ensure factory reset success forces AppModeState::Setup even if the reload fails. Consequences: Positive outcomes: factory",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/066-factory-reset-sse-setup/"
+  },
+  {
+    "id": "adr/067-logs-ansi-rendering",
+    "title": "Logs ANSI rendering and bounded buffer",
+    "summary": "Status: Accepted Date: 2025-12-30 Context: Motivation: logs view must preserve ANSI color/style codes, Unicode characters, and remain responsive over long sessions. Constraints: keep memory usage bounded, avoid new dependencies, keep layout aligned with UI rules, and avoid build conflicts with trunk serve. Decision: Parse ANSI SGR sequences into styled spans for rendering with theme-aware colors. Keep a bounded in-memory log buffer with a fixed max size. Use streaming text decode to preserve multibyte characters across chunks. Add new log lines to the top of the view and restrict scrolling to the terminal area. Use a dedicated dist-serve directory for trunk",
+    "tags": [
+      "dependency-rationale",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/067-logs-ansi-rendering/"
+  },
+  {
+    "id": "adr/068-agent-compliance-clippy-cargo",
+    "title": "Agent Compliance: Clippy Cargo Lints",
+    "summary": "Status: Accepted Date: 2025-12-31 Context: AGENT.md mandates clippy::cargo in the crate-level deny list for every lib/main. Several crate roots were missing clippy::cargo, which is a documented compliance violation. Decision: Add clippy::cargo to every crate-level lint deny list alongside clippy::all/pedantic/nursery. Keep existing unsafe-code policies intact (FFI-only allowances remain scoped). Consequences: Positive outcomes: consistent lint coverage across crates; future clippy::cargo issues surface early. Risks or trade-offs: additional lint findings may require follow-up fixes in future changes. Follow-up: Run just ci to confirm the lint gate passes across the workspace. Monitor future changes for clippy::cargo warnings introduced by new code. Motivation: Align all",
+    "tags": [],
+    "href": "/adr/068-agent-compliance-clippy-cargo/"
+  },
+  {
+    "id": "adr/069-docs-mdbook-mermaid-version",
+    "title": "Docs: Pin mdbook-mermaid for just docs",
+    "summary": "Status: Accepted Date: 2025-12-31 Context: Motivation: just docs failed because mdbook-mermaid 0.16.2 cannot parse under mdbook 0.5.2, even though docs are valid. Constraints: Docs build must run via just, no manual tooling, avoid repo changes outside the justfile. Test coverage summary: just docs run after change; no unit tests applicable. Observability updates: None. Dependency rationale: No new crates; pin existing mdbook-mermaid tool to 0.17.0 to match mdbook 0.5.x behavior. Decision: Require mdbook-mermaid 0.17.0 in just docs-install and reinstall if mismatched. Make just docs invoke just docs-install before build and index. Alternatives considered: rely on user-managed tool versions; pin mdbook to",
+    "tags": [],
+    "href": "/adr/069-docs-mdbook-mermaid-version/"
   },
   {
     "id": "adr/index",
@@ -424,7 +878,7 @@
   {
     "id": "platform/native-tests",
     "title": "Native Libtorrent Integration Tests",
-    "summary": "These tests are opt-in (gated by REVAER_NATIVE_IT) to keep the default matrix deterministic; include them explicitly in feature-matrix runs. To run the feature-gated native libtorrent integration suite locally: export DOCKER_HOST=${DOCKER_HOST:-unix:///Users/vanna/.colima/default/docker.sock} export REVAER_NATIVE_IT=1 just ci cargo test -p revaer-torrent-libt --all-features CI note: add a matrix job that sets REVAER_NATIVE_IT=1 and points DOCKER_HOST at the runner’s daemon to ensure the native path stays covered.",
+    "summary": "These tests are opt-in (gated by REVAER_NATIVE_IT) to keep the default matrix deterministic; include them explicitly in feature-matrix runs. To run the feature-gated native libtorrent integration suite locally: export DOCKER_HOST=${DOCKER_HOST:-unix:///Users/vanna/.colima/default/docker.sock} export REVAER_NATIVE_IT=1 just ci just test-native CI note: add a matrix job that sets REVAER_NATIVE_IT=1 and points DOCKER_HOST at the runner’s daemon to ensure the native path stays covered.",
     "tags": [],
     "href": "/platform/native-tests/"
   },

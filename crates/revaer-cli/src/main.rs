@@ -8,6 +8,7 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
+    clippy::cargo,
     clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
