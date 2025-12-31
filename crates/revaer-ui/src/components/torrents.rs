@@ -21,9 +21,10 @@ use crate::models::{
 };
 use crate::{Density, UiMode};
 use gloo::console;
+use gloo::events::EventListener;
+use gloo::utils::window;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
-use wasm_bindgen::closure::Closure;
 use web_sys::{HtmlElement, KeyboardEvent, MouseEvent};
 use yew::prelude::*;
 use yew_router::prelude::{Link, use_navigator};
@@ -350,7 +351,10 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
         let bundle = bundle.clone();
         use_effect_with_deps(
             move |_| {
-                let handler = Closure::<dyn FnMut(_)>::wrap(Box::new(move |event: KeyboardEvent| {
+                let listener = EventListener::new(&window(), "keydown", move |event| {
+                    let Some(event) = event.dyn_ref::<KeyboardEvent>() else {
+                        return;
+                    };
                     if let Some(target) = event.target()
                         && let Ok(element) = target.dyn_into::<HtmlElement>()
                         && matches!(element.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT")
@@ -420,33 +424,9 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                             }
                         }
                     }
-                })
-                    as Box<dyn FnMut(_)>);
+                });
 
-                let window = web_sys::window();
-                let attached = if let Some(window_ref) = window.as_ref() {
-                    window_ref
-                        .add_event_listener_with_callback(
-                            "keydown",
-                            handler.as_ref().unchecked_ref(),
-                        )
-                        .is_ok()
-                } else {
-                    false
-                };
-
-                move || {
-                    if attached {
-                        if let Some(window_ref) = window {
-                            if let Err(err) = window_ref.remove_event_listener_with_callback(
-                                "keydown",
-                                handler.as_ref().unchecked_ref(),
-                            ) {
-                                console::error!("keydown listener cleanup failed", err);
-                            }
-                        }
-                    }
-                }
+                move || drop(listener)
             },
             (),
         );

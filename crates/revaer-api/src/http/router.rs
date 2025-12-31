@@ -6,7 +6,10 @@ use std::time::Duration;
 
 use axum::{
     Router,
-    http::{HeaderName, Method, Request, header::CONTENT_TYPE},
+    http::{
+        HeaderName, Method, Request,
+        header::{AUTHORIZATION, CONTENT_TYPE},
+    },
     middleware,
     routing::{get, patch, post, put},
 };
@@ -121,6 +124,7 @@ impl ApiServer {
                 Method::OPTIONS,
             ])
             .allow_headers([
+                AUTHORIZATION,
                 CONTENT_TYPE,
                 HeaderName::from_static(HEADER_API_KEY),
                 HeaderName::from_static(HEADER_API_KEY_LEGACY),

@@ -84,11 +84,9 @@ pub(crate) fn build_sse_filter(query: &SseQuery) -> Result<SseFilter, ApiError> 
 
     if let Some(events) = query.event.as_deref() {
         for value in split_comma_separated(events) {
-            if !EVENT_KIND_WHITELIST.contains(&value.as_str()) {
-                return Err(ApiError::bad_request("event filter is not recognised")
-                    .with_context_field("event_filter", value));
+            if EVENT_KIND_WHITELIST.contains(&value.as_str()) {
+                filter.event_kinds.insert(value);
             }
-            filter.event_kinds.insert(value);
         }
     }
 
@@ -343,14 +341,16 @@ mod tests {
     }
 
     #[test]
-    fn build_sse_filter_rejects_unknown_event_kind() {
+    fn build_sse_filter_ignores_unknown_event_kind() -> Result<()> {
         let query = SseQuery {
             torrent: None,
             event: Some("progress,unknown".to_string()),
             state: None,
         };
-        let result = build_sse_filter(&query);
-        assert!(result.is_err());
+        let filter = build_sse_filter(&query)?;
+        assert_eq!(filter.event_kinds.len(), 1);
+        assert!(filter.event_kinds.contains("progress"));
+        Ok(())
     }
 
     #[test]

@@ -16,7 +16,7 @@ use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
     AbortController, AbortSignal, Headers, ReadableStream, ReadableStreamDefaultReader, Request,
-    RequestInit, Response, TextDecodeOptions, TextDecoder,
+    RequestInit, RequestMode, Response, TextDecodeOptions, TextDecoder,
 };
 use yew::Callback;
 
@@ -171,6 +171,7 @@ async fn fetch_stream(
     let window = web_sys::window().ok_or(ConnectError::Window)?;
     let init = RequestInit::new();
     init.set_method("GET");
+    init.set_mode(RequestMode::Cors);
     init.set_signal(Some(signal));
 
     let headers = Headers::new().map_err(|_| ConnectError::Headers)?;

@@ -54,11 +54,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
     } else {
         "overflow-auto"
     };
-    let content_body_class = if logs_active {
-        "flex min-h-0 grow"
-    } else {
-        ""
-    };
+    let content_body_class = if logs_active { "flex min-h-0 grow" } else { "" };
 
     html! {
         <div class={classes!("size-full", props.class.clone())}>
@@ -156,7 +152,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                     <div
                         role="navigation"
                         aria-label="Navbar"
-                        class="flex items-center justify-between px-3"
+                        class="relative z-40 flex items-center justify-between px-3"
                         id="layout-topbar">
                         <div class="inline-flex items-center gap-3">
                             <label

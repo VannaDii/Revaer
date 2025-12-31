@@ -17,7 +17,7 @@ use crate::models::{
 };
 use base64::{Engine as _, engine::general_purpose};
 use gloo::file::futures::read_as_bytes;
-use gloo_net::http::{Request, Response};
+use gloo_net::http::{Request, RequestMode, Response};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use urlencoding::encode;
@@ -86,6 +86,7 @@ impl ApiClient {
     }
 
     fn apply_auth(&self, req: Request) -> Result<Request, ApiError> {
+        let req = req.mode(RequestMode::Cors);
         match self.auth.borrow().as_ref() {
             Some(AuthState::ApiKey(key)) if !key.trim().is_empty() => {
                 Ok(req.header("x-revaer-api-key", key))
@@ -99,6 +100,7 @@ impl ApiClient {
     }
 
     async fn send_json<T: for<'de> Deserialize<'de>>(&self, req: Request) -> Result<T, ApiError> {
+        let req = req.mode(RequestMode::Cors);
         let response = req
             .send()
             .await
@@ -114,6 +116,7 @@ impl ApiClient {
     }
 
     async fn send_empty(&self, req: Request) -> Result<(), ApiError> {
+        let req = req.mode(RequestMode::Cors);
         let response = req
             .send()
             .await

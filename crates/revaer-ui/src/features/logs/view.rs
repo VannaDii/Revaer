@@ -167,16 +167,16 @@ fn render_log_span(span: &AnsiSpan) -> Html {
 
 fn span_classes(style: &AnsiStyle) -> Classes {
     let mut classes = Classes::new();
-    if style.bold {
+    if style.is_bold() {
         classes.push("font-semibold");
     }
-    if style.dim {
+    if style.is_dim() {
         classes.push("opacity-70");
     }
-    if style.italic {
+    if style.is_italic() {
         classes.push("italic");
     }
-    if style.underline {
+    if style.is_underline() {
         classes.push("underline");
     }
     classes
