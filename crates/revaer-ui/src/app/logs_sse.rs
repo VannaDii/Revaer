@@ -16,7 +16,7 @@ use wasm_bindgen::JsValue;
 use wasm_bindgen_futures::JsFuture;
 use web_sys::{
     AbortController, AbortSignal, Headers, ReadableStream, ReadableStreamDefaultReader, Request,
-    RequestInit, Response, TextDecoder,
+    RequestInit, Response, TextDecodeOptions, TextDecoder,
 };
 use yew::Callback;
 
@@ -71,6 +71,11 @@ async fn run_log_stream_loop(
                         continue;
                     }
                 };
+                let decode_options = {
+                    let options = TextDecodeOptions::new();
+                    options.set_stream(true);
+                    options
+                };
                 attempt = 0;
 
                 loop {
@@ -79,7 +84,9 @@ async fn run_log_stream_loop(
                     }
                     match read_chunk(&mut reader).await {
                         Ok(Some(bytes)) => {
-                            let text = match decoder.decode_with_js_u8_array(&bytes) {
+                            let text = match decoder
+                                .decode_with_js_u8_array_and_options(&bytes, &decode_options)
+                            {
                                 Ok(text) => text,
                                 Err(err) => {
                                     on_error.emit(format!("decode error: {err:?}"));
@@ -94,6 +101,19 @@ async fn run_log_stream_loop(
                             }
                         }
                         Ok(None) => {
+                            match decoder.decode() {
+                                Ok(text) => {
+                                    for frame in parser.push(&text) {
+                                        let data = frame.data.trim();
+                                        if !data.is_empty() {
+                                            on_line.emit(data.to_string());
+                                        }
+                                    }
+                                }
+                                Err(err) => {
+                                    on_error.emit(format!("decode error: {err:?}"));
+                                }
+                            }
                             if let Some(frame) = parser.finish() {
                                 let data = frame.data.trim();
                                 if !data.is_empty() {

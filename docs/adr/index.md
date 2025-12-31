@@ -68,6 +68,8 @@ ADR documents capture the rationale behind significant technical decisions.
 - [063](063-ci-compliance-cleanup.md) – CI compliance cleanup for test error handling
 - [064](064-factory-reset-error-context.md) – Factory reset error context and allow-path validation
 - [065](065-auth-mode-refresh.md) – API key refresh and no-auth setup mode
+- [066](066-factory-reset-sse-setup.md) – Factory reset UX fallback and SSE setup gating
+- [067](067-logs-ansi-rendering.md) – Logs ANSI rendering and bounded buffer
 
 ## Suggested Workflow
 1. Create a new ADR using the template in `docs/adr/template.md`.

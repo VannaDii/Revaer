@@ -29,6 +29,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
     let home_active = matches!(props.active, Route::Dashboard);
     let torrents_active = matches!(props.active, Route::Torrents | Route::TorrentDetail { .. });
     let settings_active = matches!(props.active, Route::Settings);
+    let logs_active = matches!(props.active, Route::Logs);
 
     let page_label = match props.active {
         Route::Dashboard => props.nav.dashboard.clone(),
@@ -47,6 +48,16 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
     let close_connectivity = {
         let show_connectivity = show_connectivity.clone();
         Callback::from(move |_| show_connectivity.set(false))
+    };
+    let content_scroll_class = if logs_active {
+        "overflow-hidden"
+    } else {
+        "overflow-auto"
+    };
+    let content_body_class = if logs_active {
+        "flex min-h-0 grow"
+    } else {
+        ""
     };
 
     html! {
@@ -141,7 +152,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
 
                 <label for="layout-sidebar-toggle-trigger" id="layout-sidebar-backdrop"></label>
 
-                <div class="flex h-screen min-w-0 grow flex-col overflow-auto">
+                <div class={classes!("flex", "h-screen", "min-w-0", "grow", "flex-col", content_scroll_class)}>
                     <div
                         role="navigation"
                         aria-label="Navbar"
@@ -231,7 +242,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                             </div>
                         </div>
                     </div>
-                    <div id="layout-content">
+                    <div id="layout-content" class={content_body_class}>
                         {for props.children.iter()}
                     </div>
                 </div>

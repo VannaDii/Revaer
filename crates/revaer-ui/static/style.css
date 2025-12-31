@@ -21,6 +21,24 @@ html[data-theme="revaer-dark"] {
   --color-warning-content: #EDE7F6;
   --color-error: #F87171;
   --color-error-content: #EDE7F6;
+  --log-terminal-bg: #000000;
+  --log-terminal-fg: var(--color-base-content);
+  --log-ansi-black: #000000;
+  --log-ansi-red: var(--color-error);
+  --log-ansi-green: var(--color-success);
+  --log-ansi-yellow: var(--color-warning);
+  --log-ansi-blue: var(--color-info);
+  --log-ansi-magenta: var(--color-secondary);
+  --log-ansi-cyan: var(--color-accent);
+  --log-ansi-white: var(--log-terminal-fg);
+  --log-ansi-bright-black: color-mix(in oklab, var(--log-terminal-fg) 35%, #000000);
+  --log-ansi-bright-red: color-mix(in oklab, var(--color-error) 70%, var(--log-terminal-fg));
+  --log-ansi-bright-green: color-mix(in oklab, var(--color-success) 70%, var(--log-terminal-fg));
+  --log-ansi-bright-yellow: color-mix(in oklab, var(--color-warning) 70%, var(--log-terminal-fg));
+  --log-ansi-bright-blue: color-mix(in oklab, var(--color-info) 70%, var(--log-terminal-fg));
+  --log-ansi-bright-magenta: color-mix(in oklab, var(--color-secondary) 70%, var(--log-terminal-fg));
+  --log-ansi-bright-cyan: color-mix(in oklab, var(--color-accent) 70%, var(--log-terminal-fg));
+  --log-ansi-bright-white: color-mix(in oklab, var(--log-terminal-fg) 80%, #ffffff);
   --radius-selector: 0.25rem;
   --radius-field: 0.25rem;
   --radius-box: 0.25rem;
@@ -60,6 +78,24 @@ html[data-theme="revaer-light"] {
   --color-warning-content: #1A1028;
   --color-error: #DC2626;
   --color-error-content: #1A1028;
+  --log-terminal-bg: #000000;
+  --log-terminal-fg: var(--color-base-100);
+  --log-ansi-black: #000000;
+  --log-ansi-red: var(--color-error);
+  --log-ansi-green: var(--color-success);
+  --log-ansi-yellow: var(--color-warning);
+  --log-ansi-blue: var(--color-info);
+  --log-ansi-magenta: var(--color-secondary);
+  --log-ansi-cyan: var(--color-accent);
+  --log-ansi-white: var(--log-terminal-fg);
+  --log-ansi-bright-black: color-mix(in oklab, var(--log-terminal-fg) 35%, #000000);
+  --log-ansi-bright-red: color-mix(in oklab, var(--color-error) 70%, var(--log-terminal-fg));
+  --log-ansi-bright-green: color-mix(in oklab, var(--color-success) 70%, var(--log-terminal-fg));
+  --log-ansi-bright-yellow: color-mix(in oklab, var(--color-warning) 70%, var(--log-terminal-fg));
+  --log-ansi-bright-blue: color-mix(in oklab, var(--color-info) 70%, var(--log-terminal-fg));
+  --log-ansi-bright-magenta: color-mix(in oklab, var(--color-secondary) 70%, var(--log-terminal-fg));
+  --log-ansi-bright-cyan: color-mix(in oklab, var(--color-accent) 70%, var(--log-terminal-fg));
+  --log-ansi-bright-white: color-mix(in oklab, var(--log-terminal-fg) 80%, #ffffff);
   --radius-selector: 0.25rem;
   --radius-field: 0.25rem;
   --radius-box: 0.25rem;
@@ -111,6 +147,11 @@ body {
   overflow: hidden;
   white-space: nowrap;
   transition: opacity 0.2s ease, max-width 0.2s ease;
+}
+
+.log-terminal {
+  background-color: var(--log-terminal-bg);
+  color: var(--log-terminal-fg);
 }
 
 html:has(#layout-sidebar-hover-trigger:checked) .sse-indicator__label,

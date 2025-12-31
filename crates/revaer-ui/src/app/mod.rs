@@ -883,14 +883,38 @@ pub fn revaer_app() -> Html {
         let sse_handle = sse_handle.clone();
         let dispatch = dispatch.clone();
         let auth_state = auth_state.clone();
+        let app_mode = app_mode.clone();
         let progress_buffer = progress_buffer.clone();
         let schedule_refresh = schedule_refresh.clone();
         let sse_query = sse_query.clone();
         let sse_reset = *sse_reset;
+        let app_mode_value = *app_mode;
         use_effect_with_deps(
-            move |(auth_state_value, _reset, query)| {
+            move |(auth_state_value, app_mode_value, _reset, query)| {
+                let cleanup_handle = sse_handle.clone();
+                let cleanup = move || {
+                    if let Some(handle) = cleanup_handle.borrow_mut().take() {
+                        handle.close();
+                    }
+                };
                 if let Some(handle) = sse_handle.borrow_mut().take() {
                     handle.close();
+                }
+                if *app_mode_value == AppModeState::Setup {
+                    dispatch.reduce_mut(|store| {
+                        store.system.sse_status = SseStatus {
+                            state: SseConnectionState::Disconnected,
+                            backoff_ms: None,
+                            next_retry_at_ms: None,
+                            last_event_id: store.system.sse_status.last_event_id,
+                            last_error: Some(SseError {
+                                message: "setup required".to_string(),
+                                status_code: Some(409),
+                            }),
+                            auth_mode: None,
+                        };
+                    });
+                    return cleanup;
                 }
                 let auth_state_value = (**auth_state_value).clone();
                 if let Some(auth_state_value) = auth_state_value {
@@ -898,7 +922,20 @@ pub fn revaer_app() -> Html {
                     let on_state = {
                         let dispatch = dispatch.clone();
                         Callback::from(move |state: SseStatus| {
+                            if matches!(
+                                state.last_error.as_ref().and_then(|err| err.status_code),
+                                Some(409)
+                            ) {
+                                clear_auth_storage();
+                            }
                             dispatch.reduce_mut(|store| {
+                                if matches!(
+                                    state.last_error.as_ref().and_then(|err| err.status_code),
+                                    Some(409)
+                                ) {
+                                    store.auth.app_mode = AppModeState::Setup;
+                                    store.auth.state = None;
+                                }
                                 store.system.sse_status = state;
                             });
                         })
@@ -959,13 +996,9 @@ pub fn revaer_app() -> Html {
                         };
                     });
                 }
-                move || {
-                    if let Some(handle) = sse_handle.borrow_mut().take() {
-                        handle.close();
-                    }
-                }
+                cleanup
             },
-            (auth_state.clone(), sse_reset, sse_query),
+            (auth_state.clone(), app_mode_value, sse_reset, sse_query),
         );
     }
     {
@@ -1424,9 +1457,11 @@ pub fn revaer_app() -> Html {
                     Ok(()) => {
                         clear_auth_storage();
                         dispatch.reduce_mut(|store| {
+                            store.auth.app_mode = AppModeState::Setup;
                             store.auth.state = None;
                             store.auth.setup_token = None;
                             store.auth.setup_expires_at = None;
+                            store.auth.setup_error = None;
                         });
                         factory_reset_busy.set(false);
                         factory_reset_open.set(false);

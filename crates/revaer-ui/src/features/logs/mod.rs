@@ -6,3 +6,6 @@
 
 #[cfg(target_arch = "wasm32")]
 pub mod view;
+
+#[cfg(any(target_arch = "wasm32", test))]
+pub(crate) mod ansi;

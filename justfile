@@ -158,8 +158,8 @@ ui-serve: sync-assets
     if ! command -v trunk >/dev/null 2>&1; then \
         cargo install trunk; \
     fi
-    mkdir -p crates/revaer-ui/dist/.stage
-    cd crates/revaer-ui && trunk serve --open
+    mkdir -p crates/revaer-ui/dist-serve/.stage
+    cd crates/revaer-ui && trunk serve --dist dist-serve --open
 
 ui-build: sync-assets
     rustup target add wasm32-unknown-unknown
@@ -189,10 +189,12 @@ dev: sync-assets
     DATABASE_URL="${db_url}" RUST_LOG=${RUST_LOG:-debug} cargo watch \
         --ignore 'docs/api/openapi.json' \
         --ignore 'crates/revaer-ui/dist/**' \
+        --ignore 'crates/revaer-ui/dist-serve/**' \
         --ignore 'artifacts/**' \
         -x "run -p revaer-app" & \
     api_pid=$!; \
-    ( cd crates/revaer-ui && DATABASE_URL="${db_url}" RUST_LOG=${RUST_LOG:-info} trunk serve --open ) & \
+    mkdir -p crates/revaer-ui/dist-serve/.stage; \
+    ( cd crates/revaer-ui && DATABASE_URL="${db_url}" RUST_LOG=${RUST_LOG:-info} trunk serve --dist dist-serve --open ) & \
     ui_pid=$!; \
     trap 'kill -0 $api_pid 2>/dev/null && kill $api_pid; kill -0 $ui_pid 2>/dev/null && kill $ui_pid' EXIT; \
     wait $api_pid $ui_pid
