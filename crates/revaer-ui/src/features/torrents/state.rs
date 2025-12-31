@@ -261,18 +261,24 @@ pub struct TorrentsState {
 }
 
 /// Minimal progress update for coalesced SSE events.
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ProgressPatch {
     /// Torrent id to update.
     pub id: Uuid,
     /// Completion ratio (0.0-1.0).
     pub progress: f64,
+    /// Optional total size in bytes.
+    pub size_bytes: Option<u64>,
     /// Optional ETA in seconds.
     pub eta_seconds: Option<u64>,
     /// Optional download rate in bytes/sec.
     pub download_bps: Option<u64>,
     /// Optional upload rate in bytes/sec.
     pub upload_bps: Option<u64>,
+    /// Optional ratio update.
+    pub ratio: Option<f64>,
+    /// Optional updated timestamp (formatted for display).
+    pub updated: Option<String>,
 }
 
 /// Replace list rows with a new snapshot.
@@ -441,6 +447,9 @@ pub fn apply_progress_patch(state: &mut TorrentsState, patch: ProgressPatch) {
     };
     let mut next = (**current).clone();
     next.progress = patch.progress;
+    if let Some(size_bytes) = patch.size_bytes {
+        next.size_bytes = size_bytes;
+    }
     next.eta = patch.eta_seconds.map(|eta| {
         if eta == 0 {
             "–".to_string()
@@ -454,16 +463,25 @@ pub fn apply_progress_patch(state: &mut TorrentsState, patch: ProgressPatch) {
     if let Some(upload_bps) = patch.upload_bps {
         next.upload_bps = upload_bps;
     }
+    if let Some(ratio) = patch.ratio {
+        next.ratio = clamp_f64(ratio);
+    }
+    if let Some(updated) = patch.updated {
+        next.updated = updated;
+    }
     state.by_id.insert(patch.id, Rc::new(next));
 }
 
 /// Update the stored status for a torrent row.
-pub fn update_status(state: &mut TorrentsState, id: Uuid, status: String) {
+pub fn update_status(state: &mut TorrentsState, id: Uuid, status: String, updated: Option<String>) {
     let Some(current) = state.by_id.get(&id) else {
         return;
     };
     let mut next = (**current).clone();
     next.status = status;
+    if let Some(updated) = updated {
+        next.updated = updated;
+    }
     state.by_id.insert(id, Rc::new(next));
 }
 
@@ -473,6 +491,7 @@ pub fn update_metadata(
     id: Uuid,
     name: Option<String>,
     download_dir: Option<String>,
+    updated: Option<String>,
 ) {
     let Some(current) = state.by_id.get(&id) else {
         return;
@@ -483,6 +502,9 @@ pub fn update_metadata(
     }
     if let Some(download_dir) = download_dir {
         next.path = download_dir;
+    }
+    if let Some(updated) = updated {
+        next.updated = updated;
     }
     state.by_id.insert(id, Rc::new(next));
 }
@@ -846,6 +868,34 @@ mod tests {
         assert_eq!(first.eta.as_deref(), Some("5s"));
         assert_eq!(first.download_bps, 10);
         assert_eq!(first.upload_bps, 20);
+        Ok(())
+    }
+
+    #[test]
+    fn progress_patch_updates_ratio_and_timestamp() -> Result<()> {
+        let id = Uuid::from_u128(1);
+        let mut state = TorrentsState::default();
+        set_rows(&mut state, vec![base_row(id)]);
+        apply_progress_patch(
+            &mut state,
+            ProgressPatch {
+                id,
+                progress: 0.3,
+                size_bytes: Some(2048),
+                eta_seconds: Some(4),
+                download_bps: Some(120),
+                upload_bps: Some(45),
+                ratio: Some(1.25),
+                updated: Some("2024-01-02 03:04 UTC".to_string()),
+            },
+        );
+        let row = state
+            .by_id
+            .get(&id)
+            .ok_or_else(|| test_error("missing row"))?;
+        assert!((row.ratio - 1.25).abs() < EPSILON);
+        assert_eq!(row.updated, "2024-01-02 03:04 UTC");
+        assert_eq!(row.size_bytes, 2048);
         Ok(())
     }
 

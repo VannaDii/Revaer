@@ -115,6 +115,16 @@ where
 }
 
 #[cfg(any(feature = "libtorrent", test))]
+struct ProgressUpdate {
+    bytes_downloaded: u64,
+    bytes_total: u64,
+    eta_seconds: Option<u64>,
+    download_bps: u64,
+    upload_bps: u64,
+    ratio: f64,
+}
+
+#[cfg(any(feature = "libtorrent", test))]
 impl<E> TorrentOrchestrator<E>
 where
     E: TorrentEngine + EngineConfigurator + 'static,
@@ -952,8 +962,20 @@ impl TorrentCatalog {
                 torrent_id,
                 bytes_downloaded,
                 bytes_total,
+                eta_seconds,
+                download_bps,
+                upload_bps,
+                ratio,
             } => {
-                Self::record_progress(entries, *torrent_id, *bytes_downloaded, *bytes_total);
+                let update = ProgressUpdate {
+                    bytes_downloaded: *bytes_downloaded,
+                    bytes_total: *bytes_total,
+                    eta_seconds: *eta_seconds,
+                    download_bps: *download_bps,
+                    upload_bps: *upload_bps,
+                    ratio: *ratio,
+                };
+                Self::record_progress(entries, *torrent_id, &update);
             }
             Event::StateChanged { torrent_id, state } => {
                 Self::record_state_change(entries, *torrent_id, state);
@@ -1062,21 +1084,19 @@ impl TorrentCatalog {
     fn record_progress(
         entries: &mut HashMap<Uuid, TorrentStatus>,
         torrent_id: Uuid,
-        bytes_downloaded: u64,
-        bytes_total: u64,
+        update: &ProgressUpdate,
     ) {
         let entry = Self::ensure_entry(entries, torrent_id);
-        entry.progress.bytes_downloaded = bytes_downloaded;
-        entry.progress.bytes_total = bytes_total;
-        entry.progress.eta_seconds = None;
-        entry.rates.download_bps = 0;
-        entry.rates.upload_bps = 0;
-        let ratio = if bytes_total == 0 {
-            0.0
+        entry.progress.bytes_downloaded = update.bytes_downloaded;
+        entry.progress.bytes_total = update.bytes_total;
+        entry.progress.eta_seconds = update.eta_seconds;
+        entry.rates.download_bps = update.download_bps;
+        entry.rates.upload_bps = update.upload_bps;
+        entry.rates.ratio = if update.ratio.is_finite() {
+            update.ratio
         } else {
-            bytes_to_f64(bytes_downloaded) / bytes_to_f64(bytes_total)
+            0.0
         };
-        entry.rates.ratio = ratio;
         entry.last_updated = Utc::now();
     }
 
@@ -1146,12 +1166,6 @@ impl TorrentCatalog {
             })
             .collect()
     }
-}
-
-fn bytes_to_f64(value: u64) -> f64 {
-    let high = u32::try_from(value >> 32).unwrap_or(u32::MAX);
-    let low = u32::try_from(value & 0xFFFF_FFFF).unwrap_or(u32::MAX);
-    f64::from(high) * 4_294_967_296.0 + f64::from(low)
 }
 
 fn app_error_to_torrent(
@@ -2082,6 +2096,10 @@ mod engine_refresh_tests {
                 torrent_id: id,
                 bytes_downloaded: 512,
                 bytes_total: 1_024,
+                eta_seconds: Some(12),
+                download_bps: 256,
+                upload_bps: 128,
+                ratio: 0.5,
             })
             .await;
         catalog

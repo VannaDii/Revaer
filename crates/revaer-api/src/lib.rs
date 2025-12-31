@@ -1981,6 +1981,10 @@ mod tests {
             torrent_id: sample_id,
             bytes_downloaded: 400,
             bytes_total: 512,
+            eta_seconds: Some(10),
+            download_bps: 0,
+            upload_bps: 0,
+            ratio: 0.0,
         })?;
 
         let headers = qb_session_headers(&state)?;

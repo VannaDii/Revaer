@@ -7,7 +7,7 @@
 use revaer_events::{Event as CoreEvent, EventEnvelope as CoreEnvelope, EventId};
 
 /// UI-facing event variants derived from SSE payloads.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum UiEvent {
     /// Core domain event emitted by the backend.
     Core(CoreEvent),
@@ -21,7 +21,7 @@ pub enum UiEvent {
 }
 
 /// Normalized SSE envelope for UI reducers.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct UiEventEnvelope {
     /// Monotonic event identifier when available.
     pub id: Option<EventId>,

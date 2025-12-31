@@ -141,7 +141,7 @@ pub(crate) fn matches_sse_filter(envelope: &EventEnvelope, filter: &SseFilter) -
                     return false;
                 }
             }
-            _ => return false,
+            _ => {}
         }
     }
 
@@ -365,6 +365,29 @@ mod tests {
             event: CoreEvent::StateChanged {
                 torrent_id: Uuid::nil(),
                 state: revaer_events::TorrentState::Queued,
+            },
+            timestamp: chrono::Utc::now(),
+        };
+        assert!(matches_sse_filter(&envelope, &filter));
+    }
+
+    #[test]
+    fn matches_sse_filter_allows_progress_with_state_filter() {
+        let filter = SseFilter {
+            torrent_ids: std::iter::once(Uuid::nil()).collect(),
+            event_kinds: std::iter::once("progress".to_string()).collect(),
+            states: std::iter::once(TorrentStateKind::Downloading).collect(),
+        };
+        let envelope = EventEnvelope {
+            id: 2u64,
+            event: CoreEvent::Progress {
+                torrent_id: Uuid::nil(),
+                bytes_downloaded: 10,
+                bytes_total: 100,
+                eta_seconds: Some(9),
+                download_bps: 512,
+                upload_bps: 128,
+                ratio: 0.5,
             },
             timestamp: chrono::Utc::now(),
         };

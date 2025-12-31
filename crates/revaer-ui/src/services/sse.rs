@@ -174,17 +174,34 @@ fn map_legacy_payload(payload: &LegacyPayload, frame_id: Option<&str>) -> Option
             struct ProgressData {
                 id: Uuid,
                 progress: ProgressMetrics,
+                #[serde(default)]
+                rates: ProgressRates,
             }
             #[derive(Deserialize)]
             struct ProgressMetrics {
                 bytes_downloaded: u64,
                 bytes_total: u64,
+                #[serde(default)]
+                eta_seconds: Option<u64>,
+            }
+            #[derive(Deserialize, Default)]
+            struct ProgressRates {
+                #[serde(default)]
+                download_bps: u64,
+                #[serde(default)]
+                upload_bps: u64,
+                #[serde(default)]
+                ratio: f64,
             }
             let progress: ProgressData = serde_json::from_value(payload.data.clone()).ok()?;
             UiEvent::Core(CoreEvent::Progress {
                 torrent_id: progress.id,
                 bytes_downloaded: progress.progress.bytes_downloaded,
                 bytes_total: progress.progress.bytes_total,
+                eta_seconds: progress.progress.eta_seconds,
+                download_bps: progress.rates.download_bps,
+                upload_bps: progress.rates.upload_bps,
+                ratio: progress.rates.ratio,
             })
         }
         "state_changed" => {

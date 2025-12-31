@@ -18,6 +18,8 @@ use crate::features::torrents::state::{
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode};
 use crate::models::{Toast, TorrentLabelEntry};
 #[cfg(target_arch = "wasm32")]
+use chrono::{DateTime, Utc};
+#[cfg(target_arch = "wasm32")]
 use revaer_events::{Event as CoreEvent, TorrentState as CoreTorrentState};
 #[cfg(target_arch = "wasm32")]
 use uuid::Uuid;
@@ -407,7 +409,10 @@ pub(crate) fn apply_sse_envelope(
     store: &mut AppStore,
     envelope: UiEventEnvelope,
 ) -> SseApplyOutcome {
-    match envelope.event {
+    let UiEventEnvelope {
+        timestamp, event, ..
+    } = envelope;
+    match event {
         UiEvent::SystemRates {
             download_bps,
             upload_bps,
@@ -420,6 +425,10 @@ pub(crate) fn apply_sse_envelope(
                 torrent_id,
                 bytes_downloaded,
                 bytes_total,
+                eta_seconds,
+                download_bps,
+                upload_bps,
+                ratio,
             } => {
                 if !torrent_exists(&store.torrents, torrent_id) {
                     return SseApplyOutcome::Refresh;
@@ -427,23 +436,36 @@ pub(crate) fn apply_sse_envelope(
                 SseApplyOutcome::Progress(ProgressPatch {
                     id: torrent_id,
                     progress: progress_ratio(bytes_downloaded, bytes_total),
-                    eta_seconds: None,
-                    download_bps: None,
-                    upload_bps: None,
+                    size_bytes: Some(bytes_total),
+                    eta_seconds,
+                    download_bps: Some(download_bps),
+                    upload_bps: Some(upload_bps),
+                    ratio: Some(ratio),
+                    updated: format_updated_timestamp(&timestamp),
                 })
             }
             CoreEvent::StateChanged { torrent_id, state } => {
                 if !torrent_exists(&store.torrents, torrent_id) {
                     return SseApplyOutcome::Refresh;
                 }
-                update_status(&mut store.torrents, torrent_id, format_state(&state));
+                update_status(
+                    &mut store.torrents,
+                    torrent_id,
+                    format_state(&state),
+                    format_updated_timestamp(&timestamp),
+                );
                 SseApplyOutcome::Applied
             }
             CoreEvent::Completed { torrent_id, .. } => {
                 if !torrent_exists(&store.torrents, torrent_id) {
                     return SseApplyOutcome::Refresh;
                 }
-                update_status(&mut store.torrents, torrent_id, "completed".to_string());
+                update_status(
+                    &mut store.torrents,
+                    torrent_id,
+                    "completed".to_string(),
+                    format_updated_timestamp(&timestamp),
+                );
                 SseApplyOutcome::Applied
             }
             CoreEvent::MetadataUpdated {
@@ -455,7 +477,13 @@ pub(crate) fn apply_sse_envelope(
                 if !torrent_exists(&store.torrents, torrent_id) {
                     return SseApplyOutcome::Refresh;
                 }
-                update_metadata(&mut store.torrents, torrent_id, name, download_dir);
+                update_metadata(
+                    &mut store.torrents,
+                    torrent_id,
+                    name,
+                    download_dir,
+                    format_updated_timestamp(&timestamp),
+                );
                 SseApplyOutcome::Applied
             }
             CoreEvent::TorrentRemoved { torrent_id } => {
@@ -493,7 +521,14 @@ pub(crate) fn apply_sse_envelope(
                 if !torrent_exists(&store.torrents, torrent_id) {
                     return SseApplyOutcome::Refresh;
                 }
+                let status = format!("failed: {message}");
                 update_fsops_failed(&mut store.torrents, torrent_id, message);
+                update_status(
+                    &mut store.torrents,
+                    torrent_id,
+                    status,
+                    format_updated_timestamp(&timestamp),
+                );
                 SseApplyOutcome::Applied
             }
             CoreEvent::SelectionReconciled { .. }
@@ -523,6 +558,17 @@ fn u64_to_f64(value: u64) -> f64 {
     let high = u32::try_from(value >> 32).unwrap_or(0);
     let low = u32::try_from(value & 0xFFFF_FFFF).unwrap_or(0);
     (f64::from(high) * TWO_POW_32) + f64::from(low)
+}
+
+#[cfg(target_arch = "wasm32")]
+fn format_updated_timestamp(timestamp: &str) -> Option<String> {
+    let parsed = DateTime::parse_from_rfc3339(timestamp).ok()?;
+    Some(
+        parsed
+            .with_timezone(&Utc)
+            .format("%Y-%m-%d %H:%M UTC")
+            .to_string(),
+    )
 }
 
 #[cfg(target_arch = "wasm32")]

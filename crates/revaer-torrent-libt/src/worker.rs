@@ -1068,10 +1068,19 @@ impl Worker {
             );
             return;
         }
+        let ratio = if rates.ratio.is_finite() {
+            rates.ratio
+        } else {
+            0.0
+        };
         self.publish_event(Event::Progress {
             torrent_id,
             bytes_downloaded: progress.bytes_downloaded,
             bytes_total: progress.bytes_total,
+            eta_seconds: progress.eta_seconds,
+            download_bps: rates.download_bps,
+            upload_bps: rates.upload_bps,
+            ratio,
         });
         self.mark_recovered("session");
     }

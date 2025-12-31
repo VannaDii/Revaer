@@ -10,7 +10,7 @@ pub type EventId = u64;
 pub const DEFAULT_REPLAY_CAPACITY: usize = 1_024;
 
 /// Typed domain events surfaced across the system.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum Event {
     /// A torrent was registered with the engine.
@@ -35,6 +35,18 @@ pub enum Event {
         bytes_downloaded: u64,
         /// Total bytes expected for the torrent payload.
         bytes_total: u64,
+        #[serde(default)]
+        /// Estimated time remaining in seconds, when available.
+        eta_seconds: Option<u64>,
+        #[serde(default)]
+        /// Current download rate in bytes per second.
+        download_bps: u64,
+        #[serde(default)]
+        /// Current upload rate in bytes per second.
+        upload_bps: u64,
+        #[serde(default)]
+        /// Current share ratio reported by the engine.
+        ratio: f64,
     },
     /// Torrent transitioned into a new lifecycle state.
     StateChanged {
@@ -137,7 +149,7 @@ impl Event {
 }
 
 /// Metadata wrapper around events. Each envelope tracks the event id and emission timestamp.
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct EventEnvelope {
     /// Monotonic identifier assigned to the wrapped event.
     pub id: EventId,
@@ -172,6 +184,10 @@ mod tests {
                 torrent_id: Uuid::nil(),
                 bytes_downloaded: 1,
                 bytes_total: 2,
+                eta_seconds: None,
+                download_bps: 0,
+                upload_bps: 0,
+                ratio: 0.0,
             },
             "progress",
         );
