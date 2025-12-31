@@ -249,6 +249,7 @@ Since Codex runs locally, **a task is not complete** until **all requirements in
 **Completion Rule:** Do **not** declare a task complete or exit until all above checks pass. Persist the task record alongside code changes (e.g., `docs/adr/NNN-task.md`).
 
 -   Use `docs/adr/template.md` as the starting point for new ADRs—copy it with standard shell tooling (`cp`, `mv`) and number the file sequentially.
+-   Append new ADR entries to `docs/adr/index.md` (Catalogue section) and also append the same entry under `ADRs` in `docs/SUMMARY.md`, keeping it nested so the sidebar stays collapsed.
 
 ---
 

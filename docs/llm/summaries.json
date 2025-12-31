@@ -725,8 +725,8 @@
   },
   {
     "id": "adr/index",
-    "title": "Architecture Decision Records",
-    "summary": "ADR documents capture the rationale behind significant technical decisions.",
+    "title": "ADRs",
+    "summary": "This page is the single ADR index. Keep the menu clean by listing every ADR here.",
     "tags": [
       "catalogue",
       "suggested-workflow"
