@@ -43,7 +43,7 @@
     "tags": "الوسوم",
     "tags_placeholder": "4K، hevc، scene",
     "save_path": "مسار الحفظ",
-    "save_path_placeholder": "/data/incomplete",
+    "save_path_placeholder": ".server_root/downloads",
     "open_detail": "فتح التفاصيل",
     "eta_infinite": "∞",
     "eta": "الوقت المتبقي",

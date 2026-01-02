@@ -436,8 +436,8 @@ mod tests {
                 upload_bps: 256,
                 ratio: 0.5,
             },
-            library_path: Some("/library/example".into()),
-            download_dir: Some("/downloads/example".into()),
+            library_path: Some(".server_root/library/example".into()),
+            download_dir: Some(".server_root/downloads/example".into()),
             sequential: false,
             tags: vec!["tag1".into()],
             category: None,
@@ -862,10 +862,12 @@ mod tests {
             delete_data: false,
             download: None,
             upload: None,
-            download_dir: Some("/downloads/new".into()),
+            download_dir: Some(".server_root/downloads/new".into()),
         };
         match build_action_payload(&args)? {
-            ApiTorrentAction::Move { download_dir } => assert_eq!(download_dir, "/downloads/new"),
+            ApiTorrentAction::Move { download_dir } => {
+                assert_eq!(download_dir, ".server_root/downloads/new");
+            }
             ApiTorrentAction::Pause
             | ApiTorrentAction::Rate { .. }
             | ApiTorrentAction::Remove { .. }

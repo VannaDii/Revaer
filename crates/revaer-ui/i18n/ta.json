@@ -43,7 +43,7 @@
     "tags": "குறிச்சொற்கள்",
     "tags_placeholder": "4K, hevc, scene",
     "save_path": "சேமிப்பு பாதை",
-    "save_path_placeholder": "/data/incomplete",
+    "save_path_placeholder": ".server_root/downloads",
     "open_detail": "விவரங்களைத் திற",
     "eta_infinite": "∞",
     "eta": "மதிப்பிடப்பட்ட நேரம்",

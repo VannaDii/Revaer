@@ -43,7 +43,7 @@
     "tags": "Etiketler",
     "tags_placeholder": "4K, hevc, scene",
     "save_path": "Kayıt yolu",
-    "save_path_placeholder": "/data/incomplete",
+    "save_path_placeholder": ".server_root/downloads",
     "open_detail": "Detayları aç",
     "eta_infinite": "∞",
     "eta": "Tahmini süre",

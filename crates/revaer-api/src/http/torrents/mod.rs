@@ -417,7 +417,7 @@ mod tests {
             },
             files: None,
             library_path: None,
-            download_dir: Some("/downloads/demo".into()),
+            download_dir: Some(".server_root/downloads/demo".into()),
             comment: None,
             source: None,
             private: None,
@@ -476,7 +476,10 @@ mod tests {
                 .skip_fluff
         );
         assert!(settings.sequential);
-        assert_eq!(settings.download_dir.as_deref(), Some("/downloads/demo"));
+        assert_eq!(
+            settings.download_dir.as_deref(),
+            Some(".server_root/downloads/demo")
+        );
         Ok(())
     }
 

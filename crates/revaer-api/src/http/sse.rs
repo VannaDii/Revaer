@@ -211,7 +211,7 @@ pub(crate) fn dummy_payload(tick: u64, tid: Uuid, tid_other: Uuid) -> Value {
                 },
                 "state": "downloading",
                 "sequential": tick & 1 == 0,
-                "download_dir": "/downloads/demo"
+                "download_dir": ".server_root/downloads/demo"
             }
         }),
         3 => json!({
@@ -219,14 +219,14 @@ pub(crate) fn dummy_payload(tick: u64, tid: Uuid, tid_other: Uuid) -> Value {
             "data": {
                 "id": tid,
                 "state": "seeding",
-                "download_dir": "/downloads/demo"
+                "download_dir": ".server_root/downloads/demo"
             }
         }),
         4 => json!({
             "kind": "completed",
             "data": {
                 "id": tid,
-                "library_path": "/library/demo"
+                "library_path": ".server_root/library/demo"
             }
         }),
         5 => json!({
@@ -239,8 +239,8 @@ pub(crate) fn dummy_payload(tick: u64, tid: Uuid, tid_other: Uuid) -> Value {
             "kind": "fsops_started",
             "data": {
                 "torrent_id": tid,
-                "src_path": "/downloads/demo",
-                "dst_path": "/library/demo"
+                "src_path": ".server_root/downloads/demo",
+                "dst_path": ".server_root/library/demo"
             }
         }),
         7 => json!({
@@ -255,7 +255,7 @@ pub(crate) fn dummy_payload(tick: u64, tid: Uuid, tid_other: Uuid) -> Value {
             "kind": "metadata_updated",
             "data": {
                 "torrent_id": tid,
-                "download_dir": format!("/downloads/relocated-{tick}"),
+                "download_dir": format!(".server_root/downloads/relocated-{tick}"),
                 "name": format!("demo-{tick}"),
                 "comment": format!("note-{tick}"),
                 "source": "revaer",
@@ -420,7 +420,10 @@ mod tests {
         let state = dummy_payload(7, tid, tid_other);
         assert_eq!(state["data"]["status"], "moving");
         let metadata = dummy_payload(8, tid, tid_other);
-        assert_eq!(metadata["data"]["download_dir"], "/downloads/relocated-8");
+        assert_eq!(
+            metadata["data"]["download_dir"],
+            ".server_root/downloads/relocated-8"
+        );
         assert_eq!(metadata["data"]["comment"], "note-8");
         assert_eq!(metadata["data"]["private"], true);
         let jobs = dummy_payload(9, tid, tid_other);

@@ -201,7 +201,7 @@ mod tests {
         assert_event_kind(
             &Event::Completed {
                 torrent_id: Uuid::nil(),
-                library_path: "/tmp".into(),
+                library_path: ".server_root/library/demo".into(),
             },
             "completed",
         );
@@ -209,7 +209,7 @@ mod tests {
             &Event::MetadataUpdated {
                 torrent_id: Uuid::nil(),
                 name: Some("demo".into()),
-                download_dir: Some("/downloads/demo".into()),
+                download_dir: Some(".server_root/downloads/demo".into()),
                 comment: None,
                 source: None,
                 private: None,

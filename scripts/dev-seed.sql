@@ -19,20 +19,20 @@ SET mode = EXCLUDED.mode,
 -- Default engine profile paths for local runs.
 UPDATE engine_profile
 SET
-    resume_dir = '/var/lib/revaer/state',
-    download_root = '/data/staging'
+    resume_dir = '.server_root/resume',
+    download_root = '.server_root/downloads'
 WHERE id = '00000000-0000-0000-0000-000000000002';
 
 -- Default filesystem policy and allowed paths.
 UPDATE fs_policy
 SET
-    library_root = '/data/library'
+    library_root = '.server_root/library'
 WHERE id = '00000000-0000-0000-0000-000000000003';
 
 SELECT revaer_config.set_fs_list(
     '00000000-0000-0000-0000-000000000003',
     'allow_paths',
-    ARRAY['/data/staging', '/data/library']::TEXT[]
+    ARRAY['.server_root/downloads', '.server_root/library']::TEXT[]
 );
 
 -- Development API key: key_id=dev, secret=revaer_dev

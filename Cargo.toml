@@ -39,7 +39,7 @@ tokio-stream = { version = "0.1", features = ["sync"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt", "env-filter", "json"] }
 sqlx = { version = "0.8", default-features = false, features = ["runtime-tokio-rustls", "postgres", "macros", "migrate", "uuid", "json", "chrono"] }
-uuid = { version = "1.18", features = ["v4", "serde"] }
+uuid = { version = "1.19", features = ["v4", "serde"] }
 chrono = { version = "0.4", features = ["serde", "clock"] }
 argon2 = "0.5"
 rand = "0.9"
@@ -51,10 +51,7 @@ tower-http = { version = "0.6", features = ["trace", "request-id", "cors"] }
 base64 = "0.22"
 regex = "1.12"
 walkdir = "2.5"
-jsonschema = { version = "0.33", default-features = false }
+jsonschema = { version = "0.38", default-features = false }
 revaer-test-support = { path = "crates/revaer-test-support" }
 
 [workspace.metadata.cargo-llvm-cov]
- 
-[patch.crates-io]
-anymap = { path = "vendor/anymap" }

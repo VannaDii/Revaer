@@ -658,14 +658,14 @@ mod tests {
             "magnet:?xt=urn:btih:abc",
             "tv",
             "4k, hevc",
-            "/data",
+            ".server_root/downloads",
             "",
             "",
             false,
         )
         .map_err(|_| test_error("build add payload failed"))?;
         assert_eq!(payload.category.as_deref(), Some("tv"));
-        assert_eq!(payload.save_path.as_deref(), Some("/data"));
+        assert_eq!(payload.save_path.as_deref(), Some(".server_root/downloads"));
         assert_eq!(
             payload.tags,
             Some(vec!["4k".to_string(), "hevc".to_string()])

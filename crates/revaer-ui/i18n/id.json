@@ -43,7 +43,7 @@
     "tags": "Tag",
     "tags_placeholder": "4K, hevc, scene",
     "save_path": "Jalur penyimpanan",
-    "save_path_placeholder": "/data/incomplete",
+    "save_path_placeholder": ".server_root/downloads",
     "open_detail": "Buka detail",
     "eta_infinite": "∞",
     "eta": "Perkiraan waktu",

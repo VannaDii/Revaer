@@ -275,7 +275,8 @@ mod tests {
         let events = EventBus::new();
         let engine = LibtorrentEngine::new(events)?;
 
-        let mut runtime = runtime_config_template("/tmp/revaer-downloads", "/tmp/revaer-resume");
+        let mut runtime =
+            runtime_config_template(".server_root/downloads", ".server_root/resume");
         runtime.enable_dht = true;
         runtime.sequential_default = false;
         runtime.listen_port = Some(6_881);
@@ -356,7 +357,7 @@ mod tests {
         let engine = LibtorrentEngine::with_resume_store(events, store)?;
         engine
             .apply_runtime_config(runtime_config_template(
-                "/tmp/revaer-downloads",
+                ".server_root/downloads",
                 resume_dir.display().to_string(),
             ))
             .await?;

@@ -2171,7 +2171,7 @@ mod tests {
             id: Uuid::new_v4(),
             source: TorrentSource::magnet("magnet:?xt=urn:btih:move"),
             options: AddTorrentOptions {
-                download_dir: Some("/downloads/original".into()),
+                download_dir: Some(".server_root/downloads/original".into()),
                 ..AddTorrentOptions::default()
             },
         };
@@ -2184,7 +2184,7 @@ mod tests {
         worker
             .handle(EngineCommand::MoveStorage {
                 id: descriptor.id,
-                download_dir: "/downloads/relocated".into(),
+                download_dir: ".server_root/downloads/relocated".into(),
             })
             .await?;
 
@@ -2197,7 +2197,10 @@ mod tests {
             }) = next_event_with_timeout(&mut stream, 50).await
             {
                 assert_eq!(torrent_id, descriptor.id);
-                assert_eq!(download_dir.as_deref(), Some("/downloads/relocated"));
+                assert_eq!(
+                    download_dir.as_deref(),
+                    Some(".server_root/downloads/relocated")
+                );
                 metadata_event_seen = true;
                 break;
             }
@@ -2209,7 +2212,10 @@ mod tests {
             .resume_cache
             .get(&descriptor.id)
             .and_then(|meta| meta.download_dir.clone());
-        assert_eq!(cached_dir.as_deref(), Some("/downloads/relocated"));
+        assert_eq!(
+            cached_dir.as_deref(),
+            Some(".server_root/downloads/relocated")
+        );
 
         Ok(())
     }
@@ -2500,7 +2506,7 @@ mod tests {
                 index: 0,
                 priority: FilePriority::High,
             }],
-            download_dir: Some("/persisted/downloads".into()),
+            download_dir: Some(".server_root/persisted/downloads".into()),
             storage_mode: Some(StorageMode::Sparse),
             use_partfile: Some(true),
             sequential: true,
@@ -2882,8 +2888,8 @@ mod tests {
             end_minutes: 180,
         };
         let config = EngineRuntimeConfig {
-            download_root: "/data".into(),
-            resume_dir: "/state".into(),
+            download_root: ".server_root/downloads".into(),
+            resume_dir: ".server_root/resume".into(),
             storage_mode: StorageMode::Sparse.into(),
             use_partfile: true.into(),
             disk_read_mode: None,

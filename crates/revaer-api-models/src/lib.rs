@@ -23,9 +23,9 @@
 use base64::{Engine as _, engine::general_purpose};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use uuid::Uuid;
 
+use revaer_config::ConfigSnapshot;
 use revaer_events::TorrentState;
 use revaer_torrent_core::{
     AddTorrentOptions, FileSelectionRules, FileSelectionUpdate, PeerChoke, PeerInterest,
@@ -187,11 +187,13 @@ pub struct SetupStartRequest {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SetupCompleteResponse {
     /// Updated configuration snapshot.
-    pub snapshot: Value,
-    /// Bootstrap API key (`key_id:secret`).
-    pub api_key: String,
-    /// API key expiry timestamp as an RFC3339 string.
-    pub api_key_expires_at: String,
+    pub snapshot: ConfigSnapshot,
+    /// Bootstrap API key (`key_id:secret`) when auth is enabled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key: Option<String>,
+    /// API key expiry timestamp as an RFC3339 string when auth is enabled.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_key_expires_at: Option<String>,
 }
 
 /// API key refresh response payload returned by `/v1/auth/refresh`.
@@ -1219,7 +1221,7 @@ mod tests {
     fn torrent_create_request_to_options_maps_fields() {
         let request = TorrentCreateRequest {
             name: Some("Example".to_string()),
-            download_dir: Some("/downloads".to_string()),
+            download_dir: Some(".server_root/downloads".to_string()),
             sequential: Some(true),
             include: vec!["**/*.mkv".to_string()],
             exclude: vec!["**/*.tmp".to_string()],
@@ -1245,7 +1247,10 @@ mod tests {
 
         let options = request.to_options();
         assert_eq!(options.name_hint.as_deref(), Some("Example"));
-        assert_eq!(options.download_dir.as_deref(), Some("/downloads"));
+        assert_eq!(
+            options.download_dir.as_deref(),
+            Some(".server_root/downloads")
+        );
         assert_eq!(options.sequential, Some(true));
         assert_eq!(options.file_rules.include, vec!["**/*.mkv".to_string()]);
         assert_eq!(options.file_rules.exclude, vec!["**/*.tmp".to_string()]);
@@ -1359,8 +1364,8 @@ mod tests {
                 priority: FilePriority::High,
                 selected: true,
             }]),
-            library_path: Some("/library/movie".to_string()),
-            download_dir: Some("/downloads/movie".to_string()),
+            library_path: Some(".server_root/library/movie".to_string()),
+            download_dir: Some(".server_root/downloads/movie".to_string()),
             comment: Some("note".to_string()),
             source: Some("source".to_string()),
             private: Some(true),
@@ -1396,7 +1401,10 @@ mod tests {
         let settings = detail
             .settings
             .ok_or_else(|| test_error("settings missing"))?;
-        assert_eq!(settings.download_dir.as_deref(), Some("/downloads/movie"));
+        assert_eq!(
+            settings.download_dir.as_deref(),
+            Some(".server_root/downloads/movie")
+        );
         assert!(settings.sequential);
         assert!(settings.selection.is_none());
         let files = detail.files.ok_or_else(|| test_error("files missing"))?;

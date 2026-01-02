@@ -1,195 +1,276 @@
 # Nexus + DaisyUI Dashboard UI Checklist
 
+## 0) Updates
+
+-   [x] Update to `Yew` version 0.22. Use the following guides to help:
+    -   https://yew.rs/docs/migration-guides/yew/from-0_18_0-to-0_19_0
+    -   https://yew.rs/docs/migration-guides/yew/from-0_19_0-to-0_20_0
+    -   https://yew.rs/docs/migration-guides/yew/from-0_20_0-to-0_21_0
+    -   https://yew.rs/docs/migration-guides/yew/from-0_21_0-to-0_22_0
+-   [x] Upgrade to `Yewdux` version 0.11
+-   [x] Upgrade to `Yew-Router` version 0.19
+-   [x] Eliminate the vendored `anymap`
+-   [x] Reevaluate the `gloo*` version and ensure we're on the latest compatible version
+-   [x] Balance our versions without vendoring, it's better downgrade than to vendor.
+
 ## 1) UX constraints and source-of-truth rules
-- [x] Treat ui_vendor/nexus-html@3.1.0/src as markup reference only; do not run any Node tooling.
-- [x] Treat static/nexus as the runtime asset kit (compiled CSS, images, client-side JS).
-- [x] Use DaisyUI Blueprint MCP as the canonical reference for DaisyUI v5 component patterns, variants, accessibility, and form layout; if Nexus markup differs, Nexus wins for visual parity unless intentionally standardizing.
-- [x] Translation bundle surfaces missing keys (no default/fallback strings).
+
+-   [x] Treat ui_vendor/nexus-html@3.1.0/src as markup reference only; do not run any Node tooling.
+-   [x] Treat static/nexus as the runtime asset kit (compiled CSS, images, client-side JS).
+-   [x] Use DaisyUI Blueprint MCP as the canonical reference for DaisyUI v5 component patterns, variants, accessibility, and form layout; if Nexus markup differs, Nexus wins for visual parity unless intentionally standardizing.
+-   [x] Translation bundle surfaces missing keys (no default/fallback strings).
+-   [ ] Every i18n key referenced in the UI has an English value (no raw keys shown).
+-   [ ] Error surfaces never block navigation (overlays are non-blocking).
+-   [ ] All server errors render as persistent, dismissible toasts (no auto-timeout).
 
 ## 2) Theme + palette (from the logo)
-- [x] Establish a Revaer theme that leans into dark navy/purple with magenta-purple accent.
-- [x] Use token guidance from the logo: background ~#000030 to #000040; accent ~#6A0071; primary ~#901CBB; highlight ~#C42AC3.
-- [x] Apply tokens via DaisyUI theme variables or theme selection plus minimal overrides; keep contrast readable for table/list UIs.
-- [x] Tables use base-200 with base-100 hover; progress fills use primary tokens.
+
+-   [x] Establish a Revaer theme that leans into dark navy/purple with magenta-purple accent.
+-   [x] Use token guidance from the logo: background ~#000030 to #000040; accent ~#6A0071; primary ~#901CBB; highlight ~#C42AC3.
+-   [x] Apply tokens via DaisyUI theme variables or theme selection plus minimal overrides; keep contrast readable for table/list UIs.
+-   [x] Tables use base-200 with base-100 hover; progress fills use primary tokens.
+-   [x] Theme applied via `data-theme` on `<html>` and persisted to `localStorage`; default to dark.
+-   [ ] No hardcoded hex or Tailwind palette colors in components; use DaisyUI semantic tokens only.
 
 ## 3) Shell and routing (atomic composition)
-- [x] Implement AppShell template: sidebar + topbar + main outlet; preserve Nexus layout structure.
-- [x] Routes: Home, Torrents (+ detail), Settings only; remove Categories/Tags/Health from routing.
-- [x] Torrents route supports deep linking to selected torrent (open details drawer) via URL state.
-- [x] Static assets resolve under nested routes (Nexus CSS/icons load on /torrents and /settings).
+
+-   [x] Implement AppShell template: sidebar + topbar + main outlet; preserve Nexus layout structure.
+-   [x] Sidebar nav only Home, Torrents, Settings (no extra entries).
+-   [x] Logs screen is routable via server menu (`/logs`) but not in the sidebar.
+-   [x] Categories/Tags/Health are not top-level routes; management lives in Settings tabs.
+-   [x] Torrents route supports deep linking to selected torrent (open details drawer) via URL state.
+-   [x] Static assets resolve under nested routes (Nexus CSS/icons load on /torrents and /settings).
 
 ## 4) Authentication and first-run flow
-- [x] On startup, determine configured vs not configured.
-- [x] If not configured: force Setup flow (blocking screen).
-- [x] If configured and auth missing: show auth prompt (blocking modal/screen).
-- [x] Setup flow: call admin/setup/start; handle "already configured" by switching to configured state.
-- [x] Setup flow: collect setup token and complete via admin/setup/complete.
-- [x] After completion, route to auth prompt.
-- [x] Auth prompt (configured state): provide two tabs: API key, or Local auth (username/password).
-- [x] Store auth choice in local storage and attach to all API requests.
-- [x] API key maps to header x-revaer-api-key (per OpenAPI).
-- [x] Local auth sends Authorization: Basic ... (server may ignore).
-- [x] Settings allow "bypass local" toggle; when enabled default auth prompt to API key and avoid showing local auth first.
-- [x] Auth prompt is dismissible so navigation to Settings remains available.
-- [x] Auth prompt overlay is non-blocking (pointer events pass through to the shell).
+
+-   [x] On startup, determine configured vs not configured.
+-   [x] If not configured: force Setup flow (blocking screen).
+-   [x] If configured and auth missing: show auth prompt (blocking modal/screen).
+-   [x] Setup flow: call admin/setup/start; handle "already configured" by switching to configured state.
+-   [x] Setup flow: collect setup token and complete via admin/setup/complete.
+-   [ ] Setup completion returns API key (when auth enabled) and client begins using it immediately.
+-   [x] After completion, route to auth prompt.
+-   [x] Auth prompt (configured state): provide two tabs: API key, or Local auth (username/password).
+-   [x] Store auth choice in local storage and attach to all API requests.
+-   [x] API key maps to header x-revaer-api-key (per OpenAPI).
+-   [x] Local auth sends Authorization: Basic ... (server may ignore).
+-   [x] Settings allow "bypass local" toggle; when enabled default auth prompt to API key and avoid showing local auth first.
+-   [x] Auth prompt is dismissible so navigation to Settings remains available.
+-   [x] Auth prompt overlay is non-blocking (pointer events pass through to the shell).
+-   [x] Setup prompt supports No Auth selection (local network).
+-   [x] Anonymous auth mode omits auth headers for API calls.
+-   [x] Persist API key + expiry in `localStorage`; clear on logout.
+-   [ ] Logout invalidates token server-side immediately.
+-   [x] Auto-refresh API key before expiry (`/v1/auth/refresh`).
+-   [ ] Enforce 14-day token expiry policy end-to-end (server + client).
+-   [ ] No-auth mode works end-to-end without API key when configured.
+-   [x] Logout button is present in the sidebar footer alongside the connectivity indicator.
 
 ## 5) State management and rendering performance (yewdux)
-- [x] Adopt yewdux for all shared UI/data state; avoid use_reducer + ContextProvider for shared data.
-- [x] Define a single normalized AppStore with domain sub-structs:
-  - [x] auth (configured, setup status, auth method, key/user presence, last auth error)
-  - [x] ui (theme, toasts, modal/drawer state, FAB open, busy flags)
-  - [x] torrents (normalized maps, filters, paging, selection, details cache)
-  - [x] labels (categories/tags caches)
-  - [x] health (basic/full snapshots)
-  - [x] system (system rates, SSE connection status)
-- [x] Normalize torrent data:
-  - [x] torrents.by_id: HashMap<Uuid, Rc<TorrentRowState>>
-  - [x] torrents.visible_ids: Vec<Uuid> (render list by IDs only)
-  - [x] torrents.selected: HashSet<Uuid> (bulk)
-  - [x] torrents.filters: TorrentsQueryModel (mirrors URL query)
-  - [x] torrents.paging: { cursor, next_cursor, limit, is_loading }
-  - [x] torrents.details_by_id: HashMap<Uuid, Rc<TorrentDetailState>> (optional cache; keep large vectors here, not in row state)
-  - [x] torrents.fsops_by_id: HashMap<Uuid, Rc<FsopsState>> (separate map; row derives a small badge slice)
-- [x] Implement selectors for row-level subscription:
-  - [x] select_visible_ids()
-  - [x] select_torrent_row(id) (for drawer)
-  - [x] select_torrent_progress_slice(id) (for list rows; minimal fields only)
-  - [x] select_is_selected(id) (for bulk checkbox)
-  - [x] select_system_rates() and select_sse_status()
-- [x] Ensure selector return values are cheap and stable:
-  - [x] Use Rc/Arc for row models and replace only the changed row pointer on updates.
-  - [x] Derive/implement PartialEq so unchanged slices do not trigger re-render.
-  - [x] Keep visible_ids as IDs; do not copy full row structs into list state.
-- [x] Row list components must subscribe only to progress/state slices, not full TorrentRowState, unless rendering the drawer.
+
+-   [x] Adopt yewdux for all shared UI/data state; avoid use_reducer + ContextProvider for shared data.
+-   [x] Define a single normalized AppStore with domain sub-structs:
+    -   [x] auth (configured, setup status, auth method, key/user presence, last auth error)
+    -   [x] ui (theme, toasts, modal/drawer state, FAB open, busy flags)
+    -   [x] torrents (normalized maps, filters, paging, selection, details cache)
+    -   [x] labels (categories/tags caches)
+    -   [x] health (basic/full snapshots)
+    -   [x] system (system rates, SSE connection status)
+-   [x] Normalize torrent data:
+    -   [x] torrents.by_id: HashMap<Uuid, Rc<TorrentRowState>>
+    -   [x] torrents.visible_ids: Vec<Uuid> (render list by IDs only)
+    -   [x] torrents.selected: HashSet<Uuid> (bulk)
+    -   [x] torrents.filters: TorrentsQueryModel (mirrors URL query)
+    -   [x] torrents.paging: { cursor, next_cursor, limit, is_loading }
+    -   [x] torrents.details_by_id: HashMap<Uuid, Rc<TorrentDetailState>> (optional cache; keep large vectors here, not in row state)
+    -   [x] torrents.fsops_by_id: HashMap<Uuid, Rc<FsopsState>> (separate map; row derives a small badge slice)
+-   [x] Implement selectors for row-level subscription:
+    -   [x] select_visible_ids()
+    -   [x] select_torrent_row(id) (for drawer)
+    -   [x] select_torrent_progress_slice(id) (for list rows; minimal fields only)
+    -   [x] select_is_selected(id) (for bulk checkbox)
+    -   [x] select_system_rates() and select_sse_status()
+-   [x] Ensure selector return values are cheap and stable:
+    -   [x] Use Rc/Arc for row models and replace only the changed row pointer on updates.
+    -   [x] Derive/implement PartialEq so unchanged slices do not trigger re-render.
+    -   [x] Keep visible_ids as IDs; do not copy full row structs into list state.
+-   [x] Row list components must subscribe only to progress/state slices, not full TorrentRowState, unless rendering the drawer.
 
 ## 6) API client layer (singleton + shared domain types)
-- [x] Implement a single ApiClient instance (created once) and share via a lightweight context ApiCtx.
-- [x] Enforce: no component constructs its own API client; all API calls go through the singleton.
-- [x] Restrict API calls to page controllers/services (effects/hooks/modules), not atoms/molecules.
-- [x] Atoms and molecules must never perform API calls or dispatch side effects.
-- [x] ApiClient must use existing domain types from shared backend crates (models, enums, request/response types); do not recreate parallel UI-only types.
-- [x] Prefer re-exporting or directly depending on shared crates for:
-  - [x] TorrentSummary, TorrentDetail, TorrentSettingsView, TorrentFile, TorrentLabelPolicy
-  - [x] EventEnvelope, Event, TorrentState, related enums
-- [x] Build only minimal transport/adaptation glue (headers, auth, pagination, SSE), not duplicate schemas.
-- [x] Endpoints: GET /health, GET /health/full.
-- [x] Endpoints: GET /metrics (optional viewer).
-- [x] Endpoints: GET /v1/torrents, POST /v1/torrents.
-- [x] Endpoints: GET /v1/torrents/{id}.
-- [x] Endpoints: POST /v1/torrents/{id}/action.
-- [x] Endpoints: PATCH /v1/torrents/{id}/options.
-- [x] Endpoints: POST /v1/torrents/{id}/select.
-- [x] Endpoints: GET /v1/torrents/categories; PUT /v1/torrents/categories/{name}.
-- [x] Endpoints: GET /v1/torrents/tags; PUT /v1/torrents/tags/{name}.
-- [x] Endpoints: POST /v1/torrents/create.
-- [x] Endpoints: GET /v1/torrents/events (SSE).
-- [x] Centralize error parsing with ProblemDetails; display status/title/detail consistently.
-- [x] Implement rate limit handling (429) with user-visible backoff messaging and safe retry.
+
+-   [x] Implement a single ApiClient instance (created once) and share via a lightweight context ApiCtx.
+-   [x] Enforce: no component constructs its own API client; all API calls go through the singleton.
+-   [x] Restrict API calls to page controllers/services (effects/hooks/modules), not atoms/molecules.
+-   [x] Atoms and molecules must never perform API calls or dispatch side effects.
+-   [x] ApiClient must use existing domain types from shared backend crates (models, enums, request/response types); do not recreate parallel UI-only types.
+-   [x] Prefer re-exporting or directly depending on shared crates for:
+    -   [x] TorrentSummary, TorrentDetail, TorrentSettingsView, TorrentFile, TorrentLabelPolicy
+    -   [x] EventEnvelope, Event, TorrentState, related enums
+-   [x] Build only minimal transport/adaptation glue (headers, auth, pagination, SSE), not duplicate schemas.
+-   [x] Endpoints: GET /health, GET /health/full.
+-   [x] Endpoints: GET /metrics (optional viewer).
+-   [x] Endpoints: GET /v1/torrents, POST /v1/torrents.
+-   [x] Endpoints: GET /v1/torrents/{id}.
+-   [x] Endpoints: POST /v1/torrents/{id}/action.
+-   [x] Endpoints: PATCH /v1/torrents/{id}/options.
+-   [x] Endpoints: POST /v1/torrents/{id}/select.
+-   [x] Endpoints: GET /v1/torrents/categories; PUT /v1/torrents/categories/{name}.
+-   [x] Endpoints: GET /v1/torrents/tags; PUT /v1/torrents/tags/{name}.
+-   [x] Endpoints: POST /v1/torrents/create.
+-   [x] Endpoints: GET /v1/torrents/events (SSE).
+-   [x] Endpoints: POST /v1/auth/refresh.
+-   [x] Endpoints: GET /v1/fs/browse.
+-   [x] Endpoints: GET /v1/logs/stream (SSE).
+-   [x] Endpoints: POST /admin/factory-reset.
+-   [x] Centralize error parsing with ProblemDetails; display status/title/detail consistently.
+-   [x] Implement rate limit handling (429) with user-visible backoff messaging and safe retry.
+-   [ ] API responses include proper CORS headers for the UI origin (including SSE).
 
 ## 7) SVG and icon system (reuse + consistency)
-- [x] Encapsulate every SVG as a Yew component under atoms/icons/*.
-- [x] Icon component props: size, class, optional title, optional variant (outline/solid) when relevant.
-- [x] Build IconButton and standardize hover/active/focus states with DaisyUI Blueprint patterns.
-- [x] Replace all inline SVG usage in pages/components with the icon components.
+
+-   [x] Encapsulate every SVG as a Yew component under atoms/icons/\*.
+-   [x] Icon component props: size, class, optional title, optional variant (outline/solid) when relevant.
+-   [x] Build IconButton and standardize hover/active/focus states with DaisyUI Blueprint patterns.
+-   [x] Replace all inline SVG usage in pages/components with the icon components.
 
 ## 8) Rust UI component library (atomic + props discipline)
-- [x] Build primitives: Buttons (variants, sizes, loading, icon slots), IconButton.
-- [x] Build primitives: Inputs (text, password, number), SearchInput with debounce.
-- [x] Build primitives: Select/MultiSelect, Checkbox/Toggle.
-- [x] Build primitives: Badge, Progress, Tooltip, Skeleton, EmptyState.
-- [x] Build primitives: Dropdown menu, Tabs.
-- [x] Build primitives: Modal, Drawer (details panel), Toast/Alert.
-- [x] Build primitives: Table/List row components and a sticky bulk action bar.
-- [x] Every component exposes all configurables as props: labels, counts, state, href, ids, optional sections, variants, and an extra class hook.
+
+-   [x] Build primitives: Buttons (variants, sizes, loading, icon slots), IconButton.
+-   [x] Build primitives: Inputs (text, password, number), SearchInput with debounce.
+-   [x] Build primitives: Select/MultiSelect, Checkbox/Toggle.
+-   [x] Build primitives: Badge, Progress, Tooltip, Skeleton, EmptyState.
+-   [x] Build primitives: Dropdown menu, Tabs.
+-   [x] Build primitives: Modal, Drawer (details panel), Toast/Alert.
+-   [x] Build primitives: Table/List row components and a sticky bulk action bar.
+-   [x] Every component exposes all configurables as props: labels, counts, state, href, ids, optional sections, variants, and an extra class hook.
 
 ## 9) Torrents list page (main screen)
-- [x] Layout: Nexus dashboard styling, table-based view (DaisyUI table) with filter bar and FAB.
-- [x] Filter header matches Nexus orders layout (search + select row with right-side actions).
-- [x] Secondary filter row covers tags/tracker/extension + clear filters.
-- [x] Filters in URL query: query text (name), state, tags, tracker, extension.
-- [x] Pagination: limit and cursor; provide Load more using next cursor.
-- [x] Columns (TorrentSummary): name, state, progress, down/up rate, ratio, tags, trackers, updated timestamp.
-- [x] Row click opens details drawer and updates route (deep link).
-- [x] Row menu actions: pause, resume, reannounce, recheck, sequential toggle.
-- [x] Row menu actions: set rate (download/upload bps).
-- [x] Row menu actions: remove (confirm + delete_data toggle).
-- [x] Bulk operations: multi-select checkboxes and bulk action bar.
-- [x] Bulk ops: issue /{id}/action per selected torrent in parallel with concurrency cap.
-- [x] Bulk ops: collect per-item failures, show summary toast, keep drawer closed unless single selection remains.
-- [x] Bulk actions: pause, resume, recheck, reannounce.
-- [x] Bulk actions: sequential on/off, rate set, remove (confirm + optional delete_data).
-- [x] Legacy torrent list component removed (non-Nexus grid/list).
+
+-   [x] Layout: Nexus dashboard styling, table-based view (DaisyUI table) with filter bar and FAB.
+-   [x] Filter header matches Nexus orders layout (search + select row with right-side actions).
+-   [x] Secondary filter row covers tags/tracker/extension + clear filters.
+-   [x] Filters in URL query: query text (name), state, tags, tracker, extension.
+-   [x] Pagination: limit and cursor; provide Load more using next cursor.
+-   [x] Columns (TorrentSummary): name, state, progress, down/up rate, ratio, tags, trackers, updated timestamp.
+-   [ ] Sortable headers use Nexus sort affordances and update URL sort state.
+-   [ ] All torrent table values update live via SSE (state, progress, rates, ratio, size, ETA, tags, trackers, updated).
+-   [x] Row click opens details drawer and updates route (deep link).
+-   [x] Row menu actions: pause, resume, reannounce, recheck, sequential toggle.
+-   [x] Row menu actions: set rate (download/upload bps).
+-   [x] Row menu actions: remove (confirm + delete_data toggle).
+-   [x] Bulk operations: multi-select checkboxes and bulk action bar.
+-   [x] Bulk ops: issue /{id}/action per selected torrent in parallel with concurrency cap.
+-   [x] Bulk ops: collect per-item failures, show summary toast, keep drawer closed unless single selection remains.
+-   [x] Bulk actions: pause, resume, recheck, reannounce.
+-   [x] Bulk actions: sequential on/off, rate set, remove (confirm + optional delete_data).
+-   [ ] Empty state uses DaisyUI empty state inside table/drawer only; bottom info banner removed.
+-   [x] Legacy torrent list component removed (non-Nexus grid/list).
 
 ## 10) Torrent details drawer (tabs: Overview, Files, Options)
-- [x] Overview: summary fields + same actions; show last error if present.
-- [x] Files tab: render TorrentFile list; include/exclude and priority edits.
-- [x] Files tab: updates via POST /v1/torrents/{id}/select (support skip_fluff toggle if desired).
-- [x] Options tab: render TorrentSettingsView; only editable fields that map to PATCH /v1/torrents/{id}/options.
-- [x] Options tab: read-only settings shown as static rows (no fake toggles).
-- [x] Details caching discipline: keep large file vectors/settings off the hot row model; update drawer from details_by_id.
-- [x] Drawer empty state uses DaisyUI card styling (no custom placeholder overrides).
-- [x] Detail drawer layout uses DaisyUI tabs/tables/toggles (no legacy panel CSS).
+
+-   [x] Overview: summary fields + same actions; show last error if present.
+-   [x] Files tab: render TorrentFile list; include/exclude and priority edits.
+-   [x] Files tab: updates via POST /v1/torrents/{id}/select (support skip_fluff toggle if desired).
+-   [x] Options tab: render TorrentSettingsView; only editable fields that map to PATCH /v1/torrents/{id}/options.
+-   [x] Options tab: read-only settings shown as static rows (no fake toggles).
+-   [x] Details caching discipline: keep large file vectors/settings off the hot row model; update drawer from details_by_id.
+-   [x] Drawer empty state uses DaisyUI card styling (no custom placeholder overrides).
+-   [x] Detail drawer layout uses DaisyUI tabs/tables/toggles (no legacy panel CSS).
 
 ## 11) FAB actions (Torrents screen)
-- [x] Add torrent modal supports magnet or metainfo_b64.
-- [x] Add torrent modal always generates id client-side (UUID v4).
-- [x] Add torrent modal allows initial tags/category and initial rate limits if supported.
-- [x] Create torrent modal wired to POST /v1/torrents/create.
-- [x] Create torrent modal provides copy buttons for magnet/metainfo.
-- [x] Provide shortcuts to manage categories and tags.
-- [x] Add/Create torrent modals use DaisyUI form controls (no legacy panel CSS).
+
+-   [x] Add torrent modal supports magnet or metainfo_b64.
+-   [x] Add torrent modal always generates id client-side (UUID v4).
+-   [x] Add torrent modal allows initial tags/category and initial rate limits if supported.
+-   [x] Create torrent modal wired to POST /v1/torrents/create.
+-   [x] Create torrent modal provides copy buttons for magnet/metainfo.
+-   [x] Provide shortcuts to manage categories and tags.
+-   [x] Add/Create torrent modals use DaisyUI form controls (no legacy panel CSS).
 
 ## 12) Categories and Tags pages (policy management)
-- [x] Categories list and editor: list existing, create/update via PUT with TorrentLabelPolicy fields.
-- [x] Categories editor: structured form with Advanced section for rarely used policy fields.
-- [x] Tags list and editor: same pattern as categories.
+
+-   [x] Categories list and editor: list existing, create/update via PUT with TorrentLabelPolicy fields.
+-   [x] Categories editor: structured form with Advanced section for rarely used policy fields.
+-   [x] Tags list and editor: same pattern as categories.
 
 ## 13) Health page (operator-facing)
-- [x] Show /health basic status.
-- [x] Show /health/full: degraded components, version/build info, and any torrent snapshot fields.
-- [x] Optional: /metrics viewer with copy button.
+
+-   [x] Show /health basic status.
+-   [x] Show /health/full: degraded components, version/build info, and any torrent snapshot fields.
+-   [x] Optional: /metrics viewer with copy button.
 
 ## 14) Live updates over SSE (robust, header-capable, envelope-first)
-- [x] Implement SSE using fetch streaming and manual SSE parsing (EventSource cannot set headers).
-- [x] Attach x-revaer-api-key to SSE requests.
-- [x] Endpoint discovery: primary /v1/torrents/events.
-- [x] Fallback: attempt /v1/events/stream if primary 404s.
-- [x] Parse SSE fields: event, id, retry, data.
-- [x] Treat the canonical payload as EventEnvelope { id, timestamp, event } JSON; decode this first.
-- [x] Back-compat decode: if envelope parse fails, attempt { kind, data } dummy payload mapping to an internal envelope shape.
-- [x] All SSE events must be normalized into a single internal EventEnvelope shape and applied through a single reducer path.
-- [x] Persist and send Last-Event-ID header for replay; store last numeric event id after successful envelope decode.
-- [x] Build SSE query filters from UI state:
-  - [x] torrent = comma-separated visible IDs when count is below a safe cap; otherwise omit.
-  - [x] event = kinds relevant to current view (list vs drawer).
-  - [x] state only when a state filter is active.
-- [x] Implement a progress coalescer:
-  - [x] Buffer incoming progress patches per torrent ID in a non-reactive buffer.
-  - [x] Flush buffered progress into yewdux store on a fixed cadence (50-100ms).
-  - [x] Apply flush by replacing only the affected Rc<TorrentRowState> entries.
-  - [x] Apply non-progress events immediately (add/remove/state change/metadata/fsops/files/selection/system/health).
-  - [x] If an event cannot be decoded/applied, trigger a throttled targeted refresh (do not refetch everything per message).
-- [x] Progress coalescing is mandatory to cap render frequency under high event volume.
-- [x] UI: show "Live" indicator when connected and subtle warning when reconnecting/backing off.
+
+-   [x] Implement SSE using fetch streaming and manual SSE parsing (EventSource cannot set headers).
+-   [x] Attach x-revaer-api-key to SSE requests.
+-   [x] Endpoint discovery: primary /v1/torrents/events.
+-   [x] Fallback: attempt /v1/events/stream if primary 404s.
+-   [x] Parse SSE fields: event, id, retry, data.
+-   [x] Treat the canonical payload as EventEnvelope { id, timestamp, event } JSON; decode this first.
+-   [x] Back-compat decode: if envelope parse fails, attempt { kind, data } dummy payload mapping to an internal envelope shape.
+-   [x] All SSE events must be normalized into a single internal EventEnvelope shape and applied through a single reducer path.
+-   [x] Persist and send Last-Event-ID header for replay; store last numeric event id after successful envelope decode.
+-   [x] Build SSE query filters from UI state:
+    -   [x] torrent = comma-separated visible IDs when count is below a safe cap; otherwise omit.
+    -   [x] event = kinds relevant to current view (list vs drawer).
+    -   [x] state only when a state filter is active.
+-   [ ] SSE event filter names match backend enum (no 400 warnings).
+-   [ ] Handle 409/conflict SSE failures by resetting Last-Event-ID and reconnecting cleanly.
+-   [x] Implement a progress coalescer:
+    -   [x] Buffer incoming progress patches per torrent ID in a non-reactive buffer.
+    -   [x] Flush buffered progress into yewdux store on a fixed cadence (50-100ms).
+    -   [x] Apply flush by replacing only the affected Rc<TorrentRowState> entries.
+    -   [x] Apply non-progress events immediately (add/remove/state change/metadata/fsops/files/selection/system/health).
+    -   [x] If an event cannot be decoded/applied, trigger a throttled targeted refresh (do not refetch everything per message).
+-   [x] Progress coalescing is mandatory to cap render frequency under high event volume.
+-   [ ] SSE status includes connected/reconnecting/disconnected and sidebar indicator reflects all states.
+-   [x] UI: show "Live" indicator when connected and subtle warning when reconnecting/backing off.
 
 ## 15) Not in scope guardrails
-- [x] Do not implement qBittorrent compatibility endpoints.
-- [x] Do not add node/npm/vite/tailwind build steps.
-- [x] Do not add fake UI controls for settings that cannot be persisted via existing endpoints.
+
+-   [x] Do not implement qBittorrent compatibility endpoints.
+-   [x] Do not add node/npm/vite/tailwind build steps.
+-   [x] Do not add fake UI controls for settings that cannot be persisted via existing endpoints.
 
 ## 16) Hardline dashboard rebuild (Nexus + DaisyUI)
-- [x] Inventory old dashboard entrypoint/shell/components/styles for cleanup.
-- [x] Nexus source-of-truth files identified (dashboard + sidebar/topbar + storage status partials).
-- [x] Sidebar nav = Home, Torrents, Settings (only) with SSE indicator pinned at the bottom.
-- [x] Sidebar labels show Home/Torrents/Settings across locales (nav labels standardized).
-- [x] Sidebar footer SSE indicator uses Nexus pinned-footer structure and DaisyUI primitives.
-- [x] Sidebar SSE indicator label expands only when the sidebar is expanded.
-- [x] Topbar is consistent with breadcrumb, theme toggle, language selector, server menu.
-- [x] Home dashboard matches Nexus layout with DaisyUI cards/stats/progress/list.
-- [x] Dashboard storage status dropdown uses Nexus actions (Enhance/Insights/Auto Tag/Delete).
-- [x] SSE indicator modal is non-blocking; navigation always reachable.
-- [x] Settings is sectioned and reachable without auth; test connection + config snapshot wired.
-- [x] Legacy dashboard CSS reduced; Nexus app.css remains primary styling.
-- [x] Task record (ADR) added for this work.
-- [x] `just ci` passes locally.
-- [x] `just cov` meets the ≥80% line coverage gate.
+
+-   [x] Inventory old dashboard entrypoint/shell/components/styles for cleanup.
+-   [x] Nexus source-of-truth files identified (dashboard + sidebar/topbar + storage status partials).
+-   [x] Sidebar nav = Home, Torrents, Settings (only) with SSE indicator pinned at the bottom.
+-   [ ] Sidebar defaults to icon-only (labels only when expanded).
+-   [x] Sidebar labels show Home/Torrents/Settings across locales (nav labels standardized).
+-   [x] Sidebar footer SSE indicator uses Nexus pinned-footer structure and DaisyUI primitives.
+-   [x] Sidebar SSE indicator label expands only when the sidebar is expanded.
+-   [x] Sidebar footer includes Logout in the same bar; label collapses with the sidebar.
+-   [x] Topbar is consistent with breadcrumb, theme toggle, language selector, server menu.
+-   [ ] Topbar location indicator matches Home/Torrents/Settings consistently.
+-   [x] Server menu items exactly: Restart server, View logs; Factory reset separated and styled danger.
+-   [ ] Server dropdown renders above torrent action bar (z-index stacking).
+-   [x] Home dashboard matches Nexus layout with DaisyUI cards/stats/progress/list.
+-   [x] Dashboard storage status dropdown uses Nexus actions (Enhance/Insights/Auto Tag/Delete).
+-   [x] SSE indicator modal is non-blocking; navigation always reachable.
+-   [ ] SSE indicator modal shows status, next retry time, last event ID, last error reason, retry strategy, and Retry/Dismiss actions.
+-   [x] Settings is sectioned and reachable without auth; test connection + config snapshot wired.
+-   [x] Legacy dashboard CSS reduced; Nexus app.css remains primary styling.
+-   [x] Task record (ADR) added for this work.
+-   [ ] `just ci` passes locally.
+-   [ ] `just cov` meets the ≥80% line coverage gate.
+
+## 17) Settings UX (tabs + batching + file browser)
+
+-   [x] Settings tabs map to torrent-user workflows (Connection, Downloads, Seeding, Network, Storage, Labels, System).
+-   [x] Changes are staged locally with a change-count badge and a single Save action.
+-   [x] Directory fields use a remote file browser modal with browse + manual path entry.
+-   [ ] Server validates selected directory exists before accepting updates; surface failures via persistent toasts.
+-   [ ] Settings API/DB is fully normalized (no JSON blobs); UI renders typed fields.
+-   [x] Boolean fields use toggles; fixed options use dropdowns; numeric values use number inputs.
+-   [x] Read-only fields show text with copy-to-clipboard controls.
+-   [ ] Settings errors are shown inline via alerts/toasts; no blocking overlays.
+
+## 18) Logs screen + factory reset
+
+-   [x] Logs screen uses SSE stream only while mounted; connection closes on leave.
+-   [x] Log view honors ANSI color codes and extended characters; log body is black.
+-   [x] Log list is bounded (memory efficient) and prepends new lines; only log area scrolls.
+-   [ ] Factory reset modal requires typing `factory reset` (client + server validation).
+-   [ ] Factory reset errors show raw server detail in non-expiring toasts; success reloads to setup.

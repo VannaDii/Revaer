@@ -2142,14 +2142,14 @@ BEGIN
     VALUES (
         '00000000-0000-0000-0000-000000000002',
         'libtorrent',
-        '/var/lib/revaer/state',
-        '/data/staging'
+        '.server_root/resume',
+        '.server_root/downloads'
     );
 
     INSERT INTO public.fs_policy (id, library_root)
     VALUES (
         '00000000-0000-0000-0000-000000000003',
-        '/data/library'
+        '.server_root/library'
     );
 
     PERFORM revaer_config.update_app_telemetry(
@@ -2259,7 +2259,7 @@ BEGIN
     PERFORM revaer_config.set_fs_list(
         '00000000-0000-0000-0000-000000000003',
         'allow_paths',
-        ARRAY['/data/staging', '/data/library']::TEXT[]
+        ARRAY['.server_root/downloads', '.server_root/library']::TEXT[]
     );
 END;
 $$ LANGUAGE plpgsql;
@@ -2633,15 +2633,15 @@ INSERT INTO public.engine_profile (id, implementation, resume_dir, download_root
 VALUES (
     '00000000-0000-0000-0000-000000000002',
     'libtorrent',
-    '/var/lib/revaer/state',
-    '/data/staging'
+    '.server_root/resume',
+    '.server_root/downloads'
 )
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO public.fs_policy (id, library_root)
 VALUES (
     '00000000-0000-0000-0000-000000000003',
-    '/data/library'
+    '.server_root/library'
 )
 ON CONFLICT (id) DO NOTHING;
 
@@ -2656,7 +2656,7 @@ BEGIN
         PERFORM revaer_config.set_fs_list(
             '00000000-0000-0000-0000-000000000003',
             'allow_paths',
-            ARRAY['/data/staging', '/data/library']::TEXT[]
+            ARRAY['.server_root/downloads', '.server_root/library']::TEXT[]
         );
     END IF;
 END;

@@ -1894,7 +1894,7 @@ pub(crate) fn demo_rows() -> Vec<TorrentRow> {
                 .map(str::to_string)
                 .collect(),
             tracker: "tracker.hypothetical.org".into(),
-            path: "/data/incomplete/foundation-s02e08".into(),
+            path: ".server_root/downloads/foundation-s02e08".into(),
             category: "tv".into(),
             size_bytes: 18 * GIB,
             upload_bps: 1_200_000,
@@ -1913,7 +1913,7 @@ pub(crate) fn demo_rows() -> Vec<TorrentRow> {
                 .map(str::to_string)
                 .collect(),
             tracker: "tracker.space.example".into(),
-            path: "/data/media/TV/The Expanse/Season 1".into(),
+            path: ".server_root/library/TV/The Expanse/Season 1".into(),
             category: "tv".into(),
             size_bytes: 8 * GIB,
             upload_bps: 5_400_000,
@@ -1932,7 +1932,7 @@ pub(crate) fn demo_rows() -> Vec<TorrentRow> {
                 .map(str::to_string)
                 .collect(),
             tracker: "movies.example.net".into(),
-            path: "/data/incomplete/dune-part-one".into(),
+            path: ".server_root/downloads/dune-part-one".into(),
             category: "movies".into(),
             size_bytes: 64 * GIB,
             upload_bps: 0,
@@ -1948,7 +1948,7 @@ pub(crate) fn demo_rows() -> Vec<TorrentRow> {
             updated: "2024-12-12 06:55 UTC".into(),
             tags: vec!["iso"].into_iter().map(str::to_string).collect(),
             tracker: "releases.ubuntu.com".into(),
-            path: "/data/incomplete/ubuntu".into(),
+            path: ".server_root/downloads/ubuntu".into(),
             category: "os".into(),
             size_bytes: 2 * GIB,
             upload_bps: 240_000,
@@ -1967,7 +1967,7 @@ pub(crate) fn demo_rows() -> Vec<TorrentRow> {
                 .map(str::to_string)
                 .collect(),
             tracker: "tracker.hypothetical.org".into(),
-            path: "/data/incomplete/arcane-s02e02".into(),
+            path: ".server_root/downloads/arcane-s02e02".into(),
             category: "tv".into(),
             size_bytes: 6 * GIB,
             upload_bps: 950_000,

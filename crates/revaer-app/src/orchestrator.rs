@@ -1312,8 +1312,8 @@ mod orchestrator_tests {
             strict_super_seeding: false.into(),
             optimistic_unchoke_slots: None,
             max_queued_disk_bytes: None,
-            resume_dir: "/tmp/resume".to_string(),
-            download_root: "/downloads".to_string(),
+            resume_dir: ".server_root/resume".to_string(),
+            download_root: ".server_root/downloads".to_string(),
             storage_mode: EngineProfile::default_storage_mode(),
             use_partfile: EngineProfile::default_use_partfile(),
             disk_read_mode: None,
@@ -1696,8 +1696,8 @@ mod engine_refresh_tests {
             strict_super_seeding: false.into(),
             optimistic_unchoke_slots: None,
             max_queued_disk_bytes: None,
-            resume_dir: "/tmp/resume".to_string(),
-            download_root: "/downloads".to_string(),
+            resume_dir: ".server_root/resume".to_string(),
+            download_root: ".server_root/downloads".to_string(),
             storage_mode: EngineProfile::default_storage_mode(),
             use_partfile: EngineProfile::default_use_partfile(),
             disk_read_mode: None,
@@ -1956,8 +1956,8 @@ mod engine_refresh_tests {
             applied_plans[0].runtime.download_rate_limit,
             Some(revaer_config::MAX_RATE_LIMIT_BPS)
         );
-        assert_eq!(applied_plans[0].runtime.download_root, "/data/staging");
-        assert_eq!(applied_plans[0].runtime.resume_dir, "/var/lib/revaer/state");
+        assert_eq!(applied_plans[0].runtime.download_root, ".server_root/downloads");
+        assert_eq!(applied_plans[0].runtime.resume_dir, ".server_root/resume");
         assert!(
             applied_plans[0]
                 .effective
@@ -2050,7 +2050,7 @@ mod engine_refresh_tests {
             event_torrent_id(&Event::MetadataUpdated {
                 torrent_id: id,
                 name: None,
-                download_dir: Some("/downloads/demo".into()),
+                download_dir: Some(".server_root/downloads/demo".into()),
                 comment: None,
                 source: None,
                 private: None,
@@ -2111,7 +2111,7 @@ mod engine_refresh_tests {
         catalog
             .observe(&Event::Completed {
                 torrent_id: id,
-                library_path: "/library/title".into(),
+                library_path: ".server_root/library/title".into(),
             })
             .await;
         catalog

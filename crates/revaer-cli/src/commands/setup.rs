@@ -141,11 +141,13 @@ pub(crate) async fn handle_setup_complete(
             .map_err(|err| {
                 CliError::failure(anyhow!("failed to parse setup completion response: {err}"))
             })?;
-        let snapshot: ConfigSnapshot = serde_json::from_value(body.snapshot.clone())
-            .map_err(|err| CliError::failure(anyhow!("failed to parse setup snapshot: {err}")))?;
-        let instance_name = &snapshot.app_profile.instance_name;
+        let instance_name = &body.snapshot.app_profile.instance_name;
         println!("Setup complete for instance '{instance_name}'.");
-        println!("API key created (store securely): {}", body.api_key);
+        if let Some(api_key) = body.api_key {
+            println!("API key created (store securely): {api_key}");
+        } else {
+            println!("No API key issued (auth disabled).");
+        }
         Ok(())
     } else {
         Err(classify_problem(response).await)
@@ -295,8 +297,8 @@ mod tests {
             strict_super_seeding: false.into(),
             optimistic_unchoke_slots: None,
             max_queued_disk_bytes: None,
-            resume_dir: "/var/resume".into(),
-            download_root: "/var/downloads".into(),
+            resume_dir: ".server_root/resume".into(),
+            download_root: ".server_root/downloads".into(),
             storage_mode: EngineProfile::default_storage_mode(),
             use_partfile: EngineProfile::default_use_partfile(),
             disk_read_mode: None,
@@ -341,7 +343,7 @@ mod tests {
             engine_profile_effective: normalize_engine_profile(&engine_profile),
             fs_policy: FsPolicy {
                 id: Uuid::new_v4(),
-                library_root: "/library".into(),
+                library_root: ".server_root/library".into(),
                 extract: true,
                 par2: "disabled".into(),
                 flatten: false,
@@ -443,9 +445,9 @@ mod tests {
             instance: "demo".to_string(),
             bind: "127.0.0.1".to_string(),
             port: 7070,
-            resume_dir: PathBuf::from("/tmp/resume"),
-            download_root: PathBuf::from("/tmp/download"),
-            library_root: PathBuf::from("/tmp/library"),
+            resume_dir: PathBuf::from(".server_root/resume"),
+            download_root: PathBuf::from(".server_root/downloads"),
+            library_root: PathBuf::from(".server_root/library"),
             api_key_label: "label".to_string(),
             api_key_id: Some("admin".to_string()),
             passphrase: Some("secret".to_string()),
@@ -459,8 +461,16 @@ mod tests {
     #[test]
     fn build_fs_policy_patch_merges_allow_paths() -> Result<()> {
         let policy = sample_snapshot()?.fs_policy;
-        let updated = build_fs_policy_patch(policy, "/library", "/downloads", "/downloads");
-        assert_eq!(updated.allow_paths, vec!["/downloads", "/library"]);
+        let updated = build_fs_policy_patch(
+            policy,
+            ".server_root/library",
+            ".server_root/downloads",
+            ".server_root/downloads",
+        );
+        assert_eq!(
+            updated.allow_paths,
+            vec![".server_root/downloads", ".server_root/library"]
+        );
         Ok(())
     }
 
@@ -471,9 +481,9 @@ mod tests {
             instance: "demo".to_string(),
             bind: "127.0.0.1".to_string(),
             port: 7070,
-            resume_dir: PathBuf::from("/tmp/resume"),
-            download_root: PathBuf::from("/tmp/download"),
-            library_root: PathBuf::from("/tmp/library"),
+            resume_dir: PathBuf::from(".server_root/resume"),
+            download_root: PathBuf::from(".server_root/downloads"),
+            library_root: PathBuf::from(".server_root/library"),
             api_key_label: "label".to_string(),
             api_key_id: Some("id".to_string()),
             passphrase: Some(" secret ".to_string()),

@@ -1171,7 +1171,7 @@ mod tests {
         let status = TorrentStatus {
             id: Uuid::new_v4(),
             name: Some("demo".into()),
-            download_dir: Some("/downloads".into()),
+            download_dir: Some(".server_root/downloads".into()),
             progress,
             rates: TorrentRates {
                 download_bps: 128_000,
@@ -1204,7 +1204,7 @@ mod tests {
 
         assert_eq!(body.hash, status.id.simple().to_string());
         assert_eq!(body.name, "demo");
-        assert_eq!(body.save_path, "/downloads");
+        assert_eq!(body.save_path, ".server_root/downloads");
         assert_eq!(body.tags, "alpha,beta");
         assert!(body.progress > 0.0);
         Ok(())
@@ -1275,7 +1275,7 @@ mod tests {
             headers.clone(),
             Form(CreateCategoryForm {
                 category: Some("movies".into()),
-                save_path: Some("/downloads".into()),
+                save_path: Some(".server_root/downloads".into()),
             }),
         )
         .await?;
@@ -1295,7 +1295,7 @@ mod tests {
         let entry = categories
             .get("movies")
             .ok_or_else(|| anyhow!("expected category entry"))?;
-        assert_eq!(entry.save_path, "/downloads");
+        assert_eq!(entry.save_path, ".server_root/downloads");
 
         let Json(tags) = list_tags(State(state), header_with_sid(&sid)?).await?;
         assert_eq!(tags, vec!["alpha".to_string(), "beta".to_string()]);

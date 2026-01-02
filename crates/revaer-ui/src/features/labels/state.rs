@@ -287,7 +287,7 @@ mod tests {
         let entry = TorrentLabelEntry {
             name: "movies".to_string(),
             policy: TorrentLabelPolicy {
-                download_dir: Some("/data/movies".to_string()),
+                download_dir: Some(".server_root/movies".to_string()),
                 rate_limit: Some(TorrentRateLimit {
                     download_bps: Some(4096),
                     upload_bps: None,
@@ -305,7 +305,7 @@ mod tests {
         };
         let form = LabelFormState::from_entry(&entry);
         assert_eq!(form.name, "movies");
-        assert_eq!(form.download_dir, "/data/movies");
+        assert_eq!(form.download_dir, ".server_root/movies");
         assert_eq!(form.rate_limit_download, "4096");
         assert_eq!(form.queue_position, "2");
         assert_eq!(form.auto_managed, AutoManagedChoice::Disabled);

@@ -108,19 +108,25 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                     to={Route::Dashboard}
                                     classes={menu_item_class(home_active)}>
                                     <span class="iconify lucide--home size-4"></span>
-                                    <span class="grow">{props.nav.dashboard.clone()}</span>
+                                    <span class="sidebar-nav__label grow">
+                                        {props.nav.dashboard.clone()}
+                                    </span>
                                 </Link<Route>>
                                 <Link<Route>
                                     to={Route::Torrents}
                                     classes={menu_item_class(torrents_active)}>
                                     <span class="iconify lucide--download size-4"></span>
-                                    <span class="grow">{props.nav.torrents.clone()}</span>
+                                    <span class="sidebar-nav__label grow">
+                                        {props.nav.torrents.clone()}
+                                    </span>
                                 </Link<Route>>
                                 <Link<Route>
                                     to={Route::Settings}
                                     classes={menu_item_class(settings_active)}>
                                     <span class="iconify lucide--settings size-4"></span>
-                                    <span class="grow">{props.nav.settings.clone()}</span>
+                                    <span class="sidebar-nav__label grow">
+                                        {props.nav.settings.clone()}
+                                    </span>
                                 </Link<Route>>
                             </div>
                         </div>
@@ -152,7 +158,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                     <div
                         role="navigation"
                         aria-label="Navbar"
-                        class="relative z-40 flex items-center justify-between px-3"
+                        class="relative z-60 flex items-center justify-between px-3"
                         id="layout-topbar">
                         <div class="inline-flex items-center gap-3">
                             <label
@@ -188,7 +194,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                 }}
                             </button>
                             {props.locale_selector.clone()}
-                            <div class="dropdown dropdown-bottom dropdown-end">
+                            <div class="dropdown dropdown-bottom dropdown-end z-60">
                                 <div
                                     tabindex="0"
                                     role="button"
@@ -199,7 +205,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                 <ul
                                     tabindex="0"
                                     role="menu"
-                                    class="dropdown-content menu bg-base-100 rounded-box mt-2 w-44 p-1 shadow z-50">
+                                    class="dropdown-content menu bg-base-100 rounded-box mt-2 w-44 p-1 shadow z-[70]">
                                     <li>
                                         <button
                                             onclick={{

@@ -43,7 +43,7 @@
     "tags": "ట్యాగ్‌లు",
     "tags_placeholder": "4K, hevc, scene",
     "save_path": "సేవ్ మార్గం",
-    "save_path_placeholder": "/data/incomplete",
+    "save_path_placeholder": ".server_root/downloads",
     "open_detail": "వివరాలు తెరవండి",
     "eta_infinite": "∞",
     "eta": "అంచనా సమయం",

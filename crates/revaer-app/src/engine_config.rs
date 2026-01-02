@@ -392,8 +392,8 @@ mod tests {
         assert_eq!(plan.runtime.download_rate_limit, Some(MAX_RATE_LIMIT_BPS));
         assert!(plan.runtime.upload_rate_limit.is_none());
         assert_eq!(plan.runtime.encryption, EncryptionPolicy::Prefer);
-        assert_eq!(plan.runtime.download_root, "/data/staging");
-        assert_eq!(plan.runtime.resume_dir, "/var/lib/revaer/state");
+        assert_eq!(plan.runtime.download_root, ".server_root/downloads");
+        assert_eq!(plan.runtime.resume_dir, ".server_root/resume");
         assert_eq!(plan.effective.tracker, TrackerConfig::default());
         assert!(plan.runtime.tracker.default.is_empty());
         assert!(
@@ -455,8 +455,8 @@ mod tests {
             strict_super_seeding: false.into(),
             optimistic_unchoke_slots: None,
             max_queued_disk_bytes: None,
-            resume_dir: "/var/resume".into(),
-            download_root: "/data".into(),
+            resume_dir: ".server_root/resume".into(),
+            download_root: ".server_root/downloads".into(),
             storage_mode: EngineProfile::default_storage_mode(),
             use_partfile: EngineProfile::default_use_partfile(),
             disk_read_mode: None,
@@ -548,8 +548,8 @@ mod tests {
             strict_super_seeding: false.into(),
             optimistic_unchoke_slots: None,
             max_queued_disk_bytes: None,
-            resume_dir: "/var/resume".into(),
-            download_root: "/data".into(),
+            resume_dir: ".server_root/resume".into(),
+            download_root: ".server_root/downloads".into(),
             storage_mode: EngineProfile::default_storage_mode(),
             use_partfile: EngineProfile::default_use_partfile(),
             disk_read_mode: None,
@@ -637,8 +637,8 @@ mod tests {
             strict_super_seeding: false.into(),
             optimistic_unchoke_slots: None,
             max_queued_disk_bytes: None,
-            resume_dir: "/var/resume".into(),
-            download_root: "/data".into(),
+            resume_dir: ".server_root/resume".into(),
+            download_root: ".server_root/downloads".into(),
             storage_mode: EngineProfile::default_storage_mode(),
             use_partfile: EngineProfile::default_use_partfile(),
             disk_read_mode: None,
@@ -722,8 +722,8 @@ mod tests {
             strict_super_seeding: false.into(),
             optimistic_unchoke_slots: None,
             max_queued_disk_bytes: None,
-            resume_dir: "/var/resume".into(),
-            download_root: "/data".into(),
+            resume_dir: ".server_root/resume".into(),
+            download_root: ".server_root/downloads".into(),
             storage_mode: EngineProfile::default_storage_mode(),
             use_partfile: EngineProfile::default_use_partfile(),
             disk_read_mode: None,

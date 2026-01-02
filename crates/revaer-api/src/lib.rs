@@ -244,7 +244,10 @@ mod tests {
 
         let metadata = dummy_payload(8, tid, tid_other);
         assert_eq!(metadata["kind"], "metadata_updated");
-        assert_eq!(metadata["data"]["download_dir"], "/downloads/relocated-8");
+        assert_eq!(
+            metadata["data"]["download_dir"],
+            ".server_root/downloads/relocated-8"
+        );
 
         let jobs = dummy_payload(9, tid, tid_other);
         assert_eq!(jobs["kind"], "fsops_failed");
@@ -310,8 +313,8 @@ mod tests {
             strict_super_seeding: false.into(),
             optimistic_unchoke_slots: None,
             max_queued_disk_bytes: None,
-            resume_dir: "/tmp/resume".to_string(),
-            download_root: "/tmp/downloads".to_string(),
+            resume_dir: ".server_root/resume".to_string(),
+            download_root: ".server_root/downloads".to_string(),
             storage_mode: EngineProfile::default_storage_mode(),
             use_partfile: EngineProfile::default_use_partfile(),
             disk_read_mode: None,
@@ -355,7 +358,7 @@ mod tests {
     fn build_fs_policy() -> FsPolicy {
         FsPolicy {
             id: Uuid::new_v4(),
-            library_root: "/tmp/library".to_string(),
+            library_root: ".server_root/library".to_string(),
             extract: false,
             par2: "disabled".to_string(),
             flatten: false,
@@ -743,12 +746,12 @@ mod tests {
 
         let mut engine_profile = snapshot.engine_profile.clone();
         engine_profile.implementation = "libtorrent".to_string();
-        engine_profile.resume_dir = "/var/lib/revaer/resume".to_string();
-        engine_profile.download_root = "/var/lib/revaer/downloads".to_string();
+        engine_profile.resume_dir = ".server_root/resume".to_string();
+        engine_profile.download_root = ".server_root/downloads".to_string();
 
         let mut fs_policy = snapshot.fs_policy.clone();
-        fs_policy.library_root = "/data/library".to_string();
-        fs_policy.allow_paths = vec!["/data".to_string()];
+        fs_policy.library_root = ".server_root/library".to_string();
+        fs_policy.allow_paths = vec![".server_root".to_string()];
 
         let changeset = SettingsChangeset {
             app_profile: Some(app_profile),
@@ -899,7 +902,7 @@ mod tests {
                     ..TorrentProgress::default()
                 },
                 state: TorrentState::Completed,
-                library_path: Some("/library/existing".to_string()),
+                library_path: Some(".server_root/library/existing".to_string()),
                 ..TorrentStatus::default()
             };
             stub.push_status(status).await;
@@ -1047,11 +1050,11 @@ mod tests {
 
         let first_id = bus.publish(CoreEvent::Completed {
             torrent_id: torrent_id_1,
-            library_path: "/library/a".to_string(),
+            library_path: ".server_root/library/a".to_string(),
         })?;
         let second_id = bus.publish(CoreEvent::Completed {
             torrent_id: torrent_id_2,
-            library_path: "/library/b".to_string(),
+            library_path: ".server_root/library/b".to_string(),
         })?;
 
         let stream = event_replay_stream(bus.clone(), Some(first_id));
@@ -1482,7 +1485,7 @@ mod tests {
         let torrent_id = Uuid::new_v4();
         let last_id = bus.publish(CoreEvent::Completed {
             torrent_id,
-            library_path: "/library/a".to_string(),
+            library_path: ".server_root/library/a".to_string(),
         })?;
 
         let stream = event_replay_stream(bus.clone(), Some(last_id));
@@ -1494,7 +1497,7 @@ mod tests {
             sleep(Duration::from_millis(50)).await;
             let next = publisher.publish(CoreEvent::Completed {
                 torrent_id: Uuid::new_v4(),
-                library_path: "/library/b".to_string(),
+                library_path: ".server_root/library/b".to_string(),
             });
             if tx.send(next).is_err() {
                 tracing::warn!("failed to send publish id");
@@ -1561,7 +1564,7 @@ mod tests {
             },
             files: None,
             library_path: None,
-            download_dir: Some("/downloads".to_string()),
+            download_dir: Some(".server_root/downloads".to_string()),
             comment: None,
             source: None,
             private: None,
@@ -1750,7 +1753,7 @@ mod tests {
             },
             rates: TorrentRates::default(),
             files: None,
-            library_path: Some("/library/demo".to_string()),
+            library_path: Some(".server_root/library/demo".to_string()),
             download_dir: None,
             comment: None,
             source: None,
@@ -1892,7 +1895,7 @@ mod tests {
                 upload_bps: 256,
                 ratio: 0.5,
             },
-            download_dir: Some("/downloads".to_string()),
+            download_dir: Some(".server_root/downloads".to_string()),
             sequential: false,
             ..TorrentStatus::default()
         };
@@ -1944,7 +1947,7 @@ mod tests {
                 upload_bps: 256,
                 ratio: 0.5,
             },
-            download_dir: Some("/downloads".to_string()),
+            download_dir: Some(".server_root/downloads".to_string()),
             sequential: false,
             ..TorrentStatus::default()
         };
@@ -2091,7 +2094,7 @@ mod tests {
                 upload_bps: 512,
                 ratio: 1.0,
             },
-            download_dir: Some("/downloads/sample".to_string()),
+            download_dir: Some(".server_root/downloads/sample".to_string()),
             sequential: false,
             ..TorrentStatus::default()
         };
@@ -2128,7 +2131,7 @@ mod tests {
             id: Uuid::new_v4(),
             name: Some("pause-me".to_string()),
             state: TorrentState::Downloading,
-            download_dir: Some("/downloads".to_string()),
+            download_dir: Some(".server_root/downloads".to_string()),
             sequential: false,
             ..TorrentStatus::default()
         };
@@ -2214,7 +2217,7 @@ mod tests {
             },
             rates: TorrentRates::default(),
             files: None,
-            library_path: Some("/library/demo".to_string()),
+            library_path: Some(".server_root/library/demo".to_string()),
             download_dir: None,
             comment: None,
             source: None,

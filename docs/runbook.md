@@ -14,13 +14,13 @@ This runbook exercises the end-to-end control plane, validating FsOps, telemetry
 1. **Bootstrap**
 
     - Issue a setup token: `revaer setup start --issued-by runbook`.
-    - Complete configuration with CLI secrets and directories: `revaer setup complete --instance runbook --bind 127.0.0.1 --resume-dir /data/resume --download-root /data/downloads --library-root /data/library --api-key-label runbook --passphrase <pass>`.
+    - Complete configuration with CLI secrets and directories: `revaer setup complete --instance runbook --bind 127.0.0.1 --resume-dir .server_root/resume --download-root .server_root/downloads --library-root .server_root/library --api-key-label runbook --passphrase <pass>`.
     - Capture the committed snapshot via `revaer config get --output table` and confirm `/health/full` returns `status=ok` with `guardrail_violations_total=0`.
 
 2. **Add Torrent & Observe FsOps**
 
     - Add a torrent: `revaer torrent add <magnet> --name runbook`.
-    - Tail events: `revaer tail --event torrent_added,progress,state_changed --resume-file /tmp/revaer.tail`.
+    - Tail events: `revaer tail --event torrent_added,progress,state_changed --resume-file .server_root/revaer.tail`.
     - Verify FsOps emits `fsops_started`, `fsops_completed`, and Prometheus counters `fsops_steps_total` increase.
 
 3. **Restart & Resume**

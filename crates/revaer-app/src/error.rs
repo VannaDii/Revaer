@@ -236,7 +236,7 @@ mod tests {
             "save",
             revaer_data::DataError::PathNotUtf8 {
                 field: "path",
-                path: PathBuf::from("/tmp/revaer"),
+                path: PathBuf::from(".server_root/revaer"),
             },
         );
         assert!(matches!(runtime, AppError::Runtime { .. }));

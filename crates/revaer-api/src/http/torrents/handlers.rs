@@ -1191,7 +1191,7 @@ mod tests {
         catalog.categories.insert(
             "movies".to_string(),
             TorrentLabelPolicy {
-                download_dir: Some("/downloads/movies".to_string()),
+                download_dir: Some(".server_root/downloads/movies".to_string()),
                 rate_limit: Some(TorrentRateLimit {
                     download_bps: Some(1_000),
                     upload_bps: Some(2_000),
@@ -1209,7 +1209,7 @@ mod tests {
         let add = build_add_torrent(&request, Vec::new(), Vec::new(), Some(&catalog))?;
         assert_eq!(
             add.options.download_dir.as_deref(),
-            Some("/downloads/movies")
+            Some(".server_root/downloads/movies")
         );
         assert_eq!(add.options.rate_limit.download_bps, Some(1_000));
         assert_eq!(add.options.rate_limit.upload_bps, Some(2_000));
@@ -1340,7 +1340,7 @@ mod tests {
         let state = api_state_with(Some(handles))?;
 
         let request = TorrentAuthorRequest {
-            root_path: "/data/demo".to_string(),
+            root_path: ".server_root/demo".to_string(),
             trackers: vec![
                 "https://tracker.example/announce".to_string(),
                 "https://tracker.example/announce".to_string(),
@@ -1696,7 +1696,7 @@ mod tests {
             }),
             AxumPath(torrent_id),
             Json(TorrentAction::Move {
-                download_dir: "/downloads/new".to_string(),
+                download_dir: ".server_root/downloads/new".to_string(),
             }),
         )
         .await?;
@@ -1704,10 +1704,16 @@ mod tests {
         assert_eq!(response, StatusCode::ACCEPTED);
         let moves = workflow.take_moves().await;
         assert_eq!(moves.len(), 1);
-        assert_eq!(moves[0], (torrent_id, "/downloads/new".to_string()));
+        assert_eq!(
+            moves[0],
+            (torrent_id, ".server_root/downloads/new".to_string())
+        );
 
         let metadata = state.get_metadata(&torrent_id);
-        assert_eq!(metadata.download_dir.as_deref(), Some("/downloads/new"));
+        assert_eq!(
+            metadata.download_dir.as_deref(),
+            Some(".server_root/downloads/new")
+        );
         Ok(())
     }
 
@@ -2089,7 +2095,7 @@ mod tests {
             Extension(context.clone()),
             AxumPath("movies".to_string()),
             Json(TorrentLabelPolicy {
-                download_dir: Some("/downloads/movies".to_string()),
+                download_dir: Some(".server_root/downloads/movies".to_string()),
                 auto_managed: Some(false),
                 ..TorrentLabelPolicy::default()
             }),
@@ -2098,7 +2104,7 @@ mod tests {
         assert_eq!(category.name, "movies");
         assert_eq!(
             category.policy.download_dir.as_deref(),
-            Some("/downloads/movies")
+            Some(".server_root/downloads/movies")
         );
         assert_eq!(category.policy.auto_managed, Some(false));
 

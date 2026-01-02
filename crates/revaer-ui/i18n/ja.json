@@ -43,7 +43,7 @@
     "tags": "タグ",
     "tags_placeholder": "4K、hevc、scene",
     "save_path": "保存パス",
-    "save_path_placeholder": "/data/incomplete",
+    "save_path_placeholder": ".server_root/downloads",
     "open_detail": "詳細を開く",
     "eta_infinite": "∞",
     "eta": "予想時間",

@@ -553,8 +553,8 @@ mod tests {
 
     fn runtime_config_with_valid_values() -> EngineRuntimeConfig {
         EngineRuntimeConfig {
-            download_root: "/data".into(),
-            resume_dir: "/state".into(),
+            download_root: ".server_root/downloads".into(),
+            resume_dir: ".server_root/resume".into(),
             storage_mode: StorageMode::Sparse,
             use_partfile: true.into(),
             disk_read_mode: None,
@@ -618,8 +618,8 @@ mod tests {
     #[test]
     fn seed_limits_are_forwarded_and_clamped() {
         let config = EngineRuntimeConfig {
-            download_root: "/data".into(),
-            resume_dir: "/state".into(),
+            download_root: ".server_root/downloads".into(),
+            resume_dir: ".server_root/resume".into(),
             storage_mode: StorageMode::Sparse,
             use_partfile: true.into(),
             disk_read_mode: None,
@@ -695,8 +695,8 @@ mod tests {
     #[test]
     fn privacy_toggles_are_forwarded() {
         let config = EngineRuntimeConfig {
-            download_root: "/data".into(),
-            resume_dir: "/state".into(),
+            download_root: ".server_root/downloads".into(),
+            resume_dir: ".server_root/resume".into(),
             storage_mode: StorageMode::Sparse,
             use_partfile: true.into(),
             disk_read_mode: None,
@@ -766,8 +766,8 @@ mod tests {
     #[test]
     fn listen_interfaces_override_port_binding() {
         let config = EngineRuntimeConfig {
-            download_root: "/data".into(),
-            resume_dir: "/state".into(),
+            download_root: ".server_root/downloads".into(),
+            resume_dir: ".server_root/resume".into(),
             storage_mode: StorageMode::Sparse,
             use_partfile: true.into(),
             disk_read_mode: None,
@@ -833,8 +833,8 @@ mod tests {
 
     fn runtime_config_with_tracker(tracker: TrackerRuntimeConfig) -> EngineRuntimeConfig {
         EngineRuntimeConfig {
-            download_root: "/data".into(),
-            resume_dir: "/state".into(),
+            download_root: ".server_root/downloads".into(),
+            resume_dir: ".server_root/resume".into(),
             storage_mode: StorageMode::Sparse,
             use_partfile: true.into(),
             disk_read_mode: None,
@@ -981,8 +981,8 @@ mod tests {
     #[test]
     fn ip_filter_rules_are_forwarded() {
         let config = EngineRuntimeConfig {
-            download_root: "/data".into(),
-            resume_dir: "/state".into(),
+            download_root: ".server_root/downloads".into(),
+            resume_dir: ".server_root/resume".into(),
             storage_mode: StorageMode::Sparse,
             use_partfile: true.into(),
             disk_read_mode: None,

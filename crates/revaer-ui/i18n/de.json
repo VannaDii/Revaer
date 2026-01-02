@@ -43,7 +43,7 @@
     "tags": "Tags",
     "tags_placeholder": "4K, hevc, scene",
     "save_path": "Speicherpfad",
-    "save_path_placeholder": "/data/unvollständig",
+    "save_path_placeholder": ".server_root/downloads",
     "open_detail": "Details öffnen",
     "eta_infinite": "∞",
     "eta": "Verbl. Zeit",

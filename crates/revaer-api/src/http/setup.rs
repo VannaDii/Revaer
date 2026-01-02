@@ -8,7 +8,7 @@ use axum::{
     extract::{Extension, State},
 };
 use chrono::{Duration as ChronoDuration, Utc};
-use revaer_config::{ApiKeyPatch, AppMode, ConfigSnapshot, SettingsChangeset};
+use revaer_config::{ApiKeyPatch, AppAuthMode, AppMode, ConfigSnapshot, SettingsChangeset};
 use revaer_events::Event as CoreEvent;
 use revaer_telemetry::record_app_mode;
 use tracing::{error, warn};
@@ -65,7 +65,16 @@ pub(crate) async fn setup_complete(
     let token = extract_setup_token(context)?;
     ensure_valid_setup_token(&state, &token).await?;
     ensure_active_app_profile(&state, &mut changeset).await?;
-    let bootstrap_key = ensure_bootstrap_api_key(&mut changeset);
+    let auth_mode = changeset
+        .app_profile
+        .as_ref()
+        .map(|profile| profile.auth_mode)
+        .unwrap_or(AppAuthMode::ApiKey);
+    let bootstrap_key = if auth_mode == AppAuthMode::ApiKey {
+        Some(ensure_bootstrap_api_key(&mut changeset))
+    } else {
+        None
+    };
 
     let snapshot = apply_setup_changes(&state, changeset, &token).await?;
 
@@ -73,15 +82,18 @@ pub(crate) async fn setup_complete(
         description: format!("setup_complete revision {}", snapshot.revision),
     });
 
-    let snapshot_value = serde_json::to_value(&snapshot).map_err(|err| {
-        error!(error = %err, "failed to serialize setup completion snapshot");
-        ApiError::internal("failed to serialize setup snapshot")
-    })?;
+    let (api_key, api_key_expires_at) = match bootstrap_key {
+        Some(key) => (
+            Some(format!("{}:{}", key.key_id, key.secret)),
+            Some(key.expires_at.to_rfc3339()),
+        ),
+        None => (None, None),
+    };
 
     Ok(Json(SetupCompleteResponse {
-        snapshot: snapshot_value,
-        api_key: format!("{}:{}", bootstrap_key.key_id, bootstrap_key.secret),
-        api_key_expires_at: bootstrap_key.expires_at.to_rfc3339(),
+        snapshot,
+        api_key,
+        api_key_expires_at,
     }))
 }
 
@@ -104,9 +116,7 @@ fn ensure_bootstrap_api_key(changeset: &mut SettingsChangeset) -> BootstrapApiKe
             if secret.trim().is_empty() {
                 continue;
             }
-            if patch_expires_at.is_none() {
-                *patch_expires_at = Some(expires_at);
-            }
+            *patch_expires_at = Some(expires_at);
             return BootstrapApiKey {
                 key_id: key_id.clone(),
                 secret: secret.clone(),

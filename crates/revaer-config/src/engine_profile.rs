@@ -15,8 +15,8 @@ use crate::model::{EngineProfile, Toggle};
 
 /// Upper bound guard rail for rate limits (≈5 Gbps).
 pub const MAX_RATE_LIMIT_BPS: i64 = 5_000_000_000;
-const DEFAULT_DOWNLOAD_ROOT: &str = "/data/staging";
-const DEFAULT_RESUME_DIR: &str = "/var/lib/revaer/state";
+const DEFAULT_DOWNLOAD_ROOT: &str = ".server_root/downloads";
+const DEFAULT_RESUME_DIR: &str = ".server_root/resume";
 const DEFAULT_STORAGE_MODE: StorageMode = StorageMode::Sparse;
 const MINUTES_PER_DAY: u16 = 24 * 60;
 const ENGINE_SECTION: &str = "engine_profile";

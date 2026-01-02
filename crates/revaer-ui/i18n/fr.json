@@ -43,7 +43,7 @@
     "tags": "Étiquettes",
     "tags_placeholder": "4K, hevc, scene",
     "save_path": "Chemin de sauvegarde",
-    "save_path_placeholder": "/data/incomplet",
+    "save_path_placeholder": ".server_root/downloads",
     "open_detail": "Ouvrir les détails",
     "eta_infinite": "∞",
     "eta": "Temps restant",

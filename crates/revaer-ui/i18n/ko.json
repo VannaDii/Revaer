@@ -43,7 +43,7 @@
     "tags": "태그",
     "tags_placeholder": "4K, hevc, scene",
     "save_path": "저장 경로",
-    "save_path_placeholder": "/data/incomplete",
+    "save_path_placeholder": ".server_root/downloads",
     "open_detail": "세부정보 열기",
     "eta_infinite": "∞",
     "eta": "예상 시간",

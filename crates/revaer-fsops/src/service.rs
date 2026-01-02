@@ -1827,16 +1827,16 @@ mod tests {
 
     #[test]
     fn build_glob_set_matches_expected_paths() -> TestResult<()> {
-        let policy = sample_policy(Path::new("/data"));
+        let policy = sample_policy(Path::new(".server_root"));
         let patterns = parse_glob_list(&policy.cleanup_keep, "cleanup_keep")?;
         let glob_rules = build_globset(patterns, "cleanup_keep")?;
         let glob_set = glob_rules.ok_or(FsOpsError::MissingState {
             field: "glob_rules",
         })?;
 
-        assert!(glob_set.is_match("/data/library/movie/file.mkv"));
-        assert!(!glob_set.is_match("/data/library/movie/file.srt"));
-        assert!(!glob_set.is_match("/data/library/movie/file.txt"));
+        assert!(glob_set.is_match(".server_root/library/movie/file.mkv"));
+        assert!(!glob_set.is_match(".server_root/library/movie/file.srt"));
+        assert!(!glob_set.is_match(".server_root/library/movie/file.txt"));
 
         Ok(())
     }
@@ -1845,7 +1845,7 @@ mod tests {
     fn rule_set_evaluates_include_and_exclude() -> TestResult<()> {
         let policy = FsPolicy {
             id: Uuid::new_v4(),
-            library_root: "/tmp/library".to_string(),
+            library_root: ".server_root/library".to_string(),
             extract: false,
             par2: "disabled".to_string(),
             flatten: false,
@@ -1878,7 +1878,7 @@ mod tests {
 
     #[test]
     fn parse_path_list_rejects_invalid_entries() -> TestResult<()> {
-        let values = vec![String::new(), "/tmp".to_string()];
+        let values = vec![String::new(), ".server_root/tmp".to_string()];
         let err = parse_path_list(&values)
             .err()
             .ok_or(FsOpsError::MissingState {
@@ -2061,7 +2061,7 @@ mod tests {
 
     #[test]
     fn rule_set_expands_skip_fluff_preset() -> TestResult<()> {
-        let mut policy = sample_policy(Path::new("/data"));
+        let mut policy = sample_policy(Path::new(".server_root"));
         policy.cleanup_drop = vec![SKIP_FLUFF_PRESET.to_string()];
 
         let rules = RuleSet::from_policy(&policy)?;

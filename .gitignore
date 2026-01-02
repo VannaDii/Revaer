@@ -6,6 +6,7 @@
 .DS_Store
 /.env
 /tmp
+.server_root/
 dist
 dist-serve
 /book

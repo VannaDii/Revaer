@@ -43,7 +43,7 @@
     "tags": "Теги",
     "tags_placeholder": "4K, hevc, scene",
     "save_path": "Путь сохранения",
-    "save_path_placeholder": "/data/incomplete",
+    "save_path_placeholder": ".server_root/downloads",
     "open_detail": "Открыть детали",
     "eta_infinite": "∞",
     "eta": "Осталось",

@@ -1069,7 +1069,7 @@ mod tests {
                 kind: NativeEventKind::Progress,
                 state: NativeTorrentState::Downloading,
                 name: "demo".to_string(),
-                download_dir: "/tmp/downloads".to_string(),
+                download_dir: ".server_root/downloads".to_string(),
                 library_path: String::new(),
                 bytes_downloaded: 512,
                 bytes_total: 1024,

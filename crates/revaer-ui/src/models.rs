@@ -200,17 +200,17 @@ pub fn demo_snapshot() -> DashboardSnapshot {
         disk_used_gb: 2830,
         paths: vec![
             PathUsage {
-                label: "/data/media",
+                label: ".server_root/library",
                 used_gb: 1800,
                 total_gb: 2600,
             },
             PathUsage {
-                label: "/data/incomplete",
+                label: ".server_root/downloads",
                 used_gb: 120,
                 total_gb: 400,
             },
             PathUsage {
-                label: "/data/archive",
+                label: ".server_root/archive",
                 used_gb: 910,
                 total_gb: 1200,
             },
@@ -317,7 +317,7 @@ fn demo_detail_summary(
             ratio: 0.12,
         },
         library_path: None,
-        download_dir: Some("/data/incomplete/foundation-s02e08".into()),
+        download_dir: Some(".server_root/downloads/foundation-s02e08".into()),
         sequential: false,
         tags: vec!["4K", "HDR10", "hevc"]
             .into_iter()
@@ -341,7 +341,7 @@ fn demo_detail_settings() -> TorrentSettingsView {
         tracker_messages: std::collections::HashMap::new(),
         rate_limit: None,
         connections_limit: Some(200),
-        download_dir: Some("/data/incomplete/foundation-s02e08".into()),
+        download_dir: Some(".server_root/downloads/foundation-s02e08".into()),
         comment: None,
         source: None,
         private: None,

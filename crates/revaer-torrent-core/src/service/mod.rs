@@ -319,7 +319,7 @@ mod tests {
         assert!(engine.peers(id).await.is_err());
         assert!(
             engine
-                .move_torrent(id, "/tmp/downloads".into())
+                .move_torrent(id, ".server_root/downloads".into())
                 .await
                 .is_err()
         );
@@ -393,7 +393,7 @@ mod tests {
         assert!(workflow.recheck(id).await.is_err());
         assert!(
             workflow
-                .move_torrent(id, "/tmp/downloads".into())
+                .move_torrent(id, ".server_root/downloads".into())
                 .await
                 .is_err()
         );

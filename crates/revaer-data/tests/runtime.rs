@@ -38,8 +38,8 @@ async fn runtime_store_persists_status_and_fs_jobs() -> anyhow::Result<()> {
             ratio: 0.5,
         },
         files: None,
-        library_path: Some("/downloads/demo".to_string()),
-        download_dir: Some("/downloads".to_string()),
+        library_path: Some(".server_root/downloads/demo".to_string()),
+        download_dir: Some(".server_root/downloads".to_string()),
         comment: Some("hello".to_string()),
         source: Some("source".to_string()),
         private: Some(false),
@@ -58,10 +58,10 @@ async fn runtime_store_persists_status_and_fs_jobs() -> anyhow::Result<()> {
     assert_eq!(persisted.id, torrent_id);
     assert_eq!(persisted.state, TorrentState::Downloading);
 
-    let source = Path::new("/tmp/source");
+    let source = Path::new(".server_root/source");
     store.mark_fs_job_started(torrent_id, source).await?;
     store
-        .mark_fs_job_completed(torrent_id, source, Path::new("/tmp/dest"), Some("copy"))
+        .mark_fs_job_completed(torrent_id, source, Path::new(".server_root/dest"), Some("copy"))
         .await?;
     let job_state = store
         .fetch_fs_job_state(torrent_id)
@@ -69,7 +69,7 @@ async fn runtime_store_persists_status_and_fs_jobs() -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("fs job state missing"))?;
     assert_eq!(job_state.status, "moved");
     assert_eq!(job_state.attempt, 1);
-    assert_eq!(job_state.src_path, "/tmp/source");
+    assert_eq!(job_state.src_path, ".server_root/source");
 
     store.remove_torrent(torrent_id).await?;
     assert!(store.load_statuses().await?.is_empty());

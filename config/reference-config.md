@@ -38,8 +38,8 @@ This document illustrates the configuration documents stored in PostgreSQL for R
   "max_download_bps": null,
   "max_upload_bps": null,
   "sequential_default": true,
-  "resume_dir": "/var/lib/revaer/state",
-  "download_root": "/data/staging",
+  "resume_dir": ".server_root/resume",
+  "download_root": ".server_root/downloads",
   "tracker": {
     "user_agent": "revaer/0.1",
     "announce_interval_override_secs": null
@@ -50,7 +50,7 @@ This document illustrates the configuration documents stored in PostgreSQL for R
 ## Filesystem Policy
 ```json
 {
-  "library_root": "/data/library",
+  "library_root": ".server_root/library",
   "extract": false,
   "par2": "off",
   "flatten": false,
@@ -67,8 +67,8 @@ This document illustrates the configuration documents stored in PostgreSQL for R
   "group": null,
   "umask": "002",
   "allow_paths": [
-    "/data/staging",
-    "/data/library"
+    ".server_root/downloads",
+    ".server_root/library"
   ]
 }
 ```

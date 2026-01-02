@@ -342,7 +342,7 @@ mod tests {
                 index: 0,
                 priority: revaer_torrent_core::FilePriority::High,
             }],
-            download_dir: Some("/data/downloads".into()),
+            download_dir: Some(".server_root/downloads".into()),
             storage_mode: Some(StorageMode::Sparse),
             use_partfile: Some(true),
             sequential: true,

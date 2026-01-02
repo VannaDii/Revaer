@@ -81,7 +81,7 @@ mod tests {
 
         let path = DataError::PathNotUtf8 {
             field: "root",
-            path: PathBuf::from("/tmp/revaer"),
+            path: PathBuf::from(".server_root/revaer"),
         };
         assert_eq!(path.to_string(), "path contained invalid utf-8");
         assert!(path.source().is_none());

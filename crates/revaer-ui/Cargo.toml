@@ -19,14 +19,14 @@ uuid = { workspace = true, features = ["js"] }
 urlencoding = "2.1"
 base64.workspace = true
 chrono.workspace = true
-yew = { version = "0.20", features = ["csr"] }
-yew-router = "0.17"
-yewdux = "0.9.0"
+yew = { version = "0.22", features = ["csr"] }
+yew-router = "0.19"
+yewdux = "0.11"
 revaer-api-models = { path = "../revaer-api-models" }
 revaer-events = { path = "../revaer-events" }
-gloo = { version = "0.8", features = ["timers", "storage", "console", "dialogs", "events", "file", "render"] }
-gloo-net = { version = "0.2", features = ["http"] }
-gloo-timers = { version = "0.2", features = ["futures"] }
+gloo = { version = "0.11", features = ["timers", "storage", "console", "dialogs", "events", "file", "render"] }
+gloo-net = { version = "0.5", features = ["http"] }
+gloo-timers = { version = "0.3", features = ["futures"] }
 js-sys = "0.3"
 
 [target."cfg(target_arch = \"wasm32\")".dependencies]
