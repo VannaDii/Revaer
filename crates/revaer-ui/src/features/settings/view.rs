@@ -354,20 +354,18 @@ fn settings_connection_tab(props: &SettingsConnectionProps) -> Html {
         let local_user = local_user.clone();
         let local_pass = local_pass.clone();
         let default_mode = props.auth_mode;
-        use_effect_with_deps(
-            move |(auth_state, default_mode)| {
-                apply_auth_state(
-                    auth_state.clone(),
-                    *default_mode,
-                    &auth_mode,
-                    &api_key,
-                    &local_user,
-                    &local_pass,
-                );
-                || ()
-            },
-            (auth_state, default_mode),
-        );
+        use_effect_with((auth_state, default_mode), move |deps| {
+            let (auth_state, default_mode) = deps;
+            apply_auth_state(
+                auth_state.clone(),
+                *default_mode,
+                &auth_mode,
+                &api_key,
+                &local_user,
+                &local_pass,
+            );
+            || ()
+        });
     }
 
     let save_auth = build_save_auth_callback(
@@ -759,17 +757,14 @@ fn settings_config_tabs(props: &SettingsConfigProps) -> Html {
     {
         let draft = draft.clone();
         let snapshot = props.config_snapshot.clone();
-        use_effect_with_deps(
-            move |snapshot| {
-                let next = snapshot
-                    .as_ref()
-                    .map(build_settings_draft)
-                    .unwrap_or_default();
-                draft.set(next);
-                || ()
-            },
-            snapshot,
-        );
+        use_effect_with(snapshot, move |snapshot| {
+            let next = snapshot
+                .as_ref()
+                .map(build_settings_draft)
+                .unwrap_or_default();
+            draft.set(next);
+            || ()
+        });
     }
 
     let path_callbacks = build_path_browser_callbacks(

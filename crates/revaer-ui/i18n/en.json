@@ -789,6 +789,7 @@
     "list_failed": "Failed to load torrents.",
     "rate_limited": "Rate limited. Retrying in",
     "api_key_refresh_failed": "API key refresh failed.",
+    "logout_failed": "Logout failed.",
     "torrent_placeholder": "Torrent",
     "bulk_done": "Bulk actions completed for",
     "server_restart_unavailable": "Server restart is not available in this build.",

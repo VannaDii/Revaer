@@ -224,6 +224,7 @@
     "add_refresh_failed": "追加しましたが、更新に失敗しました：",
     "add_failed": "追加に失敗しました：",
     "action_failed": "アクションが失敗しました",
+    "logout_failed": "Logout failed.",
     "torrent_placeholder": "トレント",
     "bulk_done": "一括アクションが完了しました",
     "dismiss": "閉じる"

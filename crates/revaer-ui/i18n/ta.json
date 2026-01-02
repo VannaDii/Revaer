@@ -224,6 +224,7 @@
     "add_refresh_failed": "சேர்க்கப்பட்டது, ஆனால் புதுப்பிப்பு தோல்வி:",
     "add_failed": "சேர்ப்பது தோல்வி:",
     "action_failed": "செயல் தோல்வி",
+    "logout_failed": "Logout failed.",
     "torrent_placeholder": "டொரண்ட்",
     "bulk_done": "மொத்த செயல்கள் முடிந்தது",
     "dismiss": "மூடு"

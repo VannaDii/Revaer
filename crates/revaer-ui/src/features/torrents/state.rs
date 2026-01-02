@@ -165,6 +165,51 @@ pub struct TorrentProgressSlice {
 /// Selection set used for bulk torrent actions.
 pub type SelectionSet = HashSet<Uuid, RandomState>;
 
+/// Sort direction for torrent lists.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TorrentSortDirection {
+    /// Sort ascending.
+    Asc,
+    /// Sort descending.
+    Desc,
+}
+
+/// Sort keys for torrent list headers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TorrentSortKey {
+    /// Sort by torrent name.
+    Name,
+    /// Sort by lifecycle state.
+    State,
+    /// Sort by completion progress.
+    Progress,
+    /// Sort by download throughput.
+    Down,
+    /// Sort by upload throughput.
+    Up,
+    /// Sort by share ratio.
+    Ratio,
+    /// Sort by size.
+    Size,
+    /// Sort by estimated time remaining.
+    Eta,
+    /// Sort by tags.
+    Tags,
+    /// Sort by trackers.
+    Trackers,
+    /// Sort by last update time.
+    Updated,
+}
+
+/// Active sort state for the torrent list.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TorrentSortState {
+    /// Active sort key.
+    pub key: TorrentSortKey,
+    /// Active sort direction.
+    pub direction: TorrentSortDirection,
+}
+
 /// Query model mirrored into the URL and request query params.
 #[derive(Clone, Debug, PartialEq, Eq, Default)]
 pub struct TorrentsQueryModel {
@@ -178,6 +223,8 @@ pub struct TorrentsQueryModel {
     pub tracker: Option<String>,
     /// Optional file extension filter.
     pub extension: Option<String>,
+    /// Optional sort selection for the list.
+    pub sort: Option<TorrentSortState>,
 }
 
 /// Paging state for the torrent list.

@@ -19,16 +19,13 @@ pub(crate) fn factory_reset_modal(props: &FactoryResetModalProps) -> Html {
     {
         let input_value = input_value.clone();
         let touched = touched.clone();
-        use_effect_with_deps(
-            move |open| {
-                if *open {
-                    input_value.set(String::new());
-                    touched.set(false);
-                }
-                || ()
-            },
-            props.open,
-        );
+        use_effect_with(props.open, move |open| {
+            if *open {
+                input_value.set(String::new());
+                touched.set(false);
+            }
+            || ()
+        });
     }
 
     let on_input = {

@@ -224,6 +224,7 @@
     "add_refresh_failed": "추가되었으나 새로고침 실패:",
     "add_failed": "추가 실패:",
     "action_failed": "작업 실패",
+    "logout_failed": "Logout failed.",
     "torrent_placeholder": "토렌트",
     "bulk_done": "대량 작업 완료",
     "dismiss": "닫기"

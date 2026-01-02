@@ -19,21 +19,18 @@ pub(crate) fn toast_host(props: &ToastHostProps) -> Html {
     {
         let toasts = props.toasts.clone();
         let on_dismiss = props.on_dismiss.clone();
-        use_effect_with_deps(
-            move |list: &Vec<Toast>| {
-                let mut handles = Vec::new();
-                for toast in list.iter() {
-                    if matches!(toast.kind, ToastKind::Error) {
-                        continue;
-                    }
-                    let on_dismiss = on_dismiss.clone();
-                    let id = toast.id;
-                    handles.push(Timeout::new(4000, move || on_dismiss.emit(id)));
+        use_effect_with(toasts, move |list: &Vec<Toast>| {
+            let mut handles = Vec::new();
+            for toast in list.iter() {
+                if matches!(toast.kind, ToastKind::Error) {
+                    continue;
                 }
-                move || drop(handles)
-            },
-            toasts,
-        );
+                let on_dismiss = on_dismiss.clone();
+                let id = toast.id;
+                handles.push(Timeout::new(4000, move || on_dismiss.emit(id)));
+            }
+            move || drop(handles)
+        });
     }
 
     html! {

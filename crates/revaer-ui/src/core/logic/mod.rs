@@ -1,6 +1,9 @@
 //! Pure UI helpers extracted from components for non-wasm testing.
 
-use crate::features::torrents::state::{SelectionSet, TorrentsPaging, TorrentsQueryModel};
+use crate::features::torrents::state::{
+    SelectionSet, TorrentSortDirection, TorrentSortKey, TorrentSortState, TorrentsPaging,
+    TorrentsQueryModel,
+};
 use uuid::Uuid;
 
 /// Layout mode for the torrent list based on breakpoint.
@@ -395,7 +398,75 @@ fn collect_filter_params(filters: &TorrentsQueryModel) -> Vec<String> {
         let normalized = extension.trim_start_matches('.');
         params.push(format!("extension={}", urlencoding::encode(normalized)));
     }
+    if let Some(sort) = filters.sort {
+        let formatted = format_sort_state(sort);
+        params.push(format!("sort={}", urlencoding::encode(&formatted)));
+    }
     params
+}
+
+fn format_sort_state(sort: TorrentSortState) -> String {
+    format!(
+        "{}:{}",
+        sort_key_label(sort.key),
+        sort_direction_label(sort.direction)
+    )
+}
+
+fn parse_sort_state(value: &str) -> Option<TorrentSortState> {
+    let (key_raw, dir_raw) = value.split_once(':')?;
+    Some(TorrentSortState {
+        key: parse_sort_key(key_raw.trim())?,
+        direction: parse_sort_direction(dir_raw.trim())?,
+    })
+}
+
+const fn sort_key_label(key: TorrentSortKey) -> &'static str {
+    match key {
+        TorrentSortKey::Name => "name",
+        TorrentSortKey::State => "state",
+        TorrentSortKey::Progress => "progress",
+        TorrentSortKey::Down => "down",
+        TorrentSortKey::Up => "up",
+        TorrentSortKey::Ratio => "ratio",
+        TorrentSortKey::Size => "size",
+        TorrentSortKey::Eta => "eta",
+        TorrentSortKey::Tags => "tags",
+        TorrentSortKey::Trackers => "trackers",
+        TorrentSortKey::Updated => "updated",
+    }
+}
+
+const fn sort_direction_label(direction: TorrentSortDirection) -> &'static str {
+    match direction {
+        TorrentSortDirection::Asc => "asc",
+        TorrentSortDirection::Desc => "desc",
+    }
+}
+
+fn parse_sort_key(value: &str) -> Option<TorrentSortKey> {
+    match value {
+        "name" => Some(TorrentSortKey::Name),
+        "state" => Some(TorrentSortKey::State),
+        "progress" => Some(TorrentSortKey::Progress),
+        "down" => Some(TorrentSortKey::Down),
+        "up" => Some(TorrentSortKey::Up),
+        "ratio" => Some(TorrentSortKey::Ratio),
+        "size" => Some(TorrentSortKey::Size),
+        "eta" => Some(TorrentSortKey::Eta),
+        "tags" => Some(TorrentSortKey::Tags),
+        "trackers" => Some(TorrentSortKey::Trackers),
+        "updated" => Some(TorrentSortKey::Updated),
+        _ => None,
+    }
+}
+
+fn parse_sort_direction(value: &str) -> Option<TorrentSortDirection> {
+    match value {
+        "asc" => Some(TorrentSortDirection::Asc),
+        "desc" => Some(TorrentSortDirection::Desc),
+        _ => None,
+    }
 }
 
 fn decode_query_value(raw: &str) -> Option<String> {
@@ -455,6 +526,11 @@ pub fn parse_torrent_filter_query(query: &str) -> TorrentsQueryModel {
                 let normalized = value.trim().trim_start_matches('.');
                 if !normalized.is_empty() {
                     filters.extension = Some(normalized.to_string());
+                }
+            }
+            "sort" => {
+                if let Some(sort) = parse_sort_state(&value) {
+                    filters.sort = Some(sort);
                 }
             }
             _ => {}
@@ -772,11 +848,15 @@ mod tests {
             tags: vec!["one".into(), "two".into()],
             tracker: Some("tracker".into()),
             extension: Some("mkv".into()),
+            sort: Some(TorrentSortState {
+                key: TorrentSortKey::Updated,
+                direction: TorrentSortDirection::Desc,
+            }),
         };
         let query = build_torrent_filter_query(&filters);
         assert_eq!(
             query,
-            "name=alpha%20beta&state=downloading&tags=one%2Ctwo&tracker=tracker&extension=mkv"
+            "name=alpha%20beta&state=downloading&tags=one%2Ctwo&tracker=tracker&extension=mkv&sort=updated%3Adesc"
         );
         let parsed = parse_torrent_filter_query(&format!("?{query}"));
         assert_eq!(parsed, filters);

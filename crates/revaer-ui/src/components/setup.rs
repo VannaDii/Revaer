@@ -46,15 +46,12 @@ pub(crate) fn setup_prompt(props: &SetupPromptProps) -> Html {
     {
         let token = props.token.clone();
         let token_input = token_input.clone();
-        use_effect_with_deps(
-            move |token| {
-                if let Some(value) = token {
-                    token_input.set(value.clone());
-                }
-                || ()
-            },
-            token,
-        );
+        use_effect_with(token, move |token| {
+            if let Some(value) = token.as_ref() {
+                token_input.set(value.clone());
+            }
+            || ()
+        });
     }
 
     let on_input = {

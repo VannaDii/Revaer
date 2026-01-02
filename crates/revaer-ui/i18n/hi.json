@@ -224,6 +224,7 @@
     "add_refresh_failed": "जोड़ा गया, लेकिन रीफ्रेश विफल:",
     "add_failed": "जोड़ना विफल:",
     "action_failed": "क्रिया विफल",
+    "logout_failed": "Logout failed.",
     "torrent_placeholder": "टॉरेंट",
     "bulk_done": "बल्क क्रियाएं पूर्ण",
     "dismiss": "खारिज करें"

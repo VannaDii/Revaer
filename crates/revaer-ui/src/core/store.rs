@@ -23,6 +23,8 @@ use chrono::{DateTime, Utc};
 use revaer_events::{Event as CoreEvent, TorrentState as CoreTorrentState};
 #[cfg(target_arch = "wasm32")]
 use uuid::Uuid;
+#[cfg(target_arch = "wasm32")]
+use yewdux::dispatch::Dispatch;
 use yewdux::store::Store;
 
 /// Global application store for shared state.
@@ -40,6 +42,12 @@ pub struct AppStore {
     pub health: HealthSlice,
     /// System/SSE connection state.
     pub system: SystemState,
+}
+
+#[cfg(target_arch = "wasm32")]
+#[must_use]
+pub(crate) fn app_dispatch() -> Dispatch<AppStore> {
+    Dispatch::global()
 }
 
 /// Shared authentication state for the UI.
@@ -484,7 +492,7 @@ pub(crate) fn apply_sse_envelope(
                     download_dir,
                     format_updated_timestamp(&timestamp),
                 );
-                SseApplyOutcome::Applied
+                SseApplyOutcome::Refresh
             }
             CoreEvent::TorrentRemoved { torrent_id } => {
                 remove_row(&mut store.torrents, torrent_id);

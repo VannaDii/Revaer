@@ -43,16 +43,13 @@ pub(crate) fn search_input(props: &SearchInputProps) -> Html {
     {
         let value_state = value_state.clone();
         let incoming = props.value.clone();
-        use_effect_with_deps(
-            move |incoming| {
-                let next = incoming.to_string();
-                if *value_state != next {
-                    value_state.set(next);
-                }
-                || ()
-            },
-            incoming,
-        );
+        use_effect_with(incoming, move |incoming| {
+            let next = incoming.to_string();
+            if *value_state != next {
+                value_state.set(next);
+            }
+            || ()
+        });
     }
 
     let oninput = {

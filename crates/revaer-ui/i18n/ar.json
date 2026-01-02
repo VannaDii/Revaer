@@ -224,6 +224,7 @@
     "add_refresh_failed": "تمت الإضافة، لكن فشل التحديث:",
     "add_failed": "فشلت الإضافة:",
     "action_failed": "فشل الإجراء لـ",
+    "logout_failed": "Logout failed.",
     "torrent_placeholder": "تورنت",
     "bulk_done": "اكتملت الإجراءات الجماعية لـ",
     "dismiss": "إزالة"

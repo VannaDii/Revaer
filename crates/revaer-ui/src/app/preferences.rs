@@ -73,14 +73,17 @@ pub(crate) fn load_locale() -> LocaleCode {
 pub(crate) fn load_api_key(_allow_anon: bool) -> Option<String> {
     let value = LocalStorage::get::<String>(API_KEY_KEY).ok()?;
     if value.trim().is_empty() {
+        clear_api_key_storage();
         return None;
     }
-    if let Some(expires_at_ms) = load_api_key_expires_at_ms() {
-        let now = Date::now() as i64;
-        if expires_at_ms <= now {
-            clear_api_key_storage();
-            return None;
-        }
+    let Some(expires_at_ms) = load_api_key_expires_at_ms() else {
+        clear_api_key_storage();
+        return None;
+    };
+    let now = Date::now() as i64;
+    if expires_at_ms <= now {
+        clear_api_key_storage();
+        return None;
     }
     Some(value)
 }
@@ -128,6 +131,10 @@ pub(crate) fn persist_last_event_id(id: u64) {
     set_storage(SSE_LAST_EVENT_ID_KEY, id.to_string());
 }
 
+pub(crate) fn clear_last_event_id() {
+    delete_storage(SSE_LAST_EVENT_ID_KEY);
+}
+
 pub(crate) fn persist_auth_state(state: &AuthState) {
     match state {
         AuthState::ApiKey(value) => {
@@ -161,7 +168,7 @@ pub(crate) fn persist_api_key_with_expiry(api_key: &str, expires_at: &str) {
     if let Some(expires_at_ms) = parse_expires_at_ms(expires_at) {
         set_storage(API_KEY_EXPIRES_AT_KEY, expires_at_ms);
     } else {
-        delete_storage(API_KEY_EXPIRES_AT_KEY);
+        clear_api_key_storage();
     }
 }
 

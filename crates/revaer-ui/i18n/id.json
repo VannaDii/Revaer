@@ -224,6 +224,7 @@
     "add_refresh_failed": "Ditambahkan, tetapi penyegaran gagal:",
     "add_failed": "Penambahan gagal:",
     "action_failed": "Tindakan gagal untuk",
+    "logout_failed": "Logout failed.",
     "torrent_placeholder": "Torrent",
     "bulk_done": "Tindakan massal selesai untuk",
     "dismiss": "Tutup"

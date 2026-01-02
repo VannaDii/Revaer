@@ -224,6 +224,7 @@
     "add_refresh_failed": "Eklendi, ancak yenileme başarısız:",
     "add_failed": "Ekleme başarısız:",
     "action_failed": "İşlem başarısız",
+    "logout_failed": "Logout failed.",
     "torrent_placeholder": "Torrent",
     "bulk_done": "Toplu işlemler tamamlandı",
     "dismiss": "Kapat"

@@ -224,6 +224,7 @@
     "add_refresh_failed": "ਜੋੜਿਆ, ਪਰ ਰੀਫ੍ਰੈਸ਼ ਅਸਫਲ:",
     "add_failed": "ਜੋੜਨਾ ਅਸਫਲ:",
     "action_failed": "ਕਾਰਵਾਈ ਅਸਫਲ",
+    "logout_failed": "Logout failed.",
     "torrent_placeholder": "ਟੌਰੈਂਟ",
     "bulk_done": "ਥੋਕ ਕਾਰਵਾਈਆਂ ਪੂਰੀਆਂ",
     "dismiss": "ਬੰਦ ਕਰੋ"

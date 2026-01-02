@@ -64,7 +64,7 @@ pub(crate) fn dashboard_queue_summary(props: &DashboardQueueSummaryProps) -> Htm
                                         <div class="flex gap-1">
                                             <p class="grow">{label}</p>
                                             <span class="text-base-content/60 text-xs">
-                                                {value}
+                                                {*value}
                                             </span>
                                         </div>
                                         <p

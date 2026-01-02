@@ -8,11 +8,12 @@ use crate::core::logic::{
     ShortcutOutcome, format_rate, interpret_shortcut, parse_rate_input, parse_tags,
     select_all_or_clear, toggle_selection,
 };
-use crate::core::store::AppStore;
+use crate::core::store::{AppStore, app_dispatch};
 use crate::features::torrents::actions::TorrentAction;
 use crate::features::torrents::state::{
     FsopsBadge, FsopsStatus, SelectionSet, TorrentProgressSlice, TorrentRow, TorrentRowBase,
-    select_fsops_badge, select_is_selected, select_torrent_progress_slice, select_torrent_row_base,
+    TorrentSortDirection, TorrentSortKey, TorrentSortState, select_fsops_badge, select_is_selected,
+    select_torrent_progress_slice, select_torrent_row_base,
 };
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::{
@@ -28,7 +29,7 @@ use wasm_bindgen::JsCast;
 use web_sys::{HtmlElement, KeyboardEvent, MouseEvent};
 use yew::prelude::*;
 use yew_router::prelude::{Link, use_navigator};
-use yewdux::prelude::{Dispatch, use_selector};
+use yewdux::prelude::use_selector;
 
 #[derive(Properties, PartialEq)]
 pub(crate) struct TorrentProps {
@@ -64,6 +65,10 @@ pub(crate) struct TorrentProps {
     pub tracker_filter: String,
     /// Current extension filter value.
     pub extension_filter: String,
+    /// Current sort state for the list.
+    pub sort: Option<TorrentSortState>,
+    /// Update the sort state for the list.
+    pub on_sort: Callback<Option<TorrentSortState>>,
     /// Update the state filter.
     pub on_state_filter: Callback<String>,
     /// Update the tags filter.
@@ -133,11 +138,10 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     let rate_target = use_state(|| None as Option<ActionTarget>);
     let show_add_modal = use_state(|| false);
     let show_create_modal = use_state(|| false);
-    let sort_state = use_state(|| None as Option<SortState>);
     let sorted_ids = use_state(|| props.visible_ids.clone());
     let search_ref = use_node_ref();
     let navigator = use_navigator();
-    let dispatch = Dispatch::<AppStore>::new();
+    let dispatch = app_dispatch();
     let density_class = match props.density {
         Density::Compact => "density-compact",
         Density::Normal => "density-normal",
@@ -150,20 +154,25 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     {
         let sorted_ids = sorted_ids.clone();
         let dispatch = dispatch.clone();
-        use_effect_with_deps(
-            move |(ids, sort)| {
-                let store = dispatch.get();
-                let next = sort_ids(ids, &store, *sort);
-                sorted_ids.set(next);
-                || ()
-            },
-            (props.visible_ids.clone(), (*sort_state).clone()),
-        );
+        use_effect_with((props.visible_ids.clone(), props.sort), move |deps| {
+            let (ids, sort) = deps;
+            let store = dispatch.get();
+            let next = sort_ids(ids, &store, *sort);
+            sorted_ids.set(next);
+            || ()
+        });
     }
 
     let display_ids = (*sorted_ids).clone();
     let selected_id = display_ids.get(*selected_idx).copied();
-    let on_sort = on_sort_callback(sort_state.clone());
+    let on_sort = {
+        let on_sort = props.on_sort.clone();
+        let current_sort = props.sort;
+        Callback::from(move |key: TorrentSortKey| {
+            let next = next_sort_state(current_sort, key);
+            on_sort.emit(next);
+        })
+    };
     let selected_ids = props.selected_ids.clone();
     let selected_count = selected_ids.len();
     let tag_values: Vec<AttrValue> = props
@@ -325,8 +334,10 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
 
     {
         let selected_idx = selected_idx.clone();
-        use_effect_with_deps(
-            move |(selected_id, torrents)| {
+        use_effect_with(
+            (props.selected_id.clone(), display_ids.clone()),
+            move |deps| {
+                let (selected_id, torrents) = deps;
                 if let Some(id) = selected_id.clone() {
                     if let Some(idx) = torrents.iter().position(|row_id| *row_id == id) {
                         selected_idx.set(idx);
@@ -334,7 +345,6 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                 }
                 || ()
             },
-            (props.selected_id.clone(), display_ids.clone()),
         );
     }
 
@@ -349,87 +359,78 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
         let on_action = props.on_action.clone();
         let on_search = props.on_search.clone();
         let bundle = bundle.clone();
-        use_effect_with_deps(
-            move |_| {
-                let listener = EventListener::new(&window(), "keydown", move |event| {
-                    let Some(event) = event.dyn_ref::<KeyboardEvent>() else {
-                        return;
-                    };
-                    if let Some(target) = event.target()
-                        && let Ok(element) = target.dyn_into::<HtmlElement>()
-                        && matches!(element.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT")
-                    {
-                        return;
-                    }
+        use_effect_with((), move |_| {
+            let listener = EventListener::new(&window(), "keydown", move |event| {
+                let Some(event) = event.dyn_ref::<KeyboardEvent>() else {
+                    return;
+                };
+                if let Some(target) = event.target()
+                    && let Ok(element) = target.dyn_into::<HtmlElement>()
+                    && matches!(element.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT")
+                {
+                    return;
+                }
 
-                    if let Some(action) = interpret_shortcut(&event.key(), event.shift_key()) {
-                        event.prevent_default();
-                        match action {
-                            ShortcutOutcome::FocusSearch => {
-                                if let Some(input) = search_ref.cast::<web_sys::HtmlInputElement>()
-                                {
-                                    if let Err(err) = input.focus() {
-                                        console::error!("input focus failed", err);
-                                    }
+                if let Some(action) = interpret_shortcut(&event.key(), event.shift_key()) {
+                    event.prevent_default();
+                    match action {
+                        ShortcutOutcome::FocusSearch => {
+                            if let Some(input) = search_ref.cast::<web_sys::HtmlInputElement>() {
+                                if let Err(err) = input.focus() {
+                                    console::error!("input focus failed", err);
                                 }
-                            }
-                            ShortcutOutcome::SelectNext => {
-                                if let Some(next) = crate::core::logic::advance_selection(
-                                    ShortcutOutcome::SelectNext,
-                                    *selected_idx,
-                                    visible_ids.len(),
-                                ) {
-                                    selected_idx.set(next);
-                                    if let Some(id) = visible_ids.get(next) {
-                                        on_select.emit(*id);
-                                    }
-                                }
-                            }
-                            ShortcutOutcome::SelectPrev => {
-                                if let Some(next) = crate::core::logic::advance_selection(
-                                    ShortcutOutcome::SelectPrev,
-                                    *selected_idx,
-                                    visible_ids.len(),
-                                ) {
-                                    selected_idx.set(next);
-                                    if let Some(id) = visible_ids.get(next) {
-                                        on_select.emit(*id);
-                                    }
-                                }
-                            }
-                            ShortcutOutcome::TogglePauseResume => {
-                                if let Some(id) = visible_ids.get(*selected_idx) {
-                                    action_banner.set(Some(bundle.text("toast.pause")));
-                                    on_action.emit((TorrentAction::Pause, *id));
-                                }
-                            }
-                            ShortcutOutcome::ClearSearch => {
-                                if let Some(input) = search_ref.cast::<web_sys::HtmlInputElement>()
-                                {
-                                    input.set_value("");
-                                    if let Err(err) = input.blur() {
-                                        console::error!("input blur failed", err);
-                                    }
-                                    on_search.emit(String::new());
-                                }
-                            }
-                            ShortcutOutcome::ConfirmDelete => {
-                                confirm.set(Some(ConfirmKind::Delete))
-                            }
-                            ShortcutOutcome::ConfirmDeleteData => {
-                                confirm.set(Some(ConfirmKind::DeleteData))
-                            }
-                            ShortcutOutcome::ConfirmRecheck => {
-                                confirm.set(Some(ConfirmKind::Recheck))
                             }
                         }
+                        ShortcutOutcome::SelectNext => {
+                            if let Some(next) = crate::core::logic::advance_selection(
+                                ShortcutOutcome::SelectNext,
+                                *selected_idx,
+                                visible_ids.len(),
+                            ) {
+                                selected_idx.set(next);
+                                if let Some(id) = visible_ids.get(next) {
+                                    on_select.emit(*id);
+                                }
+                            }
+                        }
+                        ShortcutOutcome::SelectPrev => {
+                            if let Some(next) = crate::core::logic::advance_selection(
+                                ShortcutOutcome::SelectPrev,
+                                *selected_idx,
+                                visible_ids.len(),
+                            ) {
+                                selected_idx.set(next);
+                                if let Some(id) = visible_ids.get(next) {
+                                    on_select.emit(*id);
+                                }
+                            }
+                        }
+                        ShortcutOutcome::TogglePauseResume => {
+                            if let Some(id) = visible_ids.get(*selected_idx) {
+                                action_banner.set(Some(bundle.text("toast.pause")));
+                                on_action.emit((TorrentAction::Pause, *id));
+                            }
+                        }
+                        ShortcutOutcome::ClearSearch => {
+                            if let Some(input) = search_ref.cast::<web_sys::HtmlInputElement>() {
+                                input.set_value("");
+                                if let Err(err) = input.blur() {
+                                    console::error!("input blur failed", err);
+                                }
+                                on_search.emit(String::new());
+                            }
+                        }
+                        ShortcutOutcome::ConfirmDelete => confirm.set(Some(ConfirmKind::Delete)),
+                        ShortcutOutcome::ConfirmDeleteData => {
+                            confirm.set(Some(ConfirmKind::DeleteData))
+                        }
+                        ShortcutOutcome::ConfirmRecheck => confirm.set(Some(ConfirmKind::Recheck)),
                     }
-                });
+                }
+            });
 
-                move || drop(listener)
-            },
-            (),
-        );
+            move || drop(listener)
+        });
     }
 
     let drawer_open = props.selected_id.is_some();
@@ -776,68 +777,68 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                                                 </th>
                                                 {sortable_header(
                                                     AttrValue::from(bundle.text("torrents.name")),
-                                                    SortKey::Name,
-                                                    *sort_state,
+                                                    TorrentSortKey::Name,
+                                                    props.sort,
                                                     on_sort.clone(),
                                                 )}
                                                 {sortable_header(
                                                     AttrValue::from(bundle.text("torrents.state")),
-                                                    SortKey::State,
-                                                    *sort_state,
+                                                    TorrentSortKey::State,
+                                                    props.sort,
                                                     on_sort.clone(),
                                                 )}
                                                 {sortable_header(
                                                     AttrValue::from(bundle.text("torrents.progress")),
-                                                    SortKey::Progress,
-                                                    *sort_state,
+                                                    TorrentSortKey::Progress,
+                                                    props.sort,
                                                     on_sort.clone(),
                                                 )}
                                                 {sortable_header(
                                                     AttrValue::from(bundle.text("torrents.down")),
-                                                    SortKey::Down,
-                                                    *sort_state,
+                                                    TorrentSortKey::Down,
+                                                    props.sort,
                                                     on_sort.clone(),
                                                 )}
                                                 {sortable_header(
                                                     AttrValue::from(bundle.text("torrents.up")),
-                                                    SortKey::Up,
-                                                    *sort_state,
+                                                    TorrentSortKey::Up,
+                                                    props.sort,
                                                     on_sort.clone(),
                                                 )}
                                                 {sortable_header(
                                                     AttrValue::from(bundle.text("torrents.ratio")),
-                                                    SortKey::Ratio,
-                                                    *sort_state,
+                                                    TorrentSortKey::Ratio,
+                                                    props.sort,
                                                     on_sort.clone(),
                                                 )}
                                                 {sortable_header(
                                                     AttrValue::from(bundle.text("torrents.size")),
-                                                    SortKey::Size,
-                                                    *sort_state,
+                                                    TorrentSortKey::Size,
+                                                    props.sort,
                                                     on_sort.clone(),
                                                 )}
                                                 {sortable_header(
                                                     AttrValue::from(bundle.text("torrents.eta")),
-                                                    SortKey::Eta,
-                                                    *sort_state,
+                                                    TorrentSortKey::Eta,
+                                                    props.sort,
                                                     on_sort.clone(),
                                                 )}
                                                 {sortable_header(
                                                     AttrValue::from(bundle.text("torrents.tags")),
-                                                    SortKey::Tags,
-                                                    *sort_state,
+                                                    TorrentSortKey::Tags,
+                                                    props.sort,
                                                     on_sort.clone(),
                                                 )}
                                                 {sortable_header(
                                                     AttrValue::from(bundle.text("torrents.trackers")),
-                                                    SortKey::Trackers,
-                                                    *sort_state,
+                                                    TorrentSortKey::Trackers,
+                                                    props.sort,
                                                     on_sort.clone(),
                                                 )}
                                                 {sortable_header(
                                                     AttrValue::from(bundle.text("torrents.updated")),
-                                                    SortKey::Updated,
-                                                    *sort_state,
+                                                    TorrentSortKey::Updated,
+                                                    props.sort,
                                                     on_sort.clone(),
                                                 )}
                                                 <th>{bundle.text("torrents.actions")}</th>
@@ -853,7 +854,7 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                                                     </tr>
                                                 }
                                             } else {
-                                                html! {for display_ids.iter().enumerate().map(|(idx, id)| {
+                                                html! {{for display_ids.iter().enumerate().map(|(idx, id)| {
                                                     let active = Some(*id) == selected_id;
                                                     html! {
                                                         <TorrentTableRow
@@ -867,7 +868,7 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                                                             bundle={bundle.clone()}
                                                         />
                                                     }
-                                                })}
+                                                })}}
                                             }}
                                         </tbody>
                                     </table>
@@ -1077,70 +1078,39 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum SortDirection {
-    Asc,
-    Desc,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum SortKey {
-    Name,
-    State,
-    Progress,
-    Down,
-    Up,
-    Ratio,
-    Size,
-    Eta,
-    Tags,
-    Trackers,
-    Updated,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct SortState {
-    key: SortKey,
-    direction: SortDirection,
-}
-
-fn on_sort_callback(state: UseStateHandle<Option<SortState>>) -> Callback<SortKey> {
-    Callback::from(move |key| {
-        let next = next_sort_state(*state, key);
-        state.set(next);
-    })
-}
-
-fn next_sort_state(current: Option<SortState>, key: SortKey) -> Option<SortState> {
+fn next_sort_state(
+    current: Option<TorrentSortState>,
+    key: TorrentSortKey,
+) -> Option<TorrentSortState> {
     match current {
-        None => Some(SortState {
+        None => Some(TorrentSortState {
             key,
-            direction: SortDirection::Asc,
+            direction: TorrentSortDirection::Asc,
         }),
-        Some(state) if state.key != key => Some(SortState {
+        Some(state) if state.key != key => Some(TorrentSortState {
             key,
-            direction: SortDirection::Asc,
+            direction: TorrentSortDirection::Asc,
         }),
         Some(state) => match state.direction {
-            SortDirection::Asc => Some(SortState {
+            TorrentSortDirection::Asc => Some(TorrentSortState {
                 key,
-                direction: SortDirection::Desc,
+                direction: TorrentSortDirection::Desc,
             }),
-            SortDirection::Desc => None,
+            TorrentSortDirection::Desc => None,
         },
     }
 }
 
 fn sortable_header(
     label: AttrValue,
-    key: SortKey,
-    sort_state: Option<SortState>,
-    on_sort: Callback<SortKey>,
+    key: TorrentSortKey,
+    sort_state: Option<TorrentSortState>,
+    on_sort: Callback<TorrentSortKey>,
 ) -> Html {
     let sorting = match sort_state {
         Some(state) if state.key == key => match state.direction {
-            SortDirection::Asc => "asc",
-            SortDirection::Desc => "desc",
+            TorrentSortDirection::Asc => "asc",
+            TorrentSortDirection::Desc => "desc",
         },
         _ => "none",
     };
@@ -1161,7 +1131,7 @@ fn sortable_header(
     }
 }
 
-fn sort_ids(ids: &[Uuid], store: &AppStore, sort_state: Option<SortState>) -> Vec<Uuid> {
+fn sort_ids(ids: &[Uuid], store: &AppStore, sort_state: Option<TorrentSortState>) -> Vec<Uuid> {
     let mut next: Vec<Uuid> = ids.to_vec();
     let Some(sort_state) = sort_state else {
         return next;
@@ -1174,7 +1144,7 @@ fn compare_row(
     store: &AppStore,
     left: &Uuid,
     right: &Uuid,
-    sort_state: SortState,
+    sort_state: TorrentSortState,
 ) -> std::cmp::Ordering {
     let Some(left_row) = store.torrents.by_id.get(left) else {
         return std::cmp::Ordering::Equal;
@@ -1183,21 +1153,21 @@ fn compare_row(
         return std::cmp::Ordering::Equal;
     };
     let order = match sort_state.key {
-        SortKey::Name => left_row.name.cmp(&right_row.name),
-        SortKey::State => left_row.status.cmp(&right_row.status),
-        SortKey::Progress => cmp_f64(left_row.progress, right_row.progress),
-        SortKey::Down => left_row.download_bps.cmp(&right_row.download_bps),
-        SortKey::Up => left_row.upload_bps.cmp(&right_row.upload_bps),
-        SortKey::Ratio => cmp_f64(left_row.ratio, right_row.ratio),
-        SortKey::Size => left_row.size_bytes.cmp(&right_row.size_bytes),
-        SortKey::Eta => eta_value(&left_row.eta).cmp(&eta_value(&right_row.eta)),
-        SortKey::Tags => first_tag(left_row).cmp(first_tag(right_row)),
-        SortKey::Trackers => left_row.tracker.cmp(&right_row.tracker),
-        SortKey::Updated => left_row.updated.cmp(&right_row.updated),
+        TorrentSortKey::Name => left_row.name.cmp(&right_row.name),
+        TorrentSortKey::State => left_row.status.cmp(&right_row.status),
+        TorrentSortKey::Progress => cmp_f64(left_row.progress, right_row.progress),
+        TorrentSortKey::Down => left_row.download_bps.cmp(&right_row.download_bps),
+        TorrentSortKey::Up => left_row.upload_bps.cmp(&right_row.upload_bps),
+        TorrentSortKey::Ratio => cmp_f64(left_row.ratio, right_row.ratio),
+        TorrentSortKey::Size => left_row.size_bytes.cmp(&right_row.size_bytes),
+        TorrentSortKey::Eta => eta_value(&left_row.eta).cmp(&eta_value(&right_row.eta)),
+        TorrentSortKey::Tags => first_tag(left_row).cmp(first_tag(right_row)),
+        TorrentSortKey::Trackers => left_row.tracker.cmp(&right_row.tracker),
+        TorrentSortKey::Updated => left_row.updated.cmp(&right_row.updated),
     };
     match sort_state.direction {
-        SortDirection::Asc => order,
-        SortDirection::Desc => order.reverse(),
+        TorrentSortDirection::Asc => order,
+        TorrentSortDirection::Desc => order.reverse(),
     }
 }
 
@@ -1654,13 +1624,10 @@ fn remove_dialog(props: &RemoveDialogProps) -> Html {
     {
         let delete_data = delete_data.clone();
         let target = target.clone();
-        use_effect_with_deps(
-            move |_| {
-                delete_data.set(false);
-                || ()
-            },
-            target,
-        );
+        use_effect_with(target, move |_| {
+            delete_data.set(false);
+            || ()
+        });
     }
     let Some(target) = target else {
         return html! {};
@@ -1737,15 +1704,12 @@ fn rate_dialog(props: &RateDialogProps) -> Html {
         let upload_input = upload_input.clone();
         let error = error.clone();
         let target = target.clone();
-        use_effect_with_deps(
-            move |_| {
-                download_input.set(String::new());
-                upload_input.set(String::new());
-                error.set(None);
-                || ()
-            },
-            target,
-        );
+        use_effect_with(target, move |_| {
+            download_input.set(String::new());
+            upload_input.set(String::new());
+            error.set(None);
+            || ()
+        });
     }
     let Some(target) = target else {
         return html! {};

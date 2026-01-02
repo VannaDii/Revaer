@@ -224,6 +224,7 @@
     "add_refresh_failed": "Добавлено, но обновление не удалось:",
     "add_failed": "Не удалось добавить:",
     "action_failed": "Действие не удалось для",
+    "logout_failed": "Logout failed.",
     "torrent_placeholder": "Торрент",
     "bulk_done": "Массовые действия завершены для",
     "dismiss": "Закрыть"

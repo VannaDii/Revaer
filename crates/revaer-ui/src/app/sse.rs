@@ -5,7 +5,7 @@
 //! - Attempt the primary torrents SSE endpoint first, then fall back on 404.
 //! - Expose a cancellable handle so callers can stop the stream on unmount.
 
-use crate::app::preferences::{load_last_event_id, persist_last_event_id};
+use crate::app::preferences::{clear_last_event_id, load_last_event_id, persist_last_event_id};
 use crate::core::auth::{AuthState, LocalAuth};
 use crate::core::events::UiEventEnvelope;
 use crate::core::logic::{SseEndpoint, SseQuery, backoff_delay_ms, build_sse_url};
@@ -264,6 +264,11 @@ async fn run_sse_loop(
                 }
             }
             Err(err) => {
+                if matches!(err, ConnectError::Conflict) {
+                    clear_last_event_id();
+                    last_event_id = None;
+                    retry_hint_ms = None;
+                }
                 let error = connect_error_to_sse_error(&err);
                 emit_status(
                     &on_state,
@@ -274,11 +279,16 @@ async fn run_sse_loop(
                     None,
                     Some(error.clone()),
                 );
+                let reconnect_attempt = if matches!(err, ConnectError::Conflict) {
+                    0
+                } else {
+                    attempt
+                };
                 schedule_reconnect(
                     &on_state,
                     &auth_label,
                     retry_hint_ms,
-                    attempt,
+                    reconnect_attempt,
                     last_event_id,
                     error,
                 )
@@ -344,6 +354,9 @@ async fn fetch_stream(
     let response: Response = resp.dyn_into().map_err(|_| ConnectError::Fetch)?;
     if response.status() == 404 {
         return Err(ConnectError::NotFound);
+    }
+    if response.status() == 409 {
+        return Err(ConnectError::Conflict);
     }
     if !response.ok() {
         return Err(ConnectError::Status(response.status()));
@@ -471,6 +484,7 @@ enum ConnectError {
     Stream,
     Reader,
     NotFound,
+    Conflict,
     Status(u16),
 }
 
@@ -478,6 +492,7 @@ impl ConnectError {
     fn status_code(&self) -> Option<u16> {
         match self {
             Self::NotFound => Some(404),
+            Self::Conflict => Some(409),
             Self::Status(code) => Some(*code),
             _ => None,
         }
@@ -494,6 +509,7 @@ impl std::fmt::Display for ConnectError {
             Self::Stream => write!(f, "SSE response missing body"),
             Self::Reader => write!(f, "SSE stream reader unavailable"),
             Self::NotFound => write!(f, "endpoint not found"),
+            Self::Conflict => write!(f, "conflict"),
             Self::Status(code) => write!(f, "http {code}"),
         }
     }

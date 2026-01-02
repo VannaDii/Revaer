@@ -224,6 +224,7 @@
     "add_refresh_failed": "జోడించబడింది, కానీ రిఫ్రెష్ విఫలమైంది:",
     "add_failed": "జోడించడం విఫలమైంది:",
     "action_failed": "చర్య విఫలమైంది",
+    "logout_failed": "Logout failed.",
     "torrent_placeholder": "టొరెంట్",
     "bulk_done": "సమూహ చర్యలు పూర్తయ్యాయి",
     "dismiss": "మూసివేయండి"

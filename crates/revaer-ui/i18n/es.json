@@ -224,6 +224,7 @@
     "add_refresh_failed": "Agregado, pero la actualización falló:",
     "add_failed": "Fallo al agregar:",
     "action_failed": "Acción falló para",
+    "logout_failed": "Logout failed.",
     "torrent_placeholder": "Torrent",
     "bulk_done": "Acciones masivas completadas para",
     "dismiss": "Descartar"

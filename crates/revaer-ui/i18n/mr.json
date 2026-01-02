@@ -224,6 +224,7 @@
     "add_refresh_failed": "जोडले, परंतु रीफ्रेश अयशस्वी:",
     "add_failed": "जोडणे अयशस्वी:",
     "action_failed": "क्रिया अयशस्वी",
+    "logout_failed": "Logout failed.",
     "torrent_placeholder": "टॉरेंट",
     "bulk_done": "बल्क क्रिया पूर्ण",
     "dismiss": "काढा"

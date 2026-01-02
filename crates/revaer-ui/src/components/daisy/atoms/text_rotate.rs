@@ -16,22 +16,18 @@ pub fn text_rotate(props: &TextRotateProps) -> Html {
     let index = use_state(|| 0usize);
     {
         let index = index.clone();
-        let items = props.items.clone();
-        let interval_ms = props.interval_ms;
-        use_effect_with_deps(
-            move |_| {
-                let len = items.len();
-                let handle = if len == 0 {
-                    None
-                } else {
-                    Some(Interval::new(interval_ms, move || {
-                        index.set((*index + 1) % len);
-                    }))
-                };
-                move || drop(handle)
-            },
-            (props.items.clone(), props.interval_ms),
-        );
+        use_effect_with((props.items.clone(), props.interval_ms), move |deps| {
+            let (items, interval_ms) = deps;
+            let len = items.len();
+            let handle = if len == 0 {
+                None
+            } else {
+                Some(Interval::new(*interval_ms, move || {
+                    index.set((*index + 1) % len);
+                }))
+            };
+            move || drop(handle)
+        });
     }
 
     let current = props

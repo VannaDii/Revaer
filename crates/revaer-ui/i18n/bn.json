@@ -224,6 +224,7 @@
     "add_refresh_failed": "যোগ করা হয়েছে, কিন্তু রিফ্রেশ ব্যর্থ হয়েছে:",
     "add_failed": "যোগ করা ব্যর্থ হয়েছে:",
     "action_failed": "এর জন্য ক্রিয়া ব্যর্থ হয়েছে",
+    "logout_failed": "Logout failed.",
     "torrent_placeholder": "টরেন্ট",
     "bulk_done": "এর জন্য বাল্ক ক্রিয়া সম্পূর্ণ",
     "dismiss": "খারিজ"

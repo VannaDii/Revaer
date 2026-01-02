@@ -7,7 +7,7 @@
 
 use crate::app::api::ApiCtx;
 use crate::components::atoms::EmptyState;
-use crate::core::store::AppStore;
+use crate::core::store::{AppStore, app_dispatch};
 use crate::features::labels::actions::LabelAction;
 use crate::features::labels::api::upsert_label;
 use crate::features::labels::logic::policy_badges;
@@ -15,7 +15,7 @@ use crate::features::labels::state::{AutoManagedChoice, LabelFormState, LabelKin
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::TorrentLabelEntry;
 use yew::prelude::*;
-use yewdux::prelude::{Dispatch, use_selector};
+use yewdux::prelude::use_selector;
 
 #[derive(Properties, PartialEq)]
 pub(crate) struct LabelsPageProps {
@@ -39,7 +39,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
         entries
     });
 
-    let dispatch = Dispatch::<AppStore>::new();
+    let dispatch = app_dispatch();
     let selected = use_state(|| None as Option<String>);
     let form = use_state(LabelFormState::default);
     let error = use_state(|| None as Option<String>);

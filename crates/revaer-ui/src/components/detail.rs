@@ -61,31 +61,28 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
         let connections_error = connections_error.clone();
         let queue_input = queue_input.clone();
         let queue_error = queue_error.clone();
-        use_effect_with_deps(
-            move |detail_key| {
-                if let Some((_, settings)) = detail_key.as_ref() {
-                    let connections_value = settings
-                        .as_ref()
-                        .and_then(|settings| settings.connections_limit)
-                        .map(|value| value.to_string())
-                        .unwrap_or_default();
-                    let queue_value = settings
-                        .as_ref()
-                        .and_then(|settings| settings.queue_position)
-                        .map(|value| value.to_string())
-                        .unwrap_or_default();
-                    connections_input.set(connections_value);
-                    queue_input.set(queue_value);
-                } else {
-                    connections_input.set(String::new());
-                    queue_input.set(String::new());
-                }
-                connections_error.set(None);
-                queue_error.set(None);
-                || ()
-            },
-            detail_key,
-        );
+        use_effect_with(detail_key, move |detail_key| {
+            if let Some((_, settings)) = detail_key.as_ref() {
+                let connections_value = settings
+                    .as_ref()
+                    .and_then(|settings| settings.connections_limit)
+                    .map(|value| value.to_string())
+                    .unwrap_or_default();
+                let queue_value = settings
+                    .as_ref()
+                    .and_then(|settings| settings.queue_position)
+                    .map(|value| value.to_string())
+                    .unwrap_or_default();
+                connections_input.set(connections_value);
+                queue_input.set(queue_value);
+            } else {
+                connections_input.set(String::new());
+                queue_input.set(String::new());
+            }
+            connections_error.set(None);
+            queue_error.set(None);
+            || ()
+        });
     }
 
     let Some(detail) = props.data.as_ref() else {

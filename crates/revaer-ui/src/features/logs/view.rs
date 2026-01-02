@@ -51,50 +51,48 @@ pub(crate) fn logs_page(props: &LogsPageProps) -> Html {
         let render_tick = render_tick.clone();
         let status = status.clone();
         let handle_ref = handle_ref.clone();
-        use_effect_with_deps(
-            move |(base_url, auth_state)| {
-                status.set(LogStreamStatus::Connecting);
-                let on_line = {
-                    let lines_ref = lines_ref.clone();
-                    let render_tick = render_tick.clone();
-                    let status = status.clone();
-                    Callback::from(move |line: String| {
-                        if line.trim().is_empty() {
-                            return;
-                        }
-                        status.set(LogStreamStatus::Live);
-                        let spans = parse_ansi_line(&line);
-                        {
-                            let mut buffer = lines_ref.borrow_mut();
-                            buffer.push_front(LogLine { spans });
-                            while buffer.len() > MAX_LOG_LINES {
-                                buffer.pop_back();
-                            }
-                        }
-                        let next_tick = (*render_tick).wrapping_add(1);
-                        render_tick.set(next_tick);
-                    })
-                };
-                let on_error = {
-                    let status = status.clone();
-                    let on_error_toast = on_error_toast.clone();
-                    Callback::from(move |message: String| {
-                        let toast_message = message.clone();
-                        status.set(LogStreamStatus::Error(message));
-                        on_error_toast.emit(toast_message);
-                    })
-                };
-                let handle =
-                    connect_log_stream(base_url.clone(), auth_state.clone(), on_line, on_error);
-                *handle_ref.borrow_mut() = handle;
-                move || {
-                    if let Some(handle) = handle_ref.borrow_mut().take() {
-                        handle.close();
+        use_effect_with((base_url, auth_state), move |deps| {
+            let (base_url, auth_state) = deps;
+            status.set(LogStreamStatus::Connecting);
+            let on_line = {
+                let lines_ref = lines_ref.clone();
+                let render_tick = render_tick.clone();
+                let status = status.clone();
+                Callback::from(move |line: String| {
+                    if line.trim().is_empty() {
+                        return;
                     }
+                    status.set(LogStreamStatus::Live);
+                    let spans = parse_ansi_line(&line);
+                    {
+                        let mut buffer = lines_ref.borrow_mut();
+                        buffer.push_front(LogLine { spans });
+                        while buffer.len() > MAX_LOG_LINES {
+                            buffer.pop_back();
+                        }
+                    }
+                    let next_tick = (*render_tick).wrapping_add(1);
+                    render_tick.set(next_tick);
+                })
+            };
+            let on_error = {
+                let status = status.clone();
+                let on_error_toast = on_error_toast.clone();
+                Callback::from(move |message: String| {
+                    let toast_message = message.clone();
+                    status.set(LogStreamStatus::Error(message));
+                    on_error_toast.emit(toast_message);
+                })
+            };
+            let handle =
+                connect_log_stream(base_url.clone(), auth_state.clone(), on_line, on_error);
+            *handle_ref.borrow_mut() = handle;
+            move || {
+                if let Some(handle) = handle_ref.borrow_mut().take() {
+                    handle.close();
                 }
-            },
-            (base_url, auth_state),
-        );
+            }
+        });
     }
 
     let status_badge = match &*status {

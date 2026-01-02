@@ -16,7 +16,7 @@ use crate::core::logic::{
 };
 use crate::core::store::{
     AppModeState, AppStore, HealthSnapshot, SseApplyOutcome, SseConnectionState, SseError,
-    SseStatus, SystemRates, apply_sse_envelope, select_system_rates,
+    SseStatus, SystemRates, app_dispatch, apply_sse_envelope, select_system_rates,
 };
 use crate::core::theme::ThemeMode;
 use crate::core::ui::{Density, UiMode};
@@ -25,15 +25,16 @@ use crate::features::logs::view::LogsPage;
 use crate::features::settings::view::SettingsPage;
 use crate::features::torrents::actions::{TorrentAction, success_message};
 use crate::features::torrents::state::{
-    ProgressPatch, SelectionSet, TorrentRow, TorrentsPaging, TorrentsQueryModel, append_rows,
-    apply_progress_patch, remove_row, select_selected_detail, select_visible_ids, set_rows,
-    set_selected, set_selected_id, update_detail_file_priority, update_detail_file_selection,
-    update_detail_options, update_detail_skip_fluff, upsert_detail,
+    ProgressPatch, SelectionSet, TorrentRow, TorrentSortState, TorrentsPaging, TorrentsQueryModel,
+    append_rows, apply_progress_patch, remove_row, select_selected_detail, select_visible_ids,
+    set_rows, set_selected, set_selected_id, update_detail_file_priority,
+    update_detail_file_selection, update_detail_options, update_detail_skip_fluff, upsert_detail,
 };
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode, TranslationBundle};
 use crate::models::{
-    AddTorrentInput, FilePriorityOverride, NavLabels, Toast, ToastKind, TorrentAuthorRequest,
-    TorrentOptionsRequest, TorrentSelectionRequest, demo_detail, demo_snapshot,
+    AddTorrentInput, AppAuthMode, FilePriorityOverride, NavLabels, Toast, ToastKind,
+    TorrentAuthorRequest, TorrentOptionsRequest, TorrentSelectionRequest, demo_detail,
+    demo_snapshot,
 };
 use crate::services::sse::SseDecodeError;
 use gloo::console;
@@ -50,7 +51,7 @@ use preferences::{
     persist_api_key_with_expiry, persist_auth_state, persist_bypass_local,
 };
 pub(crate) use routes::Route;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::rc::Rc;
@@ -72,9 +73,9 @@ const TOKEN_REFRESH_SKEW_MS: i64 = 86_400_000;
 #[function_component(RevaerApp)]
 pub fn revaer_app() -> Html {
     let breakpoint = use_state(current_breakpoint);
-    let allow_anon = allow_anonymous();
-    let dispatch = Dispatch::<AppStore>::new();
-    let api_ctx = use_memo(|_| ApiCtx::new(api_base_url()), ());
+    let allow_anon = use_state(|| allow_anonymous());
+    let dispatch = app_dispatch();
+    let api_ctx = use_memo((), |_| ApiCtx::new(api_base_url()));
     let dashboard = use_state(demo_snapshot);
     let config_snapshot = use_state(|| None::<Value>);
     let config_error = use_state(|| None::<String>);
@@ -96,7 +97,7 @@ pub fn revaer_app() -> Html {
     let locale = use_selector(|store: &AppStore| store.ui.locale);
     let bundle = {
         let locale = *locale;
-        use_memo(move |_| TranslationBundle::new(locale), locale)
+        use_memo(locale, |locale| TranslationBundle::new(*locale))
     };
 
     let nav_labels = {
@@ -176,6 +177,7 @@ pub fn revaer_app() -> Html {
     let tags_filter_value = filters_value.tags.clone();
     let tracker_filter_value = filters_value.tracker.clone().unwrap_or_default();
     let extension_filter_value = filters_value.extension.clone().unwrap_or_default();
+    let sort_value = filters_value.sort;
     let can_load_more = paging_state_value.next_cursor.is_some();
     let paging_is_loading = paging_state_value.is_loading;
     let system_rates_value = *system_rates;
@@ -215,45 +217,42 @@ pub fn revaer_app() -> Html {
     {
         let auth_prompt_dismissed = auth_prompt_dismissed.clone();
         let auth_state_value = auth_state_value.clone();
-        use_effect_with_deps(
-            move |auth_state| {
-                if auth_state.is_some() {
-                    auth_prompt_dismissed.set(false);
-                }
-                || ()
-            },
-            auth_state_value,
-        );
+        use_effect_with(auth_state_value, move |auth_state| {
+            if auth_state.is_some() {
+                auth_prompt_dismissed.set(false);
+            }
+            || ()
+        });
     }
 
     {
         let dispatch = dispatch.clone();
         let location = location.clone();
-        use_effect_with_deps(
-            move |(location, route)| {
-                let Some(location) = location.as_ref() else {
-                    return;
-                };
-                if !matches!(route, Route::Torrents | Route::TorrentDetail { .. }) {
-                    return;
-                }
-                let parsed = parse_torrent_filter_query(location.query_str());
-                if parsed != dispatch.get().torrents.filters {
-                    dispatch.reduce_mut(|store| {
-                        store.torrents.filters = parsed;
-                        store.torrents.paging.cursor = None;
-                        store.torrents.paging.next_cursor = None;
-                    });
-                }
-            },
-            (location.clone(), current_route.clone()),
-        );
+        use_effect_with((location.clone(), current_route.clone()), move |deps| {
+            let (location, route) = deps;
+            let Some(location) = location.as_ref() else {
+                return;
+            };
+            if !matches!(route, Route::Torrents | Route::TorrentDetail { .. }) {
+                return;
+            }
+            let parsed = parse_torrent_filter_query(location.query_str());
+            if parsed != dispatch.get().torrents.filters {
+                dispatch.reduce_mut(|store| {
+                    store.torrents.filters = parsed;
+                    store.torrents.paging.cursor = None;
+                    store.torrents.paging.next_cursor = None;
+                });
+            }
+        });
     }
     {
         let location = location.clone();
         let filters = filters.clone();
-        use_effect_with_deps(
-            move |(filters, location, route)| {
+        use_effect_with(
+            (filters.clone(), location.clone(), current_route.clone()),
+            move |deps| {
+                let (filters, location, route) = deps;
                 let Some(location) = location.as_ref() else {
                     return;
                 };
@@ -271,67 +270,57 @@ pub fn revaer_app() -> Html {
                 }
                 replace_url_query(location.path(), location.hash(), &desired);
             },
-            (filters.clone(), location.clone(), current_route.clone()),
         );
     }
 
     {
         let dispatch = dispatch.clone();
-        use_effect_with_deps(
-            move |_| {
-                let theme = load_theme();
-                let mode = load_mode();
-                let density = load_density();
-                let locale = load_locale();
-                dispatch.reduce_mut(|store| {
-                    store.ui.theme = theme;
-                    store.ui.mode = mode;
-                    store.ui.density = density;
-                    store.ui.locale = locale;
-                });
-                || ()
-            },
-            (),
-        );
+        use_effect_with((), move |_| {
+            let theme = load_theme();
+            let mode = load_mode();
+            let density = load_density();
+            let locale = load_locale();
+            dispatch.reduce_mut(|store| {
+                store.ui.theme = theme;
+                store.ui.mode = mode;
+                store.ui.density = density;
+                store.ui.locale = locale;
+            });
+            || ()
+        });
     }
     {
         let theme = *theme;
-        use_effect_with_deps(
-            move |_| {
-                apply_theme(theme);
-                LocalStorage::set(THEME_KEY, theme.as_str()).ok();
-                || ()
-            },
-            theme,
-        );
+        use_effect_with(theme, move |_| {
+            apply_theme(theme);
+            LocalStorage::set(THEME_KEY, theme.as_str()).ok();
+            || ()
+        });
     }
     {
         let dispatch = dispatch.clone();
-        use_effect_with_deps(
-            move |_| {
-                let mode = load_auth_mode();
-                let state = load_auth_state(mode, allow_anon);
-                let bypass_local = load_bypass_local();
-                dispatch.reduce_mut(|store| {
-                    store.auth.mode = mode;
+        let allow_anon = *allow_anon;
+        use_effect_with(allow_anon, move |allow_anon| {
+            let mode = load_auth_mode();
+            let state = load_auth_state(mode, *allow_anon);
+            let bypass_local = load_bypass_local();
+            dispatch.reduce_mut(|store| {
+                store.auth.mode = mode;
+                if store.auth.state.is_none() {
                     store.auth.state = state;
-                    store.auth.bypass_local = bypass_local;
-                });
-                || ()
-            },
-            (),
-        );
+                }
+                store.auth.bypass_local = bypass_local;
+            });
+            || ()
+        });
     }
     {
         let api_ctx = (*api_ctx).clone();
         let auth_state = auth_state.clone();
-        use_effect_with_deps(
-            move |auth_state| {
-                api_ctx.client.set_auth((**auth_state).clone());
-                || ()
-            },
-            auth_state,
-        );
+        use_effect_with(auth_state, move |auth_state| {
+            api_ctx.client.set_auth((**auth_state).clone());
+            || ()
+        });
     }
     {
         let token_refresh_timer = token_refresh_timer.clone();
@@ -342,8 +331,10 @@ pub fn revaer_app() -> Html {
         let dispatch = dispatch.clone();
         let toast_id = toast_id.clone();
         let bundle = (*bundle).clone();
-        use_effect_with_deps(
-            move |(auth_state, _tick)| {
+        use_effect_with(
+            (auth_state.clone(), token_refresh_tick_value),
+            move |deps| {
+                let (auth_state, _tick) = deps;
                 let cleanup = || ();
                 token_refresh_timer.borrow_mut().take();
                 let Some(AuthState::ApiKey(api_key)) = auth_state.as_ref().clone() else {
@@ -397,54 +388,82 @@ pub fn revaer_app() -> Html {
                 *token_refresh_timer.borrow_mut() = Some(handle);
                 cleanup
             },
-            (auth_state.clone(), token_refresh_tick_value),
         );
     }
     {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
         let toast_id = toast_id.clone();
-        use_effect_with_deps(
-            move |_| {
-                let client = api_ctx.client.clone();
-                let dispatch = dispatch.clone();
-                let toast_id = toast_id.clone();
-                yew::platform::spawn_local(async move {
-                    match client.fetch_health().await {
-                        Ok(health) => {
-                            dispatch.reduce_mut(|store| {
-                                store.auth.setup_error = None;
-                                store.health.basic = Some(HealthSnapshot {
-                                    status: health.status.clone(),
-                                    mode: health.mode.clone(),
-                                    database_status: Some(health.database.status),
-                                    database_revision: health.database.revision,
-                                });
-                                store.auth.app_mode = if health.mode == "setup" {
-                                    AppModeState::Setup
-                                } else {
-                                    AppModeState::Active
-                                };
+        use_effect_with((), move |_| {
+            let client = api_ctx.client.clone();
+            let dispatch = dispatch.clone();
+            let toast_id = toast_id.clone();
+            yew::platform::spawn_local(async move {
+                match client.fetch_health().await {
+                    Ok(health) => {
+                        dispatch.reduce_mut(|store| {
+                            store.auth.setup_error = None;
+                            store.health.basic = Some(HealthSnapshot {
+                                status: health.status.clone(),
+                                mode: health.mode.clone(),
+                                database_status: Some(health.database.status),
+                                database_revision: health.database.revision,
                             });
-                        }
-                        Err(err) => {
-                            let message = detail_or_fallback(
-                                err.detail.clone(),
-                                "Health check failed.".to_string(),
-                            );
-                            dispatch.reduce_mut(|store| {
-                                store.auth.setup_error = Some(message.clone());
-                                store.auth.app_mode = AppModeState::Active;
-                                store.health.basic = None;
-                            });
-                            push_toast(&dispatch, &toast_id, ToastKind::Error, message);
-                        }
+                            store.auth.app_mode = if health.mode == "setup" {
+                                AppModeState::Setup
+                            } else {
+                                AppModeState::Active
+                            };
+                        });
                     }
-                });
-                || ()
-            },
-            (),
-        );
+                    Err(err) => {
+                        let message = detail_or_fallback(
+                            err.detail.clone(),
+                            "Health check failed.".to_string(),
+                        );
+                        dispatch.reduce_mut(|store| {
+                            store.auth.setup_error = Some(message.clone());
+                            store.auth.app_mode = AppModeState::Active;
+                            store.health.basic = None;
+                        });
+                        push_toast(&dispatch, &toast_id, ToastKind::Error, message);
+                    }
+                }
+            });
+            || ()
+        });
+    }
+    {
+        let api_ctx = (*api_ctx).clone();
+        let dispatch = dispatch.clone();
+        let allow_anon = allow_anon.clone();
+        use_effect_with((), move |_| {
+            let client = api_ctx.client.clone();
+            let dispatch = dispatch.clone();
+            let allow_anon = allow_anon.clone();
+            yew::platform::spawn_local(async move {
+                let Ok(snapshot) = client.fetch_well_known_snapshot().await else {
+                    return;
+                };
+                let auth_mode = snapshot
+                    .get("app_profile")
+                    .and_then(|profile| profile.get("auth_mode"))
+                    .and_then(|value| value.as_str());
+                if auth_mode == Some("none") {
+                    allow_anon.set(true);
+                    let current = dispatch.get();
+                    if current.auth.state.is_none() {
+                        let state = AuthState::Anonymous;
+                        persist_auth_state(&state);
+                        dispatch.reduce_mut(|store| {
+                            store.auth.mode = AuthMode::ApiKey;
+                            store.auth.state = Some(state);
+                        });
+                    }
+                }
+            });
+            || ()
+        });
     }
     let request_setup_token = {
         let dispatch = dispatch.clone();
@@ -556,12 +575,8 @@ pub fn revaer_app() -> Html {
                 }
                 match client.setup_complete(&input.token, changeset).await {
                     Ok(response) => {
-                        let snapshot_auth_mode = response
-                            .snapshot
-                            .get("app_profile")
-                            .and_then(|profile| profile.get("auth_mode"))
-                            .and_then(|value| value.as_str());
-                        let use_anonymous = snapshot_auth_mode == Some("none")
+                        let snapshot_auth_mode = response.snapshot.app_profile.auth_mode;
+                        let use_anonymous = matches!(snapshot_auth_mode, AppAuthMode::NoAuth)
                             || auth_mode == SetupAuthMode::NoAuth;
                         if use_anonymous {
                             let state = AuthState::Anonymous;
@@ -575,8 +590,25 @@ pub fn revaer_app() -> Html {
                                 store.auth.app_mode = AppModeState::Active;
                             });
                         } else {
-                            let api_key = response.api_key.clone();
-                            let expires_at = response.api_key_expires_at.clone();
+                            let Some(api_key) = response.api_key.clone() else {
+                                let message = "Setup completion missing API key.".to_string();
+                                dispatch.reduce_mut(|store| {
+                                    store.auth.setup_error = Some(message.clone());
+                                    store.auth.setup_busy = false;
+                                });
+                                push_toast(&dispatch, &toast_id, ToastKind::Error, message);
+                                return;
+                            };
+                            let Some(expires_at) = response.api_key_expires_at.clone() else {
+                                let message =
+                                    "Setup completion missing API key expiry.".to_string();
+                                dispatch.reduce_mut(|store| {
+                                    store.auth.setup_error = Some(message.clone());
+                                    store.auth.setup_busy = false;
+                                });
+                                push_toast(&dispatch, &toast_id, ToastKind::Error, message);
+                                return;
+                            };
                             persist_api_key_with_expiry(&api_key, &expires_at);
                             dispatch.reduce_mut(|store| {
                                 store.auth.mode = AuthMode::ApiKey;
@@ -610,79 +642,71 @@ pub fn revaer_app() -> Html {
         let app_mode = app_mode.clone();
         let request_setup_token = request_setup_token.clone();
         let setup_token = setup_token.clone();
-        use_effect_with_deps(
-            move |(mode, token)| {
-                if *mode == AppModeState::Setup && token.is_none() {
-                    request_setup_token.emit(());
-                }
-                || ()
-            },
-            ((*app_mode).clone(), (*setup_token).clone()),
-        );
+        use_effect_with(((*app_mode).clone(), (*setup_token).clone()), move |deps| {
+            let (mode, token) = deps;
+            if *mode == AppModeState::Setup && token.is_none() {
+                request_setup_token.emit(());
+            }
+            || ()
+        });
     }
     {
         let dashboard = dashboard.clone();
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
-        use_effect_with_deps(
-            move |auth_state| {
-                if auth_state.as_ref().is_some() {
-                    let dashboard_client = api_ctx.client.clone();
-                    let dispatch = dispatch.clone();
-                    yew::platform::spawn_local(async move {
-                        if let Ok(snapshot) = dashboard_client.fetch_dashboard().await {
-                            let rates = SystemRates {
-                                download_bps: snapshot.download_bps,
-                                upload_bps: snapshot.upload_bps,
-                            };
-                            dispatch.reduce_mut(|store| {
-                                store.system.rates = rates;
-                            });
-                            dashboard.set(snapshot);
-                        }
-                    });
-                }
-                || ()
-            },
-            auth_state.clone(),
-        );
+        use_effect_with(auth_state.clone(), move |auth_state| {
+            if auth_state.as_ref().is_some() {
+                let dashboard_client = api_ctx.client.clone();
+                let dispatch = dispatch.clone();
+                yew::platform::spawn_local(async move {
+                    if let Ok(snapshot) = dashboard_client.fetch_dashboard().await {
+                        let rates = SystemRates {
+                            download_bps: snapshot.download_bps,
+                            upload_bps: snapshot.upload_bps,
+                        };
+                        dispatch.reduce_mut(|store| {
+                            store.system.rates = rates;
+                        });
+                        dashboard.set(snapshot);
+                    }
+                });
+            }
+            || ()
+        });
     }
     {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
-        use_effect_with_deps(
-            move |auth_state| {
-                if auth_state.as_ref().is_some() {
-                    let dispatch = dispatch.clone();
-                    let client = api_ctx.client.clone();
-                    yew::platform::spawn_local(async move {
-                        let categories = client.fetch_categories().await;
-                        let tags = client.fetch_tags().await;
-                        dispatch.reduce_mut(|store| {
-                            if let Ok(entries) = categories {
-                                store.labels.categories = entries
-                                    .into_iter()
-                                    .map(|entry| (entry.name.clone(), entry))
-                                    .collect();
-                            }
-                            if let Ok(entries) = tags {
-                                store.labels.tags = entries
-                                    .into_iter()
-                                    .map(|entry| (entry.name.clone(), entry))
-                                    .collect();
-                            }
-                        });
-                    });
-                } else {
+        use_effect_with(auth_state.clone(), move |auth_state| {
+            if auth_state.as_ref().is_some() {
+                let dispatch = dispatch.clone();
+                let client = api_ctx.client.clone();
+                yew::platform::spawn_local(async move {
+                    let categories = client.fetch_categories().await;
+                    let tags = client.fetch_tags().await;
                     dispatch.reduce_mut(|store| {
-                        store.labels.categories.clear();
-                        store.labels.tags.clear();
+                        if let Ok(entries) = categories {
+                            store.labels.categories = entries
+                                .into_iter()
+                                .map(|entry| (entry.name.clone(), entry))
+                                .collect();
+                        }
+                        if let Ok(entries) = tags {
+                            store.labels.tags = entries
+                                .into_iter()
+                                .map(|entry| (entry.name.clone(), entry))
+                                .collect();
+                        }
                     });
-                }
-                || ()
-            },
-            auth_state.clone(),
-        );
+                });
+            } else {
+                dispatch.reduce_mut(|store| {
+                    store.labels.categories.clear();
+                    store.labels.tags.clear();
+                });
+            }
+            || ()
+        });
     }
     {
         let dispatch = dispatch.clone();
@@ -692,8 +716,10 @@ pub fn revaer_app() -> Html {
         let auth_state = auth_state.clone();
         let toast_id = toast_id.clone();
         let bundle = (*bundle).clone();
-        use_effect_with_deps(
-            move |(filters, paging_limit, auth_state)| {
+        use_effect_with(
+            (filters.clone(), paging_limit.clone(), auth_state.clone()),
+            move |deps| {
+                let (filters, paging_limit, auth_state) = deps;
                 let auth_state = (**auth_state).clone();
                 let filters = (**filters).clone();
                 let paging = TorrentsPaging {
@@ -732,7 +758,6 @@ pub fn revaer_app() -> Html {
                 });
                 || ()
             },
-            (filters.clone(), paging_limit.clone(), auth_state.clone()),
         );
     }
 
@@ -782,15 +807,12 @@ pub fn revaer_app() -> Html {
 
     {
         let dispatch = dispatch.clone();
-        use_effect_with_deps(
-            move |selected_id| {
-                dispatch.reduce_mut(|store| {
-                    set_selected_id(&mut store.torrents, *selected_id);
-                });
-                || ()
-            },
-            selected_route_id,
-        );
+        use_effect_with(selected_route_id, move |selected_id| {
+            dispatch.reduce_mut(|store| {
+                set_selected_id(&mut store.torrents, *selected_id);
+            });
+            || ()
+        });
     }
     {
         let dispatch = dispatch.clone();
@@ -799,71 +821,66 @@ pub fn revaer_app() -> Html {
         let auth_state = auth_state.clone();
         let toast_id = toast_id.clone();
         let bundle = (*bundle).clone();
-        use_effect_with_deps(
-            move |(selected_id, auth_state)| {
-                let cleanup = || ();
-                let auth_state = (**auth_state).clone();
-                if let Some(id) = **selected_id {
-                    if !dispatch.get().torrents.details_by_id.contains_key(&id) {
-                        let dispatch = dispatch.clone();
-                        let client = api_ctx.client.clone();
-                        let toast_id = toast_id.clone();
-                        let bundle = bundle.clone();
-                        yew::platform::spawn_local(async move {
-                            if auth_state.is_some() {
-                                if let Some(detail) = fetch_torrent_detail_with_retry(
-                                    client,
-                                    dispatch.clone(),
-                                    toast_id,
-                                    bundle,
-                                    id,
-                                )
-                                .await
-                                {
-                                    dispatch.reduce_mut(|store| {
-                                        upsert_detail(&mut store.torrents, id, detail);
-                                    });
-                                }
-                            } else if let Some(detail) = demo_detail(&id.to_string()) {
+        use_effect_with((selected_id.clone(), auth_state.clone()), move |deps| {
+            let (selected_id, auth_state) = deps;
+            let cleanup = || ();
+            let auth_state = (**auth_state).clone();
+            if let Some(id) = **selected_id {
+                if !dispatch.get().torrents.details_by_id.contains_key(&id) {
+                    let dispatch = dispatch.clone();
+                    let client = api_ctx.client.clone();
+                    let toast_id = toast_id.clone();
+                    let bundle = bundle.clone();
+                    yew::platform::spawn_local(async move {
+                        if auth_state.is_some() {
+                            if let Some(detail) = fetch_torrent_detail_with_retry(
+                                client,
+                                dispatch.clone(),
+                                toast_id,
+                                bundle,
+                                id,
+                            )
+                            .await
+                            {
                                 dispatch.reduce_mut(|store| {
                                     upsert_detail(&mut store.torrents, id, detail);
                                 });
                             }
-                        });
-                    }
+                        } else if let Some(detail) = demo_detail(&id.to_string()) {
+                            dispatch.reduce_mut(|store| {
+                                upsert_detail(&mut store.torrents, id, detail);
+                            });
+                        }
+                    });
                 }
-                cleanup
-            },
-            (selected_id.clone(), auth_state.clone()),
-        );
+            }
+            cleanup
+        });
     }
     {
         let dispatch = dispatch.clone();
         let progress_buffer = progress_buffer.clone();
         let progress_flush = progress_flush.clone();
-        use_effect_with_deps(
-            move |_| {
-                let handle = Interval::new(80, move || {
-                    let patches = {
-                        let mut buffer = progress_buffer.borrow_mut();
-                        if buffer.is_empty() {
-                            return;
-                        }
-                        buffer.drain().map(|(_, patch)| patch).collect::<Vec<_>>()
-                    };
-                    dispatch.reduce_mut(|store| {
-                        for patch in patches {
-                            apply_progress_patch(&mut store.torrents, patch);
-                        }
-                    });
+        use_effect_with((), move |_| {
+            let handle = Interval::new(80, move || {
+                let patches = {
+                    let mut buffer = progress_buffer.borrow_mut();
+                    if buffer.is_empty() {
+                        return;
+                    }
+                    buffer.drain().map(|(_, patch)| patch).collect::<Vec<_>>()
+                };
+                dispatch.reduce_mut(|store| {
+                    for patch in patches {
+                        apply_progress_patch(&mut store.torrents, patch);
+                    }
                 });
-                *progress_flush.borrow_mut() = Some(handle);
-                move || {
-                    progress_flush.borrow_mut().take();
-                }
-            },
-            (),
-        );
+            });
+            *progress_flush.borrow_mut() = Some(handle);
+            move || {
+                progress_flush.borrow_mut().take();
+            }
+        });
     }
 
     let sse_query = {
@@ -889,8 +906,10 @@ pub fn revaer_app() -> Html {
         let sse_query = sse_query.clone();
         let sse_reset = *sse_reset;
         let app_mode_value = *app_mode;
-        use_effect_with_deps(
-            move |(auth_state_value, app_mode_value, _reset, query)| {
+        use_effect_with(
+            (auth_state.clone(), app_mode_value, sse_reset, sse_query),
+            move |deps| {
+                let (auth_state_value, app_mode_value, _reset, query) = deps;
                 let cleanup_handle = sse_handle.clone();
                 let cleanup = move || {
                     if let Some(handle) = cleanup_handle.borrow_mut().take() {
@@ -922,20 +941,7 @@ pub fn revaer_app() -> Html {
                     let on_state = {
                         let dispatch = dispatch.clone();
                         Callback::from(move |state: SseStatus| {
-                            if matches!(
-                                state.last_error.as_ref().and_then(|err| err.status_code),
-                                Some(409)
-                            ) {
-                                clear_auth_storage();
-                            }
                             dispatch.reduce_mut(|store| {
-                                if matches!(
-                                    state.last_error.as_ref().and_then(|err| err.status_code),
-                                    Some(409)
-                                ) {
-                                    store.auth.app_mode = AppModeState::Setup;
-                                    store.auth.state = None;
-                                }
                                 store.system.sse_status = state;
                             });
                         })
@@ -998,7 +1004,6 @@ pub fn revaer_app() -> Html {
                 }
                 cleanup
             },
-            (auth_state.clone(), app_mode_value, sse_reset, sse_query),
         );
     }
     {
@@ -1019,49 +1024,40 @@ pub fn revaer_app() -> Html {
     }
     {
         let mode = *mode;
-        use_effect_with_deps(
-            move |mode| {
-                LocalStorage::set(
-                    MODE_KEY,
-                    match *mode {
-                        UiMode::Simple => "simple",
-                        UiMode::Advanced => "advanced",
-                    },
-                )
-                .ok();
-                || ()
-            },
-            mode,
-        );
+        use_effect_with(mode, move |mode| {
+            LocalStorage::set(
+                MODE_KEY,
+                match *mode {
+                    UiMode::Simple => "simple",
+                    UiMode::Advanced => "advanced",
+                },
+            )
+            .ok();
+            || ()
+        });
     }
     {
         let density = *density;
-        use_effect_with_deps(
-            move |density| {
-                LocalStorage::set(
-                    DENSITY_KEY,
-                    match *density {
-                        Density::Compact => "compact",
-                        Density::Normal => "normal",
-                        Density::Comfy => "comfy",
-                    },
-                )
-                .ok();
-                || ()
-            },
-            density,
-        );
+        use_effect_with(density, move |density| {
+            LocalStorage::set(
+                DENSITY_KEY,
+                match *density {
+                    Density::Compact => "compact",
+                    Density::Normal => "normal",
+                    Density::Comfy => "comfy",
+                },
+            )
+            .ok();
+            || ()
+        });
     }
     {
         let locale = *locale;
-        use_effect_with_deps(
-            move |locale| {
-                LocalStorage::set(LOCALE_KEY, locale.code()).ok();
-                apply_direction(TranslationBundle::new(*locale).rtl());
-                || ()
-            },
-            locale,
-        );
+        use_effect_with(locale, move |locale| {
+            LocalStorage::set(LOCALE_KEY, locale.code()).ok();
+            apply_direction(TranslationBundle::new(*locale).rtl());
+            || ()
+        });
     }
 
     let toggle_theme = {
@@ -1145,6 +1141,16 @@ pub fn revaer_app() -> Html {
                 } else {
                     Some(normalized.to_string())
                 };
+                store.torrents.paging.cursor = None;
+                store.torrents.paging.next_cursor = None;
+            });
+        })
+    };
+    let set_sort = {
+        let dispatch = dispatch.clone();
+        Callback::from(move |value: Option<TorrentSortState>| {
+            dispatch.reduce_mut(|store| {
+                store.torrents.filters.sort = value;
                 store.torrents.paging.cursor = None;
                 store.torrents.paging.next_cursor = None;
             });
@@ -1240,15 +1246,58 @@ pub fn revaer_app() -> Html {
     };
     let on_save_auth = {
         let dispatch = dispatch.clone();
+        let api_ctx = (*api_ctx).clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
         Callback::from(move |state: AuthState| {
-            let next_mode = match state {
-                AuthState::Local(_) => AuthMode::Local,
-                _ => AuthMode::ApiKey,
-            };
-            persist_auth_state(&state);
-            dispatch.reduce_mut(|store| {
-                store.auth.mode = next_mode;
-                store.auth.state = Some(state);
+            let dispatch = dispatch.clone();
+            let client = api_ctx.client.clone();
+            let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
+            yew::platform::spawn_local(async move {
+                match state {
+                    AuthState::ApiKey(api_key) => {
+                        let auth_state = AuthState::ApiKey(api_key.clone());
+                        client.set_auth(Some(auth_state.clone()));
+                        match client.refresh_api_key().await {
+                            Ok(response) => {
+                                persist_api_key_with_expiry(&api_key, &response.api_key_expires_at);
+                                dispatch.reduce_mut(|store| {
+                                    store.auth.mode = AuthMode::ApiKey;
+                                    store.auth.state = Some(auth_state);
+                                });
+                            }
+                            Err(err) => {
+                                let detail = detail_or_fallback(
+                                    err.detail.clone(),
+                                    bundle.text("toast.api_key_refresh_failed"),
+                                );
+                                client.set_auth(None);
+                                clear_auth_storage();
+                                dispatch.reduce_mut(|store| {
+                                    store.auth.state = None;
+                                });
+                                push_toast(&dispatch, &toast_id, ToastKind::Error, detail);
+                            }
+                        }
+                    }
+                    AuthState::Local(auth) => {
+                        let auth_state = AuthState::Local(auth);
+                        persist_auth_state(&auth_state);
+                        dispatch.reduce_mut(|store| {
+                            store.auth.mode = AuthMode::Local;
+                            store.auth.state = Some(auth_state);
+                        });
+                    }
+                    AuthState::Anonymous => {
+                        let auth_state = AuthState::Anonymous;
+                        persist_auth_state(&auth_state);
+                        dispatch.reduce_mut(|store| {
+                            store.auth.mode = AuthMode::ApiKey;
+                            store.auth.state = Some(auth_state);
+                        });
+                    }
+                }
             });
         })
     };
@@ -1490,11 +1539,55 @@ pub fn revaer_app() -> Html {
     let on_logout = {
         let dispatch = dispatch.clone();
         let auth_prompt_dismissed = auth_prompt_dismissed.clone();
+        let api_ctx = (*api_ctx).clone();
+        let auth_state = auth_state.clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
         Callback::from(move |_| {
-            clear_auth_storage();
-            auth_prompt_dismissed.set(false);
-            dispatch.reduce_mut(|store| {
-                store.auth.state = None;
+            let dispatch = dispatch.clone();
+            let auth_prompt_dismissed = auth_prompt_dismissed.clone();
+            let client = api_ctx.client.clone();
+            let auth_state = (*auth_state).clone();
+            let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
+            yew::platform::spawn_local(async move {
+                let mut should_clear = true;
+                if let Some(AuthState::ApiKey(api_key)) = auth_state {
+                    if let Some((key_id, _)) = api_key.split_once(':') {
+                        let changeset = json!({
+                            "api_keys": [{
+                                "op": "delete",
+                                "key_id": key_id,
+                            }],
+                        });
+                        match client.patch_settings(changeset).await {
+                            Ok(_) => {}
+                            Err(err) => {
+                                let detail = detail_or_fallback(
+                                    err.detail.clone(),
+                                    bundle.text("toast.logout_failed"),
+                                );
+                                push_toast(&dispatch, &toast_id, ToastKind::Error, detail);
+                                should_clear = false;
+                            }
+                        }
+                    } else {
+                        push_toast(
+                            &dispatch,
+                            &toast_id,
+                            ToastKind::Error,
+                            bundle.text("toast.logout_failed"),
+                        );
+                        should_clear = false;
+                    }
+                }
+                if should_clear {
+                    clear_auth_storage();
+                    auth_prompt_dismissed.set(false);
+                    dispatch.reduce_mut(|store| {
+                        store.auth.state = None;
+                    });
+                }
             });
         })
     };
@@ -1502,15 +1595,13 @@ pub fn revaer_app() -> Html {
         let on_refresh_config = on_refresh_config.clone();
         let auth_state_value = auth_state_value.clone();
         let current_route = current_route.clone();
-        use_effect_with_deps(
-            move |(route, _auth_state)| {
-                if matches!(route, Route::Settings) {
-                    on_refresh_config.emit(());
-                }
-                || ()
-            },
-            (current_route, auth_state_value),
-        );
+        use_effect_with((current_route, auth_state_value), move |deps| {
+            let (route, _auth_state) = deps;
+            if matches!(route, Route::Settings) {
+                on_refresh_config.emit(());
+            }
+            || ()
+        });
     }
     let on_copy_payload = {
         let dispatch = dispatch.clone();
@@ -1917,6 +2008,8 @@ pub fn revaer_app() -> Html {
     let bundle_ctx = bundle.clone();
     let bundle_routes = bundle.clone();
     let auth_state_for_routes = auth_state_value.clone();
+    let allow_anon_for_routes = allow_anon.clone();
+    let on_save_auth_for_routes = on_save_auth.clone();
 
     html! {
         <ContextProvider<ApiCtx> context={(*api_ctx).clone()}>
@@ -1973,6 +2066,8 @@ pub fn revaer_app() -> Html {
                                         tag_options={tag_options_value.clone()}
                                         tracker_filter={tracker_filter_value.clone()}
                                         extension_filter={extension_filter_value.clone()}
+                                        sort={sort_value}
+                                        on_sort={set_sort.clone()}
                                         on_state_filter={set_state_filter.clone()}
                                         on_tags_filter={set_tags_filter.clone()}
                                         on_tracker_filter={set_tracker_filter.clone()}
@@ -2014,6 +2109,8 @@ pub fn revaer_app() -> Html {
                                         tag_options={tag_options_value.clone()}
                                         tracker_filter={tracker_filter_value.clone()}
                                         extension_filter={extension_filter_value.clone()}
+                                        sort={sort_value}
+                                        on_sort={set_sort.clone()}
                                         on_state_filter={set_state_filter.clone()}
                                         on_tags_filter={set_tags_filter.clone()}
                                         on_tracker_filter={set_tracker_filter.clone()}
@@ -2034,12 +2131,12 @@ pub fn revaer_app() -> Html {
                             Route::Settings => html! {
                                 <SettingsPage
                                     base_url={settings_base_url.clone()}
-                                    allow_anonymous={allow_anon}
+                                    allow_anonymous={*allow_anon_for_routes}
                                     auth_mode={auth_mode}
                                     auth_state={auth_state_for_routes.clone()}
                                     bypass_local={bypass_local_value}
                                     on_toggle_bypass_local={on_toggle_bypass_local.clone()}
-                                    on_save_auth={on_save_auth.clone()}
+                                    on_save_auth={on_save_auth_for_routes.clone()}
                                     on_test_connection={on_test_connection.clone()}
                                     test_busy={test_busy_value}
                                     on_server_restart={on_server_restart.clone()}
@@ -2072,7 +2169,7 @@ pub fn revaer_app() -> Html {
                             expires_at={setup_expires_value.clone()}
                             busy={setup_busy_value}
                             error={setup_error_value.clone()}
-                            allow_no_auth={allow_anon}
+                            allow_no_auth={*allow_anon}
                             auth_mode={setup_auth_mode_value}
                             on_auth_mode_change={on_setup_auth_mode_change.clone()}
                             on_request_token={request_setup_token.clone()}
@@ -2085,23 +2182,10 @@ pub fn revaer_app() -> Html {
                 {
                     html! {
                         <AuthPrompt
-                            allow_anonymous={allow_anon}
+                            allow_anonymous={*allow_anon}
                             default_mode={if bypass_local_value { AuthMode::ApiKey } else { auth_mode }}
                             on_dismiss={dismiss_auth_prompt}
-                            on_submit={{
-                                let dispatch = dispatch.clone();
-                                Callback::from(move |value: AuthState| {
-                                    let next_mode = match value {
-                                        AuthState::Local(_) => AuthMode::Local,
-                                        _ => AuthMode::ApiKey,
-                                    };
-                                    persist_auth_state(&value);
-                                    dispatch.reduce_mut(|store| {
-                                        store.auth.mode = next_mode;
-                                        store.auth.state = Some(value);
-                                    });
-                                })
-                            }}
+                            on_submit={on_save_auth.clone()}
                         />
                     }
                 } else { html!{} }}

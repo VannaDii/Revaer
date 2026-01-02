@@ -17,12 +17,12 @@ use crate::models::{
 };
 use base64::{Engine as _, engine::general_purpose};
 use gloo::file::futures::read_as_bytes;
-use gloo_net::http::{Request, RequestMode, Response};
+use gloo_net::http::{Request, RequestBuilder, Response};
 use serde::Deserialize;
 use serde_json::{Value, json};
 use urlencoding::encode;
 use uuid::Uuid;
-use web_sys::window;
+use web_sys::{RequestMode, window};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ApiError {
@@ -85,8 +85,17 @@ impl ApiClient {
         *self.auth.borrow_mut() = auth;
     }
 
-    fn apply_auth(&self, req: Request) -> Result<Request, ApiError> {
-        let req = req.mode(RequestMode::Cors);
+    fn apply_mode(req: RequestBuilder) -> RequestBuilder {
+        req.mode(RequestMode::Cors)
+    }
+
+    fn build_request(req: RequestBuilder) -> Result<Request, ApiError> {
+        req.build()
+            .map_err(|_| ApiError::client("request build failed"))
+    }
+
+    fn apply_auth(&self, req: RequestBuilder) -> Result<RequestBuilder, ApiError> {
+        let req = Self::apply_mode(req);
         match self.auth.borrow().as_ref() {
             Some(AuthState::ApiKey(key)) if !key.trim().is_empty() => {
                 Ok(req.header("x-revaer-api-key", key))
@@ -100,7 +109,6 @@ impl ApiClient {
     }
 
     async fn send_json<T: for<'de> Deserialize<'de>>(&self, req: Request) -> Result<T, ApiError> {
-        let req = req.mode(RequestMode::Cors);
         let response = req
             .send()
             .await
@@ -116,7 +124,6 @@ impl ApiClient {
     }
 
     async fn send_empty(&self, req: Request) -> Result<(), ApiError> {
-        let req = req.mode(RequestMode::Cors);
         let response = req
             .send()
             .await
@@ -148,6 +155,7 @@ impl ApiClient {
     pub(crate) async fn fetch_health(&self) -> Result<HealthResponse, ApiError> {
         let req = Request::get(&format!("{}{}", self.base_url, "/health"));
         let req = self.apply_auth(req)?;
+        let req = Self::build_request(req)?;
         self.send_json(req).await
     }
 
@@ -164,6 +172,7 @@ impl ApiClient {
         );
         let req = Request::get(&url);
         let req = self.apply_auth(req)?;
+        let req = Self::build_request(req)?;
         self.send_json(req).await
     }
 
@@ -180,7 +189,11 @@ impl ApiClient {
     }
 
     pub(crate) async fn setup_start(&self) -> Result<SetupStartResponse, ApiError> {
-        let req = Request::post(&format!("{}{}", self.base_url, "/admin/setup/start"));
+        let req = Self::apply_mode(Request::post(&format!(
+            "{}{}",
+            self.base_url, "/admin/setup/start"
+        )));
+        let req = Self::build_request(req)?;
         self.send_json(req).await
     }
 
@@ -189,7 +202,10 @@ impl ApiClient {
         token: &str,
         changeset: Value,
     ) -> Result<SetupCompleteResponse, ApiError> {
-        let mut req = Request::post(&format!("{}{}", self.base_url, "/admin/setup/complete"));
+        let mut req = Self::apply_mode(Request::post(&format!(
+            "{}{}",
+            self.base_url, "/admin/setup/complete"
+        )));
         req = req.header("x-revaer-setup-token", token);
         let req = req
             .json(&changeset)
@@ -198,13 +214,18 @@ impl ApiClient {
     }
 
     pub(crate) async fn fetch_well_known_snapshot(&self) -> Result<Value, ApiError> {
-        let req = Request::get(&format!("{}{}", self.base_url, "/.well-known/revaer.json"));
+        let req = Self::apply_mode(Request::get(&format!(
+            "{}{}",
+            self.base_url, "/.well-known/revaer.json"
+        )));
+        let req = Self::build_request(req)?;
         self.send_json(req).await
     }
 
     pub(crate) async fn refresh_api_key(&self) -> Result<ApiKeyRefreshResponse, ApiError> {
         let req = Request::post(&format!("{}{}", self.base_url, "/v1/auth/refresh"));
         let req = self.apply_auth(req)?;
+        let req = Self::build_request(req)?;
         self.send_json(req).await
     }
 
@@ -220,6 +241,7 @@ impl ApiClient {
     async fn get_json<T: for<'de> Deserialize<'de>>(&self, path: &str) -> Result<T, ApiError> {
         let req = Request::get(&format!("{}{}", self.base_url, path));
         let req = self.apply_auth(req)?;
+        let req = Self::build_request(req)?;
         self.send_json(req).await
     }
 
