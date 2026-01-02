@@ -94,6 +94,7 @@ pub enum ConfigError {
     #[error("missing revision in notification payload")]
     NotificationPayloadMissingRevision,
     /// Underlying database operation failed.
+    #[cfg(not(target_arch = "wasm32"))]
     #[error("database operation failed")]
     Database {
         /// Operation identifier.
@@ -102,6 +103,7 @@ pub enum ConfigError {
         source: sqlx::Error,
     },
     /// Data layer operation failed.
+    #[cfg(not(target_arch = "wasm32"))]
     #[error("data access failed")]
     DataAccess {
         /// Operation identifier.

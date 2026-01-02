@@ -68,8 +68,7 @@ pub(crate) async fn setup_complete(
     let auth_mode = changeset
         .app_profile
         .as_ref()
-        .map(|profile| profile.auth_mode)
-        .unwrap_or(AppAuthMode::ApiKey);
+        .map_or(AppAuthMode::ApiKey, |profile| profile.auth_mode);
     let bootstrap_key = if auth_mode == AppAuthMode::ApiKey {
         Some(ensure_bootstrap_api_key(&mut changeset))
     } else {

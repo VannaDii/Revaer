@@ -23,6 +23,7 @@
 pub mod engine_profile;
 pub mod error;
 pub mod model;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod service;
 pub mod validate;
 
@@ -38,4 +39,5 @@ pub use model::{
     ConfigSnapshot, EngineProfile, FsPolicy, LabelKind, LabelPolicy, SecretPatch, SettingsChange,
     SettingsChangeset, SettingsPayload, SetupToken, TelemetryConfig,
 };
+#[cfg(not(target_arch = "wasm32"))]
 pub use service::{ConfigService, ConfigWatcher, SettingsFacade, SettingsStream};

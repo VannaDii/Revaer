@@ -25,6 +25,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub use revaer_config::AppAuthMode;
 use revaer_config::ConfigSnapshot;
 use revaer_events::TorrentState;
 use revaer_torrent_core::{
@@ -184,7 +185,7 @@ pub struct SetupStartRequest {
 }
 
 /// Setup complete response payload returned by `/admin/setup/complete`.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SetupCompleteResponse {
     /// Updated configuration snapshot.
     pub snapshot: ConfigSnapshot,

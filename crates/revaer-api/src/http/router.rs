@@ -19,7 +19,7 @@ use revaer_telemetry::{Metrics, build_sha};
 use tokio::net::TcpListener;
 use tower::ServiceBuilder;
 use tower_http::{
-    cors::{Any, CorsLayer},
+    cors::{AllowOrigin, CorsLayer},
     trace::TraceLayer,
 };
 use tracing::Span;
@@ -115,7 +115,7 @@ impl ApiServer {
             torrent,
         );
         let cors_layer = CorsLayer::new()
-            .allow_origin(Any)
+            .allow_origin(AllowOrigin::mirror_request())
             .allow_methods([
                 Method::GET,
                 Method::POST,

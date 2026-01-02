@@ -48,6 +48,7 @@ use crate::validate::{
 const APP_PROFILE_ID: &str = "00000000-0000-0000-0000-000000000001";
 const ENGINE_PROFILE_ID: &str = "00000000-0000-0000-0000-000000000002";
 const FS_POLICY_ID: &str = "00000000-0000-0000-0000-000000000003";
+const API_KEY_TTL_DAYS: i64 = 14;
 
 type Result<T> = ConfigResult<T>;
 
@@ -270,9 +271,11 @@ impl ConfigService {
             return Ok(None);
         }
 
-        if let Some(expires_at) = record.expires_at
-            && expires_at <= Utc::now()
-        {
+        let Some(expires_at) = record.expires_at else {
+            return Ok(None);
+        };
+
+        if expires_at <= Utc::now() {
             return Ok(None);
         }
 
@@ -2201,6 +2204,22 @@ async fn apply_api_key_patches(
     Ok(changed)
 }
 
+fn validate_api_key_expiry(expires_at: Option<DateTime<Utc>>) -> Result<()> {
+    let Some(expires_at) = expires_at else {
+        return Ok(());
+    };
+    let max_expires_at = Utc::now() + ChronoDuration::days(API_KEY_TTL_DAYS);
+    if expires_at > max_expires_at {
+        return Err(ConfigError::InvalidField {
+            section: "auth_api_keys".to_string(),
+            field: "expires_at".to_string(),
+            value: Some(expires_at.to_rfc3339()),
+            reason: "expires_at exceeds policy TTL",
+        });
+    }
+    Ok(())
+}
+
 async fn delete_api_key(
     tx: &mut Transaction<'_, Postgres>,
     immutable_keys: &HashSet<String>,
@@ -2235,6 +2254,7 @@ async fn update_api_key(
     immutable_keys: &HashSet<String>,
     update: &ApiKeyUpdate<'_>,
 ) -> Result<bool> {
+    validate_api_key_expiry(update.expires_at)?;
     let changed_secret = if let Some(value) = update.secret {
         ensure_mutable(immutable_keys, "auth_api_keys", "secret")?;
         let hash = hash_secret(value)?;
@@ -2338,11 +2358,15 @@ async fn insert_api_key(
         ensure_mutable(immutable_keys, "auth_api_keys", "rate_limit")?;
     }
 
+    let expires_at = update
+        .expires_at
+        .unwrap_or_else(|| Utc::now() + ChronoDuration::days(API_KEY_TTL_DAYS));
     let hash = hash_secret(secret_value)?;
     let enabled_flag = update.enabled.unwrap_or(true);
     if let Some(Some(limit)) = update.rate_limit {
         validate_api_key_rate_limit(limit)?;
     }
+    validate_api_key_expiry(update.expires_at)?;
     let new_key = data_config::NewApiKey {
         key_id: update.key_id,
         hash: &hash,
@@ -2356,7 +2380,7 @@ async fn insert_api_key(
             .rate_limit
             .and_then(|limit| limit.as_ref())
             .and_then(|limit| i64::try_from(limit.replenish_period.as_secs()).ok()),
-        expires_at: update.expires_at,
+        expires_at: Some(expires_at),
     };
     data_config::insert_api_key(tx.as_mut(), &new_key)
         .await
