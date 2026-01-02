@@ -19,9 +19,9 @@
 -   [x] Treat static/nexus as the runtime asset kit (compiled CSS, images, client-side JS).
 -   [x] Use DaisyUI Blueprint MCP as the canonical reference for DaisyUI v5 component patterns, variants, accessibility, and form layout; if Nexus markup differs, Nexus wins for visual parity unless intentionally standardizing.
 -   [x] Translation bundle surfaces missing keys (no default/fallback strings).
--   [ ] Every i18n key referenced in the UI has an English value (no raw keys shown).
--   [ ] Error surfaces never block navigation (overlays are non-blocking).
--   [ ] All server errors render as persistent, dismissible toasts (no auto-timeout).
+-   [x] Every i18n key referenced in the UI has an English value (no raw keys shown).
+-   [x] Error surfaces never block navigation (overlays are non-blocking).
+-   [x] All server errors render as persistent, dismissible toasts (no auto-timeout).
 
 ## 2) Theme + palette (from the logo)
 
@@ -30,7 +30,7 @@
 -   [x] Apply tokens via DaisyUI theme variables or theme selection plus minimal overrides; keep contrast readable for table/list UIs.
 -   [x] Tables use base-200 with base-100 hover; progress fills use primary tokens.
 -   [x] Theme applied via `data-theme` on `<html>` and persisted to `localStorage`; default to dark.
--   [ ] No hardcoded hex or Tailwind palette colors in components; use DaisyUI semantic tokens only.
+-   [x] No hardcoded hex or Tailwind palette colors in components; use DaisyUI semantic tokens only.
 
 ## 3) Shell and routing (atomic composition)
 
@@ -48,7 +48,7 @@
 -   [x] If configured and auth missing: show auth prompt (blocking modal/screen).
 -   [x] Setup flow: call admin/setup/start; handle "already configured" by switching to configured state.
 -   [x] Setup flow: collect setup token and complete via admin/setup/complete.
--   [ ] Setup completion returns API key (when auth enabled) and client begins using it immediately.
+-   [x] Setup completion returns API key (when auth enabled) and client begins using it immediately.
 -   [x] After completion, route to auth prompt.
 -   [x] Auth prompt (configured state): provide two tabs: API key, or Local auth (username/password).
 -   [x] Store auth choice in local storage and attach to all API requests.
@@ -60,10 +60,10 @@
 -   [x] Setup prompt supports No Auth selection (local network).
 -   [x] Anonymous auth mode omits auth headers for API calls.
 -   [x] Persist API key + expiry in `localStorage`; clear on logout.
--   [ ] Logout invalidates token server-side immediately.
+-   [x] Logout invalidates token server-side immediately.
 -   [x] Auto-refresh API key before expiry (`/v1/auth/refresh`).
--   [ ] Enforce 14-day token expiry policy end-to-end (server + client).
--   [ ] No-auth mode works end-to-end without API key when configured.
+-   [x] Enforce 14-day token expiry policy end-to-end (server + client).
+-   [x] No-auth mode works end-to-end without API key when configured.
 -   [x] Logout button is present in the sidebar footer alongside the connectivity indicator.
 
 ## 5) State management and rendering performance (yewdux)
@@ -124,7 +124,7 @@
 -   [x] Endpoints: POST /admin/factory-reset.
 -   [x] Centralize error parsing with ProblemDetails; display status/title/detail consistently.
 -   [x] Implement rate limit handling (429) with user-visible backoff messaging and safe retry.
--   [ ] API responses include proper CORS headers for the UI origin (including SSE).
+-   [x] API responses include proper CORS headers for the UI origin (including SSE).
 
 ## 7) SVG and icon system (reuse + consistency)
 
@@ -152,8 +152,8 @@
 -   [x] Filters in URL query: query text (name), state, tags, tracker, extension.
 -   [x] Pagination: limit and cursor; provide Load more using next cursor.
 -   [x] Columns (TorrentSummary): name, state, progress, down/up rate, ratio, tags, trackers, updated timestamp.
--   [ ] Sortable headers use Nexus sort affordances and update URL sort state.
--   [ ] All torrent table values update live via SSE (state, progress, rates, ratio, size, ETA, tags, trackers, updated).
+-   [x] Sortable headers use Nexus sort affordances and update URL sort state.
+-   [x] All torrent table values update live via SSE (state, progress, rates, ratio, size, ETA, tags, trackers, updated).
 -   [x] Row click opens details drawer and updates route (deep link).
 -   [x] Row menu actions: pause, resume, reannounce, recheck, sequential toggle.
 -   [x] Row menu actions: set rate (download/upload bps).
@@ -163,7 +163,7 @@
 -   [x] Bulk ops: collect per-item failures, show summary toast, keep drawer closed unless single selection remains.
 -   [x] Bulk actions: pause, resume, recheck, reannounce.
 -   [x] Bulk actions: sequential on/off, rate set, remove (confirm + optional delete_data).
--   [ ] Empty state uses DaisyUI empty state inside table/drawer only; bottom info banner removed.
+-   [x] Empty state uses DaisyUI empty state inside table/drawer only; bottom info banner removed.
 -   [x] Legacy torrent list component removed (non-Nexus grid/list).
 
 ## 10) Torrent details drawer (tabs: Overview, Files, Options)
@@ -214,8 +214,8 @@
     -   [x] torrent = comma-separated visible IDs when count is below a safe cap; otherwise omit.
     -   [x] event = kinds relevant to current view (list vs drawer).
     -   [x] state only when a state filter is active.
--   [ ] SSE event filter names match backend enum (no 400 warnings).
--   [ ] Handle 409/conflict SSE failures by resetting Last-Event-ID and reconnecting cleanly.
+-   [x] SSE event filter names match backend enum (no 400 warnings).
+-   [x] Handle 409/conflict SSE failures by resetting Last-Event-ID and reconnecting cleanly.
 -   [x] Implement a progress coalescer:
     -   [x] Buffer incoming progress patches per torrent ID in a non-reactive buffer.
     -   [x] Flush buffered progress into yewdux store on a fixed cadence (50-100ms).
@@ -223,7 +223,7 @@
     -   [x] Apply non-progress events immediately (add/remove/state change/metadata/fsops/files/selection/system/health).
     -   [x] If an event cannot be decoded/applied, trigger a throttled targeted refresh (do not refetch everything per message).
 -   [x] Progress coalescing is mandatory to cap render frequency under high event volume.
--   [ ] SSE status includes connected/reconnecting/disconnected and sidebar indicator reflects all states.
+-   [x] SSE status includes connected/reconnecting/disconnected and sidebar indicator reflects all states.
 -   [x] UI: show "Live" indicator when connected and subtle warning when reconnecting/backing off.
 
 ## 15) Not in scope guardrails
@@ -237,40 +237,40 @@
 -   [x] Inventory old dashboard entrypoint/shell/components/styles for cleanup.
 -   [x] Nexus source-of-truth files identified (dashboard + sidebar/topbar + storage status partials).
 -   [x] Sidebar nav = Home, Torrents, Settings (only) with SSE indicator pinned at the bottom.
--   [ ] Sidebar defaults to icon-only (labels only when expanded).
+-   [x] Sidebar defaults to icon-only (labels only when expanded).
 -   [x] Sidebar labels show Home/Torrents/Settings across locales (nav labels standardized).
 -   [x] Sidebar footer SSE indicator uses Nexus pinned-footer structure and DaisyUI primitives.
 -   [x] Sidebar SSE indicator label expands only when the sidebar is expanded.
 -   [x] Sidebar footer includes Logout in the same bar; label collapses with the sidebar.
 -   [x] Topbar is consistent with breadcrumb, theme toggle, language selector, server menu.
--   [ ] Topbar location indicator matches Home/Torrents/Settings consistently.
+-   [x] Topbar location indicator matches Home/Torrents/Settings consistently.
 -   [x] Server menu items exactly: Restart server, View logs; Factory reset separated and styled danger.
--   [ ] Server dropdown renders above torrent action bar (z-index stacking).
+-   [x] Server dropdown renders above torrent action bar (z-index stacking).
 -   [x] Home dashboard matches Nexus layout with DaisyUI cards/stats/progress/list.
 -   [x] Dashboard storage status dropdown uses Nexus actions (Enhance/Insights/Auto Tag/Delete).
 -   [x] SSE indicator modal is non-blocking; navigation always reachable.
--   [ ] SSE indicator modal shows status, next retry time, last event ID, last error reason, retry strategy, and Retry/Dismiss actions.
+-   [x] SSE indicator modal shows status, next retry time, last event ID, last error reason, retry strategy, and Retry/Dismiss actions.
 -   [x] Settings is sectioned and reachable without auth; test connection + config snapshot wired.
 -   [x] Legacy dashboard CSS reduced; Nexus app.css remains primary styling.
 -   [x] Task record (ADR) added for this work.
--   [ ] `just ci` passes locally.
--   [ ] `just cov` meets the ≥80% line coverage gate.
+-   [x] `just ci` passes locally.
+-   [x] `just cov` meets the ≥80% line coverage gate.
 
 ## 17) Settings UX (tabs + batching + file browser)
 
 -   [x] Settings tabs map to torrent-user workflows (Connection, Downloads, Seeding, Network, Storage, Labels, System).
 -   [x] Changes are staged locally with a change-count badge and a single Save action.
 -   [x] Directory fields use a remote file browser modal with browse + manual path entry.
--   [ ] Server validates selected directory exists before accepting updates; surface failures via persistent toasts.
--   [ ] Settings API/DB is fully normalized (no JSON blobs); UI renders typed fields.
+-   [x] Server validates selected directory exists before accepting updates; surface failures via persistent toasts.
+-   [x] Settings API/DB is fully normalized (no JSON blobs); UI renders typed fields.
 -   [x] Boolean fields use toggles; fixed options use dropdowns; numeric values use number inputs.
 -   [x] Read-only fields show text with copy-to-clipboard controls.
--   [ ] Settings errors are shown inline via alerts/toasts; no blocking overlays.
+-   [x] Settings errors are shown inline via alerts/toasts; no blocking overlays.
 
 ## 18) Logs screen + factory reset
 
 -   [x] Logs screen uses SSE stream only while mounted; connection closes on leave.
 -   [x] Log view honors ANSI color codes and extended characters; log body is black.
 -   [x] Log list is bounded (memory efficient) and prepends new lines; only log area scrolls.
--   [ ] Factory reset modal requires typing `factory reset` (client + server validation).
--   [ ] Factory reset errors show raw server detail in non-expiring toasts; success reloads to setup.
+-   [x] Factory reset modal requires typing `factory reset` (client + server validation).
+-   [x] Factory reset errors show raw server detail in non-expiring toasts; success reloads to setup.
