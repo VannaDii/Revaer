@@ -76,9 +76,26 @@ mod tests {
     use httpmock::prelude::*;
     use reqwest::Client;
     use serde_json::json;
+    use std::{fs, path::PathBuf};
     use uuid::Uuid;
 
     use crate::client::ApiKeyCredential;
+
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> Result<PathBuf> {
+        let root = repo_root().join(".server_root");
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
 
     fn context_with(server: &MockServer, api_key: Option<ApiKeyCredential>) -> Result<AppContext> {
         Ok(AppContext {
@@ -208,8 +225,7 @@ mod tests {
         });
 
         let ctx = context_with_key(&server)?;
-        let file_path =
-            std::env::temp_dir().join(format!("revaer-cli-config-{}.json", Uuid::new_v4()));
+        let file_path = server_root()?.join(format!("revaer-cli-config-{}.json", Uuid::new_v4()));
         let mut app_profile = sample_snapshot()?.app_profile;
         app_profile.id = Uuid::parse_str("00000000-0000-0000-0000-000000000001")
             .map_err(|_| anyhow!("valid app profile id"))?;

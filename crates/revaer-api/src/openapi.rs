@@ -65,9 +65,25 @@ mod tests {
     use super::*;
     use crate::openapi_assets::OPENAPI_FILENAME;
     use serde_json::json;
-    use std::fs;
     use std::io;
+    use std::{fs, path::PathBuf};
     use uuid::Uuid;
+
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> std::io::Result<PathBuf> {
+        let root = repo_root().join(".server_root");
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
 
     #[test]
     fn build_openapi_document_parses_embedded_json() {
@@ -92,7 +108,7 @@ mod tests {
     #[test]
     fn embedded_dependencies_invoke_persist_hook() -> Result<(), Box<dyn std::error::Error>> {
         let document = Arc::new(json!({"openapi": "3.0.0"}));
-        let dir = std::env::temp_dir().join(format!("openapi-{}", Uuid::new_v4()));
+        let dir = server_root()?.join(format!("openapi-{}", Uuid::new_v4()));
         fs::create_dir_all(&dir)?;
         let dest = dir.join(OPENAPI_FILENAME);
         let invoked = Arc::new(std::sync::Mutex::new(Vec::new()));

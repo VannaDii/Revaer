@@ -125,7 +125,24 @@ mod tests {
     use serde_json::json;
     use std::sync::Arc;
     use std::time::Duration;
+    use std::{fs, path::PathBuf};
     use uuid::Uuid;
+
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> Result<PathBuf> {
+        let root = repo_root().join(".server_root");
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
 
     #[derive(Clone)]
     struct StubConfig;
@@ -216,7 +233,7 @@ mod tests {
 
     #[tokio::test]
     async fn browse_filesystem_lists_directory_entries() -> Result<()> {
-        let root = std::env::temp_dir().join(format!("revaer-fs-{}", Uuid::new_v4()));
+        let root = server_root()?.join(format!("revaer-fs-{}", Uuid::new_v4()));
         let dir_path = root.join("child");
         let file_path = root.join("file.txt");
         std::fs::create_dir_all(&dir_path)?;
@@ -242,7 +259,7 @@ mod tests {
 
     #[tokio::test]
     async fn browse_filesystem_rejects_file_path() -> Result<()> {
-        let root = std::env::temp_dir().join(format!("revaer-fs-file-{}", Uuid::new_v4()));
+        let root = server_root()?.join(format!("revaer-fs-file-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&root)?;
         let file_path = root.join("file.txt");
         std::fs::write(&file_path, "data")?;
@@ -263,7 +280,7 @@ mod tests {
 
     #[tokio::test]
     async fn browse_filesystem_rejects_missing_path() -> Result<()> {
-        let root = std::env::temp_dir().join(format!("revaer-fs-missing-{}", Uuid::new_v4()));
+        let root = server_root()?.join(format!("revaer-fs-missing-{}", Uuid::new_v4()));
         let missing = root.join("missing");
 
         let query = FsBrowseQuery {

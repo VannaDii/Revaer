@@ -61,7 +61,12 @@ async fn runtime_store_persists_status_and_fs_jobs() -> anyhow::Result<()> {
     let source = Path::new(".server_root/source");
     store.mark_fs_job_started(torrent_id, source).await?;
     store
-        .mark_fs_job_completed(torrent_id, source, Path::new(".server_root/dest"), Some("copy"))
+        .mark_fs_job_completed(
+            torrent_id,
+            source,
+            Path::new(".server_root/dest"),
+            Some("copy"),
+        )
         .await?;
     let job_state = store
         .fetch_fs_job_state(torrent_id)

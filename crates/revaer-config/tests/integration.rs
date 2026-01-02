@@ -152,8 +152,7 @@ async fn engine_profile_update_normalizes_alt_speed() -> anyhow::Result<()> {
 }
 
 fn build_temp_paths() -> anyhow::Result<(String, String, String)> {
-    let mut base = std::env::temp_dir();
-    base.push(format!("revaer-config-{}", Uuid::new_v4()));
+    let base = server_root()?.join(format!("revaer-config-{}", Uuid::new_v4()));
     let download_root = base.join("downloads");
     let resume_dir = base.join("resume");
     let library_root = base.join("library");
@@ -165,6 +164,22 @@ fn build_temp_paths() -> anyhow::Result<(String, String, String)> {
         path_to_string(resume_dir),
         path_to_string(library_root),
     ))
+}
+
+fn server_root() -> anyhow::Result<PathBuf> {
+    let root = repo_root().join(".server_root");
+    fs::create_dir_all(&root)?;
+    Ok(root)
+}
+
+fn repo_root() -> PathBuf {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    for ancestor in manifest_dir.ancestors() {
+        if ancestor.join("AGENT.md").is_file() {
+            return ancestor.to_path_buf();
+        }
+    }
+    manifest_dir
 }
 
 fn path_to_string(path: PathBuf) -> String {

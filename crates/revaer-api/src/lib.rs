@@ -100,6 +100,7 @@ mod tests {
     use serde_json::{Value, json};
     use std::collections::HashMap;
     use std::net::IpAddr;
+    use std::path::PathBuf;
     use std::str::FromStr;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -113,6 +114,22 @@ mod tests {
     use crate::http::compat_qb::{
         self, SyncParams, TorrentAddForm, TorrentHashesForm, TorrentsInfoParams, TransferLimitForm,
     };
+
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> Result<PathBuf> {
+        let root = repo_root().join(".server_root");
+        std::fs::create_dir_all(&root)?;
+        Ok(root)
+    }
 
     struct NoopWorkflow;
 
@@ -775,9 +792,12 @@ mod tests {
         )
         .await?;
 
-        let snapshot: ConfigSnapshot = serde_json::from_value(response.snapshot.clone())?;
+        let snapshot = response.snapshot;
         assert_eq!(snapshot.app_profile.mode, AppMode::Active);
-        assert!(response.api_key.contains(':'));
+        let api_key = response
+            .api_key
+            .ok_or_else(|| anyhow!("setup completion missing api key"))?;
+        assert!(api_key.contains(':'));
         let event = timeout(Duration::from_secs(1), event_stream.next())
             .await
             .map_err(|_| anyhow!("settings event timeout"))?
@@ -1269,7 +1289,7 @@ mod tests {
         let config: SharedConfig = Arc::new(MockConfig::new()?);
         let telemetry = Metrics::new().map_err(|_| anyhow!("metrics init"))?;
         let events = EventBus::with_capacity(8);
-        let openapi_path = std::env::temp_dir().join("revaer-openapi-test.json");
+        let openapi_path = server_root()?.join("revaer-openapi-test.json");
         let persisted = Arc::new(AtomicBool::new(false));
         let document = Arc::new(json!({ "openapi": "stub" }));
         let openapi = {

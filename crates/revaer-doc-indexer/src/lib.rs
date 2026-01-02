@@ -404,6 +404,22 @@ mod tests {
     use std::io::Write;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> std::result::Result<PathBuf, Box<dyn Error>> {
+        let root = repo_root().join(".server_root");
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
+
     struct TempDir {
         path: PathBuf,
     }
@@ -411,7 +427,7 @@ mod tests {
     impl TempDir {
         fn new() -> std::result::Result<Self, Box<dyn Error>> {
             let nanos = SystemTime::now().duration_since(UNIX_EPOCH)?.as_nanos();
-            let mut root = env::temp_dir();
+            let mut root = server_root()?;
             root.push(format!("revaer-doc-indexer-{nanos}-{}", std::process::id()));
             fs::create_dir_all(&root)?;
             Ok(Self { path: root })

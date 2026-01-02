@@ -329,7 +329,31 @@ fn strip_suffix(file_name: &str, suffix: &str) -> Option<Uuid> {
 mod tests {
     use super::*;
     use anyhow::{Result, anyhow};
+    use std::fs;
+    use std::path::PathBuf;
     use tempfile::TempDir;
+
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> Result<PathBuf> {
+        let root = repo_root().join(".server_root");
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
+
+    fn temp_dir() -> Result<TempDir> {
+        Ok(tempfile::Builder::new()
+            .prefix("revaer-libt-store-")
+            .tempdir_in(server_root()?)?)
+    }
 
     fn sample_metadata() -> StoredTorrentMetadata {
         StoredTorrentMetadata {
@@ -394,7 +418,7 @@ mod tests {
 
     #[test]
     fn ensure_initialized_creates_directory() -> Result<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let target = temp.path().join("resume");
         let store = FastResumeStore::new(&target);
         store.ensure_initialized()?;
@@ -404,7 +428,7 @@ mod tests {
 
     #[test]
     fn write_and_load_round_trip() -> Result<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let store = FastResumeStore::new(temp.path());
         let torrent_id = Uuid::new_v4();
 
@@ -454,7 +478,7 @@ mod tests {
 
     #[test]
     fn load_all_returns_empty_for_missing_directory() -> Result<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let missing = temp.path().join("missing");
         let store = FastResumeStore::new(&missing);
         assert!(store.load_all()?.is_empty());
@@ -463,7 +487,7 @@ mod tests {
 
     #[test]
     fn load_all_skips_unrecognized_files() -> Result<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let store = FastResumeStore::new(temp.path());
         fs::write(temp.path().join("readme.txt"), "not a torrent")?;
         let entries = store.load_all()?;
@@ -473,7 +497,7 @@ mod tests {
 
     #[test]
     fn load_all_errors_on_corrupt_metadata() -> Result<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let store = FastResumeStore::new(temp.path());
         let torrent_id = Uuid::new_v4();
         let meta_path = temp.path().join(format!("{torrent_id}{META_SUFFIX}"));

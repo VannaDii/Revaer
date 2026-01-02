@@ -1,4 +1,6 @@
 use std::env;
+use std::fs;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use anyhow::{Context, Result};
@@ -19,6 +21,28 @@ use tokio_stream::StreamExt;
 use uuid::Uuid;
 
 const MAGNET_URI: &str = "magnet:?xt=urn:btih:0123456789abcdef0123456789abcdef01234567&dn=demo";
+
+fn repo_root() -> PathBuf {
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    for ancestor in manifest_dir.ancestors() {
+        if ancestor.join("AGENT.md").is_file() {
+            return ancestor.to_path_buf();
+        }
+    }
+    manifest_dir
+}
+
+fn server_root() -> Result<PathBuf> {
+    let root = repo_root().join(".server_root");
+    fs::create_dir_all(&root)?;
+    Ok(root)
+}
+
+fn temp_dir(prefix: &str) -> Result<TempDir> {
+    Ok(tempfile::Builder::new()
+        .prefix(prefix)
+        .tempdir_in(server_root()?)?)
+}
 
 fn base_runtime_config(download: &TempDir, resume: &TempDir) -> EngineRuntimeConfig {
     EngineRuntimeConfig {
@@ -90,8 +114,8 @@ async fn native_alerts_and_rate_limits_smoke() -> Result<()> {
         return Ok(());
     }
 
-    let download = TempDir::new().context("temp download dir")?;
-    let resume = TempDir::new().context("temp resume dir")?;
+    let download = temp_dir("revaer-libt-download-").context("temp download dir")?;
+    let resume = temp_dir("revaer-libt-resume-").context("temp resume dir")?;
 
     let bus = revaer_events::EventBus::with_capacity(64);
     let engine = LibtorrentEngine::new(bus.clone()).context("engine init")?;
@@ -173,8 +197,8 @@ async fn native_applies_proxy_auth_and_seed_limits() -> Result<()> {
         return Ok(());
     }
 
-    let download = TempDir::new().context("temp download dir")?;
-    let resume = TempDir::new().context("temp resume dir")?;
+    let download = temp_dir("revaer-libt-download-").context("temp download dir")?;
+    let resume = temp_dir("revaer-libt-resume-").context("temp resume dir")?;
 
     let bus = revaer_events::EventBus::with_capacity(16);
     let engine = LibtorrentEngine::new(bus).context("engine init")?;
@@ -218,8 +242,8 @@ async fn native_applies_ipv6_mode_to_listen_interfaces() -> Result<()> {
         return Ok(());
     }
 
-    let download = TempDir::new().context("temp download dir")?;
-    let resume = TempDir::new().context("temp resume dir")?;
+    let download = temp_dir("revaer-libt-download-").context("temp download dir")?;
+    let resume = temp_dir("revaer-libt-resume-").context("temp resume dir")?;
 
     let bus = revaer_events::EventBus::with_capacity(16);
     let engine = LibtorrentEngine::new(bus).context("engine init")?;

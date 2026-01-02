@@ -234,11 +234,27 @@ mod tests {
         normalize_engine_profile,
     };
     use serde_json::json;
-    use std::path::PathBuf;
+    use std::{fs, path::PathBuf};
     use tokio::time::{Duration, timeout};
     use uuid::Uuid;
 
     use crate::client::ApiKeyCredential;
+
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> Result<PathBuf> {
+        let root = repo_root().join(".server_root");
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
 
     fn context_with(server: &MockServer, api_key: Option<ApiKeyCredential>) -> Result<AppContext> {
         Ok(AppContext {
@@ -511,7 +527,7 @@ mod tests {
         });
 
         let ctx = context_with_key(&server)?;
-        let resume_path = std::env::temp_dir().join("revaer-cli-setup-tail.txt");
+        let resume_path = server_root()?.join("revaer-cli-setup-tail.txt");
         let args = crate::cli::TailArgs {
             torrent: Vec::new(),
             event: Vec::new(),
@@ -529,8 +545,9 @@ mod tests {
             result.is_err(),
             "tail should keep running and be cancelled by timeout"
         );
-        let saved = std::fs::read_to_string(resume_path)?;
+        let saved = std::fs::read_to_string(&resume_path)?;
         assert_eq!(saved.trim(), "3");
+        let _ = std::fs::remove_file(&resume_path);
         Ok(())
     }
 }

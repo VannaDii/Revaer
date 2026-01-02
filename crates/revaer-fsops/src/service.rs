@@ -1799,12 +1799,36 @@ fn build_globset(patterns: Vec<String>, field: &'static str) -> FsOpsResult<Opti
 mod tests {
     use super::*;
     use anyhow::Result;
+    use std::fs;
     use std::io::Write;
+    use std::path::PathBuf;
     use tempfile::TempDir;
     use tokio::runtime::Runtime;
     use tokio_stream::StreamExt;
 
     type TestResult<T> = Result<T>;
+
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> TestResult<PathBuf> {
+        let root = repo_root().join(".server_root");
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
+
+    fn temp_dir() -> TestResult<TempDir> {
+        Ok(tempfile::Builder::new()
+            .prefix("revaer-fsops-")
+            .tempdir_in(server_root()?)?)
+    }
 
     fn sample_policy(root: &Path) -> FsPolicy {
         FsPolicy {
@@ -1933,7 +1957,7 @@ mod tests {
         let metrics = Metrics::new()?;
         let service = FsOpsService::new(events, metrics);
 
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let file_root = temp.path().join("not_a_dir");
         fs::write(&file_root, "file")?;
         let meta_dir = temp.path().join("meta");
@@ -1958,7 +1982,7 @@ mod tests {
         let metrics = Metrics::new()?;
         let service = FsOpsService::new(bus, metrics);
         let torrent_id = Uuid::new_v4();
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
 
         let staging_root = temp.path().join("staging");
         fs::create_dir_all(&staging_root)?;
@@ -2000,7 +2024,7 @@ mod tests {
         let service = FsOpsService::new(bus.clone(), metrics);
         let mut stream = bus.subscribe(None);
         let torrent_id = Uuid::new_v4();
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
 
         let library_root = temp.path().join("library");
         let staging_root = temp.path().join("staging");
@@ -2052,7 +2076,7 @@ mod tests {
 
     #[test]
     fn enforce_allow_paths_accepts_parent_directory() -> TestResult<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let root = temp.path().join("library");
         let allow = vec![temp.path().display().to_string()];
         enforce_allow_paths(&root, &allow)?;
@@ -2071,7 +2095,7 @@ mod tests {
 
     #[test]
     fn extract_archive_rejects_unknown_extensions() -> TestResult<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let source = temp.path().join("payload.rar");
         fs::write(&source, b"junk")?;
         let target = temp.path().join("target");
@@ -2093,7 +2117,7 @@ mod tests {
 
     #[test]
     fn execute_step_records_failure_status() -> TestResult<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let bus = EventBus::with_capacity(4);
         let metrics = Metrics::new()?;
         let service = FsOpsService::new(bus, metrics);
@@ -2127,7 +2151,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn hardlink_tree_reuses_inodes() -> TestResult<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let source = temp.path().join("source");
         fs::create_dir_all(&source)?;
         let file = source.join("file.txt");
@@ -2162,7 +2186,7 @@ mod tests {
 
     #[test]
     fn cleanup_destination_removes_matching_entries() -> TestResult<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let root = temp.path().join("artifact");
         fs::create_dir_all(root.join("keep"))?;
         fs::create_dir_all(root.join("extras"))?;
@@ -2239,7 +2263,7 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn apply_permissions_honours_umask_defaults() -> TestResult<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let root = temp.path().join("artifact");
         fs::create_dir_all(&root)?;
         let nested = root.join("dir");
@@ -2262,7 +2286,7 @@ mod tests {
 
     #[test]
     fn set_permissions_step_skips_without_artifact_path() -> TestResult<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let bus = EventBus::with_capacity(4);
         let metrics = Metrics::new()?;
         let service = FsOpsService::new(bus, metrics);
@@ -2281,7 +2305,7 @@ mod tests {
 
     #[test]
     fn cleanup_step_skips_when_no_rules_configured() -> TestResult<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let bus = EventBus::with_capacity(4);
         let metrics = Metrics::new()?;
         let service = FsOpsService::new(bus, metrics);
@@ -2308,7 +2332,7 @@ mod tests {
 
     #[test]
     fn transfer_step_skips_when_destination_already_positioned() -> TestResult<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let bus = EventBus::with_capacity(4);
         let metrics = Metrics::new()?;
         let service = FsOpsService::new(bus, metrics);
@@ -2338,7 +2362,7 @@ mod tests {
 
     #[test]
     fn resume_short_circuits_completed_pipeline() -> TestResult<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let bus = EventBus::with_capacity(4);
         let metrics = Metrics::new()?;
         let service = FsOpsService::new(bus.clone(), metrics);

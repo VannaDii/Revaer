@@ -354,6 +354,22 @@ mod tests {
     static TEMP_COUNTER: AtomicUsize = AtomicUsize::new(0);
     type TestResult = Result<(), Box<dyn Error>>;
 
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> Result<PathBuf, Box<dyn Error>> {
+        let root = repo_root().join(".server_root");
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
+
     fn css_fixture() -> String {
         let mut css = String::from("/* test */\n.btn { display: inline-flex; }\n");
         let filler = "/* filler */\n";
@@ -372,7 +388,8 @@ mod tests {
             let pid = std::process::id();
             loop {
                 let counter = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
-                let mut path = std::env::temp_dir();
+                let mut path =
+                    server_root().map_err(|err| std::io::Error::other(err.to_string()))?;
                 path.push(format!("asset-sync-test-{pid}-{counter}"));
                 match fs::create_dir(&path) {
                     Ok(()) => return Ok(Self { path }),

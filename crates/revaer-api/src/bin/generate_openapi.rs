@@ -72,9 +72,25 @@ mod tests {
         }
     }
 
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> Result<PathBuf> {
+        let root = repo_root().join(".server_root");
+        fs::create_dir_all(&root).context("failed to create server root")?;
+        Ok(root)
+    }
+
     #[test]
     fn main_writes_openapi_document() -> Result<()> {
-        let temp_root = env::temp_dir().join(format!("revaer-openapi-test-{}", Uuid::new_v4()));
+        let temp_root = server_root()?.join(format!("revaer-openapi-test-{}", Uuid::new_v4()));
         let docs_dir = temp_root.join("docs/api");
         fs::create_dir_all(&docs_dir).context("failed to prepare docs directory")?;
         let guard = WorkingDirGuard::change_to(temp_root.as_path())?;

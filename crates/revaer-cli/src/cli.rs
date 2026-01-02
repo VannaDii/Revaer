@@ -387,6 +387,23 @@ mod tests {
     use super::*;
     use crate::client::{CliError, parse_api_key, parse_url, timestamp_now_ms};
     use anyhow::{Result, anyhow};
+    use std::{fs, path::PathBuf};
+
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> Result<PathBuf> {
+        let root = repo_root().join(".server_root");
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
 
     #[test]
     fn parse_url_rejects_invalid_input() -> Result<()> {
@@ -440,22 +457,22 @@ mod tests {
 
     #[test]
     fn parse_existing_file_verifies_path() -> Result<()> {
-        let tmp = std::env::temp_dir().join(format!("revaer-cli-{}.txt", Uuid::new_v4()));
+        let tmp = server_root()?.join(format!("revaer-cli-{}.txt", Uuid::new_v4()));
         std::fs::write(&tmp, b"ok")?;
         let tmp_path = tmp.to_str().ok_or_else(|| anyhow!("invalid temp path"))?;
         assert!(parse_existing_file(tmp_path).is_ok());
-        let missing =
-            std::env::temp_dir().join(format!("revaer-cli-missing-{}.txt", Uuid::new_v4()));
+        let missing = server_root()?.join(format!("revaer-cli-missing-{}.txt", Uuid::new_v4()));
         let missing_path = missing
             .to_str()
             .ok_or_else(|| anyhow!("invalid missing path"))?;
         assert!(parse_existing_file(missing_path).is_err());
+        std::fs::remove_file(&tmp)?;
         Ok(())
     }
 
     #[test]
     fn parse_existing_directory_verifies_path() -> Result<()> {
-        let dir = std::env::temp_dir();
+        let dir = server_root()?;
         let dir_path = dir.to_str().ok_or_else(|| anyhow!("invalid dir path"))?;
         assert!(parse_existing_directory(dir_path).is_ok());
         let missing = dir.join(format!("revaer-cli-dir-{}", Uuid::new_v4()));

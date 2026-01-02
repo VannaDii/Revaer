@@ -205,6 +205,31 @@ mod tests {
         AddTorrentOptions, TorrentSource,
         model::{TorrentOptionsUpdate, TorrentTrackersUpdate, TorrentWebSeedsUpdate},
     };
+    use std::fs;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> Result<PathBuf> {
+        let root = repo_root().join(".server_root");
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
+
+    fn temp_dir(prefix: &str) -> Result<TempDir> {
+        Ok(tempfile::Builder::new()
+            .prefix(prefix)
+            .tempdir_in(server_root()?)?)
+    }
 
     fn runtime_config_template(
         download_root: impl Into<String>,
@@ -275,8 +300,7 @@ mod tests {
         let events = EventBus::new();
         let engine = LibtorrentEngine::new(events)?;
 
-        let mut runtime =
-            runtime_config_template(".server_root/downloads", ".server_root/resume");
+        let mut runtime = runtime_config_template(".server_root/downloads", ".server_root/resume");
         runtime.enable_dht = true;
         runtime.sequential_default = false;
         runtime.listen_port = Some(6_881);
@@ -349,7 +373,7 @@ mod tests {
 
     #[tokio::test]
     async fn resume_store_is_initialized_when_provided() -> Result<()> {
-        let dir = tempfile::tempdir()?;
+        let dir = temp_dir("revaer-libt-resume-")?;
         let resume_dir = dir.path().join("resume");
         let store = FastResumeStore::new(&resume_dir);
 

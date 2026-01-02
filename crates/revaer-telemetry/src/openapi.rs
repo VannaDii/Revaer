@@ -36,12 +36,36 @@ pub fn persist_openapi(path: impl AsRef<Path>, document: &Value) -> Result<Strin
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::fs;
     use std::io;
-    use tempfile::tempdir;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> std::result::Result<PathBuf, Box<dyn std::error::Error>> {
+        let root = repo_root().join(".server_root");
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
+
+    fn temp_dir() -> std::result::Result<TempDir, Box<dyn std::error::Error>> {
+        Ok(tempfile::Builder::new()
+            .prefix("revaer-telemetry-")
+            .tempdir_in(server_root()?)?)
+    }
 
     #[test]
     fn persist_openapi_writes_document() -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let dir = tempdir()?;
+        let dir = temp_dir()?;
         let path = dir.path().join("openapi.json");
         let document = json!({"openapi": "3.0.0"});
 
@@ -55,7 +79,7 @@ mod tests {
     #[test]
     fn persist_openapi_reports_create_dir_failure()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
-        let dir = tempdir()?;
+        let dir = temp_dir()?;
         let file_path = dir.path().join("openapi-file");
         std::fs::write(&file_path, "not a dir")?;
         let path = file_path.join("openapi.json");
@@ -71,7 +95,7 @@ mod tests {
     #[test]
     fn persist_openapi_reports_write_failure() -> std::result::Result<(), Box<dyn std::error::Error>>
     {
-        let dir = tempdir()?;
+        let dir = temp_dir()?;
         let document = json!({"openapi": "3.0.0"});
 
         let Err(err) = persist_openapi(dir.path(), &document) else {

@@ -190,9 +190,33 @@ mod tests {
     use super::*;
     use serde::de::Error as _;
     use std::error::Error;
+    use std::fs;
     use std::io;
-    use tempfile::tempdir;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
     use walkdir::WalkDir;
+
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> Result<PathBuf, Box<dyn Error>> {
+        let root = repo_root().join(".server_root");
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
+
+    fn temp_dir() -> Result<TempDir, Box<dyn Error>> {
+        Ok(tempfile::Builder::new()
+            .prefix("revaer-fsops-")
+            .tempdir_in(server_root()?)?)
+    }
 
     fn io_error() -> io::Error {
         io::Error::other("io")
@@ -215,7 +239,7 @@ mod tests {
         assert!(matches!(json_err, FsOpsError::Json { .. }));
         assert!(json_err.source().is_some());
 
-        let temp = tempdir()?;
+        let temp = temp_dir()?;
         let missing = temp.path().join("missing");
         let walkdir_error = WalkDir::new(&missing)
             .into_iter()

@@ -1573,6 +1573,8 @@ mod tests {
         TorrentCleanupPolicy, TorrentProgress, TorrentRateLimit, TorrentRates, TorrentSource,
         model::TorrentOptionsUpdate,
     };
+    use std::fs;
+    use std::path::PathBuf;
     use std::time::{Duration, Instant};
     use tempfile::TempDir;
     use tokio::{
@@ -1597,6 +1599,28 @@ mod tests {
     }
 
     type DeadlineLog = std::sync::Arc<tokio::sync::Mutex<Vec<(Uuid, u32, Option<u32>)>>>;
+
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> Result<PathBuf> {
+        let root = repo_root().join(".server_root");
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
+
+    fn temp_dir() -> Result<TempDir> {
+        Ok(tempfile::Builder::new()
+            .prefix("revaer-libt-worker-")
+            .tempdir_in(server_root()?)?)
+    }
 
     #[derive(Clone, Default)]
     struct DeadlineSession {
@@ -2491,7 +2515,7 @@ mod tests {
 
     #[tokio::test]
     async fn resume_metadata_reconciliation_persists_updates() -> Result<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let store = FastResumeStore::new(temp.path());
         store.ensure_initialized()?;
 

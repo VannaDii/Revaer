@@ -186,7 +186,9 @@ fn reserve_port() -> Result<u16> {
 }
 
 fn create_data_dir() -> Result<PathBuf> {
-    let base = std::env::temp_dir();
+    let base = PathBuf::from(".server_root/postgres");
+    fs::create_dir_all(&base)
+        .with_context(|| format!("failed to create base dir {}", base.display()))?;
     for attempt in 0..5 {
         let suffix = SystemTime::now()
             .duration_since(UNIX_EPOCH)

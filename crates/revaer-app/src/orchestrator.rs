@@ -1236,6 +1236,28 @@ mod orchestrator_tests {
 
     type TestResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> TestResult<PathBuf> {
+        let root = repo_root().join(".server_root");
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
+
+    fn temp_dir() -> TestResult<TempDir> {
+        Ok(tempfile::Builder::new()
+            .prefix("revaer-app-")
+            .tempdir_in(server_root()?)?)
+    }
+
     #[derive(Default)]
     struct StubEngine;
 
@@ -1341,7 +1363,7 @@ mod orchestrator_tests {
 
     #[tokio::test]
     async fn completed_event_triggers_fsops_pipeline() -> TestResult<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let policy = sample_fs_policy(temp.path());
         let events = EventBus::with_capacity(16);
         let metrics = Metrics::new()?;
@@ -1415,7 +1437,7 @@ mod orchestrator_tests {
 
     #[tokio::test]
     async fn completed_event_with_invalid_policy_emits_failure() -> TestResult<()> {
-        let temp = TempDir::new()?;
+        let temp = temp_dir()?;
         let events = EventBus::with_capacity(8);
         let metrics = Metrics::new()?;
         let fsops = FsOpsService::new(events.clone(), metrics);
@@ -1495,11 +1517,22 @@ mod engine_refresh_tests {
         AddTorrent, FileSelectionUpdate, RemoveTorrent, TorrentRateLimit, TorrentWorkflow,
     };
     use std::collections::HashMap;
+    use std::path::PathBuf;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
     use tokio::sync::RwLock;
 
     type TestResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
+
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
 
     #[derive(Default)]
     struct RecordingEngine {
@@ -1641,7 +1674,9 @@ mod engine_refresh_tests {
     }
 
     fn sample_fs_policy() -> FsPolicy {
-        let root = std::env::temp_dir().join(format!("revaer-fsops-{}", Uuid::new_v4()));
+        let root = repo_root()
+            .join(".server_root")
+            .join(format!("revaer-fsops-{}", Uuid::new_v4()));
         FsPolicy {
             id: Uuid::new_v4(),
             library_root: root.display().to_string(),
@@ -1956,7 +1991,10 @@ mod engine_refresh_tests {
             applied_plans[0].runtime.download_rate_limit,
             Some(revaer_config::MAX_RATE_LIMIT_BPS)
         );
-        assert_eq!(applied_plans[0].runtime.download_root, ".server_root/downloads");
+        assert_eq!(
+            applied_plans[0].runtime.download_root,
+            ".server_root/downloads"
+        );
         assert_eq!(applied_plans[0].runtime.resume_dir, ".server_root/resume");
         assert!(
             applied_plans[0]
