@@ -97,3 +97,5 @@
     -   [067: Logs ANSI rendering and bounded buffer](adr/067-logs-ansi-rendering.md)
     -   [068: Agent compliance clippy cargo linting](adr/068-agent-compliance-clippy-cargo.md)
     -   [069: Pin mdbook-mermaid for docs builds](adr/069-docs-mdbook-mermaid-version.md)
+    -   [070: Dashboard UI checklist completion and auth/SSE hardening](adr/070-dashboard-ui-checklist.md)
+    -   [071: Libtorrent native fallback for default CI](adr/071-libtorrent-native-fallback.md)

@@ -62,13 +62,13 @@ impl NativeSession {
         }
     }
 
-    #[cfg(all(test, feature = "libtorrent"))]
+    #[cfg(all(test, libtorrent_native))]
     fn inspect_storage_state(&self) -> ffi::EngineStorageState {
         let inner = self.inner.as_ref();
         inner.inspect_storage_state()
     }
 
-    #[cfg(all(test, feature = "libtorrent"))]
+    #[cfg(all(test, libtorrent_native))]
     fn inspect_peer_class_state(&self) -> ffi::EnginePeerClassState {
         let inner = self.inner.as_ref();
         inner.inspect_peer_class_state()
@@ -195,7 +195,7 @@ fn map_peer_info(peer: ffi::NativePeerInfo) -> PeerSnapshot {
 }
 
 /// Test harness helpers for exercising the native session.
-#[cfg(all(test, feature = "libtorrent"))]
+#[cfg(all(test, libtorrent_native))]
 pub(super) mod test_support {
     use super::{NativeSession, create_native_session_for_tests};
     use crate::types::{
@@ -203,8 +203,31 @@ pub(super) mod test_support {
         TrackerRuntimeConfig,
     };
     use anyhow::Result;
-    use std::path::Path;
+    use std::fs;
+    use std::path::{Path, PathBuf};
     use tempfile::TempDir;
+
+    fn repo_root() -> PathBuf {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        for ancestor in manifest_dir.ancestors() {
+            if ancestor.join("AGENT.md").is_file() {
+                return ancestor.to_path_buf();
+            }
+        }
+        manifest_dir
+    }
+
+    fn server_root() -> Result<PathBuf> {
+        let root = repo_root().join(".server_root");
+        fs::create_dir_all(&root)?;
+        Ok(root)
+    }
+
+    fn temp_dir(prefix: &str) -> Result<TempDir> {
+        Ok(tempfile::Builder::new()
+            .prefix(prefix)
+            .tempdir_in(server_root()?)?)
+    }
 
     /// Convenience harness for exercising native config application in tests.
     pub(super) struct NativeSessionHarness {
@@ -219,8 +242,8 @@ pub(super) mod test_support {
         pub(super) fn new() -> Result<Self> {
             Ok(Self {
                 session: create_native_session_for_tests()?,
-                download: TempDir::new()?,
-                resume: TempDir::new()?,
+                download: temp_dir("revaer-libt-download-")?,
+                resume: temp_dir("revaer-libt-resume-")?,
             })
         }
 
@@ -292,7 +315,7 @@ pub(super) mod test_support {
     }
 }
 
-#[cfg(all(test, feature = "libtorrent"))]
+#[cfg(all(test, libtorrent_native))]
 fn create_native_session_for_tests() -> TorrentResult<NativeSession> {
     let options = base_options();
     let inner = initialize_session(&options)?;
@@ -646,7 +669,7 @@ impl LibTorrentSession for NativeSession {
     }
 }
 
-#[cfg(all(test, feature = "libtorrent"))]
+#[cfg(all(test, libtorrent_native))]
 mod tests {
     use super::test_support::NativeSessionHarness;
     use super::*;

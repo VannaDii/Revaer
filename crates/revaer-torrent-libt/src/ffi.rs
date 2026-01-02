@@ -22,17 +22,17 @@ impl std::fmt::Display for SessionHandleError {
 impl std::error::Error for SessionHandleError {}
 
 /// Owned handle to the native session pointer.
-#[cfg(feature = "libtorrent")]
+#[cfg(libtorrent_native)]
 #[allow(unsafe_code)]
 pub struct SessionHandle {
     inner: *mut bridge::ffi::Session,
 }
 
-#[cfg(feature = "libtorrent")]
+#[cfg(libtorrent_native)]
 #[allow(unsafe_code)]
 unsafe impl Send for SessionHandle {}
 
-#[cfg(feature = "libtorrent")]
+#[cfg(libtorrent_native)]
 #[allow(unsafe_code)]
 impl SessionHandle {
     /// Create a new session handle from the C++ constructor.
@@ -54,7 +54,7 @@ impl SessionHandle {
     }
 }
 
-#[cfg(feature = "libtorrent")]
+#[cfg(libtorrent_native)]
 #[allow(unsafe_code)]
 impl AsRef<bridge::ffi::Session> for SessionHandle {
     fn as_ref(&self) -> &bridge::ffi::Session {
@@ -62,7 +62,7 @@ impl AsRef<bridge::ffi::Session> for SessionHandle {
     }
 }
 
-#[cfg(feature = "libtorrent")]
+#[cfg(libtorrent_native)]
 #[allow(unsafe_code)]
 impl Drop for SessionHandle {
     fn drop(&mut self) {

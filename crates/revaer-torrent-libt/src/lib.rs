@@ -22,10 +22,10 @@
 pub mod adapter;
 /// Engine command definitions and shared request types used by the adapter.
 pub mod command;
-#[cfg(feature = "libtorrent")]
+#[cfg(libtorrent_native)]
 pub mod convert;
 pub mod error;
-#[cfg(feature = "libtorrent")]
+#[cfg(libtorrent_native)]
 pub mod ffi;
 /// Session abstraction and native/stub implementations.
 pub mod session;

@@ -1615,4 +1615,235 @@ mod tests {
             Err(ConfigError::InvalidField { .. })
         ));
     }
+
+    #[test]
+    fn canonicalize_ip_filter_entry_accepts_ipv4_and_ipv6() -> Result<(), ConfigError> {
+        let (canonical, rule) = canonicalize_ip_filter_entry("10.0.0.0/24", "ip_filter.cidrs")?;
+        assert_eq!(canonical, "10.0.0.0/24");
+        assert_eq!(rule.start, IpAddr::V4(Ipv4Addr::new(10, 0, 0, 0)));
+        assert_eq!(rule.end, IpAddr::V4(Ipv4Addr::new(10, 0, 0, 255)));
+
+        let (canonical_v6, rule_v6) =
+            canonicalize_ip_filter_entry("2001:db8::/64", "ip_filter.cidrs")?;
+        assert_eq!(canonical_v6, "2001:db8::/64");
+        assert_eq!(
+            rule_v6.start,
+            IpAddr::V6("2001:db8::".parse().expect("valid ipv6"))
+        );
+        assert!(matches!(rule_v6.end, IpAddr::V6(_)));
+        Ok(())
+    }
+
+    #[test]
+    fn listen_interfaces_normalize_and_warn() {
+        let mut warnings = Vec::new();
+        let values = vec![
+            " ".to_string(),
+            "host:6881".to_string(),
+            "HOST:6881".to_string(),
+            "host:70000".to_string(),
+            "bad host:6881".to_string(),
+            "missingport".to_string(),
+            "[::1]:6881".to_string(),
+        ];
+        let normalized = sanitize_listen_interfaces(&values, "listen_interfaces", &mut warnings);
+        assert_eq!(
+            normalized,
+            vec!["host:6881".to_string(), "[::1]:6881".to_string()]
+        );
+        assert!(!warnings.is_empty());
+        let ipv6 = canonicalize_ipv6_mode("unknown", &mut warnings);
+        assert_eq!(ipv6, EngineIpv6Mode::Disabled);
+    }
+
+    #[test]
+    fn outgoing_ports_and_peer_dscp_clamp() {
+        let mut warnings = Vec::new();
+        assert!(sanitize_outgoing_ports(Some(5000), None, &mut warnings).is_none());
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("outgoing_port_min"))
+        );
+        assert!(sanitize_outgoing_ports(Some(70000), Some(1), &mut warnings).is_none());
+        let range = sanitize_outgoing_ports(Some(1000), Some(2000), &mut warnings)
+            .expect("expected valid outgoing range");
+        assert_eq!(range.start, 1000);
+        assert_eq!(range.end, 2000);
+        assert!(sanitize_peer_dscp(Some(100), &mut warnings).is_none());
+        assert_eq!(sanitize_peer_dscp(Some(42), &mut warnings), Some(42));
+    }
+
+    #[test]
+    fn alt_speed_schedule_validates_days_and_times() {
+        let mut warnings = Vec::new();
+        let empty = AltSpeedSchedule {
+            days: Vec::new(),
+            start_minutes: 0,
+            end_minutes: 0,
+        };
+        assert!(sanitize_alt_speed_schedule(Some(empty), &mut warnings).is_none());
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("days empty"))
+        );
+
+        warnings.clear();
+        let schedule = AltSpeedSchedule {
+            days: vec![Weekday::Mon],
+            start_minutes: 2000,
+            end_minutes: 2000,
+        };
+        assert!(sanitize_alt_speed_schedule(Some(schedule), &mut warnings).is_none());
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("out of range"))
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("start equals end"))
+        );
+    }
+
+    #[test]
+    fn alt_speed_requires_caps_and_schedule() {
+        let mut warnings = Vec::new();
+        let caps_no_schedule = AltSpeedConfig {
+            download_bps: Some(100),
+            upload_bps: None,
+            schedule: None,
+        };
+        let sanitized = sanitize_alt_speed(&caps_no_schedule, &mut warnings);
+        assert_eq!(sanitized, AltSpeedConfig::default());
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("schedule missing"))
+        );
+
+        warnings.clear();
+        let schedule_no_caps = AltSpeedConfig {
+            download_bps: None,
+            upload_bps: None,
+            schedule: Some(AltSpeedSchedule {
+                days: vec![Weekday::Tue],
+                start_minutes: 10,
+                end_minutes: 20,
+            }),
+        };
+        let sanitized = sanitize_alt_speed(&schedule_no_caps, &mut warnings);
+        assert_eq!(sanitized, AltSpeedConfig::default());
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("requires download_bps"))
+        );
+    }
+
+    #[test]
+    fn sanitize_endpoints_dedupes_and_skips_invalid() {
+        let mut warnings = Vec::new();
+        let entries = vec![
+            String::new(),
+            "tracker.example".to_string(),
+            "TRACKER.EXAMPLE".to_string(),
+            "x".repeat(300),
+        ];
+        let normalized = sanitize_endpoints(&entries, "tracker.endpoints", &mut warnings);
+        assert_eq!(normalized, vec!["tracker.example".to_string()]);
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("exceeds 255 characters"))
+        );
+    }
+
+    #[test]
+    fn limit_sanitizers_clamp_and_warn() {
+        let mut warnings = Vec::new();
+        assert_eq!(
+            sanitize_positive_limit(Some(5), "max_active", &mut warnings),
+            Some(5)
+        );
+        assert!(sanitize_positive_limit(Some(0), "max_active", &mut warnings).is_none());
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("non-positive"))
+        );
+
+        warnings.clear();
+        assert_eq!(
+            sanitize_stats_interval(
+                Some(i64::from(i32::MAX) + 5),
+                "stats_interval_ms",
+                &mut warnings
+            ),
+            Some(i32::MAX)
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("exceeds max"))
+        );
+        warnings.clear();
+        assert!(sanitize_stats_interval(Some(-1), "stats_interval_ms", &mut warnings).is_none());
+        assert!(warnings.iter().any(|warning| warning.contains("negative")));
+
+        warnings.clear();
+        assert!(sanitize_seed_ratio_limit(Some(-1.0), &mut warnings).is_none());
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("seed_ratio_limit"))
+        );
+        warnings.clear();
+        assert!(sanitize_seed_time_limit(Some(-5), &mut warnings).is_none());
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("seed_time_limit"))
+        );
+        warnings.clear();
+        assert!(sanitize_max_queued_disk_bytes(Some(-1), &mut warnings).is_none());
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("max_queued_disk_bytes"))
+        );
+        warnings.clear();
+        assert!(sanitize_optimistic_unchoke_slots(Some(0), &mut warnings).is_none());
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("optimistic_unchoke_slots"))
+        );
+    }
+
+    #[test]
+    fn canonical_algorithms_default_with_warning() {
+        let mut warnings = Vec::new();
+        assert_eq!(
+            canonical_choking_algorithm("unknown", &mut warnings),
+            ChokingAlgorithm::FixedSlots
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("unknown choking_algorithm"))
+        );
+        warnings.clear();
+        assert_eq!(
+            canonical_seed_choking_algorithm("unknown", &mut warnings),
+            SeedChokingAlgorithm::RoundRobin
+        );
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.contains("unknown seed_choking_algorithm"))
+        );
+    }
 }

@@ -17,6 +17,13 @@ fn try_main() -> Result<(), BuildError> {
     println!("cargo:rerun-if-env-changed=LIBTORRENT_INCLUDE_DIR");
     println!("cargo:rerun-if-env-changed=LIBTORRENT_LIB_DIR");
     println!("cargo:rerun-if-env-changed=LIBTORRENT_BUNDLE_DIR");
+    println!("cargo:rerun-if-env-changed=REVAER_NATIVE_IT");
+    println!("cargo:rustc-check-cfg=cfg(libtorrent_native)");
+
+    if env::var_os("CARGO_FEATURE_LIBTORRENT").is_none() {
+        return Ok(());
+    }
+    let native_required = env::var_os("REVAER_NATIVE_IT").is_some();
 
     let mut bridge = cxx_build::bridge("src/ffi/bridge.rs");
     bridge.flag_if_supported("-std=c++17");
@@ -25,69 +32,78 @@ fn try_main() -> Result<(), BuildError> {
     let include_dir = PathBuf::from("src/ffi/include");
     bridge.include(&include_dir);
 
-    if let Some((include, lib)) = bundled_paths() {
-        ensure_header_version(&include)?;
-        bridge.include(&include);
-        println!("cargo:rustc-link-search=native={}", lib.display());
-        emit_link_libs(vec!["torrent-rasterbar".to_string()]);
-        bridge.compile("revaer-libtorrent");
-        emit_reruns();
-        return Ok(());
-    }
-
-    for prefix in ["/opt/homebrew", "/usr/local"] {
-        let root = PathBuf::from(prefix);
-        let include = root.join("include");
-        if include.join("libtorrent").exists() {
+    let libs_result = (|| {
+        if let Some((include, lib)) = bundled_paths() {
+            ensure_header_version(&include)?;
             bridge.include(&include);
-        }
-        let lib = root.join("lib");
-        if lib.join("libtorrent-rasterbar.dylib").exists()
-            || lib.join("libtorrent-rasterbar.a").exists()
-        {
             println!("cargo:rustc-link-search=native={}", lib.display());
+            return Ok(vec!["torrent-rasterbar".to_string()]);
         }
-    }
 
-    let include_override = env::var_os("LIBTORRENT_INCLUDE_DIR").map(PathBuf::from);
-    if let Some(path) = include_override.as_ref() {
-        bridge.include(path);
-    }
+        for prefix in ["/opt/homebrew", "/usr/local"] {
+            let root = PathBuf::from(prefix);
+            let include = root.join("include");
+            if include.join("libtorrent").exists() {
+                bridge.include(&include);
+            }
+            let lib = root.join("lib");
+            if lib.join("libtorrent-rasterbar.dylib").exists()
+                || lib.join("libtorrent-rasterbar.a").exists()
+            {
+                println!("cargo:rustc-link-search=native={}", lib.display());
+            }
+        }
 
-    let mut libs: Vec<String> = Vec::new();
-    let lib_dir_override = env::var_os("LIBTORRENT_LIB_DIR").map(PathBuf::from);
-    if let Some(path) = lib_dir_override.as_ref() {
-        println!("cargo:rustc-link-search=native={}", path.display());
-        libs.push("torrent-rasterbar".to_string());
-    }
-
-    if let Some(include_dir) = include_override.as_ref() {
-        ensure_header_version(include_dir)?;
-    } else if lib_dir_override.is_some() {
-        return Err(BuildError::MissingIncludeDir);
-    }
-
-    if libs.is_empty() {
-        let libtorrent = pkg_config::Config::new()
-            .atleast_version(MIN_VERSION)
-            .probe("libtorrent-rasterbar")
-            .map_err(BuildError::PkgConfig)?;
-        let include_paths = libtorrent.include_paths;
-        for path in include_paths {
+        let include_override = env::var_os("LIBTORRENT_INCLUDE_DIR").map(PathBuf::from);
+        if let Some(path) = include_override.as_ref() {
             bridge.include(path);
         }
-        let link_paths = libtorrent.link_paths;
-        for lib_path in link_paths {
-            println!("cargo:rustc-link-search=native={}", lib_path.display());
+
+        let mut libs: Vec<String> = Vec::new();
+        let lib_dir_override = env::var_os("LIBTORRENT_LIB_DIR").map(PathBuf::from);
+        if let Some(path) = lib_dir_override.as_ref() {
+            println!("cargo:rustc-link-search=native={}", path.display());
+            libs.push("torrent-rasterbar".to_string());
         }
-        let pkg_libs = libtorrent.libs;
-        for lib in &pkg_libs {
-            println!("cargo:rustc-link-lib={lib}");
+
+        if let Some(include_dir) = include_override.as_ref() {
+            ensure_header_version(include_dir)?;
+        } else if lib_dir_override.is_some() {
+            return Err(BuildError::MissingIncludeDir);
         }
-        libs.extend(pkg_libs);
-    }
+
+        if libs.is_empty() {
+            let libtorrent = pkg_config::Config::new()
+                .atleast_version(MIN_VERSION)
+                .probe("libtorrent-rasterbar")
+                .map_err(BuildError::PkgConfig)?;
+            let include_paths = libtorrent.include_paths;
+            for path in include_paths {
+                bridge.include(path);
+            }
+            let link_paths = libtorrent.link_paths;
+            for lib_path in link_paths {
+                println!("cargo:rustc-link-search=native={}", lib_path.display());
+            }
+            libs.extend(libtorrent.libs);
+        }
+
+        Ok(libs)
+    })();
+
+    let libs = match libs_result {
+        Ok(libs) => libs,
+        Err(err) => {
+            if native_required {
+                return Err(err);
+            }
+            emit_reruns();
+            return Ok(());
+        }
+    };
 
     bridge.compile("revaer-libtorrent");
+    println!("cargo:rustc-cfg=libtorrent_native");
     emit_link_libs(libs);
     emit_reruns();
     Ok(())

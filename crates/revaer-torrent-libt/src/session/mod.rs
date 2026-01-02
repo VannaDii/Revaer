@@ -6,14 +6,14 @@ use revaer_torrent_core::{
 };
 use uuid::Uuid;
 
-#[cfg(feature = "libtorrent")]
+#[cfg(libtorrent_native)]
 mod options;
 
 /// Native libtorrent session implementation backed by C++ bindings.
-#[cfg(feature = "libtorrent")]
+#[cfg(libtorrent_native)]
 pub mod native;
 /// Stub session implementation used for non-native targets/tests.
-#[cfg(any(test, not(feature = "libtorrent")))]
+#[cfg(any(test, not(libtorrent_native)))]
 pub mod stub;
 
 /// Session abstraction for the libtorrent bridge, with native and stub backends.
@@ -179,12 +179,12 @@ pub trait LibTorrentSession: Send {
 ///
 /// Returns an error if the native session cannot be initialized.
 pub fn create_session() -> TorrentResult<Box<dyn LibTorrentSession>> {
-    #[cfg(feature = "libtorrent")]
+    #[cfg(libtorrent_native)]
     {
         native::create_session()
     }
 
-    #[cfg(not(feature = "libtorrent"))]
+    #[cfg(not(libtorrent_native))]
     {
         Ok(Box::new(stub::StubSession::default()))
     }
