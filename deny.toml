@@ -33,21 +33,6 @@ wildcards = "allow"
 crate = "getrandom@0.2.16"
 reason = "Legacy rand 0.8 stack from password hashing dependencies."
 
-[[bans.skip]]
-crate = "hashbrown@0.15.5"
-reason = "sqlx 0.8 still depends on hashbrown 0.15.x for hashlink support."
-
-[[bans.skip]]
-crate = "hashbrown@0.12.3"
-reason = "Indexmap 1.x (yew stack) still depends on 0.12.x."
-
-[[bans.skip]]
-crate = "foldhash@0.1.5"
-reason = "hashbrown 0.15.x depends on foldhash 0.1.x; sqlx transitively pulls it."
-
-[[bans.skip]]
-crate = "foldhash@0.2.0"
-reason = "cxx pulls foldhash 0.2.x; allow dual versions until upstream unifies."
 
 [[bans.skip]]
 crate = "rand@0.8.5"
@@ -73,21 +58,11 @@ reason = "argon2/password-hash use rand_core 0.6.x."
 crate = "rand_core@0.9.3"
 reason = "rand 0.9.x stack accompanies the workspace rand dependency; argon2 stack remains on rand_core 0.6."
 
-[[bans.skip]]
-crate = "indexmap@1.9.3"
-reason = "yew stack remains on indexmap 1.x; rest of workspace uses 2.x."
 
 [[bans.skip]]
 crate = "http@0.2.12"
 reason = "Legacy gloo-net depends on http 0.2; allow alongside http 1.x."
 
-[[bans.skip]]
-crate = "gloo-net@0.2.6"
-reason = "UI stack pulls gloo-net 0.2.x; allow alongside 0.3.x."
-
-[[bans.skip]]
-crate = "gloo-net@0.3.1"
-reason = "Yew/prokio pull gloo-net 0.3.x; allow alongside 0.2.x."
 
 [[bans.skip]]
 crate = "syn@1.0.109"
