@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-7e302c5f.js";
+            window.path_to_searchindex_js = "searchindex-d8c8cdeb.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-4ed2c651.js"></script>
@@ -192,7 +192,7 @@
 <p><strong>Bootstrap</strong></p>
 <ul>
 <li>Issue a setup token: <code>revaer setup start --issued-by runbook</code>.</li>
-<li>Complete configuration with CLI secrets and directories: <code>revaer setup complete --instance runbook --bind 127.0.0.1 --resume-dir /data/resume --download-root /data/downloads --library-root /data/library --api-key-label runbook --passphrase &lt;pass&gt;</code>.</li>
+<li>Complete configuration with CLI secrets and directories: <code>revaer setup complete --instance runbook --bind 127.0.0.1 --resume-dir .server_root/resume --download-root .server_root/downloads --library-root .server_root/library --api-key-label runbook --passphrase &lt;pass&gt;</code>.</li>
 <li>Capture the committed snapshot via <code>revaer config get --output table</code> and confirm <code>/health/full</code> returns <code>status=ok</code> with <code>guardrail_violations_total=0</code>.</li>
 </ul>
 </li>
@@ -200,7 +200,7 @@
 <p><strong>Add Torrent &amp; Observe FsOps</strong></p>
 <ul>
 <li>Add a torrent: <code>revaer torrent add &lt;magnet&gt; --name runbook</code>.</li>
-<li>Tail events: <code>revaer tail --event torrent_added,progress,state_changed --resume-file /tmp/revaer.tail</code>.</li>
+<li>Tail events: <code>revaer tail --event torrent_added,progress,state_changed --resume-file .server_root/revaer.tail</code>.</li>
 <li>Verify FsOps emits <code>fsops_started</code>, <code>fsops_completed</code>, and Prometheus counters <code>fsops_steps_total</code> increase.</li>
 </ul>
 </li>
