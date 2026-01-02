@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2026-01-02T01:15:04.307158227+00:00",
+  "generated": "2026-01-02T18:03:39.781970780+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -725,6 +725,31 @@
       "summary": "Status: Accepted Date: 2025-12-31 Context: Motivation: just docs failed because mdbook-mermaid 0.16.2 cannot parse under mdbook 0.5.2, even though docs are valid. Constraints: Docs build must run via just, no manual tooling, avoid repo changes outside the justfile. Test coverage summary: just docs run after change; no unit tests applicable. Observability updates: None. Dependency rationale: No new crates; pin existing mdbook-mermaid tool to 0.17.0 to match mdbook 0.5.x behavior. Decision: Require mdbook-mermaid 0.17.0 in just docs-install and reinstall if mismatched. Make just docs invoke just docs-install before build and index. Alternatives considered: rely on user-managed tool versions; pin mdbook to",
       "tags": [],
       "href": "/adr/069-docs-mdbook-mermaid-version/"
+    },
+    {
+      "id": "adr/070-dashboard-ui-checklist",
+      "title": "Dashboard UI checklist completion and auth/SSE hardening",
+      "summary": "Status: Accepted Date: 2026-01-01",
+      "tags": [
+        "consequences",
+        "context",
+        "decision",
+        "dependency-rationale",
+        "design-notes",
+        "follow-up",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/070-dashboard-ui-checklist/"
+    },
+    {
+      "id": "adr/071-libtorrent-native-fallback",
+      "title": "071: Libtorrent Native Fallback for Default CI",
+      "summary": "Status: Accepted Date: 2026-01-02 Context: just ci runs cargo udeps across the workspace and fails on hosts without libtorrent headers or pkg-config data. Native libtorrent integration tests are explicitly gated by REVAER_NATIVE_IT, so default runs should remain deterministic without requiring native system deps. Decision: Gate native FFI compilation behind a build-time cfg (libtorrent_native) that is emitted only when libtorrent is discovered by build.rs. When REVAER_NATIVE_IT is set, missing libtorrent is treated as an error; otherwise the build falls back to the stub backend with a warning. Alternatives considered: require libtorrent for all CI/dev runs, or remove --all-features from the quality",
+      "tags": [],
+      "href": "/adr/071-libtorrent-native-fallback/"
     },
     {
       "id": "adr/index",

@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-d8c8cdeb.js";
+            window.path_to_searchindex_js = "searchindex-7ff0cd5f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-4ed2c651.js"></script>
+        <script src="toc-1374a622.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1232,6 +1232,8 @@ just test-native
 <li><a href="#logs-ansi-rendering-and-bounded-buffer">067</a> – Logs ANSI rendering and bounded buffer</li>
 <li><a href="#agent-compliance-clippy-cargo-lints">068</a> – Agent compliance clippy cargo linting</li>
 <li><a href="#docs-pin-mdbook-mermaid-for-just-docs">069</a> – Pin mdbook-mermaid for docs builds</li>
+<li><a href="#dashboard-ui-checklist-completion-and-authsse-hardening">070</a> – Dashboard UI checklist completion and auth/SSE hardening</li>
+<li><a href="#071-libtorrent-native-fallback-for-default-ci">071</a> – Libtorrent native fallback for default CI</li>
 <li><a href="#">Template</a> – ADR template</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -4433,6 +4435,100 @@ just test-native
 <ul>
 <li>Implementation tasks: Update <code>justfile</code> and verify <code>just docs</code>.</li>
 <li>Review checkpoints: Revisit the pin when mdbook or mdbook-mermaid releases require it.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="dashboard-ui-checklist-completion-and-authsse-hardening"><a class="header" href="#dashboard-ui-checklist-completion-and-authsse-hardening">Dashboard UI checklist completion and auth/SSE hardening</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-01</li>
+</ul>
+<h2 id="motivation-21"><a class="header" href="#motivation-21">Motivation</a></h2>
+<ul>
+<li>Complete remaining dashboard UI checklist items without adding new dependencies.</li>
+<li>Tighten auth and SSE handling to avoid stale tokens and replay conflicts.</li>
+</ul>
+<h2 id="context-10"><a class="header" href="#context-10">Context</a></h2>
+<ul>
+<li>UI relies on SSE for live torrent updates and must survive Last-Event-ID conflicts.</li>
+<li>Auth tokens require a 14-day TTL enforced by both server and client.</li>
+<li>UI should allow anonymous mode when server auth_mode is none.</li>
+</ul>
+<h2 id="decision-15"><a class="header" href="#decision-15">Decision</a></h2>
+<ul>
+<li>Move torrent sort state into URL-backed filters and apply client-side ordering.</li>
+<li>Reset SSE Last-Event-ID on 409 conflict and reconnect with backoff.</li>
+<li>Refresh API keys on save to capture expiry; invalidate keys on logout via config patch.</li>
+<li>Mirror CORS origin on the API router to cover SSE and REST.</li>
+</ul>
+<p>Alternatives considered:</p>
+<ul>
+<li>Add a dedicated logout endpoint: rejected to avoid OpenAPI changes.</li>
+<li>Store API keys without expiry: rejected to enforce 14-day TTL.</li>
+</ul>
+<h2 id="design-notes-25"><a class="header" href="#design-notes-25">Design Notes</a></h2>
+<ul>
+<li>Sorting is represented as <code>sort=key:dir</code> in the query string.</li>
+<li>Metadata updates trigger a targeted list refresh to keep tags/trackers current.</li>
+<li>Anonymous auth is enabled from <code>.well-known</code> app_profile when configured.</li>
+</ul>
+<h2 id="consequences-15"><a class="header" href="#consequences-15">Consequences</a></h2>
+<ul>
+<li>Login now performs a refresh call to capture expiry; failures surface as toasts.</li>
+<li>Some SSE metadata events trigger list refreshes, increasing fetch volume.</li>
+</ul>
+<h2 id="test-coverage-summary-26"><a class="header" href="#test-coverage-summary-26">Test Coverage Summary</a></h2>
+<ul>
+<li><code>DATABASE_URL=postgres://revaer:revaer@172.17.0.1:5432/revaer REVAER_TEST_DATABASE_URL=postgres://revaer:revaer@172.17.0.1:5432/revaer just ci</code>
+(fmt, lint, udeps, audit, deny, ui-build, test, test-features-min, cov).</li>
+</ul>
+<h2 id="observability-updates-26"><a class="header" href="#observability-updates-26">Observability Updates</a></h2>
+<ul>
+<li>No new metrics or tracing changes.</li>
+</ul>
+<h2 id="risk--rollback-plan-19"><a class="header" href="#risk--rollback-plan-19">Risk &amp; Rollback Plan</a></h2>
+<ul>
+<li>Risk: logout fails if config patch is rejected; UI now reports an error toast.</li>
+<li>Rollback: revert UI auth/SSE changes and re-run <code>just ci</code>.</li>
+</ul>
+<h2 id="dependency-rationale-26"><a class="header" href="#dependency-rationale-26">Dependency Rationale</a></h2>
+<ul>
+<li>Updated <code>sqlx</code> to 0.9.0-alpha.1 and aligned vendored <code>hashlink</code> to hashbrown 0.16 to
+satisfy <code>clippy::multiple_crate_versions</code> without introducing git dependencies.</li>
+</ul>
+<h2 id="follow-up-7"><a class="header" href="#follow-up-7">Follow-up</a></h2>
+<ul>
+<li>Confirm auth refresh behavior against expired keys during QA.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="071-libtorrent-native-fallback-for-default-ci"><a class="header" href="#071-libtorrent-native-fallback-for-default-ci">071: Libtorrent Native Fallback for Default CI</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-02</li>
+<li>Context:
+<ul>
+<li><code>just ci</code> runs <code>cargo udeps</code> across the workspace and fails on hosts without libtorrent headers or pkg-config data.</li>
+<li>Native libtorrent integration tests are explicitly gated by <code>REVAER_NATIVE_IT</code>, so default runs should remain deterministic without requiring native system deps.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Gate native FFI compilation behind a build-time cfg (<code>libtorrent_native</code>) that is emitted only when libtorrent is discovered by <code>build.rs</code>.</li>
+<li>When <code>REVAER_NATIVE_IT</code> is set, missing libtorrent is treated as an error; otherwise the build falls back to the stub backend with a warning.</li>
+<li>Alternatives considered: require libtorrent for all CI/dev runs, or remove <code>--all-features</code> from the quality gates (rejected to keep feature coverage intact).</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Default <code>just ci</code> succeeds on machines without libtorrent while still honoring native coverage when explicitly requested.</li>
+<li>Feature-enabled builds no longer guarantee native bindings unless libtorrent is present; native builds must opt in via <code>REVAER_NATIVE_IT</code>.</li>
+<li><code>cargo-udeps</code> ignores the <code>cxx</code> dependency for this crate because usage is gated by the native cfg.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Ensure native CI matrix jobs set <code>REVAER_NATIVE_IT=1</code> and install or bundle libtorrent.</li>
 </ul>
 </li>
 </ul>

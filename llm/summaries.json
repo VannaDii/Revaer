@@ -724,6 +724,31 @@
     "href": "/adr/069-docs-mdbook-mermaid-version/"
   },
   {
+    "id": "adr/070-dashboard-ui-checklist",
+    "title": "Dashboard UI checklist completion and auth/SSE hardening",
+    "summary": "Status: Accepted Date: 2026-01-01",
+    "tags": [
+      "consequences",
+      "context",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "follow-up",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/070-dashboard-ui-checklist/"
+  },
+  {
+    "id": "adr/071-libtorrent-native-fallback",
+    "title": "071: Libtorrent Native Fallback for Default CI",
+    "summary": "Status: Accepted Date: 2026-01-02 Context: just ci runs cargo udeps across the workspace and fails on hosts without libtorrent headers or pkg-config data. Native libtorrent integration tests are explicitly gated by REVAER_NATIVE_IT, so default runs should remain deterministic without requiring native system deps. Decision: Gate native FFI compilation behind a build-time cfg (libtorrent_native) that is emitted only when libtorrent is discovered by build.rs. When REVAER_NATIVE_IT is set, missing libtorrent is treated as an error; otherwise the build falls back to the stub backend with a warning. Alternatives considered: require libtorrent for all CI/dev runs, or remove --all-features from the quality",
+    "tags": [],
+    "href": "/adr/071-libtorrent-native-fallback/"
+  },
+  {
     "id": "adr/index",
     "title": "ADRs",
     "summary": "Create a new ADR using the template in docs/adr/template.md. Give it a sequential identifier (e.g., 001, 002) and a concise title. Capture context, decision, consequences, and follow-up actions. Append the new ADR entry to the end of the Catalogue list above. Append the same entry under ADRs in docs/SUMMARY.md, keeping it nested so the sidebar stays collapsed. Reference ADRs from code comments or docs where the decision applies.",
