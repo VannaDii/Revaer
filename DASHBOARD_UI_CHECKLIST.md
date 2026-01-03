@@ -1,5 +1,56 @@
 # Nexus + DaisyUI Dashboard UI Checklist
 
+## Findings (repo deltas to address, ordered by impact)
+
+1) Setup flow is non-blocking (should block). CSS disables pointer events on the overlay but keeps the shell interactive.  
+   - Evidence: `crates/revaer-ui/static/style.css` `.setup-overlay { pointer-events: none; }` and `.setup-overlay .card { pointer-events: auto; }`
+2) Setup completion does not route to auth prompt; it immediately sets `auth.state` (prompt only renders when `auth_state` is None).  
+   - Evidence: `crates/revaer-ui/src/app/mod.rs` setup completion sets `store.auth.state = Some(...)`; prompt render gate checks `auth_state_value.is_none()`.
+3) Health page is not routed and full/metrics data never fetched.  
+   - Evidence: no `/health` route in `crates/revaer-ui/src/app/routes.rs`; API client only has `/health`; `HealthPage` reads `health.full` and `metrics_text` that are never populated.
+4) Vendoring still used and `anymap` not eliminated (vendored yewdux includes anymap).  
+   - Evidence: `Cargo.toml` patches `vendor/yewdux`; `vendor/yewdux/src/anymap.rs` exists.
+5) SVG/icon system not implemented as described (no `atoms/icons/*` components, no IconButton usage).  
+   - Evidence: no icons module; UI uses inline Iconify spans (e.g., `crates/revaer-ui/src/components/shell.rs`).
+6) Dashboard storage status dropdown actions missing (Enhance/Insights/Auto Tag/Delete).  
+   - Evidence: `crates/revaer-ui/src/features/dashboard/disk_usage.rs` lacks any actions menu.
+7) SSE indicator label shows "Connected" not "Live".  
+   - Evidence: `crates/revaer-ui/src/components/connectivity.rs` `status_label` maps Connected -> "Connected".
+8) Add/Create torrent modals lack shortcuts to manage categories/tags.  
+   - Evidence: `crates/revaer-ui/src/features/torrents/view/modals.rs` only shows text inputs.
+9) Torrent list SSE updates do not update tags/trackers for list rows.  
+   - Evidence: `apply_sse_envelope` only updates progress/status/name/download_dir; no tags/trackers update path.
+10) i18n still falls back to default locale/keys (missing keys not surfaced).  
+   - Evidence: `crates/revaer-ui/src/i18n/mod.rs` falls back to default locale then raw key.
+11) Checklist items "just ci passes" and "just cov >= 80%" not verified here (requires running locally).  
+
+### Remediation tasks (ordered, with acceptance criteria)
+
+-   [x] Setup overlay is truly blocking.  
+    -   Acceptance: pointer events are captured by the overlay (background shell cannot be clicked), overlay still focuses the card, and setup screen visually remains on top.
+-   [x] Setup completion always surfaces the auth prompt (when auth is enabled).  
+    -   Acceptance: after successful setup with auth enabled, the auth prompt is shown even though the API key is stored/active; dismiss hides it; no prompt forced when auth mode is `none`.
+-   [x] Add a routable Health screen without adding it to sidebar nav.  
+    -   Acceptance: `/health` renders the health page, breadcrumb/title shows the Health label, and sidebar remains Home/Torrents/Settings only.
+-   [x] Fetch and store `/health/full` and `/metrics` for the Health page.  
+    -   Acceptance: Health page shows basic + full health fields and metrics text when available; `/metrics` copy button works; errors surface as non-expiring toasts.
+-   [ ] Remove vendored `anymap`/vendored yewdux usage (or document a downgrade path).  
+    -   Acceptance: no `vendor/yewdux` or `anymap` code remains in tree; workspace patches in `Cargo.toml` removed; UI still builds.
+-   [ ] Implement SVG icon system with Yew components and IconButton.  
+    -   Acceptance: all inline SVG/icon spans replaced with icon components under `components/atoms/icons/*`, IconButton is used for icon-only actions, and hover/focus states align with DaisyUI patterns.
+-   [ ] Add Dashboard storage status dropdown actions (Enhance/Insights/Auto Tag/Delete).  
+    -   Acceptance: storage card has a Nexus-style dropdown with those exact actions; wired to callbacks or placeholder handlers as agreed.
+-   [ ] Align SSE indicator label with checklist (“Live” when connected).  
+    -   Acceptance: connected state displays “Live”; reconnecting/disconnected labels remain unchanged.
+-   [ ] Add category/tag management shortcuts to Add/Create torrent modals.  
+    -   Acceptance: Add/Create modals surface shortcuts linking to label management (or invoke label modal) per checklist.
+-   [ ] Update SSE list-row fields for tags/trackers.  
+    -   Acceptance: SSE updates can refresh tag/tracker fields in list rows without full refresh.
+-   [ ] Remove i18n fallback to default locale and raw key display.  
+    -   Acceptance: missing keys are surfaced explicitly (no default fallback strings), and English bundle covers all referenced keys.
+-   [ ] Verify `just ci` and `just cov` (>=80%) locally.  
+    -   Acceptance: both commands succeed with no warnings.
+
 ## 0) Updates
 
 -   [x] Update to `Yew` version 0.22. Use the following guides to help:
