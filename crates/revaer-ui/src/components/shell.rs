@@ -35,6 +35,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
         Route::Dashboard => props.nav.dashboard.clone(),
         Route::Torrents | Route::TorrentDetail { .. } => props.nav.torrents.clone(),
         Route::Logs => props.nav.logs.clone(),
+        Route::Health => props.nav.health.clone(),
         Route::Settings => props.nav.settings.clone(),
         Route::NotFound => "Not Found".to_string(),
     };

@@ -90,7 +90,7 @@ pub(crate) fn setup_prompt(props: &SetupPromptProps) -> Html {
     };
 
     html! {
-        <div class={classes!("setup-overlay", props.class.clone())} role="dialog" aria-modal="false">
+        <div class={classes!("setup-overlay", props.class.clone())} role="dialog" aria-modal="true">
             <div class="card bg-base-100 shadow border border-base-200">
                 <div class="card-body gap-4">
                     <div>

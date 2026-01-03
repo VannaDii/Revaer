@@ -13,6 +13,8 @@ pub(crate) enum Route {
     Settings,
     #[at("/logs")]
     Logs,
+    #[at("/health")]
+    Health,
     #[not_found]
     #[at("/404")]
     NotFound,

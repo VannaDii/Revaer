@@ -10,10 +10,10 @@ use crate::features::torrents::actions::TorrentAction as UiTorrentAction;
 use crate::features::torrents::state::{TorrentsPaging, TorrentsQueryModel};
 use crate::models::{
     AddTorrentInput, ApiKeyRefreshResponse, DashboardResponse, DashboardSnapshot, FsBrowseResponse,
-    HealthResponse, ProblemDetails, QueueStatus, SetupCompleteResponse, SetupStartResponse,
-    TorrentAction as ApiTorrentAction, TorrentAuthorRequest, TorrentAuthorResponse,
-    TorrentCreateRequest, TorrentDetail, TorrentLabelEntry, TorrentListResponse,
-    TorrentOptionsRequest, TorrentSelectionRequest, TrackerHealth, VpnState,
+    FullHealthResponse, HealthResponse, ProblemDetails, QueueStatus, SetupCompleteResponse,
+    SetupStartResponse, TorrentAction as ApiTorrentAction, TorrentAuthorRequest,
+    TorrentAuthorResponse, TorrentCreateRequest, TorrentDetail, TorrentLabelEntry,
+    TorrentListResponse, TorrentOptionsRequest, TorrentSelectionRequest, TrackerHealth, VpnState,
 };
 use base64::{Engine as _, engine::general_purpose};
 use gloo::file::futures::read_as_bytes;
@@ -157,6 +157,31 @@ impl ApiClient {
         let req = self.apply_auth(req)?;
         let req = Self::build_request(req)?;
         self.send_json(req).await
+    }
+
+    pub(crate) async fn fetch_health_full(&self) -> Result<FullHealthResponse, ApiError> {
+        let req = Request::get(&format!("{}{}", self.base_url, "/health/full"));
+        let req = self.apply_auth(req)?;
+        let req = Self::build_request(req)?;
+        self.send_json(req).await
+    }
+
+    pub(crate) async fn fetch_metrics_text(&self) -> Result<String, ApiError> {
+        let req = Request::get(&format!("{}{}", self.base_url, "/metrics"));
+        let req = self.apply_auth(req)?;
+        let req = Self::build_request(req)?;
+        let response = req
+            .send()
+            .await
+            .map_err(|err| ApiError::client(format!("request failed: {err}")))?;
+        if response.ok() {
+            response
+                .text()
+                .await
+                .map_err(|err| ApiError::client(format!("invalid text: {err}")))
+        } else {
+            Err(api_error_from_response(response).await)
+        }
     }
 
     pub(crate) async fn fetch_config_snapshot(&self) -> Result<Value, ApiError> {

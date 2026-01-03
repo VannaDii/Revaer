@@ -203,7 +203,7 @@ html:has(#layout-sidebar-toggle-trigger:checked) .sidebar-nav__label {
 }
 
 .setup-overlay {
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .auth-overlay .card,

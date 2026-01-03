@@ -12,12 +12,14 @@ use crate::core::logic::{
     SseView, build_sse_query, build_torrent_filter_query, parse_torrent_filter_query,
 };
 use crate::core::store::{
-    AppModeState, AppStore, HealthSnapshot, SseApplyOutcome, SseConnectionState, SseError,
-    SseStatus, SystemRates, app_dispatch, apply_sse_envelope, select_system_rates,
+    AppModeState, AppStore, FullHealthSnapshot, HealthMetricsSnapshot, HealthSnapshot,
+    SseApplyOutcome, SseConnectionState, SseError, SseStatus, SystemRates, TorrentHealthSnapshot,
+    app_dispatch, apply_sse_envelope, select_system_rates,
 };
 use crate::core::theme::ThemeMode;
 use crate::core::ui::{Density, UiMode};
 use crate::features::dashboard::DashboardPage;
+use crate::features::health::view::HealthPage;
 use crate::features::logs::view::LogsPage;
 use crate::features::settings::view::SettingsPage;
 use crate::features::torrents::actions::{TorrentAction, success_message};
@@ -147,11 +149,13 @@ pub fn revaer_app() -> Html {
     let paging_limit = use_selector(|store: &AppStore| store.torrents.paging.limit);
     let system_rates = use_selector(select_system_rates);
     let auth_prompt_dismissed = use_state(|| false);
+    let force_auth_prompt = use_state(|| false);
 
     let auth_mode = *auth_mode;
     let auth_state_value = (*auth_state).clone();
     let app_mode_value = *app_mode;
     let bypass_local_value = *bypass_local;
+    let force_auth_prompt_value = *force_auth_prompt;
     let setup_token_value = (*setup_token).clone();
     let setup_expires_value = (*setup_expires).clone();
     let setup_error_value = (*setup_error).clone();
@@ -189,7 +193,11 @@ pub fn revaer_app() -> Html {
     let settings_base_url = api_base_url();
     let dismiss_auth_prompt = {
         let auth_prompt_dismissed = auth_prompt_dismissed.clone();
-        Callback::from(move |_| auth_prompt_dismissed.set(true))
+        let force_auth_prompt = force_auth_prompt.clone();
+        Callback::from(move |_| {
+            force_auth_prompt.set(false);
+            auth_prompt_dismissed.set(true);
+        })
     };
 
     let location = use_location();
@@ -212,6 +220,7 @@ pub fn revaer_app() -> Html {
             "/torrents" => Route::Torrents,
             "/settings" => Route::Settings,
             "/logs" => Route::Logs,
+            "/health" => Route::Health,
             _ => path
                 .strip_prefix("/torrents/")
                 .map(|id| Route::TorrentDetail { id: id.to_string() })
@@ -528,6 +537,7 @@ pub fn revaer_app() -> Html {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
         let toast_id = toast_id.clone();
+        let force_auth_prompt = force_auth_prompt.clone();
         Callback::from(move |input: SetupCompleteInput| {
             dispatch.reduce_mut(|store| {
                 store.auth.setup_busy = true;
@@ -535,6 +545,7 @@ pub fn revaer_app() -> Html {
             let dispatch = dispatch.clone();
             let client = api_ctx.client.clone();
             let toast_id = toast_id.clone();
+            let force_auth_prompt = force_auth_prompt.clone();
             yew::platform::spawn_local(async move {
                 let auth_mode = input.auth_mode;
                 let mut changeset = serde_json::Value::Object(serde_json::Map::new());
@@ -597,6 +608,7 @@ pub fn revaer_app() -> Html {
                                 store.auth.setup_expires_at = None;
                                 store.auth.app_mode = AppModeState::Active;
                             });
+                            force_auth_prompt.set(false);
                         } else {
                             let Some(api_key) = response.api_key.clone() else {
                                 let message = "Setup completion missing API key.".to_string();
@@ -626,6 +638,7 @@ pub fn revaer_app() -> Html {
                                 store.auth.setup_expires_at = None;
                                 store.auth.app_mode = AppModeState::Active;
                             });
+                            force_auth_prompt.set(true);
                         }
                     }
                     Err(err) => {
@@ -1257,7 +1270,9 @@ pub fn revaer_app() -> Html {
         let api_ctx = (*api_ctx).clone();
         let toast_id = toast_id.clone();
         let bundle = (*bundle).clone();
+        let force_auth_prompt = force_auth_prompt.clone();
         Callback::from(move |state: AuthState| {
+            force_auth_prompt.set(false);
             let dispatch = dispatch.clone();
             let client = api_ctx.client.clone();
             let toast_id = toast_id.clone();
@@ -1607,6 +1622,56 @@ pub fn revaer_app() -> Html {
             let (route, _auth_state) = deps;
             if matches!(route, Route::Settings) {
                 on_refresh_config.emit(());
+            }
+            || ()
+        });
+    }
+    {
+        let dispatch = dispatch.clone();
+        let api_ctx = (*api_ctx).clone();
+        let toast_id = toast_id.clone();
+        let current_route = current_route.clone();
+        use_effect_with(current_route, move |route| {
+            if matches!(route, Route::Health) {
+                let dispatch = dispatch.clone();
+                let client = api_ctx.client.clone();
+                let toast_id = toast_id.clone();
+                yew::platform::spawn_local(async move {
+                    match client.fetch_health_full().await {
+                        Ok(response) => {
+                            dispatch.reduce_mut(|store| {
+                                store.health.full = Some(map_full_health_snapshot(response));
+                            });
+                        }
+                        Err(err) => {
+                            let message = detail_or_fallback(
+                                err.detail.clone(),
+                                "Full health check failed.".to_string(),
+                            );
+                            dispatch.reduce_mut(|store| {
+                                store.health.full = None;
+                            });
+                            push_toast(&dispatch, &toast_id, ToastKind::Error, message);
+                        }
+                    }
+                    match client.fetch_metrics_text().await {
+                        Ok(text) => {
+                            dispatch.reduce_mut(|store| {
+                                store.health.metrics_text = Some(text);
+                            });
+                        }
+                        Err(err) => {
+                            let message = detail_or_fallback(
+                                err.detail.clone(),
+                                "Metrics fetch failed.".to_string(),
+                            );
+                            dispatch.reduce_mut(|store| {
+                                store.health.metrics_text = None;
+                            });
+                            push_toast(&dispatch, &toast_id, ToastKind::Error, message);
+                        }
+                    }
+                });
             }
             || ()
         });
@@ -2050,6 +2115,9 @@ pub fn revaer_app() -> Html {
                                     on_error_toast={on_logs_error.clone()}
                                 />
                             },
+                            Route::Health => html! {
+                                <HealthPage on_copy_metrics={on_copy_value.clone()} />
+                            },
                             Route::Torrents => html! {
                             <div class="space-y-4">
                                     <TorrentView
@@ -2186,7 +2254,7 @@ pub fn revaer_app() -> Html {
                             on_complete={complete_setup.clone()}
                         />
                     }
-                } else if auth_state_value.is_none()
+                } else if (auth_state_value.is_none() || force_auth_prompt_value)
                     && !matches!(current_route, Route::Settings)
                     && !*auth_prompt_dismissed
                 {
@@ -2557,6 +2625,28 @@ fn detail_or_fallback(detail: Option<String>, fallback: String) -> String {
     match detail {
         Some(value) if !value.trim().is_empty() => value,
         _ => fallback,
+    }
+}
+
+fn map_full_health_snapshot(response: crate::models::FullHealthResponse) -> FullHealthSnapshot {
+    FullHealthSnapshot {
+        status: response.status,
+        mode: response.mode,
+        revision: response.revision,
+        build: response.build,
+        degraded: response.degraded,
+        metrics: HealthMetricsSnapshot {
+            config_watch_latency_ms: response.metrics.config_watch_latency_ms,
+            config_apply_latency_ms: response.metrics.config_apply_latency_ms,
+            config_update_failures_total: response.metrics.config_update_failures_total,
+            config_watch_slow_total: response.metrics.config_watch_slow_total,
+            guardrail_violations_total: response.metrics.guardrail_violations_total,
+            rate_limit_throttled_total: response.metrics.rate_limit_throttled_total,
+        },
+        torrent: TorrentHealthSnapshot {
+            active: response.torrent.active,
+            queue_depth: response.torrent.queue_depth,
+        },
     }
 }
 
