@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-7ff0cd5f.js";
+            window.path_to_searchindex_js = "searchindex-4187cdc6.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-1374a622.js"></script>
+        <script src="toc-9c1fca9c.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1163,6 +1163,7 @@ just test-native
 </ol>
 <h2 id="catalogue"><a class="header" href="#catalogue">Catalogue</a></h2>
 <ul>
+<li><a href="#">Template</a> – ADR template</li>
 <li><a href="#001--global-configuration-revisioning">001</a> – Configuration revisioning</li>
 <li><a href="#002--setup-token-lifecycle--secrets-bootstrap">002</a> – Setup token lifecycle</li>
 <li><a href="#003--libtorrent-session-runner-architecture">003</a> – Libtorrent session runner</li>
@@ -1234,7 +1235,7 @@ just test-native
 <li><a href="#docs-pin-mdbook-mermaid-for-just-docs">069</a> – Pin mdbook-mermaid for docs builds</li>
 <li><a href="#dashboard-ui-checklist-completion-and-authsse-hardening">070</a> – Dashboard UI checklist completion and auth/SSE hardening</li>
 <li><a href="#071-libtorrent-native-fallback-for-default-ci">071</a> – Libtorrent native fallback for default CI</li>
-<li><a href="#">Template</a> – ADR template</li>
+<li><a href="#072-agent-compliance-refactor-ui--http--config-layout">072</a> – Agent compliance refactor (UI + HTTP + Config Layout)</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 ADR="" Title="" id=""><a class="header" href="#"></a></h1>
@@ -4529,6 +4530,38 @@ satisfy <code>clippy::multiple_crate_versions</code> without introducing git dep
 <li>Follow-up:
 <ul>
 <li>Ensure native CI matrix jobs set <code>REVAER_NATIVE_IT=1</code> and install or bundle libtorrent.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="072-agent-compliance-refactor-ui--http--config-layout"><a class="header" href="#072-agent-compliance-refactor-ui--http--config-layout">072: Agent Compliance Refactor (UI + HTTP + Config Layout)</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-03</li>
+<li>Context:
+<ul>
+<li>Motivation: bring the repository into closer alignment with AGENT layout and tooling rules after drift in UI routing, HTTP module layout, and config structure.</li>
+<li>Constraints: preserve existing APIs/behavior while relocating modules; avoid new dependencies and keep stored-procedure-only database access intact.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Design notes: move torrent UI views into the feature module, scope window/router usage to the app layer, and reorganize API HTTP handlers/DTOs into <code>handlers/</code> and <code>dto/</code> while re-exporting to preserve public paths.</li>
+<li>Alternatives considered: leave modules in place and document exceptions (rejected to keep the structure enforceable); introduce a large-scale API surface rename (rejected to avoid breaking changes).</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes: clearer module boundaries, AGENT-compliant Justfile/CI flow, and reduced cross-layer coupling in the UI.</li>
+<li>Risks or trade-offs: short-term churn from file moves and import updates; slight increase in module indirection via re-exports.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Test coverage summary: <code>just ci</code> (fmt, lint, udeps, audit, deny, ui-build, test, test-features-min, cov, build-release) passed with the ≥80% line coverage gate satisfied.</li>
+<li>Observability updates: no new spans or metrics added for this refactor.</li>
+<li>Risk &amp; rollback plan: revert the module move commits and restore prior paths if regressions appear; no data migrations were introduced.</li>
+<li>Dependency rationale: no new dependencies added; alternatives were to add helper crates for routing/structure, which were rejected to keep the footprint minimal.</li>
 </ul>
 </li>
 </ul>

@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2026-01-02T18:03:39.781970780+00:00",
+  "generated": "2026-01-03T16:38:10.032247872+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -750,6 +750,13 @@
       "summary": "Status: Accepted Date: 2026-01-02 Context: just ci runs cargo udeps across the workspace and fails on hosts without libtorrent headers or pkg-config data. Native libtorrent integration tests are explicitly gated by REVAER_NATIVE_IT, so default runs should remain deterministic without requiring native system deps. Decision: Gate native FFI compilation behind a build-time cfg (libtorrent_native) that is emitted only when libtorrent is discovered by build.rs. When REVAER_NATIVE_IT is set, missing libtorrent is treated as an error; otherwise the build falls back to the stub backend with a warning. Alternatives considered: require libtorrent for all CI/dev runs, or remove --all-features from the quality",
       "tags": [],
       "href": "/adr/071-libtorrent-native-fallback/"
+    },
+    {
+      "id": "adr/072-agent-compliance-refactor",
+      "title": "072: Agent Compliance Refactor (UI + HTTP + Config Layout)",
+      "summary": "Status: Accepted Date: 2026-01-03 Context: Motivation: bring the repository into closer alignment with AGENT layout and tooling rules after drift in UI routing, HTTP module layout, and config structure. Constraints: preserve existing APIs/behavior while relocating modules; avoid new dependencies and keep stored-procedure-only database access intact. Decision: Design notes: move torrent UI views into the feature module, scope window/router usage to the app layer, and reorganize API HTTP handlers/DTOs into handlers/ and dto/ while re-exporting to preserve public paths. Alternatives considered: leave modules in place and document exceptions (rejected to keep the structure enforceable); introduce a large-scale API surface rename (rejected",
+      "tags": [],
+      "href": "/adr/072-agent-compliance-refactor/"
     },
     {
       "id": "adr/index",

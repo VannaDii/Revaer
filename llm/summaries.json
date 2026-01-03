@@ -749,6 +749,13 @@
     "href": "/adr/071-libtorrent-native-fallback/"
   },
   {
+    "id": "adr/072-agent-compliance-refactor",
+    "title": "072: Agent Compliance Refactor (UI + HTTP + Config Layout)",
+    "summary": "Status: Accepted Date: 2026-01-03 Context: Motivation: bring the repository into closer alignment with AGENT layout and tooling rules after drift in UI routing, HTTP module layout, and config structure. Constraints: preserve existing APIs/behavior while relocating modules; avoid new dependencies and keep stored-procedure-only database access intact. Decision: Design notes: move torrent UI views into the feature module, scope window/router usage to the app layer, and reorganize API HTTP handlers/DTOs into handlers/ and dto/ while re-exporting to preserve public paths. Alternatives considered: leave modules in place and document exceptions (rejected to keep the structure enforceable); introduce a large-scale API surface rename (rejected",
+    "tags": [],
+    "href": "/adr/072-agent-compliance-refactor/"
+  },
+  {
     "id": "adr/index",
     "title": "ADRs",
     "summary": "Create a new ADR using the template in docs/adr/template.md. Give it a sequential identifier (e.g., 001, 002) and a concise title. Capture context, decision, consequences, and follow-up actions. Append the new ADR entry to the end of the Catalogue list above. Append the same entry under ADRs in docs/SUMMARY.md, keeping it nested so the sidebar stays collapsed. Reference ADRs from code comments or docs where the decision applies.",
