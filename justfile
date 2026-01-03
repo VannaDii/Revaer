@@ -238,13 +238,16 @@ docs:
 # container is ready. Uses the dev-friendly defaults unless DATABASE_URL is set.
 db-start:
     db_url="${DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"; \
+    echo "Using database URL: ${db_url}"; \
     container_name="${PG_CONTAINER:-revaer-db}"; \
     existing_container="$(docker ps -aq -f name=^${container_name}$)"; \
     if [ -n "$existing_container" ]; then \
         if [ -z "$(docker ps -q -f name=^${container_name}$)" ]; then \
+            echo "Starting existing Postgres container (${container_name})"; \
             docker start "${container_name}" >/dev/null; \
         fi; \
     else \
+        echo "Starting new Postgres container (${container_name})"; \
         docker run -d \
             --name "${container_name}" \
             -e POSTGRES_USER=revaer \
