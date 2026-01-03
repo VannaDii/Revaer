@@ -49,6 +49,15 @@ udeps:
         cargo +nightly udeps --workspace --all-targets; \
     fi
 
+sqlx-install:
+    if ! command -v sqlx >/dev/null 2>&1; then \
+        cargo install sqlx-cli --no-default-features --features postgres; \
+    fi
+
+db-migrate: sqlx-install
+    db_url="${DATABASE_URL:-${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}}"; \
+    DATABASE_URL="${db_url}" sqlx migrate run --source crates/revaer-data/migrations
+
 audit:
     required_audit_version="0.22.0"; \
     install_audit() { \
@@ -117,7 +126,7 @@ ci:
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}"
     export REVAER_TEST_DATABASE_URL DATABASE_URL
     just db-start
-    just fmt lint check-assets udeps audit deny ui-build test test-features-min cov
+    just fmt lint check-assets udeps audit deny ui-build test test-features-min cov build-release
 
 docker-build:
     platforms="${PLATFORMS:-linux/amd64,linux/arm64}"; \
@@ -264,9 +273,7 @@ db-start:
         fi; \
         sleep 1; \
     done; \
-    if ! command -v sqlx >/dev/null 2>&1; then \
-        cargo install sqlx-cli --no-default-features --features postgres; \
-    fi; \
+    just sqlx-install; \
     DATABASE_URL="${db_url}" sqlx database create --database-url "${db_url}" 2>/dev/null || true; \
     if ! DATABASE_URL="${db_url}" sqlx migrate run --database-url "${db_url}" --source crates/revaer-data/migrations; then \
         if echo "${db_url}" | grep -Eq '@(localhost|127\\.0\\.0\\.1)(:|/)'; then \

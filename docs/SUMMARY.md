@@ -99,3 +99,4 @@
     -   [069: Pin mdbook-mermaid for docs builds](adr/069-docs-mdbook-mermaid-version.md)
     -   [070: Dashboard UI checklist completion and auth/SSE hardening](adr/070-dashboard-ui-checklist.md)
     -   [071: Libtorrent native fallback for default CI](adr/071-libtorrent-native-fallback.md)
+    -   [072: Agent compliance refactor (UI + HTTP + Config Layout)](adr/072-agent-compliance-refactor.md)

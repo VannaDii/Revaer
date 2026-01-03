@@ -11,6 +11,7 @@
 
 ## Catalogue
 
+-   [Template](template.md) – ADR template
 -   [001](001-configuration-revisioning.md) – Configuration revisioning
 -   [002](002-setup-token-lifecycle.md) – Setup token lifecycle
 -   [003](003-libtorrent-session-runner.md) – Libtorrent session runner
@@ -82,4 +83,4 @@
 -   [069](069-docs-mdbook-mermaid-version.md) – Pin mdbook-mermaid for docs builds
 -   [070](070-dashboard-ui-checklist.md) – Dashboard UI checklist completion and auth/SSE hardening
 -   [071](071-libtorrent-native-fallback.md) – Libtorrent native fallback for default CI
--   [Template](template.md) – ADR template
+-   [072](072-agent-compliance-refactor.md) – Agent compliance refactor (UI + HTTP + Config Layout)

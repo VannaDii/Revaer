@@ -1,5 +1,11 @@
+//! Torrent detail drawer view.
+//!
+//! # Design
+//! - Keep detail rendering stateless with respect to the parent; update requests flow via callbacks.
+//! - Focus on layout + view composition; validation stays close to inputs.
+
+use super::action_menu::{ActionMenuItem, render_action_menu};
 use crate::Pane;
-use crate::components::action_menu::{ActionMenuItem, render_action_menu};
 use crate::components::atoms::EmptyState;
 use crate::core::logic::{format_bytes, format_rate};
 use crate::features::torrents::actions::TorrentAction;

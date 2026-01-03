@@ -1,13 +1,10 @@
 use crate::app::api::ApiCtx;
 use crate::app::sse::{SseHandle, connect_sse};
 use crate::components::auth::AuthPrompt;
-use crate::components::detail::FileSelectionChange;
 use crate::components::factory_reset::FactoryResetModal;
 use crate::components::setup::{SetupAuthMode, SetupCompleteInput, SetupPrompt};
 use crate::components::shell::AppShell;
 use crate::components::toast::ToastHost;
-use crate::components::torrent_modals::CopyKind;
-use crate::components::torrents::{TorrentView, demo_rows};
 use crate::core::auth::{AuthMode, AuthState};
 use crate::core::breakpoints::Breakpoint;
 use crate::core::events::UiEventEnvelope;
@@ -30,6 +27,9 @@ use crate::features::torrents::state::{
     set_rows, set_selected, set_selected_id, update_detail_file_priority,
     update_detail_file_selection, update_detail_options, update_detail_skip_fluff, upsert_detail,
 };
+use crate::features::torrents::view::detail::FileSelectionChange;
+use crate::features::torrents::view::modals::CopyKind;
+use crate::features::torrents::view::{TorrentView, demo_rows};
 use crate::i18n::{DEFAULT_LOCALE, LocaleCode, TranslationBundle};
 use crate::models::{
     AddTorrentInput, AppAuthMode, FilePriorityOverride, NavLabels, Toast, ToastKind,
@@ -194,6 +194,14 @@ pub fn revaer_app() -> Html {
 
     let location = use_location();
     let navigator = use_navigator();
+    let on_navigate = {
+        let navigator = navigator.clone();
+        Callback::from(move |route: Route| {
+            if let Some(navigator) = navigator.clone() {
+                navigator.push(&route);
+            }
+        })
+    };
     let current_route = use_route::<Route>().unwrap_or_else(|| {
         let Some(location) = location.as_ref() else {
             return Route::NotFound;
@@ -2051,6 +2059,7 @@ pub fn revaer_app() -> Html {
                                         on_density_change={set_density.clone()}
                                         on_bulk_action={on_bulk_action.clone()}
                                         on_action={on_action.clone()}
+                                        on_navigate={on_navigate.clone()}
                                         on_add={on_add_torrent.clone()}
                                         add_busy={add_busy_value}
                                         create_result={create_result_value.clone()}
@@ -2094,6 +2103,7 @@ pub fn revaer_app() -> Html {
                                         on_density_change={set_density.clone()}
                                         on_bulk_action={on_bulk_action.clone()}
                                         on_action={on_action.clone()}
+                                        on_navigate={on_navigate.clone()}
                                         on_add={on_add_torrent.clone()}
                                         add_busy={add_busy_value}
                                         create_result={create_result_value.clone()}

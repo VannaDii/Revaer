@@ -1,9 +1,19 @@
+//! Torrent list + detail view composition for the torrents feature.
+//!
+//! # Design
+//! - Keep rendering logic local to the feature; data and side effects arrive via props.
+//! - Delegate shared UI primitives to `components` and keep view code focused on composition.
+
+mod action_menu;
+pub(crate) mod detail;
+pub(crate) mod modals;
+
+use self::action_menu::{ActionMenuItem, render_action_menu};
+use self::detail::{DetailView, FileSelectionChange};
+use self::modals::{AddTorrentPanel, CopyKind, CreateTorrentPanel};
 use crate::app::Route;
-use crate::components::action_menu::{ActionMenuItem, render_action_menu};
 use crate::components::atoms::{BulkActionBar, EmptyState, SearchInput};
 use crate::components::daisy::{DaisySize, Drawer, Input, Loading, Modal, MultiSelect, Select};
-use crate::components::detail::{DetailView, FileSelectionChange};
-use crate::components::torrent_modals::{AddTorrentPanel, CopyKind, CreateTorrentPanel};
 use crate::core::logic::{
     ShortcutOutcome, format_rate, interpret_shortcut, parse_rate_input, parse_tags,
     select_all_or_clear, toggle_selection,
@@ -22,13 +32,10 @@ use crate::models::{
 };
 use crate::{Density, UiMode};
 use gloo::console;
-use gloo::events::EventListener;
-use gloo::utils::window;
 use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlElement, KeyboardEvent, MouseEvent};
 use yew::prelude::*;
-use yew_router::prelude::{Link, use_navigator};
 use yewdux::prelude::use_selector;
 
 #[derive(Properties, PartialEq)]
@@ -39,6 +46,7 @@ pub(crate) struct TorrentProps {
     pub on_density_change: Callback<Density>,
     pub on_bulk_action: Callback<(TorrentAction, Vec<Uuid>)>,
     pub on_action: Callback<(TorrentAction, Uuid)>,
+    pub on_navigate: Callback<Route>,
     pub on_add: Callback<AddTorrentInput>,
     pub add_busy: bool,
     /// Latest create-torrent result (if any).
@@ -140,7 +148,8 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     let show_create_modal = use_state(|| false);
     let sorted_ids = use_state(|| props.visible_ids.clone());
     let search_ref = use_node_ref();
-    let navigator = use_navigator();
+    let container_ref = use_node_ref();
+    let on_navigate = props.on_navigate.clone();
     let dispatch = app_dispatch();
     let density_class = match props.density {
         Density::Compact => "density-compact",
@@ -233,15 +242,13 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     let on_select = {
         let selected_idx = selected_idx.clone();
         let visible_ids = display_ids.clone();
-        let navigator = navigator.clone();
+        let on_navigate = on_navigate.clone();
         let on_select_detail = props.on_select_detail.clone();
         Callback::from(move |id: Uuid| {
             if let Some(idx) = visible_ids.iter().position(|row_id| *row_id == id) {
                 selected_idx.set(idx);
             }
-            if let Some(navigator) = navigator.clone() {
-                navigator.push(&Route::TorrentDetail { id: id.to_string() });
-            }
+            on_navigate.emit(Route::TorrentDetail { id: id.to_string() });
             on_select_detail.emit(id);
         })
     };
@@ -348,8 +355,20 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
         );
     }
 
-    // Keyboard shortcuts: j/k navigation, space pause/resume, delete/shift+delete confirmations, p recheck, / focus search.
     {
+        let container_ref = container_ref.clone();
+        use_effect_with((), move |_| {
+            if let Some(container) = container_ref.cast::<HtmlElement>() {
+                if let Err(err) = container.focus() {
+                    console::error!("torrent container focus failed", err);
+                }
+            }
+            || ()
+        });
+    }
+
+    // Keyboard shortcuts: j/k navigation, space pause/resume, delete/shift+delete confirmations, p recheck, / focus search.
+    let on_keydown = {
         let visible_ids = display_ids.clone();
         let selected_idx = selected_idx.clone();
         let on_select = on_select.clone();
@@ -359,92 +378,86 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
         let on_action = props.on_action.clone();
         let on_search = props.on_search.clone();
         let bundle = bundle.clone();
-        use_effect_with((), move |_| {
-            let listener = EventListener::new(&window(), "keydown", move |event| {
-                let Some(event) = event.dyn_ref::<KeyboardEvent>() else {
-                    return;
-                };
-                if let Some(target) = event.target()
-                    && let Ok(element) = target.dyn_into::<HtmlElement>()
-                    && matches!(element.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT")
-                {
-                    return;
-                }
+        Callback::from(move |event: KeyboardEvent| {
+            if let Some(target) = event.target()
+                && let Ok(element) = target.dyn_into::<HtmlElement>()
+                && matches!(element.tag_name().as_str(), "INPUT" | "TEXTAREA" | "SELECT")
+            {
+                return;
+            }
 
-                if let Some(action) = interpret_shortcut(&event.key(), event.shift_key()) {
-                    event.prevent_default();
-                    match action {
-                        ShortcutOutcome::FocusSearch => {
-                            if let Some(input) = search_ref.cast::<web_sys::HtmlInputElement>() {
-                                if let Err(err) = input.focus() {
-                                    console::error!("input focus failed", err);
-                                }
+            if let Some(action) = interpret_shortcut(&event.key(), event.shift_key()) {
+                event.prevent_default();
+                match action {
+                    ShortcutOutcome::FocusSearch => {
+                        if let Some(input) = search_ref.cast::<web_sys::HtmlInputElement>() {
+                            if let Err(err) = input.focus() {
+                                console::error!("input focus failed", err);
                             }
                         }
-                        ShortcutOutcome::SelectNext => {
-                            if let Some(next) = crate::core::logic::advance_selection(
-                                ShortcutOutcome::SelectNext,
-                                *selected_idx,
-                                visible_ids.len(),
-                            ) {
-                                selected_idx.set(next);
-                                if let Some(id) = visible_ids.get(next) {
-                                    on_select.emit(*id);
-                                }
-                            }
-                        }
-                        ShortcutOutcome::SelectPrev => {
-                            if let Some(next) = crate::core::logic::advance_selection(
-                                ShortcutOutcome::SelectPrev,
-                                *selected_idx,
-                                visible_ids.len(),
-                            ) {
-                                selected_idx.set(next);
-                                if let Some(id) = visible_ids.get(next) {
-                                    on_select.emit(*id);
-                                }
-                            }
-                        }
-                        ShortcutOutcome::TogglePauseResume => {
-                            if let Some(id) = visible_ids.get(*selected_idx) {
-                                action_banner.set(Some(bundle.text("toast.pause")));
-                                on_action.emit((TorrentAction::Pause, *id));
-                            }
-                        }
-                        ShortcutOutcome::ClearSearch => {
-                            if let Some(input) = search_ref.cast::<web_sys::HtmlInputElement>() {
-                                input.set_value("");
-                                if let Err(err) = input.blur() {
-                                    console::error!("input blur failed", err);
-                                }
-                                on_search.emit(String::new());
-                            }
-                        }
-                        ShortcutOutcome::ConfirmDelete => confirm.set(Some(ConfirmKind::Delete)),
-                        ShortcutOutcome::ConfirmDeleteData => {
-                            confirm.set(Some(ConfirmKind::DeleteData))
-                        }
-                        ShortcutOutcome::ConfirmRecheck => confirm.set(Some(ConfirmKind::Recheck)),
                     }
+                    ShortcutOutcome::SelectNext => {
+                        if let Some(next) = crate::core::logic::advance_selection(
+                            ShortcutOutcome::SelectNext,
+                            *selected_idx,
+                            visible_ids.len(),
+                        ) {
+                            selected_idx.set(next);
+                            if let Some(id) = visible_ids.get(next) {
+                                on_select.emit(*id);
+                            }
+                        }
+                    }
+                    ShortcutOutcome::SelectPrev => {
+                        if let Some(next) = crate::core::logic::advance_selection(
+                            ShortcutOutcome::SelectPrev,
+                            *selected_idx,
+                            visible_ids.len(),
+                        ) {
+                            selected_idx.set(next);
+                            if let Some(id) = visible_ids.get(next) {
+                                on_select.emit(*id);
+                            }
+                        }
+                    }
+                    ShortcutOutcome::TogglePauseResume => {
+                        if let Some(id) = visible_ids.get(*selected_idx) {
+                            action_banner.set(Some(bundle.text("toast.pause")));
+                            on_action.emit((TorrentAction::Pause, *id));
+                        }
+                    }
+                    ShortcutOutcome::ClearSearch => {
+                        if let Some(input) = search_ref.cast::<web_sys::HtmlInputElement>() {
+                            input.set_value("");
+                            if let Err(err) = input.blur() {
+                                console::error!("input blur failed", err);
+                            }
+                            on_search.emit(String::new());
+                        }
+                    }
+                    ShortcutOutcome::ConfirmDelete => confirm.set(Some(ConfirmKind::Delete)),
+                    ShortcutOutcome::ConfirmDeleteData => {
+                        confirm.set(Some(ConfirmKind::DeleteData))
+                    }
+                    ShortcutOutcome::ConfirmRecheck => confirm.set(Some(ConfirmKind::Recheck)),
                 }
-            });
-
-            move || drop(listener)
-        });
-    }
-
-    let drawer_open = props.selected_id.is_some();
-    let close_drawer = {
-        let navigator = navigator.clone();
-        Callback::from(move |_| {
-            if let Some(navigator) = navigator.clone() {
-                navigator.push(&Route::Torrents);
             }
         })
     };
 
+    let drawer_open = props.selected_id.is_some();
+    let close_drawer = {
+        let on_navigate = on_navigate.clone();
+        Callback::from(move |_| on_navigate.emit(Route::Torrents))
+    };
+
     html! {
-        <section class={classes!(density_class, mode_class, props.class.clone())}>
+        <section
+            ref={container_ref}
+            tabindex={0}
+            onkeydown={on_keydown}
+            class={classes!(density_class, mode_class, props.class.clone())}
+        >
             <Drawer
                 open={drawer_open}
                 on_close={close_drawer.clone()}
@@ -456,9 +469,16 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                             <div class="breadcrumbs hidden p-0 text-sm sm:inline">
                                 <ul>
                                     <li>
-                                        <Link<Route> to={Route::Dashboard}>
+                                        <button
+                                            type="button"
+                                            class="link"
+                                            onclick={{
+                                                let on_navigate = on_navigate.clone();
+                                                Callback::from(move |_| on_navigate.emit(Route::Dashboard))
+                                            }}
+                                        >
                                             {bundle.text("nav.dashboard")}
-                                        </Link<Route>>
+                                        </button>
                                     </li>
                                     <li class="opacity-80">{bundle.text("torrents.title")}</li>
                                 </ul>

@@ -2,33 +2,39 @@
 
 /// Authentication middleware and helpers.
 pub mod auth;
-#[cfg(feature = "compat-qb")]
-pub mod compat_qb;
 /// Shared constants and header names for HTTP surfaces.
 pub mod constants;
-/// OpenAPI document publishing.
-pub mod docs;
-/// Problem response helpers and error types.
-pub mod errors;
-/// Filesystem browser endpoints.
-pub mod filesystem;
-/// Health and diagnostics endpoints.
-pub mod health;
-/// Log streaming endpoints.
-pub mod logs;
+/// Request/response DTOs and error helpers.
+pub mod dto;
+/// Endpoint handlers grouped by feature.
+pub mod handlers;
 /// Rate limit helpers for HTTP responses.
 pub mod rate_limit;
 /// Router construction and server host.
 pub mod router;
-/// Settings/configuration handlers.
-pub mod settings;
-/// Setup bootstrap handlers.
-pub mod setup;
-/// Server-sent events filters and streaming utilities.
-pub mod sse;
 /// Metrics middleware for HTTP requests.
 pub mod telemetry;
+
+/// Error responses and `ProblemDetails` helpers.
+pub use dto::errors;
+#[cfg(feature = "compat-qb")]
+/// qBittorrent compatibility handlers (feature-gated).
+pub use handlers::compat_qb;
+/// `OpenAPI` document handlers.
+pub use handlers::docs;
+/// Filesystem browser handlers.
+pub use handlers::filesystem;
+/// Health and diagnostics handlers.
+pub use handlers::health;
+/// Log streaming handlers.
+pub use handlers::logs;
+/// Settings/configuration handlers.
+pub use handlers::settings;
+/// Setup bootstrap handlers.
+pub use handlers::setup;
+/// Server-sent events handlers.
+pub use handlers::sse;
 /// API token refresh handlers.
-pub mod tokens;
-/// Torrent-facing HTTP helpers (pagination, filtering, metadata views).
-pub mod torrents;
+pub use handlers::tokens;
+/// Torrent-facing HTTP handlers and helpers.
+pub use handlers::torrents;

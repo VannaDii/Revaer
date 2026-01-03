@@ -1,5 +1,4 @@
-#![cfg_attr(not(feature = "libtorrent"), forbid(unsafe_code))]
-#![cfg_attr(feature = "libtorrent", deny(unsafe_code))]
+#![deny(unsafe_code)]
 #![deny(
     warnings,
     dead_code,

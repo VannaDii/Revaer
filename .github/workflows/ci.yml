@@ -105,16 +105,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libtorrent-rasterbar-dev pkg-config libpq-dev postgresql-client
 
-      - name: Install sqlx-cli
-        run: |
-          if ! command -v sqlx >/dev/null 2>&1; then
-            cargo install sqlx-cli --no-default-features --features postgres
-          fi
-
       - name: Run migrations
         env:
           DATABASE_URL: ${{ env.REVAER_TEST_DATABASE_URL }}
-        run: sqlx migrate run --source crates/revaer-data/migrations
+        run: just db-migrate
 
       - name: Coverage
         run: just cov
@@ -151,16 +145,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libtorrent-rasterbar-dev pkg-config libpq-dev postgresql-client
 
-      - name: Install sqlx-cli
-        run: |
-          if ! command -v sqlx >/dev/null 2>&1; then
-            cargo install sqlx-cli --no-default-features --features postgres
-          fi
-
       - name: Run migrations
         env:
           DATABASE_URL: ${{ env.REVAER_TEST_DATABASE_URL }}
-        run: sqlx migrate run --source crates/revaer-data/migrations
+        run: just db-migrate
 
       - name: Test
         run: just test
@@ -218,19 +206,32 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libtorrent-rasterbar-dev pkg-config libpq-dev postgresql-client
 
-      - name: Install sqlx-cli
-        run: |
-          if ! command -v sqlx >/dev/null 2>&1; then
-            cargo install sqlx-cli --no-default-features --features postgres
-          fi
-
       - name: Run migrations
         env:
           DATABASE_URL: ${{ env.REVAER_TEST_DATABASE_URL }}
-        run: sqlx migrate run --source crates/revaer-data/migrations
+        run: just db-migrate
 
       - name: Feature matrix tests (no default features)
         run: just test-features-min
+
+  build-release:
+    name: Build Release
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: taiki-e/install-action@just
+
+      - name: Install native libtorrent dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtorrent-rasterbar-dev pkg-config
+
+      - name: Build release
+        run: just build-release
 
   audit:
     name: Run Audit

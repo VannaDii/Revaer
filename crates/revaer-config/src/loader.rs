@@ -1,9 +1,8 @@
 //! Database-backed configuration facade built on `PostgreSQL`.
 //!
-//! Layout: `model.rs` (typed config models and changesets), `validate.rs`
-//! (validation/parsing helpers and `ConfigError`), with `lib.rs` hosting the
-//! `SettingsFacade`/`ConfigService` implementation and history/persistence
-//! glue.
+//! # Design
+//! - Provide `ConfigService` and `SettingsFacade` implementations that wrap stored procedures.
+//! - Keep validation and normalization in `validate.rs`/`engine_profile.rs`.
 
 use argon2::Argon2;
 use argon2::password_hash::{
@@ -30,6 +29,7 @@ use tracing::{info, instrument, warn};
 use uuid::Uuid;
 
 use crate::SecretPatch;
+use crate::defaults::{API_KEY_TTL_DAYS, APP_PROFILE_ID, ENGINE_PROFILE_ID, FS_POLICY_ID};
 use crate::engine_profile::{
     AltSpeedConfig, AltSpeedSchedule, IpFilterConfig, PeerClassConfig, PeerClassesConfig,
     TrackerAuthConfig, TrackerConfig, TrackerProxyConfig, TrackerProxyType,
@@ -44,11 +44,6 @@ use crate::model::{
 use crate::validate::{
     ensure_mutable, parse_bind_addr, parse_uuid, validate_api_key_rate_limit, validate_port,
 };
-
-const APP_PROFILE_ID: &str = "00000000-0000-0000-0000-000000000001";
-const ENGINE_PROFILE_ID: &str = "00000000-0000-0000-0000-000000000002";
-const FS_POLICY_ID: &str = "00000000-0000-0000-0000-000000000003";
-const API_KEY_TTL_DAYS: i64 = 14;
 
 type Result<T> = ConfigResult<T>;
 

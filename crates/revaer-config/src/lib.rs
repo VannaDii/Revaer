@@ -18,13 +18,15 @@
 //! Database-backed configuration facade built on `PostgreSQL`.
 //!
 //! Layout: `model.rs` (typed config models and changesets), `validate.rs`
-//! (validation/parsing helpers), `service.rs` (`ConfigService` + `SettingsFacade`).
+//! (validation/parsing helpers), `loader.rs` (`ConfigService` + `SettingsFacade`).
 
+#[cfg(not(target_arch = "wasm32"))]
+pub mod defaults;
 pub mod engine_profile;
 pub mod error;
-pub mod model;
 #[cfg(not(target_arch = "wasm32"))]
-pub mod service;
+pub mod loader;
+pub mod model;
 pub mod validate;
 
 pub use engine_profile::{
@@ -34,10 +36,10 @@ pub use engine_profile::{
     normalize_engine_profile,
 };
 pub use error::{ConfigError, ConfigResult};
+#[cfg(not(target_arch = "wasm32"))]
+pub use loader::{ConfigService, ConfigWatcher, SettingsFacade, SettingsStream};
 pub use model::{
     ApiKeyAuth, ApiKeyPatch, ApiKeyRateLimit, AppAuthMode, AppMode, AppProfile, AppliedChanges,
     ConfigSnapshot, EngineProfile, FsPolicy, LabelKind, LabelPolicy, SecretPatch, SettingsChange,
     SettingsChangeset, SettingsPayload, SetupToken, TelemetryConfig,
 };
-#[cfg(not(target_arch = "wasm32"))]
-pub use service::{ConfigService, ConfigWatcher, SettingsFacade, SettingsStream};

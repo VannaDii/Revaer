@@ -25,6 +25,7 @@ use std::{
 };
 
 use crate::error::{FsOpsError, FsOpsResult};
+use crate::model::FsOpsRequest;
 use chrono::{DateTime, Utc};
 use globset::{Glob, GlobSet, GlobSetBuilder};
 use revaer_config::FsPolicy;
@@ -172,17 +173,6 @@ impl StepOutcome {
             Self::Completed(detail) | Self::Skipped(detail) => detail.as_deref(),
         }
     }
-}
-
-/// Immutable inputs provided to the filesystem pipeline for a completed torrent.
-#[derive(Copy, Clone)]
-pub struct FsOpsRequest<'a> {
-    /// Identifier of the torrent the operation applies to.
-    pub torrent_id: Uuid,
-    /// Absolute staging path that contains the downloaded payload.
-    pub source_path: &'a Path,
-    /// Filesystem policy snapshot describing how to handle the payload.
-    pub policy: &'a FsPolicy,
 }
 
 /// Service responsible for executing filesystem post-processing steps after torrent completion.

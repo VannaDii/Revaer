@@ -1,8 +1,7 @@
 use crate::core::store::{SseConnectionState, SseStatus, SseStatusSummary};
-use gloo::events::EventListener;
-use gloo::utils::window;
+use gloo::console;
 use js_sys::Date;
-use wasm_bindgen::JsCast;
+use web_sys::{HtmlElement, KeyboardEvent};
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
@@ -84,23 +83,32 @@ pub(crate) struct ConnectivityModalProps {
 
 #[function_component(ConnectivityModal)]
 pub(crate) fn connectivity_modal(props: &ConnectivityModalProps) -> Html {
+    let dialog_ref = use_node_ref();
     let on_dismiss = props.on_dismiss.clone();
     let on_retry = props.on_retry.clone();
     let on_dismiss_click = {
         let on_dismiss = on_dismiss.clone();
         Callback::from(move |_| on_dismiss.emit(()))
     };
-    use_effect(move || {
-        let listener = EventListener::new(&window(), "keydown", move |event| {
-            let Some(keyboard) = event.dyn_ref::<web_sys::KeyboardEvent>() else {
-                return;
-            };
-            if keyboard.key() == "Escape" {
+    let on_keydown = {
+        let on_dismiss = on_dismiss.clone();
+        Callback::from(move |event: KeyboardEvent| {
+            if event.key() == "Escape" {
                 on_dismiss.emit(());
             }
+        })
+    };
+    {
+        let dialog_ref = dialog_ref.clone();
+        use_effect_with((), move |_| {
+            if let Some(dialog) = dialog_ref.cast::<HtmlElement>() {
+                if let Err(err) = dialog.focus() {
+                    console::error!("connectivity modal focus failed", err);
+                }
+            }
+            || ()
         });
-        move || drop(listener)
-    });
+    }
 
     let status_label = match props.status.state {
         SseConnectionState::Connected => "Connected",
@@ -128,6 +136,9 @@ pub(crate) fn connectivity_modal(props: &ConnectivityModalProps) -> Html {
     html! {
         <dialog
             open={true}
+            ref={dialog_ref}
+            tabindex={0}
+            onkeydown={on_keydown}
             class={classes!(
                 "modal",
                 "modal-bottom",
