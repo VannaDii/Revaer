@@ -14,6 +14,7 @@
     rustdoc::bare_urls,
     missing_docs
 )]
+#![allow(clippy::multiple_crate_versions)]
 
 //! Shared test helpers used across integration suites.
 //! Layout: fixtures.rs (env/helpers), postgres.rs (docker-backed fixtures), mocks.rs (fake clients), assert.rs (test assertions).

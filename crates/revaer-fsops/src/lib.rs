@@ -14,6 +14,7 @@
     rustdoc::bare_urls,
     missing_docs
 )]
+#![allow(clippy::multiple_crate_versions)]
 
 //! Filesystem post-processing pipeline for completed torrents.
 //! Layout: `model/` (request types), `error.rs` (error types), `service/` (pipeline + IO).

@@ -14,6 +14,7 @@
     rustdoc::bare_urls,
     missing_docs
 )]
+#![allow(clippy::multiple_crate_versions)]
 
 //! Libtorrent adapter implementation backed by the native C++ session bridge.
 

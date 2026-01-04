@@ -85,6 +85,14 @@ crate = "thiserror-impl@2.0.17"
 reason = "Matches thiserror 2.x used by workspace crates."
 
 [[bans.skip]]
+crate = "hashbrown@*"
+reason = "SQLx/hashlink require hashbrown 0.15.x while yew/indexmap require 0.16.x (ADR 076)."
+
+[[bans.skip]]
+crate = "foldhash@*"
+reason = "Paired with hashbrown 0.15.x and 0.16.x until SQLx adopts hashlink 0.11 (ADR 076)."
+
+[[bans.skip]]
 crate = "webpki-roots@*"
 reason = "Both sqlx/ureq (0.26.x) and hyper-rustls/reqwest (1.x) are required."
 

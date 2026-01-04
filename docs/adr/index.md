@@ -87,3 +87,4 @@
 -   [073](073-ui-checklist-followups.md) – UI checklist follow-ups: SSE detail refresh, labels shortcuts, strict i18n, and anymap removal
 -   [074](074-vendored-yewdux-latest-yew.md) – Temporary vendoring of yewdux for latest Yew compatibility
 -   [075](075-coverage-gate-tests.md) – Coverage gate tests for config loader and data toggles
+-   [076](076-hashbrown-multiple-versions-exception.md) – Temporary clippy exception for hashbrown multiple versions

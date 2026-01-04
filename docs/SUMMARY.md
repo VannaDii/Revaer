@@ -103,3 +103,4 @@
     -   [073: UI checklist follow-ups: SSE detail refresh, labels shortcuts, strict i18n, and anymap removal](adr/073-ui-checklist-followups.md)
     -   [074: Temporary vendoring of yewdux for latest Yew compatibility](adr/074-vendored-yewdux-latest-yew.md)
     -   [075: Coverage gate tests for config loader and data toggles](adr/075-coverage-gate-tests.md)
+    -   [076: Temporary clippy exception for hashbrown multiple versions](adr/076-hashbrown-multiple-versions-exception.md)

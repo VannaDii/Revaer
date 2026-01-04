@@ -14,6 +14,7 @@
     rustdoc::bare_urls,
     missing_docs
 )]
+#![allow(clippy::multiple_crate_versions)]
 #![allow(clippy::redundant_pub_crate)]
 
 //! Administrative CLI for interacting with a Revaer server instance.

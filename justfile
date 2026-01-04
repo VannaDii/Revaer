@@ -7,7 +7,7 @@ fmt-fix:
     cargo fmt --all
 
 lint:
-    cargo clippy --workspace --all-targets --all-features -- -D warnings
+    cargo clippy --workspace --all-targets --all-features -- -D warnings -A clippy::multiple_crate_versions
 
 check:
     cargo --config 'build.rustflags=["-Dwarnings"]' check --workspace --all-targets --all-features

@@ -14,6 +14,7 @@
     rustdoc::bare_urls,
     missing_docs
 )]
+#![allow(clippy::multiple_crate_versions)]
 //! Revaer UI wasm entry point and native stub fallback.
 
 #[cfg(target_arch = "wasm32")]

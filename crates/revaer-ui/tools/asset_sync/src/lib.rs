@@ -14,6 +14,7 @@
     rustdoc::bare_urls,
     missing_docs
 )]
+#![allow(clippy::multiple_crate_versions)]
 //! Sync Nexus vendor assets into the Revaer UI static directory.
 //!
 //! # Design

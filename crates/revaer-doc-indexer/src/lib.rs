@@ -14,6 +14,7 @@
     rustdoc::bare_urls,
     missing_docs
 )]
+#![allow(clippy::multiple_crate_versions)]
 
 //! Documentation indexer core: parses markdown under `docs/` and emits machine-readable
 //! manifests consumed by LLM tooling.

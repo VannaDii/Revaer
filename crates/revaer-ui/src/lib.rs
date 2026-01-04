@@ -14,6 +14,7 @@
     rustdoc::bare_urls,
     missing_docs
 )]
+#![allow(clippy::multiple_crate_versions)]
 //! Revaer Web UI (Phase 1) scaffolding.
 //! This crate holds the Yew front-end entrypoint plus shared tokens and locale metadata.
 

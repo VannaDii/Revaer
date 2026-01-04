@@ -14,6 +14,7 @@
     rustdoc::bare_urls,
     missing_docs
 )]
+#![allow(clippy::multiple_crate_versions)]
 
 //! Engine-agnostic torrent interfaces and DTOs shared across the workspace.
 //! Layout: `model/` (core types, DTOs), `service/` (engine/workflow traits).

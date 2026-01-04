@@ -90,6 +90,7 @@ target/              # build artifacts
 -   **Ban:** `Option<T>` return types for fallible operations. All operations that can fail must return `Result<T, E>` to explicitly indicate success or error, even for void operations (`Result<(), E>`).
 -   **Ban:** `#[allow(clippy::too_many_lines)]` anywhere—split the code instead. Resolve the lint by extracting helpers that group related steps, moving reusable logic into private modules, or introducing small structs/impl blocks to own stateful behavior. Keep the original function as a thin orchestrator and add tests around the new pieces.
 -   **Ban:** crate-level allowances for `clippy::module_name_repetitions`, `unexpected_cfgs`, and `clippy::multiple_crate_versions`. Design names and dependency graphs so these lints pass without suppressions.
+    -   **Temporary exception:** allow `clippy::multiple_crate_versions` in crate roots + lint recipe while `sqlx-core` pins `hashlink ^0.10` and `yew` requires `indexmap ^2.11` (ADR 076). Remove once SQLx supports `hashlink ^0.11` and the graph unifies.
 -   Dependency hygiene is enforced with `cargo-deny` and `cargo-udeps`; `clippy::cargo` as well as the crate-level lint set.
 -   Mark important return values `#[must_use]` (IDs, handles, results with side effects).
 -   Deny `unreachable_pub` to prevent unused public API leakage across crates.
@@ -117,6 +118,8 @@ target/              # build artifacts
     -   Tracing: **tracing**, **tracing-subscriber** (fmt/json via features).
 -   Avoid heavy transitive trees (templating engines, ORMs, giant utility crates); prioritize **explicit code** and **narrow helpers**.
 -   **Temporary exception:** `vendor/yewdux` is permitted to keep `yew`/`yew-router` on the latest crates.io releases. This vendored copy **MUST** be removed as soon as the Yew ecosystem stabilizes on version compatibility and a crates.io `yewdux` release supports `yew`/`yew-router` latest. Track removal in ADR 074.
+-   **Temporary exception:** `clippy::multiple_crate_versions` is allowed (crate roots + lint recipe) to tolerate the `hashbrown 0.15` + `0.16` split until SQLx releases a compatible `hashlink` bump. Track removal in ADR 076.
+-   **Temporary exception:** `deny.toml` permits duplicate `hashbrown`/`foldhash` versions for the same SQLx/Yew split (ADR 076). Remove alongside the clippy exception.
 -   License and security policy is enforced by `just deny` and `just audit`.
 
 ### 3.1) Error Handling (mandatory patterns)

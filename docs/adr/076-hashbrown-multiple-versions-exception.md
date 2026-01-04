@@ -1,0 +1,25 @@
+# 076: Temporary clippy exception for hashbrown multiple versions
+
+- Status: Accepted
+- Date: 2026-01-03
+- Context:
+  - Motivation: `just lint` fails on `clippy::multiple_crate_versions` due to `hashbrown` 0.15 (via `sqlx-core` -> `hashlink ^0.10`) and 0.16 (via `yew` -> `indexmap ^2.11`).
+  - Constraints: keep `yew`/`yew-router` latest, avoid vendoring or git crates, preserve CI via `just`.
+- Decision:
+  - Allow `clippy::multiple_crate_versions` in the lint recipe and crate roots.
+  - Allow duplicate `hashbrown`/`foldhash` in `cargo-deny` bans to keep `just deny` green.
+  - Remove the exception once SQLx releases a version compatible with `hashlink ^0.11` (or the dependency graph otherwise unifies on a single `hashbrown`).
+- Consequences:
+  - Positive outcomes: `just lint` passes while keeping primary deps current.
+  - Risks or trade-offs: reduced lint signal for other multi-version cases; must monitor dependency graph for unintentional splits.
+- Follow-up:
+  - Implementation tasks: update `just lint`, add crate-root allows, update `deny.toml`, document exception in `AGENT.md`, track in checklist.
+  - Review checkpoints: remove the exception when SQLx adopts `hashlink ^0.11` and `hashbrown` unifies.
+- Test coverage summary:
+  - Not applicable (lint configuration change).
+- Observability updates:
+  - None.
+- Risk & rollback plan:
+  - Remove the lint allow flag and re-run `just ci` once dependencies align.
+- Dependency rationale:
+  - No new dependencies; exception is scoped to lint configuration only.

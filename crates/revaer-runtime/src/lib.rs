@@ -14,6 +14,7 @@
     rustdoc::bare_urls,
     missing_docs
 )]
+#![allow(clippy::multiple_crate_versions)]
 
 //! Runtime persistence facade for torrent and filesystem job tracking.
 //! Layout: `runtime.rs` (re-exports of the data-layer runtime store).

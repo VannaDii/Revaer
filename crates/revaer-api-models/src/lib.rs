@@ -14,6 +14,7 @@
     rustdoc::bare_urls,
     missing_docs
 )]
+#![allow(clippy::multiple_crate_versions)]
 //! Shared HTTP DTOs for the Revaer public API.
 //!
 //! These types are re-used by the CLI for request/response encoding to keep the

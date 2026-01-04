@@ -14,6 +14,7 @@
     rustdoc::bare_urls,
     missing_docs
 )]
+#![allow(clippy::multiple_crate_versions)]
 
 //! Core event bus for the Revaer platform.
 //! Layout: `topics.rs` (identifiers), `payloads.rs` (event types), `routing.rs` (bus helpers).

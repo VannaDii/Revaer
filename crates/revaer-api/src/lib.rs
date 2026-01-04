@@ -14,6 +14,7 @@
     rustdoc::bare_urls,
     missing_docs
 )]
+#![allow(clippy::multiple_crate_versions)]
 
 //! HTTP API server and shared routing primitives for the Revaer platform.
 //! Layout: bootstrap.rs (wiring), config/, domain/, app/, http/, infra/.

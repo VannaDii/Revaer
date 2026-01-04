@@ -15,7 +15,7 @@
   - Implementation tasks: add loader/data tests, update checklist status, run `just ci`.
   - Review checkpoints: validate coverage stays >=80% during follow-up changes.
 - Test coverage summary:
-  - `just cov` reports 80.45% total line coverage (gate passes).
+  - `just cov` reports 80.44% total line coverage (gate passes).
 - Observability updates:
   - None (tests only).
 - Risk & rollback plan:
