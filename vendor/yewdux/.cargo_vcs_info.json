@@ -1,7 +1,0 @@
-{
-  "git": {
-    "sha1": "11f38de43bd356835fb3dc2d9d53db8a2079df79",
-    "dirty": true
-  },
-  "path_in_vcs": "crates/yewdux"
-}

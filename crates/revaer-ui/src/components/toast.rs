@@ -1,3 +1,6 @@
+use crate::components::atoms::IconButton;
+use crate::components::atoms::icons::IconX;
+use crate::components::daisy::DaisySize;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::{Toast, ToastKind};
 use gloo::timers::callback::Timeout;
@@ -59,13 +62,13 @@ fn render_toast(toast: &Toast, on_dismiss: Callback<u64>, dismiss_label: String)
     html! {
         <div role="status" class={classes!("alert", class, "shadow")}>
             <span class="text-sm">{toast.message.clone()}</span>
-            <button
-                class="btn btn-ghost btn-xs btn-circle"
-                aria-label={dismiss_label.clone()}
+            <IconButton
+                icon={html! { <IconX size={Some(AttrValue::from("3.5"))} /> }}
+                label={AttrValue::from(dismiss_label.clone())}
+                size={DaisySize::Xs}
+                circle={true}
                 onclick={on_close}
-            >
-                <span class="iconify lucide--x size-3.5"></span>
-            </button>
+            />
         </div>
     }
 }

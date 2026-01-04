@@ -1,3 +1,6 @@
+use crate::components::atoms::IconButton;
+use crate::components::atoms::icons::{IconCheckCircle2, IconLoader, IconUnplug, IconX};
+use crate::components::daisy::DaisySize;
 use crate::core::store::{SseConnectionState, SseStatus, SseStatusSummary};
 use gloo::console;
 use js_sys::Date;
@@ -56,15 +59,41 @@ pub(crate) fn connectivity_indicator(props: &ConnectivityIndicatorProps) -> Html
             <div class="rounded-box absolute inset-0 bg-gradient-to-r from-transparent to-transparent transition-opacity duration-300 group-hover:opacity-0"></div>
             <div class="from-primary to-secondary rounded-box absolute inset-0 bg-gradient-to-r opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
             <div class="relative flex h-10 items-center gap-3 px-3">
-                <span class={classes!(
-                    "iconify",
-                    icon,
-                    "text-primary",
-                    "size-4.5",
-                    "transition-all",
-                    "duration-300",
-                    "group-hover:text-primary-content"
-                )}></span>
+                {match icon {
+                    IndicatorIcon::Connected => html! {
+                        <IconCheckCircle2
+                            class={classes!(
+                                "text-primary",
+                                "transition-all",
+                                "duration-300",
+                                "group-hover:text-primary-content"
+                            )}
+                            size={Some(AttrValue::from("4.5"))}
+                        />
+                    },
+                    IndicatorIcon::Reconnecting => html! {
+                        <IconLoader
+                            class={classes!(
+                                "text-primary",
+                                "transition-all",
+                                "duration-300",
+                                "group-hover:text-primary-content"
+                            )}
+                            size={Some(AttrValue::from("4.5"))}
+                        />
+                    },
+                    IndicatorIcon::Disconnected => html! {
+                        <IconUnplug
+                            class={classes!(
+                                "text-primary",
+                                "transition-all",
+                                "duration-300",
+                                "group-hover:text-primary-content"
+                            )}
+                            size={Some(AttrValue::from("4.5"))}
+                        />
+                    },
+                }}
                 <span class={classes!("status", status_class, "status-sm")}></span>
                 <span class={label_class}>{label}</span>
             </div>
@@ -111,7 +140,7 @@ pub(crate) fn connectivity_modal(props: &ConnectivityModalProps) -> Html {
     }
 
     let status_label = match props.status.state {
-        SseConnectionState::Connected => "Connected",
+        SseConnectionState::Connected => "Live",
         SseConnectionState::Disconnected => "Disconnected",
         SseConnectionState::Reconnecting => "Reconnecting",
     };
@@ -152,16 +181,27 @@ pub(crate) fn connectivity_modal(props: &ConnectivityModalProps) -> Html {
                     <div class="card-body gap-3 p-4">
                         <div class="flex items-start justify-between">
                             <div class="flex items-center gap-2">
-                                <span class={classes!("iconify", icon, "size-4")}></span>
+                                {match icon {
+                                    IndicatorIcon::Connected => html! {
+                                        <IconCheckCircle2 size={Some(AttrValue::from("4"))} />
+                                    },
+                                    IndicatorIcon::Reconnecting => html! {
+                                        <IconLoader size={Some(AttrValue::from("4"))} />
+                                    },
+                                    IndicatorIcon::Disconnected => html! {
+                                        <IconUnplug size={Some(AttrValue::from("4"))} />
+                                    },
+                                }}
                                 <span class={classes!("status", status_class, "status-sm")}></span>
                                 <h3 class="text-sm font-semibold">{"Connectivity"}</h3>
                             </div>
-                            <button
-                                class="btn btn-ghost btn-xs btn-circle"
-                                aria-label="Dismiss"
-                                onclick={on_dismiss_click.clone()}>
-                                <span class="iconify lucide--x size-4"></span>
-                            </button>
+                            <IconButton
+                                icon={html! { <IconX size={Some(AttrValue::from("4"))} /> }}
+                                label={AttrValue::from("Dismiss")}
+                                size={DaisySize::Xs}
+                                circle={true}
+                                onclick={on_dismiss_click.clone()}
+                            />
                         </div>
                         <div class="grid gap-2 text-sm">
                             <div class="flex items-center justify-between">
@@ -206,18 +246,24 @@ pub(crate) fn connectivity_modal(props: &ConnectivityModalProps) -> Html {
     }
 }
 
-fn indicator_style(summary: &SseStatusSummary) -> (&'static str, &'static str, String) {
+enum IndicatorIcon {
+    Connected,
+    Reconnecting,
+    Disconnected,
+}
+
+fn indicator_style(summary: &SseStatusSummary) -> (IndicatorIcon, &'static str, String) {
     let retry_label = retry_in_seconds(summary.next_retry_at_ms)
         .map(|value| format!("Reconnecting in {value}"))
         .unwrap_or_default();
     match summary.state {
         SseConnectionState::Connected => (
-            "lucide--check-circle-2",
+            IndicatorIcon::Connected,
             "status-success",
-            "Connected".to_string(),
+            "Live".to_string(),
         ),
         SseConnectionState::Reconnecting => (
-            "lucide--loader",
+            IndicatorIcon::Reconnecting,
             "status-warning",
             if retry_label.is_empty() {
                 "Reconnecting".to_string()
@@ -226,7 +272,7 @@ fn indicator_style(summary: &SseStatusSummary) -> (&'static str, &'static str, S
             },
         ),
         SseConnectionState::Disconnected => (
-            "lucide--unplug",
+            IndicatorIcon::Disconnected,
             if summary.has_error {
                 "status-error"
             } else {
@@ -239,7 +285,7 @@ fn indicator_style(summary: &SseStatusSummary) -> (&'static str, &'static str, S
 
 fn status_label(summary: &SseStatusSummary) -> &'static str {
     match summary.state {
-        SseConnectionState::Connected => "Connected",
+        SseConnectionState::Connected => "Live",
         SseConnectionState::Disconnected => "Disconnected",
         SseConnectionState::Reconnecting => "Reconnecting",
     }

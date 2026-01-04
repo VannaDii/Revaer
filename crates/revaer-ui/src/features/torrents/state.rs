@@ -365,7 +365,31 @@ pub const fn set_selected_id(state: &mut TorrentsState, id: Option<Uuid>) {
 
 /// Upsert torrent detail payload.
 pub fn upsert_detail(state: &mut TorrentsState, id: Uuid, detail: TorrentDetail) {
+    if let Some(current) = state.by_id.get(&id) {
+        let mut next = (**current).clone();
+        update_row_from_summary(&mut next, &detail.summary);
+        state.by_id.insert(id, Rc::new(next));
+    }
     state.details_by_id.insert(id, Rc::new(detail));
+}
+
+fn update_row_from_summary(row: &mut TorrentRow, summary: &TorrentSummary) {
+    row.tags.clone_from(&summary.tags);
+    row.tracker = summary.trackers.first().cloned().unwrap_or_default();
+    row.category = summary
+        .category
+        .clone()
+        .unwrap_or_else(|| "uncategorized".to_string());
+    if let Some(name) = summary.name.as_ref() {
+        row.name.clone_from(name);
+    }
+    let path = summary
+        .download_dir
+        .clone()
+        .or_else(|| summary.library_path.clone());
+    if let Some(path) = path {
+        row.path = path;
+    }
 }
 
 /// Update file selection state for a cached detail payload.

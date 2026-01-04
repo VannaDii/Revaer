@@ -1,5 +1,11 @@
 use crate::app::Route;
+use crate::components::atoms::IconButton;
+use crate::components::atoms::icons::{
+    IconAlertTriangle, IconDownload, IconFileText, IconHome, IconLogOut, IconMenu, IconMoon,
+    IconPanelLeftClose, IconPanelLeftDashed, IconRefreshCw, IconServer, IconSettings, IconSun,
+};
 use crate::components::connectivity::{ConnectivityIndicator, ConnectivityModal};
+use crate::components::daisy::DaisySize;
 use crate::core::store::{select_sse_status, select_sse_status_summary};
 use crate::core::theme::ThemeMode;
 use crate::models::NavLabels;
@@ -95,10 +101,26 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                             for="layout-sidebar-hover-trigger"
                             title="Toggle sidebar hover"
                             class="btn btn-circle btn-ghost btn-sm text-base-content/50 relative max-lg:hidden">
-                            <span
-                                class="iconify lucide--panel-left-close absolute size-4.5 opacity-100 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-0"></span>
-                            <span
-                                class="iconify lucide--panel-left-dashed absolute size-4.5 opacity-0 transition-all duration-300 group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-100"></span>
+                            <IconPanelLeftClose
+                                class={classes!(
+                                    "absolute",
+                                    "opacity-100",
+                                    "transition-all",
+                                    "duration-300",
+                                    "group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-0"
+                                )}
+                                size={Some(AttrValue::from("4.5"))}
+                            />
+                            <IconPanelLeftDashed
+                                class={classes!(
+                                    "absolute",
+                                    "opacity-0",
+                                    "transition-all",
+                                    "duration-300",
+                                    "group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:opacity-100"
+                                )}
+                                size={Some(AttrValue::from("4.5"))}
+                            />
                         </label>
                     </div>
                     <div class="relative min-h-0 grow">
@@ -108,7 +130,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                 <Link<Route>
                                     to={Route::Dashboard}
                                     classes={menu_item_class(home_active)}>
-                                    <span class="iconify lucide--home size-4"></span>
+                                    <IconHome size={Some(AttrValue::from("4"))} />
                                     <span class="sidebar-nav__label grow">
                                         {props.nav.dashboard.clone()}
                                     </span>
@@ -116,7 +138,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                 <Link<Route>
                                     to={Route::Torrents}
                                     classes={menu_item_class(torrents_active)}>
-                                    <span class="iconify lucide--download size-4"></span>
+                                    <IconDownload size={Some(AttrValue::from("4"))} />
                                     <span class="sidebar-nav__label grow">
                                         {props.nav.torrents.clone()}
                                     </span>
@@ -124,7 +146,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                 <Link<Route>
                                     to={Route::Settings}
                                     classes={menu_item_class(settings_active)}>
-                                    <span class="iconify lucide--settings size-4"></span>
+                                    <IconSettings size={Some(AttrValue::from("4"))} />
                                     <span class="sidebar-nav__label grow">
                                         {props.nav.settings.clone()}
                                     </span>
@@ -147,7 +169,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                 Callback::from(move |_| cb.emit(()))
                             }}
                             aria-label="Logout">
-                            <span class="iconify lucide--log-out size-4"></span>
+                            <IconLogOut size={Some(AttrValue::from("4"))} />
                             <span class="sidebar-footer__label">{"Logout"}</span>
                         </button>
                     </div>
@@ -166,13 +188,13 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                 class="btn btn-square btn-ghost btn-sm group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:hidden"
                                 aria-label="Leftmenu toggle"
                                 for="layout-sidebar-toggle-trigger">
-                                <span class="iconify lucide--menu size-5"></span>
+                                <IconMenu size={Some(AttrValue::from("5"))} />
                             </label>
                             <label
                                 class="btn btn-square btn-ghost btn-sm hidden group-has-[[id=layout-sidebar-hover-trigger]:checked]/html:flex"
                                 aria-label="Leftmenu toggle"
                                 for="layout-sidebar-hover-trigger">
-                                <span class="iconify lucide--menu size-5"></span>
+                                <IconMenu size={Some(AttrValue::from("5"))} />
                             </label>
                             <div class="breadcrumbs p-0 text-sm">
                                 <ul>
@@ -181,28 +203,28 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                             </div>
                         </div>
                         <div class="inline-flex items-center gap-1.5">
-                            <button
-                                aria-label="Toggle Theme"
-                                class="btn btn-sm btn-circle btn-ghost"
+                            <IconButton
+                                icon={if props.theme == ThemeMode::Dark {
+                                    html! { <IconSun size={Some(AttrValue::from("4.5"))} /> }
+                                } else {
+                                    html! { <IconMoon size={Some(AttrValue::from("4.5"))} /> }
+                                }}
+                                label={AttrValue::from("Toggle Theme")}
+                                size={DaisySize::Sm}
+                                circle={true}
                                 onclick={{
                                     let cb = props.on_toggle_theme.clone();
                                     Callback::from(move |_| cb.emit(()))
-                                }}>
-                                {if props.theme == ThemeMode::Dark {
-                                    html! { <span class="iconify lucide--sun size-4.5"></span> }
-                                } else {
-                                    html! { <span class="iconify lucide--moon size-4.5"></span> }
                                 }}
-                            </button>
+                            />
                             {props.locale_selector.clone()}
                             <div class="dropdown dropdown-bottom dropdown-end z-60">
-                                <div
-                                    tabindex="0"
-                                    role="button"
-                                    class="btn btn-circle btn-ghost btn-sm"
-                                    aria-label="Server menu">
-                                    <span class="iconify lucide--server size-4.5"></span>
-                                </div>
+                                <IconButton
+                                    icon={html! { <IconServer size={Some(AttrValue::from("4.5"))} /> }}
+                                    label={AttrValue::from("Server menu")}
+                                    size={DaisySize::Sm}
+                                    circle={true}
+                                />
                                 <ul
                                     tabindex="0"
                                     role="menu"
@@ -213,7 +235,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                                 let cb = props.on_server_restart.clone();
                                                 Callback::from(move |_| cb.emit(()))
                                             }}>
-                                            <span class="iconify lucide--refresh-cw size-4"></span>
+                                            <IconRefreshCw size={Some(AttrValue::from("4"))} />
                                             <span>{"Restart server"}</span>
                                         </button>
                                     </li>
@@ -223,7 +245,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                                 let cb = props.on_server_logs.clone();
                                                 Callback::from(move |_| cb.emit(()))
                                             }}>
-                                            <span class="iconify lucide--file-text size-4"></span>
+                                            <IconFileText size={Some(AttrValue::from("4"))} />
                                             <span>{"View logs"}</span>
                                         </button>
                                     </li>
@@ -237,7 +259,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                                 let cb = props.on_factory_reset.clone();
                                                 Callback::from(move |_| cb.emit(()))
                                             }}>
-                                            <span class="iconify lucide--alert-triangle size-4"></span>
+                                            <IconAlertTriangle size={Some(AttrValue::from("4"))} />
                                             <span>{"Factory reset"}</span>
                                         </button>
                                     </li>

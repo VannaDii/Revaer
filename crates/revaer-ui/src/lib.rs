@@ -57,10 +57,10 @@ mod tests {
     }
 
     #[test]
-    fn translation_fallbacks_work() {
+    fn translation_missing_keys_are_explicit() {
         let bundle = TranslationBundle::new(LocaleCode::Fr);
         assert_eq!(bundle.text("nav.dashboard"), "Tableau de bord");
-        assert_eq!(bundle.text("nav.missing_key"), "nav.missing_key");
+        assert_eq!(bundle.text("nav.missing_key"), "missing:nav.missing_key");
     }
 
     #[test]

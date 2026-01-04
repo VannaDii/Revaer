@@ -21,7 +21,7 @@ use crate::core::ui::{Density, UiMode};
 use crate::features::dashboard::DashboardPage;
 use crate::features::health::view::HealthPage;
 use crate::features::logs::view::LogsPage;
-use crate::features::settings::view::SettingsPage;
+use crate::features::settings::view::{SettingsPage, SettingsTab};
 use crate::features::torrents::actions::{TorrentAction, success_message};
 use crate::features::torrents::state::{
     ProgressPatch, SelectionSet, TorrentRow, TorrentSortState, TorrentsPaging, TorrentsQueryModel,
@@ -55,7 +55,7 @@ use preferences::{
 pub(crate) use routes::Route;
 use serde_json::{Value, json};
 use std::cell::RefCell;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::rc::Rc;
 use uuid::Uuid;
 use wasm_bindgen::JsValue;
@@ -87,9 +87,12 @@ pub fn revaer_app() -> Html {
     let factory_reset_open = use_state(|| false);
     let factory_reset_busy = use_state(|| false);
     let toast_id = use_state(|| 0u64);
+    let requested_settings_tab = use_state(|| None::<SettingsTab>);
     let sse_handle = use_mut_ref(|| None as Option<SseHandle>);
     let sse_reset = use_state(|| 0u32);
     let refresh_timer = use_mut_ref(|| None as Option<Timeout>);
+    let detail_refresh_timer = use_mut_ref(|| None as Option<Timeout>);
+    let detail_refresh_pending = use_mut_ref(|| HashSet::<Uuid>::new());
     let token_refresh_timer = use_mut_ref(|| None as Option<Timeout>);
     let token_refresh_tick = use_state(|| 0u32);
     let progress_buffer = use_mut_ref(|| HashMap::<Uuid, ProgressPatch>::new());
@@ -190,6 +193,7 @@ pub fn revaer_app() -> Html {
     let config_busy_value = *config_busy;
     let config_save_busy_value = *config_save_busy;
     let test_busy_value = *test_busy;
+    let requested_settings_tab_value = *requested_settings_tab;
     let settings_base_url = api_base_url();
     let dismiss_auth_prompt = {
         let auth_prompt_dismissed = auth_prompt_dismissed.clone();
@@ -209,6 +213,20 @@ pub fn revaer_app() -> Html {
                 navigator.push(&route);
             }
         })
+    };
+    let on_manage_labels = {
+        let navigator = navigator.clone();
+        let requested_settings_tab = requested_settings_tab.clone();
+        Callback::from(move |_| {
+            requested_settings_tab.set(Some(SettingsTab::Labels));
+            if let Some(navigator) = navigator.clone() {
+                navigator.push(&Route::Settings);
+            }
+        })
+    };
+    let on_clear_requested_tab = {
+        let requested_settings_tab = requested_settings_tab.clone();
+        Callback::from(move |_| requested_settings_tab.set(None))
     };
     let current_route = use_route::<Route>().unwrap_or_else(|| {
         let Some(location) = location.as_ref() else {
@@ -825,6 +843,65 @@ pub fn revaer_app() -> Html {
             *refresh_timer.borrow_mut() = Some(handle);
         })
     };
+    let schedule_detail_refresh = {
+        let detail_refresh_timer = detail_refresh_timer.clone();
+        let detail_refresh_pending = detail_refresh_pending.clone();
+        let dispatch = dispatch.clone();
+        let api_ctx = (*api_ctx).clone();
+        let toast_id = toast_id.clone();
+        let bundle = (*bundle).clone();
+        Callback::from(move |id: Uuid| {
+            {
+                let mut pending = detail_refresh_pending.borrow_mut();
+                if !pending.insert(id) {
+                    return;
+                }
+            }
+            if detail_refresh_timer.borrow().is_some() {
+                return;
+            }
+            let detail_refresh_timer_handle = detail_refresh_timer.clone();
+            let detail_refresh_pending = detail_refresh_pending.clone();
+            let dispatch = dispatch.clone();
+            let client = api_ctx.client.clone();
+            let toast_id = toast_id.clone();
+            let bundle = bundle.clone();
+            let handle = Timeout::new(300, move || {
+                detail_refresh_timer_handle.borrow_mut().take();
+                let ids = {
+                    let mut pending = detail_refresh_pending.borrow_mut();
+                    let ids = pending.iter().copied().collect::<Vec<_>>();
+                    pending.clear();
+                    ids
+                };
+                if ids.is_empty() {
+                    return;
+                }
+                let auth_state = dispatch.get().auth.state.clone();
+                if auth_state.is_none() {
+                    return;
+                }
+                yew::platform::spawn_local(async move {
+                    for id in ids {
+                        if let Some(detail) = fetch_torrent_detail_with_retry(
+                            client.clone(),
+                            dispatch.clone(),
+                            toast_id.clone(),
+                            bundle.clone(),
+                            id,
+                        )
+                        .await
+                        {
+                            dispatch.reduce_mut(|store| {
+                                upsert_detail(&mut store.torrents, id, detail);
+                            });
+                        }
+                    }
+                });
+            });
+            *detail_refresh_timer.borrow_mut() = Some(handle);
+        })
+    };
 
     {
         let dispatch = dispatch.clone();
@@ -971,12 +1048,14 @@ pub fn revaer_app() -> Html {
                         let dispatch = dispatch.clone();
                         let progress_buffer = progress_buffer.clone();
                         let schedule_refresh = schedule_refresh.clone();
+                        let schedule_detail_refresh = schedule_detail_refresh.clone();
                         Callback::from(move |envelope: UiEventEnvelope| {
                             handle_sse_envelope(
                                 envelope,
                                 &dispatch,
                                 &progress_buffer,
                                 &schedule_refresh,
+                                &schedule_detail_refresh,
                             );
                         })
                     };
@@ -2129,6 +2208,7 @@ pub fn revaer_app() -> Html {
                                         on_action={on_action.clone()}
                                         on_navigate={on_navigate.clone()}
                                         on_add={on_add_torrent.clone()}
+                                        on_manage_labels={on_manage_labels.clone()}
                                         add_busy={add_busy_value}
                                         create_result={create_result_value.clone()}
                                         create_error={create_error_value.clone()}
@@ -2173,6 +2253,7 @@ pub fn revaer_app() -> Html {
                                         on_action={on_action.clone()}
                                         on_navigate={on_navigate.clone()}
                                         on_add={on_add_torrent.clone()}
+                                        on_manage_labels={on_manage_labels.clone()}
                                         add_busy={add_busy_value}
                                         create_result={create_result_value.clone()}
                                         create_error={create_error_value.clone()}
@@ -2223,6 +2304,8 @@ pub fn revaer_app() -> Html {
                                     config_error={config_error_value.clone()}
                                     config_busy={config_busy_value}
                                     config_save_busy={config_save_busy_value}
+                                    requested_tab={requested_settings_tab_value}
+                                    on_clear_requested_tab={on_clear_requested_tab.clone()}
                                     on_refresh_config={on_refresh_config.clone()}
                                     on_apply_settings={on_apply_settings.clone()}
                                     on_copy_value={on_copy_value.clone()}
@@ -2732,6 +2815,7 @@ fn handle_sse_envelope(
     dispatch: &Dispatch<AppStore>,
     progress_buffer: &Rc<RefCell<HashMap<Uuid, ProgressPatch>>>,
     schedule_refresh: &Callback<()>,
+    schedule_detail_refresh: &Callback<Uuid>,
 ) {
     let mut outcome = None;
     let mut envelope = Some(envelope);
@@ -2746,6 +2830,7 @@ fn handle_sse_envelope(
             progress_buffer.borrow_mut().insert(patch.id, patch);
         }
         SseApplyOutcome::Refresh => schedule_refresh.emit(()),
+        SseApplyOutcome::RefreshTorrent { id } => schedule_detail_refresh.emit(id),
         SseApplyOutcome::SystemRates {
             download_bps,
             upload_bps,

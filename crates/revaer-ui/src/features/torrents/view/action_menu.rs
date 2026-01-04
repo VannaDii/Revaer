@@ -4,6 +4,9 @@
 //! - Keep menu rendering stateless and driven by caller-supplied items.
 //! - Emit callbacks only; no side effects or state are stored here.
 
+use crate::components::atoms::IconButton;
+use crate::components::atoms::icons::IconMoreHorizontal;
+use crate::components::daisy::DaisySize;
 use crate::i18n::TranslationBundle;
 use web_sys::MouseEvent;
 use yew::prelude::*;
@@ -39,13 +42,13 @@ pub(crate) fn render_action_menu(bundle: &TranslationBundle, items: Vec<ActionMe
     }
     html! {
         <div class="dropdown dropdown-end">
-            <button
-                type="button"
-                tabindex="0"
-                aria-label={bundle.text("torrents.more")}
-                class="btn btn-ghost btn-xs btn-square">
-                <span class="iconify lucide--more-horizontal size-4"></span>
-            </button>
+            <IconButton
+                icon={html! { <IconMoreHorizontal size={Some(AttrValue::from("4"))} /> }}
+                label={AttrValue::from(bundle.text("torrents.more"))}
+                size={DaisySize::Xs}
+                class={classes!("btn-square")}
+                r#type={Some(AttrValue::from("button"))}
+            />
             <ul
                 tabindex="0"
                 class="dropdown-content menu bg-base-100 rounded-box w-44 p-1 shadow">

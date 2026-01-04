@@ -1,3 +1,7 @@
+use crate::components::atoms::icons::{
+    IconArrowDown, IconArrowUp, IconCircleDollarSign, IconEraser, IconPackage, IconUsers,
+    IconVariant,
+};
 use crate::core::logic::format_rate;
 use crate::core::store::SystemRates;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
@@ -36,15 +40,16 @@ pub(crate) fn dashboard_stats_cards(props: &DashboardStatsCardsProps) -> Html {
                                 </p>
                                 <div
                                     class="badge badge-soft badge-success badge-sm gap-0.5 px-1 font-medium">
-                                    <span
-                                        class="iconify lucide--arrow-up size-3.5"></span>
+                                    <IconArrowUp size={Some(AttrValue::from("3.5"))} />
                                     {"10.8%"}
                                 </div>
                             </div>
                         </div>
                         <div class="bg-base-200 rounded-box flex items-center p-2">
-                            <span
-                                class="iconify lucide--circle-dollar-sign size-5"></span>
+                            <IconCircleDollarSign
+                                size={Some(AttrValue::from("5"))}
+                                variant={IconVariant::Solid}
+                            />
                         </div>
                     </div>
                     <p class="text-base-content/60 text-sm">
@@ -67,14 +72,13 @@ pub(crate) fn dashboard_stats_cards(props: &DashboardStatsCardsProps) -> Html {
                                 </p>
                                 <div
                                     class="badge badge-soft badge-success badge-sm gap-0.5 px-1 font-medium">
-                                    <span
-                                        class="iconify lucide--arrow-up size-3.5"></span>
+                                    <IconArrowUp size={Some(AttrValue::from("3.5"))} />
                                     {"21.2%"}
                                 </div>
                             </div>
                         </div>
                         <div class="bg-base-200 rounded-box flex items-center p-2">
-                            <span class="iconify lucide--package size-5"></span>
+                            <IconPackage size={Some(AttrValue::from("5"))} />
                         </div>
                     </div>
                     <p class="text-base-content/60 text-sm">
@@ -97,14 +101,13 @@ pub(crate) fn dashboard_stats_cards(props: &DashboardStatsCardsProps) -> Html {
                                 </p>
                                 <div
                                     class="badge badge-soft badge-error badge-sm gap-0.5 px-1 font-medium">
-                                    <span
-                                        class="iconify lucide--arrow-down size-3.5"></span>
+                                    <IconArrowDown size={Some(AttrValue::from("3.5"))} />
                                     {"-6.8%"}
                                 </div>
                             </div>
                         </div>
                         <div class="bg-base-200 rounded-box flex items-center p-2">
-                            <span class="iconify lucide--users size-5"></span>
+                            <IconUsers size={Some(AttrValue::from("5"))} />
                         </div>
                     </div>
                     <p class="text-base-content/60 text-sm">
@@ -127,14 +130,13 @@ pub(crate) fn dashboard_stats_cards(props: &DashboardStatsCardsProps) -> Html {
                                 </p>
                                 <div
                                     class="badge badge-soft badge-success badge-sm gap-0.5 px-1 font-medium">
-                                    <span
-                                        class="iconify lucide--arrow-up size-3.5"></span>
+                                    <IconArrowUp size={Some(AttrValue::from("3.5"))} />
                                     {"8.5%"}
                                 </div>
                             </div>
                         </div>
                         <div class="bg-base-200 rounded-box flex items-center p-2">
-                            <span class="iconify lucide--eraser size-5"></span>
+                            <IconEraser size={Some(AttrValue::from("5"))} />
                         </div>
                     </div>
                     <p class="text-base-content/60 text-sm">

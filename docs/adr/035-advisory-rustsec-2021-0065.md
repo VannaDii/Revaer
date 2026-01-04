@@ -1,6 +1,6 @@
 # Advisory RUSTSEC-2021-0065 Temporary Ignore
 
-- Status: Accepted
+- Status: Superseded by 073 (vendored yewdux exception tracked in ADR 074)
 - Date: 2025-12-24
 - Context:
   - The UI depends on `yewdux`, which transitively pulls `anymap` and triggers advisory `RUSTSEC-2021-0065` (unmaintained).
@@ -16,6 +16,7 @@
 - Follow-up:
   - Re-evaluate `yewdux` upgrade paths quarterly; remove the ignore once `anymap` is no longer required.
   - If upstream is stalled, evaluate a UI store replacement or a fork that removes `anymap`.
+- Superseded: `.secignore` cleaned in ADR 073; vendored yewdux exception tracked in ADR 074 (no `anymap` crate dependency reintroduced).
 
 ## Motivation
 

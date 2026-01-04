@@ -6,6 +6,7 @@
 //! - Maintain a local draft for config edits to keep the UI responsive.
 
 use crate::app::api::ApiCtx;
+use crate::components::atoms::icons::{IconFile, IconFolder};
 use crate::components::daisy::{Input, Modal, Select, Toggle};
 use crate::core::auth::{AuthMode, AuthState, LocalAuth};
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
@@ -31,6 +32,8 @@ pub(crate) struct SettingsPageProps {
     pub config_error: Option<String>,
     pub config_busy: bool,
     pub config_save_busy: bool,
+    pub requested_tab: Option<SettingsTab>,
+    pub on_clear_requested_tab: Callback<()>,
     pub on_refresh_config: Callback<()>,
     pub on_apply_settings: Callback<Value>,
     pub on_copy_value: Callback<String>,
@@ -66,7 +69,7 @@ struct SettingsConfigProps {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum SettingsTab {
+pub(crate) enum SettingsTab {
     Connection,
     Downloads,
     Seeding,
@@ -272,6 +275,20 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
         let bundle = bundle.clone();
         move |key: &str| bundle.text(key)
     };
+    {
+        let active_tab = active_tab.clone();
+        let on_clear_requested_tab = props.on_clear_requested_tab.clone();
+        let requested_tab = props.requested_tab;
+        use_effect_with(requested_tab, move |requested_tab| {
+            if let Some(tab) = *requested_tab {
+                if *active_tab != tab {
+                    active_tab.set(tab);
+                }
+                on_clear_requested_tab.emit(());
+            }
+            || ()
+        });
+    }
     let config_props = SettingsConfigProps {
         active_tab: *active_tab,
         config_snapshot: props.config_snapshot.clone(),
@@ -4434,7 +4451,6 @@ fn render_path_browser(
                                 {for entries.into_iter().map(|entry| {
                                     let path = entry.path.clone();
                                     let is_dir = matches!(entry.kind, FsEntryKind::Directory | FsEntryKind::Symlink);
-                                    let icon = if is_dir { "lucide--folder" } else { "lucide--file" };
                                     let on_click = {
                                         let callback = callbacks.on_navigate.clone();
                                         Callback::from(move |_| {
@@ -4446,7 +4462,11 @@ fn render_path_browser(
                                     html! {
                                         <li>
                                             <button class={classes!((!is_dir).then_some("text-base-content/40"))} onclick={on_click}>
-                                                <span class={classes!("iconify", icon, "size-4")}></span>
+                                                {if is_dir {
+                                                    html! { <IconFolder size={Some(AttrValue::from("4"))} /> }
+                                                } else {
+                                                    html! { <IconFile size={Some(AttrValue::from("4"))} /> }
+                                                }}
                                                 <span class="truncate">{entry.name.clone()}</span>
                                             </button>
                                         </li>

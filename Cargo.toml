@@ -57,5 +57,4 @@ revaer-test-support = { path = "crates/revaer-test-support" }
 [workspace.metadata.cargo-llvm-cov]
 
 [patch.crates-io]
-hashlink = { path = "vendor/hashlink" }
-yewdux = { path = "vendor/yewdux" }
+yewdux = { path = "vendor/yewdux/crates/yewdux" }

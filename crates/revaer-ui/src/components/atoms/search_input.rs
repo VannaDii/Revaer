@@ -4,6 +4,7 @@
 //! - Keep local input state for immediate typing feedback.
 //! - Emit debounced values to the caller for shared state updates.
 
+use crate::components::atoms::icons::IconSearch;
 use crate::components::daisy::{DaisyColor, DaisySize, tone_class};
 use gloo_timers::callback::Timeout;
 use yew::prelude::*;
@@ -85,7 +86,7 @@ pub(crate) fn search_input(props: &SearchInputProps) -> Html {
     html! {
         <label
             class={label_classes}>
-            <span class="iconify lucide--search text-base-content/80 size-3.5"></span>
+            <IconSearch class={classes!("text-base-content/80")} size={Some(AttrValue::from("3.5"))} />
             <input
                 class={classes!(
                     "text-base",

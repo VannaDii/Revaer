@@ -12,7 +12,10 @@ use self::action_menu::{ActionMenuItem, render_action_menu};
 use self::detail::{DetailView, FileSelectionChange};
 use self::modals::{AddTorrentPanel, CopyKind, CreateTorrentPanel};
 use crate::app::Route;
-use crate::components::atoms::{BulkActionBar, EmptyState, SearchInput};
+use crate::components::atoms::icons::{
+    IconChevronDown, IconChevronUp, IconPlus, IconUpload, IconX,
+};
+use crate::components::atoms::{BulkActionBar, EmptyState, IconButton, SearchInput};
 use crate::components::daisy::{DaisySize, Drawer, Input, Loading, Modal, MultiSelect, Select};
 use crate::core::logic::{
     ShortcutOutcome, format_rate, interpret_shortcut, parse_rate_input, parse_tags,
@@ -48,6 +51,7 @@ pub(crate) struct TorrentProps {
     pub on_action: Callback<(TorrentAction, Uuid)>,
     pub on_navigate: Callback<Route>,
     pub on_add: Callback<AddTorrentInput>,
+    pub on_manage_labels: Callback<()>,
     pub add_busy: bool,
     /// Latest create-torrent result (if any).
     pub create_result: Option<TorrentAuthorResponse>,
@@ -698,13 +702,13 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                                             }).collect::<Html>()}
                                         </div>
                                         <button class="btn btn-outline btn-sm" onclick={open_create_modal.clone()}>
-                                            <span class="iconify lucide--plus size-4"></span>
+                                            <IconPlus size={Some(AttrValue::from("4"))} />
                                             <span class="hidden sm:inline">
                                                 {bundle.text("torrents.create_title")}
                                             </span>
                                         </button>
                                         <button class="btn btn-primary btn-sm" onclick={open_add_modal.clone()}>
-                                            <span class="iconify lucide--upload size-4"></span>
+                                            <IconUpload size={Some(AttrValue::from("4"))} />
                                             <span class="hidden sm:inline">{t("toolbar.add")}</span>
                                         </button>
                                     </div>
@@ -956,18 +960,23 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                                 <h3 class="text-lg font-semibold">{t("torrents.add_title")}</h3>
                                 <p class="text-sm text-base-content/60">{t("torrents.add_subtitle")}</p>
                             </div>
-                            <button
-                                class="btn btn-circle btn-ghost btn-sm"
+                            <IconButton
+                                icon={html! { <IconX size={Some(AttrValue::from("4"))} /> }}
+                                label={AttrValue::from(t("torrents.close_modal"))}
+                                size={DaisySize::Sm}
+                                circle={true}
                                 onclick={{
                                     let close_add_modal = close_add_modal.clone();
                                     Callback::from(move |_| close_add_modal.emit(()))
                                 }}
-                                aria-label={t("torrents.close_modal")}>
-                                <span class="iconify lucide--x size-4"></span>
-                            </button>
+                            />
                         </div>
                         <div class="mt-4">
-                            <AddTorrentPanel on_submit={submit_add.clone()} pending={props.add_busy} />
+                            <AddTorrentPanel
+                                on_submit={submit_add.clone()}
+                                on_manage_labels={props.on_manage_labels.clone()}
+                                pending={props.add_busy}
+                            />
                         </div>
                     </Modal>
                 }
@@ -984,20 +993,22 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                                 <h3 class="text-lg font-semibold">{t("torrents.create_title")}</h3>
                                 <p class="text-sm text-base-content/60">{t("torrents.create_subtitle")}</p>
                             </div>
-                            <button
-                                class="btn btn-circle btn-ghost btn-sm"
+                            <IconButton
+                                icon={html! { <IconX size={Some(AttrValue::from("4"))} /> }}
+                                label={AttrValue::from(t("torrents.close_modal"))}
+                                size={DaisySize::Sm}
+                                circle={true}
                                 onclick={{
                                     let close_create_modal = close_create_modal.clone();
                                     Callback::from(move |_| close_create_modal.emit(()))
                                 }}
-                                aria-label={t("torrents.close_modal")}>
-                                <span class="iconify lucide--x size-4"></span>
-                            </button>
+                            />
                         </div>
                         <div class="mt-4">
                             <CreateTorrentPanel
                                 on_submit={props.on_create.clone()}
                                 on_copy={props.on_copy_payload.clone()}
+                                on_manage_labels={props.on_manage_labels.clone()}
                                 pending={props.create_busy}
                                 result={props.create_result.clone()}
                                 error={props.create_error.clone()}
@@ -1143,8 +1154,22 @@ fn sortable_header(
                 onclick={onclick}>
                 <span>{label}</span>
                 <div class="flex flex-col items-center justify-center -space-y-1.5">
-                    <span class="iconify lucide--chevron-up text-base-content size-3.5 opacity-40 group-data-[sorting=asc]:opacity-100"></span>
-                    <span class="iconify lucide--chevron-down text-base-content size-3.5 opacity-40 group-data-[sorting=desc]:opacity-100"></span>
+                    <IconChevronUp
+                        class={classes!(
+                            "text-base-content",
+                            "opacity-40",
+                            "group-data-[sorting=asc]:opacity-100"
+                        )}
+                        size={Some(AttrValue::from("3.5"))}
+                    />
+                    <IconChevronDown
+                        class={classes!(
+                            "text-base-content",
+                            "opacity-40",
+                            "group-data-[sorting=desc]:opacity-100"
+                        )}
+                        size={Some(AttrValue::from("3.5"))}
+                    />
                 </div>
             </div>
         </th>

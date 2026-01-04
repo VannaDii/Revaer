@@ -100,3 +100,6 @@
     -   [070: Dashboard UI checklist completion and auth/SSE hardening](adr/070-dashboard-ui-checklist.md)
     -   [071: Libtorrent native fallback for default CI](adr/071-libtorrent-native-fallback.md)
     -   [072: Agent compliance refactor (UI + HTTP + Config Layout)](adr/072-agent-compliance-refactor.md)
+    -   [073: UI checklist follow-ups: SSE detail refresh, labels shortcuts, strict i18n, and anymap removal](adr/073-ui-checklist-followups.md)
+    -   [074: Temporary vendoring of yewdux for latest Yew compatibility](adr/074-vendored-yewdux-latest-yew.md)
+    -   [075: Coverage gate tests for config loader and data toggles](adr/075-coverage-gate-tests.md)

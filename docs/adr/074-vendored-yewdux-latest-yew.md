@@ -1,0 +1,24 @@
+# Temporary vendoring of yewdux for latest Yew compatibility
+
+- Status: Accepted
+- Date: 2026-01-03
+- Context:
+  - We must stay on the latest crates.io `yew` and `yew-router`.
+  - `yewdux` on crates.io (0.11) depends on `yew` 0.21, which conflicts with `yew-router` 0.19 (`yew` 0.22).
+  - Git dependencies are disallowed, and vendoring is normally disallowed.
+- Decision:
+  - Vendor `yewdux` under `vendor/yewdux` and update it to compile against `yew` 0.22.
+  - Patch the workspace to use the vendored `yewdux` while keeping all other dependencies on crates.io.
+  - Document the exception in `AGENT.md` with a hard requirement to remove the vendored copy once a compatible crates.io release exists.
+  - Alternatives considered:
+    - Wait on the latest Yew (rejected; staying current is top priority).
+    - Replace `yewdux` with an internal store (larger refactor; deferred unless compatibility stalls).
+    - Use git dependencies (rejected by policy).
+- Consequences:
+  - We stay current with `yew`/`yew-router` without git dependencies.
+  - We own the maintenance burden for the vendored `yewdux` until upstream compatibility lands.
+  - Risk of drift from upstream; requires periodic review and eventual removal.
+- Follow-up:
+  - Monitor crates.io `yewdux` releases for `yew` 0.22 compatibility.
+  - Remove `vendor/yewdux`, the workspace patch, and the AGENT exception once compatible.
+  - Run `just ci` after each `yew`/`yew-router` upgrade.

@@ -1,4 +1,6 @@
-use crate::components::daisy::List;
+use crate::components::atoms::IconButton;
+use crate::components::atoms::icons::{IconDownload, IconEye, IconShoppingBag, IconTrash};
+use crate::components::daisy::{DaisyColor, DaisySize, DaisyVariant, List};
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::{DashboardSnapshot, EventKind};
 use yew::prelude::*;
@@ -61,18 +63,20 @@ pub(crate) fn dashboard_recent_events(props: &DashboardRecentEventsProps) -> Htm
                                     <div class={classes!("badge", badge_class, "badge-sm", "badge-soft")}>{badge_label}</div>
                                 </div>
                                 <div class="flex items-center gap-1">
-                                    <button
-                                        aria-label="Show product"
-                                        class="btn btn-square btn-ghost btn-xs">
-                                        <span
-                                            class="iconify lucide--eye text-base-content/60 size-4"></span>
-                                    </button>
-                                    <button
-                                        aria-label="Show product"
-                                        class="btn btn-square btn-error btn-outline btn-xs border-transparent">
-                                        <span
-                                            class="iconify lucide--trash size-4"></span>
-                                    </button>
+                                    <IconButton
+                                        icon={html! { <IconEye class={classes!("text-base-content/60")} size={Some(AttrValue::from("4"))} /> }}
+                                        label={AttrValue::from("Show product")}
+                                        size={DaisySize::Xs}
+                                        class={classes!("btn-square")}
+                                    />
+                                    <IconButton
+                                        icon={html! { <IconTrash size={Some(AttrValue::from("4"))} /> }}
+                                        label={AttrValue::from("Delete")}
+                                        size={DaisySize::Xs}
+                                        class={classes!("btn-square", "border-transparent")}
+                                        tone={Some(DaisyColor::Error)}
+                                        variant={DaisyVariant::Outline}
+                                    />
                                 </div>
                             </div>
                         </li>
@@ -86,10 +90,10 @@ pub(crate) fn dashboard_recent_events(props: &DashboardRecentEventsProps) -> Htm
             <div aria-label="Card" class="card bg-base-100 shadow">
                 <div class="card-body p-0">
                     <div class="flex items-center gap-3 px-5 pt-5">
-                        <span class="iconify lucide--shopping-bag size-4.5"></span>
+                        <IconShoppingBag size={Some(AttrValue::from("4.5"))} />
                         <span class="font-medium">{t("dashboard.events")}</span>
                         <button class="btn btn-outline border-base-300 btn-sm ms-auto">
-                            <span class="iconify lucide--download size-3.5"></span>
+                            <IconDownload size={Some(AttrValue::from("3.5"))} />
                             {"Report"}
                         </button>
                     </div>

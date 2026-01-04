@@ -52,6 +52,8 @@
     "category_placeholder": "tv, movies, music",
     "tags": "Tags",
     "tags_placeholder": "4K, hevc, scene",
+    "manage_categories": "Manage categories",
+    "manage_tags": "Manage tags",
     "save_path": "Save path",
     "save_path_placeholder": ".server_root/downloads",
     "rate_placeholder": "e.g. 1048576",

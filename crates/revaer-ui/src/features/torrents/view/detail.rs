@@ -6,7 +6,9 @@
 
 use super::action_menu::{ActionMenuItem, render_action_menu};
 use crate::Pane;
-use crate::components::atoms::EmptyState;
+use crate::components::atoms::icons::{IconAlertTriangle, IconX};
+use crate::components::atoms::{EmptyState, IconButton};
+use crate::components::daisy::DaisySize;
 use crate::core::logic::{format_bytes, format_rate};
 use crate::features::torrents::actions::TorrentAction;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
@@ -250,12 +252,13 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
                                 }
                             })}
                         </div>
-                        <button
-                            class="btn btn-ghost btn-xs btn-circle"
-                            aria-label={t("confirm.cancel")}
-                            onclick={on_close}>
-                            <span class="iconify lucide--x size-4"></span>
-                        </button>
+                        <IconButton
+                            icon={html! { <IconX size={Some(AttrValue::from("4"))} /> }}
+                            label={AttrValue::from(t("confirm.cancel"))}
+                            size={DaisySize::Xs}
+                            circle={true}
+                            onclick={on_close}
+                        />
                     </div>
                 </div>
 
@@ -272,7 +275,7 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
                         </div>
                         {last_error.as_ref().map(|message| html! {
                             <div class="alert alert-error text-sm">
-                                <span class="iconify lucide--alert-triangle size-4"></span>
+                                <IconAlertTriangle size={Some(AttrValue::from("4"))} />
                                 <div class="flex flex-wrap items-center gap-2">
                                     <span class="badge badge-sm badge-error badge-soft">
                                         {t("detail.overview.last_error")}

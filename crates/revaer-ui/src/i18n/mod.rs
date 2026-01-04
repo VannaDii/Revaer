@@ -143,7 +143,7 @@ impl LocaleCode {
     }
 }
 
-/// Default fallback locale.
+/// Default locale.
 pub const DEFAULT_LOCALE: LocaleCode = LocaleCode::En;
 
 /// Translation bundle containing a parsed JSON tree for the locale.
@@ -152,7 +152,6 @@ pub struct TranslationBundle {
     /// Locale backing this bundle.
     pub locale: LocaleCode,
     tree: Value,
-    fallback: Option<Value>,
     rtl: bool,
 }
 
@@ -168,36 +167,18 @@ impl TranslationBundle {
     pub fn new(locale: LocaleCode) -> Self {
         let raw = raw_locale(locale);
         let tree: Value = serde_json::from_str(raw).unwrap_or(Value::Null);
-        let fallback = if locale == DEFAULT_LOCALE {
-            None
-        } else {
-            let raw_fallback = raw_locale(DEFAULT_LOCALE);
-            let fallback_tree: Value = serde_json::from_str(raw_fallback).unwrap_or(Value::Null);
-            Some(fallback_tree)
-        };
         let rtl = tree
             .get("meta")
             .and_then(|meta| meta.get("rtl"))
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        Self {
-            locale,
-            tree,
-            fallback,
-            rtl,
-        }
+        Self { locale, tree, rtl }
     }
 
-    /// Resolve a dotted path (`section.key`) with key fallback.
+    /// Resolve a dotted path (`section.key`) or surface an explicit missing marker.
     #[must_use]
     pub fn text(&self, path: &str) -> String {
-        resolve(&self.tree, path)
-            .or_else(|| {
-                self.fallback
-                    .as_ref()
-                    .and_then(|fallback| resolve(fallback, path))
-            })
-            .unwrap_or_else(|| path.to_string())
+        resolve(&self.tree, path).unwrap_or_else(|| format!("missing:{path}"))
     }
 
     /// Whether the locale prefers RTL layout (bidi).
@@ -252,10 +233,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn missing_key_falls_back_to_default() {
+    fn missing_key_is_explicit() {
         let bundle = TranslationBundle::new(LocaleCode::Fr);
-        assert_eq!(bundle.text("auth.dismiss"), "Dismiss");
-        assert_eq!(bundle.text("nonexistent.key"), "nonexistent.key");
+        assert_eq!(bundle.text("auth.dismiss"), "missing:auth.dismiss");
+        assert_eq!(bundle.text("nonexistent.key"), "missing:nonexistent.key");
     }
 
     #[test]

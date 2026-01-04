@@ -24,6 +24,7 @@ pub(crate) enum CopyKind {
 #[derive(Properties, PartialEq)]
 pub(crate) struct AddTorrentProps {
     pub on_submit: Callback<AddTorrentInput>,
+    pub on_manage_labels: Callback<()>,
     pub pending: bool,
     #[prop_or_default]
     pub class: Classes,
@@ -291,6 +292,28 @@ pub(crate) fn add_torrent_panel(props: &AddTorrentProps) -> Html {
                         }}
                     />
                 </label>
+                <div class="flex flex-wrap items-center gap-2 md:col-span-2">
+                    <button
+                        class="btn btn-ghost btn-xs"
+                        type="button"
+                        onclick={{
+                            let on_manage_labels = props.on_manage_labels.clone();
+                            Callback::from(move |_| on_manage_labels.emit(()))
+                        }}
+                    >
+                        {t("torrents.manage_categories")}
+                    </button>
+                    <button
+                        class="btn btn-ghost btn-xs"
+                        type="button"
+                        onclick={{
+                            let on_manage_labels = props.on_manage_labels.clone();
+                            Callback::from(move |_| on_manage_labels.emit(()))
+                        }}
+                    >
+                        {t("torrents.manage_tags")}
+                    </button>
+                </div>
                 <label class="form-control gap-1">
                     <span class="label-text text-xs">{t("torrents.save_path")}</span>
                     <input
@@ -348,6 +371,7 @@ pub(crate) fn add_torrent_panel(props: &AddTorrentProps) -> Html {
 pub(crate) struct CreateTorrentProps {
     pub on_submit: Callback<TorrentAuthorRequest>,
     pub on_copy: Callback<(CopyKind, String)>,
+    pub on_manage_labels: Callback<()>,
     pub pending: bool,
     pub result: Option<TorrentAuthorResponse>,
     pub error: Option<String>,
@@ -445,6 +469,28 @@ pub(crate) fn create_torrent_panel(props: &CreateTorrentProps) -> Html {
                         }}
                     />
                 </label>
+                <div class="flex flex-wrap items-center gap-2 md:col-span-2">
+                    <button
+                        class="btn btn-ghost btn-xs"
+                        type="button"
+                        onclick={{
+                            let on_manage_labels = props.on_manage_labels.clone();
+                            Callback::from(move |_| on_manage_labels.emit(()))
+                        }}
+                    >
+                        {t("torrents.manage_categories")}
+                    </button>
+                    <button
+                        class="btn btn-ghost btn-xs"
+                        type="button"
+                        onclick={{
+                            let on_manage_labels = props.on_manage_labels.clone();
+                            Callback::from(move |_| on_manage_labels.emit(()))
+                        }}
+                    >
+                        {t("torrents.manage_tags")}
+                    </button>
+                </div>
                 <label class="form-control gap-1 md:col-span-2">
                     <span class="label-text text-xs">{t("torrents.create_trackers")}</span>
                     <textarea

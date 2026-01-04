@@ -1,0 +1,24 @@
+# 075: Coverage gate tests for config loader and data toggles
+
+- Status: Accepted
+- Date: 2026-01-03
+- Context:
+  - Motivation: `just cov` failed at 76.46% line coverage, blocking `just ci`.
+  - Constraints: no coverage suppression, no new dependencies, and AGENT compliance.
+- Decision:
+  - Add focused unit tests for config loader mapping/secret helpers and data config toggle sets.
+  - Alternatives considered: ignore the gate or suppress coverage reporting (rejected).
+- Consequences:
+  - Positive outcomes: `just cov` clears the 80% line gate; configuration mappings gain direct test coverage.
+  - Risks or trade-offs: slightly longer test runtime.
+- Follow-up:
+  - Implementation tasks: add loader/data tests, update checklist status, run `just ci`.
+  - Review checkpoints: validate coverage stays >=80% during follow-up changes.
+- Test coverage summary:
+  - `just cov` reports 80.45% total line coverage (gate passes).
+- Observability updates:
+  - None (tests only).
+- Risk & rollback plan:
+  - If tests become flaky, revert the test additions and re-run `just ci`.
+- Dependency rationale:
+  - No new dependencies; reused existing dev crates.

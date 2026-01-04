@@ -1,3 +1,6 @@
+use crate::components::atoms::IconButton;
+use crate::components::atoms::icons::IconX;
+use crate::components::daisy::DaisySize;
 use crate::core::auth::{AuthMode, AuthState, LocalAuth};
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use yew::prelude::*;
@@ -98,13 +101,14 @@ pub(crate) fn auth_prompt(props: &AuthPromptProps) -> Html {
                             <h3 class="text-lg font-semibold">{t("auth.title")}</h3>
                             <p class="text-sm text-base-content/60">{t("auth.body")}</p>
                         </div>
-                        <button
-                            class="btn btn-ghost btn-xs btn-circle"
-                            aria-label={dismiss_label.clone()}
-                            type="button"
-                            onclick={on_dismiss.clone()}>
-                            <span class="iconify lucide--x size-4"></span>
-                        </button>
+                        <IconButton
+                            icon={html! { <IconX size={Some(AttrValue::from("4"))} /> }}
+                            label={AttrValue::from(dismiss_label.clone())}
+                            size={DaisySize::Xs}
+                            circle={true}
+                            r#type={Some(AttrValue::from("button"))}
+                            onclick={on_dismiss.clone()}
+                        />
                     </div>
                     <div role="tablist" class="tabs tabs-boxed">
                         <button

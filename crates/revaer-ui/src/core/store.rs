@@ -402,6 +402,11 @@ pub(crate) enum SseApplyOutcome {
     Progress(ProgressPatch),
     /// Requires a targeted refresh of list/detail data.
     Refresh,
+    /// Refresh a single torrent detail payload to update list metadata.
+    RefreshTorrent {
+        /// Torrent identifier to refresh.
+        id: Uuid,
+    },
     /// System rates update for dashboard-only state.
     SystemRates {
         /// Aggregate download rate in bytes per second.
@@ -492,7 +497,7 @@ pub(crate) fn apply_sse_envelope(
                     download_dir,
                     format_updated_timestamp(&timestamp),
                 );
-                SseApplyOutcome::Refresh
+                SseApplyOutcome::RefreshTorrent { id: torrent_id }
             }
             CoreEvent::TorrentRemoved { torrent_id } => {
                 remove_row(&mut store.torrents, torrent_id);

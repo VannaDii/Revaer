@@ -116,6 +116,7 @@ target/              # build artifacts
     -   Errors: **thiserror** (libs); **anyhow** allowed only in bins/tests.
     -   Tracing: **tracing**, **tracing-subscriber** (fmt/json via features).
 -   Avoid heavy transitive trees (templating engines, ORMs, giant utility crates); prioritize **explicit code** and **narrow helpers**.
+-   **Temporary exception:** `vendor/yewdux` is permitted to keep `yew`/`yew-router` on the latest crates.io releases. This vendored copy **MUST** be removed as soon as the Yew ecosystem stabilizes on version compatibility and a crates.io `yewdux` release supports `yew`/`yew-router` latest. Track removal in ADR 074.
 -   License and security policy is enforced by `just deny` and `just audit`.
 
 ### 3.1) Error Handling (mandatory patterns)

@@ -1,3 +1,4 @@
+use crate::components::atoms::icons::IconArrowUp;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::DashboardSnapshot;
 use yew::prelude::*;
@@ -40,7 +41,7 @@ pub(crate) fn dashboard_tracker_health(props: &DashboardTrackerHealthProps) -> H
                                 <p>{t("dashboard.ok")}</p>
                                 <p class="mt-0.5 text-xl font-medium">{ok}</p>
                                 <div class="text-success mt-0.5 inline-flex items-center gap-1">
-                                    <span class="iconify lucide--arrow-up size-3"></span>
+                                    <IconArrowUp size={Some(AttrValue::from("3"))} />
                                     <p class="text-xs">{t("dashboard.ok")}</p>
                                 </div>
                             </div>
@@ -48,7 +49,7 @@ pub(crate) fn dashboard_tracker_health(props: &DashboardTrackerHealthProps) -> H
                                 <p>{t("dashboard.warn")}</p>
                                 <p class="mt-0.5 text-xl font-medium">{warn}</p>
                                 <div class="text-success mt-0.5 inline-flex items-center gap-1">
-                                    <span class="iconify lucide--arrow-up size-3"></span>
+                                    <IconArrowUp size={Some(AttrValue::from("3"))} />
                                     <p class="text-xs">{t("dashboard.warn")}</p>
                                 </div>
                             </div>

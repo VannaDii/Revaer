@@ -6,6 +6,7 @@
 //! - Failure mode: if snapshot values are missing, keep layout intact with key text.
 
 use crate::app::Route;
+use crate::components::atoms::icons::{IconEye, IconGlobe2};
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::DashboardSnapshot;
 use yew::prelude::*;
@@ -29,12 +30,12 @@ pub(crate) fn dashboard_global_summary(props: &DashboardGlobalSummaryProps) -> H
             <div class="card bg-base-100 shadow">
                 <div class="card-body gap-0 p-0">
                     <div class="flex items-center gap-3 px-5 pt-5">
-                        <span class="iconify lucide--globe-2 size-4.5"></span>
+                        <IconGlobe2 size={Some(AttrValue::from("4.5"))} />
                         <span class="font-medium">{depth_label}</span>
                         <Link<Route>
                             to={Route::Torrents}
                             classes="btn btn-ghost btn-outline border-base-300 btn-sm z-1 ms-auto">
-                            <span class="iconify lucide--eye size-4"></span>
+                            <IconEye size={Some(AttrValue::from("4"))} />
                             {overview_label}
                         </Link<Route>>
                     </div>

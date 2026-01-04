@@ -1,4 +1,5 @@
 use crate::app::Route;
+use crate::components::atoms::icons::IconMessagesSquare;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::DashboardSnapshot;
 use yew::prelude::*;
@@ -43,7 +44,7 @@ pub(crate) fn dashboard_queue_summary(props: &DashboardQueueSummaryProps) -> Htm
             <div class="card bg-base-100 shadow">
                 <div class="card-body pb-3">
                     <div class="flex items-center gap-3">
-                        <span class="iconify lucide--messages-square size-4.5"></span>
+                        <IconMessagesSquare size={Some(AttrValue::from("4.5"))} />
                         <span class="font-medium">{t("dashboard.queue")}</span>
                         <Link<Route>
                             to={Route::Torrents}
