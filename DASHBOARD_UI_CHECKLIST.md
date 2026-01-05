@@ -2,96 +2,134 @@
 
 ## Findings (repo deltas to address, ordered by impact)
 
-1) Setup flow is non-blocking (should block). CSS disables pointer events on the overlay but keeps the shell interactive.  
-   - Evidence: `crates/revaer-ui/static/style.css` `.setup-overlay { pointer-events: none; }` and `.setup-overlay .card { pointer-events: auto; }`
-   - Status: resolved. Setup overlay now captures pointer events while keeping the card interactive.
-2) Setup completion does not route to auth prompt; it immediately sets `auth.state` (prompt only renders when `auth_state` is None).  
-   - Evidence: `crates/revaer-ui/src/app/mod.rs` setup completion sets `store.auth.state = Some(...)`; prompt render gate checks `auth_state_value.is_none()`.
-   - Status: resolved. Setup completion now surfaces the auth prompt even when the API key is stored.
-3) Health page is not routed and full/metrics data never fetched.  
-   - Evidence: no `/health` route in `crates/revaer-ui/src/app/routes.rs`; API client only has `/health`; `HealthPage` reads `health.full` and `metrics_text` that are never populated.
-   - Status: resolved. `/health` is routed and `/health/full` + `/metrics` are fetched/stored.
-4) Vendored yewdux is reintroduced as a temporary exception to keep `yew`/`yew-router` on the latest crates.io releases.  
-   - Evidence: `Cargo.toml` patches `yewdux` to `vendor/yewdux`; `vendor/yewdux/crates/yewdux/src/anymap.rs` exists.  
-   - Status: accepted exception. Must be removed as soon as upstream releases a compatible crates.io `yewdux` (tracked in ADR 074).
-5) SVG/icon system not implemented as described (no `atoms/icons/*` components, no IconButton usage).  
-   - Evidence: no icons module; UI uses inline Iconify spans (e.g., `crates/revaer-ui/src/components/shell.rs`).
-   - Status: resolved. Added `components/atoms/icons` + `IconButton` and replaced all iconify spans.
-6) Dashboard storage status dropdown actions missing (Enhance/Insights/Auto Tag/Delete).  
-   - Evidence: `crates/revaer-ui/src/features/dashboard/disk_usage.rs` lacks any actions menu.
-   - Status: resolved. Storage card now renders the Nexus dropdown actions.
-7) SSE indicator label shows "Connected" not "Live".  
-   - Evidence: `crates/revaer-ui/src/components/connectivity.rs` `status_label` maps Connected -> "Connected".
-   - Status: resolved. Connected state now displays “Live”.
-8) Add/Create torrent modals lack shortcuts to manage categories/tags.  
-   - Evidence: `crates/revaer-ui/src/features/torrents/view/modals.rs` only shows text inputs.
-   - Status: resolved. Added Manage Categories/Tags buttons wired via `on_manage_labels`.
-9) Torrent list SSE updates do not update tags/trackers for list rows.  
-   - Evidence: `apply_sse_envelope` only updates progress/status/name/download_dir; no tags/trackers update path.
-   - Status: resolved. Metadata events trigger targeted detail refresh; `upsert_detail` now updates list-row tags/tracker/category.
-10) i18n still falls back to default locale/keys (missing keys not surfaced).  
-   - Evidence: `crates/revaer-ui/src/i18n/mod.rs` falls back to default locale then raw key.
-   - Status: resolved. Missing keys now return `missing:{key}` with no default locale fallback.
-11) Coverage gate previously failed; `just cov` now clears the 80% gate.  
-   - Evidence: `just cov` reports TOTAL line coverage 80.44% (region 76.98%) and passes `--fail-under-lines 80`.  
-   - Highest line deficits (missed/total, coverage):  
-     - `crates/revaer-config/src/loader.rs`: 547/2181 (74.92%)  
-     - `crates/revaer-fsops/src/service/mod.rs`: 472/1891 (75.04%)  
-     - `crates/revaer-torrent-libt/src/worker.rs`: 393/2493 (84.24%)  
-     - `crates/revaer-app/src/orchestrator.rs`: 475/1638 (71.00%)  
-     - `crates/revaer-app/src/bootstrap.rs`: 255/353 (27.76%)  
-     - `crates/revaer-data/src/config.rs`: 290/990 (70.71%)  
-     - `crates/revaer-cli/src/cli.rs`: 87/177 (50.85%)  
-     - `crates/revaer-ui/tools/asset_sync/src/lib.rs`: 107/289 (62.98%)
-   - Status: resolved. `just cov` passes at 80.44% line coverage.
-12) Vendored dependencies remain in the repo (hashlink/sqlx-core), which conflicts with the “no vendoring” rule.  
-   - Evidence: `Cargo.toml` patched `hashlink` to `vendor/hashlink` and `vendor/sqlx-core` existed in-tree.  
-   - Status: resolved. Removed the `hashlink` patch and deleted those vendored crates; the only remaining vendored dependency is `yewdux` (exception in ADR 074).
-13) Git-sourced crates violate the “no git dependencies” rule.  
-   - Evidence: `Cargo.toml` patched `yew` from git and `crates/revaer-ui/Cargo.toml` used git `yewdux`.  
-   - Status: resolved. Both now use crates.io releases; `deny.toml` allow-git list cleared.
-14) UI dependency versions must stay on crates.io while avoiding duplicate Yew/Gloo versions.  
-   - Evidence: crates.io `yewdux` 0.11 depends on `yew` 0.21; `yew-router` 0.19 depends on `yew` 0.22, which creates multiple Yew/Gloo versions.  
-   - Status: resolved by vendoring yewdux to support `yew` 0.22 and aligning `gloo` to 0.11 + `gloo-net` to 0.5.
-15) `just ci` fails at `just lint` + `just deny` due to duplicate `hashbrown`/`foldhash` versions.  
-   - Evidence: `cargo clippy` emits `multiple versions for dependency 'hashbrown'` and `cargo deny` reports duplicate `hashbrown`/`foldhash` entries (SQLx/hashlink vs Yew/indexmap).  
-   - Status: resolved via exception. `just lint` allows `clippy::multiple_crate_versions`, and `deny.toml` allows duplicate `hashbrown`/`foldhash` until SQLx adopts `hashlink ^0.11` (ADR 076).
+1. Setup flow is non-blocking (should block). CSS disables pointer events on the overlay but keeps the shell interactive.
+    - Evidence: `crates/revaer-ui/static/style.css` `.setup-overlay { pointer-events: none; }` and `.setup-overlay .card { pointer-events: auto; }`
+    - Status: resolved. Setup overlay now captures pointer events while keeping the card interactive.
+2. Setup completion does not route to auth prompt; it immediately sets `auth.state` (prompt only renders when `auth_state` is None).
+    - Evidence: `crates/revaer-ui/src/app/mod.rs` setup completion sets `store.auth.state = Some(...)`; prompt render gate checks `auth_state_value.is_none()`.
+    - Status: resolved. Setup completion now surfaces the auth prompt even when the API key is stored.
+3. Health page is not routed and full/metrics data never fetched.
+    - Evidence: no `/health` route in `crates/revaer-ui/src/app/routes.rs`; API client only has `/health`; `HealthPage` reads `health.full` and `metrics_text` that are never populated.
+    - Status: resolved. `/health` is routed and `/health/full` + `/metrics` are fetched/stored.
+4. Vendored yewdux is reintroduced as a temporary exception to keep `yew`/`yew-router` on the latest crates.io releases.
+    - Evidence: `Cargo.toml` patches `yewdux` to `vendor/yewdux`; `vendor/yewdux/crates/yewdux/src/anymap.rs` exists.
+    - Status: accepted exception. Must be removed as soon as upstream releases a compatible crates.io `yewdux` (tracked in ADR 074).
+5. SVG/icon system not implemented as described (no `atoms/icons/*` components, no IconButton usage).
+    - Evidence: no icons module; UI uses inline Iconify spans (e.g., `crates/revaer-ui/src/components/shell.rs`).
+    - Status: resolved. Added `components/atoms/icons` + `IconButton` and replaced all iconify spans.
+6. Dashboard storage status dropdown actions missing (Enhance/Insights/Auto Tag/Delete).
+    - Evidence: `crates/revaer-ui/src/features/dashboard/disk_usage.rs` lacks any actions menu.
+    - Status: resolved. Storage card now renders the Nexus dropdown actions.
+7. SSE indicator label shows "Connected" not "Live".
+    - Evidence: `crates/revaer-ui/src/components/connectivity.rs` `status_label` maps Connected -> "Connected".
+    - Status: resolved. Connected state now displays “Live”.
+8. Add/Create torrent modals lack shortcuts to manage categories/tags.
+    - Evidence: `crates/revaer-ui/src/features/torrents/view/modals.rs` only shows text inputs.
+    - Status: resolved. Added Manage Categories/Tags buttons wired via `on_manage_labels`.
+9. Torrent list SSE updates do not update tags/trackers for list rows.
+    - Evidence: `apply_sse_envelope` only updates progress/status/name/download_dir; no tags/trackers update path.
+    - Status: resolved. Metadata events trigger targeted detail refresh; `upsert_detail` now updates list-row tags/tracker/category.
+10. i18n still falls back to default locale/keys (missing keys not surfaced).
+
+-   Evidence: `crates/revaer-ui/src/i18n/mod.rs` falls back to default locale then raw key.
+-   Status: resolved. Missing keys now return `missing:{key}` with no default locale fallback.
+
+11. Coverage gate previously failed; `just cov` now clears the 80% gate.
+
+-   Evidence: `just cov` reports TOTAL line coverage 80.44% (region 76.98%) and passes `--fail-under-lines 80`.
+-   Highest line deficits (missed/total, coverage):
+    -   `crates/revaer-config/src/loader.rs`: 547/2181 (74.92%)
+    -   `crates/revaer-fsops/src/service/mod.rs`: 472/1891 (75.04%)
+    -   `crates/revaer-torrent-libt/src/worker.rs`: 393/2493 (84.24%)
+    -   `crates/revaer-app/src/orchestrator.rs`: 475/1638 (71.00%)
+    -   `crates/revaer-app/src/bootstrap.rs`: 255/353 (27.76%)
+    -   `crates/revaer-data/src/config.rs`: 290/990 (70.71%)
+    -   `crates/revaer-cli/src/cli.rs`: 87/177 (50.85%)
+    -   `crates/revaer-ui/tools/asset_sync/src/lib.rs`: 107/289 (62.98%)
+-   Status: resolved. `just cov` passes at 80.44% line coverage.
+
+12. Vendored dependencies remain in the repo (hashlink/sqlx-core), which conflicts with the “no vendoring” rule.
+
+-   Evidence: `Cargo.toml` patched `hashlink` to `vendor/hashlink` and `vendor/sqlx-core` existed in-tree.
+-   Status: resolved. Removed the `hashlink` patch and deleted those vendored crates; the only remaining vendored dependency is `yewdux` (exception in ADR 074).
+
+13. Git-sourced crates violate the “no git dependencies” rule.
+
+-   Evidence: `Cargo.toml` patched `yew` from git and `crates/revaer-ui/Cargo.toml` used git `yewdux`.
+-   Status: resolved. Both now use crates.io releases; `deny.toml` allow-git list cleared.
+
+14. UI dependency versions must stay on crates.io while avoiding duplicate Yew/Gloo versions.
+
+-   Evidence: crates.io `yewdux` 0.11 depends on `yew` 0.21; `yew-router` 0.19 depends on `yew` 0.22, which creates multiple Yew/Gloo versions.
+-   Status: resolved by vendoring yewdux to support `yew` 0.22 and aligning `gloo` to 0.11 + `gloo-net` to 0.5.
+
+15. `just ci` fails at `just lint` + `just deny` due to duplicate `hashbrown`/`foldhash` versions.
+
+-   Evidence: `cargo clippy` emits `multiple versions for dependency 'hashbrown'` and `cargo deny` reports duplicate `hashbrown`/`foldhash` entries (SQLx/hashlink vs Yew/indexmap).
+-   Status: resolved via exception. `just lint` allows `clippy::multiple_crate_versions`, and `deny.toml` allows duplicate `hashbrown`/`foldhash` until SQLx adopts `hashlink ^0.11` (ADR 076).
+
+16. Undefined Nexus-style classes are used (panel/eyebrow/muted/pill/stacked/label-\*), so UI relies on classes that are not defined in the Nexus CSS or our custom stylesheet.
+
+-   Evidence: `crates/revaer-ui/src/features/labels/view.rs` uses `panel`, `panel-head`, `panel-subhead`, `eyebrow`, `muted`, `pill`, `label-*`, `stacked`; `crates/revaer-ui/src/features/health/view.rs` uses `panel`, `panel-head`, `panel-subhead`, `pill`, `muted`. No matching selectors exist in `crates/revaer-ui/static/nexus/assets/app.css` or `crates/revaer-ui/static/style.css`.
+-   Suggested correction: replace these with DaisyUI component classes (`card`, `card-body`, `badge`, `text-base-content/60`, `form-control`, `label-text`, `stack`/`join`/`grid`) or add a minimal CSS bridge that maps the Nexus-style names to DaisyUI tokens.
+-   Actual correction: Replace with DaisyUI classes where available, otherwise remove the classes being used that don't have definitions.
+-   Status: resolved. Health + Labels views now use DaisyUI cards/badges/utility classes with no undefined class names.
+
+17. Labels editor uses bare `<input>` elements without DaisyUI `input`/`form-control` classes, leading to inconsistent spacing/typography vs the rest of the UI.
+
+-   Evidence: `crates/revaer-ui/src/features/labels/view.rs` input fields are missing DaisyUI classes and do not use shared input components.
+-   Suggested correction: switch to `Input` component or wrap inputs with `form-control` + `input input-bordered` + `label-text` patterns.
+-   Actual correction: Use only proper DaisyUI form structures, and classes for all forms.
+-   Status: resolved. Labels editor now uses `form-control`, `label-text`, `input/select`, and `toggle` classes.
+
+18. Dashboard disk usage tab controls include a stray `false` class and lack proper tab semantics.
+
+-   Evidence: `crates/revaer-ui/src/features/dashboard/disk_usage.rs` uses `<div class="tab false px-3">` instead of button tabs with `role="tab"`, `tab-active`, and `aria-selected`.
+-   Suggested correction: use DaisyUI tabs with `button` + `role="tab"` and `tab-active`, or remove tabs if they are static placeholders.
+-   Actual correction: Use proper DaisyUI tabs structures and styles.
+-   Status: resolved. Tabs now use `button` with `role="tab"`, `aria-selected`, and DaisyUI `tab` classes.
 
 ### Remediation tasks (ordered, with acceptance criteria)
 
--   [x] Setup overlay is truly blocking.  
+-   [x] Setup overlay is truly blocking.
     -   Acceptance: pointer events are captured by the overlay (background shell cannot be clicked), overlay still focuses the card, and setup screen visually remains on top.
--   [x] Setup completion always surfaces the auth prompt (when auth is enabled).  
+-   [x] Setup completion always surfaces the auth prompt (when auth is enabled).
     -   Acceptance: after successful setup with auth enabled, the auth prompt is shown even though the API key is stored/active; dismiss hides it; no prompt forced when auth mode is `none`.
--   [x] Add a routable Health screen without adding it to sidebar nav.  
+-   [x] Add a routable Health screen without adding it to sidebar nav.
     -   Acceptance: `/health` renders the health page, breadcrumb/title shows the Health label, and sidebar remains Home/Torrents/Settings only.
--   [x] Fetch and store `/health/full` and `/metrics` for the Health page.  
+-   [x] Fetch and store `/health/full` and `/metrics` for the Health page.
     -   Acceptance: Health page shows basic + full health fields and metrics text when available; `/metrics` copy button works; errors surface as non-expiring toasts.
--   [ ] Remove vendored yewdux and anymap module once upstream is compatible with latest `yew`/`yew-router`.  
+-   [ ] Remove vendored yewdux and anymap module once upstream is compatible with latest `yew`/`yew-router`.
     -   Acceptance: `vendor/yewdux` removed; workspace patch deleted; crates.io `yewdux` supports latest `yew`; ADR 074 closed.
-    -   Status: blocked. crates.io `yewdux` 0.11.0 still depends on `yew` 0.21 (and `gloo` 0.10), so dropping the vendor would force us off `yew` 0.22.  
+    -   Status: blocked. crates.io `yewdux` 0.11.0 still depends on `yew` 0.21 (and `gloo` 0.10), so dropping the vendor would force us off `yew` 0.22.
     -   Evidence: `cargo tree -p yewdux` in a clean temp crate (no workspace patch) shows `yew v0.21.0` under `yewdux v0.11.0`.
--   [x] Implement SVG icon system with Yew components and IconButton.  
+-   [x] Implement SVG icon system with Yew components and IconButton.
     -   Acceptance: all inline SVG/icon spans replaced with icon components under `components/atoms/icons/*`, IconButton is used for icon-only actions, and hover/focus states align with DaisyUI patterns.
--   [x] Add Dashboard storage status dropdown actions (Enhance/Insights/Auto Tag/Delete).  
+-   [x] Add Dashboard storage status dropdown actions (Enhance/Insights/Auto Tag/Delete).
     -   Acceptance: storage card has a Nexus-style dropdown with those exact actions; wired to callbacks or placeholder handlers as agreed.
--   [x] Align SSE indicator label with checklist (“Live” when connected).  
+-   [x] Align SSE indicator label with checklist (“Live” when connected).
     -   Acceptance: connected state displays “Live”; reconnecting/disconnected labels remain unchanged.
--   [x] Add category/tag management shortcuts to Add/Create torrent modals.  
+-   [x] Add category/tag management shortcuts to Add/Create torrent modals.
     -   Acceptance: Add/Create modals surface shortcuts linking to label management (or invoke label modal) per checklist.
--   [x] Update SSE list-row fields for tags/trackers.  
+-   [x] Update SSE list-row fields for tags/trackers.
     -   Acceptance: SSE updates can refresh tag/tracker fields in list rows without full refresh.
--   [x] Remove i18n fallback to default locale and raw key display.  
+-   [x] Remove i18n fallback to default locale and raw key display.
     -   Acceptance: missing keys are surfaced explicitly (no default fallback strings), and English bundle covers all referenced keys.
--   [x] Remove git-sourced dependencies for UI crates.  
+-   [x] Remove git-sourced dependencies for UI crates.
     -   Acceptance: no git sources in `Cargo.lock`; `deny.toml` has no git allow-list; vendored yewdux tracked as a temporary exception.
--   [x] Raise workspace coverage to >=80% and verify `just ci`/`just cov` locally.  
-    -   Acceptance: `just cov` >= 80% line coverage; `just ci` passes without warnings.  
-    -   Priority targets (largest missed-line counts): `crates/revaer-config/src/loader.rs`, `crates/revaer-fsops/src/service/mod.rs`, `crates/revaer-torrent-libt/src/worker.rs`, `crates/revaer-app/src/orchestrator.rs`, `crates/revaer-app/src/bootstrap.rs`, `crates/revaer-data/src/config.rs`, `crates/revaer-cli/src/cli.rs`, `crates/revaer-ui/tools/asset_sync/src/lib.rs`.  
+-   [x] Raise workspace coverage to >=80% and verify `just ci`/`just cov` locally.
+    -   Acceptance: `just cov` >= 80% line coverage; `just ci` passes without warnings.
+    -   Priority targets (largest missed-line counts): `crates/revaer-config/src/loader.rs`, `crates/revaer-fsops/src/service/mod.rs`, `crates/revaer-torrent-libt/src/worker.rs`, `crates/revaer-app/src/orchestrator.rs`, `crates/revaer-app/src/bootstrap.rs`, `crates/revaer-data/src/config.rs`, `crates/revaer-cli/src/cli.rs`, `crates/revaer-ui/tools/asset_sync/src/lib.rs`.
     -   Current: `just cov` reports 80.44% line coverage and passes; `just ci` completed after latest changes.
--   [x] Allow `hashbrown`/`foldhash` multiple-version split to unblock `just lint` + `just deny`.  
-    -   Acceptance: `just lint` passes with `clippy::multiple_crate_versions` allowed and `cargo deny` permits duplicates; removal tracked in ADR 076.  
+-   [x] Allow `hashbrown`/`foldhash` multiple-version split to unblock `just lint` + `just deny`.
+    -   Acceptance: `just lint` passes with `clippy::multiple_crate_versions` allowed and `cargo deny` permits duplicates; removal tracked in ADR 076.
     -   Current: `sqlx-core` pins `hashlink ^0.10.0` (hashbrown 0.15) while `yew` requires `indexmap ^2.11` (hashbrown 0.16).
+-   [x] Replace undefined Nexus-style class usage with DaisyUI equivalents (or add a minimal CSS bridge).  
+    -   Acceptance: Health + Labels views render using DaisyUI classes (card/badge/text utilities) or a documented, minimal CSS mapping; no undefined `panel`/`pill`/`muted`/`eyebrow`/`label-*` classes remain.
+-   [x] Normalize Labels editor inputs to DaisyUI form controls.  
+    -   Acceptance: Label editor inputs use `Input` component or `form-control` + `input` classes with consistent spacing/typography.
+-   [x] Fix disk usage tabs to follow DaisyUI tab semantics.  
+    -   Acceptance: tab elements are `button` with `role="tab"`, `aria-selected`, and `tab-active` state; stray `false` class removed (or tabs removed if they remain static placeholders).
 
 ## 0) Updates
 
@@ -348,9 +386,9 @@
 -   [x] Settings is sectioned and reachable without auth; test connection + config snapshot wired.
 -   [x] Legacy dashboard CSS reduced; Nexus app.css remains primary styling.
 -   [x] Task record (ADR) added for this work.
--   [x] `just ci` passes locally.  
+-   [x] `just ci` passes locally.
     -   `just ci` completed successfully after lint/deny exceptions (Finding 15).
--   [x] `just cov` meets the ≥80% line coverage gate.  
+-   [x] `just cov` meets the ≥80% line coverage gate.
     -   Current: 80.44% total line coverage.
 
 ## 17) Settings UX (tabs + batching + file browser)

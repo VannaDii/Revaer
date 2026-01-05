@@ -32,10 +32,33 @@ pub(crate) fn dashboard_disk_usage(props: &DashboardDiskUsageProps) -> Html {
                         <div class="flex items-start justify-between">
                             <span class="font-medium">{t("dashboard.disk")}</span>
                             <div class="flex items-center gap-2">
-                                <div class="tabs tabs-box tabs-xs hidden sm:block">
-                                    <div class="tab false px-3">{"Day"}</div>
-                                    <div class="tab false px-3">{"Month"}</div>
-                                    <div class="tab tab-active px-3">{"Year"}</div>
+                                <div role="tablist" class="tabs tabs-boxed tabs-xs hidden sm:flex">
+                                    <button
+                                        type="button"
+                                        role="tab"
+                                        class="tab tab-disabled"
+                                        aria-selected="false"
+                                        disabled={true}
+                                    >
+                                        {"Day"}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        role="tab"
+                                        class="tab tab-disabled"
+                                        aria-selected="false"
+                                        disabled={true}
+                                    >
+                                        {"Month"}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        role="tab"
+                                        class="tab tab-active"
+                                        aria-selected="true"
+                                    >
+                                        {"Year"}
+                                    </button>
                                 </div>
                                 <div class="dropdown dropdown-end">
                                     <IconButton
