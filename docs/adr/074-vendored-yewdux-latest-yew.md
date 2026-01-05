@@ -20,5 +20,6 @@
   - Risk of drift from upstream; requires periodic review and eventual removal.
 - Follow-up:
   - Monitor crates.io `yewdux` releases for `yew` 0.22 compatibility.
+  - Next check date: 2026-02-05 (or sooner if a new `yewdux` release lands).
   - Remove `vendor/yewdux`, the workspace patch, and the AGENT exception once compatible.
   - Run `just ci` after each `yew`/`yew-router` upgrade.

@@ -103,6 +103,7 @@
     -   Acceptance: `vendor/yewdux` removed; workspace patch deleted; crates.io `yewdux` supports latest `yew`; ADR 074 closed.
     -   Status: blocked. crates.io `yewdux` 0.11.0 still depends on `yew` 0.21 (and `gloo` 0.10), so dropping the vendor would force us off `yew` 0.22.
     -   Evidence: `cargo tree -p yewdux` in a clean temp crate (no workspace patch) shows `yew v0.21.0` under `yewdux v0.11.0`.
+    -   Revisit: do not re-evaluate until a new `yewdux` release lands (or on 2026-02-05, whichever comes first).
 -   [x] Implement SVG icon system with Yew components and IconButton.
     -   Acceptance: all inline SVG/icon spans replaced with icon components under `components/atoms/icons/*`, IconButton is used for icon-only actions, and hover/focus states align with DaisyUI patterns.
 -   [x] Add Dashboard storage status dropdown actions (Enhance/Insights/Auto Tag/Delete).
