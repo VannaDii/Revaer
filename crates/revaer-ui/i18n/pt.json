@@ -165,6 +165,7 @@
   },
   "auth": {
     "error_required": "Chave API necessária para modo remoto",
+    "error_disable_bypass": "Set a username/password or API key before disabling local auth bypass.",
     "title": "Acesso à API necessário",
     "body": "Insira sua chave API para conectar. O modo remoto sempre requer uma chave; o modo LAN pode permitir anônimo se habilitado pelo backend.",
     "label": "Chave API",

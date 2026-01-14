@@ -165,6 +165,7 @@
   },
   "auth": {
     "error_required": "Uzak mod için API anahtarı gerekli",
+    "error_disable_bypass": "Set a username/password or API key before disabling local auth bypass.",
     "title": "API erişimi gerekli",
     "body": "Bağlanmak için API anahtarınızı girin. Uzak mod her zaman bir anahtar gerektirir; LAN modu arka uç tarafından etkinleştirilirse anonim izin verebilir.",
     "label": "API Anahtarı",

@@ -26,7 +26,7 @@ pub struct ButtonProps {
     #[prop_or_default]
     pub class: Classes,
     #[prop_or_default]
-    pub r#type: Option<AttrValue>,
+    pub button_type: Option<AttrValue>,
     #[prop_or_default]
     pub onclick: Callback<MouseEvent>,
 }
@@ -52,7 +52,7 @@ pub fn button(props: &ButtonProps) -> Html {
         <button
             class={classes}
             disabled={props.disabled || props.loading}
-            r#type={props.r#type.clone()}
+            type={props.button_type.clone()}
             onclick={props.onclick.clone()}
         >
             {props.leading_icon.clone().map(|icon| html! {

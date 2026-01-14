@@ -165,6 +165,7 @@
   },
   "auth": {
     "error_required": "ਰਿਮੋਟ ਮੋਡ ਲਈ API ਕੁੰਜੀ ਲੋੜੀਂਦੀ ਹੈ",
+    "error_disable_bypass": "Set a username/password or API key before disabling local auth bypass.",
     "title": "API ਪਹੁੰਚ ਲੋੜੀਂਦੀ ਹੈ",
     "body": "ਕਨੈਕਟ ਕਰਨ ਲਈ ਆਪਣੀ API ਕੁੰਜੀ ਦਾਖਲ ਕਰੋ। ਰਿਮੋਟ ਮੋਡ ਨੂੰ ਹਮੇਸ਼ਾਂ ਇੱਕ ਕੁੰਜੀ ਦੀ ਲੋੜ ਹੁੰਦੀ ਹੈ; LAN ਮੋਡ ਬੈਕਐਂਡ ਦੁਆਰਾ ਸਮਰੱਥ ਹੋਣ 'ਤੇ ਗੁਮਨਾਮ ਦੀ ਇਜਾਜ਼ਤ ਦੇ ਸਕਦਾ ਹੈ।",
     "label": "API ਕੁੰਜੀ",

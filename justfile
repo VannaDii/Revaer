@@ -203,7 +203,7 @@ dev: sync-assets
         -x "run -p revaer-app" & \
     api_pid=$!; \
     mkdir -p crates/revaer-ui/dist-serve/.stage; \
-    ( cd crates/revaer-ui && DATABASE_URL="${db_url}" RUST_LOG=${RUST_LOG:-info} trunk serve --dist dist-serve --open ) & \
+    ( cd crates/revaer-ui && DATABASE_URL="${db_url}" RUST_LOG=${RUST_LOG:-info} trunk serve --dist dist-serve ) & \
     ui_pid=$!; \
     trap 'kill -0 $api_pid 2>/dev/null && kill $api_pid; kill -0 $ui_pid 2>/dev/null && kill $ui_pid' EXIT; \
     wait $api_pid $ui_pid

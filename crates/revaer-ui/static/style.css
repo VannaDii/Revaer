@@ -142,8 +142,8 @@ body {
 }
 
 .sse-indicator__label {
-  max-width: 0;
-  opacity: 0;
+  max-width: 8rem;
+  opacity: 1;
   overflow: hidden;
   white-space: nowrap;
   transition: opacity 0.2s ease, max-width 0.2s ease;
@@ -154,36 +154,46 @@ body {
   color: var(--log-terminal-fg);
 }
 
-html:has(#layout-sidebar-hover-trigger:checked) .sse-indicator__label,
-html:has(#layout-sidebar-toggle-trigger:checked) .sse-indicator__label {
+.sidebar-footer__label {
+  max-width: 6rem;
+  opacity: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity 0.2s ease, max-width 0.2s ease;
+}
+
+.sidebar-nav__label {
+  max-width: 10rem;
+  opacity: 1;
+  overflow: hidden;
+  white-space: nowrap;
+  transition: opacity 0.2s ease, max-width 0.2s ease;
+}
+
+#layout-sidebar-toggle-trigger:checked ~ #layout-sidebar .sse-indicator__label,
+#layout-sidebar-hover-trigger:checked ~ #layout-sidebar .sse-indicator__label,
+#layout-sidebar-toggle-trigger:checked ~ #layout-sidebar .sidebar-footer__label,
+#layout-sidebar-hover-trigger:checked ~ #layout-sidebar .sidebar-footer__label,
+#layout-sidebar-toggle-trigger:checked ~ #layout-sidebar .sidebar-nav__label,
+#layout-sidebar-hover-trigger:checked ~ #layout-sidebar .sidebar-nav__label {
+  max-width: 0;
+  opacity: 0;
+}
+
+#layout-sidebar-hover:hover ~ #layout-sidebar .sse-indicator__label,
+#layout-sidebar-hover-trigger:checked ~ #layout-sidebar:hover .sse-indicator__label {
   max-width: 8rem;
   opacity: 1;
 }
 
-.sidebar-footer__label {
-  max-width: 0;
-  opacity: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  transition: opacity 0.2s ease, max-width 0.2s ease;
-}
-
-html:has(#layout-sidebar-hover-trigger:checked) .sidebar-footer__label,
-html:has(#layout-sidebar-toggle-trigger:checked) .sidebar-footer__label {
+#layout-sidebar-hover:hover ~ #layout-sidebar .sidebar-footer__label,
+#layout-sidebar-hover-trigger:checked ~ #layout-sidebar:hover .sidebar-footer__label {
   max-width: 6rem;
   opacity: 1;
 }
 
-.sidebar-nav__label {
-  max-width: 0;
-  opacity: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  transition: opacity 0.2s ease, max-width 0.2s ease;
-}
-
-html:has(#layout-sidebar-hover-trigger:checked) .sidebar-nav__label,
-html:has(#layout-sidebar-toggle-trigger:checked) .sidebar-nav__label {
+#layout-sidebar-hover:hover ~ #layout-sidebar .sidebar-nav__label,
+#layout-sidebar-hover-trigger:checked ~ #layout-sidebar:hover .sidebar-nav__label {
   max-width: 10rem;
   opacity: 1;
 }
@@ -199,7 +209,7 @@ html:has(#layout-sidebar-toggle-trigger:checked) .sidebar-nav__label {
 }
 
 .auth-overlay {
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .setup-overlay {

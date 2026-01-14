@@ -165,6 +165,7 @@
   },
   "auth": {
     "error_required": "API-Schlüssel für Remote-Modus erforderlich",
+    "error_disable_bypass": "Set a username/password or API key before disabling local auth bypass.",
     "title": "API-Zugriff erforderlich",
     "body": "Geben Sie Ihren API-Schlüssel ein, um sich zu verbinden. Der Remote-Modus erfordert immer einen Schlüssel; der LAN-Modus kann anonym sein, wenn vom Backend aktiviert.",
     "label": "API-Schlüssel",

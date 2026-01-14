@@ -165,6 +165,7 @@
   },
   "auth": {
     "error_required": "रिमोट मोड के लिए API कुंजी आवश्यक है",
+    "error_disable_bypass": "Set a username/password or API key before disabling local auth bypass.",
     "title": "API एक्सेस आवश्यक है",
     "body": "कनेक्ट करने के लिए अपनी API कुंजी दर्ज करें। रिमोट मोड को हमेशा एक कुंजी की आवश्यकता होती है; LAN मोड बैकएंड द्वारा सक्षम होने पर अनाम की अनुमति दे सकता है।",
     "label": "API कुंजी",

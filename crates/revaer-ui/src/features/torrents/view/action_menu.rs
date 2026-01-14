@@ -47,7 +47,7 @@ pub(crate) fn render_action_menu(bundle: &TranslationBundle, items: Vec<ActionMe
                 label={AttrValue::from(bundle.text("torrents.more"))}
                 size={DaisySize::Xs}
                 class={classes!("btn-square")}
-                r#type={Some(AttrValue::from("button"))}
+                button_type={Some(AttrValue::from("button"))}
             />
             <ul
                 tabindex="0"

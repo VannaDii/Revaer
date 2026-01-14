@@ -275,6 +275,24 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
         let bundle = bundle.clone();
         move |key: &str| bundle.text(key)
     };
+    let on_apply_settings = {
+        let on_apply = props.on_apply_settings.clone();
+        let auth_state = props.auth_state.clone();
+        let on_error_toast = props.on_error_toast.clone();
+        let message = bundle.text("auth.error_disable_bypass");
+        Callback::from(move |changeset: Value| {
+            let needs_auth = changeset_disables_auth_bypass(&changeset);
+            let has_auth = auth_state
+                .as_ref()
+                .map(AuthState::has_credentials)
+                .unwrap_or(false);
+            if needs_auth && !has_auth {
+                on_error_toast.emit(message.clone());
+                return;
+            }
+            on_apply.emit(changeset);
+        })
+    };
     {
         let active_tab = active_tab.clone();
         let on_clear_requested_tab = props.on_clear_requested_tab.clone();
@@ -296,7 +314,7 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
         config_busy: props.config_busy,
         config_save_busy: props.config_save_busy,
         on_refresh_config: props.on_refresh_config.clone(),
-        on_apply_settings: props.on_apply_settings.clone(),
+        on_apply_settings,
         on_copy_value: props.on_copy_value.clone(),
         on_error_toast: props.on_error_toast.clone(),
     };
@@ -4604,6 +4622,14 @@ fn build_changeset_from_snapshot(
     }
 
     Some(Value::Object(root))
+}
+
+fn changeset_disables_auth_bypass(changeset: &Value) -> bool {
+    changeset
+        .get("app_profile")
+        .and_then(|profile| profile.get("auth_mode"))
+        .and_then(Value::as_str)
+        .map_or(false, |mode| mode == "api_key")
 }
 
 fn build_settings_draft(snapshot: &Value) -> SettingsDraft {

@@ -1,11 +1,12 @@
 use crate::app::Route;
 use crate::components::atoms::IconButton;
 use crate::components::atoms::icons::{
-    IconAlertTriangle, IconDownload, IconFileText, IconHome, IconLogOut, IconMenu, IconMoon,
-    IconPanelLeftClose, IconPanelLeftDashed, IconRefreshCw, IconServer, IconSettings, IconSun,
+    IconDownload, IconHome, IconLogOut, IconMenu, IconMoon, IconPanelLeftClose,
+    IconPanelLeftDashed, IconSettings, IconSun,
 };
 use crate::components::connectivity::{ConnectivityIndicator, ConnectivityModal};
 use crate::components::daisy::DaisySize;
+use crate::components::server_menu::ServerMenu;
 use crate::core::store::{select_sse_status, select_sse_status_summary};
 use crate::core::theme::ThemeMode;
 use crate::models::NavLabels;
@@ -218,53 +219,11 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                 }}
                             />
                             {props.locale_selector.clone()}
-                            <div class="dropdown dropdown-bottom dropdown-end z-60">
-                                <IconButton
-                                    icon={html! { <IconServer size={Some(AttrValue::from("4.5"))} /> }}
-                                    label={AttrValue::from("Server menu")}
-                                    size={DaisySize::Sm}
-                                    circle={true}
-                                />
-                                <ul
-                                    tabindex="0"
-                                    role="menu"
-                                    class="dropdown-content menu bg-base-100 rounded-box mt-2 w-44 p-1 shadow z-[70]">
-                                    <li>
-                                        <button
-                                            onclick={{
-                                                let cb = props.on_server_restart.clone();
-                                                Callback::from(move |_| cb.emit(()))
-                                            }}>
-                                            <IconRefreshCw size={Some(AttrValue::from("4"))} />
-                                            <span>{"Restart server"}</span>
-                                        </button>
-                                    </li>
-                                    <li>
-                                        <button
-                                            onclick={{
-                                                let cb = props.on_server_logs.clone();
-                                                Callback::from(move |_| cb.emit(()))
-                                            }}>
-                                            <IconFileText size={Some(AttrValue::from("4"))} />
-                                            <span>{"View logs"}</span>
-                                        </button>
-                                    </li>
-                                    <li>
-                                        <hr class="my-1 border-base-200" />
-                                    </li>
-                                    <li>
-                                        <button
-                                            class="text-error"
-                                            onclick={{
-                                                let cb = props.on_factory_reset.clone();
-                                                Callback::from(move |_| cb.emit(()))
-                                            }}>
-                                            <IconAlertTriangle size={Some(AttrValue::from("4"))} />
-                                            <span>{"Factory reset"}</span>
-                                        </button>
-                                    </li>
-                                </ul>
-                            </div>
+                            <ServerMenu
+                                on_server_restart={props.on_server_restart.clone()}
+                                on_server_logs={props.on_server_logs.clone()}
+                                on_factory_reset={props.on_factory_reset.clone()}
+                            />
                         </div>
                     </div>
                     <div id="layout-content" class={content_body_class}>

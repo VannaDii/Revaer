@@ -9,6 +9,7 @@ use gloo::storage::{LocalStorage, Storage};
 use gloo::utils::window;
 use js_sys::Date;
 use serde::Serialize;
+use std::net::IpAddr;
 use web_sys::Url;
 
 pub(crate) const THEME_KEY: &str = "revaer.theme";
@@ -215,20 +216,29 @@ fn is_local_host() -> bool {
         .hostname()
         .unwrap_or_else(|_| String::new())
         .to_ascii_lowercase();
-    if host.is_empty()
-        || host == "localhost"
-        || host == "127.0.0.1"
-        || host == "::1"
-        || host.starts_with("127.")
-        || host.starts_with("10.")
-        || host.starts_with("192.168.")
-        || (host.starts_with("172.")
-            && host
-                .split('.')
-                .nth(1)
-                .and_then(|b| b.parse::<u8>().ok())
-                .map_or(false, |b| (16..=31).contains(&b)))
+    if host.is_empty() {
+        return true;
+    }
+    if let Ok(addr) = host.parse::<IpAddr>() {
+        return match addr {
+            IpAddr::V4(v4) => {
+                v4.is_loopback() || v4.is_private() || v4.is_link_local() || v4.is_unspecified()
+            }
+            IpAddr::V6(v6) => {
+                v6.is_loopback()
+                    || v6.is_unique_local()
+                    || v6.is_unicast_link_local()
+                    || v6.is_unspecified()
+            }
+        };
+    }
+    if host == "localhost"
         || host.ends_with(".local")
+        || host.ends_with(".localhost")
+        || host.ends_with(".localdomain")
+        || host.ends_with(".lan")
+        || host.ends_with(".home.arpa")
+        || !host.contains('.')
     {
         return true;
     }
@@ -251,6 +261,11 @@ pub(crate) fn api_base_url() -> String {
             other => Some(other),
         };
 
+        let host = if host.contains(':') {
+            format!("[{host}]")
+        } else {
+            host
+        };
         let mut base = format!("{}//{}", protocol, host);
         if let Some(port) = mapped_port {
             base.push(':');

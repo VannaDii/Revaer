@@ -1,0 +1,21 @@
+# Restore UI Menu Interactions
+
+- Status: Accepted
+- Date: 2026-01-09
+- Context:
+  - Motivation: top-right menus did not open reliably, and sidebar labels were hidden in the default open state.
+  - Constraints: No new dependencies; use daisyUI/Nexus patterns and keep component props stable.
+  - Design notes: Align dropdown markup with daisyUI examples and compose menu UI from shared components.
+- Decision:
+  - Summary of the choice made: update dropdowns to the daisyUI focus pattern, compose locale/server menus into dedicated components, and default sidebar labels to visible while hiding them only in collapsed/hover modes using sibling selectors.
+  - Alternatives considered: keep inline markup, add JS for dropdown state, or hardcode label visibility without toggle support.
+- Consequences:
+  - Positive outcomes: dropdown menus open reliably, layout follows component composition, and sidebar labels display in the default open state.
+  - Risks or trade-offs: Hover/collapsed behavior depends on CSS selectors; custom styling may need minor tuning.
+- Follow-up:
+  - Implementation tasks: update `crates/revaer-ui/src/components/daisy/molecules/dropdown.rs`, add `crates/revaer-ui/src/components/locale_menu.rs`, `crates/revaer-ui/src/components/server_menu.rs`, wire them in `crates/revaer-ui/src/app/mod.rs` and `crates/revaer-ui/src/components/shell.rs`, and adjust `crates/revaer-ui/static/style.css`.
+  - Review checkpoints: verify dropdown menus and sidebar labels on the dev server.
+  - Test coverage summary: `just ci` (fmt, lint, udeps, audit, deny, ui-build, tests, cov, build-release).
+  - Observability updates: none (no telemetry changes).
+  - Risk & rollback plan: revert the CSS/attribute changes if menu interactions or sidebar labels regress.
+  - Dependency rationale: no new dependencies; use HTML/CSS fixes instead of runtime guards.

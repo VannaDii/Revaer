@@ -20,7 +20,7 @@ pub(crate) struct IconButtonProps {
     #[prop_or_default]
     pub class: Classes,
     #[prop_or_default]
-    pub r#type: Option<AttrValue>,
+    pub button_type: Option<AttrValue>,
     #[prop_or_default]
     pub onclick: Callback<MouseEvent>,
 }
@@ -45,7 +45,7 @@ pub(crate) fn icon_button(props: &IconButtonProps) -> Html {
         <button
             class={classes}
             disabled={props.disabled || props.loading}
-            r#type={props.r#type.clone()}
+            type={props.button_type.clone()}
             onclick={props.onclick.clone()}
             aria-label={props.label.clone()}
         >

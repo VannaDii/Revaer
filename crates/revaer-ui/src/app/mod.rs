@@ -2,6 +2,7 @@ use crate::app::api::ApiCtx;
 use crate::app::sse::{SseHandle, connect_sse};
 use crate::components::auth::AuthPrompt;
 use crate::components::factory_reset::FactoryResetModal;
+use crate::components::locale_menu::LocaleMenu;
 use crate::components::setup::{SetupAuthMode, SetupCompleteInput, SetupPrompt};
 use crate::components::shell::AppShell;
 use crate::components::toast::ToastHost;
@@ -75,7 +76,9 @@ const TOKEN_REFRESH_SKEW_MS: i64 = 86_400_000;
 #[function_component(RevaerApp)]
 pub fn revaer_app() -> Html {
     let breakpoint = use_state(current_breakpoint);
-    let allow_anon = use_state(|| allow_anonymous());
+    let local_network = allow_anonymous();
+    let allow_anon = use_state(|| false);
+    let app_auth_mode = use_state(|| None::<AppAuthMode>);
     let dispatch = app_dispatch();
     let api_ctx = use_memo((), |_| ApiCtx::new(api_base_url()));
     let dashboard = use_state(demo_snapshot);
@@ -333,6 +336,44 @@ pub fn revaer_app() -> Html {
         });
     }
     {
+        let allow_anon = allow_anon.clone();
+        let app_auth_mode = *app_auth_mode;
+        let dispatch = dispatch.clone();
+        let auth_prompt_dismissed = auth_prompt_dismissed.clone();
+        use_effect_with(app_auth_mode, move |app_auth_mode| {
+            let allow = local_network && !matches!(*app_auth_mode, Some(AppAuthMode::ApiKey));
+            allow_anon.set(allow);
+            let current = dispatch.get();
+            match *app_auth_mode {
+                Some(AppAuthMode::NoAuth) => {
+                    if current.auth.state.is_none() {
+                        let state = AuthState::Anonymous;
+                        persist_auth_state(&state);
+                        dispatch.reduce_mut(|store| {
+                            store.auth.mode = AuthMode::ApiKey;
+                            store.auth.state = Some(state);
+                        });
+                    }
+                }
+                Some(AppAuthMode::ApiKey) => {
+                    if matches!(current.auth.state, Some(AuthState::Anonymous)) {
+                        clear_auth_storage();
+                        dispatch.reduce_mut(|store| {
+                            store.auth.state = None;
+                        });
+                    }
+                    if current.auth.state.is_none()
+                        || matches!(current.auth.state, Some(AuthState::Anonymous))
+                    {
+                        auth_prompt_dismissed.set(false);
+                    }
+                }
+                None => {}
+            }
+            || ()
+        });
+    }
+    {
         let dispatch = dispatch.clone();
         let allow_anon = *allow_anon;
         use_effect_with(allow_anon, move |allow_anon| {
@@ -347,6 +388,20 @@ pub fn revaer_app() -> Html {
                 store.auth.bypass_local = bypass_local;
             });
             || ()
+        });
+    }
+    {
+        let app_auth_mode = app_auth_mode.clone();
+        let config_snapshot = (*config_snapshot).clone();
+        use_effect_with(config_snapshot, move |snapshot| {
+            let cleanup = || ();
+            let Some(snapshot) = snapshot.as_ref() else {
+                return cleanup;
+            };
+            if let Some(mode) = snapshot_auth_mode(snapshot) {
+                app_auth_mode.set(Some(mode));
+            }
+            cleanup
         });
     }
     {
@@ -470,31 +525,16 @@ pub fn revaer_app() -> Html {
     }
     {
         let api_ctx = (*api_ctx).clone();
-        let dispatch = dispatch.clone();
-        let allow_anon = allow_anon.clone();
+        let app_auth_mode = app_auth_mode.clone();
         use_effect_with((), move |_| {
             let client = api_ctx.client.clone();
-            let dispatch = dispatch.clone();
-            let allow_anon = allow_anon.clone();
+            let app_auth_mode = app_auth_mode.clone();
             yew::platform::spawn_local(async move {
                 let Ok(snapshot) = client.fetch_well_known_snapshot().await else {
                     return;
                 };
-                let auth_mode = snapshot
-                    .get("app_profile")
-                    .and_then(|profile| profile.get("auth_mode"))
-                    .and_then(|value| value.as_str());
-                if auth_mode == Some("none") {
-                    allow_anon.set(true);
-                    let current = dispatch.get();
-                    if current.auth.state.is_none() {
-                        let state = AuthState::Anonymous;
-                        persist_auth_state(&state);
-                        dispatch.reduce_mut(|store| {
-                            store.auth.mode = AuthMode::ApiKey;
-                            store.auth.state = Some(state);
-                        });
-                    }
+                if let Some(mode) = snapshot_auth_mode(&snapshot) {
+                    app_auth_mode.set(Some(mode));
                 }
             });
             || ()
@@ -556,6 +596,7 @@ pub fn revaer_app() -> Html {
         let api_ctx = (*api_ctx).clone();
         let toast_id = toast_id.clone();
         let force_auth_prompt = force_auth_prompt.clone();
+        let app_auth_mode = app_auth_mode.clone();
         Callback::from(move |input: SetupCompleteInput| {
             dispatch.reduce_mut(|store| {
                 store.auth.setup_busy = true;
@@ -564,6 +605,7 @@ pub fn revaer_app() -> Html {
             let client = api_ctx.client.clone();
             let toast_id = toast_id.clone();
             let force_auth_prompt = force_auth_prompt.clone();
+            let app_auth_mode = app_auth_mode.clone();
             yew::platform::spawn_local(async move {
                 let auth_mode = input.auth_mode;
                 let mut changeset = serde_json::Value::Object(serde_json::Map::new());
@@ -613,6 +655,7 @@ pub fn revaer_app() -> Html {
                 match client.setup_complete(&input.token, changeset).await {
                     Ok(response) => {
                         let snapshot_auth_mode = response.snapshot.app_profile.auth_mode;
+                        app_auth_mode.set(Some(snapshot_auth_mode));
                         let use_anonymous = matches!(snapshot_auth_mode, AppAuthMode::NoAuth)
                             || auth_mode == SetupAuthMode::NoAuth;
                         if use_anonymous {
@@ -2111,49 +2154,15 @@ pub fn revaer_app() -> Html {
     };
 
     let locale_selector = {
-        let locale = *locale;
         let dispatch = dispatch.clone();
-        let active_flag = locale_flag(locale);
-        let active_flag_src = format!("https://flagcdn.com/{active_flag}.svg");
+        let locale = *locale;
+        let on_select = Callback::from(move |next: LocaleCode| {
+            dispatch.reduce_mut(|store| {
+                store.ui.locale = next;
+            });
+        });
         html! {
-            <div class="dropdown dropdown-bottom dropdown-center">
-                <div tabindex="0" class="btn btn-ghost btn-circle btn-sm cursor-pointer">
-                    <img
-                        src={active_flag_src}
-                        alt="Locale"
-                        class="rounded-box size-4.5 object-cover" />
-                </div>
-                <div tabindex="0" class="dropdown-content bg-base-100 rounded-box mt-2 w-40 shadow">
-                    <ul class="menu w-full p-2">
-                        {for LocaleCode::all().iter().map(|lc| {
-                            let flag = locale_flag(*lc);
-                            let flag_src = format!("https://flagcdn.com/{flag}.svg");
-                            let label = lc.label();
-                            let next = *lc;
-                                let onclick = {
-                                    let dispatch = dispatch.clone();
-                                    Callback::from(move |event: MouseEvent| {
-                                        event.prevent_default();
-                                        dispatch.reduce_mut(|store| {
-                                            store.ui.locale = next;
-                                        });
-                                    })
-                                };
-                            html! {
-                                <li>
-                                    <a class="flex items-center gap-2" href="#" onclick={onclick}>
-                                        <img
-                                            src={flag_src}
-                                            alt="Locale"
-                                            class="rounded-box size-4.5 cursor-pointer object-cover" />
-                                        <span>{label}</span>
-                                    </a>
-                                </li>
-                            }
-                        })}
-                    </ul>
-                </div>
-            </div>
+            <LocaleMenu locale={locale} on_select={on_select} />
         }
     };
 
@@ -2330,7 +2339,7 @@ pub fn revaer_app() -> Html {
                             expires_at={setup_expires_value.clone()}
                             busy={setup_busy_value}
                             error={setup_error_value.clone()}
-                            allow_no_auth={*allow_anon}
+                            allow_no_auth={local_network}
                             auth_mode={setup_auth_mode_value}
                             on_auth_mode_change={on_setup_auth_mode_change.clone()}
                             on_request_token={request_setup_token.clone()}
@@ -2678,6 +2687,18 @@ fn retry_delay_ms(delay_secs: u64) -> u32 {
     }
 }
 
+fn snapshot_auth_mode(snapshot: &Value) -> Option<AppAuthMode> {
+    snapshot
+        .get("app_profile")
+        .and_then(|profile| profile.get("auth_mode"))
+        .and_then(|value| value.as_str())
+        .and_then(|value| match value {
+            "none" => Some(AppAuthMode::NoAuth),
+            "api_key" => Some(AppAuthMode::ApiKey),
+            _ => None,
+        })
+}
+
 fn auth_mode_label(auth: &Option<AuthState>) -> Option<String> {
     match auth {
         Some(AuthState::ApiKey(_)) => Some("API key".to_string()),
@@ -2774,31 +2795,6 @@ fn apply_direction(is_rtl: bool) {
 
 fn log_dom_error(operation: &'static str, err: JsValue) {
     console::error!("dom operation failed", operation, err);
-}
-
-fn locale_flag(locale: LocaleCode) -> &'static str {
-    match locale {
-        LocaleCode::Ar => "sa",
-        LocaleCode::De => "de",
-        LocaleCode::Es => "es",
-        LocaleCode::Hi => "in",
-        LocaleCode::It => "it",
-        LocaleCode::Jv => "id",
-        LocaleCode::Mr => "in",
-        LocaleCode::Pt => "pt",
-        LocaleCode::Ta => "in",
-        LocaleCode::Tr => "tr",
-        LocaleCode::Bn => "bd",
-        LocaleCode::En => "us",
-        LocaleCode::Fr => "fr",
-        LocaleCode::Id => "id",
-        LocaleCode::Ja => "jp",
-        LocaleCode::Ko => "kr",
-        LocaleCode::Pa => "in",
-        LocaleCode::Ru => "ru",
-        LocaleCode::Te => "in",
-        LocaleCode::Zh => "cn",
-    }
 }
 
 fn current_breakpoint() -> Breakpoint {

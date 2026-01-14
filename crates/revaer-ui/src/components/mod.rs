@@ -2,6 +2,8 @@ pub(crate) mod atoms;
 pub(crate) mod auth;
 pub(crate) mod connectivity;
 pub(crate) mod factory_reset;
+pub(crate) mod locale_menu;
+pub(crate) mod server_menu;
 pub(crate) mod setup;
 pub(crate) mod shell;
 pub(crate) mod toast;

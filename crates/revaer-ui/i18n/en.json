@@ -687,6 +687,7 @@
   },
   "auth": {
     "error_required": "API key required for remote mode",
+    "error_disable_bypass": "Set a username/password or API key before disabling local auth bypass.",
     "error_local_required": "Username and password are required",
     "title": "API access required",
     "body": "Enter your API key to connect. Remote mode always requires a key; LAN mode may allow anonymous if enabled by the backend.",

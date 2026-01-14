@@ -88,3 +88,7 @@
 -   [074](074-vendored-yewdux-latest-yew.md) – Temporary vendoring of yewdux for latest Yew compatibility
 -   [075](075-coverage-gate-tests.md) – Coverage gate tests for config loader and data toggles
 -   [076](076-hashbrown-multiple-versions-exception.md) – Temporary clippy exception for hashbrown multiple versions
+-   [077](077-ui-menu-interactions.md) – UI menu interactions
+-   [078](078-local-auth-bypass-guardrails.md) – Local auth bypass guardrails
+-   [079](079-advisory-rustsec-2025-0141.md) – Advisory RUSTSEC-2025-0141 temporary ignore
+-   [080](080-local-auth-bypass-reliability.md) – Local auth bypass reliability

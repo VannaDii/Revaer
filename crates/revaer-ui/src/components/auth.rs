@@ -106,7 +106,7 @@ pub(crate) fn auth_prompt(props: &AuthPromptProps) -> Html {
                             label={AttrValue::from(dismiss_label.clone())}
                             size={DaisySize::Xs}
                             circle={true}
-                            r#type={Some(AttrValue::from("button"))}
+                            button_type={Some(AttrValue::from("button"))}
                             onclick={on_dismiss.clone()}
                         />
                     </div>
