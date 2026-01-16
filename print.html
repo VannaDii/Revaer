@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-4187cdc6.js";
+            window.path_to_searchindex_js = "searchindex-97db6780.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-9c1fca9c.js"></script>
+        <script src="toc-4b55a252.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1127,6 +1127,7 @@ just test-native
 <li><code>schema/</code> – Published OpenAPI payloads and supporting artefacts.</li>
 <li><code>guides/</code> – Scenario-based walkthroughs (bootstrap, hot reload validation, torrent lifecycle).</li>
 <li><code>examples/</code> – HTTP request/response samples captured from real workflows.</li>
+<li><code>openapi-gaps.md</code> – Routes present in the codebase but missing from the OpenAPI spec.</li>
 </ul>
 <h2 id="current-coverage"><a class="header" href="#current-coverage">Current Coverage</a></h2>
 <ul>
@@ -1150,6 +1151,55 @@ just test-native
 <pre><code class="language-bash">just api-export
 </code></pre>
 <p>Once refreshed, rebuild the documentation (<code>just docs</code>) to publish the updated schema to the static site and LLM manifests. API consumers can download the JSON directly from the deployed documentation site or via the repository.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="openapi-coverage-gaps"><a class="header" href="#openapi-coverage-gaps">OpenAPI Coverage Gaps</a></h1>
+<p>This document lists API routes present in <code>crates/revaer-api/src/http/router.rs</code> that are missing from <code>docs/api/openapi.json</code>.</p>
+<h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
+<ul>
+<li>The current OpenAPI spec omits several admin torrent endpoints and multiple v1 utility/streaming routes.</li>
+<li>The missing routes below should be added to the OpenAPI spec to fully reflect the HTTP surface area.</li>
+</ul>
+<h2 id="missing-admin-routes"><a class="header" href="#missing-admin-routes">Missing admin routes</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Path</th><th>Methods</th></tr>
+</thead>
+<tbody>
+<tr><td><code>/admin/factory-reset</code></td><td><code>POST</code></td></tr>
+<tr><td><code>/admin/torrents</code></td><td><code>GET</code>, <code>POST</code></td></tr>
+<tr><td><code>/admin/torrents/categories</code></td><td><code>GET</code></td></tr>
+<tr><td><code>/admin/torrents/categories/{name}</code></td><td><code>PUT</code></td></tr>
+<tr><td><code>/admin/torrents/tags</code></td><td><code>GET</code></td></tr>
+<tr><td><code>/admin/torrents/tags/{name}</code></td><td><code>PUT</code></td></tr>
+<tr><td><code>/admin/torrents/create</code></td><td><code>POST</code></td></tr>
+<tr><td><code>/admin/torrents/{id}</code></td><td><code>GET</code>, <code>DELETE</code></td></tr>
+<tr><td><code>/admin/torrents/{id}/peers</code></td><td><code>GET</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="missing-v1-routes"><a class="header" href="#missing-v1-routes">Missing v1 routes</a></h2>
+<div class="table-wrapper">
+<table>
+<thead>
+<tr><th>Path</th><th>Methods</th></tr>
+</thead>
+<tbody>
+<tr><td><code>/v1/dashboard</code></td><td><code>GET</code></td></tr>
+<tr><td><code>/v1/fs/browse</code></td><td><code>GET</code></td></tr>
+<tr><td><code>/v1/logs/stream</code></td><td><code>GET</code></td></tr>
+<tr><td><code>/v1/torrents/{id}/trackers</code></td><td><code>GET</code>, <code>PATCH</code>, <code>DELETE</code></td></tr>
+<tr><td><code>/v1/torrents/{id}/peers</code></td><td><code>GET</code></td></tr>
+<tr><td><code>/v1/torrents/{id}/web_seeds</code></td><td><code>PATCH</code></td></tr>
+<tr><td><code>/v1/events</code></td><td><code>GET</code></td></tr>
+<tr><td><code>/v1/events/stream</code></td><td><code>GET</code></td></tr>
+</tbody>
+</table>
+</div>
+<h2 id="notes-2"><a class="header" href="#notes-2">Notes</a></h2>
+<ul>
+<li>Feature-gated compat-qb routes are excluded because they are not mounted unless the <code>compat-qb</code> feature is enabled.</li>
+</ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="adrs"><a class="header" href="#adrs">ADRs</a></h1>
 <h2 id="suggested-use-workflow"><a class="header" href="#suggested-use-workflow">Suggested Use Workflow</a></h2>
@@ -1236,6 +1286,18 @@ just test-native
 <li><a href="#dashboard-ui-checklist-completion-and-authsse-hardening">070</a> – Dashboard UI checklist completion and auth/SSE hardening</li>
 <li><a href="#071-libtorrent-native-fallback-for-default-ci">071</a> – Libtorrent native fallback for default CI</li>
 <li><a href="#072-agent-compliance-refactor-ui--http--config-layout">072</a> – Agent compliance refactor (UI + HTTP + Config Layout)</li>
+<li><a href="#ui-checklist-follow-ups-sse-detail-refresh-labels-shortcuts-strict-i18n-and-anymap-removal">073</a> – UI checklist follow-ups: SSE detail refresh, labels shortcuts, strict i18n, and anymap removal</li>
+<li><a href="#temporary-vendoring-of-yewdux-for-latest-yew-compatibility">074</a> – Temporary vendoring of yewdux for latest Yew compatibility</li>
+<li><a href="#075-coverage-gate-tests-for-config-loader-and-data-toggles">075</a> – Coverage gate tests for config loader and data toggles</li>
+<li><a href="#076-temporary-clippy-exception-for-hashbrown-multiple-versions">076</a> – Temporary clippy exception for hashbrown multiple versions</li>
+<li><a href="#restore-ui-menu-interactions">077</a> – UI menu interactions</li>
+<li><a href="#078---local-auth-bypass-guardrails-task-record">078</a> – Local auth bypass guardrails</li>
+<li><a href="#advisory-rustsec-2025-0141-temporary-ignore">079</a> – Advisory RUSTSEC-2025-0141 temporary ignore</li>
+<li><a href="#080---local-auth-bypass-reliability-task-record">080</a> – Local auth bypass reliability</li>
+<li><a href="#081---playwright-e2e-test-suite-task-record">081</a> – Playwright E2E test suite</li>
+<li><a href="#082---e2e-gate-and-selector-stability-task-record">082</a> – E2E gate and selector stability</li>
+<li><a href="#083---api-preflight-before-ui-e2e-task-record">083</a> – API preflight before UI E2E</li>
+<li><a href="#084-e2e-api-coverage-with-temp-databases">084</a> – E2E API coverage with temp databases</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 ADR="" Title="" id=""><a class="header" href="#"></a></h1>
@@ -2673,7 +2735,7 @@ just test-native
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="advisory-rustsec-2021-0065-temporary-ignore"><a class="header" href="#advisory-rustsec-2021-0065-temporary-ignore">Advisory RUSTSEC-2021-0065 Temporary Ignore</a></h1>
 <ul>
-<li>Status: Accepted</li>
+<li>Status: Superseded by 073 (vendored yewdux exception tracked in ADR 074)</li>
 <li>Date: 2025-12-24</li>
 <li>Context:
 <ul>
@@ -2701,6 +2763,7 @@ just test-native
 <li>If upstream is stalled, evaluate a UI store replacement or a fork that removes <code>anymap</code>.</li>
 </ul>
 </li>
+<li>Superseded: <code>.secignore</code> cleaned in ADR 073; vendored yewdux exception tracked in ADR 074 (no <code>anymap</code> crate dependency reintroduced).</li>
 </ul>
 <h2 id="motivation-6"><a class="header" href="#motivation-6">Motivation</a></h2>
 <ul>
@@ -4562,6 +4625,635 @@ satisfy <code>clippy::multiple_crate_versions</code> without introducing git dep
 <li>Observability updates: no new spans or metrics added for this refactor.</li>
 <li>Risk &amp; rollback plan: revert the module move commits and restore prior paths if regressions appear; no data migrations were introduced.</li>
 <li>Dependency rationale: no new dependencies added; alternatives were to add helper crates for routing/structure, which were rejected to keep the footprint minimal.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="ui-checklist-follow-ups-sse-detail-refresh-labels-shortcuts-strict-i18n-and-anymap-removal"><a class="header" href="#ui-checklist-follow-ups-sse-detail-refresh-labels-shortcuts-strict-i18n-and-anymap-removal">UI checklist follow-ups: SSE detail refresh, labels shortcuts, strict i18n, and anymap removal</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-03</li>
+</ul>
+<h2 id="motivation-22"><a class="header" href="#motivation-22">Motivation</a></h2>
+<ul>
+<li>Close remaining dashboard UI checklist gaps tied to live metadata, labels navigation, and strict i18n.</li>
+<li>Remove the vendored yewdux/anymap fork and the related advisory ignore now that upstream versions align. (Superseded by ADR 074 for Yew compatibility.)</li>
+</ul>
+<h2 id="context-11"><a class="header" href="#context-11">Context</a></h2>
+<ul>
+<li>SSE metadata updates did not refresh list-row tags/tracker/category without a full list refresh.</li>
+<li>Add/Create torrent modals lacked shortcuts into the Settings → Labels workflow.</li>
+<li>Translation fallback masked missing keys; the checklist requires explicit missing-key surfacing.</li>
+<li><code>anymap</code> advisory <code>RUSTSEC-2021-0065</code> was previously ignored due to the vendored store fork.</li>
+</ul>
+<h2 id="decision-16"><a class="header" href="#decision-16">Decision</a></h2>
+<ul>
+<li>Add a throttled, targeted torrent detail refresh path for metadata events and reuse detail summaries to update list rows.</li>
+<li>Add <code>on_manage_labels</code> callbacks in torrent modals to route directly to the Labels tab.</li>
+<li>Remove i18n fallback behavior and add explicit English copy for new UI affordances.</li>
+<li>Dependency alignment is superseded by ADR 074 (vendored yewdux for Yew 0.22 compatibility).</li>
+<li>Drop the advisory ignore tied to the vendored <code>anymap</code>.</li>
+<li>Remove remaining vendored crates (<code>hashlink</code>, <code>sqlx-core</code>) and rely on registry sources.</li>
+</ul>
+<h2 id="design-notes-26"><a class="header" href="#design-notes-26">Design Notes</a></h2>
+<ul>
+<li>Use a debounced HashSet queue to coalesce detail refreshes and avoid duplicate fetches.</li>
+<li>Settings accepts a <code>requested_tab</code> prop and clears it once the tab selection is applied.</li>
+<li>Translation bundles return <code>missing:{key}</code> for missing entries; no default locale fallback.</li>
+<li><code>upsert_detail</code> updates list-row tags, tracker, category, and name/path using the detail summary.</li>
+</ul>
+<h2 id="consequences-16"><a class="header" href="#consequences-16">Consequences</a></h2>
+<ul>
+<li>Tags/trackers/categories update without full list refreshes, reducing UI staleness.</li>
+<li>Users can reach label management quickly from torrent modals.</li>
+<li>Missing translations are obvious during QA instead of silently falling back.</li>
+<li>Supply-chain ignores shrink with the removal of vendored <code>anymap</code>.</li>
+<li>Dependency alignment outcomes are tracked in ADR 074.</li>
+</ul>
+<h2 id="test-coverage-summary-27"><a class="header" href="#test-coverage-summary-27">Test Coverage Summary</a></h2>
+<ul>
+<li><code>just ci</code>: blocked by <code>just cov</code> (workspace line coverage 76.46%).</li>
+<li><code>just cov</code>: fails <code>--fail-under-lines 80</code> (TOTAL line coverage 76.46%).</li>
+</ul>
+<h2 id="observability-updates-27"><a class="header" href="#observability-updates-27">Observability Updates</a></h2>
+<ul>
+<li>None.</li>
+</ul>
+<h2 id="risk--rollback-plan-20"><a class="header" href="#risk--rollback-plan-20">Risk &amp; Rollback Plan</a></h2>
+<ul>
+<li>Risk: targeted refreshes could increase detail fetch volume under heavy metadata churn.</li>
+<li>Rollback: revert the targeted refresh scheduler and restore the prior full refresh behavior.</li>
+</ul>
+<h2 id="dependency-rationale-27"><a class="header" href="#dependency-rationale-27">Dependency Rationale</a></h2>
+<ul>
+<li>Dependency alignment decisions moved to ADR 074 to capture the vendored yewdux exception.</li>
+</ul>
+<h2 id="follow-up-8"><a class="header" href="#follow-up-8">Follow-up</a></h2>
+<ul>
+<li>Verify labels shortcuts and SSE metadata refresh during QA.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="temporary-vendoring-of-yewdux-for-latest-yew-compatibility"><a class="header" href="#temporary-vendoring-of-yewdux-for-latest-yew-compatibility">Temporary vendoring of yewdux for latest Yew compatibility</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-03</li>
+<li>Context:
+<ul>
+<li>We must stay on the latest crates.io <code>yew</code> and <code>yew-router</code>.</li>
+<li><code>yewdux</code> on crates.io (0.11) depends on <code>yew</code> 0.21, which conflicts with <code>yew-router</code> 0.19 (<code>yew</code> 0.22).</li>
+<li>Git dependencies are disallowed, and vendoring is normally disallowed.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Vendor <code>yewdux</code> under <code>vendor/yewdux</code> and update it to compile against <code>yew</code> 0.22.</li>
+<li>Patch the workspace to use the vendored <code>yewdux</code> while keeping all other dependencies on crates.io.</li>
+<li>Document the exception in <code>AGENT.md</code> with a hard requirement to remove the vendored copy once a compatible crates.io release exists.</li>
+<li>Alternatives considered:
+<ul>
+<li>Wait on the latest Yew (rejected; staying current is top priority).</li>
+<li>Replace <code>yewdux</code> with an internal store (larger refactor; deferred unless compatibility stalls).</li>
+<li>Use git dependencies (rejected by policy).</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>We stay current with <code>yew</code>/<code>yew-router</code> without git dependencies.</li>
+<li>We own the maintenance burden for the vendored <code>yewdux</code> until upstream compatibility lands.</li>
+<li>Risk of drift from upstream; requires periodic review and eventual removal.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Monitor crates.io <code>yewdux</code> releases for <code>yew</code> 0.22 compatibility.</li>
+<li>Next check date: 2026-02-05 (or sooner if a new <code>yewdux</code> release lands).</li>
+<li>Remove <code>vendor/yewdux</code>, the workspace patch, and the AGENT exception once compatible.</li>
+<li>Run <code>just ci</code> after each <code>yew</code>/<code>yew-router</code> upgrade.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="075-coverage-gate-tests-for-config-loader-and-data-toggles"><a class="header" href="#075-coverage-gate-tests-for-config-loader-and-data-toggles">075: Coverage gate tests for config loader and data toggles</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-03</li>
+<li>Context:
+<ul>
+<li>Motivation: <code>just cov</code> failed at 76.46% line coverage, blocking <code>just ci</code>.</li>
+<li>Constraints: no coverage suppression, no new dependencies, and AGENT compliance.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Add focused unit tests for config loader mapping/secret helpers and data config toggle sets.</li>
+<li>Alternatives considered: ignore the gate or suppress coverage reporting (rejected).</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes: <code>just cov</code> clears the 80% line gate; configuration mappings gain direct test coverage.</li>
+<li>Risks or trade-offs: slightly longer test runtime.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks: add loader/data tests, update checklist status, run <code>just ci</code>.</li>
+<li>Review checkpoints: validate coverage stays &gt;=80% during follow-up changes.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li><code>just cov</code> reports 80.44% total line coverage (gate passes).</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>None (tests only).</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>If tests become flaky, revert the test additions and re-run <code>just ci</code>.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies; reused existing dev crates.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="076-temporary-clippy-exception-for-hashbrown-multiple-versions"><a class="header" href="#076-temporary-clippy-exception-for-hashbrown-multiple-versions">076: Temporary clippy exception for hashbrown multiple versions</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-03</li>
+<li>Context:
+<ul>
+<li>Motivation: <code>just lint</code> fails on <code>clippy::multiple_crate_versions</code> due to <code>hashbrown</code> 0.15 (via <code>sqlx-core</code> -&gt; <code>hashlink ^0.10</code>) and 0.16 (via <code>yew</code> -&gt; <code>indexmap ^2.11</code>).</li>
+<li>Constraints: keep <code>yew</code>/<code>yew-router</code> latest, avoid vendoring or git crates, preserve CI via <code>just</code>.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Allow <code>clippy::multiple_crate_versions</code> in the lint recipe and crate roots.</li>
+<li>Allow duplicate <code>hashbrown</code>/<code>foldhash</code> in <code>cargo-deny</code> bans to keep <code>just deny</code> green.</li>
+<li>Remove the exception once SQLx releases a version compatible with <code>hashlink ^0.11</code> (or the dependency graph otherwise unifies on a single <code>hashbrown</code>).</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes: <code>just lint</code> passes while keeping primary deps current.</li>
+<li>Risks or trade-offs: reduced lint signal for other multi-version cases; must monitor dependency graph for unintentional splits.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks: update <code>just lint</code>, add crate-root allows, update <code>deny.toml</code>, document exception in <code>AGENT.md</code>, track in checklist.</li>
+<li>Review checkpoints: remove the exception when SQLx adopts <code>hashlink ^0.11</code> and <code>hashbrown</code> unifies.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li>Not applicable (lint configuration change).</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>None.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Remove the lint allow flag and re-run <code>just ci</code> once dependencies align.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies; exception is scoped to lint configuration only.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="restore-ui-menu-interactions"><a class="header" href="#restore-ui-menu-interactions">Restore UI Menu Interactions</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-09</li>
+<li>Context:
+<ul>
+<li>Motivation: top-right menus did not open reliably, and sidebar labels were hidden in the default open state.</li>
+<li>Constraints: No new dependencies; use daisyUI/Nexus patterns and keep component props stable.</li>
+<li>Design notes: Align dropdown markup with daisyUI examples and compose menu UI from shared components.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Summary of the choice made: update dropdowns to the daisyUI focus pattern, compose locale/server menus into dedicated components, and default sidebar labels to visible while hiding them only in collapsed/hover modes using sibling selectors.</li>
+<li>Alternatives considered: keep inline markup, add JS for dropdown state, or hardcode label visibility without toggle support.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes: dropdown menus open reliably, layout follows component composition, and sidebar labels display in the default open state.</li>
+<li>Risks or trade-offs: Hover/collapsed behavior depends on CSS selectors; custom styling may need minor tuning.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks: update <code>crates/revaer-ui/src/components/daisy/molecules/dropdown.rs</code>, add <code>crates/revaer-ui/src/components/locale_menu.rs</code>, <code>crates/revaer-ui/src/components/server_menu.rs</code>, wire them in <code>crates/revaer-ui/src/app/mod.rs</code> and <code>crates/revaer-ui/src/components/shell.rs</code>, and adjust <code>crates/revaer-ui/static/style.css</code>.</li>
+<li>Review checkpoints: verify dropdown menus and sidebar labels on the dev server.</li>
+<li>Test coverage summary: <code>just ci</code> (fmt, lint, udeps, audit, deny, ui-build, tests, cov, build-release).</li>
+<li>Observability updates: none (no telemetry changes).</li>
+<li>Risk &amp; rollback plan: revert the CSS/attribute changes if menu interactions or sidebar labels regress.</li>
+<li>Dependency rationale: no new dependencies; use HTML/CSS fixes instead of runtime guards.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="078---local-auth-bypass-guardrails-task-record"><a class="header" href="#078---local-auth-bypass-guardrails-task-record">078 - Local Auth Bypass Guardrails (Task Record)</a></h1>
+<ul>
+<li>Status: In Progress</li>
+<li>Date: 2026-01-11</li>
+</ul>
+<h2 id="motivation-23"><a class="header" href="#motivation-23">Motivation</a></h2>
+<ul>
+<li>Stop offering anonymous access when the backend does not allow no-auth mode.</li>
+<li>Ensure disabling local auth bypass requires credentials so operators cannot lock themselves out.</li>
+</ul>
+<h2 id="design-notes-27"><a class="header" href="#design-notes-27">Design Notes</a></h2>
+<ul>
+<li>Track backend auth_mode from /.well-known and config snapshot updates; allow anonymous only when auth_mode is none and the UI host is local.</li>
+<li>When no-auth is enabled and no credentials exist, set Anonymous auth state to connect immediately.</li>
+<li>When no-auth is disabled while anonymous, clear anonymous state and re-open the auth prompt.</li>
+<li>Guard settings changes that switch auth_mode to api_key unless API key or local auth credentials are saved.</li>
+</ul>
+<h2 id="decision-17"><a class="header" href="#decision-17">Decision</a></h2>
+<ul>
+<li>Gate anonymous UI behavior on backend auth_mode + local host detection.</li>
+<li>Block config saves that disable bypass without saved credentials.</li>
+</ul>
+<h2 id="consequences-17"><a class="header" href="#consequences-17">Consequences</a></h2>
+<ul>
+<li>Anonymous access is only offered when the backend explicitly allows it on a local host.</li>
+<li>Operators must save credentials before switching to auth-required mode.</li>
+</ul>
+<h2 id="test-coverage-summary-28"><a class="header" href="#test-coverage-summary-28">Test Coverage Summary</a></h2>
+<ul>
+<li>Added unit tests for AuthState credential validation.</li>
+</ul>
+<h2 id="observability-updates-28"><a class="header" href="#observability-updates-28">Observability Updates</a></h2>
+<ul>
+<li>None (UI-only change).</li>
+</ul>
+<h2 id="risk--rollback-7"><a class="header" href="#risk--rollback-7">Risk &amp; Rollback</a></h2>
+<ul>
+<li>Risk: remote UI access to no-auth servers now requires credentials despite server allowing none.</li>
+<li>Rollback: revert auth_mode gating in app shell and the settings guard.</li>
+</ul>
+<h2 id="dependency-rationale-28"><a class="header" href="#dependency-rationale-28">Dependency Rationale</a></h2>
+<ul>
+<li>No new dependencies introduced.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="advisory-rustsec-2025-0141-temporary-ignore"><a class="header" href="#advisory-rustsec-2025-0141-temporary-ignore">Advisory RUSTSEC-2025-0141 Temporary Ignore</a></h1>
+<ul>
+<li>Status: In Progress</li>
+<li>Date: 2026-01-11</li>
+<li>Context:
+<ul>
+<li><code>bincode</code> 1.3.3 is flagged as unmaintained (RUSTSEC-2025-0141).</li>
+<li>The dependency is pulled via <code>gloo-worker</code> in <code>gloo</code>, which is required by the Yew UI stack.</li>
+<li>No drop-in upgrade path is available without upstream releases.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Add <code>RUSTSEC-2025-0141</code> to <code>.secignore</code> while the UI depends on <code>gloo</code>/<code>yew</code> that transitively require <code>bincode</code> 1.3.3.</li>
+<li>Revisit once upstream releases remove or replace the dependency.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li><code>just audit</code> passes while the advisory remains documented.</li>
+<li>The unmaintained dependency stays in the tree until upstream updates land.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Track <code>gloo</code> and <code>yew</code> release notes for <code>bincode</code> replacement/removal.</li>
+<li>Remove the ignore once the dependency graph no longer includes <code>bincode</code> 1.3.x.</li>
+</ul>
+</li>
+</ul>
+<h2 id="motivation-24"><a class="header" href="#motivation-24">Motivation</a></h2>
+<ul>
+<li>Keep <code>just ci</code> passing while capturing the risk and remediation plan for the unmaintained transitive dependency.</li>
+</ul>
+<h2 id="design-notes-28"><a class="header" href="#design-notes-28">Design notes</a></h2>
+<ul>
+<li>The ignore is scoped to the single advisory and documented in <code>.secignore</code> plus this ADR.</li>
+</ul>
+<h2 id="test-coverage-summary-29"><a class="header" href="#test-coverage-summary-29">Test coverage summary</a></h2>
+<ul>
+<li><code>just ci</code> (includes fmt, clippy, udeps, audit, deny, test, cov).</li>
+</ul>
+<h2 id="observability-updates-29"><a class="header" href="#observability-updates-29">Observability updates</a></h2>
+<ul>
+<li>None; advisory handling does not change runtime telemetry.</li>
+</ul>
+<h2 id="risk--rollback-plan-21"><a class="header" href="#risk--rollback-plan-21">Risk &amp; rollback plan</a></h2>
+<ul>
+<li>Risk: unmaintained dependency remains in the build while upstream updates are pending.</li>
+<li>Rollback: remove the ignore after upgrading <code>gloo</code>/<code>yew</code> or replacing the dependency.</li>
+</ul>
+<h2 id="dependency-rationale-29"><a class="header" href="#dependency-rationale-29">Dependency rationale</a></h2>
+<ul>
+<li><code>gloo</code> and <code>yew</code> are required for the UI; alternatives would require a larger frontend migration.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="080---local-auth-bypass-reliability-task-record"><a class="header" href="#080---local-auth-bypass-reliability-task-record">080 - Local Auth Bypass Reliability (Task Record)</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-11</li>
+</ul>
+<h2 id="motivation-25"><a class="header" href="#motivation-25">Motivation</a></h2>
+<ul>
+<li>Local-network auth bypass should remain usable during UI startup and on common LAN hostnames.</li>
+<li>Prevent UI crashes from invalid attribute names in component props.</li>
+</ul>
+<h2 id="design-notes-29"><a class="header" href="#design-notes-29">Design Notes</a></h2>
+<ul>
+<li>Expand local host detection to cover loopback/private/link-local IPs plus common LAN hostnames.</li>
+<li>Allow anonymous prompt options on local hosts even when auth mode is not yet known; auto-enable anonymous only once the backend reports no-auth.</li>
+<li>Replace raw-identifier button prop names to avoid invalid DOM attributes in Yew.</li>
+</ul>
+<h2 id="decision-18"><a class="header" href="#decision-18">Decision</a></h2>
+<ul>
+<li>Update local host detection and IPv6 base URL formatting in UI preferences.</li>
+<li>Adjust auth bypass gating to keep anonymous mode stable and prompt-friendly on local hosts.</li>
+<li>Rename button props from <code>r#type</code> to <code>button_type</code> in shared components.</li>
+</ul>
+<h2 id="consequences-18"><a class="header" href="#consequences-18">Consequences</a></h2>
+<ul>
+<li>More reliable local auth bypass and fewer startup dead-ends.</li>
+<li>Anonymous option may appear on local hosts before auth mode is confirmed.</li>
+</ul>
+<h2 id="test-coverage-summary-30"><a class="header" href="#test-coverage-summary-30">Test Coverage Summary</a></h2>
+<ul>
+<li>UI behavior validated by existing integration flows; no new automated tests added.</li>
+</ul>
+<h2 id="observability-updates-30"><a class="header" href="#observability-updates-30">Observability Updates</a></h2>
+<ul>
+<li>None.</li>
+</ul>
+<h2 id="risk--rollback-8"><a class="header" href="#risk--rollback-8">Risk &amp; Rollback</a></h2>
+<ul>
+<li>Risk: local anonymous option could be offered briefly when auth mode still resolves.</li>
+<li>Rollback: revert local host detection and auth bypass gating changes.</li>
+</ul>
+<h2 id="dependency-rationale-30"><a class="header" href="#dependency-rationale-30">Dependency Rationale</a></h2>
+<ul>
+<li>No new dependencies; uses <code>std</code> IP parsing only.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="081---playwright-e2e-test-suite-task-record"><a class="header" href="#081---playwright-e2e-test-suite-task-record">081 - Playwright E2E Test Suite (Task Record)</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-14</li>
+</ul>
+<h2 id="motivation-26"><a class="header" href="#motivation-26">Motivation</a></h2>
+<ul>
+<li>Add automated UI coverage for core routes and modal flows.</li>
+<li>Centralize E2E configuration in a committed <code>tests/.env</code> file.</li>
+</ul>
+<h2 id="design-notes-30"><a class="header" href="#design-notes-30">Design Notes</a></h2>
+<ul>
+<li>Playwright config reads <code>tests/.env</code> for base URL, browser selection, timeouts, and artifacts.</li>
+<li>Tests are grouped by page with page objects and a shared app fixture.</li>
+<li>Assertions focus on stable labels and layout anchors to avoid data coupling.</li>
+</ul>
+<h2 id="decision-19"><a class="header" href="#decision-19">Decision</a></h2>
+<ul>
+<li>Add a Playwright test harness under <code>/tests</code> with config, fixtures, and page objects.</li>
+<li>Add a <code>just ui-e2e</code> recipe to run the suite via the standard workflow.</li>
+<li>Ignore Playwright output directories in <code>.gitignore</code>.</li>
+</ul>
+<h2 id="consequences-19"><a class="header" href="#consequences-19">Consequences</a></h2>
+<ul>
+<li>UI smoke checks can be run locally and wired into CI when ready.</li>
+<li>Running the suite requires Node tooling and Playwright browser installs.</li>
+</ul>
+<h2 id="test-coverage-summary-31"><a class="header" href="#test-coverage-summary-31">Test Coverage Summary</a></h2>
+<ul>
+<li>Added specs for dashboard, torrents, settings, logs, health, and navigation smoke.</li>
+</ul>
+<h2 id="observability-updates-31"><a class="header" href="#observability-updates-31">Observability Updates</a></h2>
+<ul>
+<li>None.</li>
+</ul>
+<h2 id="risk--rollback-9"><a class="header" href="#risk--rollback-9">Risk &amp; Rollback</a></h2>
+<ul>
+<li>Risk: label changes or auth/setup overlays can break selectors.</li>
+<li>Rollback: remove the <code>/tests</code> Playwright suite and <code>ui-e2e</code> recipe.</li>
+</ul>
+<h2 id="dependency-rationale-31"><a class="header" href="#dependency-rationale-31">Dependency Rationale</a></h2>
+<ul>
+<li><code>@playwright/test</code>: browser automation and test runner.</li>
+<li><code>dotenv</code>: load environment configuration from <code>tests/.env</code>.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="082---e2e-gate-and-selector-stability-task-record"><a class="header" href="#082---e2e-gate-and-selector-stability-task-record">082 - E2E Gate and Selector Stability (Task Record)</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-14</li>
+</ul>
+<h2 id="motivation-27"><a class="header" href="#motivation-27">Motivation</a></h2>
+<ul>
+<li>Stabilize Playwright selectors against shared nav labels and auth overlays.</li>
+<li>Make UI E2E runs a required quality gate for local changes.</li>
+<li>Document how to run the E2E suite.</li>
+</ul>
+<h2 id="design-notes-31"><a class="header" href="#design-notes-31">Design Notes</a></h2>
+<ul>
+<li>Scope selectors to the layout content area or sidebar to avoid strict-mode collisions.</li>
+<li>Use the auth overlay’s dismiss icon button when present; fall back to the text button.</li>
+<li>Document the <code>just ui-e2e</code> requirement in README and AGENT.</li>
+</ul>
+<h2 id="decision-20"><a class="header" href="#decision-20">Decision</a></h2>
+<ul>
+<li>Update Playwright page objects to scope selectors and handle the auth overlay deterministically.</li>
+<li>Add UI E2E requirements to <code>README.md</code> and <code>AGENT.md</code>.</li>
+</ul>
+<h2 id="consequences-20"><a class="header" href="#consequences-20">Consequences</a></h2>
+<ul>
+<li>Navigation and logs checks avoid ambiguous label matches.</li>
+<li>E2E tests are enforced as a local quality gate.</li>
+</ul>
+<h2 id="test-coverage-summary-32"><a class="header" href="#test-coverage-summary-32">Test Coverage Summary</a></h2>
+<ul>
+<li><code>just ui-e2e</code></li>
+</ul>
+<h2 id="observability-updates-32"><a class="header" href="#observability-updates-32">Observability Updates</a></h2>
+<ul>
+<li>None.</li>
+</ul>
+<h2 id="risk--rollback-10"><a class="header" href="#risk--rollback-10">Risk &amp; Rollback</a></h2>
+<ul>
+<li>Risk: UI label changes may still require selector updates.</li>
+<li>Rollback: revert the selector scoping and gate requirements.</li>
+</ul>
+<h2 id="dependency-rationale-32"><a class="header" href="#dependency-rationale-32">Dependency Rationale</a></h2>
+<ul>
+<li>No new dependencies; reuse Playwright and dotenv.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="083---api-preflight-before-ui-e2e-task-record"><a class="header" href="#083---api-preflight-before-ui-e2e-task-record">083 - API Preflight Before UI E2E (Task Record)</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-14</li>
+</ul>
+<h2 id="motivation-28"><a class="header" href="#motivation-28">Motivation</a></h2>
+<ul>
+<li>Verify API availability before UI E2E runs to reduce false attribution to the UI.</li>
+</ul>
+<h2 id="design-notes-32"><a class="header" href="#design-notes-32">Design Notes</a></h2>
+<ul>
+<li>Add a dedicated Playwright project that hits public API endpoints.</li>
+<li>Make browser projects depend on the API project to enforce ordering.</li>
+<li>Keep checks read-only and stable: <code>/health</code>, <code>/metrics</code>, <code>/docs/openapi.json</code>.</li>
+</ul>
+<h2 id="decision-21"><a class="header" href="#decision-21">Decision</a></h2>
+<ul>
+<li>Add an API preflight spec and wire it as a dependency for UI projects.</li>
+<li>Add <code>E2E_API_BASE_URL</code> to the test configuration docs.</li>
+</ul>
+<h2 id="consequences-21"><a class="header" href="#consequences-21">Consequences</a></h2>
+<ul>
+<li>UI tests do not run if API preflight fails.</li>
+<li>E2E setup now needs the API base URL to be accurate.</li>
+</ul>
+<h2 id="test-coverage-summary-33"><a class="header" href="#test-coverage-summary-33">Test Coverage Summary</a></h2>
+<ul>
+<li><code>just ui-e2e</code></li>
+</ul>
+<h2 id="observability-updates-33"><a class="header" href="#observability-updates-33">Observability Updates</a></h2>
+<ul>
+<li>None.</li>
+</ul>
+<h2 id="risk--rollback-11"><a class="header" href="#risk--rollback-11">Risk &amp; Rollback</a></h2>
+<ul>
+<li>Risk: API endpoint changes will require updates to the preflight checks.</li>
+<li>Rollback: remove the API project dependency and preflight spec.</li>
+</ul>
+<h2 id="dependency-rationale-33"><a class="header" href="#dependency-rationale-33">Dependency Rationale</a></h2>
+<ul>
+<li>No new dependencies; reuse Playwright.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="084-e2e-api-coverage-with-temp-databases"><a class="header" href="#084-e2e-api-coverage-with-temp-databases">084: E2E API Coverage With Temp Databases</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-15</li>
+<li>Context:
+<ul>
+<li>What problem are we solving?
+<ul>
+<li>E2E coverage must exercise 100% of the HTTP API surface under both auth modes and surface API regressions before UI tests.</li>
+<li>Test runs must isolate state using temporary databases and document OpenAPI coverage gaps.</li>
+</ul>
+</li>
+<li>What constraints or forces shape the decision?
+<ul>
+<li>The API server derives port and auth mode from persisted configuration; setup flow must be exercised to activate the instance.</li>
+<li>E2E runs must be invoked via <code>just</code> and use <code>tests/.env</code> for configuration.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Summary of the choice made.
+<ul>
+<li>Add Playwright global setup/teardown to perform setup and factory reset.</li>
+<li>Expand Playwright API specs to cover every route and operation under both auth modes.</li>
+<li>Introduce a temp DB harness (<code>scripts/ui-e2e.sh</code>) that starts API/UI servers, runs API suites first, then UI suites.</li>
+<li>Document OpenAPI gaps in <code>docs/api/openapi-gaps.md</code>.</li>
+</ul>
+</li>
+<li>Alternatives considered.
+<ul>
+<li>Reusing a shared dev database (rejected: violates isolation requirement).</li>
+<li>Running API and UI suites in a single Playwright project without temp DB orchestration (rejected: ordering and auth coverage requirements).</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes.
+<ul>
+<li>Full HTTP surface coverage with deterministic, isolated runs.</li>
+<li>Clear documentation of OpenAPI drift.</li>
+</ul>
+</li>
+<li>Risks or trade-offs.
+<ul>
+<li>Longer E2E runtime and additional local prerequisites (Postgres + free ports).</li>
+<li>Additional maintenance for API fixtures when new endpoints are added.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks.
+<ul>
+<li>Keep <code>docs/api/openapi.json</code> aligned with router updates.</li>
+<li>Update the API spec and tests whenever routes change.</li>
+</ul>
+</li>
+<li>Review checkpoints.
+<ul>
+<li>Verify <code>just ui-e2e</code> passes in local and CI environments.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-2"><a class="header" href="#task-record-2">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>Enforce API-first E2E verification, full route coverage, and state isolation across auth modes.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>Playwright global setup completes setup using the configured auth mode.</li>
+<li>Global teardown issues factory reset to cover the endpoint and clear state.</li>
+<li>Temp DB orchestration uses <code>sqlx</code> to create and drop isolated databases per suite.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li>API specs cover all routes and methods from <code>crates/revaer-api/src/http/router.rs</code> under <code>api_key</code> and <code>none</code> modes.</li>
+<li>UI specs continue to validate navigation and page rendering after API suites pass.</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>E2E runs emit API/UI logs to <code>tests/test-results</code> for debugging.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>If temp DB orchestration proves unstable, revert to manual server management and isolate DB via dedicated test instance.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new runtime dependencies added.</li>
 </ul>
 </li>
 </ul>

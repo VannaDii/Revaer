@@ -328,7 +328,7 @@
   {
     "id": "adr/035-advisory-rustsec-2021-0065",
     "title": "Advisory RUSTSEC-2021-0065 Temporary Ignore",
-    "summary": "Status: Accepted Date: 2025-12-24 Context: The UI depends on yewdux, which transitively pulls anymap and triggers advisory RUSTSEC-2021-0065 (unmaintained). There is no maintained replacement for anymap within the pinned yewdux 0.9.x line, and upgrading yewdux would require a Yew major upgrade. cargo-audit is configured to deny warnings, so ignoring the advisory requires explicit documentation and a remediation plan. Decision: Add RUSTSEC-2021-0065 to .secignore while yewdux requires anymap. Track yewdux upgrades or alternatives that remove anymap and remove the ignore when available. No runtime mitigation is required beyond limiting use to the UI state store. Consequences: CI remains green while upstream",
+    "summary": "Status: Superseded by 073 (vendored yewdux exception tracked in ADR 074) Date: 2025-12-24 Context: The UI depends on yewdux, which transitively pulls anymap and triggers advisory RUSTSEC-2021-0065 (unmaintained). There is no maintained replacement for anymap within the pinned yewdux 0.9.x line, and upgrading yewdux would require a Yew major upgrade. cargo-audit is configured to deny warnings, so ignoring the advisory requires explicit documentation and a remediation plan. Decision: Add RUSTSEC-2021-0065 to .secignore while yewdux requires anymap. Track yewdux upgrades or alternatives that remove anymap and remove the ignore when available. No runtime mitigation is required beyond limiting use to the",
     "tags": [
       "dependency-rationale",
       "design-notes",
@@ -756,6 +756,155 @@
     "href": "/adr/072-agent-compliance-refactor/"
   },
   {
+    "id": "adr/073-ui-checklist-followups",
+    "title": "UI checklist follow-ups: SSE detail refresh, labels shortcuts, strict i18n, and anymap removal",
+    "summary": "Status: Accepted Date: 2026-01-03",
+    "tags": [
+      "consequences",
+      "context",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "follow-up",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/073-ui-checklist-followups/"
+  },
+  {
+    "id": "adr/074-vendored-yewdux-latest-yew",
+    "title": "Temporary vendoring of yewdux for latest Yew compatibility",
+    "summary": "Status: Accepted Date: 2026-01-03 Context: We must stay on the latest crates.io yew and yew-router. yewdux on crates.io (0.11) depends on yew 0.21, which conflicts with yew-router 0.19 (yew 0.22). Git dependencies are disallowed, and vendoring is normally disallowed. Decision: Vendor yewdux under vendor/yewdux and update it to compile against yew 0.22. Patch the workspace to use the vendored yewdux while keeping all other dependencies on crates.io. Document the exception in AGENT.md with a hard requirement to remove the vendored copy once a compatible crates.io release exists. Alternatives considered: Wait on the latest Yew (rejected; staying current is top priority).",
+    "tags": [],
+    "href": "/adr/074-vendored-yewdux-latest-yew/"
+  },
+  {
+    "id": "adr/075-coverage-gate-tests",
+    "title": "075: Coverage gate tests for config loader and data toggles",
+    "summary": "Status: Accepted Date: 2026-01-03 Context: Motivation: just cov failed at 76.46% line coverage, blocking just ci. Constraints: no coverage suppression, no new dependencies, and AGENT compliance. Decision: Add focused unit tests for config loader mapping/secret helpers and data config toggle sets. Alternatives considered: ignore the gate or suppress coverage reporting (rejected). Consequences: Positive outcomes: just cov clears the 80% line gate; configuration mappings gain direct test coverage. Risks or trade-offs: slightly longer test runtime. Follow-up: Implementation tasks: add loader/data tests, update checklist status, run just ci. Review checkpoints: validate coverage stays >=80% during follow-up changes. Test coverage summary: just cov",
+    "tags": [],
+    "href": "/adr/075-coverage-gate-tests/"
+  },
+  {
+    "id": "adr/076-hashbrown-multiple-versions-exception",
+    "title": "076: Temporary clippy exception for hashbrown multiple versions",
+    "summary": "Status: Accepted Date: 2026-01-03 Context: Motivation: just lint fails on clippy::multiple_crate_versions due to hashbrown 0.15 (via sqlx-core -> hashlink ^0.10) and 0.16 (via yew -> indexmap ^2.11). Constraints: keep yew/yew-router latest, avoid vendoring or git crates, preserve CI via just. Decision: Allow clippy::multiple_crate_versions in the lint recipe and crate roots. Allow duplicate hashbrown/foldhash in cargo-deny bans to keep just deny green. Remove the exception once SQLx releases a version compatible with hashlink ^0.11 (or the dependency graph otherwise unifies on a single hashbrown). Consequences: Positive outcomes: just lint passes while keeping primary deps current. Risks or trade-offs: reduced lint signal",
+    "tags": [],
+    "href": "/adr/076-hashbrown-multiple-versions-exception/"
+  },
+  {
+    "id": "adr/077-ui-menu-interactions",
+    "title": "Restore UI Menu Interactions",
+    "summary": "Status: Accepted Date: 2026-01-09 Context: Motivation: top-right menus did not open reliably, and sidebar labels were hidden in the default open state. Constraints: No new dependencies; use daisyUI/Nexus patterns and keep component props stable. Design notes: Align dropdown markup with daisyUI examples and compose menu UI from shared components. Decision: Summary of the choice made: update dropdowns to the daisyUI focus pattern, compose locale/server menus into dedicated components, and default sidebar labels to visible while hiding them only in collapsed/hover modes using sibling selectors. Alternatives considered: keep inline markup, add JS for dropdown state, or hardcode label visibility without toggle",
+    "tags": [],
+    "href": "/adr/077-ui-menu-interactions/"
+  },
+  {
+    "id": "adr/078-local-auth-bypass-guardrails",
+    "title": "078 - Local Auth Bypass Guardrails (Task Record)",
+    "summary": "Status: In Progress Date: 2026-01-11",
+    "tags": [
+      "consequences",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/078-local-auth-bypass-guardrails/"
+  },
+  {
+    "id": "adr/079-advisory-rustsec-2025-0141",
+    "title": "Advisory RUSTSEC-2025-0141 Temporary Ignore",
+    "summary": "Status: In Progress Date: 2026-01-11 Context: bincode 1.3.3 is flagged as unmaintained (RUSTSEC-2025-0141). The dependency is pulled via gloo-worker in gloo, which is required by the Yew UI stack. No drop-in upgrade path is available without upstream releases. Decision: Add RUSTSEC-2025-0141 to .secignore while the UI depends on gloo/yew that transitively require bincode 1.3.3. Revisit once upstream releases remove or replace the dependency. Consequences: just audit passes while the advisory remains documented. The unmaintained dependency stays in the tree until upstream updates land. Follow-up: Track gloo and yew release notes for bincode replacement/removal. Remove the ignore once the dependency graph",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/079-advisory-rustsec-2025-0141/"
+  },
+  {
+    "id": "adr/080-local-auth-bypass-reliability",
+    "title": "080 - Local Auth Bypass Reliability (Task Record)",
+    "summary": "Status: Accepted Date: 2026-01-11",
+    "tags": [
+      "consequences",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/080-local-auth-bypass-reliability/"
+  },
+  {
+    "id": "adr/081-playwright-e2e-suite",
+    "title": "081 - Playwright E2E Test Suite (Task Record)",
+    "summary": "Status: Accepted Date: 2026-01-14",
+    "tags": [
+      "consequences",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/081-playwright-e2e-suite/"
+  },
+  {
+    "id": "adr/082-e2e-gate-and-selectors",
+    "title": "082 - E2E Gate and Selector Stability (Task Record)",
+    "summary": "Status: Accepted Date: 2026-01-14",
+    "tags": [
+      "consequences",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/082-e2e-gate-and-selectors/"
+  },
+  {
+    "id": "adr/083-api-preflight-e2e",
+    "title": "083 - API Preflight Before UI E2E (Task Record)",
+    "summary": "Status: Accepted Date: 2026-01-14",
+    "tags": [
+      "consequences",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/083-api-preflight-e2e/"
+  },
+  {
+    "id": "adr/084-e2e-api-coverage-temp-db",
+    "title": "084: E2E API Coverage With Temp Databases",
+    "summary": "Status: Accepted Date: 2026-01-15 Context: What problem are we solving? E2E coverage must exercise 100% of the HTTP API surface under both auth modes and surface API regressions before UI tests. Test runs must isolate state using temporary databases and document OpenAPI coverage gaps. What constraints or forces shape the decision? The API server derives port and auth mode from persisted configuration; setup flow must be exercised to activate the instance. E2E runs must be invoked via just and use tests/.env for configuration. Decision: Summary of the choice made. Add Playwright global setup/teardown to perform setup and factory reset. Expand",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/084-e2e-api-coverage-temp-db/"
+  },
+  {
     "id": "adr/index",
     "title": "ADRs",
     "summary": "Create a new ADR using the template in docs/adr/template.md. Give it a sequential identifier (e.g., 001, 002) and a concise title. Capture context, decision, consequences, and follow-up actions. Append the new ADR entry to the end of the Catalogue list above. Append the same entry under ADRs in docs/SUMMARY.md, keeping it nested so the sidebar stays collapsed. Reference ADRs from code comments or docs where the decision applies.",
@@ -835,6 +984,18 @@
     "summary": "Canonical machine-readable description of the Revaer control plane surface.",
     "tags": [],
     "href": "/api/openapi/"
+  },
+  {
+    "id": "api/openapi-gaps",
+    "title": "OpenAPI Coverage Gaps",
+    "summary": "This document lists API routes present in crates/revaer-api/src/http/router.rs that are missing from docs/api/openapi.json.",
+    "tags": [
+      "missing-admin-routes",
+      "missing-v1-routes",
+      "notes",
+      "summary"
+    ],
+    "href": "/api/openapi-gaps/"
   },
   {
     "id": "index",

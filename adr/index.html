@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-4187cdc6.js";
+            window.path_to_searchindex_js = "../searchindex-97db6780.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-9c1fca9c.js"></script>
+        <script src="../toc-4b55a252.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -262,13 +262,25 @@
 <li><a href="070-dashboard-ui-checklist.html">070</a> – Dashboard UI checklist completion and auth/SSE hardening</li>
 <li><a href="071-libtorrent-native-fallback.html">071</a> – Libtorrent native fallback for default CI</li>
 <li><a href="072-agent-compliance-refactor.html">072</a> – Agent compliance refactor (UI + HTTP + Config Layout)</li>
+<li><a href="073-ui-checklist-followups.html">073</a> – UI checklist follow-ups: SSE detail refresh, labels shortcuts, strict i18n, and anymap removal</li>
+<li><a href="074-vendored-yewdux-latest-yew.html">074</a> – Temporary vendoring of yewdux for latest Yew compatibility</li>
+<li><a href="075-coverage-gate-tests.html">075</a> – Coverage gate tests for config loader and data toggles</li>
+<li><a href="076-hashbrown-multiple-versions-exception.html">076</a> – Temporary clippy exception for hashbrown multiple versions</li>
+<li><a href="077-ui-menu-interactions.html">077</a> – UI menu interactions</li>
+<li><a href="078-local-auth-bypass-guardrails.html">078</a> – Local auth bypass guardrails</li>
+<li><a href="079-advisory-rustsec-2025-0141.html">079</a> – Advisory RUSTSEC-2025-0141 temporary ignore</li>
+<li><a href="080-local-auth-bypass-reliability.html">080</a> – Local auth bypass reliability</li>
+<li><a href="081-playwright-e2e-suite.html">081</a> – Playwright E2E test suite</li>
+<li><a href="082-e2e-gate-and-selectors.html">082</a> – E2E gate and selector stability</li>
+<li><a href="083-api-preflight-e2e.html">083</a> – API preflight before UI E2E</li>
+<li><a href="084-e2e-api-coverage-temp-db.html">084</a> – E2E API coverage with temp databases</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../api/openapi.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../api/openapi-gaps.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -282,7 +294,7 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../api/openapi.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../api/openapi-gaps.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
