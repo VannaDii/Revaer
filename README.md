@@ -49,6 +49,15 @@ revaer/
 -   `just deny` – enforce the license and advisory policy (`cargo-deny`).
 -   `just cov` – run source-based coverage with LLVM (requires `llvm-tools-preview`).
 -   `just ci` – execute all required quality gates locally.
+-   `just ui-e2e` – run Playwright API + UI E2E tests with temp databases and managed servers.
+
+## UI E2E Testing
+
+The Playwright suite lives under `tests/` and reads configuration from `tests/.env`. API checks (both auth modes) run before UI specs to catch backend failures first. Each run provisions a temp database.
+
+1. Ensure ports `7070` and `8080` are free (the runner stops existing Revaer dev servers, but other services must be stopped manually).
+2. Update `tests/.env` as needed (notably `E2E_DB_ADMIN_URL`, `E2E_BASE_URL`, `E2E_API_BASE_URL`, `E2E_FS_ROOT`).
+3. Run `just ui-e2e`.
 
 ## Native Libtorrent Integration Test
 

@@ -6,6 +6,7 @@ This directory hosts HTTP API specifications, generated OpenAPI documents, and u
 - `schema/` – Published OpenAPI payloads and supporting artefacts.
 - `guides/` – Scenario-based walkthroughs (bootstrap, hot reload validation, torrent lifecycle).
 - `examples/` – HTTP request/response samples captured from real workflows.
+- `openapi-gaps.md` – Routes present in the codebase but missing from the OpenAPI spec.
 
 ## Current Coverage
 - **Setup & configuration** – `/admin/setup/*` and `/admin/settings` flows with CLI parity.

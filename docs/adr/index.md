@@ -92,3 +92,7 @@
 -   [078](078-local-auth-bypass-guardrails.md) – Local auth bypass guardrails
 -   [079](079-advisory-rustsec-2025-0141.md) – Advisory RUSTSEC-2025-0141 temporary ignore
 -   [080](080-local-auth-bypass-reliability.md) – Local auth bypass reliability
+-   [081](081-playwright-e2e-suite.md) – Playwright E2E test suite
+-   [082](082-e2e-gate-and-selectors.md) – E2E gate and selector stability
+-   [083](083-api-preflight-e2e.md) – API preflight before UI E2E
+-   [084](084-e2e-api-coverage-temp-db.md) – E2E API coverage with temp databases

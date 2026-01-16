@@ -1,0 +1,51 @@
+# 084: E2E API Coverage With Temp Databases
+
+- Status: Accepted
+- Date: 2026-01-15
+- Context:
+  - What problem are we solving?
+    - E2E coverage must exercise 100% of the HTTP API surface under both auth modes and surface API regressions before UI tests.
+    - Test runs must isolate state using temporary databases and document OpenAPI coverage gaps.
+  - What constraints or forces shape the decision?
+    - The API server derives port and auth mode from persisted configuration; setup flow must be exercised to activate the instance.
+    - E2E runs must be invoked via `just` and use `tests/.env` for configuration.
+- Decision:
+  - Summary of the choice made.
+    - Add Playwright global setup/teardown to perform setup and factory reset.
+    - Expand Playwright API specs to cover every route and operation under both auth modes.
+    - Introduce a temp DB harness (`scripts/ui-e2e.sh`) that starts API/UI servers, runs API suites first, then UI suites.
+    - Document OpenAPI gaps in `docs/api/openapi-gaps.md`.
+  - Alternatives considered.
+    - Reusing a shared dev database (rejected: violates isolation requirement).
+    - Running API and UI suites in a single Playwright project without temp DB orchestration (rejected: ordering and auth coverage requirements).
+- Consequences:
+  - Positive outcomes.
+    - Full HTTP surface coverage with deterministic, isolated runs.
+    - Clear documentation of OpenAPI drift.
+  - Risks or trade-offs.
+    - Longer E2E runtime and additional local prerequisites (Postgres + free ports).
+    - Additional maintenance for API fixtures when new endpoints are added.
+- Follow-up:
+  - Implementation tasks.
+    - Keep `docs/api/openapi.json` aligned with router updates.
+    - Update the API spec and tests whenever routes change.
+  - Review checkpoints.
+    - Verify `just ui-e2e` passes in local and CI environments.
+
+## Task Record
+
+- Motivation:
+  - Enforce API-first E2E verification, full route coverage, and state isolation across auth modes.
+- Design notes:
+  - Playwright global setup completes setup using the configured auth mode.
+  - Global teardown issues factory reset to cover the endpoint and clear state.
+  - Temp DB orchestration uses `sqlx` to create and drop isolated databases per suite.
+- Test coverage summary:
+  - API specs cover all routes and methods from `crates/revaer-api/src/http/router.rs` under `api_key` and `none` modes.
+  - UI specs continue to validate navigation and page rendering after API suites pass.
+- Observability updates:
+  - E2E runs emit API/UI logs to `tests/test-results` for debugging.
+- Risk & rollback plan:
+  - If temp DB orchestration proves unstable, revert to manual server management and isolate DB via dedicated test instance.
+- Dependency rationale:
+  - No new runtime dependencies added.

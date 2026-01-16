@@ -8,7 +8,8 @@
 > 4. **All operations via `just`**. CI **and** local dev MUST use the Justfile—never raw cargo in pipelines.
 > 5. **Stored procedures or bust**: every runtime database interaction is executed via stored procedures; inline SQL is only allowed inside migrations.
 > 6. **`just ci` before every hand-off**: run the full pipeline locally and fix failures before you declare a task done.
-> 7. **Dependencies are injected**: runtime logic receives collaborators from callers (traits/fakes allowed); only bootstrap/wiring code may construct concrete impls or read the environment.
+> 7. **E2E gate**: `just ui-e2e` must pass for every change.
+> 8. **Dependencies are injected**: runtime logic receives collaborators from callers (traits/fakes allowed); only bootstrap/wiring code may construct concrete impls or read the environment.
 >
 > **Completion Rule:** Because Codex runs locally, **a task is not complete** until **all requirements in this AGENT.MD are satisfied** and **`just ci` passes cleanly (no warnings, no errors)**.
 
@@ -234,6 +235,7 @@ Since Codex runs locally, **a task is not complete** until **all requirements in
     3. Run `just test` and `just cov` (≥ 80% lib coverage; no regressions).
     4. Run `just audit` and `just deny` (must pass cleanly; any temporary advisory ignores belong in `.secignore` and require an ADR with remediation steps).
     5. Run `just build-release` to ensure release readiness.
+    6. Run `just ui-e2e` (spins up temp DBs + API/UI servers; ports 7070/8080 must be free, runner stops Revaer dev servers; `tests/.env` controls base URLs).
 
 -   **Checklist (must all be true before marking the task complete):**
     -   [ ] **No panics:** No `panic!`, `unwrap()`, `expect()`, or `unreachable!()` in production code; all errors handled via `Result<T, E>`
@@ -248,6 +250,7 @@ Since Codex runs locally, **a task is not complete** until **all requirements in
     -   [ ] Config validated at load; effective config logged (secrets redacted)
     -   [ ] OpenAPI/CLI/help/docs updated if surfaces changed
     -   [ ] Coverage ≥ 80% (libs), **no coverage regression**
+    -   [ ] UI E2E: `just ui-e2e` (API + UI suites) passes for every change
     -   [ ] All `just` gates (`just ci`) pass **without warnings or errors**
 
 **Completion Rule:** Do **not** declare a task complete or exit until all above checks pass. Persist the task record alongside code changes (e.g., `docs/adr/NNN-task.md`).

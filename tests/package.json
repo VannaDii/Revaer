@@ -1,0 +1,16 @@
+{
+  "name": "revaer-playwright-tests",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Playwright E2E tests for Revaer UI",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "codegen": "playwright codegen $E2E_BASE_URL"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.50.0",
+    "dotenv": "^16.4.7"
+  }
+}

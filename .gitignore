@@ -13,3 +13,9 @@ dist-serve
 docs/book
 /deploy
 /artifacts
+/tests/test-results
+/tests/playwright-report
+/tests/.playwright
+/tests/.auth
+/tests/logs
+node_modules

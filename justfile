@@ -178,6 +178,9 @@ ui-build: sync-assets
     mkdir -p crates/revaer-ui/dist/.stage
     cd crates/revaer-ui && trunk build --release
 
+ui-e2e:
+    bash scripts/ui-e2e.sh
+
 dev: sync-assets
     just db-start
     db_url="${DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"; \

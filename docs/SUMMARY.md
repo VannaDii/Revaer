@@ -23,6 +23,7 @@
 
 -   [API Overview](api/index.md)
 -   [OpenAPI Reference](api/openapi.md)
+-   [OpenAPI Gaps](api/openapi-gaps.md)
 
 ## Architecture Decision Records
 
@@ -108,3 +109,7 @@
     -   [078: Local auth bypass guardrails](adr/078-local-auth-bypass-guardrails.md)
     -   [079: Advisory RUSTSEC-2025-0141 temporary ignore](adr/079-advisory-rustsec-2025-0141.md)
     -   [080: Local auth bypass reliability](adr/080-local-auth-bypass-reliability.md)
+    -   [081: Playwright E2E test suite](adr/081-playwright-e2e-suite.md)
+    -   [082: E2E gate and selector stability](adr/082-e2e-gate-and-selectors.md)
+    -   [083: API preflight before UI E2E](adr/083-api-preflight-e2e.md)
+    -   [084: E2E API coverage with temp databases](adr/084-e2e-api-coverage-temp-db.md)
