@@ -1,62 +1,71 @@
-# Web UI Flows & Diagrams
+# Web UI Flows and Diagrams
 
 Visual references for the Phase 1 UX: navigation, component wiring, SSE handling, and torrent lifecycle. Use these diagrams when extending the UI or adding tests.
 
-## Navigation Flow
+## Navigation flow
 
 ```mermaid
 flowchart LR
-    Nav[Sidebar / Hamburger] --> Dash[Dashboard]
+    Nav["Sidebar / Drawer"] --> Dash[Dashboard]
     Nav --> Torrents[Torrents]
-    Nav --> Search[Search]
-    Nav --> Jobs[Jobs / Post-processing]
-    Nav --> Settings[Settings]
     Nav --> Logs[Logs]
-    Torrents --> Detail[Detail Drawer / Tabs]
+    Nav --> Health[Health]
+    Nav --> Settings[Settings]
+    Torrents --> Detail["Detail route /torrents/:id"]
+    Detail --> Overview[Overview]
     Detail --> Files[Files]
-    Detail --> Peers[Peers]
-    Detail --> Trackers[Trackers]
-    Detail --> Events[Event Log]
-    Detail --> Info[Metadata]
+    Detail --> Options[Options]
 ```
 
-## Component Graph
+## Component graph
 
 ```mermaid
 flowchart TB
     app["App (RevaerApp)"]
     shell["AppShell: nav / theme / locale"]
-    dash[DashboardPanel]
-    table["TorrentView: virtualized list + filters"]
-    add_panel[AddTorrentPanel]
-    detail["Detail drawer / tabs"]
+    dash[Dashboard]
+    torrents["Torrents list + detail"]
+    settings[Settings]
+    logs[Logs]
+    health[Health]
     api[API]
 
     app --> shell
     shell --> dash
-    shell --> table
-    table --> add_panel
-    table --> detail
-    add_panel -- "POST /v1/torrents" --> api
-    detail -- "PATCH /v1/torrents/{id}" --> api
+    shell --> torrents
+    shell --> settings
+    shell --> logs
+    shell --> health
+
+    dash -- "GET /v1/dashboard" --> api
+    torrents -- "GET /v1/torrents" --> api
+    torrents -- "GET /v1/torrents/{id}" --> api
+    torrents -- "POST /v1/torrents/{id}/action" --> api
+    torrents -- "PATCH /v1/torrents/{id}/options" --> api
+    torrents -- "POST /v1/torrents/{id}/select" --> api
+    torrents -- "SSE /v1/torrents/events" --> api
+    logs -- "SSE /v1/logs/stream" --> api
+    health -- "GET /health/full" --> api
 ```
 
-## SSE Event Flow
+## SSE event flow
 
 ```mermaid
 sequenceDiagram
+    participant UI as UI
+    participant Fetch as Fetch Stream
     participant API as API/SSE
-    participant Stream as EventStream
-    participant State as UIState
-    participant UI as Components
+    participant State as Store
 
-    API->>Stream: SSE events (progress, state, queue, jobs, vpn)
-    Stream->>State: Batch apply with backoff + dedupe
-    State->>UI: Render updates (virtualized table, dashboard tiles, badges)
-    UI->>API: Last-Event-ID on reconnect with filters in SSE query
+    UI->>Fetch: build URL + headers (x-revaer-api-key, Last-Event-ID)
+    Fetch->>API: GET /v1/torrents/events (fallback /v1/events/stream)
+    API-->>Fetch: SSE frames
+    Fetch->>State: parse + batch updates
+    State->>UI: render list, detail, dashboard, health badges
+    UI->>Fetch: reconnect with backoff and resume id
 ```
 
-## Torrent Lifecycle (UI Perspective)
+## Torrent lifecycle (UI perspective)
 
 ```mermaid
 stateDiagram-v2
@@ -72,8 +81,8 @@ stateDiagram-v2
     Completed --> Removed : delete (+data optional)
 ```
 
-## Interaction Notes
+## Interaction notes
 
-- SSE disconnect overlay shows last event timestamp, retry countdown (1s→30s exponential with jitter), and diagnostics (network mode, reason).
-- Table virtualization is mandatory beyond 500 rows; virtual scroll must preserve keyboard focus order and pinned columns.
-- Mobile detail view uses tabs (Files, Peers, Trackers, Log, Info); desktop uses split panes so file tree + metadata stay visible together at xl+.
+- SSE disconnect overlay shows last event timestamp, retry countdown (1s to 30s exponential with jitter), and diagnostics (auth mode, reason).
+- Table virtualization is required beyond 500 rows; virtual scroll must preserve keyboard focus order and pinned columns.
+- Mobile detail view uses tabs (Overview, Files, Options); desktop uses a split layout so overview and options stay visible together at lg+.

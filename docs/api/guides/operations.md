@@ -1,5 +1,57 @@
 # Operational Setup & Security
 
-## API Key Lifecycle
+## API key lifecycle
 
-1. Issue keys via `settings` changesets (`SettingsChangeset::api_keys`) including:\n+   ```json\n+   {\n+     \"op\": \"upsert\",\n+     \"key_id\": \"automation\",\n+     \"label\": \"CI\",\n+     \"secret\": \"<generated>\",\n+     \"rate_limit\": { \"burst\": 60, \"per_seconds\": 60 }\n+   }\n+   ```\n+2. Secrets are hashed at rest; rotate keys by supplying a new `secret` value.\n+3. Disable keys with `{ \"op\": \"upsert\", \"key_id\": \"automation\", \"enabled\": false }`.\n+4. Remove keys with `{ \"op\": \"delete\", \"key_id\": \"automation\" }`.\n+\n+Invalid rate-limit payloads (missing fields, zero burst) are rejected during configuration apply with RFC9457 errors.\n+\n+## Rate Limiting\n+\n+- Token bucket with parameters `burst` (maximum outstanding requests) and `per_seconds` (replenish interval).\n+- Requests exceeding limits receive `429` Problem+JSON responses; CLI maps these to exit code `3`.\n+- Metrics (`api_rate_limit_throttled_total`) and health events (`api_rate_limit_guard`) highlight throttling or misconfiguration.\n+- Remove guard-rail violations by reapplying a finite rate limit; the system clears the degraded component automatically.\n+\n+## Secrets & Logging\n+\n+- CLI never prints secrets; API keys must be supplied as `key_id:secret` header values.\n+- Traces and logs redact secrets; rate-limit warnings include only `key_id`.\n+\n+## Docker Runtime\n+\n+- Image runs as non-root `revaer` user with `/data` and `/config` volumes.\n+- Healthcheck hits `/health/full`; failures mark the container unhealthy.\n+- Run in production with `--read-only` and bind `/data`, `/config` to persistent storage.\n+\n+## Observability Checklist\n+\n+- Scrape `/metrics` at 30s intervals.\n+- Subscribe to SSE (`/v1/torrents/events`) with persistent resume files.\n+- Monitor CLI telemetry events for automation success/error rates.\n+\n+## Rotation Playbook\n+\n+1. Create a new key with overlapping scope and rate limit.\n+2. Update automation to use the new secret; confirm via CLI telemetry.\n+3. Disable old key; watch `http_requests_total` to ensure traffic drains.\n+4. Delete the old key once stale traffic drops to zero.\n*** End Patch
+1. Issue keys via settings changesets (`SettingsChangeset::api_keys`).
+
+```json
+{
+  "api_keys": [
+    {
+      "op": "upsert",
+      "key_id": "automation",
+      "label": "ci",
+      "secret": "<generated>",
+      "rate_limit": { "burst": 60, "per_seconds": 60 },
+      "enabled": true
+    }
+  ]
+}
+```
+
+2. Secrets are hashed at rest. Rotate keys by supplying a new `secret` value.
+3. Disable keys with `{ "op": "upsert", "key_id": "automation", "enabled": false }`.
+4. Remove keys with `{ "op": "delete", "key_id": "automation" }`.
+
+All authenticated requests must include `x-revaer-api-key: key_id:secret`.
+
+## Rate limiting
+
+- Token bucket parameters are `burst` (max outstanding requests) and `per_seconds` (refill interval).
+- Exceeded limits return `429` Problem+JSON responses plus `x-ratelimit-*` headers.
+- Metrics include `api_rate_limit_throttled_total` and `config_guardrail_violations_total`.
+- Guardrail violations clear automatically after applying a valid rate limit.
+
+## Secrets and logging
+
+- CLI never prints secrets; API keys must be supplied as `key_id:secret` header values.
+- Logs and traces redact secrets; rate-limit warnings include only `key_id`.
+- Setup completion requires `x-revaer-setup-token` and returns the generated API key once.
+
+## Docker runtime
+
+- Container runs as a non-root `revaer` user with `/data` and `/config` volumes.
+- Healthcheck targets `/health/full`.
+- For production, run with a read-only root filesystem and persist `/data` and `/config`.
+
+## SSE and resume
+
+- SSE endpoints accept `Last-Event-ID` for replay. Prefer `/v1/torrents/events` and fall back to `/v1/events/stream`.
+- CLI `revaer tail --resume-file <path>` persists event IDs across reconnects.
+
+## Rotation playbook
+
+1. Create a new key with overlapping scope and rate limit.
+2. Update automation to use the new secret; confirm via CLI telemetry.
+3. Disable the old key and watch `http_requests_total` for drain.
+4. Delete the old key once stale traffic drops to zero.

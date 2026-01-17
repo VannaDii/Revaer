@@ -2,18 +2,18 @@
 
 > `revaer-cli` provides parity with the API for setup, configuration management, torrent lifecycle, and observability.
 
-## Global Flags & Environment
+## Global flags and environment
 
 | Flag | Environment | Default | Description |
 | --- | --- | --- | --- |
 | `--api-url <URL>` | `REVAER_API_URL` | `http://127.0.0.1:7070` | Base URL for API requests. |
 | `--api-key <key_id:secret>` | `REVAER_API_KEY` | _none_ | Required for all post-setup commands that mutate or read torrents. |
 | `--timeout <secs>` | `REVAER_HTTP_TIMEOUT_SECS` | `10` | Per-request HTTP timeout. |
-| `--output <table\|json>` | _none_ | `table` | Output format for structured responses (`json` is script-friendly). |
+| `--output <table|json>` | _none_ | `table` | Output format for structured responses (`json` is script-friendly). |
 
-Each invocation bubbles a unique `x-request-id` through the API; the CLI also emits optional telemetry events when `REVAER_TELEMETRY_ENDPOINT` is set.
+Each invocation bubbles a unique `x-request-id` through the API; the CLI can optionally emit telemetry events when `REVAER_TELEMETRY_ENDPOINT` is set.
 
-## Setup Flow
+## Setup flow
 
 ### `revaer setup start [--issued-by <label>] [--ttl-seconds <secs>]`
 
@@ -23,20 +23,29 @@ Each invocation bubbles a unique `x-request-id` through the API; the CLI also em
 
 ### `revaer setup complete --instance <name> --bind <addr> --port <port> --resume-dir <path> --download-root <path> --library-root <path> --api-key-label <label> [--api-key-id <id>] [--passphrase <value>] [--token <token>]`
 
-- Loads the setup token either from `--token` or `REVAER_SETUP_TOKEN`.
+- Loads the setup token from `--token` or `REVAER_SETUP_TOKEN`.
 - Builds a `SettingsChangeset` containing the app profile, engine profile, filesystem policy, API key, and optional secret.
 - Forces `app_profile.mode = "active"`.
 - Echoes the generated API key (`key_id:secret`) on success; store it securely before continuing.
 
-## Configuration Maintenance
+## Configuration maintenance
 
-### `revaer settings patch --file <path>`
+### `revaer config get`
+
+- Fetches the current configuration snapshot.
+- Mirrors `GET /v1/config` output.
+
+### `revaer config set --file <path>`
 
 - Reads a JSON file containing a partial `SettingsChangeset`.
 - Requires an API key.
 - Returns a formatted `ProblemDetails` message if validation fails (immutable fields, unknown keys, etc.).
 
-## Torrent Lifecycle
+### `revaer settings patch --file <path>`
+
+- Alias for `revaer config set`.
+
+## Torrent lifecycle
 
 ### `revaer torrent add <magnet|.torrent> [--name <label>] [--id <uuid>]`
 
@@ -52,7 +61,7 @@ Each invocation bubbles a unique `x-request-id` through the API; the CLI also em
 ### `revaer ls [--limit <n>] [--cursor <token>] [--state <state>] [--tracker <url>] [--extension <ext>] [--tags <tag1,tag2>] [--name <fragment>]`
 
 - Lists torrents with the same filters supported by the REST API.
-- Default output is a table summarising id, name, state, and progress.
+- Default output is a table summarizing id, name, state, and progress.
 - Add `--output json` to emit the raw `TorrentListResponse`.
 
 ### `revaer status <uuid>`
@@ -60,23 +69,23 @@ Each invocation bubbles a unique `x-request-id` through the API; the CLI also em
 - Returns a detailed view of a single torrent.
 - Add `--output json` to view the full `TorrentDetail` (including file metadata when available).
 
-### `revaer select <uuid> [--include <glob,glob>] [--exclude <glob,glob>] [--skip-fluff] [--priority index=priority,…]`
+### `revaer select <uuid> [--include <glob,glob>] [--exclude <glob,glob>] [--skip-fluff] [--priority index=priority,...]`
 
 - Updates file-selection rules via `POST /v1/torrents/{id}/select`.
-- `--priority` accepts repeated `index=priority` pairs (`skip|low|normal|high`) mapped onto the engine’s `FilePriority`.
+- `--priority` accepts repeated `index=priority` pairs (`skip|low|normal|high`) mapped onto the engine's `FilePriority`.
 
 ### `revaer action <uuid> <pause|resume|remove|reannounce|recheck|sequential|rate> [--delete-data] [--enable <bool>] [--download <bps>] [--upload <bps>]`
 
 - One-stop entry point for all torrent actions.
 - `sequential` toggles sequential downloads via `--enable true|false`.
 - `rate` updates per-torrent bandwidth caps (bps). Provide `--download` and/or `--upload`.
-- `remove` honours `--delete-data`.
+- `remove` honors `--delete-data`.
 
-## Event Streaming
+## Event streaming
 
 ### `revaer tail [--torrent <id,id>] [--event <kind,kind>] [--state <state,state>] [--resume-file <path>] [--retry-secs <n>]`
 
-- Connects to `/v1/events` using SSE.
+- Connects to `/v1/torrents/events` (falls back to `/v1/events/stream`).
 - Filters match the API query parameters and enforce UUID/event-kind validation before the request is made.
 - When `--resume-file` is supplied, the CLI persists the last event ID across reconnects so the stream can resume after transient failures.
 - `--retry-secs` controls the backoff between reconnect attempts (default: 5 seconds).

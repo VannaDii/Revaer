@@ -1,6 +1,6 @@
 # CLI Usage Guide
 
-The `revaer` CLI provides parity with the public API while honouring the same authentication, pagination, and SSE semantics.
+The `revaer` CLI provides parity with the public API while honoring the same authentication, pagination, and SSE semantics.
 
 ## Global Flags
 
@@ -16,21 +16,23 @@ Each command propagates a unique `x-request-id` header, enabling correlation wit
 | Command | Description |
 | --- | --- |
 | `setup start` / `setup complete` | Bootstraps a new deployment, issuing one-time tokens and initial config. |
-| `settings patch --file settings.json` | Applies JSON changesets via the configuration service. |
-| `torrent add <magnet|.torrent>` | Adds a torrent with optional name/ID; accepts JSON file selection hints. |
+| `config get` | Fetches the current configuration snapshot. |
+| `config set --file settings.json` | Applies JSON changesets via the configuration service. |
+| `settings patch --file settings.json` | Alias for `config set`. |
+| `torrent add <magnet|.torrent>` | Adds a torrent with optional name/ID; accepts selection hints. |
 | `torrent remove <id>` | Removes torrents (with `--delete-data` to purge files). |
-| `ls` | Lists torrents with cursor pagination (`--limit`, `--cursor`) and filters (`--state`, `--tracker`, `--extension`, `--tags`). |
+| `ls` | Lists torrents with cursor pagination (`--limit`, `--cursor`) and filters (`--state`, `--tracker`, `--extension`, `--tags`, `--name`). |
 | `status <id>` | Retrieves detailed torrent info (files, rates, metadata). |
-| `select <id>` | Updates include/exclude rules and file priorities from CLI arguments or JSON payloads. |
+| `select <id>` | Updates include/exclude rules and file priorities from CLI arguments. |
 | `action <id>` | Runs torrent actions (`pause`, `resume`, `remove`, `reannounce`, `recheck`, `sequential`, `rate`). |
-| `tail` | Connects to the SSE stream with filters (`--torrent`, `--event`, `--state`), resuming from `--resume-file`. |
+| `tail` | Connects to the SSE stream with filters (`--torrent`, `--event`, `--state`) and resuming via `--resume-file`. |
 
 All commands support `--output json` for machine-readable output (default `table`).
 
 ## Exit Codes
 
 - `0`: Success.
-- `2`: Validation/Problem+JSON errors (e.g., bad filter, authentication missing).
+- `2`: Validation or Problem+JSON errors (bad filter, missing auth).
 - `3`: Runtime failures (network issues, 5xx/429 responses).
 
 The CLI prints RFC9457 details for non-success responses, including any `invalid_params` pointers returned by the API.

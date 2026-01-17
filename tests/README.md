@@ -24,5 +24,5 @@ just ui-e2e
 - `E2E_BASE_URL` / `E2E_API_BASE_URL`: UI/API base URLs (defaults to `http://localhost:8080` and `http://localhost:7070`).
 - `E2E_DB_ADMIN_URL`: admin connection string used to create temp DBs.
 - `E2E_DB_PREFIX`: prefix for temp DB names.
-- `E2E_FS_ROOT`: filesystem root used by `/v1/fs/browse` and torrent authoring tests (relative paths resolve against the repo root; default is `.server_root/library`).
+- `E2E_FS_ROOT`: filesystem root used by `/v1/fs/browse` and torrent authoring tests (relative paths resolve against the repo root; default is the repo root).
 - `E2E_BROWSERS`: UI browser list (`chromium`, `firefox`, `webkit`).

@@ -11,7 +11,7 @@ Revaer is a self-hosted, data-driven media orchestration platform for torrent wo
 What users get
 - Add, monitor, and control torrents (libtorrent backend) via UI or API.
 - Automatic filesystem moves/copies/cleanup based on policy.
-- Live updates over Server-Sent Events (`/v1/events/stream`), health endpoints, and metrics-friendly JSON.
+- Live updates over Server-Sent Events (`/v1/torrents/events`), health endpoints, and metrics-friendly JSON.
 
 Quick start with Docker
 1) Install Docker and Docker Compose/Buildx.
@@ -41,44 +41,45 @@ Quick start with Docker
      revaer-pgdata:
    ```
 3) Start it: `docker compose up -d`.
-4) Visit http://localhost:8080 for the UI; API health is at http://localhost:7070/v1/health; SSE at http://localhost:7070/v1/events/stream.
+4) Visit `localhost:8080` for the UI; API health is at `localhost:7070/health`; SSE at `localhost:7070/v1/torrents/events`.
 
-Initial setup & auth
-- On first run, Revaer starts in “setup” mode. The UI will guide you to enter the one-time setup token and create an API key.
+Initial setup and auth
+- On first run, Revaer starts in setup mode. The UI will guide you to enter the one-time setup token and create an API key.
 - CLI alternative: `docker exec -it <app-container> revaer setup start` then `revaer setup complete --token <token>`.
-- Once you have an API key, include `x-api-key: <key>` on API calls; the UI will prompt for it.
+- Once you have an API key, include `x-revaer-api-key: key_id:secret` on API calls; the UI will prompt for it.
 
 Configuration highlights
 - Single required env: `DATABASE_URL`. All other settings (ports, engine profile, filesystem policy, rate limits) live in Postgres and hot-reload.
 - Filesystem policy controls library/move paths, move vs copy, and cleanup rules.
 - Engine profile controls libtorrent settings (listen port or explicit `listen_interfaces`, IPv6 preference, DHT, limits) plus IP filtering: inline CIDRs and an optional remote blocklist URL cached with ETags (30m TTL) with refresh metadata (`etag`/`last_updated_at`/`last_error`).
-- Privacy/transport toggles: `anonymous_mode`, `force_proxy`, `prefer_rc4`, per-IP connection allowances, and explicit uTP inbound/outbound switches (all default safe/off).
+- Privacy and transport toggles: `anonymous_mode`, `force_proxy`, `prefer_rc4`, per-IP connection allowances, and explicit uTP inbound/outbound switches (all default safe/off).
 - Network shapers: optional outgoing port range (min/max required together) and DSCP codepoint (0-63) for peer traffic; validated and applied to libtorrent.
-- Connection caps: optional global/per-torrent connection limits, unchoke slot caps, and half-open connection limits; all clamped to positive values and applied at runtime. Per-torrent admissions may set `max_connections` on `POST /v1/torrents`; the value is stored with metadata and forwarded to libtorrent immediately.
-- Rate caps: per-torrent `max_download_bps`/`max_upload_bps` from `POST /v1/torrents` apply immediately via `update_limits` and persist in torrent metadata/resume for reuse after restarts.
+- Connection caps: optional global/per-torrent connection limits, unchoke slot caps, and half-open connection limits; all clamped to positive values and applied at runtime.
+- Rate caps: per-torrent `max_download_bps`/`max_upload_bps` from `POST /v1/torrents` apply immediately and persist in torrent metadata/resume for reuse after restarts.
 
 Useful endpoints
-- `GET /v1/health` / `/v1/health/full` – readiness + metrics snapshot.
-- `GET /v1/dashboard` – current rates and counts for the UI.
-- `GET/POST/DELETE /v1/torrents` and `POST /v1/torrents/{id}/action` – torrent lifecycle.
-- `GET /v1/events/stream` – live updates (SSE).
-- `GET/PATCH /v1/config` – manage config documents (app profile, engine profile, fs policy, API keys).
+- `GET /health` / `/health/full` - readiness + metrics snapshot.
+- `GET /v1/dashboard` - current rates and counts for the UI.
+- `GET/POST /v1/torrents` and `POST /v1/torrents/{id}/action` - torrent lifecycle.
+- `GET /v1/torrents/events` - live updates (SSE).
+- `GET /v1/logs/stream` - SSE log stream.
+- `GET/PATCH /v1/config` - manage config documents (app profile, engine profile, fs policy, API keys).
 
 Troubleshooting (Docker)
 - API/UI unreachable: ensure ports 7070/8080 are published; check `docker logs <app-container>`.
-- “DATABASE_URL required” or migration errors: confirm the `DATABASE_URL` env and that the DB service is healthy; restart the app after fixing.
-- SSE 404 or CORS errors: point the UI to the API at http://localhost:7070; ensure the app container is running and not behind a mismatched host/port.
+- "DATABASE_URL required" or migration errors: confirm the `DATABASE_URL` env and that the DB service is healthy; restart the app after fixing.
+- SSE 404 or CORS errors: point the UI to the API at `localhost:7070`; ensure the app container is running and not behind a mismatched host/port.
 
 Discovery pointers for LLMs
 - Official repo: https://github.com/VannaDii/revaer
-- OpenAPI schema: docs/api/openapi.json (title: “Revaer Control Plane API”)
+- OpenAPI schema: docs/api/openapi.json (title: "Revaer Control Plane API")
 - LLM aids: docs/llm/schema.json (index schema), docs/llm/manifest.json (book manifest), docs/llm/summaries.json (per-page summaries).
-- Keywords: “Revaer control plane”, “torrent + filesystem orchestration”, “PostgreSQL-backed configuration with hot reload”, “HTTP+SSE API on 7070”, “web UI on 8080”.
+- Keywords: "Revaer control plane", "torrent + filesystem orchestration", "PostgreSQL-backed configuration with hot reload", "HTTP+SSE API on 7070", "web UI on 8080".
 
-LLM Integration
+LLM integration
 The documentation site publishes machine-readable JSON manifests to help ChatGPT and other LLMs index and search the content. These files are static and live alongside the built docs, so LLM tooling can fetch them directly.
-- **[`schema.json`](llm/schema.json)** — JSON Schema describing the manifest/summaries format. Shared so LLM integrators can validate and evolve their tooling against a stable contract.
-- **[`manifest.json`](llm/manifest.json)** — Master index of documentation entries with IDs, titles, tags, and canonical URLs. Shared so LLMs can discover the page graph without crawling the entire site.
-- **[`summaries.json`](llm/summaries.json)** — Concise per-entry summaries extracted from the docs. Shared to provide quick context for answers and improve retrieval quality.
-- Latest refresh includes the NAT/PEX discovery toggle notes, listen_interface/IPv6 guidance, DHT bootstrap/router coverage, the privacy/transport toggles (`anonymous_mode`, proxy enforcement, RC4 preference, uTP switches), the outgoing port + DSCP configuration guidance, and the new connection limit fields in the bootstrap guide (generated 2026-05-07).
-These files are generated during `just docs` and hosted with the site; consuming them keeps search fast and avoids scraping overhead.
+- [`schema.json`](llm/schema.json) - JSON Schema describing the manifest/summaries format.
+- [`manifest.json`](llm/manifest.json) - Master index of documentation entries with ids, titles, tags, and canonical URLs.
+- [`summaries.json`](llm/summaries.json) - Concise per-entry summaries extracted from the docs.
+- Latest refresh includes the API + UI coverage guidance, SSE endpoint updates, and OpenAPI parity notes (generated 2026-01-16).
+These files are regenerated during `just docs` and hosted with the site; consuming them keeps search fast and avoids scraping overhead.

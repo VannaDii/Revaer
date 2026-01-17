@@ -1,66 +1,53 @@
 # Web UI - Phase 1
 
-Rust/Yew implementation plan for the Phase 1 torrent-only UI described in `REVAER_PHASE1_WEBUX_SPEC.md`. The goal is a responsive, touch-friendly surface that stays usable on 360px phones through 4K desktops while handling 50k+ torrents.
+Rust/Yew UI for the Phase 1 torrent workflow. The goal is a responsive, touch-friendly surface that stays usable on 360px phones through 4K desktops while handling large torrent libraries.
 
-- **Pages:** Dashboard, Torrents (list + detail), Search (shared list), Jobs/Post-processing, Settings, Logs. Indexers/Library stay hidden until Phase 2.
-- **Modes:** Simple (default, trimmed controls) and Advanced (all filters, columns, bulk actions). Persisted in local storage without reload.
-- **Transport:** REST for initial payloads; SSE for torrents, transfers, queue, jobs, and VPN state with backoff and jitter handling.
+- **Pages**: Dashboard, Torrents (list + detail), Logs, Health, Settings.
+- **Modes**: Simple (trimmed controls) and Advanced (full controls). Stored in local storage.
+- **Transport**: REST for initial payloads; fetch-based SSE for live updates and logs (header-auth supported, EventSource not used).
 
-## Layout & Breakpoints
+## Layout and breakpoints
 
 | Name | Width | Default behaviors |
 | --- | --- | --- |
-| xs | 0–479px | Card view for torrents, bottom sheet actions, stacked dashboard cards, hamburger navigation |
-| sm | 480–767px | Card view, two-column stats grid inside cards, slide-out navigation |
-| md | 768–1023px | Compact table (2–4 columns), tabbed detail view, 2-column dashboard grid |
-| lg | 1024–1439px | Full table, fixed sidebar with labels, 3-column dashboard grid |
-| xl | 1440–1919px | Adaptive column expansion, split-pane detail, 4-column dashboard grid |
-| 2xl | 1920px+ | Ultrawide-friendly table and split panes with max readable line lengths |
+| xs | 0-479px | Card view for torrents, drawer navigation, stacked dashboard cards |
+| sm | 480-767px | Card view, two-column stats grid inside cards |
+| md | 768-1023px | Compact table, tabbed detail view |
+| lg | 1024-1439px | Full table, fixed sidebar |
+| xl | 1440-1919px | Split panes and wider tables |
+| 2xl | 1920px+ | Ultra-wide tables with capped text widths |
 
-Table responsiveness: required columns (Name, Status, Progress, Speed up/down) stay pinned; ETA, Ratio, Size, Tags, Tracker, Path collapse into overflow or the detail drawer when space is constrained. Horizontal scroll must preserve keyboard navigation and roving tabindex.
+Table responsiveness: required columns (Name, Status, Progress, Down, Up) stay pinned; ETA, Ratio, Size, Tags, Path, Updated collapse into overflow or the detail drawer when space is constrained.
 
-Detail view: mobile renders tabs (`Files`, `Peers`, `Trackers`, `Log`, `Info`) with accordion file tree; desktop/laptop promotes a split grid showing file tree + metadata alongside peers/trackers/log simultaneously.
+Detail view: mobile renders tabs (Overview, Files, Options); desktop promotes a split layout that keeps overview and options visible together at lg+.
 
-Virtualization: torrent list uses a windowed renderer (row-height aware with overscan) to keep 50k+ rows responsive; horizontal scroll remains keyboard-safe and selection stays highlighted for shortcut actions.
+Virtualization: the torrent list uses a windowed renderer to keep large libraries responsive; selection stays highlighted for keyboard actions.
 
-Auth: remote mode always requires an API key; prompt stores key in local storage, LAN anonymous mode is allowed only if backend advertises `allow_anonymous`. SSE currently appends the key via querystring (EventSource lacks header support); use TLS and avoid logging URLs in deployment. Live updates: SSE feeds torrent progress/rates plus dashboard rates/queue/VPN status; reconnect badge/overlay surfaces failures and retries.
+## Auth and setup
 
-Add flow: drop `.torrent` or paste magnet/URL with inline validation and error copy; invalid file types are rejected. Submissions post to `/v1/torrents`, surface toast feedback, and refresh the list.
-Search & filters: search box hits `/v1/torrents?search=` with optional `regex=true`; Regex toggle is inline in the toolbar and clears with Escape.
-Live sync: SSE streams torrent progress/rates/state plus added/removed events to keep the list aligned without manual refresh.
+- API key auth is default. The UI prompts for `key_id:secret` and stores it in local storage with expiry metadata.
+- If `app_profile.auth_mode` is `none` and the request originates from a local network, the UI can enter anonymous mode.
+- Setup mode guides the operator through the setup token flow and stores the generated API key after completion.
 
-## Theming & Tokens
+## Transport and SSE
 
-- Palette: Primary (`#265D81` base), Secondary (`#775A96`), Accent (`#258BD3`), Neutral 50–900, Success/Warning/Error scales; dark mode uses `background-dark #121417`, `surface-dark #1A1C20`, and text tokens.
-- Scale: Spacing 4/8/12/16/24/32; radius 4/8/12; elevation tiers flat/raised/floating; type scale xs–2xl.
-- States: focus ring 2px accent-500, hover/pressed darken by one tone; inputs/tables use border tokens.
-- Theme selection follows OS preference on first load and persists to local storage; user toggle is always available.
+- Primary SSE: `/v1/torrents/events` with filters for torrent id, event kind, and state.
+- Fallback SSE: `/v1/events/stream` if the primary endpoint is unavailable.
+- Logs stream: `/v1/logs/stream`.
+- SSE requests attach `x-revaer-api-key` and `Last-Event-ID` headers.
 
-## Localization
+## Settings coverage
 
-- Languages: ar, de, es, hi, it, jv, mr, pt, ta, tr, bn, en, fr, id, ja, ko, pa, ru, te, zh.
-- Bundles: JSON files at `crates/revaer-ui/i18n/*.json` with English fallback; dotted keys supported in `TranslationBundle`.
-- RTL: bidi layout, mirrored progress bars, reversed file tree, and RTL-aware table alignment. `meta.rtl` in bundles hints at direction and is applied on load.
-- Numbers/dates: browser locale by default with user override; binary units for rates/sizes.
+Settings tabs are grouped into: Downloads, Seeding, Network, Storage, Labels, and System. Each tab reflects the corresponding config section and validation errors from `ProblemDetails` responses.
 
-## Accessibility & Interaction
+## Theming and localization
 
-- WCAG 2.1 AA: semantic markup, focus-visible rings, high-contrast dark mode, 40px touch targets on mobile, focus traps for drawers/modals.
-- Keyboard shortcuts (wired in demo UI): `/` search focus, `j/k` row move, `space` pause/resume, `delete` delete, `shift+delete` delete+data, `p` recheck. Selected row highlights; actions surface in a status banner.
-- Screen-reader flow follows DOM order (mobile collapse must not break navigation).
-- Confirmations: delete (“Remove torrent ‘&lt;name&gt;’? Files remain on disk”), delete+data (“Remove torrent and delete data? This cannot be undone.”), recheck prompt.
-- Mobile action bar: sticky bottom row for Pause/Resume/Delete/More on xs/sm; desktop retains row actions in-table.
-- SSE downtime overlay: shows last event timestamp, retry countdown (1s→30s with jitter), reason, and retry button; badge reflects reconnect state in top bar.
-
-## Performance & Resilience
-
-- Target: <300ms initial UI load on modern mobile (cached assets), virtualization for all tables beyond 500 rows, main-thread budget aligned with 50k torrents.
-- SSE: event batching and reconnect backoff (1s→30s with jitter), Last-Event-ID awareness, overlay with retry countdown and last event timestamp on disconnect.
-- Offline/remote awareness: API key prompt stored locally; remote mode always enforces key even if backend advertises anonymous LAN support.
+- Theme tokens and layout variables live in `static/style.css`.
+- Theme selection follows OS preference on first load and persists to local storage.
+- Locale selector uses JSON bundles in `i18n/` with English fallback and RTL hinting.
 
 ## Running the UI
 
 - Crate: `crates/revaer-ui` (Yew + wasm).
-- Commands: `rustup target add wasm32-unknown-unknown`, `cargo install trunk`, `trunk serve --open` to preview.
+- Commands: `just ui-serve` to preview, `just ui-build` for release builds.
 - Assets: `static/style.css` holds palette/breakpoints; `index.html` + `Trunk.toml` bootstrap trunk.
-- Demo data lives in `components/dashboard.rs` and `components/torrents.rs`; swap in REST/SSE adapters to connect to the backend once available.

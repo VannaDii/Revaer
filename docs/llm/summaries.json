@@ -328,7 +328,7 @@
   {
     "id": "adr/035-advisory-rustsec-2021-0065",
     "title": "Advisory RUSTSEC-2021-0065 Temporary Ignore",
-    "summary": "Status: Accepted Date: 2025-12-24 Context: The UI depends on yewdux, which transitively pulls anymap and triggers advisory RUSTSEC-2021-0065 (unmaintained). There is no maintained replacement for anymap within the pinned yewdux 0.9.x line, and upgrading yewdux would require a Yew major upgrade. cargo-audit is configured to deny warnings, so ignoring the advisory requires explicit documentation and a remediation plan. Decision: Add RUSTSEC-2021-0065 to .secignore while yewdux requires anymap. Track yewdux upgrades or alternatives that remove anymap and remove the ignore when available. No runtime mitigation is required beyond limiting use to the UI state store. Consequences: CI remains green while upstream",
+    "summary": "Status: Superseded by 073 (vendored yewdux exception tracked in ADR 074) Date: 2025-12-24 Context: The UI depends on yewdux, which transitively pulls anymap and triggers advisory RUSTSEC-2021-0065 (unmaintained). There is no maintained replacement for anymap within the pinned yewdux 0.9.x line, and upgrading yewdux would require a Yew major upgrade. cargo-audit is configured to deny warnings, so ignoring the advisory requires explicit documentation and a remediation plan. Decision: Add RUSTSEC-2021-0065 to .secignore while yewdux requires anymap. Track yewdux upgrades or alternatives that remove anymap and remove the ignore when available. No runtime mitigation is required beyond limiting use to the",
     "tags": [
       "dependency-rationale",
       "design-notes",
@@ -724,12 +724,202 @@
     "href": "/adr/069-docs-mdbook-mermaid-version/"
   },
   {
+    "id": "adr/070-dashboard-ui-checklist",
+    "title": "Dashboard UI checklist completion and auth/SSE hardening",
+    "summary": "Status: Accepted Date: 2026-01-01",
+    "tags": [
+      "consequences",
+      "context",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "follow-up",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/070-dashboard-ui-checklist/"
+  },
+  {
+    "id": "adr/071-libtorrent-native-fallback",
+    "title": "071: Libtorrent Native Fallback for Default CI",
+    "summary": "Status: Accepted Date: 2026-01-02 Context: just ci runs cargo udeps across the workspace and fails on hosts without libtorrent headers or pkg-config data. Native libtorrent integration tests are explicitly gated by REVAER_NATIVE_IT, so default runs should remain deterministic without requiring native system deps. Decision: Gate native FFI compilation behind a build-time cfg (libtorrent_native) that is emitted only when libtorrent is discovered by build.rs. When REVAER_NATIVE_IT is set, missing libtorrent is treated as an error; otherwise the build falls back to the stub backend with a warning. Alternatives considered: require libtorrent for all CI/dev runs, or remove --all-features from the quality",
+    "tags": [],
+    "href": "/adr/071-libtorrent-native-fallback/"
+  },
+  {
+    "id": "adr/072-agent-compliance-refactor",
+    "title": "072: Agent Compliance Refactor (UI + HTTP + Config Layout)",
+    "summary": "Status: Accepted Date: 2026-01-03 Context: Motivation: bring the repository into closer alignment with AGENT layout and tooling rules after drift in UI routing, HTTP module layout, and config structure. Constraints: preserve existing APIs/behavior while relocating modules; avoid new dependencies and keep stored-procedure-only database access intact. Decision: Design notes: move torrent UI views into the feature module, scope window/router usage to the app layer, and reorganize API HTTP handlers/DTOs into handlers/ and dto/ while re-exporting to preserve public paths. Alternatives considered: leave modules in place and document exceptions (rejected to keep the structure enforceable); introduce a large-scale API surface rename (rejected",
+    "tags": [],
+    "href": "/adr/072-agent-compliance-refactor/"
+  },
+  {
+    "id": "adr/073-ui-checklist-followups",
+    "title": "UI checklist follow-ups: SSE detail refresh, labels shortcuts, strict i18n, and anymap removal",
+    "summary": "Status: Accepted Date: 2026-01-03",
+    "tags": [
+      "consequences",
+      "context",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "follow-up",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/073-ui-checklist-followups/"
+  },
+  {
+    "id": "adr/074-vendored-yewdux-latest-yew",
+    "title": "Temporary vendoring of yewdux for latest Yew compatibility",
+    "summary": "Status: Accepted Date: 2026-01-03 Context: We must stay on the latest crates.io yew and yew-router. yewdux on crates.io (0.11) depends on yew 0.21, which conflicts with yew-router 0.19 (yew 0.22). Git dependencies are disallowed, and vendoring is normally disallowed. Decision: Vendor yewdux under vendor/yewdux and update it to compile against yew 0.22. Patch the workspace to use the vendored yewdux while keeping all other dependencies on crates.io. Document the exception in AGENT.md with a hard requirement to remove the vendored copy once a compatible crates.io release exists. Alternatives considered: Wait on the latest Yew (rejected; staying current is top priority).",
+    "tags": [],
+    "href": "/adr/074-vendored-yewdux-latest-yew/"
+  },
+  {
+    "id": "adr/075-coverage-gate-tests",
+    "title": "075: Coverage gate tests for config loader and data toggles",
+    "summary": "Status: Accepted Date: 2026-01-03 Context: Motivation: just cov failed at 76.46% line coverage, blocking just ci. Constraints: no coverage suppression, no new dependencies, and AGENT compliance. Decision: Add focused unit tests for config loader mapping/secret helpers and data config toggle sets. Alternatives considered: ignore the gate or suppress coverage reporting (rejected). Consequences: Positive outcomes: just cov clears the 80% line gate; configuration mappings gain direct test coverage. Risks or trade-offs: slightly longer test runtime. Follow-up: Implementation tasks: add loader/data tests, update checklist status, run just ci. Review checkpoints: validate coverage stays >=80% during follow-up changes. Test coverage summary: just cov",
+    "tags": [],
+    "href": "/adr/075-coverage-gate-tests/"
+  },
+  {
+    "id": "adr/076-hashbrown-multiple-versions-exception",
+    "title": "076: Temporary clippy exception for hashbrown multiple versions",
+    "summary": "Status: Accepted Date: 2026-01-03 Context: Motivation: just lint fails on clippy::multiple_crate_versions due to hashbrown 0.15 (via sqlx-core -> hashlink ^0.10) and 0.16 (via yew -> indexmap ^2.11). Constraints: keep yew/yew-router latest, avoid vendoring or git crates, preserve CI via just. Decision: Allow clippy::multiple_crate_versions in the lint recipe and crate roots. Allow duplicate hashbrown/foldhash in cargo-deny bans to keep just deny green. Remove the exception once SQLx releases a version compatible with hashlink ^0.11 (or the dependency graph otherwise unifies on a single hashbrown). Consequences: Positive outcomes: just lint passes while keeping primary deps current. Risks or trade-offs: reduced lint signal",
+    "tags": [],
+    "href": "/adr/076-hashbrown-multiple-versions-exception/"
+  },
+  {
+    "id": "adr/077-ui-menu-interactions",
+    "title": "Restore UI Menu Interactions",
+    "summary": "Status: Accepted Date: 2026-01-09 Context: Motivation: top-right menus did not open reliably, and sidebar labels were hidden in the default open state. Constraints: No new dependencies; use daisyUI/Nexus patterns and keep component props stable. Design notes: Align dropdown markup with daisyUI examples and compose menu UI from shared components. Decision: Summary of the choice made: update dropdowns to the daisyUI focus pattern, compose locale/server menus into dedicated components, and default sidebar labels to visible while hiding them only in collapsed/hover modes using sibling selectors. Alternatives considered: keep inline markup, add JS for dropdown state, or hardcode label visibility without toggle",
+    "tags": [],
+    "href": "/adr/077-ui-menu-interactions/"
+  },
+  {
+    "id": "adr/078-local-auth-bypass-guardrails",
+    "title": "078 - Local Auth Bypass Guardrails (Task Record)",
+    "summary": "Status: In Progress Date: 2026-01-11",
+    "tags": [
+      "consequences",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/078-local-auth-bypass-guardrails/"
+  },
+  {
+    "id": "adr/079-advisory-rustsec-2025-0141",
+    "title": "Advisory RUSTSEC-2025-0141 Temporary Ignore",
+    "summary": "Status: In Progress Date: 2026-01-11 Context: bincode 1.3.3 is flagged as unmaintained (RUSTSEC-2025-0141). The dependency is pulled via gloo-worker in gloo, which is required by the Yew UI stack. No drop-in upgrade path is available without upstream releases. Decision: Add RUSTSEC-2025-0141 to .secignore while the UI depends on gloo/yew that transitively require bincode 1.3.3. Revisit once upstream releases remove or replace the dependency. Consequences: just audit passes while the advisory remains documented. The unmaintained dependency stays in the tree until upstream updates land. Follow-up: Track gloo and yew release notes for bincode replacement/removal. Remove the ignore once the dependency graph",
+    "tags": [
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback-plan",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/079-advisory-rustsec-2025-0141/"
+  },
+  {
+    "id": "adr/080-local-auth-bypass-reliability",
+    "title": "080 - Local Auth Bypass Reliability (Task Record)",
+    "summary": "Status: Accepted Date: 2026-01-11",
+    "tags": [
+      "consequences",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/080-local-auth-bypass-reliability/"
+  },
+  {
+    "id": "adr/081-playwright-e2e-suite",
+    "title": "081 - Playwright E2E Test Suite (Task Record)",
+    "summary": "Status: Accepted Date: 2026-01-14",
+    "tags": [
+      "consequences",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/081-playwright-e2e-suite/"
+  },
+  {
+    "id": "adr/082-e2e-gate-and-selectors",
+    "title": "082 - E2E Gate and Selector Stability (Task Record)",
+    "summary": "Status: Accepted Date: 2026-01-14",
+    "tags": [
+      "consequences",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/082-e2e-gate-and-selectors/"
+  },
+  {
+    "id": "adr/083-api-preflight-e2e",
+    "title": "083 - API Preflight Before UI E2E (Task Record)",
+    "summary": "Status: Accepted Date: 2026-01-14",
+    "tags": [
+      "consequences",
+      "decision",
+      "dependency-rationale",
+      "design-notes",
+      "motivation",
+      "observability-updates",
+      "risk-rollback",
+      "test-coverage-summary"
+    ],
+    "href": "/adr/083-api-preflight-e2e/"
+  },
+  {
+    "id": "adr/084-e2e-api-coverage-temp-db",
+    "title": "084: E2E API Coverage With Temp Databases",
+    "summary": "Status: Accepted Date: 2026-01-15 Context: What problem are we solving? E2E coverage must exercise 100% of the HTTP API surface under both auth modes and surface API regressions before UI tests. Test runs must isolate state using temporary databases and document OpenAPI coverage gaps. What constraints or forces shape the decision? The API server derives port and auth mode from persisted configuration; setup flow must be exercised to activate the instance. E2E runs must be invoked via just and use tests/.env for configuration. Decision: Summary of the choice made. Add Playwright global setup/teardown to perform setup and factory reset. Expand",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/084-e2e-api-coverage-temp-db/"
+  },
+  {
+    "id": "adr/085-e2e-openapi-client-and-coverage",
+    "title": "085 - E2E OpenAPI Client and Unified Coverage",
+    "summary": "Status: Accepted Date: 2026-01-16 Context: What problem are we solving? E2E runs overwrote reports and did not enforce full API/UI surface coverage. API E2E tests needed a generated TypeScript client based on the OpenAPI spec. What constraints or forces shape the decision? Use a single Playwright execution with one final report. Use a maintained generator that supports native Node.js fetch. Keep OpenAPI synchronized with the router surface. Decision: Summary of the choice made. Expand OpenAPI coverage to match all router endpoints and generate a typed E2E client via openapi-typescript + openapi-fetch. Enforce API operation and UI route coverage in the",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/085-e2e-openapi-client-and-coverage/"
+  },
+  {
     "id": "adr/index",
     "title": "ADRs",
-    "summary": "This page is the single ADR index. Keep the menu clean by listing every ADR here.",
+    "summary": "Create a new ADR using the template in docs/adr/template.md. Give it a sequential identifier (e.g., 001, 002) and a concise title. Capture context, decision, consequences, and follow-up actions. Append the new ADR entry to the end of the Catalogue list above. Append the same entry under ADRs in docs/SUMMARY.md, keeping it nested so the sidebar stays collapsed. Reference ADRs from code comments or docs where the decision applies.",
     "tags": [
       "catalogue",
-      "suggested-workflow"
+      "suggested-use-workflow"
     ],
     "href": "/adr/index/"
   },
@@ -755,7 +945,7 @@
   {
     "id": "api/guides/cli",
     "title": "CLI Usage Guide",
-    "summary": "The revaer CLI provides parity with the public API while honouring the same authentication, pagination, and SSE semantics.",
+    "summary": "The revaer CLI provides parity with the public API while honoring the same authentication, pagination, and SSE semantics.",
     "tags": [
       "commands",
       "exit-codes",
@@ -767,9 +957,14 @@
   {
     "id": "api/guides/operations",
     "title": "Operational Setup & Security",
-    "summary": "Issue keys via settings changesets (SettingsChangeset::api_keys) including:\\n+ json\\n+ {\\n+ \\\"op\\\": \\\"upsert\\\",\\n+ \\\"key_id\\\": \\\"automation\\\",\\n+ \\\"label\\\": \\\"CI\\\",\\n+ \\\"secret\\\": \\\"<generated>\\\",\\n+ \\\"rate_limit\\\": { \\\"burst\\\": 60, \\\"per_seconds\\\": 60 }\\n+ }\\n+ \\n+2. Secrets are hashed at rest; rotate keys by supplying a new secret value.\\n+3. Disable keys with { \\\"op\\\": \\\"upsert\\\", \\\"key_id\\\": \\\"automation\\\", \\\"enabled\\\": false }.\\n+4. Remove keys with { \\\"op\\\": \\\"delete\\\", \\\"key_id\\\": \\\"automation\\\" }.\\n+\\n+Invalid rate-limit payloads (missing fields, zero burst) are rejected during configuration apply with RFC9457 errors.\\n+\\n+## Rate Limiting\\n+\\n+- Token bucket with parameters burst (maximum outstanding requests) and per_seconds (replenish interval).\\n+- Requests exceeding limits receive 429 Problem+JSON responses; CLI maps these to exit code",
+    "summary": "Issue keys via settings changesets (SettingsChangeset::api_keys). { \"api_keys\": [ { \"op\": \"upsert\", \"key_id\": \"automation\", \"label\": \"ci\", \"secret\": \"<generated>\", \"rate_limit\": { \"burst\": 60, \"per_seconds\": 60 }, \"enabled\": true } ] } Secrets are hashed at rest. Rotate keys by supplying a new secret value. Disable keys with { \"op\": \"upsert\", \"key_id\": \"automation\", \"enabled\": false }. Remove keys with { \"op\": \"delete\", \"key_id\": \"automation\" }. All authenticated requests must include x-revaer-api-key: key_id:secret.",
     "tags": [
-      "api-key-lifecycle"
+      "api-key-lifecycle",
+      "docker-runtime",
+      "rate-limiting",
+      "rotation-playbook",
+      "secrets-and-logging",
+      "sse-and-resume"
     ],
     "href": "/api/guides/operations/"
   },
@@ -789,11 +984,10 @@
   {
     "id": "api/index",
     "title": "API Documentation",
-    "summary": "This directory hosts HTTP API specifications, generated OpenAPI documents, and usage guides for the Revaer control plane.",
+    "summary": "This directory hosts HTTP API specifications, the generated OpenAPI document, and usage guides for the Revaer control plane.",
     "tags": [
       "contents",
-      "current-coverage",
-      "next-steps"
+      "current-coverage"
     ],
     "href": "/api/index/"
   },
@@ -803,6 +997,18 @@
     "summary": "Canonical machine-readable description of the Revaer control plane surface.",
     "tags": [],
     "href": "/api/openapi/"
+  },
+  {
+    "id": "api/openapi-gaps",
+    "title": "OpenAPI Coverage Gaps",
+    "summary": "This document lists API routes present in crates/revaer-api/src/http/router.rs that are missing from docs/api/openapi.json.",
+    "tags": [
+      "missing-admin-routes",
+      "missing-v1-routes",
+      "notes",
+      "summary"
+    ],
+    "href": "/api/openapi-gaps/"
   },
   {
     "id": "index",
@@ -844,10 +1050,15 @@
   {
     "id": "platform/api",
     "title": "HTTP API",
-    "summary": "REST + SSE surface exposed by `revaer-api`. The OpenAPI document at `/docs/openapi.json` is generated by `just api-export`.",
+    "summary": "REST + SSE surface exposed by `revaer-api`. The OpenAPI document is served at `/docs/openapi.json` and regenerated via `just api-export`.",
     "tags": [
       "authentication",
-      "endpoint-inventory"
+      "endpoint-inventory-core-surface",
+      "health-and-metrics",
+      "listing-and-filtering-get-v1-torrents",
+      "sse-stream-get-v1-torrents-events",
+      "torrent-actions-post-v1-torrents-id-action",
+      "torrent-submission-post-v1-torrents"
     ],
     "href": "/platform/api/"
   },
@@ -858,7 +1069,7 @@
     "tags": [
       "configuration-maintenance",
       "event-streaming",
-      "global-flags-environment",
+      "global-flags-and-environment",
       "setup-flow",
       "torrent-lifecycle"
     ],
@@ -867,9 +1078,13 @@
   {
     "id": "platform/configuration",
     "title": "Configuration Surface",
-    "summary": "Canonical reference for the PostgreSQL-backed settings documents that drive Revaer’s runtime behaviour.",
+    "summary": "Canonical reference for the PostgreSQL-backed settings documents that drive Revaer's runtime behavior.",
     "tags": [
+      "api-keys-and-secrets",
+      "app-profile-settings-app-profile",
       "change-workflows",
+      "engine-profile-settings-engine-profile",
+      "filesystem-policy-settings-fs-policy",
       "snapshot-components",
       "telemetry-toggle"
     ],
@@ -912,7 +1127,7 @@
   },
   {
     "id": "ui/flows",
-    "title": "Web UI Flows & Diagrams",
+    "title": "Web UI Flows and Diagrams",
     "summary": "Visual references for the Phase 1 UX: navigation, component wiring, SSE handling, and torrent lifecycle. Use these diagrams when extending the UI or adding tests.",
     "tags": [
       "component-graph",
@@ -926,14 +1141,14 @@
   {
     "id": "ui/index",
     "title": "Web UI - Phase 1",
-    "summary": "Rust/Yew implementation plan for the Phase 1 torrent-only UI described in REVAER_PHASE1_WEBUX_SPEC.md. The goal is a responsive, touch-friendly surface that stays usable on 360px phones through 4K desktops while handling 50k+ torrents. **Pages:** Dashboard, Torrents (list + detail), Search (shared list), Jobs/Post-processing, Settings, Logs. Indexers/Library stay hidden until Phase 2. **Modes:** Simple (default, trimmed controls) and Advanced (all filters, columns, bulk actions). Persisted in local storage without reload. **Transport:** REST for initial payloads; SSE for torrents, transfers, queue, jobs, and VPN state with backoff and jitter handling.",
+    "summary": "Rust/Yew UI for the Phase 1 torrent workflow. The goal is a responsive, touch-friendly surface that stays usable on 360px phones through 4K desktops while handling large torrent libraries. **Pages**: Dashboard, Torrents (list + detail), Logs, Health, Settings. **Modes**: Simple (trimmed controls) and Advanced (full controls). Stored in local storage. **Transport**: REST for initial payloads; fetch-based SSE for live updates and logs (header-auth supported, EventSource not used).",
     "tags": [
-      "accessibility-interaction",
-      "layout-breakpoints",
-      "localization",
-      "performance-resilience",
+      "auth-and-setup",
+      "layout-and-breakpoints",
       "running-the-ui",
-      "theming-tokens"
+      "settings-coverage",
+      "theming-and-localization",
+      "transport-and-sse"
     ],
     "href": "/ui/index/"
   }
