@@ -1,0 +1,23 @@
+# Port process termination for dev tooling
+
+- Status: Accepted
+- Date: 2026-01-17
+- Context:
+  - What problem are we solving? Port cleanup for 7070/8080 did not verify termination, leaving ports occupied and making dev or E2E startup flaky.
+  - What constraints or forces shape the decision? Keep existing tooling, avoid new dependencies, and ensure startup fails fast when ports cannot be freed.
+- Decision:
+  - Summary of the choice made. Add a graceful shutdown path that sends SIGTERM, waits briefly, escalates to SIGKILL, and errors if ports remain bound.
+  - Alternatives considered. Leave the kill-only behavior or add external tooling/scripts; rejected to avoid new dependencies and extra surface area.
+- Consequences:
+  - Positive outcomes. Cleanup is deterministic and failures surface early when ports cannot be reclaimed.
+  - Risks or trade-offs. Force-kill can terminate unrelated processes on those ports; failures may require manual cleanup before rerun.
+- Task record:
+  - Motivation: Ensure port cleanup actually releases 7070/8080 before starting services.
+  - Design notes: Use lsof PID discovery, SIGTERM with polling, SIGKILL fallback, and a final port-bound check; reuse in `just dev`.
+  - Test coverage summary: Covered by `just ci` and `just ui-e2e` runs (no direct unit tests).
+  - Observability updates: Added console messages in `just zombies` for graceful/force termination.
+  - Risk & rollback plan: Revert the justfile changes if termination must be non-fatal; manual kill with lsof remains a fallback.
+  - Dependency rationale: No new dependencies; lsof already assumed by existing recipes.
+- Follow-up:
+  - Implementation tasks. Keep `zombies` aligned with any future port changes.
+  - Review checkpoints. Verify `just dev` and `just ui-e2e` startup when ports are in use.

@@ -1045,8 +1045,7 @@ mod tests {
     };
     use revaer_config::{
         ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigError, ConfigResult, ConfigSnapshot,
-        SettingsChangeset, SetupToken,
-        validate::default_local_networks,
+        SettingsChangeset, SetupToken, validate::default_local_networks,
     };
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;

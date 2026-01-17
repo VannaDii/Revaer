@@ -2,7 +2,6 @@
 //!
 //! # Design
 //! - Use fetch streaming so auth headers can be attached to requests.
-//! - Attempt the primary torrents SSE endpoint first, then fall back on 404.
 //! - Expose a cancellable handle so callers can stop the stream on unmount.
 
 use crate::app::preferences::{clear_last_event_id, load_last_event_id, persist_last_event_id};
@@ -101,19 +100,9 @@ async fn run_sse_loop(
                             last_event_id,
                             None,
                             None,
-                            Some(error.clone()),
+                            Some(error),
                         );
-                        schedule_reconnect(
-                            &on_state,
-                            &auth_label,
-                            retry_hint_ms,
-                            attempt,
-                            last_event_id,
-                            error,
-                        )
-                        .await;
-                        attempt = attempt.saturating_add(1);
-                        continue;
+                        return;
                     }
                 };
                 attempt = 0;
@@ -148,18 +137,9 @@ async fn run_sse_loop(
                                         last_event_id,
                                         None,
                                         None,
-                                        Some(error.clone()),
+                                        Some(error),
                                     );
-                                    schedule_reconnect(
-                                        &on_state,
-                                        &auth_label,
-                                        retry_hint_ms,
-                                        attempt,
-                                        last_event_id,
-                                        error,
-                                    )
-                                    .await;
-                                    break;
+                                    return;
                                 }
                             };
                             for frame in parser.push(&text) {
@@ -279,20 +259,24 @@ async fn run_sse_loop(
                     None,
                     Some(error.clone()),
                 );
-                let reconnect_attempt = if matches!(err, ConnectError::Conflict) {
-                    0
+                if matches!(err, ConnectError::Conflict) || should_reconnect(&err) {
+                    let reconnect_attempt = if matches!(err, ConnectError::Conflict) {
+                        0
+                    } else {
+                        attempt
+                    };
+                    schedule_reconnect(
+                        &on_state,
+                        &auth_label,
+                        retry_hint_ms,
+                        reconnect_attempt,
+                        last_event_id,
+                        error,
+                    )
+                    .await;
                 } else {
-                    attempt
-                };
-                schedule_reconnect(
-                    &on_state,
-                    &auth_label,
-                    retry_hint_ms,
-                    reconnect_attempt,
-                    last_event_id,
-                    error,
-                )
-                .await;
+                    return;
+                }
             }
         }
 
@@ -308,15 +292,8 @@ async fn open_stream(
     signal: &AbortSignal,
 ) -> Result<ReadableStreamDefaultReader, ConnectError> {
     let primary = build_sse_url(base_url, SseEndpoint::Primary, Some(query));
-    match fetch_stream(&primary, auth, last_event_id, signal).await {
-        Ok(response) => stream_reader(response),
-        Err(ConnectError::NotFound) => {
-            let fallback = build_sse_url(base_url, SseEndpoint::Fallback, Some(query));
-            let response = fetch_stream(&fallback, auth, last_event_id, signal).await?;
-            stream_reader(response)
-        }
-        Err(err) => Err(err),
-    }
+    let response = fetch_stream(&primary, auth, last_event_id, signal).await?;
+    stream_reader(response)
 }
 
 fn stream_reader(response: Response) -> Result<ReadableStreamDefaultReader, ConnectError> {
@@ -352,9 +329,6 @@ async fn fetch_stream(
         .await
         .map_err(|_| ConnectError::Fetch)?;
     let response: Response = resp.dyn_into().map_err(|_| ConnectError::Fetch)?;
-    if response.status() == 404 {
-        return Err(ConnectError::NotFound);
-    }
     if response.status() == 409 {
         return Err(ConnectError::Conflict);
     }
@@ -483,7 +457,6 @@ enum ConnectError {
     Fetch,
     Stream,
     Reader,
-    NotFound,
     Conflict,
     Status(u16),
 }
@@ -491,7 +464,6 @@ enum ConnectError {
 impl ConnectError {
     fn status_code(&self) -> Option<u16> {
         match self {
-            Self::NotFound => Some(404),
             Self::Conflict => Some(409),
             Self::Status(code) => Some(*code),
             _ => None,
@@ -508,9 +480,12 @@ impl std::fmt::Display for ConnectError {
             Self::Fetch => write!(f, "fetch failed"),
             Self::Stream => write!(f, "SSE response missing body"),
             Self::Reader => write!(f, "SSE stream reader unavailable"),
-            Self::NotFound => write!(f, "endpoint not found"),
             Self::Conflict => write!(f, "conflict"),
             Self::Status(code) => write!(f, "http {code}"),
         }
     }
+}
+
+fn should_reconnect(err: &ConnectError) -> bool {
+    matches!(err, ConnectError::Fetch)
 }

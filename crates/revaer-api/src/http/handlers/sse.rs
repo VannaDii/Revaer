@@ -10,11 +10,9 @@ use axum::{
     http::HeaderMap,
     response::sse::{self, Sse},
 };
-use futures_util::{StreamExt, future, stream};
+use futures_util::{StreamExt, future};
 use revaer_events::{Event as CoreEvent, EventBus, EventEnvelope, EventId};
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
-use tokio::time::sleep;
 use tracing::{error, warn};
 use uuid::Uuid;
 
@@ -60,7 +58,7 @@ pub(crate) async fn stream_events(
         }
     };
 
-    let stream = select_dummy_and_real_streams(last_id, filter, state.events.clone());
+    let stream = event_sse_stream(state.events.clone(), last_id, filter);
 
     Ok(Sse::new(stream).keep_alive(
         sse::KeepAlive::new()
@@ -148,130 +146,6 @@ pub(crate) fn matches_sse_filter(envelope: &EventEnvelope, filter: &SseFilter) -
     true
 }
 
-fn select_dummy_and_real_streams(
-    last_id: Option<EventId>,
-    filter: SseFilter,
-    events: EventBus,
-) -> impl futures_core::Stream<Item = Result<sse::Event, Infallible>> + Send {
-    let real_stream = event_sse_stream(events, last_id, filter);
-    let dummy_stream = build_dummy_sse_stream();
-
-    stream::select(dummy_stream, real_stream)
-}
-
-fn build_dummy_sse_stream()
--> impl futures_core::Stream<Item = Result<sse::Event, Infallible>> + Send {
-    let torrent_id = Uuid::nil();
-    let torrent_other = Uuid::from_u128(1);
-    stream::unfold(0u64, move |tick| {
-        let tid = torrent_id;
-        let tid_other = torrent_other;
-        async move {
-            sleep(Duration::from_millis(800)).await;
-            let next_tick = tick.saturating_add(1);
-            let payload = dummy_payload(tick, tid, tid_other);
-            let event = sse::Event::default()
-                .id(format!("dummy-{tick}"))
-                .data(payload.to_string());
-            Some((Ok(event), next_tick))
-        }
-    })
-}
-
-pub(crate) fn dummy_payload(tick: u64, tid: Uuid, tid_other: Uuid) -> Value {
-    match tick % 10 {
-        0 => json!({
-            "kind": "system_rates",
-            "data": {
-                "download_bps": 50_000 + (tick * 2_000),
-                "upload_bps": 5_000 + (tick * 500)
-            }
-        }),
-        1 => json!({
-            "kind": "torrent_added",
-            "data": {
-                "id": tid,
-                "name": format!("example-{tick}"),
-                "state": "queued"
-            }
-        }),
-        2 => json!({
-            "kind": "progress",
-            "data": {
-                "id": tid,
-                "progress": {
-                    "bytes_downloaded": tick * 1024,
-                    "bytes_total": 20_480,
-                    "eta_seconds": 42
-                },
-                "rates": {
-                    "download_bps": 50_000 + (tick * 2_000),
-                    "upload_bps": 5_000 + (tick * 500),
-                    "ratio": 0.75
-                },
-                "state": "downloading",
-                "sequential": tick & 1 == 0,
-                "download_dir": ".server_root/downloads/demo"
-            }
-        }),
-        3 => json!({
-            "kind": "state_changed",
-            "data": {
-                "id": tid,
-                "state": "seeding",
-                "download_dir": ".server_root/downloads/demo"
-            }
-        }),
-        4 => json!({
-            "kind": "completed",
-            "data": {
-                "id": tid,
-                "library_path": ".server_root/library/demo"
-            }
-        }),
-        5 => json!({
-            "kind": "torrent_removed",
-            "data": {
-                "id": tid_other
-            }
-        }),
-        6 => json!({
-            "kind": "fsops_started",
-            "data": {
-                "torrent_id": tid,
-                "src_path": ".server_root/downloads/demo",
-                "dst_path": ".server_root/library/demo"
-            }
-        }),
-        7 => json!({
-            "kind": "fsops_progress",
-            "data": {
-                "torrent_id": tid,
-                "status": "moving",
-                "percent_complete": 42.0
-            }
-        }),
-        8 => json!({
-            "kind": "metadata_updated",
-            "data": {
-                "torrent_id": tid,
-                "download_dir": format!(".server_root/downloads/relocated-{tick}"),
-                "name": format!("demo-{tick}"),
-                "comment": format!("note-{tick}"),
-                "source": "revaer",
-                "private": tick & 1 == 0
-            }
-        }),
-        _ => json!({
-            "kind": "fsops_failed",
-            "data": {
-                "torrent_id": tid,
-                "message": "disk full"
-            }
-        }),
-    }
-}
-
 pub(crate) fn event_replay_stream(
     bus: EventBus,
     since: Option<EventId>,
@@ -325,6 +199,7 @@ mod tests {
     use super::*;
     use anyhow::{Result, anyhow};
     use std::time::Duration;
+    use tokio::time::sleep;
 
     #[test]
     fn build_sse_filter_parses_filters() -> Result<()> {
@@ -392,42 +267,6 @@ mod tests {
             timestamp: chrono::Utc::now(),
         };
         assert!(matches_sse_filter(&envelope, &filter));
-    }
-
-    #[test]
-    fn dummy_payload_covers_all_kinds() {
-        let tid = Uuid::nil();
-        let tid_other = Uuid::from_u128(1);
-        for tick in 0..10 {
-            assert!(
-                dummy_payload(tick, tid, tid_other)["kind"]
-                    .as_str()
-                    .is_some(),
-                "tick {tick} should emit a kind"
-            );
-        }
-    }
-
-    #[test]
-    fn dummy_payload_fields_change_with_ticks() {
-        let tid = Uuid::nil();
-        let tid_other = Uuid::from_u128(1);
-        let progress = dummy_payload(2, tid, tid_other);
-        assert_eq!(
-            progress["data"]["progress"]["bytes_downloaded"].as_u64(),
-            Some(2 * 1024)
-        );
-        let state = dummy_payload(7, tid, tid_other);
-        assert_eq!(state["data"]["status"], "moving");
-        let metadata = dummy_payload(8, tid, tid_other);
-        assert_eq!(
-            metadata["data"]["download_dir"],
-            ".server_root/downloads/relocated-8"
-        );
-        assert_eq!(metadata["data"]["comment"], "note-8");
-        assert_eq!(metadata["data"]["private"], true);
-        let jobs = dummy_payload(9, tid, tid_other);
-        assert_eq!(jobs["data"]["message"], "disk full");
     }
 
     #[tokio::test]

@@ -1027,8 +1027,7 @@ mod tests {
     use axum::http::StatusCode;
     use revaer_config::{
         ApiKeyAuth, AppMode, AppProfile, ConfigError, ConfigResult, LabelPolicy, SettingsChangeset,
-        TelemetryConfig,
-        validate::default_local_networks,
+        TelemetryConfig, validate::default_local_networks,
     };
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;

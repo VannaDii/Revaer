@@ -13,8 +13,8 @@ use axum::{
     extract::State,
     response::sse::{self, Sse},
 };
-use futures_util::StreamExt;
-use revaer_telemetry::log_stream_receiver;
+use futures_util::{StreamExt, stream};
+use revaer_telemetry::{log_stream_receiver, log_stream_snapshot};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
 
@@ -38,7 +38,13 @@ pub(crate) async fn stream_logs(
 fn build_log_stream(
     receiver: broadcast::Receiver<String>,
 ) -> impl futures_core::Stream<Item = Result<sse::Event, Infallible>> + Send {
-    BroadcastStream::new(receiver).filter_map(|result| async move {
+    let snapshot = log_stream_snapshot();
+    let snapshot_stream = stream::iter(
+        snapshot
+            .into_iter()
+            .map(|line| Ok(sse::Event::default().event("log").data(line))),
+    );
+    let live_stream = BroadcastStream::new(receiver).filter_map(|result| async move {
         let event = match result {
             Ok(line) => sse::Event::default().event("log").data(line),
             Err(err) => sse::Event::default()
@@ -46,7 +52,8 @@ fn build_log_stream(
                 .data(log_status_message(&err)),
         };
         Some(Ok(event))
-    })
+    });
+    snapshot_stream.chain(live_stream)
 }
 
 fn log_status_message(err: &BroadcastStreamRecvError) -> String {

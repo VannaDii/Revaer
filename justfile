@@ -181,16 +181,37 @@ ui-build: sync-assets
 ui-e2e:
     bash scripts/ui-e2e.sh
 
+zombies:
+    for port in 7070 8080; do \
+        pids=$(lsof -ti :$port 2>/dev/null || true); \
+        if [ -z "$pids" ]; then \
+            continue; \
+        fi; \
+        echo "Stopping processes on port $port: $pids"; \
+        kill $pids 2>/dev/null || true; \
+        for pid in $pids; do \
+            for _ in 1 2 3 4 5 6 7 8 9 10; do \
+                if ! kill -0 "$pid" 2>/dev/null; then \
+                    break; \
+                fi; \
+                sleep 0.2; \
+            done; \
+            if kill -0 "$pid" 2>/dev/null; then \
+                echo "Force killing process $pid on port $port"; \
+                kill -9 "$pid" 2>/dev/null || true; \
+            fi; \
+        done; \
+        remaining=$(lsof -ti :$port 2>/dev/null || true); \
+        if [ -n "$remaining" ]; then \
+            echo "Processes still bound to port $port: $remaining" >&2; \
+            exit 1; \
+        fi; \
+    done
+
 dev: sync-assets
     just db-start
     db_url="${DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"; \
-    for port in 7070 8080; do \
-        pids=$(lsof -ti :$port 2>/dev/null || true); \
-        if [ -n "$pids" ]; then \
-            echo "Killing processes on port $port: $pids"; \
-            kill $pids 2>/dev/null || true; \
-        fi; \
-    done; \
+    just zombies; \
     if ! command -v cargo-watch >/dev/null 2>&1; then \
         cargo install cargo-watch; \
     fi; \

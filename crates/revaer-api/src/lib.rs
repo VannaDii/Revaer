@@ -51,9 +51,7 @@ mod tests {
     use crate::http::rate_limit::RateLimiter;
     use crate::http::settings::{get_config_snapshot, settings_patch};
     use crate::http::setup::{setup_complete, setup_start};
-    use crate::http::sse::{
-        SseFilter, dummy_payload, event_replay_stream, event_sse_stream, matches_sse_filter,
-    };
+    use crate::http::sse::{SseFilter, event_replay_stream, event_sse_stream, matches_sse_filter};
     use crate::http::torrents::handlers::{
         action_torrent, create_torrent, delete_torrent, dispatch_torrent_add,
         dispatch_torrent_remove, fetch_all_torrents, fetch_torrent_status, get_torrent,
@@ -204,78 +202,6 @@ mod tests {
         );
         assert_eq!(telemetry.snapshot().guardrail_violations_total, 1);
         Ok(())
-    }
-
-    #[test]
-    fn dummy_payload_covers_all_kinds() -> Result<()> {
-        let tid = Uuid::nil();
-        let tid_other = Uuid::from_u128(1);
-        let mut kinds = Vec::new();
-        for tick in 0..10 {
-            let payload = dummy_payload(tick, tid, tid_other);
-            let kind = payload["kind"]
-                .as_str()
-                .ok_or_else(|| anyhow!("expected kind string"))?;
-            kinds.push(kind.to_string());
-        }
-
-        assert_eq!(
-            kinds,
-            vec![
-                "system_rates",
-                "torrent_added",
-                "progress",
-                "state_changed",
-                "completed",
-                "torrent_removed",
-                "fsops_started",
-                "fsops_progress",
-                "metadata_updated",
-                "fsops_failed"
-            ]
-        );
-        Ok(())
-    }
-
-    #[test]
-    fn dummy_payload_fields_change_with_ticks() {
-        let tid = Uuid::nil();
-        let tid_other = Uuid::from_u128(1);
-
-        let progress = dummy_payload(2, tid, tid_other);
-        assert_eq!(progress["kind"], "progress");
-        assert_eq!(
-            progress["data"]["id"]
-                .as_str()
-                .map(|s| s.parse::<Uuid>().ok()),
-            Some(Some(tid))
-        );
-        assert_eq!(progress["data"]["progress"]["bytes_downloaded"], 2 * 1_024);
-        assert_eq!(
-            progress["data"]["rates"]["download_bps"],
-            50_000 + (2 * 2_000)
-        );
-        assert_eq!(progress["data"]["sequential"], true);
-
-        let state = dummy_payload(3, tid, tid_other);
-        assert_eq!(state["kind"], "state_changed");
-        assert_eq!(state["data"]["state"], "seeding");
-
-        let metadata = dummy_payload(8, tid, tid_other);
-        assert_eq!(metadata["kind"], "metadata_updated");
-        assert_eq!(
-            metadata["data"]["download_dir"],
-            ".server_root/downloads/relocated-8"
-        );
-
-        let jobs = dummy_payload(9, tid, tid_other);
-        assert_eq!(jobs["kind"], "fsops_failed");
-        assert_eq!(
-            jobs["data"]["torrent_id"]
-                .as_str()
-                .map(|s| s.parse::<Uuid>().ok()),
-            Some(Some(tid))
-        );
     }
 
     #[derive(Clone)]

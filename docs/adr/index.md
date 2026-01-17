@@ -99,3 +99,5 @@
 -   [085](085-e2e-openapi-client-and-coverage.md) – E2E OpenAPI client and unified coverage
 -   [086](086-default-local-auth-bypass.md) – Default local auth bypass
 -   [087](087-local-network-auth-ranges.md) – Local network auth ranges and settings validation
+-   [088](088-live-sse-log-streaming.md) – Live SSE log streaming
+-   [089](089-port-process-termination.md) – Port process termination for dev tooling

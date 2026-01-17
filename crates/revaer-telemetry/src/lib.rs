@@ -40,6 +40,6 @@ pub use init::{
     build_sha, init_logging, init_logging_with_otel, log_format_from_config,
 };
 pub use layers::{propagate_request_id_layer, set_request_id_layer};
-pub use log_stream::log_stream_receiver;
+pub use log_stream::{log_stream_receiver, log_stream_snapshot};
 pub use metrics::{Metrics, MetricsSnapshot};
 pub use openapi::persist_openapi;

@@ -59,16 +59,14 @@ async fn run_log_stream_loop(
             break;
         }
 
-        match open_stream(&base_url, &auth, &signal).await {
+        let reconnect = match open_stream(&base_url, &auth, &signal).await {
             Ok(mut reader) => {
                 let mut parser = SseParser::default();
                 let decoder = match TextDecoder::new() {
                     Ok(decoder) => decoder,
                     Err(err) => {
                         on_error.emit(format!("decoder error: {err:?}"));
-                        schedule_reconnect(attempt).await;
-                        attempt = attempt.saturating_add(1);
-                        continue;
+                        return;
                     }
                 };
                 let decode_options = {
@@ -78,7 +76,7 @@ async fn run_log_stream_loop(
                 };
                 attempt = 0;
 
-                loop {
+                let reconnect = loop {
                     if signal.aborted() {
                         return;
                     }
@@ -90,7 +88,7 @@ async fn run_log_stream_loop(
                                 Ok(text) => text,
                                 Err(err) => {
                                     on_error.emit(format!("decode error: {err:?}"));
-                                    break;
+                                    break false;
                                 }
                             };
                             for frame in parser.push(&text) {
@@ -120,20 +118,25 @@ async fn run_log_stream_loop(
                                     on_line.emit(data.to_string());
                                 }
                             }
-                            break;
+                            break true;
                         }
                         Err(err) => {
                             on_error.emit(err);
-                            break;
+                            break true;
                         }
                     }
-                }
+                };
+                reconnect
             }
             Err(err) => {
                 on_error.emit(err.to_string());
+                should_reconnect(&err)
             }
-        }
+        };
 
+        if !reconnect {
+            break;
+        }
         attempt = attempt.saturating_add(1);
         schedule_reconnect(attempt).await;
     }
@@ -262,4 +265,8 @@ impl std::fmt::Display for ConnectError {
             ConnectError::Reader => write!(f, "failed to read response stream"),
         }
     }
+}
+
+fn should_reconnect(err: &ConnectError) -> bool {
+    matches!(err, ConnectError::Fetch)
 }

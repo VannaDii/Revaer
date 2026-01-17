@@ -777,7 +777,7 @@ fn default_local_network_entries() -> Vec<CidrEntry> {
         Err(err) => {
             error!(error = %err, "failed to parse default local networks");
             canonicalize_cidr_entries(
-                &vec!["127.0.0.0/8".to_string(), "::1/128".to_string()],
+                &["127.0.0.0/8".to_string(), "::1/128".to_string()],
                 "app_profile",
                 "local_networks",
             )

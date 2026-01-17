@@ -2,7 +2,6 @@
 //!
 //! # Design
 //! - Wrap core event envelopes from `revaer-events` for transport parity.
-//! - Allow UI-only system rate updates from legacy payloads.
 
 use revaer_events::{Event as CoreEvent, EventEnvelope as CoreEnvelope, EventId};
 
@@ -11,13 +10,6 @@ use revaer_events::{Event as CoreEvent, EventEnvelope as CoreEnvelope, EventId};
 pub enum UiEvent {
     /// Core domain event emitted by the backend.
     Core(CoreEvent),
-    /// Aggregate system rate snapshot (legacy payloads only).
-    SystemRates {
-        /// Aggregate download rate in bytes per second.
-        download_bps: u64,
-        /// Aggregate upload rate in bytes per second.
-        upload_bps: u64,
-    },
 }
 
 /// Normalized SSE envelope for UI reducers.
@@ -39,16 +31,6 @@ impl UiEventEnvelope {
             id: Some(envelope.id),
             timestamp: envelope.timestamp.to_rfc3339(),
             event: UiEvent::Core(envelope.event),
-        }
-    }
-
-    /// Build a legacy envelope for non-core SSE payloads.
-    #[must_use]
-    pub fn legacy(event: UiEvent, id: Option<EventId>) -> Self {
-        Self {
-            id,
-            timestamp: "legacy".to_string(),
-            event,
         }
     }
 }
@@ -74,17 +56,5 @@ mod tests {
         assert_eq!(wrapped.id, Some(42));
         assert_eq!(wrapped.timestamp, envelope.timestamp.to_rfc3339());
         assert_eq!(wrapped.event, UiEvent::Core(event));
-    }
-
-    #[test]
-    fn legacy_envelope_uses_static_timestamp() {
-        let event = UiEvent::SystemRates {
-            download_bps: 1,
-            upload_bps: 2,
-        };
-        let wrapped = UiEventEnvelope::legacy(event.clone(), None);
-        assert_eq!(wrapped.id, None);
-        assert_eq!(wrapped.timestamp, "legacy");
-        assert_eq!(wrapped.event, event);
     }
 }

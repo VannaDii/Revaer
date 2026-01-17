@@ -296,8 +296,6 @@ pub fn parse_tags(raw: &str) -> Option<Vec<String>> {
 pub enum SseEndpoint {
     /// Primary torrents SSE endpoint.
     Primary,
-    /// Legacy fallback endpoint.
-    Fallback,
 }
 
 /// SSE view contexts that influence filter selection.
@@ -569,7 +567,6 @@ pub fn build_sse_url(base_url: &str, endpoint: SseEndpoint, query: Option<&SseQu
     let base = base_url.trim_end_matches('/');
     let mut url = match endpoint {
         SseEndpoint::Primary => format!("{base}/v1/torrents/events"),
-        SseEndpoint::Fallback => format!("{base}/v1/events/stream"),
     };
     if let Some(query) = query
         && !query.is_empty()
@@ -869,8 +866,8 @@ mod tests {
             "http://x/v1/torrents/events"
         );
         assert_eq!(
-            build_sse_url("http://x/", SseEndpoint::Fallback, None),
-            "http://x/v1/events/stream"
+            build_sse_url("http://x/", SseEndpoint::Primary, None),
+            "http://x/v1/torrents/events"
         );
     }
 

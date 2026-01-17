@@ -301,7 +301,7 @@ pub struct SystemState {
     pub sse_status: SseStatus,
 }
 
-/// Aggregate transfer rates reported by SSE or polling.
+/// Aggregate transfer rates reported by dashboard snapshots.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub struct SystemRates {
     /// Aggregate download rate in bytes per second.
@@ -407,13 +407,6 @@ pub(crate) enum SseApplyOutcome {
         /// Torrent identifier to refresh.
         id: Uuid,
     },
-    /// System rates update for dashboard-only state.
-    SystemRates {
-        /// Aggregate download rate in bytes per second.
-        download_bps: u64,
-        /// Aggregate upload rate in bytes per second.
-        upload_bps: u64,
-    },
 }
 
 /// Apply a normalized SSE envelope to the app store.
@@ -426,13 +419,6 @@ pub(crate) fn apply_sse_envelope(
         timestamp, event, ..
     } = envelope;
     match event {
-        UiEvent::SystemRates {
-            download_bps,
-            upload_bps,
-        } => SseApplyOutcome::SystemRates {
-            download_bps,
-            upload_bps,
-        },
         UiEvent::Core(event) => match event {
             CoreEvent::Progress {
                 torrent_id,

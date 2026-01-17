@@ -1107,8 +1107,9 @@ pub fn revaer_app() -> Html {
                         })
                     };
                     let on_error = {
-                        let schedule_refresh = schedule_refresh.clone();
-                        Callback::from(move |_err: SseDecodeError| schedule_refresh.emit(()))
+                        Callback::from(move |err: SseDecodeError| {
+                            console::warn!("SSE decode error", err.event, err.id, err.data);
+                        })
                     };
                     if let Some(handle) = connect_sse(
                         api_base_url(),
@@ -2831,18 +2832,6 @@ fn handle_sse_envelope(
         }
         SseApplyOutcome::Refresh => schedule_refresh.emit(()),
         SseApplyOutcome::RefreshTorrent { id } => schedule_detail_refresh.emit(id),
-        SseApplyOutcome::SystemRates {
-            download_bps,
-            upload_bps,
-        } => {
-            let rates = SystemRates {
-                download_bps,
-                upload_bps,
-            };
-            dispatch.reduce_mut(|store| {
-                store.system.rates = rates;
-            });
-        }
     }
 }
 

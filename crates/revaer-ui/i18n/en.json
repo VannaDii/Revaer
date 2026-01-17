@@ -806,6 +806,7 @@
     "status_connecting": "Connecting",
     "status_error": "Error",
     "status_live": "Live",
+    "level_all": "All levels",
     "subtitle": "Live server output streamed on demand.",
     "title": "Logs"
   }
