@@ -355,6 +355,7 @@
         "immutable_keys": "Immutable Keys",
         "instance_name": "Instance Name",
         "label_policies": "Label Policies",
+        "local_networks": "Local Networks",
         "mode": "Mode",
         "telemetry": "Telemetry",
         "version": "Version"
@@ -471,6 +472,7 @@
       "dht_router_placeholder": "e.g. dht.example.com:6881",
       "empty": "No values configured yet.",
       "listen_interfaces_placeholder": "e.g. 0.0.0.0:6881",
+      "local_networks_placeholder": "e.g. 192.168.0.0/16",
       "placeholder": "Add value"
     },
     "path_picker_empty": "No entries found.",

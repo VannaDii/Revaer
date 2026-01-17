@@ -114,3 +114,5 @@
     -   [083: API preflight before UI E2E](adr/083-api-preflight-e2e.md)
     -   [084: E2E API coverage with temp databases](adr/084-e2e-api-coverage-temp-db.md)
     -   [085: E2E OpenAPI client and unified coverage](adr/085-e2e-openapi-client-and-coverage.md)
+    -   [086: Default local auth bypass](adr/086-default-local-auth-bypass.md)
+    -   [087: Local network auth ranges and settings validation](adr/087-local-network-auth-ranges.md)

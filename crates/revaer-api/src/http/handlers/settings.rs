@@ -7,18 +7,20 @@ use axum::{
     extract::{Extension, State},
     http::StatusCode,
 };
+use revaer_config::validate::canonicalize_cidr_entries;
 use revaer_config::{ConfigError, ConfigSnapshot, SettingsChangeset};
 use revaer_events::Event as CoreEvent;
 use tracing::error;
 
 use crate::app::state::ApiState;
-use crate::http::auth::{AuthContext, map_config_error};
+use crate::http::auth::{AuthContext, ClientIp, map_config_error, pointer_for};
 use crate::http::errors::ApiError;
 use crate::models::{FactoryResetRequest, ProblemInvalidParam};
 
 pub(crate) async fn settings_patch(
     State(state): State<Arc<ApiState>>,
     Extension(context): Extension<AuthContext>,
+    Extension(client_ip): Extension<ClientIp>,
     Json(changeset): Json<SettingsChangeset>,
 ) -> Result<Json<ConfigSnapshot>, ApiError> {
     let key_id = match context {
@@ -30,6 +32,10 @@ pub(crate) async fn settings_patch(
             ));
         }
     };
+
+    if let Some(app_profile) = changeset.app_profile.as_ref() {
+        ensure_local_networks_include_client(client_ip, &app_profile.local_networks)?;
+    }
 
     state
         .config
@@ -84,6 +90,27 @@ fn root_error_message(err: &dyn std::error::Error) -> String {
         current = source;
     }
     current.to_string()
+}
+
+fn ensure_local_networks_include_client(
+    client_ip: ClientIp,
+    local_networks: &[String],
+) -> Result<(), ApiError> {
+    let entries = canonicalize_cidr_entries(local_networks, "app_profile", "local_networks")
+        .map_err(|err| map_config_error(&err, "failed to validate local networks"))?;
+    if entries
+        .iter()
+        .any(|entry| entry.range.contains(client_ip.addr()))
+    {
+        Ok(())
+    } else {
+        Err(ApiError::config_invalid("configuration invalid")
+            .with_invalid_params(vec![ProblemInvalidParam {
+                pointer: pointer_for("app_profile", "local_networks"),
+                message: "must include current client address".to_string(),
+            }])
+            .with_context_field("client_ip", client_ip.addr().to_string()))
+    }
 }
 
 pub(crate) async fn well_known(
@@ -141,11 +168,16 @@ mod tests {
         EngineProfile, FsPolicy, SettingsChangeset, SetupToken, TelemetryConfig,
         engine_profile::{AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig},
         normalize_engine_profile,
+        validate::default_local_networks,
     };
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
     use std::time::Duration;
-    use std::{error::Error as StdError, fmt};
+    use std::{
+        error::Error as StdError,
+        fmt,
+        net::{IpAddr, Ipv4Addr},
+    };
     use uuid::Uuid;
 
     #[derive(Clone)]
@@ -285,6 +317,7 @@ mod tests {
                 version: 1,
                 http_port: 3030,
                 bind_addr,
+                local_networks: default_local_networks(),
                 telemetry: TelemetryConfig::default(),
                 label_policies: Vec::new(),
                 immutable_keys: Vec::new(),
@@ -359,6 +392,7 @@ mod tests {
         let result = settings_patch(
             State(state),
             Extension(context),
+            Extension(ClientIp(IpAddr::V4(Ipv4Addr::LOCALHOST))),
             Json(SettingsChangeset::default()),
         )
         .await;

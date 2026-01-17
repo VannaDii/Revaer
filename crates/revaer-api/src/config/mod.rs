@@ -100,6 +100,7 @@ mod tests {
         ConfigError, ConfigResult, TelemetryConfig,
         engine_profile::{AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig},
         normalize_engine_profile,
+        validate::default_local_networks,
     };
     use std::collections::VecDeque;
     use tokio::sync::Mutex;
@@ -140,6 +141,7 @@ mod tests {
             version: 1,
             http_port: 3000,
             bind_addr,
+            local_networks: default_local_networks(),
             telemetry: TelemetryConfig::default(),
             label_policies: Vec::new(),
             immutable_keys: Vec::new(),

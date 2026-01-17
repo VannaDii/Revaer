@@ -1046,6 +1046,7 @@ mod tests {
     use revaer_config::{
         ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigError, ConfigResult, ConfigSnapshot,
         SettingsChangeset, SetupToken,
+        validate::default_local_networks,
     };
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
@@ -1360,6 +1361,7 @@ mod tests {
                 version: 1,
                 http_port: 8080,
                 bind_addr: std::net::IpAddr::from([127, 0, 0, 1]),
+                local_networks: default_local_networks(),
                 telemetry: revaer_config::TelemetryConfig::default(),
                 label_policies: self.label_policies.lock().await.clone(),
                 immutable_keys: Vec::new(),

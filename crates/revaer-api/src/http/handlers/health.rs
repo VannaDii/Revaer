@@ -139,6 +139,7 @@ mod tests {
         EngineProfile, FsPolicy, SettingsChangeset, SetupToken, TelemetryConfig,
         engine_profile::{AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig},
         normalize_engine_profile,
+        validate::default_local_networks,
     };
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
@@ -312,6 +313,7 @@ mod tests {
                 version: 1,
                 http_port: 3030,
                 bind_addr,
+                local_networks: default_local_networks(),
                 telemetry: TelemetryConfig::default(),
                 label_policies: Vec::new(),
                 immutable_keys: Vec::new(),

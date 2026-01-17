@@ -42,18 +42,17 @@ export async function configureAuthMode(options: SetupOptions): Promise<ApiSessi
     throw new Error(`Setup start failed with ${setupStart.response.status}.`);
   }
 
-  let changeset: Record<string, unknown> = {};
-  if (options.authMode === 'none') {
-    const snapshot = await publicClient.GET('/.well-known/revaer.json');
-    if (!snapshot.response.ok) {
-      throw new Error(`Snapshot fetch failed with ${snapshot.response.status}.`);
-    }
-    const appProfile = (snapshot.data as WellKnownSnapshot | undefined)?.app_profile;
-    if (!appProfile) {
-      throw new Error('Snapshot missing app_profile for setup changeset.');
-    }
-    changeset = { app_profile: { ...appProfile, auth_mode: 'none' } };
+  const snapshot = await publicClient.GET('/.well-known/revaer.json');
+  if (!snapshot.response.ok) {
+    throw new Error(`Snapshot fetch failed with ${snapshot.response.status}.`);
   }
+  const appProfile = (snapshot.data as WellKnownSnapshot | undefined)?.app_profile;
+  if (!appProfile) {
+    throw new Error('Snapshot missing app_profile for setup changeset.');
+  }
+  const changeset: Record<string, unknown> = {
+    app_profile: { ...appProfile, auth_mode: options.authMode },
+  };
 
   const setupComplete = await publicClient.POST('/admin/setup/complete', {
     body: changeset,

@@ -248,6 +248,7 @@ docs:
 
 # Start a local Postgres suitable for running the backend and run migrations once the
 # container is ready. Uses the dev-friendly defaults unless DATABASE_URL is set.
+# Set REVAER_DB_RESET=1 to drop + recreate local databases before running migrations.
 db-start:
     db_url="${DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"; \
     echo "Using database URL: ${db_url}"; \
@@ -278,15 +279,29 @@ db-start:
     done; \
     just sqlx-install; \
     DATABASE_URL="${db_url}" sqlx database create --database-url "${db_url}" 2>/dev/null || true; \
-    if ! DATABASE_URL="${db_url}" sqlx migrate run --database-url "${db_url}" --source crates/revaer-data/migrations; then \
+    reset_db="${REVAER_DB_RESET:-0}"; \
+    if [ "${reset_db}" = "1" ]; then \
         if echo "${db_url}" | grep -Eq '@(localhost|127\\.0\\.0\\.1)(:|/)'; then \
-            echo "Migration history mismatch; resetting local database..."; \
+            echo "Resetting local database..."; \
             DATABASE_URL="${db_url}" sqlx database reset -y --database-url "${db_url}" --source crates/revaer-data/migrations; \
         else \
-            echo "Migration history mismatch for ${db_url}; refusing to reset non-local database."; \
+            echo "Reset requested for ${db_url}; refusing to reset non-local database."; \
             exit 1; \
         fi; \
+    else \
+        if ! DATABASE_URL="${db_url}" sqlx migrate run --database-url "${db_url}" --source crates/revaer-data/migrations; then \
+            if echo "${db_url}" | grep -Eq '@(localhost|127\\.0\\.0\\.1)(:|/)'; then \
+                echo "Migration history mismatch; resetting local database..."; \
+                DATABASE_URL="${db_url}" sqlx database reset -y --database-url "${db_url}" --source crates/revaer-data/migrations; \
+            else \
+                echo "Migration history mismatch for ${db_url}; refusing to reset non-local database."; \
+                exit 1; \
+            fi; \
+        fi; \
     fi
+
+db-reset:
+    REVAER_DB_RESET=1 just db-start
 
 # Seed the dev database with a default API key and sensible defaults for local runs.
 db-seed:

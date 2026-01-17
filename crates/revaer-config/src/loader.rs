@@ -42,7 +42,8 @@ use crate::model::{
     SettingsPayload, SetupToken, TelemetryConfig,
 };
 use crate::validate::{
-    ensure_mutable, parse_bind_addr, parse_uuid, validate_api_key_rate_limit, validate_port,
+    canonicalize_cidr_entries, default_local_networks, ensure_mutable, parse_bind_addr, parse_uuid,
+    validate_api_key_rate_limit, validate_port,
 };
 
 type Result<T> = ConfigResult<T>;
@@ -775,6 +776,18 @@ fn map_app_profile_row(row: AppProfileRow, label_rows: Vec<LabelPolicyRow>) -> R
         otel_service_name: row.telemetry_otel_service_name,
         otel_endpoint: row.telemetry_otel_endpoint,
     };
+    let local_networks =
+        match canonicalize_cidr_entries(&row.local_networks, "app_profile", "local_networks") {
+            Ok(entries) if !entries.is_empty() => entries
+                .into_iter()
+                .map(|entry| entry.cidr)
+                .collect::<Vec<_>>(),
+            Ok(_) => default_local_networks(),
+            Err(err) => {
+                warn!(error = %err, "invalid local networks; using defaults");
+                default_local_networks()
+            }
+        };
     let label_policies = map_label_policies(label_rows)?;
     Ok(AppProfile {
         id: row.id,
@@ -784,6 +797,7 @@ fn map_app_profile_row(row: AppProfileRow, label_rows: Vec<LabelPolicyRow>) -> R
         version: row.version,
         http_port: row.http_port,
         bind_addr: parse_bind_addr(&row.bind_addr)?,
+        local_networks,
         telemetry,
         label_policies,
         immutable_keys: row.immutable_keys,
@@ -1123,6 +1137,18 @@ async fn apply_app_profile_update(
         data_config::update_app_bind_addr(tx.as_mut(), app_id, &update.bind_addr.to_string())
             .await
             .map_err(map_db_err("config.update_app_bind_addr"))?;
+        mutated = true;
+    }
+    let local_networks =
+        canonicalize_cidr_entries(&update.local_networks, "app_profile", "local_networks")?
+            .into_iter()
+            .map(|entry| entry.cidr)
+            .collect::<Vec<_>>();
+    if local_networks != current.local_networks {
+        ensure_mutable(immutable_keys, "app_profile", "local_networks")?;
+        data_config::update_app_local_networks(tx.as_mut(), app_id, &local_networks)
+            .await
+            .map_err(map_db_err("config.update_app_local_networks"))?;
         mutated = true;
     }
     if update.telemetry != current.telemetry {
@@ -2483,6 +2509,7 @@ mod tests {
             version: 3,
             http_port: 8080,
             bind_addr: "127.0.0.1/32".to_string(),
+            local_networks: vec!["127.0.0.0/8".to_string()],
             telemetry_level: Some("info".to_string()),
             telemetry_format: Some("json".to_string()),
             telemetry_otel_enabled: Some(true),
@@ -2637,6 +2664,7 @@ mod tests {
             profile.bind_addr,
             IpAddr::from_str("127.0.0.1").expect("valid bind addr")
         );
+        assert_eq!(profile.local_networks, vec!["127.0.0.0/8".to_string()]);
         assert_eq!(profile.telemetry.level.as_deref(), Some("info"));
         assert_eq!(profile.label_policies.len(), 1);
         assert_eq!(profile.label_policies[0].kind, LabelKind::Category);

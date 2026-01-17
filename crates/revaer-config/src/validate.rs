@@ -1,12 +1,91 @@
 //! Validation helpers and parsing utilities for configuration documents.
 
 use std::collections::HashSet;
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use crate::error::{ConfigError, ConfigResult};
 use uuid::Uuid;
 
 use crate::ApiKeyRateLimit;
+
+/// Canonical CIDR entry with parsed range bounds.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CidrEntry {
+    /// Canonical CIDR string (network/prefix).
+    pub cidr: String,
+    /// Parsed range covered by the CIDR.
+    pub range: CidrRange,
+}
+
+/// Inclusive IP address range derived from a CIDR.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CidrRange {
+    /// Start address of the CIDR range.
+    pub start: IpAddr,
+    /// End address of the CIDR range.
+    pub end: IpAddr,
+}
+
+impl CidrRange {
+    /// Returns true when the IP address is within the CIDR range.
+    #[must_use]
+    pub fn contains(&self, ip: IpAddr) -> bool {
+        match (self.start, self.end, ip) {
+            (IpAddr::V4(start), IpAddr::V4(end), IpAddr::V4(addr)) => {
+                let start = u32::from(start);
+                let end = u32::from(end);
+                let addr = u32::from(addr);
+                addr >= start && addr <= end
+            }
+            (IpAddr::V6(start), IpAddr::V6(end), IpAddr::V6(addr)) => {
+                let start = u128::from(start);
+                let end = u128::from(end);
+                let addr = u128::from(addr);
+                addr >= start && addr <= end
+            }
+            _ => false,
+        }
+    }
+}
+
+/// Parse and canonicalize CIDR entries with deduplication.
+///
+/// # Errors
+///
+/// Returns `ConfigError::InvalidField` when any entry is invalid.
+pub fn canonicalize_cidr_entries(
+    entries: &[String],
+    section: &str,
+    field: &str,
+) -> ConfigResult<Vec<CidrEntry>> {
+    let mut seen = HashSet::new();
+    let mut normalized = Vec::new();
+    for entry in entries {
+        let parsed = parse_cidr_entry(entry, section, field)?;
+        if seen.insert(parsed.cidr.clone()) {
+            normalized.push(parsed);
+        }
+    }
+    Ok(normalized)
+}
+
+/// Default local network CIDRs used for anonymous access.
+#[must_use]
+pub fn default_local_networks() -> Vec<String> {
+    vec![
+        "127.0.0.0/8",
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "169.254.0.0/16",
+        "::1/128",
+        "fe80::/10",
+        "fd00::/8",
+    ]
+    .into_iter()
+    .map(str::to_string)
+    .collect()
+}
 
 /// Ensure a port number is within the valid TCP/UDP range.
 ///
@@ -103,6 +182,100 @@ pub fn ensure_mutable<S: std::hash::BuildHasher>(
     Ok(())
 }
 
+fn parse_cidr_entry(entry: &str, section: &str, field: &str) -> ConfigResult<CidrEntry> {
+    let trimmed = entry.trim();
+    if trimmed.is_empty() {
+        return Err(ConfigError::InvalidField {
+            section: section.to_string(),
+            field: field.to_string(),
+            value: Some(entry.to_string()),
+            reason: "CIDR entries cannot be empty",
+        });
+    }
+
+    let (network, prefix) = trimmed
+        .split_once('/')
+        .ok_or_else(|| ConfigError::InvalidField {
+            section: section.to_string(),
+            field: field.to_string(),
+            value: Some(trimmed.to_string()),
+            reason: "CIDR entries must include a /prefix",
+        })?;
+    let network = network.trim();
+    let prefix = prefix.trim();
+    if network.is_empty() || prefix.is_empty() {
+        return Err(ConfigError::InvalidField {
+            section: section.to_string(),
+            field: field.to_string(),
+            value: Some(trimmed.to_string()),
+            reason: "CIDR entries must include a network and prefix",
+        });
+    }
+
+    let parsed_ip: IpAddr = network.parse().map_err(|_err| ConfigError::InvalidField {
+        section: section.to_string(),
+        field: field.to_string(),
+        value: Some(network.to_string()),
+        reason: "CIDR entries must include a valid IP address",
+    })?;
+    let prefix_len: u8 = prefix.parse().map_err(|_err| ConfigError::InvalidField {
+        section: section.to_string(),
+        field: field.to_string(),
+        value: Some(prefix.to_string()),
+        reason: "CIDR prefix must be numeric",
+    })?;
+
+    let (cidr, range) = match parsed_ip {
+        IpAddr::V4(addr) => {
+            if prefix_len > 32 {
+                return Err(ConfigError::InvalidField {
+                    section: section.to_string(),
+                    field: field.to_string(),
+                    value: Some(prefix_len.to_string()),
+                    reason: "IPv4 prefix must be <= 32",
+                });
+            }
+            let mask = if prefix_len == 0 {
+                0
+            } else {
+                u32::MAX << (32 - prefix_len)
+            };
+            let network = u32::from(addr) & mask;
+            let start = IpAddr::V4(Ipv4Addr::from(network));
+            let end = IpAddr::V4(Ipv4Addr::from(network | !mask));
+            (
+                format!("{}/{}", Ipv4Addr::from(network), prefix_len),
+                CidrRange { start, end },
+            )
+        }
+        IpAddr::V6(addr) => {
+            if prefix_len > 128 {
+                return Err(ConfigError::InvalidField {
+                    section: section.to_string(),
+                    field: field.to_string(),
+                    value: Some(prefix_len.to_string()),
+                    reason: "IPv6 prefix must be <= 128",
+                });
+            }
+            let addr_u128 = u128::from(addr);
+            let mask = if prefix_len == 0 {
+                0
+            } else {
+                u128::MAX << (128 - prefix_len)
+            };
+            let network = addr_u128 & mask;
+            let start = IpAddr::V6(Ipv6Addr::from(network));
+            let end = IpAddr::V6(Ipv6Addr::from(network | !mask));
+            (
+                format!("{}/{}", Ipv6Addr::from(network), prefix_len),
+                CidrRange { start, end },
+            )
+        }
+    };
+
+    Ok(CidrEntry { cidr, range })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -118,5 +291,28 @@ mod tests {
     #[test]
     fn allows_valid_ports() {
         assert!(validate_port(7070, "app_profile", "http_port").is_ok());
+    }
+
+    #[test]
+    fn canonicalize_cidr_entries_dedupes_and_normalizes() {
+        let entries = vec!["10.0.0.1/24".to_string(), " 10.0.0.0/24 ".to_string()];
+        let parsed = canonicalize_cidr_entries(&entries, "app_profile", "local_networks")
+            .expect("cidr entries");
+        assert_eq!(parsed.len(), 1);
+        assert_eq!(parsed[0].cidr, "10.0.0.0/24");
+        assert!(
+            parsed[0]
+                .range
+                .contains(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5)))
+        );
+    }
+
+    #[test]
+    fn canonicalize_cidr_entries_rejects_invalid_prefix() {
+        let entries = vec!["10.0.0.0/40".to_string()];
+        assert!(matches!(
+            canonicalize_cidr_entries(&entries, "app_profile", "local_networks"),
+            Err(ConfigError::InvalidField { .. })
+        ));
     }
 }

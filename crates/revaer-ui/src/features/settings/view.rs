@@ -4718,6 +4718,7 @@ const APP_INFO_FIELDS: &[&str] = &[
     "version",
     "http_port",
     "bind_addr",
+    "local_networks",
     "immutable_keys",
 ];
 
@@ -5517,6 +5518,11 @@ fn control_for_field(section: SettingsSection, key: &str, value: &Value) -> Fiel
 
 fn string_list_options(section: SettingsSection, key: &str) -> Option<StringListOptions> {
     let options = match (section, key) {
+        (SettingsSection::AppProfile, "local_networks") => StringListOptions {
+            placeholder_key: "settings.list.local_networks_placeholder",
+            add_label_key: "settings.add",
+            empty_label_key: "settings.list.empty",
+        },
         (SettingsSection::EngineProfile, "listen_interfaces") => StringListOptions {
             placeholder_key: "settings.list.listen_interfaces_placeholder",
             add_label_key: "settings.add",

@@ -39,7 +39,7 @@ mod tests {
     use super::*;
     use crate::app::state::ApiState;
     use crate::config::{ConfigFacade, SharedConfig};
-    use crate::http::auth::{AuthContext, map_config_error};
+    use crate::http::auth::{AuthContext, ClientIp, map_config_error};
     use crate::http::constants::{
         HEADER_RATE_LIMIT_LIMIT, HEADER_RATE_LIMIT_REMAINING, HEADER_RATE_LIMIT_RESET,
         PROBLEM_BAD_REQUEST, PROBLEM_CONFIG_INVALID, PROBLEM_CONFLICT, PROBLEM_INTERNAL,
@@ -90,6 +90,7 @@ mod tests {
         TelemetryConfig,
         engine_profile::{AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig},
         normalize_engine_profile,
+        validate::default_local_networks,
     };
     use revaer_events::{Event as CoreEvent, EventBus, TorrentState};
     use revaer_telemetry::Metrics;
@@ -367,6 +368,7 @@ mod tests {
             version: 1,
             http_port: 7070,
             bind_addr,
+            local_networks: default_local_networks(),
             telemetry: TelemetryConfig::default(),
             label_policies: Vec::new(),
             immutable_keys: Vec::new(),
@@ -839,6 +841,7 @@ mod tests {
             Extension(AuthContext::ApiKey {
                 key_id: "admin".to_string(),
             }),
+            Extension(ClientIp(IpAddr::from([127, 0, 0, 1]))),
             Json(changeset),
         )
         .await?;

@@ -75,6 +75,7 @@ mod tests {
     use anyhow::{Result, anyhow};
     use httpmock::prelude::*;
     use reqwest::Client;
+    use revaer_config::validate::default_local_networks;
     use serde_json::json;
     use std::{fs, path::PathBuf};
     use uuid::Uuid;
@@ -189,6 +190,7 @@ mod tests {
                 version: 1,
                 http_port: 7070,
                 bind_addr: "127.0.0.1".parse().map_err(|_| anyhow!("bind addr"))?,
+                local_networks: default_local_networks(),
                 telemetry: revaer_config::TelemetryConfig::default(),
                 label_policies: Vec::new(),
                 immutable_keys: Vec::new(),

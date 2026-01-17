@@ -1,6 +1,8 @@
 use anyhow::anyhow;
 use revaer_api::models::{SetupCompleteResponse, SetupStartRequest, SetupStartResponse};
-use revaer_config::{ApiKeyPatch, AppMode, ConfigSnapshot, SecretPatch, SettingsChangeset};
+use revaer_config::{
+    ApiKeyPatch, AppAuthMode, AppMode, ConfigSnapshot, SecretPatch, SettingsChangeset,
+};
 use std::io::{self, IsTerminal};
 use std::net::IpAddr;
 use std::path::Path;
@@ -87,6 +89,7 @@ pub(crate) async fn handle_setup_complete(
     app_profile.bind_addr = bind_addr;
     app_profile.http_port = i32::from(args.port);
     app_profile.mode = AppMode::Active;
+    app_profile.auth_mode = AppAuthMode::ApiKey;
 
     let mut engine_profile = snapshot.engine_profile;
     engine_profile.implementation = "libtorrent".to_string();
@@ -232,6 +235,7 @@ mod tests {
         AppMode, AppProfile, EngineProfile, FsPolicy, TelemetryConfig,
         engine_profile::{AltSpeedConfig, IpFilterConfig, PeerClassesConfig, TrackerConfig},
         normalize_engine_profile,
+        validate::default_local_networks,
     };
     use serde_json::json;
     use std::{fs, path::PathBuf};
@@ -348,6 +352,7 @@ mod tests {
                 version: 1,
                 http_port: 7070,
                 bind_addr: "127.0.0.1".parse().map_err(|_| anyhow!("bind addr"))?,
+                local_networks: default_local_networks(),
                 telemetry: TelemetryConfig {
                     level: Some("info".to_string()),
                     ..TelemetryConfig::default()

@@ -341,7 +341,11 @@ pub fn revaer_app() -> Html {
         let dispatch = dispatch.clone();
         let auth_prompt_dismissed = auth_prompt_dismissed.clone();
         use_effect_with(app_auth_mode, move |app_auth_mode| {
-            let allow = local_network && !matches!(*app_auth_mode, Some(AppAuthMode::ApiKey));
+            let allow = match *app_auth_mode {
+                Some(AppAuthMode::NoAuth) => true,
+                Some(AppAuthMode::ApiKey) => false,
+                None => local_network,
+            };
             allow_anon.set(allow);
             let current = dispatch.get();
             match *app_auth_mode {

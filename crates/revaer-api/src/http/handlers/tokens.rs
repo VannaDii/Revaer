@@ -63,6 +63,7 @@ mod tests {
     use revaer_config::{
         ApiKeyAuth, ApiKeyPatch, AppAuthMode, AppMode, AppProfile, AppliedChanges, ConfigError,
         ConfigResult, ConfigSnapshot, SettingsChangeset, SetupToken, TelemetryConfig,
+        validate::default_local_networks,
     };
     use revaer_events::EventBus;
     use revaer_telemetry::Metrics;
@@ -92,6 +93,7 @@ mod tests {
                     .map_err(|_| ConfigError::InvalidBindAddr {
                         value: "127.0.0.1".to_string(),
                     })?,
+                local_networks: default_local_networks(),
                 telemetry: TelemetryConfig::default(),
                 label_policies: Vec::new(),
                 immutable_keys: Vec::new(),

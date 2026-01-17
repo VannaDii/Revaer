@@ -46,6 +46,8 @@ pub struct AppProfileRow {
     pub http_port: i32,
     /// Bind address stored in the database.
     pub bind_addr: String,
+    /// CIDR ranges treated as local for anonymous access.
+    pub local_networks: Vec<String>,
     /// Telemetry log level override.
     pub telemetry_level: Option<String>,
     /// Telemetry log format override.
@@ -1541,6 +1543,28 @@ where
         .execute(executor)
         .await
         .map_err(map_query_err("update app immutable keys"))?;
+    Ok(())
+}
+
+/// Update the application local network CIDR list.
+///
+/// # Errors
+///
+/// Returns an error when the update fails.
+pub async fn update_app_local_networks<'e, E>(
+    executor: E,
+    id: Uuid,
+    local_networks: &[String],
+) -> Result<()>
+where
+    E: Executor<'e, Database = Postgres>,
+{
+    sqlx::query("SELECT revaer_config.update_app_local_networks(_profile_id => $1, _cidrs => $2)")
+        .bind(id)
+        .bind(local_networks)
+        .execute(executor)
+        .await
+        .map_err(map_query_err("update app local networks"))?;
     Ok(())
 }
 

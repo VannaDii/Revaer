@@ -128,6 +128,9 @@ pub struct AppProfile {
     pub http_port: i32,
     /// IP address (and interface) the API server should bind to.
     pub bind_addr: IpAddr,
+    /// CIDR ranges treated as local for anonymous access.
+    #[serde(default)]
+    pub local_networks: Vec<String>,
     /// Structured telemetry configuration.
     pub telemetry: TelemetryConfig,
     /// Label policies exposed to the application.
@@ -152,12 +155,12 @@ pub enum AppMode {
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum AppAuthMode {
-    /// API key authentication is required.
-    #[default]
-    ApiKey,
     /// Anonymous access is allowed (local networks only).
     #[serde(rename = "none")]
+    #[default]
     NoAuth,
+    /// API key authentication is required.
+    ApiKey,
 }
 
 impl FromStr for AppAuthMode {
@@ -194,8 +197,8 @@ mod tests {
     use std::str::FromStr;
 
     #[test]
-    fn app_auth_mode_defaults_to_api_key() {
-        assert_eq!(AppAuthMode::default(), AppAuthMode::ApiKey);
+    fn app_auth_mode_defaults_to_no_auth() {
+        assert_eq!(AppAuthMode::default(), AppAuthMode::NoAuth);
     }
 
     #[test]

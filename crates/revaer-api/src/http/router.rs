@@ -390,9 +390,13 @@ impl ApiServer {
         let listener = TcpListener::bind(addr)
             .await
             .map_err(|source| ApiServerError::Bind { addr, source })?;
-        axum::serve(listener, self.router.into_make_service())
-            .await
-            .map_err(|source| ApiServerError::Serve { source })?;
+        axum::serve(
+            listener,
+            self.router
+                .into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await
+        .map_err(|source| ApiServerError::Serve { source })?;
         Ok(())
     }
 

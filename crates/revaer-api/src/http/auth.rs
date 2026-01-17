@@ -1,8 +1,15 @@
 //! Authentication and authorization middleware for the HTTP layer.
 
+use std::net::{IpAddr, SocketAddr};
 use std::sync::Arc;
 
-use axum::{extract::State, http::Request, middleware::Next, response::Response};
+use axum::{
+    extract::{ConnectInfo, State},
+    http::{HeaderMap, Request},
+    middleware::Next,
+    response::Response,
+};
+use revaer_config::validate::{CidrEntry, canonicalize_cidr_entries, default_local_networks};
 use revaer_config::{AppAuthMode, AppMode};
 use revaer_telemetry::record_app_mode;
 use tracing::{error, info, warn};
@@ -21,7 +28,8 @@ mod tests {
     use axum::{
         Router,
         body::Body,
-        http::{Request, StatusCode},
+        extract::ConnectInfo,
+        http::{HeaderValue, Request, StatusCode},
         middleware,
         routing::{get, post},
     };
@@ -33,7 +41,7 @@ mod tests {
     use revaer_telemetry::Metrics;
     use serde_json::json;
     use std::{
-        net::{IpAddr, Ipv4Addr},
+        net::{IpAddr, Ipv4Addr, SocketAddr},
         time::Duration,
     };
     use tower::ServiceExt;
@@ -45,6 +53,8 @@ mod tests {
         auth_mode: AppAuthMode,
         api_auth: Option<ApiKeyAuth>,
         has_api_keys: bool,
+        has_api_keys_error: bool,
+        local_networks: Vec<String>,
     }
 
     #[async_trait]
@@ -58,6 +68,7 @@ mod tests {
                 version: 1,
                 http_port: 8080,
                 bind_addr: IpAddr::V4(Ipv4Addr::LOCALHOST),
+                local_networks: self.local_networks.clone(),
                 telemetry: TelemetryConfig::default(),
                 label_policies: Vec::new(),
                 immutable_keys: Vec::new(),
@@ -119,6 +130,12 @@ mod tests {
         }
 
         async fn has_api_keys(&self) -> ConfigResult<bool> {
+            if self.has_api_keys_error {
+                return Err(ConfigError::Io {
+                    operation: "config.has_api_keys",
+                    source: std::io::Error::other("stubbed failure"),
+                });
+            }
             Ok(self.has_api_keys)
         }
 
@@ -167,6 +184,8 @@ mod tests {
         auth_mode: AppAuthMode,
         auth: Option<ApiKeyAuth>,
         has_api_keys: bool,
+        has_api_keys_error: bool,
+        local_networks: Vec<String>,
     ) -> Result<Arc<ApiState>> {
         let metrics = Metrics::new()?;
         Ok(Arc::new(ApiState::new(
@@ -175,6 +194,8 @@ mod tests {
                 auth_mode,
                 api_auth: auth,
                 has_api_keys,
+                has_api_keys_error,
+                local_networks,
             }),
             metrics,
             Arc::new(json!({})),
@@ -183,25 +204,49 @@ mod tests {
         )))
     }
 
+    fn local_loopback_ranges() -> Vec<String> {
+        vec!["127.0.0.0/8".to_string()]
+    }
+
+    fn local_ip() -> IpAddr {
+        IpAddr::V4(Ipv4Addr::LOCALHOST)
+    }
+
+    fn request_with_ip(method: &str, ip: IpAddr) -> Result<Request<Body>> {
+        let mut request = Request::builder()
+            .method(method)
+            .uri("/")
+            .body(Body::empty())?;
+        request
+            .extensions_mut()
+            .insert(ConnectInfo(SocketAddr::new(ip, 3000)));
+        Ok(request)
+    }
+
     #[tokio::test]
     async fn require_api_key_rejects_missing_and_invalid() -> Result<()> {
-        let state = api_state(AppMode::Active, AppAuthMode::ApiKey, None, true)?;
+        let state = api_state(
+            AppMode::Active,
+            AppAuthMode::ApiKey,
+            None,
+            true,
+            false,
+            local_loopback_ranges(),
+        )?;
         let app = router_with_state(&state);
 
         let response = app
             .clone()
-            .oneshot(Request::builder().uri("/").body(Body::empty())?)
+            .oneshot(request_with_ip("GET", local_ip())?)
             .await?;
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/")
-                    .header(crate::http::constants::HEADER_API_KEY, "invalid")
-                    .body(Body::empty())?,
-            )
-            .await?;
+        let mut request = request_with_ip("GET", local_ip())?;
+        request.headers_mut().insert(
+            crate::http::constants::HEADER_API_KEY,
+            HeaderValue::from_static("invalid"),
+        );
+        let response = app.oneshot(request).await?;
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         Ok(())
     }
@@ -216,36 +261,71 @@ mod tests {
                 replenish_period: Duration::from_secs(60),
             }),
         };
-        let state = api_state(AppMode::Active, AppAuthMode::ApiKey, Some(auth), true)?;
+        let state = api_state(
+            AppMode::Active,
+            AppAuthMode::ApiKey,
+            Some(auth),
+            true,
+            false,
+            local_loopback_ranges(),
+        )?;
         let app = router_with_state(&state);
 
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .uri("/")
-                    .header(crate::http::constants::HEADER_API_KEY, "demo:secret-token")
-                    .body(Body::empty())?,
-            )
-            .await?;
+        let mut request = request_with_ip("GET", local_ip())?;
+        request.headers_mut().insert(
+            crate::http::constants::HEADER_API_KEY,
+            HeaderValue::from_static("demo:secret-token"),
+        );
+        let response = app.oneshot(request).await?;
         assert_eq!(response.status(), StatusCode::OK);
         Ok(())
     }
 
     #[tokio::test]
     async fn require_api_key_allows_anonymous_when_auth_mode_disabled() -> Result<()> {
-        let state = api_state(AppMode::Active, AppAuthMode::NoAuth, None, true)?;
+        let state = api_state(
+            AppMode::Active,
+            AppAuthMode::NoAuth,
+            None,
+            true,
+            false,
+            local_loopback_ranges(),
+        )?;
         let app = router_with_state(&state);
 
-        let response = app
-            .oneshot(Request::builder().uri("/").body(Body::empty())?)
-            .await?;
+        let response = app.oneshot(request_with_ip("GET", local_ip())?).await?;
         assert_eq!(response.status(), StatusCode::OK);
         Ok(())
     }
 
     #[tokio::test]
+    async fn require_api_key_rejects_anonymous_when_not_local() -> Result<()> {
+        let state = api_state(
+            AppMode::Active,
+            AppAuthMode::NoAuth,
+            None,
+            true,
+            false,
+            local_loopback_ranges(),
+        )?;
+        let app = router_with_state(&state);
+
+        let remote_ip = IpAddr::V4(Ipv4Addr::new(203, 0, 113, 10));
+        let response = app.oneshot(request_with_ip("GET", remote_ip)?).await?;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn require_setup_token_enforces_mode_and_header() -> Result<()> {
-        let state = api_state(AppMode::Setup, AppAuthMode::ApiKey, None, true)?;
+        let state = api_state(
+            AppMode::Setup,
+            AppAuthMode::ApiKey,
+            None,
+            true,
+            false,
+            local_loopback_ranges(),
+        )?;
         let app = setup_router_with_state(&state);
 
         let missing = app
@@ -265,7 +345,14 @@ mod tests {
         assert_eq!(ok.status(), StatusCode::OK);
 
         // Active mode should reject setup tokens.
-        let active_state = api_state(AppMode::Active, AppAuthMode::ApiKey, None, true)?;
+        let active_state = api_state(
+            AppMode::Active,
+            AppAuthMode::ApiKey,
+            None,
+            true,
+            false,
+            local_loopback_ranges(),
+        )?;
         let active_app = setup_router_with_state(&active_state);
         let rejected = active_app
             .oneshot(
@@ -281,70 +368,95 @@ mod tests {
 
     #[tokio::test]
     async fn require_factory_reset_allows_without_api_key_when_none_exist() -> Result<()> {
-        let state = api_state(AppMode::Active, AppAuthMode::ApiKey, None, false)?;
+        let state = api_state(
+            AppMode::Active,
+            AppAuthMode::ApiKey,
+            None,
+            false,
+            false,
+            local_loopback_ranges(),
+        )?;
         let app = factory_reset_router_with_state(&state);
 
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/")
-                    .body(Body::empty())?,
-            )
-            .await?;
+        let response = app.oneshot(request_with_ip("POST", local_ip())?).await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn require_factory_reset_allows_when_inventory_fails_on_local() -> Result<()> {
+        let state = api_state(
+            AppMode::Active,
+            AppAuthMode::ApiKey,
+            None,
+            true,
+            true,
+            local_loopback_ranges(),
+        )?;
+        let app = factory_reset_router_with_state(&state);
+
+        let response = app.oneshot(request_with_ip("POST", local_ip())?).await?;
         assert_eq!(response.status(), StatusCode::OK);
         Ok(())
     }
 
     #[tokio::test]
     async fn require_factory_reset_allows_invalid_api_key_when_none_exist() -> Result<()> {
-        let state = api_state(AppMode::Active, AppAuthMode::ApiKey, None, false)?;
+        let state = api_state(
+            AppMode::Active,
+            AppAuthMode::ApiKey,
+            None,
+            false,
+            false,
+            local_loopback_ranges(),
+        )?;
         let app = factory_reset_router_with_state(&state);
 
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/")
-                    .header(crate::http::constants::HEADER_API_KEY, "stale:token")
-                    .body(Body::empty())?,
-            )
-            .await?;
+        let mut request = request_with_ip("POST", local_ip())?;
+        request.headers_mut().insert(
+            crate::http::constants::HEADER_API_KEY,
+            HeaderValue::from_static("stale:token"),
+        );
+        let response = app.oneshot(request).await?;
         assert_eq!(response.status(), StatusCode::OK);
         Ok(())
     }
 
     #[tokio::test]
     async fn require_factory_reset_rejects_without_api_key_when_keys_exist() -> Result<()> {
-        let state = api_state(AppMode::Active, AppAuthMode::ApiKey, None, true)?;
+        let state = api_state(
+            AppMode::Active,
+            AppAuthMode::ApiKey,
+            None,
+            true,
+            false,
+            local_loopback_ranges(),
+        )?;
         let app = factory_reset_router_with_state(&state);
 
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/")
-                    .body(Body::empty())?,
-            )
-            .await?;
+        let response = app.oneshot(request_with_ip("POST", local_ip())?).await?;
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         Ok(())
     }
 
     #[tokio::test]
     async fn require_factory_reset_rejects_invalid_api_key_when_keys_exist() -> Result<()> {
-        let state = api_state(AppMode::Active, AppAuthMode::ApiKey, None, true)?;
+        let state = api_state(
+            AppMode::Active,
+            AppAuthMode::ApiKey,
+            None,
+            true,
+            false,
+            local_loopback_ranges(),
+        )?;
         let app = factory_reset_router_with_state(&state);
 
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/")
-                    .header(crate::http::constants::HEADER_API_KEY, "stale:token")
-                    .body(Body::empty())?,
-            )
-            .await?;
+        let mut request = request_with_ip("POST", local_ip())?;
+        request.headers_mut().insert(
+            crate::http::constants::HEADER_API_KEY,
+            HeaderValue::from_static("stale:token"),
+        );
+        let response = app.oneshot(request).await?;
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         Ok(())
     }
@@ -359,18 +471,22 @@ mod tests {
                 replenish_period: Duration::from_secs(60),
             }),
         };
-        let state = api_state(AppMode::Active, AppAuthMode::ApiKey, Some(auth), true)?;
+        let state = api_state(
+            AppMode::Active,
+            AppAuthMode::ApiKey,
+            Some(auth),
+            true,
+            false,
+            local_loopback_ranges(),
+        )?;
         let app = factory_reset_router_with_state(&state);
 
-        let response = app
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/")
-                    .header(crate::http::constants::HEADER_API_KEY, "demo:secret-token")
-                    .body(Body::empty())?,
-            )
-            .await?;
+        let mut request = request_with_ip("POST", local_ip())?;
+        request.headers_mut().insert(
+            crate::http::constants::HEADER_API_KEY,
+            HeaderValue::from_static("demo:secret-token"),
+        );
+        let response = app.oneshot(request).await?;
         assert_eq!(response.status(), StatusCode::OK);
         Ok(())
     }
@@ -381,6 +497,16 @@ pub(crate) enum AuthContext {
     SetupToken(String),
     ApiKey { key_id: String },
     Anonymous,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ClientIp(pub(crate) IpAddr);
+
+impl ClientIp {
+    #[must_use]
+    pub(crate) const fn addr(self) -> IpAddr {
+        self.0
+    }
 }
 
 pub(crate) async fn require_setup_token(
@@ -432,7 +558,12 @@ pub(crate) async fn require_api_key(
         return Err(ApiError::setup_required("system is still in setup mode"));
     }
 
+    let local_networks = local_network_entries(&app);
+    let client_ip = client_ip_from_request(&req, &local_networks)?;
+    req.extensions_mut().insert(client_ip);
+
     if app.auth_mode == AppAuthMode::NoAuth {
+        ensure_local_access(client_ip, &local_networks)?;
         req.extensions_mut().insert(AuthContext::Anonymous);
         return Ok(next.run(req).await);
     }
@@ -495,7 +626,12 @@ pub(crate) async fn require_factory_reset_auth(
     })?;
     record_app_mode(app.mode.as_str());
 
+    let local_networks = local_network_entries(&app);
+    let client_ip = client_ip_from_request(&req, &local_networks)?;
+    req.extensions_mut().insert(client_ip);
+
     if app.auth_mode == AppAuthMode::NoAuth {
+        ensure_local_access(client_ip, &local_networks)?;
         req.extensions_mut().insert(AuthContext::Anonymous);
         return Ok(next.run(req).await);
     }
@@ -515,13 +651,22 @@ pub(crate) async fn require_factory_reset_auth(
             })?;
 
         let Some(auth) = auth else {
-            let has_api_keys = state.config.has_api_keys().await.map_err(|err| {
-                error!(error = %err, "failed to check API key inventory");
-                ApiError::internal("failed to check API key inventory")
-            })?;
+            let has_api_keys = match state.config.has_api_keys().await {
+                Ok(has_api_keys) => has_api_keys,
+                Err(err) => {
+                    error!(error = %err, "failed to check API key inventory");
+                    ensure_local_access(client_ip, &local_networks)?;
+                    warn!("factory reset allowed without API key because API key inventory failed");
+                    req.extensions_mut().insert(AuthContext::ApiKey {
+                        key_id: "bootstrap".to_string(),
+                    });
+                    return Ok(next.run(req).await);
+                }
+            };
             if has_api_keys {
                 return Err(ApiError::unauthorized("invalid API key"));
             }
+            ensure_local_access(client_ip, &local_networks)?;
             warn!("factory reset allowed without API key because no keys exist");
             req.extensions_mut().insert(AuthContext::ApiKey {
                 key_id: "bootstrap".to_string(),
@@ -555,16 +700,25 @@ pub(crate) async fn require_factory_reset_auth(
         return Ok(response);
     }
 
-    let has_api_keys = state.config.has_api_keys().await.map_err(|err| {
-        error!(error = %err, "failed to check API key inventory");
-        ApiError::internal("failed to check API key inventory")
-    })?;
+    let has_api_keys = match state.config.has_api_keys().await {
+        Ok(has_api_keys) => has_api_keys,
+        Err(err) => {
+            error!(error = %err, "failed to check API key inventory");
+            ensure_local_access(client_ip, &local_networks)?;
+            warn!("factory reset allowed without API key because API key inventory failed");
+            req.extensions_mut().insert(AuthContext::ApiKey {
+                key_id: "bootstrap".to_string(),
+            });
+            return Ok(next.run(req).await);
+        }
+    };
     if has_api_keys {
         return Err(ApiError::unauthorized(
             "missing API key header or query parameter",
         ));
     }
 
+    ensure_local_access(client_ip, &local_networks)?;
     warn!("factory reset allowed without API key because no keys exist");
     req.extensions_mut().insert(AuthContext::ApiKey {
         key_id: "bootstrap".to_string(),
@@ -603,6 +757,152 @@ pub(crate) fn extract_api_key(req: &Request<axum::body::Body>) -> Option<String>
         }
     }
     None
+}
+
+fn local_network_entries(app: &revaer_config::AppProfile) -> Vec<CidrEntry> {
+    match canonicalize_cidr_entries(&app.local_networks, "app_profile", "local_networks") {
+        Ok(entries) if !entries.is_empty() => entries,
+        Ok(_) => default_local_network_entries(),
+        Err(err) => {
+            warn!(error = %err, "invalid local networks; using defaults");
+            default_local_network_entries()
+        }
+    }
+}
+
+fn default_local_network_entries() -> Vec<CidrEntry> {
+    let defaults = default_local_networks();
+    match canonicalize_cidr_entries(&defaults, "app_profile", "local_networks") {
+        Ok(entries) => entries,
+        Err(err) => {
+            error!(error = %err, "failed to parse default local networks");
+            canonicalize_cidr_entries(
+                &vec!["127.0.0.0/8".to_string(), "::1/128".to_string()],
+                "app_profile",
+                "local_networks",
+            )
+            .unwrap_or_default()
+        }
+    }
+}
+
+fn ensure_local_access(client_ip: ClientIp, local_networks: &[CidrEntry]) -> Result<(), ApiError> {
+    if is_ip_local(client_ip.addr(), local_networks) {
+        Ok(())
+    } else {
+        Err(ApiError::unauthorized("local network access required"))
+    }
+}
+
+fn is_ip_local(ip: IpAddr, local_networks: &[CidrEntry]) -> bool {
+    local_networks.iter().any(|entry| entry.range.contains(ip))
+}
+
+fn client_ip_from_request(
+    req: &Request<axum::body::Body>,
+    local_networks: &[CidrEntry],
+) -> Result<ClientIp, ApiError> {
+    let peer_ip = peer_ip(req)?;
+    let peer_is_local = is_ip_local(peer_ip, local_networks);
+    if peer_is_local {
+        if let Some(ip) = forwarded_for_ip(req.headers())? {
+            return Ok(ClientIp(ip));
+        }
+        if let Some(ip) = x_forwarded_for_ip(req.headers())? {
+            return Ok(ClientIp(ip));
+        }
+        if let Some(ip) = x_real_ip(req.headers())? {
+            return Ok(ClientIp(ip));
+        }
+    }
+    Ok(ClientIp(peer_ip))
+}
+
+fn peer_ip(req: &Request<axum::body::Body>) -> Result<IpAddr, ApiError> {
+    req.extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map(|ConnectInfo(addr)| addr.ip())
+        .ok_or_else(|| ApiError::unauthorized("client address unavailable"))
+}
+
+fn forwarded_for_ip(headers: &HeaderMap) -> Result<Option<IpAddr>, ApiError> {
+    let Some(value) = headers.get("forwarded") else {
+        return Ok(None);
+    };
+    let value = value
+        .to_str()
+        .map_err(|_| ApiError::bad_request("forwarded header must be valid UTF-8"))?;
+    parse_forwarded_for(value)
+}
+
+fn x_forwarded_for_ip(headers: &HeaderMap) -> Result<Option<IpAddr>, ApiError> {
+    let Some(value) = headers.get("x-forwarded-for") else {
+        return Ok(None);
+    };
+    let value = value
+        .to_str()
+        .map_err(|_| ApiError::bad_request("x-forwarded-for header must be valid UTF-8"))?;
+    for entry in value.split(',') {
+        if let Some(ip) = parse_ip_value(
+            entry,
+            "x-forwarded-for header must include a valid IP address",
+        )? {
+            return Ok(Some(ip));
+        }
+    }
+    Ok(None)
+}
+
+fn x_real_ip(headers: &HeaderMap) -> Result<Option<IpAddr>, ApiError> {
+    let Some(value) = headers.get("x-real-ip") else {
+        return Ok(None);
+    };
+    let value = value
+        .to_str()
+        .map_err(|_| ApiError::bad_request("x-real-ip header must be valid UTF-8"))?;
+    parse_ip_value(value, "x-real-ip header must include a valid IP address")
+}
+
+fn parse_forwarded_for(header_value: &str) -> Result<Option<IpAddr>, ApiError> {
+    for entry in header_value.split(',') {
+        for part in entry.split(';') {
+            let part = part.trim();
+            if let Some(raw) = part.strip_prefix("for=")
+                && let Some(ip) =
+                    parse_ip_value(raw, "forwarded header must include a valid IP address")?
+            {
+                return Ok(Some(ip));
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn parse_ip_value(raw: &str, error_message: &'static str) -> Result<Option<IpAddr>, ApiError> {
+    let trimmed = raw.trim().trim_matches('"');
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("unknown") {
+        return Ok(None);
+    }
+
+    if let Some(bracketed) = trimmed.strip_prefix('[')
+        && let Some(end) = bracketed.find(']')
+    {
+        let value = &bracketed[..end];
+        let ip = value
+            .parse::<IpAddr>()
+            .map_err(|_| ApiError::bad_request(error_message))?;
+        return Ok(Some(ip));
+    }
+
+    if let Ok(ip) = trimmed.parse::<IpAddr>() {
+        return Ok(Some(ip));
+    }
+
+    if let Ok(sock) = trimmed.parse::<SocketAddr>() {
+        return Ok(Some(sock.ip()));
+    }
+
+    Err(ApiError::bad_request(error_message))
 }
 
 pub(crate) fn map_config_error(

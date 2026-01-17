@@ -47,6 +47,7 @@ The `/.well-known/revaer.json` endpoint, the authenticated `GET /v1/config` rout
 | `version` | integer | Optimistic locking counter maintained by `ConfigService`. |
 | `http_port` | integer | Published TCP port for the API server. |
 | `bind_addr` | string (IPv4/IPv6) | Listen address for the API server. |
+| `local_networks` | array | CIDR ranges treated as local for anonymous access and recovery flows. |
 | `telemetry` | object | Structured telemetry config (`level`, `format`, `otel_enabled`, `otel_service_name`, `otel_endpoint`). |
 | `label_policies` | array | Per-category/tag policy overrides (download dir, rate limits, queue position). |
 | `immutable_keys` | array | Fields that cannot be mutated via patches (`ConfigError::ImmutableField`). |

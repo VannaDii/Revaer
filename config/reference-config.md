@@ -9,10 +9,20 @@ This document illustrates the configuration documents stored in PostgreSQL for R
   "id": "00000000-0000-0000-0000-000000000001",
   "instance_name": "revaer-dev",
   "mode": "setup",
-  "auth_mode": "api_key",
+  "auth_mode": "none",
   "version": 1,
   "http_port": 7070,
   "bind_addr": "127.0.0.1",
+  "local_networks": [
+    "127.0.0.0/8",
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "169.254.0.0/16",
+    "::1/128",
+    "fe80::/10",
+    "fd00::/8"
+  ],
   "telemetry": {
     "level": "info",
     "format": "pretty",
