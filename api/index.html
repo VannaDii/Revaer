@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-97db6780.js";
+            window.path_to_searchindex_js = "../searchindex-7c8c489f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-4b55a252.js"></script>
+        <script src="../toc-c8464fcf.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -178,27 +178,23 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="api-documentation"><a class="header" href="#api-documentation">API Documentation</a></h1>
-<p>This directory hosts HTTP API specifications, generated OpenAPI documents, and usage guides for the Revaer control plane.</p>
+<p>This directory hosts HTTP API specifications, the generated OpenAPI document, and usage guides for the Revaer control plane.</p>
 <h2 id="contents"><a class="header" href="#contents">Contents</a></h2>
 <ul>
-<li><code>schema/</code> – Published OpenAPI payloads and supporting artefacts.</li>
-<li><code>guides/</code> – Scenario-based walkthroughs (bootstrap, hot reload validation, torrent lifecycle).</li>
-<li><code>examples/</code> – HTTP request/response samples captured from real workflows.</li>
-<li><code>openapi-gaps.md</code> – Routes present in the codebase but missing from the OpenAPI spec.</li>
+<li><code>openapi.json</code> - Generated OpenAPI document (<code>just api-export</code>).</li>
+<li><code>openapi.md</code> - How to regenerate and consume the OpenAPI document.</li>
+<li><code>guides/</code> - Scenario-based walkthroughs (bootstrap, operations, telemetry, CLI usage).</li>
+<li><code>openapi-gaps.md</code> - Inventory of router endpoints missing from the OpenAPI spec (should be empty).</li>
 </ul>
 <h2 id="current-coverage"><a class="header" href="#current-coverage">Current Coverage</a></h2>
 <ul>
-<li><strong>Setup &amp; configuration</strong> – <code>/admin/setup/*</code> and <code>/admin/settings</code> flows with CLI parity.</li>
-<li><strong>Orchestration</strong> – <code>/admin/torrents</code> (POST/DELETE/GET) for submitting or removing torrents, plus <code>/admin/torrents/{id}</code> for status inspection.</li>
-<li><strong>Observability</strong> – <code>/v1/events</code> SSE stream (tested for replay/keep-alive) and <code>/metrics</code> Prometheus surface with torrent gauges.</li>
+<li><strong>Setup and configuration</strong> - <code>/admin/setup/*</code>, <code>/v1/config</code>, <code>/.well-known/revaer.json</code>.</li>
+<li><strong>Torrent lifecycle</strong> - <code>/v1/torrents</code>, <code>/v1/torrents/{id}</code>, <code>/v1/torrents/{id}/action</code>, <code>/v1/torrents/{id}/select</code>, <code>/v1/torrents/{id}/options</code>, plus admin aliases.</li>
+<li><strong>Authoring and metadata</strong> - <code>/v1/torrents/create</code>, <code>/v1/torrents/{id}/trackers</code>, <code>/v1/torrents/{id}/web_seeds</code>, <code>/v1/torrents/{id}/peers</code>.</li>
+<li><strong>Observability</strong> - <code>/v1/events</code>, <code>/v1/torrents/events</code>, <code>/v1/logs/stream</code>, <code>/metrics</code>, <code>/v1/dashboard</code>, <code>/health/full</code>.</li>
+<li><strong>Filesystem</strong> - <code>/v1/fs/browse</code>.</li>
 </ul>
-<p>See <code>guides/bootstrap.md</code> for an end-to-end description of the bootstrap lifecycle, background workers, and error handling expectations.</p>
-<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
-<ul>
-<li>Capture worked examples for torrent status reconciliation (list + selective GET).</li>
-<li>Provide troubleshooting recipes for common workflow failures (engine unavailable, filesystem policy rejection).</li>
-<li>Expand SSE consumer documentation with incremental backfill strategies.</li>
-</ul>
+<p>See <code>guides/bootstrap.md</code> for an end-to-end description of the bootstrap lifecycle and runtime orchestration expectations.</p>
 
                     </main>
 

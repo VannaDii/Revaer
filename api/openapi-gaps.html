@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-97db6780.js";
+            window.path_to_searchindex_js = "../searchindex-7c8c489f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-4b55a252.js"></script>
+        <script src="../toc-c8464fcf.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,46 +181,16 @@
 <p>This document lists API routes present in <code>crates/revaer-api/src/http/router.rs</code> that are missing from <code>docs/api/openapi.json</code>.</p>
 <h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
 <ul>
-<li>The current OpenAPI spec omits several admin torrent endpoints and multiple v1 utility/streaming routes.</li>
-<li>The missing routes below should be added to the OpenAPI spec to fully reflect the HTTP surface area.</li>
+<li>The OpenAPI spec is aligned with the current router surface; no gaps remain for the default feature set.</li>
 </ul>
 <h2 id="missing-admin-routes"><a class="header" href="#missing-admin-routes">Missing admin routes</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Path</th><th>Methods</th></tr>
-</thead>
-<tbody>
-<tr><td><code>/admin/factory-reset</code></td><td><code>POST</code></td></tr>
-<tr><td><code>/admin/torrents</code></td><td><code>GET</code>, <code>POST</code></td></tr>
-<tr><td><code>/admin/torrents/categories</code></td><td><code>GET</code></td></tr>
-<tr><td><code>/admin/torrents/categories/{name}</code></td><td><code>PUT</code></td></tr>
-<tr><td><code>/admin/torrents/tags</code></td><td><code>GET</code></td></tr>
-<tr><td><code>/admin/torrents/tags/{name}</code></td><td><code>PUT</code></td></tr>
-<tr><td><code>/admin/torrents/create</code></td><td><code>POST</code></td></tr>
-<tr><td><code>/admin/torrents/{id}</code></td><td><code>GET</code>, <code>DELETE</code></td></tr>
-<tr><td><code>/admin/torrents/{id}/peers</code></td><td><code>GET</code></td></tr>
-</tbody>
-</table>
-</div>
+<ul>
+<li>None.</li>
+</ul>
 <h2 id="missing-v1-routes"><a class="header" href="#missing-v1-routes">Missing v1 routes</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Path</th><th>Methods</th></tr>
-</thead>
-<tbody>
-<tr><td><code>/v1/dashboard</code></td><td><code>GET</code></td></tr>
-<tr><td><code>/v1/fs/browse</code></td><td><code>GET</code></td></tr>
-<tr><td><code>/v1/logs/stream</code></td><td><code>GET</code></td></tr>
-<tr><td><code>/v1/torrents/{id}/trackers</code></td><td><code>GET</code>, <code>PATCH</code>, <code>DELETE</code></td></tr>
-<tr><td><code>/v1/torrents/{id}/peers</code></td><td><code>GET</code></td></tr>
-<tr><td><code>/v1/torrents/{id}/web_seeds</code></td><td><code>PATCH</code></td></tr>
-<tr><td><code>/v1/events</code></td><td><code>GET</code></td></tr>
-<tr><td><code>/v1/events/stream</code></td><td><code>GET</code></td></tr>
-</tbody>
-</table>
-</div>
+<ul>
+<li>None.</li>
+</ul>
 <h2 id="notes"><a class="header" href="#notes">Notes</a></h2>
 <ul>
 <li>Feature-gated compat-qb routes are excluded because they are not mounted unless the <code>compat-qb</code> feature is enabled.</li>

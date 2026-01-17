@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-97db6780.js";
+            window.path_to_searchindex_js = "searchindex-7c8c489f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-4b55a252.js"></script>
+        <script src="toc-c8464fcf.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -198,7 +198,7 @@
 </code></pre>
 <p>This builds the mdBook site and refreshes the LLM manifests that power the documentation search experience.</p>
 <h2 id="llm-manifests"><a class="header" href="#llm-manifests">LLM Manifests</a></h2>
-<p>For ChatGPT and other LLM-based tooling, fetch <a href="/llms.txt"><code>/llms.txt</code></a> and the JSON manifests under <code>/llm/</code> (<a href="/llm/schema.json"><code>schema.json</code></a>, <a href="/llm/manifest.json"><code>manifest.json</code></a>, <a href="/llm/summaries.json"><code>summaries.json</code></a>) used by the documentation search experience.</p>
+<p>For ChatGPT and other LLM-based tooling, fetch <a href="llms.txt"><code>llms.txt</code></a> and the JSON manifests under <code>llm/</code> (<a href="llm/schema.json"><code>schema.json</code></a>, <a href="llm/manifest.json"><code>manifest.json</code></a>, <a href="llm/summaries.json"><code>summaries.json</code></a>) used by the documentation search experience.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="phase-one-roadmap"><a class="header" href="#phase-one-roadmap">Phase One Roadmap</a></h1>
 <p><em>Last updated: 2025-11-27</em></p>
@@ -610,123 +610,119 @@
 </ol>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="web-ui---phase-1"><a class="header" href="#web-ui---phase-1">Web UI - Phase 1</a></h1>
-<p>Rust/Yew implementation plan for the Phase 1 torrent-only UI described in <code>REVAER_PHASE1_WEBUX_SPEC.md</code>. The goal is a responsive, touch-friendly surface that stays usable on 360px phones through 4K desktops while handling 50k+ torrents.</p>
+<p>Rust/Yew UI for the Phase 1 torrent workflow. The goal is a responsive, touch-friendly surface that stays usable on 360px phones through 4K desktops while handling large torrent libraries.</p>
 <ul>
-<li><strong>Pages:</strong> Dashboard, Torrents (list + detail), Search (shared list), Jobs/Post-processing, Settings, Logs. Indexers/Library stay hidden until Phase 2.</li>
-<li><strong>Modes:</strong> Simple (default, trimmed controls) and Advanced (all filters, columns, bulk actions). Persisted in local storage without reload.</li>
-<li><strong>Transport:</strong> REST for initial payloads; SSE for torrents, transfers, queue, jobs, and VPN state with backoff and jitter handling.</li>
+<li><strong>Pages</strong>: Dashboard, Torrents (list + detail), Logs, Health, Settings.</li>
+<li><strong>Modes</strong>: Simple (trimmed controls) and Advanced (full controls). Stored in local storage.</li>
+<li><strong>Transport</strong>: REST for initial payloads; fetch-based SSE for live updates and logs (header-auth supported, EventSource not used).</li>
 </ul>
-<h2 id="layout--breakpoints"><a class="header" href="#layout--breakpoints">Layout &amp; Breakpoints</a></h2>
+<h2 id="layout-and-breakpoints"><a class="header" href="#layout-and-breakpoints">Layout and breakpoints</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Name</th><th>Width</th><th>Default behaviors</th></tr>
 </thead>
 <tbody>
-<tr><td>xs</td><td>0–479px</td><td>Card view for torrents, bottom sheet actions, stacked dashboard cards, hamburger navigation</td></tr>
-<tr><td>sm</td><td>480–767px</td><td>Card view, two-column stats grid inside cards, slide-out navigation</td></tr>
-<tr><td>md</td><td>768–1023px</td><td>Compact table (2–4 columns), tabbed detail view, 2-column dashboard grid</td></tr>
-<tr><td>lg</td><td>1024–1439px</td><td>Full table, fixed sidebar with labels, 3-column dashboard grid</td></tr>
-<tr><td>xl</td><td>1440–1919px</td><td>Adaptive column expansion, split-pane detail, 4-column dashboard grid</td></tr>
-<tr><td>2xl</td><td>1920px+</td><td>Ultrawide-friendly table and split panes with max readable line lengths</td></tr>
+<tr><td>xs</td><td>0-479px</td><td>Card view for torrents, drawer navigation, stacked dashboard cards</td></tr>
+<tr><td>sm</td><td>480-767px</td><td>Card view, two-column stats grid inside cards</td></tr>
+<tr><td>md</td><td>768-1023px</td><td>Compact table, tabbed detail view</td></tr>
+<tr><td>lg</td><td>1024-1439px</td><td>Full table, fixed sidebar</td></tr>
+<tr><td>xl</td><td>1440-1919px</td><td>Split panes and wider tables</td></tr>
+<tr><td>2xl</td><td>1920px+</td><td>Ultra-wide tables with capped text widths</td></tr>
 </tbody>
 </table>
 </div>
-<p>Table responsiveness: required columns (Name, Status, Progress, Speed up/down) stay pinned; ETA, Ratio, Size, Tags, Tracker, Path collapse into overflow or the detail drawer when space is constrained. Horizontal scroll must preserve keyboard navigation and roving tabindex.</p>
-<p>Detail view: mobile renders tabs (<code>Files</code>, <code>Peers</code>, <code>Trackers</code>, <code>Log</code>, <code>Info</code>) with accordion file tree; desktop/laptop promotes a split grid showing file tree + metadata alongside peers/trackers/log simultaneously.</p>
-<p>Virtualization: torrent list uses a windowed renderer (row-height aware with overscan) to keep 50k+ rows responsive; horizontal scroll remains keyboard-safe and selection stays highlighted for shortcut actions.</p>
-<p>Auth: remote mode always requires an API key; prompt stores key in local storage, LAN anonymous mode is allowed only if backend advertises <code>allow_anonymous</code>. SSE currently appends the key via querystring (EventSource lacks header support); use TLS and avoid logging URLs in deployment. Live updates: SSE feeds torrent progress/rates plus dashboard rates/queue/VPN status; reconnect badge/overlay surfaces failures and retries.</p>
-<p>Add flow: drop <code>.torrent</code> or paste magnet/URL with inline validation and error copy; invalid file types are rejected. Submissions post to <code>/v1/torrents</code>, surface toast feedback, and refresh the list.
-Search &amp; filters: search box hits <code>/v1/torrents?search=</code> with optional <code>regex=true</code>; Regex toggle is inline in the toolbar and clears with Escape.
-Live sync: SSE streams torrent progress/rates/state plus added/removed events to keep the list aligned without manual refresh.</p>
-<h2 id="theming--tokens"><a class="header" href="#theming--tokens">Theming &amp; Tokens</a></h2>
+<p>Table responsiveness: required columns (Name, Status, Progress, Down, Up) stay pinned; ETA, Ratio, Size, Tags, Path, Updated collapse into overflow or the detail drawer when space is constrained.</p>
+<p>Detail view: mobile renders tabs (Overview, Files, Options); desktop promotes a split layout that keeps overview and options visible together at lg+.</p>
+<p>Virtualization: the torrent list uses a windowed renderer to keep large libraries responsive; selection stays highlighted for keyboard actions.</p>
+<h2 id="auth-and-setup"><a class="header" href="#auth-and-setup">Auth and setup</a></h2>
 <ul>
-<li>Palette: Primary (<code>#265D81</code> base), Secondary (<code>#775A96</code>), Accent (<code>#258BD3</code>), Neutral 50–900, Success/Warning/Error scales; dark mode uses <code>background-dark #121417</code>, <code>surface-dark #1A1C20</code>, and text tokens.</li>
-<li>Scale: Spacing 4/8/12/16/24/32; radius 4/8/12; elevation tiers flat/raised/floating; type scale xs–2xl.</li>
-<li>States: focus ring 2px accent-500, hover/pressed darken by one tone; inputs/tables use border tokens.</li>
-<li>Theme selection follows OS preference on first load and persists to local storage; user toggle is always available.</li>
+<li>API key auth is default. The UI prompts for <code>key_id:secret</code> and stores it in local storage with expiry metadata.</li>
+<li>If <code>app_profile.auth_mode</code> is <code>none</code> and the request originates from a local network, the UI can enter anonymous mode.</li>
+<li>Setup mode guides the operator through the setup token flow and stores the generated API key after completion.</li>
 </ul>
-<h2 id="localization"><a class="header" href="#localization">Localization</a></h2>
+<h2 id="transport-and-sse"><a class="header" href="#transport-and-sse">Transport and SSE</a></h2>
 <ul>
-<li>Languages: ar, de, es, hi, it, jv, mr, pt, ta, tr, bn, en, fr, id, ja, ko, pa, ru, te, zh.</li>
-<li>Bundles: JSON files at <code>crates/revaer-ui/i18n/*.json</code> with English fallback; dotted keys supported in <code>TranslationBundle</code>.</li>
-<li>RTL: bidi layout, mirrored progress bars, reversed file tree, and RTL-aware table alignment. <code>meta.rtl</code> in bundles hints at direction and is applied on load.</li>
-<li>Numbers/dates: browser locale by default with user override; binary units for rates/sizes.</li>
+<li>Primary SSE: <code>/v1/torrents/events</code> with filters for torrent id, event kind, and state.</li>
+<li>Fallback SSE: <code>/v1/events/stream</code> if the primary endpoint is unavailable.</li>
+<li>Logs stream: <code>/v1/logs/stream</code>.</li>
+<li>SSE requests attach <code>x-revaer-api-key</code> and <code>Last-Event-ID</code> headers.</li>
 </ul>
-<h2 id="accessibility--interaction"><a class="header" href="#accessibility--interaction">Accessibility &amp; Interaction</a></h2>
+<h2 id="settings-coverage"><a class="header" href="#settings-coverage">Settings coverage</a></h2>
+<p>Settings tabs are grouped into: Downloads, Seeding, Network, Storage, Labels, and System. Each tab reflects the corresponding config section and validation errors from <code>ProblemDetails</code> responses.</p>
+<h2 id="theming-and-localization"><a class="header" href="#theming-and-localization">Theming and localization</a></h2>
 <ul>
-<li>WCAG 2.1 AA: semantic markup, focus-visible rings, high-contrast dark mode, 40px touch targets on mobile, focus traps for drawers/modals.</li>
-<li>Keyboard shortcuts (wired in demo UI): <code>/</code> search focus, <code>j/k</code> row move, <code>space</code> pause/resume, <code>delete</code> delete, <code>shift+delete</code> delete+data, <code>p</code> recheck. Selected row highlights; actions surface in a status banner.</li>
-<li>Screen-reader flow follows DOM order (mobile collapse must not break navigation).</li>
-<li>Confirmations: delete (“Remove torrent ‘&lt;name&gt;’? Files remain on disk”), delete+data (“Remove torrent and delete data? This cannot be undone.”), recheck prompt.</li>
-<li>Mobile action bar: sticky bottom row for Pause/Resume/Delete/More on xs/sm; desktop retains row actions in-table.</li>
-<li>SSE downtime overlay: shows last event timestamp, retry countdown (1s→30s with jitter), reason, and retry button; badge reflects reconnect state in top bar.</li>
-</ul>
-<h2 id="performance--resilience"><a class="header" href="#performance--resilience">Performance &amp; Resilience</a></h2>
-<ul>
-<li>Target: &lt;300ms initial UI load on modern mobile (cached assets), virtualization for all tables beyond 500 rows, main-thread budget aligned with 50k torrents.</li>
-<li>SSE: event batching and reconnect backoff (1s→30s with jitter), Last-Event-ID awareness, overlay with retry countdown and last event timestamp on disconnect.</li>
-<li>Offline/remote awareness: API key prompt stored locally; remote mode always enforces key even if backend advertises anonymous LAN support.</li>
+<li>Theme tokens and layout variables live in <code>static/style.css</code>.</li>
+<li>Theme selection follows OS preference on first load and persists to local storage.</li>
+<li>Locale selector uses JSON bundles in <code>i18n/</code> with English fallback and RTL hinting.</li>
 </ul>
 <h2 id="running-the-ui"><a class="header" href="#running-the-ui">Running the UI</a></h2>
 <ul>
 <li>Crate: <code>crates/revaer-ui</code> (Yew + wasm).</li>
-<li>Commands: <code>rustup target add wasm32-unknown-unknown</code>, <code>cargo install trunk</code>, <code>trunk serve --open</code> to preview.</li>
+<li>Commands: <code>just ui-serve</code> to preview, <code>just ui-build</code> for release builds.</li>
 <li>Assets: <code>static/style.css</code> holds palette/breakpoints; <code>index.html</code> + <code>Trunk.toml</code> bootstrap trunk.</li>
-<li>Demo data lives in <code>components/dashboard.rs</code> and <code>components/torrents.rs</code>; swap in REST/SSE adapters to connect to the backend once available.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
-<h1 id="web-ui-flows--diagrams"><a class="header" href="#web-ui-flows--diagrams">Web UI Flows &amp; Diagrams</a></h1>
+<h1 id="web-ui-flows-and-diagrams"><a class="header" href="#web-ui-flows-and-diagrams">Web UI Flows and Diagrams</a></h1>
 <p>Visual references for the Phase 1 UX: navigation, component wiring, SSE handling, and torrent lifecycle. Use these diagrams when extending the UI or adding tests.</p>
-<h2 id="navigation-flow"><a class="header" href="#navigation-flow">Navigation Flow</a></h2>
+<h2 id="navigation-flow"><a class="header" href="#navigation-flow">Navigation flow</a></h2>
 <pre class="mermaid">flowchart LR
-    Nav[Sidebar / Hamburger] --&gt; Dash[Dashboard]
+    Nav["Sidebar / Drawer"] --&gt; Dash[Dashboard]
     Nav --&gt; Torrents[Torrents]
-    Nav --&gt; Search[Search]
-    Nav --&gt; Jobs[Jobs / Post-processing]
-    Nav --&gt; Settings[Settings]
     Nav --&gt; Logs[Logs]
-    Torrents --&gt; Detail[Detail Drawer / Tabs]
+    Nav --&gt; Health[Health]
+    Nav --&gt; Settings[Settings]
+    Torrents --&gt; Detail["Detail route /torrents/:id"]
+    Detail --&gt; Overview[Overview]
     Detail --&gt; Files[Files]
-    Detail --&gt; Peers[Peers]
-    Detail --&gt; Trackers[Trackers]
-    Detail --&gt; Events[Event Log]
-    Detail --&gt; Info[Metadata]
+    Detail --&gt; Options[Options]
 </pre>
 
-<h2 id="component-graph"><a class="header" href="#component-graph">Component Graph</a></h2>
+<h2 id="component-graph"><a class="header" href="#component-graph">Component graph</a></h2>
 <pre class="mermaid">flowchart TB
     app["App (RevaerApp)"]
     shell["AppShell: nav / theme / locale"]
-    dash[DashboardPanel]
-    table["TorrentView: virtualized list + filters"]
-    add_panel[AddTorrentPanel]
-    detail["Detail drawer / tabs"]
+    dash[Dashboard]
+    torrents["Torrents list + detail"]
+    settings[Settings]
+    logs[Logs]
+    health[Health]
     api[API]
 
     app --&gt; shell
     shell --&gt; dash
-    shell --&gt; table
-    table --&gt; add_panel
-    table --&gt; detail
-    add_panel -- "POST /v1/torrents" --&gt; api
-    detail -- "PATCH /v1/torrents/{id}" --&gt; api
+    shell --&gt; torrents
+    shell --&gt; settings
+    shell --&gt; logs
+    shell --&gt; health
+
+    dash -- "GET /v1/dashboard" --&gt; api
+    torrents -- "GET /v1/torrents" --&gt; api
+    torrents -- "GET /v1/torrents/{id}" --&gt; api
+    torrents -- "POST /v1/torrents/{id}/action" --&gt; api
+    torrents -- "PATCH /v1/torrents/{id}/options" --&gt; api
+    torrents -- "POST /v1/torrents/{id}/select" --&gt; api
+    torrents -- "SSE /v1/torrents/events" --&gt; api
+    logs -- "SSE /v1/logs/stream" --&gt; api
+    health -- "GET /health/full" --&gt; api
 </pre>
 
-<h2 id="sse-event-flow"><a class="header" href="#sse-event-flow">SSE Event Flow</a></h2>
+<h2 id="sse-event-flow"><a class="header" href="#sse-event-flow">SSE event flow</a></h2>
 <pre class="mermaid">sequenceDiagram
+    participant UI as UI
+    participant Fetch as Fetch Stream
     participant API as API/SSE
-    participant Stream as EventStream
-    participant State as UIState
-    participant UI as Components
+    participant State as Store
 
-    API-&gt;&gt;Stream: SSE events (progress, state, queue, jobs, vpn)
-    Stream-&gt;&gt;State: Batch apply with backoff + dedupe
-    State-&gt;&gt;UI: Render updates (virtualized table, dashboard tiles, badges)
-    UI-&gt;&gt;API: Last-Event-ID on reconnect with filters in SSE query
+    UI-&gt;&gt;Fetch: build URL + headers (x-revaer-api-key, Last-Event-ID)
+    Fetch-&gt;&gt;API: GET /v1/torrents/events (fallback /v1/events/stream)
+    API--&gt;&gt;Fetch: SSE frames
+    Fetch-&gt;&gt;State: parse + batch updates
+    State-&gt;&gt;UI: render list, detail, dashboard, health badges
+    UI-&gt;&gt;Fetch: reconnect with backoff and resume id
 </pre>
 
-<h2 id="torrent-lifecycle-ui-perspective"><a class="header" href="#torrent-lifecycle-ui-perspective">Torrent Lifecycle (UI Perspective)</a></h2>
+<h2 id="torrent-lifecycle-ui-perspective"><a class="header" href="#torrent-lifecycle-ui-perspective">Torrent lifecycle (UI perspective)</a></h2>
 <pre class="mermaid">stateDiagram-v2
     [*] --&gt; Added : magnet/upload
     Added --&gt; Queueing : server-side validation
@@ -740,42 +736,46 @@ Live sync: SSE streams torrent progress/rates/state plus added/removed events to
     Completed --&gt; Removed : delete (+data optional)
 </pre>
 
-<h2 id="interaction-notes"><a class="header" href="#interaction-notes">Interaction Notes</a></h2>
+<h2 id="interaction-notes"><a class="header" href="#interaction-notes">Interaction notes</a></h2>
 <ul>
-<li>SSE disconnect overlay shows last event timestamp, retry countdown (1s→30s exponential with jitter), and diagnostics (network mode, reason).</li>
-<li>Table virtualization is mandatory beyond 500 rows; virtual scroll must preserve keyboard focus order and pinned columns.</li>
-<li>Mobile detail view uses tabs (Files, Peers, Trackers, Log, Info); desktop uses split panes so file tree + metadata stay visible together at xl+.</li>
+<li>SSE disconnect overlay shows last event timestamp, retry countdown (1s to 30s exponential with jitter), and diagnostics (auth mode, reason).</li>
+<li>Table virtualization is required beyond 500 rows; virtual scroll must preserve keyboard focus order and pinned columns.</li>
+<li>Mobile detail view uses tabs (Overview, Files, Options); desktop uses a split layout so overview and options stay visible together at lg+.</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="configuration-surface"><a class="header" href="#configuration-surface">Configuration Surface</a></h1>
 <blockquote>
-<p>Canonical reference for the PostgreSQL-backed settings documents that drive Revaer’s runtime behaviour.</p>
+<p>Canonical reference for the PostgreSQL-backed settings documents that drive Revaer’s runtime behavior.</p>
 </blockquote>
-<p>Revaer persists all operator-facing configuration inside the <code>settings_*</code> tables. The API (<code>ConfigService</code>) exposes strongly-typed snapshots that are consumed by the API server, torrent engine, filesystem pipeline, and CLI. Every change flows through a <code>SettingsChangeset</code>, ensuring a single validation path whether commands originate from the setup flow or the admin API.</p>
-<h2 id="snapshot-components"><a class="header" href="#snapshot-components">Snapshot Components</a></h2>
+<p>Revaer persists operator-facing configuration inside the <code>settings_*</code> tables. The API (<code>ConfigService</code>) exposes strongly typed snapshots consumed by the API server, torrent engine, filesystem pipeline, and CLI. Every change flows through a <code>SettingsChangeset</code>, ensuring a single validation path whether commands originate from the setup flow or the admin API.</p>
+<h2 id="snapshot-components"><a class="header" href="#snapshot-components">Snapshot components</a></h2>
 <p>The <code>/.well-known/revaer.json</code> endpoint, the authenticated <code>GET /v1/config</code> route, and the <code>revaer config get</code> CLI command all return the same structure:</p>
 <pre><code class="language-json">{
-    "revision": 42,
-    "app_profile": {
-        /* see below */
-    },
-    "engine_profile": {
-        /*…*/
-    },
-    "fs_policy": {
-        /*…*/
-    },
-    "api_keys": [
-        {
-            "key_id": "admin",
-            "label": "bootstrap",
-            "enabled": true,
-            "rate_limit": null
-        }
-    ]
+  "revision": 42,
+  "app_profile": {
+    "...": "..."
+  },
+  "engine_profile": {
+    "...": "..."
+  },
+  "engine_profile_effective": {
+    "...": "..."
+  },
+  "fs_policy": {
+    "...": "..."
+  },
+  "api_keys": [
+    {
+      "key_id": "admin",
+      "label": "bootstrap",
+      "enabled": true,
+      "rate_limit": null
+    }
+  ]
 }
 </code></pre>
-<h3 id="app-profile-settings_app_profile"><a class="header" href="#app-profile-settings_app_profile">App Profile (<code>settings_app_profile</code>)</a></h3>
+<p><code>engine_profile_effective</code> is the normalized engine profile (clamped limits, derived defaults, warnings applied) used by the orchestrator.</p>
+<h2 id="app-profile-settings_app_profile"><a class="header" href="#app-profile-settings_app_profile">App profile (<code>settings_app_profile</code>)</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -783,171 +783,218 @@ Live sync: SSE streams torrent progress/rates/state plus added/removed events to
 </thead>
 <tbody>
 <tr><td><code>id</code></td><td>UUID</td><td>Singleton identifier for the current document.</td></tr>
-<tr><td><code>instance_name</code></td><td>string</td><td>Human readable label surfaced in the CLI after setup.</td></tr>
-<tr><td><code>mode</code></td><td><code>"setup"</code> or <code>"active"</code></td><td>Gatekeeper for the authentication middleware. Setup requests are rejected once the system enters <code>active</code>.</td></tr>
+<tr><td><code>instance_name</code></td><td>string</td><td>Human-readable label surfaced in the UI and CLI.</td></tr>
+<tr><td><code>mode</code></td><td><code>setup</code> or <code>active</code></td><td>Gatekeeper for authentication middleware and setup flow.</td></tr>
+<tr><td><code>auth_mode</code></td><td><code>api_key</code> or <code>none</code></td><td>API access policy; <code>none</code> allows anonymous access on local networks only.</td></tr>
 <tr><td><code>version</code></td><td>integer</td><td>Optimistic locking counter maintained by <code>ConfigService</code>.</td></tr>
 <tr><td><code>http_port</code></td><td>integer</td><td>Published TCP port for the API server.</td></tr>
 <tr><td><code>bind_addr</code></td><td>string (IPv4/IPv6)</td><td>Listen address for the API server.</td></tr>
-<tr><td><code>telemetry</code></td><td>object</td><td>Free-form map for logging + metrics toggles (e.g. <code>log_level</code>, <code>prometheus</code>).</td></tr>
-<tr><td><code>features</code></td><td>object</td><td>Feature switches such as <code>fs_extract</code>, <code>par2</code>, <code>sse_backpressure</code>.</td></tr>
-<tr><td><code>immutable_keys</code></td><td>array</td><td>List of fields that cannot be mutated via patches (<code>ConfigError::ImmutableField</code>).</td></tr>
+<tr><td><code>telemetry</code></td><td>object</td><td>Structured telemetry config (<code>level</code>, <code>format</code>, <code>otel_enabled</code>, <code>otel_service_name</code>, <code>otel_endpoint</code>).</td></tr>
+<tr><td><code>label_policies</code></td><td>array</td><td>Per-category/tag policy overrides (download dir, rate limits, queue position).</td></tr>
+<tr><td><code>immutable_keys</code></td><td>array</td><td>Fields that cannot be mutated via patches (<code>ConfigError::ImmutableField</code>).</td></tr>
 </tbody>
 </table>
 </div>
-<h3 id="engine-profile-settings_engine_profile"><a class="header" href="#engine-profile-settings_engine_profile">Engine Profile (<code>settings_engine_profile</code>)</a></h3>
+<h2 id="engine-profile-settings_engine_profile"><a class="header" href="#engine-profile-settings_engine_profile">Engine profile (<code>settings_engine_profile</code>)</a></h2>
+<h3 id="network-and-transport"><a class="header" href="#network-and-transport">Network and transport</a></h3>
+<ul>
+<li><code>implementation</code> - engine identifier (<code>libtorrent</code> or <code>stub</code>).</li>
+<li><code>listen_port</code> and <code>listen_interfaces</code> - incoming listener configuration.</li>
+<li><code>ipv6_mode</code> - <code>disabled</code>, <code>prefer</code>, or <code>require</code>.</li>
+<li><code>enable_lsd</code>, <code>enable_upnp</code>, <code>enable_natpmp</code>, <code>enable_pex</code> - discovery toggles (default off).</li>
+<li><code>dht</code>, <code>dht_bootstrap_nodes</code>, <code>dht_router_nodes</code> - DHT configuration.</li>
+<li><code>outgoing_port_min</code> / <code>outgoing_port_max</code> - optional port range for outgoing connections.</li>
+<li><code>peer_dscp</code> - optional DSCP/TOS codepoint (0-63) for peer sockets.</li>
+</ul>
+<h3 id="privacy-and-protocol-controls"><a class="header" href="#privacy-and-protocol-controls">Privacy and protocol controls</a></h3>
+<ul>
+<li><code>anonymous_mode</code>, <code>force_proxy</code>, <code>prefer_rc4</code>.</li>
+<li><code>allow_multiple_connections_per_ip</code>.</li>
+<li><code>enable_outgoing_utp</code>, <code>enable_incoming_utp</code>.</li>
+</ul>
+<h3 id="limits-and-scheduling"><a class="header" href="#limits-and-scheduling">Limits and scheduling</a></h3>
+<ul>
+<li><code>max_active</code>, <code>max_download_bps</code>, <code>max_upload_bps</code>.</li>
+<li><code>seed_ratio_limit</code>, <code>seed_time_limit</code>.</li>
+<li><code>connections_limit</code>, <code>connections_limit_per_torrent</code>.</li>
+<li><code>unchoke_slots</code>, <code>half_open_limit</code>, <code>optimistic_unchoke_slots</code>.</li>
+<li><code>stats_interval_ms</code>, <code>max_queued_disk_bytes</code>.</li>
+<li><code>alt_speed</code> (caps and optional schedule).</li>
+</ul>
+<h3 id="behavior"><a class="header" href="#behavior">Behavior</a></h3>
+<ul>
+<li><code>sequential_default</code>.</li>
+<li><code>auto_managed</code>, <code>auto_manage_prefer_seeds</code>, <code>dont_count_slow_torrents</code>.</li>
+<li><code>super_seeding</code>, <code>strict_super_seeding</code>.</li>
+<li><code>choking_algorithm</code>, <code>seed_choking_algorithm</code>.</li>
+</ul>
+<h3 id="storage"><a class="header" href="#storage">Storage</a></h3>
+<ul>
+<li><code>resume_dir</code>, <code>download_root</code>.</li>
+<li><code>storage_mode</code>, <code>use_partfile</code>.</li>
+<li><code>disk_read_mode</code>, <code>disk_write_mode</code>, <code>verify_piece_hashes</code>.</li>
+<li><code>cache_size</code>, <code>cache_expiry</code>, <code>coalesce_reads</code>, <code>coalesce_writes</code>, <code>use_disk_cache_pool</code>.</li>
+</ul>
+<h3 id="tracker-and-filtering"><a class="header" href="#tracker-and-filtering">Tracker and filtering</a></h3>
+<ul>
+<li><code>tracker</code> (user-agent, announce overrides).</li>
+<li><code>ip_filter</code> (inline rules plus optional remote blocklist).</li>
+<li><code>peer_classes</code> (per-class caps and throttles).</li>
+</ul>
+<h2 id="filesystem-policy-settings_fs_policy"><a class="header" href="#filesystem-policy-settings_fs_policy">Filesystem policy (<code>settings_fs_policy</code>)</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Field</th><th>Type</th><th>Description</th></tr>
 </thead>
 <tbody>
-<tr><td><code>implementation</code></td><td>string</td><td>Currently <code>libtorrent</code>. Used to select the torrent workflow implementation.</td></tr>
-<tr><td><code>listen_port</code></td><td>integer?</td><td>Optional external listen port override for the engine.</td></tr>
-<tr><td><code>dht</code></td><td>bool</td><td>Enables/disables the DHT module.</td></tr>
-<tr><td><code>encryption</code></td><td>string</td><td>Encryption requirement (<code>require</code>, <code>prefer</code>, etc.).</td></tr>
-<tr><td><code>max_active</code></td><td>integer?</td><td>Cap on concurrently-active torrents; <code>null</code> means unlimited.</td></tr>
-<tr><td><code>max_download_bps</code> / <code>max_upload_bps</code></td><td>integer?</td><td>Global rate limits applied by the engine.</td></tr>
-<tr><td><code>sequential_default</code></td><td>bool</td><td>Default sequential downloading behaviour for new torrents.</td></tr>
-<tr><td><code>resume_dir</code></td><td>string</td><td>Filesystem location where fast-resume artefacts are stored.</td></tr>
-<tr><td><code>download_root</code></td><td>string</td><td>Directory used for in-progress torrent payloads.</td></tr>
-<tr><td><code>tracker</code></td><td>object</td><td>Tracker configuration (user-agent, announce overrides).</td></tr>
-</tbody>
-</table>
-</div>
-<h3 id="filesystem-policy-settings_fs_policy"><a class="header" href="#filesystem-policy-settings_fs_policy">Filesystem Policy (<code>settings_fs_policy</code>)</a></h3>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Field</th><th>Type</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>library_root</code></td><td>string</td><td>Destination directory for completed artefacts.</td></tr>
+<tr><td><code>library_root</code></td><td>string</td><td>Destination directory for completed artifacts.</td></tr>
 <tr><td><code>extract</code></td><td>bool</td><td>Whether completed payloads are extracted.</td></tr>
-<tr><td><code>par2</code></td><td>string</td><td><code>off</code>, <code>verify</code>, or <code>repair</code> depending on PAR2 behaviour.</td></tr>
-<tr><td><code>flatten</code></td><td>bool</td><td>Collapses single-file directories when moving into the library.</td></tr>
-<tr><td><code>move_mode</code></td><td>string</td><td><code>copy</code>, <code>move</code>, or <code>hardlink</code> semantics for the FsOps pipeline.</td></tr>
-<tr><td><code>cleanup_keep</code> / <code>cleanup_drop</code></td><td>array</td><td>Glob patterns retaining or removing files during cleanup.</td></tr>
-<tr><td><code>chmod_file</code> / <code>chmod_dir</code></td><td>string?</td><td>Optional octal permissions applied to outputs; when omitted the pipeline derives modes from <code>umask</code> (defaults to <code>0o666/0o777</code>).</td></tr>
-<tr><td><code>owner</code> / <code>group</code></td><td>string?</td><td>Optional ownership override resolved against system users/groups on Unix platforms; unsupported on non-Unix systems (FsOps emits a guarded failure).</td></tr>
-<tr><td><code>umask</code></td><td>string?</td><td>Umask applied during FsOps and used to derive default file/directory modes when explicit chmod directives are absent.</td></tr>
-<tr><td><code>allow_paths</code></td><td>array</td><td>Allowed staging/library paths the pipeline accepts.</td></tr>
+<tr><td><code>par2</code></td><td>string</td><td><code>disabled</code>, <code>verify</code>, or <code>repair</code>.</td></tr>
+<tr><td><code>flatten</code></td><td>bool</td><td>Collapse single-file directories when moving into the library.</td></tr>
+<tr><td><code>move_mode</code></td><td>string</td><td><code>copy</code>, <code>move</code>, or <code>hardlink</code>.</td></tr>
+<tr><td><code>cleanup_keep</code> / <code>cleanup_drop</code></td><td>array</td><td>Glob patterns retaining or removing files.</td></tr>
+<tr><td><code>chmod_file</code> / <code>chmod_dir</code></td><td>string?</td><td>Optional octal permissions applied to outputs.</td></tr>
+<tr><td><code>owner</code> / <code>group</code></td><td>string?</td><td>Optional ownership override (Unix only).</td></tr>
+<tr><td><code>umask</code></td><td>string?</td><td>Umask used to derive default permissions.</td></tr>
+<tr><td><code>allow_paths</code></td><td>array</td><td>Allowed staging/library paths.</td></tr>
 </tbody>
 </table>
 </div>
-<h3 id="api-keys--secrets"><a class="header" href="#api-keys--secrets">API Keys &amp; Secrets</a></h3>
+<h2 id="api-keys-and-secrets"><a class="header" href="#api-keys-and-secrets">API keys and secrets</a></h2>
 <p>Patches can create, update, or revoke keys and named secrets. The request format mirrors <code>SettingsChangeset</code>:</p>
-<pre><code class="language-jsonc">{
-    "api_keys": [
-        {
-            "op": "upsert",
-            "key_id": "admin",
-            "label": "primary",
-            "enabled": true,
-            "secret": "optional-override",
-            "rate_limit": { "burst": 10, "per_seconds": 1 }
-        }
-    ],
-    "secrets": [
-        { "op": "set", "name": "libtorrent.passphrase", "value": "..." }
-    ]
+<pre><code class="language-json">{
+  "api_keys": [
+    {
+      "op": "upsert",
+      "key_id": "admin",
+      "label": "primary",
+      "enabled": true,
+      "secret": "optional-override",
+      "rate_limit": { "burst": 10, "per_seconds": 1 }
+    }
+  ],
+  "secrets": [
+    { "op": "set", "name": "libtorrent.passphrase", "value": "..." }
+  ]
 }
 </code></pre>
 <p>The API server enforces bucketed rate limits if <code>rate_limit</code> is supplied (<code>burst</code> per <code>per_seconds</code>). Invalid field names or mutations against <code>immutable_keys</code> yield RFC9457 <code>ProblemDetails</code> responses with an <code>invalid_params</code> array matching the JSON pointer returned by <code>ConfigError</code>.</p>
-<h2 id="telemetry-toggle"><a class="header" href="#telemetry-toggle">Telemetry Toggle</a></h2>
-<p>Revaer boots with structured logging and Prometheus metrics by default. OpenTelemetry export remains opt-in for Phase One: set <code>REVAER_ENABLE_OTEL=true</code> alongside your <code>revaer-app</code> process (optionally overriding <code>REVAER_OTEL_SERVICE_NAME</code> and <code>REVAER_OTEL_EXPORTER</code>) to attach the stubbed tracing layer. When the flag is absent, no OpenTelemetry dependencies are activated.</p>
-<h2 id="change-workflows"><a class="header" href="#change-workflows">Change Workflows</a></h2>
+<h2 id="telemetry-toggle"><a class="header" href="#telemetry-toggle">Telemetry toggle</a></h2>
+<p>Revaer boots with structured logging and Prometheus metrics by default. OpenTelemetry export remains opt-in: set <code>REVAER_ENABLE_OTEL=true</code> alongside your <code>revaer-app</code> process (optionally overriding <code>REVAER_OTEL_SERVICE_NAME</code> and <code>REVAER_OTEL_EXPORTER</code>) to attach the stubbed tracing layer. When the flag is absent, no OpenTelemetry dependencies are activated.</p>
+<h2 id="change-workflows"><a class="header" href="#change-workflows">Change workflows</a></h2>
 <ul>
-<li><strong>Setup</strong> – <code>POST /admin/setup/start</code> issues a one-time token. <code>POST /admin/setup/complete</code> consumes that token, applies the provided <code>SettingsChangeset</code>, forces <code>app_profile.mode</code> to <code>active</code>, and returns the hydrated snapshot along with the generated API key (also echoed in the CLI output).</li>
-<li><strong>Ongoing updates</strong> – <code>PATCH /v1/config</code> (CLI: <code>revaer config set --file changes.json</code>) requires an API key and supports partial documents. Any field omitted from the payload remains untouched. The legacy <code>/admin/settings</code> alias remains for compatibility.</li>
-<li><strong>Snapshot access</strong> – <code>GET /.well-known/revaer.json</code> (no auth), <code>GET /v1/config</code> (API key), <code>GET /health/full</code>, and <code>revaer config get</code> return the current revision so automation and dashboards can verify configuration drift without shell access.</li>
+<li><strong>Setup</strong> - <code>POST /admin/setup/start</code> issues a one-time token. <code>POST /admin/setup/complete</code> consumes that token, applies the provided <code>SettingsChangeset</code>, forces <code>app_profile.mode</code> to <code>active</code>, and returns the hydrated snapshot along with the generated API key.</li>
+<li><strong>Ongoing updates</strong> - <code>PATCH /v1/config</code> (CLI: <code>revaer config set --file changes.json</code>) requires an API key and supports partial documents. Any field omitted from the payload remains untouched. The legacy <code>/admin/settings</code> alias remains for compatibility.</li>
+<li><strong>Snapshot access</strong> - <code>GET /.well-known/revaer.json</code> (no auth), <code>GET /v1/config</code> (API key), <code>GET /health/full</code>, and <code>revaer config get</code> return the current revision so automation and dashboards can verify configuration drift without shell access.</li>
 </ul>
 <p>Revaer publishes <code>SettingsChanged</code> events on every successful mutation, ensuring subscribers refresh in-memory caches without polling.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="http-api"><a class="header" href="#http-api">HTTP API</a></h1>
 <blockquote>
-<p>REST + SSE surface exposed by <code>revaer-api</code>. The OpenAPI document at <code>/docs/openapi.json</code> is generated by <code>just api-export</code>.</p>
+<p>REST + SSE surface exposed by <code>revaer-api</code>. The OpenAPI document is served at <code>/docs/openapi.json</code> and regenerated via <code>just api-export</code>.</p>
 </blockquote>
 <h2 id="authentication"><a class="header" href="#authentication">Authentication</a></h2>
 <ul>
-<li><strong>Setup flow</strong> – Requests to <code>/admin/setup/start</code> are open. <code>/admin/setup/complete</code> requires the <code>x-revaer-setup-token</code> header with the one-time token returned by <code>setup_start</code>. The server refuses setup calls once the app profile switches to <code>active</code>.</li>
-<li><strong>Operator actions</strong> – All <code>/admin/*</code> (after setup) and <code>/v1/*</code> endpoints require <code>x-revaer-api-key: {key_id}:{secret}</code>. The middleware validates the key via <code>ConfigService</code>, enforces per-key rate limiting, and rejects calls while the instance remains in setup mode.</li>
-<li><strong>Request correlation</strong> – An optional <code>x-request-id</code> header is echoed into tracing spans and surfaced on SSE traffic. The CLI auto-populates this header per invocation.</li>
+<li><strong>Setup flow</strong> - <code>/admin/setup/start</code> is open. <code>/admin/setup/complete</code> requires the <code>x-revaer-setup-token</code> header with the one-time token returned by setup start. The server refuses setup calls once <code>app_profile.mode</code> is <code>active</code>.</li>
+<li><strong>Operator actions</strong> - All <code>/admin/*</code> (after setup) and <code>/v1/*</code> endpoints require <code>x-revaer-api-key: key_id:secret</code>. The middleware validates the key via <code>ConfigService</code>, enforces per-key rate limiting, and rejects calls while the instance remains in setup mode.</li>
+<li><strong>Request correlation</strong> - An optional <code>x-request-id</code> header is echoed into tracing spans and surfaced on SSE traffic. The CLI auto-populates this header per invocation.</li>
 </ul>
-<p>Error responses follow RFC9457 (<code>ProblemDetails</code>), populated with <code>invalid_params</code> entries whenever validation pinpoints a JSON pointer within the payload.</p>
-<h2 id="endpoint-inventory"><a class="header" href="#endpoint-inventory">Endpoint Inventory</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Method</th><th>Path</th><th>Auth</th><th>Description</th></tr>
-</thead>
-<tbody>
-<tr><td><code>GET</code></td><td><code>/health</code></td><td>none</td><td>Lightweight readiness probe returning mode + database status.</td></tr>
-<tr><td><code>GET</code></td><td><code>/health/full</code></td><td>none</td><td>Extended health snapshot with build SHA, metrics counters, and torrent queue depth.</td></tr>
-<tr><td><code>GET</code></td><td><code>/.well-known/revaer.json</code></td><td>none</td><td>Full configuration snapshot (<code>ConfigSnapshot</code>) including current revision.</td></tr>
-<tr><td><code>GET</code></td><td><code>/v1/config</code></td><td>API key</td><td>Authenticated configuration snapshot (same payload as <code>/.well-known/revaer.json</code>).</td></tr>
-<tr><td><code>PATCH</code></td><td><code>/v1/config</code></td><td>API key</td><td>Applies partial configuration updates (<code>SettingsChangeset</code>) and broadcasts <code>SettingsChanged</code>.</td></tr>
-<tr><td><code>POST</code></td><td><code>/admin/setup/start</code></td><td>none</td><td>Issues a setup token; optionally accepts <code>issued_by</code> + <code>ttl_seconds</code>.</td></tr>
-<tr><td><code>POST</code></td><td><code>/admin/setup/complete</code></td><td>setup token</td><td>Applies a <code>SettingsChangeset</code>, promotes the instance to <code>active</code>, consumes the token, and returns the hydrated snapshot.</td></tr>
-<tr><td><code>PATCH</code></td><td><code>/admin/settings</code></td><td>API key</td><td>Alias for <code>PATCH /v1/config</code>; retained for admin tooling.</td></tr>
-<tr><td><code>GET</code></td><td><code>/admin/torrents</code></td><td>API key</td><td>Same as <code>GET /v1/torrents</code>; retained for admin tooling.</td></tr>
-<tr><td><code>POST</code></td><td><code>/admin/torrents</code></td><td>API key</td><td>Alias for <code>POST /v1/torrents</code>.</td></tr>
-<tr><td><code>GET</code></td><td><code>/admin/torrents/{id}</code></td><td>API key</td><td>Alias for <code>GET /v1/torrents/{id}</code>.</td></tr>
-<tr><td><code>DELETE</code></td><td><code>/admin/torrents/{id}</code></td><td>API key</td><td>Alias for invoking the <code>remove</code> action.</td></tr>
-<tr><td><code>GET</code></td><td><code>/v1/torrents</code></td><td>API key</td><td>Cursor-paginated torrent summaries with filtering (state, tracker, extension, tags, name).</td></tr>
-<tr><td><code>POST</code></td><td><code>/v1/torrents</code></td><td>API key</td><td>Submits a magnet URI or base64-encoded <code>.torrent</code>, optional tags/trackers, file rules, and per-torrent rate limits.</td></tr>
-<tr><td><code>GET</code></td><td><code>/v1/torrents/{id}</code></td><td>API key</td><td>Detailed torrent view including file metadata when available.</td></tr>
-<tr><td><code>POST</code></td><td><code>/v1/torrents/{id}/select</code></td><td>API key</td><td>Adjusts inclusion/exclusion globs, fluff skipping, and per-file priorities.</td></tr>
-<tr><td><code>POST</code></td><td><code>/v1/torrents/{id}/action</code></td><td>API key</td><td>Lifecycle management (<code>pause</code>, <code>resume</code>, <code>remove</code>, <code>reannounce</code>, <code>recheck</code>, <code>sequential</code>, <code>rate</code>).</td></tr>
-<tr><td><code>GET</code></td><td><code>/v1/events</code></td><td>API key</td><td>Server-sent events stream (aliases: <code>/v1/events/stream</code>, <code>/v1/torrents/events</code>). Supports filtering by torrent ID, state, and event kind.</td></tr>
-<tr><td><code>GET</code></td><td><code>/metrics</code></td><td>none</td><td>Prometheus-formatted metrics from <code>revaer-telemetry</code>.</td></tr>
-<tr><td><code>GET</code></td><td><code>/docs/openapi.json</code></td><td>none</td><td>Static OpenAPI document used by the docs site and clients.</td></tr>
-</tbody>
-</table>
-</div>
+<p>Error responses follow RFC9457 (<code>ProblemDetails</code>) and include <code>invalid_params</code> entries when validation pinpoints a JSON pointer within the payload.</p>
+<h2 id="endpoint-inventory-core-surface"><a class="header" href="#endpoint-inventory-core-surface">Endpoint inventory (core surface)</a></h2>
+<h3 id="public-no-auth"><a class="header" href="#public-no-auth">Public (no auth)</a></h3>
+<ul>
+<li><code>GET /health</code>, <code>GET /health/full</code></li>
+<li><code>GET /metrics</code></li>
+<li><code>GET /.well-known/revaer.json</code></li>
+<li><code>GET /docs/openapi.json</code></li>
+</ul>
+<h3 id="setup-and-admin"><a class="header" href="#setup-and-admin">Setup and admin</a></h3>
+<ul>
+<li><code>POST /admin/setup/start</code></li>
+<li><code>POST /admin/setup/complete</code></li>
+<li><code>POST /admin/factory-reset</code></li>
+<li><code>PATCH /admin/settings</code> (alias for <code>PATCH /v1/config</code>)</li>
+<li><code>GET/POST/DELETE /admin/torrents</code></li>
+<li><code>GET /admin/torrents/{id}</code></li>
+<li><code>POST /admin/torrents/create</code></li>
+<li><code>GET /admin/torrents/categories</code>, <code>GET /admin/torrents/tags</code></li>
+<li><code>GET /admin/torrents/{id}/peers</code></li>
+</ul>
+<h3 id="config-and-auth"><a class="header" href="#config-and-auth">Config and auth</a></h3>
+<ul>
+<li><code>GET /v1/config</code> (authenticated snapshot)</li>
+<li><code>PATCH /v1/config</code> (apply <code>SettingsChangeset</code>)</li>
+<li><code>POST /v1/auth/refresh</code> (refresh API key)</li>
+</ul>
+<h3 id="dashboard-and-filesystem"><a class="header" href="#dashboard-and-filesystem">Dashboard and filesystem</a></h3>
+<ul>
+<li><code>GET /v1/dashboard</code></li>
+<li><code>GET /v1/fs/browse</code></li>
+</ul>
+<h3 id="torrent-lifecycle"><a class="header" href="#torrent-lifecycle">Torrent lifecycle</a></h3>
+<ul>
+<li><code>GET/POST /v1/torrents</code></li>
+<li><code>GET /v1/torrents/{id}</code></li>
+<li><code>POST /v1/torrents/{id}/select</code></li>
+<li><code>PATCH /v1/torrents/{id}/options</code></li>
+<li><code>POST /v1/torrents/{id}/action</code></li>
+<li><code>POST /v1/torrents/create</code></li>
+<li><code>GET /v1/torrents/categories</code>, <code>GET /v1/torrents/tags</code></li>
+<li><code>GET /v1/torrents/{id}/peers</code></li>
+<li><code>GET/PATCH/DELETE /v1/torrents/{id}/trackers</code></li>
+<li><code>PATCH /v1/torrents/{id}/web_seeds</code></li>
+</ul>
+<h3 id="events-and-logs"><a class="header" href="#events-and-logs">Events and logs</a></h3>
+<ul>
+<li><code>GET /v1/torrents/events</code> (primary SSE stream)</li>
+<li><code>GET /v1/events</code>, <code>GET /v1/events/stream</code> (SSE aliases)</li>
+<li><code>GET /v1/logs/stream</code></li>
+</ul>
 <p>All torrent-managing endpoints ensure the torrent workflow is wired. If the engine is unavailable, the API returns <code>503 Service Unavailable</code>.</p>
-<h3 id="torrent-submission-post-v1torrents"><a class="header" href="#torrent-submission-post-v1torrents">Torrent Submission (<code>POST /v1/torrents</code>)</a></h3>
+<h2 id="torrent-submission-post-v1torrents"><a class="header" href="#torrent-submission-post-v1torrents">Torrent submission (<code>POST /v1/torrents</code>)</a></h2>
 <p>Required headers: <code>x-revaer-api-key</code>. Provide either <code>magnet</code> or <code>metainfo</code>; the server rejects payloads missing both. Optional fields:</p>
 <ul>
-<li><code>download_dir</code> – Overrides the engine profile’s staging directory.</li>
-<li><code>sequential</code> – Enables sequential downloading for this torrent only.</li>
-<li><code>tags</code> / <code>trackers</code> – Stored alongside the torrent for filtering and bookkeeping.</li>
-<li><code>include</code> / <code>exclude</code> / <code>skip_fluff</code> – File selection bootstrap applied before metadata fetch completes.</li>
-<li><code>max_download_bps</code> / <code>max_upload_bps</code> – Per-torrent rate limits (bps) passed to the workflow.</li>
+<li><code>download_dir</code> - Overrides the engine profile’s staging directory.</li>
+<li><code>sequential</code> - Enables sequential downloading for this torrent only.</li>
+<li><code>tags</code> / <code>trackers</code> - Stored alongside the torrent for filtering and bookkeeping.</li>
+<li><code>include</code> / <code>exclude</code> / <code>skip_fluff</code> - File selection bootstrap applied before metadata fetch completes.</li>
+<li><code>max_download_bps</code> / <code>max_upload_bps</code> - Per-torrent rate limits (bps) passed to the workflow.</li>
 </ul>
 <p>On success the server returns <code>202 Accepted</code> after dispatching <code>TorrentWorkflow::add_torrent</code>. The torrent ID in the payload becomes the canonical identifier.</p>
-<h3 id="listing--filtering-get-v1torrents"><a class="header" href="#listing--filtering-get-v1torrents">Listing &amp; Filtering (<code>GET /v1/torrents</code>)</a></h3>
+<h2 id="listing-and-filtering-get-v1torrents"><a class="header" href="#listing-and-filtering-get-v1torrents">Listing and filtering (<code>GET /v1/torrents</code>)</a></h2>
 <p>Query parameters:</p>
 <ul>
 <li><code>limit</code> (default 50, max 200)</li>
-<li><code>cursor</code> – Base64 token returned in <code>next</code>.</li>
-<li><code>state</code>, <code>tracker</code>, <code>extension</code>, <code>tags</code>, <code>name</code> – Comma-separated filters (case-insensitive).</li>
+<li><code>cursor</code> - Base64 token returned in <code>next</code></li>
+<li><code>state</code>, <code>tracker</code>, <code>extension</code>, <code>tags</code>, <code>name</code> - Comma-separated filters (case-insensitive)</li>
 </ul>
 <p>The response body is <code>TorrentListResponse</code> with an optional <code>next</code> cursor when additional pages exist.</p>
-<h3 id="torrent-actions-post-v1torrentsidaction"><a class="header" href="#torrent-actions-post-v1torrentsidaction">Torrent Actions (<code>POST /v1/torrents/{id}/action</code>)</a></h3>
+<h2 id="torrent-actions-post-v1torrentsidaction"><a class="header" href="#torrent-actions-post-v1torrentsidaction">Torrent actions (<code>POST /v1/torrents/{id}/action</code>)</a></h2>
 <p><code>type</code> determines the shape of the body:</p>
 <pre><code class="language-json">{ "type": "remove", "delete_data": true }
 { "type": "sequential", "enable": false }
 { "type": "rate", "download_bps": 1048576, "upload_bps": null }
 </code></pre>
 <p>Failures propagate engine errors as <code>500 Internal Server Error</code> with a descriptive message in <code>detail</code>.</p>
-<h3 id="sse-stream-get-v1events"><a class="header" href="#sse-stream-get-v1events">SSE Stream (<code>GET /v1/events</code>)</a></h3>
+<h2 id="sse-stream-get-v1torrentsevents"><a class="header" href="#sse-stream-get-v1torrentsevents">SSE stream (<code>GET /v1/torrents/events</code>)</a></h2>
 <p>Headers:</p>
 <ul>
 <li><code>x-revaer-api-key</code></li>
-<li>Optional <code>Last-Event-ID</code> – resuming from a previously stored ID (the CLI stores this via <code>--resume-file</code>).</li>
+<li>Optional <code>Last-Event-ID</code> - resuming from a previously stored ID (the CLI stores this via <code>--resume-file</code>).</li>
 </ul>
 <p>Query parameters:</p>
 <ul>
-<li><code>torrent</code> – Comma-separated UUIDs.</li>
-<li><code>event</code> – Comma-separated event kinds. Valid values: <code>torrent_added</code>, <code>files_discovered</code>, <code>progress</code>, <code>state_changed</code>, <code>completed</code>, <code>fsops_started</code>, <code>fsops_progress</code>, <code>fsops_completed</code>, <code>fsops_failed</code>, <code>settings_changed</code>, <code>health_changed</code>, <code>selection_reconciled</code>.</li>
-<li><code>state</code> – Comma-separated torrent states (<code>downloading</code>, <code>completed</code>, etc.).</li>
+<li><code>torrent</code> - Comma-separated UUIDs.</li>
+<li><code>event</code> - Comma-separated event kinds. Valid values include <code>torrent_added</code>, <code>files_discovered</code>, <code>progress</code>, <code>state_changed</code>, <code>completed</code>, <code>metadata_updated</code>, <code>torrent_removed</code>, <code>fsops_started</code>, <code>fsops_progress</code>, <code>fsops_completed</code>, <code>fsops_failed</code>, <code>settings_changed</code>, <code>health_changed</code>, <code>selection_reconciled</code>.</li>
+<li><code>state</code> - Comma-separated torrent states (<code>downloading</code>, <code>completed</code>, etc.).</li>
 </ul>
 <p>The server maintains a 20-second keep-alive ping and enforces filtering before events hit the wire.</p>
-<h3 id="health--metrics"><a class="header" href="#health--metrics">Health &amp; Metrics</a></h3>
+<h2 id="health-and-metrics"><a class="header" href="#health-and-metrics">Health and metrics</a></h2>
 <ul>
-<li><code>GET /health</code> – Primary readiness probe used by orchestration systems. Adds <code>database</code> to the degraded list if PostgreSQL is unreachable.</li>
-<li><code>GET /health/full</code> – Returns the deployment revision, build SHA (<code>build_sha()</code>), metrics snapshot (<code>config_watch_latency_ms</code>, <code>guardrail_violations_total</code>, <code>rate_limit_throttled_total</code>, etc.), and torrent queue depth.</li>
-<li><code>GET /metrics</code> – Exposes the same counters for Prometheus scraping.</li>
+<li><code>GET /health</code> - Primary readiness probe used by orchestration systems. Adds <code>database</code> to the degraded list if PostgreSQL is unreachable.</li>
+<li><code>GET /health/full</code> - Returns the deployment revision, build SHA, metrics snapshot (<code>config_guardrail_violations_total</code>, <code>api_rate_limit_throttled_total</code>, etc.), and torrent queue depth.</li>
+<li><code>GET /metrics</code> - Exposes the same counters for Prometheus scraping.</li>
 </ul>
 <p>For the complete schema definitions, consult the generated OpenAPI (<code>just api-export</code>).</p>
 <div style="break-before: page; page-break-before: always;"></div>
@@ -955,7 +1002,7 @@ Live sync: SSE streams torrent progress/rates/state plus added/removed events to
 <blockquote>
 <p><code>revaer-cli</code> provides parity with the API for setup, configuration management, torrent lifecycle, and observability.</p>
 </blockquote>
-<h2 id="global-flags--environment"><a class="header" href="#global-flags--environment">Global Flags &amp; Environment</a></h2>
+<h2 id="global-flags-and-environment"><a class="header" href="#global-flags-and-environment">Global flags and environment</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -965,12 +1012,12 @@ Live sync: SSE streams torrent progress/rates/state plus added/removed events to
 <tr><td><code>--api-url &lt;URL&gt;</code></td><td><code>REVAER_API_URL</code></td><td><code>http://127.0.0.1:7070</code></td><td>Base URL for API requests.</td></tr>
 <tr><td><code>--api-key &lt;key_id:secret&gt;</code></td><td><code>REVAER_API_KEY</code></td><td><em>none</em></td><td>Required for all post-setup commands that mutate or read torrents.</td></tr>
 <tr><td><code>--timeout &lt;secs&gt;</code></td><td><code>REVAER_HTTP_TIMEOUT_SECS</code></td><td><code>10</code></td><td>Per-request HTTP timeout.</td></tr>
-<tr><td><code>--output &lt;table|json&gt;</code></td><td><em>none</em></td><td><code>table</code></td><td>Output format for structured responses (<code>json</code> is script-friendly).</td></tr>
+<tr><td>`–output &lt;table</td><td>json&gt;`</td><td><em>none</em></td><td><code>table</code></td></tr>
 </tbody>
 </table>
 </div>
-<p>Each invocation bubbles a unique <code>x-request-id</code> through the API; the CLI also emits optional telemetry events when <code>REVAER_TELEMETRY_ENDPOINT</code> is set.</p>
-<h2 id="setup-flow"><a class="header" href="#setup-flow">Setup Flow</a></h2>
+<p>Each invocation bubbles a unique <code>x-request-id</code> through the API; the CLI can optionally emit telemetry events when <code>REVAER_TELEMETRY_ENDPOINT</code> is set.</p>
+<h2 id="setup-flow"><a class="header" href="#setup-flow">Setup flow</a></h2>
 <h3 id="revaer-setup-start---issued-by-label---ttl-seconds-secs"><a class="header" href="#revaer-setup-start---issued-by-label---ttl-seconds-secs"><code>revaer setup start [--issued-by &lt;label&gt;] [--ttl-seconds &lt;secs&gt;]</code></a></h3>
 <ul>
 <li>Calls <code>POST /admin/setup/start</code>.</li>
@@ -979,19 +1026,28 @@ Live sync: SSE streams torrent progress/rates/state plus added/removed events to
 </ul>
 <h3 id="revaer-setup-complete---instance-name---bind-addr---port-port---resume-dir-path---download-root-path---library-root-path---api-key-label-label---api-key-id-id---passphrase-value---token-token"><a class="header" href="#revaer-setup-complete---instance-name---bind-addr---port-port---resume-dir-path---download-root-path---library-root-path---api-key-label-label---api-key-id-id---passphrase-value---token-token"><code>revaer setup complete --instance &lt;name&gt; --bind &lt;addr&gt; --port &lt;port&gt; --resume-dir &lt;path&gt; --download-root &lt;path&gt; --library-root &lt;path&gt; --api-key-label &lt;label&gt; [--api-key-id &lt;id&gt;] [--passphrase &lt;value&gt;] [--token &lt;token&gt;]</code></a></h3>
 <ul>
-<li>Loads the setup token either from <code>--token</code> or <code>REVAER_SETUP_TOKEN</code>.</li>
+<li>Loads the setup token from <code>--token</code> or <code>REVAER_SETUP_TOKEN</code>.</li>
 <li>Builds a <code>SettingsChangeset</code> containing the app profile, engine profile, filesystem policy, API key, and optional secret.</li>
 <li>Forces <code>app_profile.mode = "active"</code>.</li>
 <li>Echoes the generated API key (<code>key_id:secret</code>) on success; store it securely before continuing.</li>
 </ul>
-<h2 id="configuration-maintenance"><a class="header" href="#configuration-maintenance">Configuration Maintenance</a></h2>
-<h3 id="revaer-settings-patch---file-path"><a class="header" href="#revaer-settings-patch---file-path"><code>revaer settings patch --file &lt;path&gt;</code></a></h3>
+<h2 id="configuration-maintenance"><a class="header" href="#configuration-maintenance">Configuration maintenance</a></h2>
+<h3 id="revaer-config-get"><a class="header" href="#revaer-config-get"><code>revaer config get</code></a></h3>
+<ul>
+<li>Fetches the current configuration snapshot.</li>
+<li>Mirrors <code>GET /v1/config</code> output.</li>
+</ul>
+<h3 id="revaer-config-set---file-path"><a class="header" href="#revaer-config-set---file-path"><code>revaer config set --file &lt;path&gt;</code></a></h3>
 <ul>
 <li>Reads a JSON file containing a partial <code>SettingsChangeset</code>.</li>
 <li>Requires an API key.</li>
 <li>Returns a formatted <code>ProblemDetails</code> message if validation fails (immutable fields, unknown keys, etc.).</li>
 </ul>
-<h2 id="torrent-lifecycle"><a class="header" href="#torrent-lifecycle">Torrent Lifecycle</a></h2>
+<h3 id="revaer-settings-patch---file-path"><a class="header" href="#revaer-settings-patch---file-path"><code>revaer settings patch --file &lt;path&gt;</code></a></h3>
+<ul>
+<li>Alias for <code>revaer config set</code>.</li>
+</ul>
+<h2 id="torrent-lifecycle-1"><a class="header" href="#torrent-lifecycle-1">Torrent lifecycle</a></h2>
 <h3 id="revaer-torrent-add-magnettorrent---name-label---id-uuid"><a class="header" href="#revaer-torrent-add-magnettorrent---name-label---id-uuid"><code>revaer torrent add &lt;magnet|.torrent&gt; [--name &lt;label&gt;] [--id &lt;uuid&gt;]</code></a></h3>
 <ul>
 <li>Accepts a magnet URI or a filesystem path to a <code>.torrent</code>.</li>
@@ -1006,7 +1062,7 @@ Live sync: SSE streams torrent progress/rates/state plus added/removed events to
 <h3 id="revaer-ls---limit-n---cursor-token---state-state---tracker-url---extension-ext---tags-tag1tag2---name-fragment"><a class="header" href="#revaer-ls---limit-n---cursor-token---state-state---tracker-url---extension-ext---tags-tag1tag2---name-fragment"><code>revaer ls [--limit &lt;n&gt;] [--cursor &lt;token&gt;] [--state &lt;state&gt;] [--tracker &lt;url&gt;] [--extension &lt;ext&gt;] [--tags &lt;tag1,tag2&gt;] [--name &lt;fragment&gt;]</code></a></h3>
 <ul>
 <li>Lists torrents with the same filters supported by the REST API.</li>
-<li>Default output is a table summarising id, name, state, and progress.</li>
+<li>Default output is a table summarizing id, name, state, and progress.</li>
 <li>Add <code>--output json</code> to emit the raw <code>TorrentListResponse</code>.</li>
 </ul>
 <h3 id="revaer-status-uuid"><a class="header" href="#revaer-status-uuid"><code>revaer status &lt;uuid&gt;</code></a></h3>
@@ -1014,7 +1070,7 @@ Live sync: SSE streams torrent progress/rates/state plus added/removed events to
 <li>Returns a detailed view of a single torrent.</li>
 <li>Add <code>--output json</code> to view the full <code>TorrentDetail</code> (including file metadata when available).</li>
 </ul>
-<h3 id="revaer-select-uuid---include-globglob---exclude-globglob---skip-fluff---priority-indexpriority"><a class="header" href="#revaer-select-uuid---include-globglob---exclude-globglob---skip-fluff---priority-indexpriority"><code>revaer select &lt;uuid&gt; [--include &lt;glob,glob&gt;] [--exclude &lt;glob,glob&gt;] [--skip-fluff] [--priority index=priority,…]</code></a></h3>
+<h3 id="revaer-select-uuid---include-globglob---exclude-globglob---skip-fluff---priority-indexpriority"><a class="header" href="#revaer-select-uuid---include-globglob---exclude-globglob---skip-fluff---priority-indexpriority"><code>revaer select &lt;uuid&gt; [--include &lt;glob,glob&gt;] [--exclude &lt;glob,glob&gt;] [--skip-fluff] [--priority index=priority,...]</code></a></h3>
 <ul>
 <li>Updates file-selection rules via <code>POST /v1/torrents/{id}/select</code>.</li>
 <li><code>--priority</code> accepts repeated <code>index=priority</code> pairs (<code>skip|low|normal|high</code>) mapped onto the engine’s <code>FilePriority</code>.</li>
@@ -1024,12 +1080,12 @@ Live sync: SSE streams torrent progress/rates/state plus added/removed events to
 <li>One-stop entry point for all torrent actions.</li>
 <li><code>sequential</code> toggles sequential downloads via <code>--enable true|false</code>.</li>
 <li><code>rate</code> updates per-torrent bandwidth caps (bps). Provide <code>--download</code> and/or <code>--upload</code>.</li>
-<li><code>remove</code> honours <code>--delete-data</code>.</li>
+<li><code>remove</code> honors <code>--delete-data</code>.</li>
 </ul>
-<h2 id="event-streaming"><a class="header" href="#event-streaming">Event Streaming</a></h2>
+<h2 id="event-streaming"><a class="header" href="#event-streaming">Event streaming</a></h2>
 <h3 id="revaer-tail---torrent-idid---event-kindkind---state-statestate---resume-file-path---retry-secs-n"><a class="header" href="#revaer-tail---torrent-idid---event-kindkind---state-statestate---resume-file-path---retry-secs-n"><code>revaer tail [--torrent &lt;id,id&gt;] [--event &lt;kind,kind&gt;] [--state &lt;state,state&gt;] [--resume-file &lt;path&gt;] [--retry-secs &lt;n&gt;]</code></a></h3>
 <ul>
-<li>Connects to <code>/v1/events</code> using SSE.</li>
+<li>Connects to <code>/v1/torrents/events</code> (falls back to <code>/v1/events/stream</code>).</li>
 <li>Filters match the API query parameters and enforce UUID/event-kind validation before the request is made.</li>
 <li>When <code>--resume-file</code> is supplied, the CLI persists the last event ID across reconnects so the stream can resume after transient failures.</li>
 <li><code>--retry-secs</code> controls the backoff between reconnect attempts (default: 5 seconds).</li>
@@ -1038,33 +1094,33 @@ Live sync: SSE streams torrent progress/rates/state plus added/removed events to
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="torrent-flows"><a class="header" href="#torrent-flows">Torrent Flows</a></h1>
 <p>Operational views for the torrent lifecycle and the torrent authoring path. These diagrams are reference-only; wire changes must follow the stored-procedure, clamp-before-apply, and observability guardrails in <code>AGENT.md</code>.</p>
-<h2 id="admission--runtime--fsops"><a class="header" href="#admission--runtime--fsops">Admission → Runtime → FsOps</a></h2>
+<h2 id="admission---runtime---fsops"><a class="header" href="#admission---runtime---fsops">Admission -&gt; Runtime -&gt; FsOps</a></h2>
 <pre class="mermaid">flowchart TB
     subgraph API["API/CLI"]
-        Req["POST /v1/torrents&lt;br/&gt;+ CLI add&lt;br/&gt;- validate payload&lt;br/&gt;- clamp per profile&lt;br/&gt;- hydrate metadata (tags/category/storage)&lt;br/&gt;- normalize selection + limits"]
+        Req["POST /v1/torrents\nPATCH /v1/torrents/{id}/options\nPOST /v1/torrents/{id}/select\nPATCH /v1/torrents/{id}/trackers\nPATCH /v1/torrents/{id}/web_seeds\n- validate payload\n- clamp per profile\n- hydrate metadata (tags/category/storage)\n- normalize selection + limits"]
     end
 
     subgraph Worker["Worker / Orchestrator"]
-        Cmd["EngineCommand::Add&lt;br/&gt;- attach profile snapshot&lt;br/&gt;- derive AddTorrentOptions&lt;br/&gt;- stash selection + metadata for FsOps"]
-        Persist["RuntimeStore&lt;br/&gt;- persist metadata/selection&lt;br/&gt;- checkpoint admission state"]
+        Cmd["EngineCommand::Add\n- attach profile snapshot\n- derive AddTorrentOptions\n- stash selection + metadata for FsOps"]
+        Persist["RuntimeStore\n- persist metadata/selection\n- checkpoint admission state"]
     end
 
     subgraph Bridge["Bridge / FFI"]
-        Opts["EngineOptions/AddTorrentRequest&lt;br/&gt;- listen/download dirs&lt;br/&gt;- per-torrent rate caps&lt;br/&gt;- queue priority / paused&lt;br/&gt;- trackers (profile + request)&lt;br/&gt;- encryption, DHT, LSD flags&lt;br/&gt;- seed mode / add paused"]
-        Session["libtorrent session&lt;br/&gt;- apply settings_pack&lt;br/&gt;- add_torrent_params&lt;br/&gt;- start/resume handles"]
+        Opts["EngineOptions/AddTorrentRequest\n- listen/download dirs\n- per-torrent rate caps\n- queue priority / paused\n- trackers (profile + request)\n- encryption, DHT, LSD flags\n- seed mode / add paused"]
+        Session["libtorrent session\n- apply settings_pack\n- add_torrent_params\n- start/resume handles"]
     end
 
     subgraph Engine["Engine Loop"]
-        Progress["Native events → EngineEvent&lt;br/&gt;- progress/state&lt;br/&gt;- alert mapping&lt;br/&gt;- tracker status&lt;br/&gt;- errors (listen/storage/peer)"]
-        Cache["Per-torrent cache&lt;br/&gt;- rate caps&lt;br/&gt;- trackers&lt;br/&gt;- limits&lt;br/&gt;- tags/category"]
+        Progress["Native events -&gt; EngineEvent\n- progress/state\n- alert mapping\n- tracker status\n- errors (listen/storage/peer)"]
+        Cache["Per-torrent cache\n- rate caps\n- trackers\n- limits\n- tags/category"]
     end
 
     subgraph FsOps["FsOps Pipeline"]
-        Select["Selection reconcile&lt;br/&gt;- honor request selection&lt;br/&gt;- drop unselected paths"]
-        Extract["Extract archives (zip/rar/7z/tar.gz)&lt;br/&gt;- optional; skip when not configured&lt;br/&gt;- guardrail missing tools"]
-        Flatten["Flatten/move per policy&lt;br/&gt;- copy/move/hardlink&lt;br/&gt;- partfile handling"]
-        Perms["chmod/chown/umask&lt;br/&gt;- library root enforcement"]
-        Cleanup["Cleanup&lt;br/&gt;- drop patterns&lt;br/&gt;- keep filters&lt;br/&gt;- metadata writeback (.revaer.meta)"]
+        Select["Selection reconcile\n- honor request selection\n- drop unselected paths"]
+        Extract["Extract archives (zip/rar/7z/tar.gz)\n- optional; skip when not configured\n- guardrail missing tools"]
+        Flatten["Flatten/move per policy\n- copy/move/hardlink\n- partfile handling"]
+        Perms["chmod/chown/umask\n- library root enforcement"]
+        Cleanup["Cleanup\n- drop patterns\n- keep filters\n- metadata writeback (.revaer.meta)"]
     end
 
     Req --&gt; Cmd
@@ -1084,23 +1140,24 @@ Live sync: SSE streams torrent progress/rates/state plus added/removed events to
 <li>Per-torrent limits (rate caps, queue priority, paused, seed mode) are applied immediately on admission and cached for later verification.</li>
 <li>FsOps runs on <code>Completed</code> with retries; every stage emits events/metrics and degrades health on guardrail breaches (tooling missing, permission errors, latency overruns).</li>
 </ul>
-<h2 id="torrent-creation-authoring-flow"><a class="header" href="#torrent-creation-authoring-flow">Torrent Creation (Authoring) Flow</a></h2>
+<h2 id="torrent-creation-authoring-flow"><a class="header" href="#torrent-creation-authoring-flow">Torrent creation (authoring) flow</a></h2>
 <pre class="mermaid">flowchart LR
-    Input["Input&lt;br/&gt;- file/dir path&lt;br/&gt;- trackers/web seeds&lt;br/&gt;- piece size (auto/manual)&lt;br/&gt;- private flag&lt;br/&gt;- comment/source&lt;br/&gt;- alignment rules"]
-    Stage["Stage &amp; Hash&lt;br/&gt;- walk files with allowlist&lt;br/&gt;- apply size filters&lt;br/&gt;- align pieces&lt;br/&gt;- hash with deterministic order"]
-    Meta["Build metainfo&lt;br/&gt;- info dictionary&lt;br/&gt;- tracker tiers&lt;br/&gt;- web seeds&lt;br/&gt;- creation date&lt;br/&gt;- optional dht nodes"]
-    Validate["Validate&lt;br/&gt;- size/limit guards&lt;br/&gt;- path length&lt;br/&gt;- private flag vs trackers&lt;br/&gt;- duplicate file detection"]
-    PersistMeta["Persist&lt;br/&gt;- .torrent file&lt;br/&gt;- magnet link&lt;br/&gt;- optional signed manifest"]
-    Return["Return to caller&lt;br/&gt;- paths + hashes&lt;br/&gt;- effective options&lt;br/&gt;- warnings (skipped files, clamped piece size)"]
+    Input["Input\n- file/dir path\n- trackers/web seeds\n- piece size (auto/manual)\n- private flag\n- comment/source\n- alignment rules"]
+    Stage["Stage &amp; Hash\n- walk files with allowlist\n- apply size filters\n- align pieces\n- hash with deterministic order"]
+    Meta["Build metainfo\n- info dictionary\n- tracker tiers\n- web seeds\n- creation date\n- optional dht nodes"]
+    Validate["Validate\n- size/limit guards\n- path length\n- private flag vs trackers\n- duplicate file detection"]
+    PersistMeta["Persist\n- .torrent file\n- magnet link\n- optional signed manifest"]
+    Return["Return to caller\n- paths + hashes\n- effective options\n- warnings (skipped files, clamped piece size)"]
 
     Input --&gt; Stage --&gt; Meta --&gt; Validate --&gt; PersistMeta --&gt; Return
 </pre>
 
 <h3 id="notes-1"><a class="header" href="#notes-1">Notes</a></h3>
 <ul>
-<li>Creation respects the same glob filters and guardrails used by admission to avoid later FsOps surprises (e.g., exclude temporary/system files).</li>
+<li>Creation respects the same glob filters and guardrails used by admission to avoid later FsOps surprises (exclude temporary/system files).</li>
 <li>When trackers or web seeds are provided, they remain deduplicated and ordered; private torrents skip DHT/PEX automatically.</li>
 <li>The flow is deterministic: file order, piece sizing, and hashing are reproducible given the same inputs and options.</li>
+<li>API endpoint: <code>POST /v1/torrents/create</code> (admin alias: <code>POST /admin/torrents/create</code>).</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="native-libtorrent-integration-tests"><a class="header" href="#native-libtorrent-integration-tests">Native Libtorrent Integration Tests</a></h1>
@@ -1121,81 +1178,48 @@ just test-native
 <p>CI note: add a matrix job that sets <code>REVAER_NATIVE_IT=1</code> and points <code>DOCKER_HOST</code> at the runner’s daemon to ensure the native path stays covered.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="api-documentation"><a class="header" href="#api-documentation">API Documentation</a></h1>
-<p>This directory hosts HTTP API specifications, generated OpenAPI documents, and usage guides for the Revaer control plane.</p>
+<p>This directory hosts HTTP API specifications, the generated OpenAPI document, and usage guides for the Revaer control plane.</p>
 <h2 id="contents"><a class="header" href="#contents">Contents</a></h2>
 <ul>
-<li><code>schema/</code> – Published OpenAPI payloads and supporting artefacts.</li>
-<li><code>guides/</code> – Scenario-based walkthroughs (bootstrap, hot reload validation, torrent lifecycle).</li>
-<li><code>examples/</code> – HTTP request/response samples captured from real workflows.</li>
-<li><code>openapi-gaps.md</code> – Routes present in the codebase but missing from the OpenAPI spec.</li>
+<li><code>openapi.json</code> - Generated OpenAPI document (<code>just api-export</code>).</li>
+<li><code>openapi.md</code> - How to regenerate and consume the OpenAPI document.</li>
+<li><code>guides/</code> - Scenario-based walkthroughs (bootstrap, operations, telemetry, CLI usage).</li>
+<li><code>openapi-gaps.md</code> - Inventory of router endpoints missing from the OpenAPI spec (should be empty).</li>
 </ul>
 <h2 id="current-coverage"><a class="header" href="#current-coverage">Current Coverage</a></h2>
 <ul>
-<li><strong>Setup &amp; configuration</strong> – <code>/admin/setup/*</code> and <code>/admin/settings</code> flows with CLI parity.</li>
-<li><strong>Orchestration</strong> – <code>/admin/torrents</code> (POST/DELETE/GET) for submitting or removing torrents, plus <code>/admin/torrents/{id}</code> for status inspection.</li>
-<li><strong>Observability</strong> – <code>/v1/events</code> SSE stream (tested for replay/keep-alive) and <code>/metrics</code> Prometheus surface with torrent gauges.</li>
+<li><strong>Setup and configuration</strong> - <code>/admin/setup/*</code>, <code>/v1/config</code>, <code>/.well-known/revaer.json</code>.</li>
+<li><strong>Torrent lifecycle</strong> - <code>/v1/torrents</code>, <code>/v1/torrents/{id}</code>, <code>/v1/torrents/{id}/action</code>, <code>/v1/torrents/{id}/select</code>, <code>/v1/torrents/{id}/options</code>, plus admin aliases.</li>
+<li><strong>Authoring and metadata</strong> - <code>/v1/torrents/create</code>, <code>/v1/torrents/{id}/trackers</code>, <code>/v1/torrents/{id}/web_seeds</code>, <code>/v1/torrents/{id}/peers</code>.</li>
+<li><strong>Observability</strong> - <code>/v1/events</code>, <code>/v1/torrents/events</code>, <code>/v1/logs/stream</code>, <code>/metrics</code>, <code>/v1/dashboard</code>, <code>/health/full</code>.</li>
+<li><strong>Filesystem</strong> - <code>/v1/fs/browse</code>.</li>
 </ul>
-<p>See <code>guides/bootstrap.md</code> for an end-to-end description of the bootstrap lifecycle, background workers, and error handling expectations.</p>
-<h2 id="next-steps"><a class="header" href="#next-steps">Next Steps</a></h2>
-<ul>
-<li>Capture worked examples for torrent status reconciliation (list + selective GET).</li>
-<li>Provide troubleshooting recipes for common workflow failures (engine unavailable, filesystem policy rejection).</li>
-<li>Expand SSE consumer documentation with incremental backfill strategies.</li>
-</ul>
+<p>See <code>guides/bootstrap.md</code> for an end-to-end description of the bootstrap lifecycle and runtime orchestration expectations.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="openapi-reference"><a class="header" href="#openapi-reference">OpenAPI Reference</a></h1>
 <blockquote>
 <p>Canonical machine-readable description of the Revaer control plane surface.</p>
 </blockquote>
-<p>The generated OpenAPI specification lives alongside the documentation at <a href="api/openapi.json"><code>docs/api/openapi.json</code></a>. Regenerate it with:</p>
+<p>The generated OpenAPI specification lives alongside the documentation at <code>docs/api/openapi.json</code> and is served by the API at <code>/docs/openapi.json</code>.</p>
+<p>Regenerate it with:</p>
 <pre><code class="language-bash">just api-export
 </code></pre>
-<p>Once refreshed, rebuild the documentation (<code>just docs</code>) to publish the updated schema to the static site and LLM manifests. API consumers can download the JSON directly from the deployed documentation site or via the repository.</p>
+<p>After refreshing the file, rebuild the documentation (<code>just docs</code>) to publish the updated schema and LLM manifests.</p>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 id="openapi-coverage-gaps"><a class="header" href="#openapi-coverage-gaps">OpenAPI Coverage Gaps</a></h1>
 <p>This document lists API routes present in <code>crates/revaer-api/src/http/router.rs</code> that are missing from <code>docs/api/openapi.json</code>.</p>
 <h2 id="summary"><a class="header" href="#summary">Summary</a></h2>
 <ul>
-<li>The current OpenAPI spec omits several admin torrent endpoints and multiple v1 utility/streaming routes.</li>
-<li>The missing routes below should be added to the OpenAPI spec to fully reflect the HTTP surface area.</li>
+<li>The OpenAPI spec is aligned with the current router surface; no gaps remain for the default feature set.</li>
 </ul>
 <h2 id="missing-admin-routes"><a class="header" href="#missing-admin-routes">Missing admin routes</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Path</th><th>Methods</th></tr>
-</thead>
-<tbody>
-<tr><td><code>/admin/factory-reset</code></td><td><code>POST</code></td></tr>
-<tr><td><code>/admin/torrents</code></td><td><code>GET</code>, <code>POST</code></td></tr>
-<tr><td><code>/admin/torrents/categories</code></td><td><code>GET</code></td></tr>
-<tr><td><code>/admin/torrents/categories/{name}</code></td><td><code>PUT</code></td></tr>
-<tr><td><code>/admin/torrents/tags</code></td><td><code>GET</code></td></tr>
-<tr><td><code>/admin/torrents/tags/{name}</code></td><td><code>PUT</code></td></tr>
-<tr><td><code>/admin/torrents/create</code></td><td><code>POST</code></td></tr>
-<tr><td><code>/admin/torrents/{id}</code></td><td><code>GET</code>, <code>DELETE</code></td></tr>
-<tr><td><code>/admin/torrents/{id}/peers</code></td><td><code>GET</code></td></tr>
-</tbody>
-</table>
-</div>
+<ul>
+<li>None.</li>
+</ul>
 <h2 id="missing-v1-routes"><a class="header" href="#missing-v1-routes">Missing v1 routes</a></h2>
-<div class="table-wrapper">
-<table>
-<thead>
-<tr><th>Path</th><th>Methods</th></tr>
-</thead>
-<tbody>
-<tr><td><code>/v1/dashboard</code></td><td><code>GET</code></td></tr>
-<tr><td><code>/v1/fs/browse</code></td><td><code>GET</code></td></tr>
-<tr><td><code>/v1/logs/stream</code></td><td><code>GET</code></td></tr>
-<tr><td><code>/v1/torrents/{id}/trackers</code></td><td><code>GET</code>, <code>PATCH</code>, <code>DELETE</code></td></tr>
-<tr><td><code>/v1/torrents/{id}/peers</code></td><td><code>GET</code></td></tr>
-<tr><td><code>/v1/torrents/{id}/web_seeds</code></td><td><code>PATCH</code></td></tr>
-<tr><td><code>/v1/events</code></td><td><code>GET</code></td></tr>
-<tr><td><code>/v1/events/stream</code></td><td><code>GET</code></td></tr>
-</tbody>
-</table>
-</div>
+<ul>
+<li>None.</li>
+</ul>
 <h2 id="notes-2"><a class="header" href="#notes-2">Notes</a></h2>
 <ul>
 <li>Feature-gated compat-qb routes are excluded because they are not mounted unless the <code>compat-qb</code> feature is enabled.</li>
@@ -1298,6 +1322,7 @@ just test-native
 <li><a href="#082---e2e-gate-and-selector-stability-task-record">082</a> – E2E gate and selector stability</li>
 <li><a href="#083---api-preflight-before-ui-e2e-task-record">083</a> – API preflight before UI E2E</li>
 <li><a href="#084-e2e-api-coverage-with-temp-databases">084</a> – E2E API coverage with temp databases</li>
+<li><a href="#085---e2e-openapi-client-and-unified-coverage">085</a> – E2E OpenAPI client and unified coverage</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 ADR="" Title="" id=""><a class="header" href="#"></a></h1>
@@ -5254,6 +5279,113 @@ satisfy <code>clippy::multiple_crate_versions</code> without introducing git dep
 <li>Dependency rationale:
 <ul>
 <li>No new runtime dependencies added.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="085---e2e-openapi-client-and-unified-coverage"><a class="header" href="#085---e2e-openapi-client-and-unified-coverage">085 - E2E OpenAPI Client and Unified Coverage</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-16</li>
+<li>Context:
+<ul>
+<li>What problem are we solving?
+<ul>
+<li>E2E runs overwrote reports and did not enforce full API/UI surface coverage.</li>
+<li>API E2E tests needed a generated TypeScript client based on the OpenAPI spec.</li>
+</ul>
+</li>
+<li>What constraints or forces shape the decision?
+<ul>
+<li>Use a single Playwright execution with one final report.</li>
+<li>Use a maintained generator that supports native Node.js fetch.</li>
+<li>Keep OpenAPI synchronized with the router surface.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Summary of the choice made.
+<ul>
+<li>Expand OpenAPI coverage to match all router endpoints and generate a typed E2E client via openapi-typescript + openapi-fetch.</li>
+<li>Enforce API operation and UI route coverage in the Playwright teardown.</li>
+<li>Run API suites for both auth modes in one Playwright run, then UI tests.</li>
+</ul>
+</li>
+<li>Alternatives considered.
+<ul>
+<li>OpenAPI Generator CLI (Java) and swagger-typescript-api; rejected due to heavier toolchain and weaker fit for native fetch.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes.
+<ul>
+<li>Single Playwright report with explicit API/UI coverage enforcement.</li>
+<li>Typed API client aligned to OpenAPI for E2E calls.</li>
+</ul>
+</li>
+<li>Risks or trade-offs.
+<ul>
+<li>Additional Node dependencies and a stricter coverage gate that must be updated when routes change.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks.
+<ul>
+<li>Keep <code>docs/api/openapi.json</code> aligned with router updates and regenerate <code>tests/support/api/schema.ts</code> as needed.</li>
+<li>Update UI route coverage list when new routes are added.</li>
+</ul>
+</li>
+<li>Review checkpoints.
+<ul>
+<li><code>just ui-e2e</code> completes with a single report and no missing coverage.</li>
+<li><code>just ci</code> passes cleanly.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-3"><a class="header" href="#task-record-3">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>Ensure the E2E suites cover the entire API and UI surface in one continuous execution with a single report.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>Playwright projects now sequence no-auth API coverage ahead of API-key coverage, then UI coverage.</li>
+<li>API requests use a generated OpenAPI client with native fetch and a coverage ledger written per project.</li>
+<li>UI navigation records route coverage through the shared AppShell helpers.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li><code>just ui-e2e</code> (single Playwright run with API + UI coverage checks).</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>Coverage artifacts are written to <code>tests/test-results</code> for API and UI coverage validation.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Risk: coverage failures if OpenAPI or UI routes drift.</li>
+<li>Rollback: revert Playwright project sequencing and remove coverage enforcement to return to per-suite execution.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>Added <code>openapi-typescript</code> + <code>openapi-fetch</code> to generate a typed client backed by native Node.js fetch.</li>
+<li>Alternatives considered: OpenAPI Generator CLI (Java) and swagger-typescript-api; both rejected to avoid heavier toolchains and non-fetch defaults.</li>
 </ul>
 </li>
 </ul>

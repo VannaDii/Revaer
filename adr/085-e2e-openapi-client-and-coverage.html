@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>072: Agent compliance refactor (UI + HTTP + Config Layout) - Revaer Documentation</title>
+        <title>085: E2E OpenAPI client and unified coverage - Revaer Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -177,34 +177,109 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="072-agent-compliance-refactor-ui--http--config-layout"><a class="header" href="#072-agent-compliance-refactor-ui--http--config-layout">072: Agent Compliance Refactor (UI + HTTP + Config Layout)</a></h1>
+                        <h1 id="085---e2e-openapi-client-and-unified-coverage"><a class="header" href="#085---e2e-openapi-client-and-unified-coverage">085 - E2E OpenAPI Client and Unified Coverage</a></h1>
 <ul>
 <li>Status: Accepted</li>
-<li>Date: 2026-01-03</li>
+<li>Date: 2026-01-16</li>
 <li>Context:
 <ul>
-<li>Motivation: bring the repository into closer alignment with AGENT layout and tooling rules after drift in UI routing, HTTP module layout, and config structure.</li>
-<li>Constraints: preserve existing APIs/behavior while relocating modules; avoid new dependencies and keep stored-procedure-only database access intact.</li>
+<li>What problem are we solving?
+<ul>
+<li>E2E runs overwrote reports and did not enforce full API/UI surface coverage.</li>
+<li>API E2E tests needed a generated TypeScript client based on the OpenAPI spec.</li>
+</ul>
+</li>
+<li>What constraints or forces shape the decision?
+<ul>
+<li>Use a single Playwright execution with one final report.</li>
+<li>Use a maintained generator that supports native Node.js fetch.</li>
+<li>Keep OpenAPI synchronized with the router surface.</li>
+</ul>
+</li>
 </ul>
 </li>
 <li>Decision:
 <ul>
-<li>Design notes: move torrent UI views into the feature module, scope window/router usage to the app layer, and reorganize API HTTP handlers/DTOs into <code>handlers/</code> and <code>dto/</code> while re-exporting to preserve public paths.</li>
-<li>Alternatives considered: leave modules in place and document exceptions (rejected to keep the structure enforceable); introduce a large-scale API surface rename (rejected to avoid breaking changes).</li>
+<li>Summary of the choice made.
+<ul>
+<li>Expand OpenAPI coverage to match all router endpoints and generate a typed E2E client via openapi-typescript + openapi-fetch.</li>
+<li>Enforce API operation and UI route coverage in the Playwright teardown.</li>
+<li>Run API suites for both auth modes in one Playwright run, then UI tests.</li>
+</ul>
+</li>
+<li>Alternatives considered.
+<ul>
+<li>OpenAPI Generator CLI (Java) and swagger-typescript-api; rejected due to heavier toolchain and weaker fit for native fetch.</li>
+</ul>
+</li>
 </ul>
 </li>
 <li>Consequences:
 <ul>
-<li>Positive outcomes: clearer module boundaries, AGENT-compliant Justfile/CI flow, and reduced cross-layer coupling in the UI.</li>
-<li>Risks or trade-offs: short-term churn from file moves and import updates; slight increase in module indirection via re-exports.</li>
+<li>Positive outcomes.
+<ul>
+<li>Single Playwright report with explicit API/UI coverage enforcement.</li>
+<li>Typed API client aligned to OpenAPI for E2E calls.</li>
+</ul>
+</li>
+<li>Risks or trade-offs.
+<ul>
+<li>Additional Node dependencies and a stricter coverage gate that must be updated when routes change.</li>
+</ul>
+</li>
 </ul>
 </li>
 <li>Follow-up:
 <ul>
-<li>Test coverage summary: <code>just ci</code> (fmt, lint, udeps, audit, deny, ui-build, test, test-features-min, cov, build-release) passed with the ≥80% line coverage gate satisfied.</li>
-<li>Observability updates: no new spans or metrics added for this refactor.</li>
-<li>Risk &amp; rollback plan: revert the module move commits and restore prior paths if regressions appear; no data migrations were introduced.</li>
-<li>Dependency rationale: no new dependencies added; alternatives were to add helper crates for routing/structure, which were rejected to keep the footprint minimal.</li>
+<li>Implementation tasks.
+<ul>
+<li>Keep <code>docs/api/openapi.json</code> aligned with router updates and regenerate <code>tests/support/api/schema.ts</code> as needed.</li>
+<li>Update UI route coverage list when new routes are added.</li>
+</ul>
+</li>
+<li>Review checkpoints.
+<ul>
+<li><code>just ui-e2e</code> completes with a single report and no missing coverage.</li>
+<li><code>just ci</code> passes cleanly.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record"><a class="header" href="#task-record">Task Record</a></h2>
+<ul>
+<li>Motivation:
+<ul>
+<li>Ensure the E2E suites cover the entire API and UI surface in one continuous execution with a single report.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>Playwright projects now sequence no-auth API coverage ahead of API-key coverage, then UI coverage.</li>
+<li>API requests use a generated OpenAPI client with native fetch and a coverage ledger written per project.</li>
+<li>UI navigation records route coverage through the shared AppShell helpers.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li><code>just ui-e2e</code> (single Playwright run with API + UI coverage checks).</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>Coverage artifacts are written to <code>tests/test-results</code> for API and UI coverage validation.</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>Risk: coverage failures if OpenAPI or UI routes drift.</li>
+<li>Rollback: revert Playwright project sequencing and remove coverage enforcement to return to per-suite execution.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>Added <code>openapi-typescript</code> + <code>openapi-fetch</code> to generate a typed client backed by native Node.js fetch.</li>
+<li>Alternatives considered: OpenAPI Generator CLI (Java) and swagger-typescript-api; both rejected to avoid heavier toolchains and non-fetch defaults.</li>
 </ul>
 </li>
 </ul>
@@ -213,13 +288,10 @@
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../adr/071-libtorrent-native-fallback.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../adr/084-e2e-api-coverage-temp-db.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../adr/073-ui-checklist-followups.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
-                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -227,13 +299,10 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../adr/071-libtorrent-native-fallback.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../adr/084-e2e-api-coverage-temp-db.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../adr/073-ui-checklist-followups.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
-                    </a>
             </nav>
 
         </div>

@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-97db6780.js";
+            window.path_to_searchindex_js = "../searchindex-7c8c489f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-4b55a252.js"></script>
+        <script src="../toc-c8464fcf.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -177,57 +177,66 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="web-ui-flows--diagrams"><a class="header" href="#web-ui-flows--diagrams">Web UI Flows &amp; Diagrams</a></h1>
+                        <h1 id="web-ui-flows-and-diagrams"><a class="header" href="#web-ui-flows-and-diagrams">Web UI Flows and Diagrams</a></h1>
 <p>Visual references for the Phase 1 UX: navigation, component wiring, SSE handling, and torrent lifecycle. Use these diagrams when extending the UI or adding tests.</p>
-<h2 id="navigation-flow"><a class="header" href="#navigation-flow">Navigation Flow</a></h2>
+<h2 id="navigation-flow"><a class="header" href="#navigation-flow">Navigation flow</a></h2>
 <pre class="mermaid">flowchart LR
-    Nav[Sidebar / Hamburger] --&gt; Dash[Dashboard]
+    Nav["Sidebar / Drawer"] --&gt; Dash[Dashboard]
     Nav --&gt; Torrents[Torrents]
-    Nav --&gt; Search[Search]
-    Nav --&gt; Jobs[Jobs / Post-processing]
-    Nav --&gt; Settings[Settings]
     Nav --&gt; Logs[Logs]
-    Torrents --&gt; Detail[Detail Drawer / Tabs]
+    Nav --&gt; Health[Health]
+    Nav --&gt; Settings[Settings]
+    Torrents --&gt; Detail["Detail route /torrents/:id"]
+    Detail --&gt; Overview[Overview]
     Detail --&gt; Files[Files]
-    Detail --&gt; Peers[Peers]
-    Detail --&gt; Trackers[Trackers]
-    Detail --&gt; Events[Event Log]
-    Detail --&gt; Info[Metadata]
+    Detail --&gt; Options[Options]
 </pre>
 
-<h2 id="component-graph"><a class="header" href="#component-graph">Component Graph</a></h2>
+<h2 id="component-graph"><a class="header" href="#component-graph">Component graph</a></h2>
 <pre class="mermaid">flowchart TB
     app["App (RevaerApp)"]
     shell["AppShell: nav / theme / locale"]
-    dash[DashboardPanel]
-    table["TorrentView: virtualized list + filters"]
-    add_panel[AddTorrentPanel]
-    detail["Detail drawer / tabs"]
+    dash[Dashboard]
+    torrents["Torrents list + detail"]
+    settings[Settings]
+    logs[Logs]
+    health[Health]
     api[API]
 
     app --&gt; shell
     shell --&gt; dash
-    shell --&gt; table
-    table --&gt; add_panel
-    table --&gt; detail
-    add_panel -- "POST /v1/torrents" --&gt; api
-    detail -- "PATCH /v1/torrents/{id}" --&gt; api
+    shell --&gt; torrents
+    shell --&gt; settings
+    shell --&gt; logs
+    shell --&gt; health
+
+    dash -- "GET /v1/dashboard" --&gt; api
+    torrents -- "GET /v1/torrents" --&gt; api
+    torrents -- "GET /v1/torrents/{id}" --&gt; api
+    torrents -- "POST /v1/torrents/{id}/action" --&gt; api
+    torrents -- "PATCH /v1/torrents/{id}/options" --&gt; api
+    torrents -- "POST /v1/torrents/{id}/select" --&gt; api
+    torrents -- "SSE /v1/torrents/events" --&gt; api
+    logs -- "SSE /v1/logs/stream" --&gt; api
+    health -- "GET /health/full" --&gt; api
 </pre>
 
-<h2 id="sse-event-flow"><a class="header" href="#sse-event-flow">SSE Event Flow</a></h2>
+<h2 id="sse-event-flow"><a class="header" href="#sse-event-flow">SSE event flow</a></h2>
 <pre class="mermaid">sequenceDiagram
+    participant UI as UI
+    participant Fetch as Fetch Stream
     participant API as API/SSE
-    participant Stream as EventStream
-    participant State as UIState
-    participant UI as Components
+    participant State as Store
 
-    API-&gt;&gt;Stream: SSE events (progress, state, queue, jobs, vpn)
-    Stream-&gt;&gt;State: Batch apply with backoff + dedupe
-    State-&gt;&gt;UI: Render updates (virtualized table, dashboard tiles, badges)
-    UI-&gt;&gt;API: Last-Event-ID on reconnect with filters in SSE query
+    UI-&gt;&gt;Fetch: build URL + headers (x-revaer-api-key, Last-Event-ID)
+    Fetch-&gt;&gt;API: GET /v1/torrents/events (fallback /v1/events/stream)
+    API--&gt;&gt;Fetch: SSE frames
+    Fetch-&gt;&gt;State: parse + batch updates
+    State-&gt;&gt;UI: render list, detail, dashboard, health badges
+    UI-&gt;&gt;Fetch: reconnect with backoff and resume id
 </pre>
 
-<h2 id="torrent-lifecycle-ui-perspective"><a class="header" href="#torrent-lifecycle-ui-perspective">Torrent Lifecycle (UI Perspective)</a></h2>
+<h2 id="torrent-lifecycle-ui-perspective"><a class="header" href="#torrent-lifecycle-ui-perspective">Torrent lifecycle (UI perspective)</a></h2>
 <pre class="mermaid">stateDiagram-v2
     [*] --&gt; Added : magnet/upload
     Added --&gt; Queueing : server-side validation
@@ -241,11 +250,11 @@
     Completed --&gt; Removed : delete (+data optional)
 </pre>
 
-<h2 id="interaction-notes"><a class="header" href="#interaction-notes">Interaction Notes</a></h2>
+<h2 id="interaction-notes"><a class="header" href="#interaction-notes">Interaction notes</a></h2>
 <ul>
-<li>SSE disconnect overlay shows last event timestamp, retry countdown (1s→30s exponential with jitter), and diagnostics (network mode, reason).</li>
-<li>Table virtualization is mandatory beyond 500 rows; virtual scroll must preserve keyboard focus order and pinned columns.</li>
-<li>Mobile detail view uses tabs (Files, Peers, Trackers, Log, Info); desktop uses split panes so file tree + metadata stay visible together at xl+.</li>
+<li>SSE disconnect overlay shows last event timestamp, retry countdown (1s to 30s exponential with jitter), and diagnostics (auth mode, reason).</li>
+<li>Table virtualization is required beyond 500 rows; virtual scroll must preserve keyboard focus order and pinned columns.</li>
+<li>Mobile detail view uses tabs (Overview, Files, Options); desktop uses a split layout so overview and options stay visible together at lg+.</li>
 </ul>
 
                     </main>

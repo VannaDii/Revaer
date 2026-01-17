@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-97db6780.js";
+            window.path_to_searchindex_js = "../searchindex-7c8c489f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-4b55a252.js"></script>
+        <script src="../toc-c8464fcf.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,10 +181,11 @@
 <blockquote>
 <p>Canonical machine-readable description of the Revaer control plane surface.</p>
 </blockquote>
-<p>The generated OpenAPI specification lives alongside the documentation at <a href="openapi.json"><code>docs/api/openapi.json</code></a>. Regenerate it with:</p>
+<p>The generated OpenAPI specification lives alongside the documentation at <code>docs/api/openapi.json</code> and is served by the API at <code>/docs/openapi.json</code>.</p>
+<p>Regenerate it with:</p>
 <pre><code class="language-bash">just api-export
 </code></pre>
-<p>Once refreshed, rebuild the documentation (<code>just docs</code>) to publish the updated schema to the static site and LLM manifests. API consumers can download the JSON directly from the deployed documentation site or via the repository.</p>
+<p>After refreshing the file, rebuild the documentation (<code>just docs</code>) to publish the updated schema and LLM manifests.</p>
 
                     </main>
 

@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-97db6780.js";
+            window.path_to_searchindex_js = "../searchindex-7c8c489f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-4b55a252.js"></script>
+        <script src="../toc-c8464fcf.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -178,70 +178,57 @@
                 <div id="mdbook-content" class="content">
                     <main>
                         <h1 id="web-ui---phase-1"><a class="header" href="#web-ui---phase-1">Web UI - Phase 1</a></h1>
-<p>Rust/Yew implementation plan for the Phase 1 torrent-only UI described in <code>REVAER_PHASE1_WEBUX_SPEC.md</code>. The goal is a responsive, touch-friendly surface that stays usable on 360px phones through 4K desktops while handling 50k+ torrents.</p>
+<p>Rust/Yew UI for the Phase 1 torrent workflow. The goal is a responsive, touch-friendly surface that stays usable on 360px phones through 4K desktops while handling large torrent libraries.</p>
 <ul>
-<li><strong>Pages:</strong> Dashboard, Torrents (list + detail), Search (shared list), Jobs/Post-processing, Settings, Logs. Indexers/Library stay hidden until Phase 2.</li>
-<li><strong>Modes:</strong> Simple (default, trimmed controls) and Advanced (all filters, columns, bulk actions). Persisted in local storage without reload.</li>
-<li><strong>Transport:</strong> REST for initial payloads; SSE for torrents, transfers, queue, jobs, and VPN state with backoff and jitter handling.</li>
+<li><strong>Pages</strong>: Dashboard, Torrents (list + detail), Logs, Health, Settings.</li>
+<li><strong>Modes</strong>: Simple (trimmed controls) and Advanced (full controls). Stored in local storage.</li>
+<li><strong>Transport</strong>: REST for initial payloads; fetch-based SSE for live updates and logs (header-auth supported, EventSource not used).</li>
 </ul>
-<h2 id="layout--breakpoints"><a class="header" href="#layout--breakpoints">Layout &amp; Breakpoints</a></h2>
+<h2 id="layout-and-breakpoints"><a class="header" href="#layout-and-breakpoints">Layout and breakpoints</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Name</th><th>Width</th><th>Default behaviors</th></tr>
 </thead>
 <tbody>
-<tr><td>xs</td><td>0–479px</td><td>Card view for torrents, bottom sheet actions, stacked dashboard cards, hamburger navigation</td></tr>
-<tr><td>sm</td><td>480–767px</td><td>Card view, two-column stats grid inside cards, slide-out navigation</td></tr>
-<tr><td>md</td><td>768–1023px</td><td>Compact table (2–4 columns), tabbed detail view, 2-column dashboard grid</td></tr>
-<tr><td>lg</td><td>1024–1439px</td><td>Full table, fixed sidebar with labels, 3-column dashboard grid</td></tr>
-<tr><td>xl</td><td>1440–1919px</td><td>Adaptive column expansion, split-pane detail, 4-column dashboard grid</td></tr>
-<tr><td>2xl</td><td>1920px+</td><td>Ultrawide-friendly table and split panes with max readable line lengths</td></tr>
+<tr><td>xs</td><td>0-479px</td><td>Card view for torrents, drawer navigation, stacked dashboard cards</td></tr>
+<tr><td>sm</td><td>480-767px</td><td>Card view, two-column stats grid inside cards</td></tr>
+<tr><td>md</td><td>768-1023px</td><td>Compact table, tabbed detail view</td></tr>
+<tr><td>lg</td><td>1024-1439px</td><td>Full table, fixed sidebar</td></tr>
+<tr><td>xl</td><td>1440-1919px</td><td>Split panes and wider tables</td></tr>
+<tr><td>2xl</td><td>1920px+</td><td>Ultra-wide tables with capped text widths</td></tr>
 </tbody>
 </table>
 </div>
-<p>Table responsiveness: required columns (Name, Status, Progress, Speed up/down) stay pinned; ETA, Ratio, Size, Tags, Tracker, Path collapse into overflow or the detail drawer when space is constrained. Horizontal scroll must preserve keyboard navigation and roving tabindex.</p>
-<p>Detail view: mobile renders tabs (<code>Files</code>, <code>Peers</code>, <code>Trackers</code>, <code>Log</code>, <code>Info</code>) with accordion file tree; desktop/laptop promotes a split grid showing file tree + metadata alongside peers/trackers/log simultaneously.</p>
-<p>Virtualization: torrent list uses a windowed renderer (row-height aware with overscan) to keep 50k+ rows responsive; horizontal scroll remains keyboard-safe and selection stays highlighted for shortcut actions.</p>
-<p>Auth: remote mode always requires an API key; prompt stores key in local storage, LAN anonymous mode is allowed only if backend advertises <code>allow_anonymous</code>. SSE currently appends the key via querystring (EventSource lacks header support); use TLS and avoid logging URLs in deployment. Live updates: SSE feeds torrent progress/rates plus dashboard rates/queue/VPN status; reconnect badge/overlay surfaces failures and retries.</p>
-<p>Add flow: drop <code>.torrent</code> or paste magnet/URL with inline validation and error copy; invalid file types are rejected. Submissions post to <code>/v1/torrents</code>, surface toast feedback, and refresh the list.
-Search &amp; filters: search box hits <code>/v1/torrents?search=</code> with optional <code>regex=true</code>; Regex toggle is inline in the toolbar and clears with Escape.
-Live sync: SSE streams torrent progress/rates/state plus added/removed events to keep the list aligned without manual refresh.</p>
-<h2 id="theming--tokens"><a class="header" href="#theming--tokens">Theming &amp; Tokens</a></h2>
+<p>Table responsiveness: required columns (Name, Status, Progress, Down, Up) stay pinned; ETA, Ratio, Size, Tags, Path, Updated collapse into overflow or the detail drawer when space is constrained.</p>
+<p>Detail view: mobile renders tabs (Overview, Files, Options); desktop promotes a split layout that keeps overview and options visible together at lg+.</p>
+<p>Virtualization: the torrent list uses a windowed renderer to keep large libraries responsive; selection stays highlighted for keyboard actions.</p>
+<h2 id="auth-and-setup"><a class="header" href="#auth-and-setup">Auth and setup</a></h2>
 <ul>
-<li>Palette: Primary (<code>#265D81</code> base), Secondary (<code>#775A96</code>), Accent (<code>#258BD3</code>), Neutral 50–900, Success/Warning/Error scales; dark mode uses <code>background-dark #121417</code>, <code>surface-dark #1A1C20</code>, and text tokens.</li>
-<li>Scale: Spacing 4/8/12/16/24/32; radius 4/8/12; elevation tiers flat/raised/floating; type scale xs–2xl.</li>
-<li>States: focus ring 2px accent-500, hover/pressed darken by one tone; inputs/tables use border tokens.</li>
-<li>Theme selection follows OS preference on first load and persists to local storage; user toggle is always available.</li>
+<li>API key auth is default. The UI prompts for <code>key_id:secret</code> and stores it in local storage with expiry metadata.</li>
+<li>If <code>app_profile.auth_mode</code> is <code>none</code> and the request originates from a local network, the UI can enter anonymous mode.</li>
+<li>Setup mode guides the operator through the setup token flow and stores the generated API key after completion.</li>
 </ul>
-<h2 id="localization"><a class="header" href="#localization">Localization</a></h2>
+<h2 id="transport-and-sse"><a class="header" href="#transport-and-sse">Transport and SSE</a></h2>
 <ul>
-<li>Languages: ar, de, es, hi, it, jv, mr, pt, ta, tr, bn, en, fr, id, ja, ko, pa, ru, te, zh.</li>
-<li>Bundles: JSON files at <code>crates/revaer-ui/i18n/*.json</code> with English fallback; dotted keys supported in <code>TranslationBundle</code>.</li>
-<li>RTL: bidi layout, mirrored progress bars, reversed file tree, and RTL-aware table alignment. <code>meta.rtl</code> in bundles hints at direction and is applied on load.</li>
-<li>Numbers/dates: browser locale by default with user override; binary units for rates/sizes.</li>
+<li>Primary SSE: <code>/v1/torrents/events</code> with filters for torrent id, event kind, and state.</li>
+<li>Fallback SSE: <code>/v1/events/stream</code> if the primary endpoint is unavailable.</li>
+<li>Logs stream: <code>/v1/logs/stream</code>.</li>
+<li>SSE requests attach <code>x-revaer-api-key</code> and <code>Last-Event-ID</code> headers.</li>
 </ul>
-<h2 id="accessibility--interaction"><a class="header" href="#accessibility--interaction">Accessibility &amp; Interaction</a></h2>
+<h2 id="settings-coverage"><a class="header" href="#settings-coverage">Settings coverage</a></h2>
+<p>Settings tabs are grouped into: Downloads, Seeding, Network, Storage, Labels, and System. Each tab reflects the corresponding config section and validation errors from <code>ProblemDetails</code> responses.</p>
+<h2 id="theming-and-localization"><a class="header" href="#theming-and-localization">Theming and localization</a></h2>
 <ul>
-<li>WCAG 2.1 AA: semantic markup, focus-visible rings, high-contrast dark mode, 40px touch targets on mobile, focus traps for drawers/modals.</li>
-<li>Keyboard shortcuts (wired in demo UI): <code>/</code> search focus, <code>j/k</code> row move, <code>space</code> pause/resume, <code>delete</code> delete, <code>shift+delete</code> delete+data, <code>p</code> recheck. Selected row highlights; actions surface in a status banner.</li>
-<li>Screen-reader flow follows DOM order (mobile collapse must not break navigation).</li>
-<li>Confirmations: delete (“Remove torrent ‘&lt;name&gt;’? Files remain on disk”), delete+data (“Remove torrent and delete data? This cannot be undone.”), recheck prompt.</li>
-<li>Mobile action bar: sticky bottom row for Pause/Resume/Delete/More on xs/sm; desktop retains row actions in-table.</li>
-<li>SSE downtime overlay: shows last event timestamp, retry countdown (1s→30s with jitter), reason, and retry button; badge reflects reconnect state in top bar.</li>
-</ul>
-<h2 id="performance--resilience"><a class="header" href="#performance--resilience">Performance &amp; Resilience</a></h2>
-<ul>
-<li>Target: &lt;300ms initial UI load on modern mobile (cached assets), virtualization for all tables beyond 500 rows, main-thread budget aligned with 50k torrents.</li>
-<li>SSE: event batching and reconnect backoff (1s→30s with jitter), Last-Event-ID awareness, overlay with retry countdown and last event timestamp on disconnect.</li>
-<li>Offline/remote awareness: API key prompt stored locally; remote mode always enforces key even if backend advertises anonymous LAN support.</li>
+<li>Theme tokens and layout variables live in <code>static/style.css</code>.</li>
+<li>Theme selection follows OS preference on first load and persists to local storage.</li>
+<li>Locale selector uses JSON bundles in <code>i18n/</code> with English fallback and RTL hinting.</li>
 </ul>
 <h2 id="running-the-ui"><a class="header" href="#running-the-ui">Running the UI</a></h2>
 <ul>
 <li>Crate: <code>crates/revaer-ui</code> (Yew + wasm).</li>
-<li>Commands: <code>rustup target add wasm32-unknown-unknown</code>, <code>cargo install trunk</code>, <code>trunk serve --open</code> to preview.</li>
+<li>Commands: <code>just ui-serve</code> to preview, <code>just ui-build</code> for release builds.</li>
 <li>Assets: <code>static/style.css</code> holds palette/breakpoints; <code>index.html</code> + <code>Trunk.toml</code> bootstrap trunk.</li>
-<li>Demo data lives in <code>components/dashboard.rs</code> and <code>components/torrents.rs</code>; swap in REST/SSE adapters to connect to the backend once available.</li>
 </ul>
 
                     </main>

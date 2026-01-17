@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-97db6780.js";
+            window.path_to_searchindex_js = "../searchindex-7c8c489f.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-4b55a252.js"></script>
+        <script src="../toc-c8464fcf.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -181,7 +181,7 @@
 <blockquote>
 <p><code>revaer-cli</code> provides parity with the API for setup, configuration management, torrent lifecycle, and observability.</p>
 </blockquote>
-<h2 id="global-flags--environment"><a class="header" href="#global-flags--environment">Global Flags &amp; Environment</a></h2>
+<h2 id="global-flags-and-environment"><a class="header" href="#global-flags-and-environment">Global flags and environment</a></h2>
 <div class="table-wrapper">
 <table>
 <thead>
@@ -191,12 +191,12 @@
 <tr><td><code>--api-url &lt;URL&gt;</code></td><td><code>REVAER_API_URL</code></td><td><code>http://127.0.0.1:7070</code></td><td>Base URL for API requests.</td></tr>
 <tr><td><code>--api-key &lt;key_id:secret&gt;</code></td><td><code>REVAER_API_KEY</code></td><td><em>none</em></td><td>Required for all post-setup commands that mutate or read torrents.</td></tr>
 <tr><td><code>--timeout &lt;secs&gt;</code></td><td><code>REVAER_HTTP_TIMEOUT_SECS</code></td><td><code>10</code></td><td>Per-request HTTP timeout.</td></tr>
-<tr><td><code>--output &lt;table|json&gt;</code></td><td><em>none</em></td><td><code>table</code></td><td>Output format for structured responses (<code>json</code> is script-friendly).</td></tr>
+<tr><td>`–output &lt;table</td><td>json&gt;`</td><td><em>none</em></td><td><code>table</code></td></tr>
 </tbody>
 </table>
 </div>
-<p>Each invocation bubbles a unique <code>x-request-id</code> through the API; the CLI also emits optional telemetry events when <code>REVAER_TELEMETRY_ENDPOINT</code> is set.</p>
-<h2 id="setup-flow"><a class="header" href="#setup-flow">Setup Flow</a></h2>
+<p>Each invocation bubbles a unique <code>x-request-id</code> through the API; the CLI can optionally emit telemetry events when <code>REVAER_TELEMETRY_ENDPOINT</code> is set.</p>
+<h2 id="setup-flow"><a class="header" href="#setup-flow">Setup flow</a></h2>
 <h3 id="revaer-setup-start---issued-by-label---ttl-seconds-secs"><a class="header" href="#revaer-setup-start---issued-by-label---ttl-seconds-secs"><code>revaer setup start [--issued-by &lt;label&gt;] [--ttl-seconds &lt;secs&gt;]</code></a></h3>
 <ul>
 <li>Calls <code>POST /admin/setup/start</code>.</li>
@@ -205,19 +205,28 @@
 </ul>
 <h3 id="revaer-setup-complete---instance-name---bind-addr---port-port---resume-dir-path---download-root-path---library-root-path---api-key-label-label---api-key-id-id---passphrase-value---token-token"><a class="header" href="#revaer-setup-complete---instance-name---bind-addr---port-port---resume-dir-path---download-root-path---library-root-path---api-key-label-label---api-key-id-id---passphrase-value---token-token"><code>revaer setup complete --instance &lt;name&gt; --bind &lt;addr&gt; --port &lt;port&gt; --resume-dir &lt;path&gt; --download-root &lt;path&gt; --library-root &lt;path&gt; --api-key-label &lt;label&gt; [--api-key-id &lt;id&gt;] [--passphrase &lt;value&gt;] [--token &lt;token&gt;]</code></a></h3>
 <ul>
-<li>Loads the setup token either from <code>--token</code> or <code>REVAER_SETUP_TOKEN</code>.</li>
+<li>Loads the setup token from <code>--token</code> or <code>REVAER_SETUP_TOKEN</code>.</li>
 <li>Builds a <code>SettingsChangeset</code> containing the app profile, engine profile, filesystem policy, API key, and optional secret.</li>
 <li>Forces <code>app_profile.mode = "active"</code>.</li>
 <li>Echoes the generated API key (<code>key_id:secret</code>) on success; store it securely before continuing.</li>
 </ul>
-<h2 id="configuration-maintenance"><a class="header" href="#configuration-maintenance">Configuration Maintenance</a></h2>
-<h3 id="revaer-settings-patch---file-path"><a class="header" href="#revaer-settings-patch---file-path"><code>revaer settings patch --file &lt;path&gt;</code></a></h3>
+<h2 id="configuration-maintenance"><a class="header" href="#configuration-maintenance">Configuration maintenance</a></h2>
+<h3 id="revaer-config-get"><a class="header" href="#revaer-config-get"><code>revaer config get</code></a></h3>
+<ul>
+<li>Fetches the current configuration snapshot.</li>
+<li>Mirrors <code>GET /v1/config</code> output.</li>
+</ul>
+<h3 id="revaer-config-set---file-path"><a class="header" href="#revaer-config-set---file-path"><code>revaer config set --file &lt;path&gt;</code></a></h3>
 <ul>
 <li>Reads a JSON file containing a partial <code>SettingsChangeset</code>.</li>
 <li>Requires an API key.</li>
 <li>Returns a formatted <code>ProblemDetails</code> message if validation fails (immutable fields, unknown keys, etc.).</li>
 </ul>
-<h2 id="torrent-lifecycle"><a class="header" href="#torrent-lifecycle">Torrent Lifecycle</a></h2>
+<h3 id="revaer-settings-patch---file-path"><a class="header" href="#revaer-settings-patch---file-path"><code>revaer settings patch --file &lt;path&gt;</code></a></h3>
+<ul>
+<li>Alias for <code>revaer config set</code>.</li>
+</ul>
+<h2 id="torrent-lifecycle"><a class="header" href="#torrent-lifecycle">Torrent lifecycle</a></h2>
 <h3 id="revaer-torrent-add-magnettorrent---name-label---id-uuid"><a class="header" href="#revaer-torrent-add-magnettorrent---name-label---id-uuid"><code>revaer torrent add &lt;magnet|.torrent&gt; [--name &lt;label&gt;] [--id &lt;uuid&gt;]</code></a></h3>
 <ul>
 <li>Accepts a magnet URI or a filesystem path to a <code>.torrent</code>.</li>
@@ -232,7 +241,7 @@
 <h3 id="revaer-ls---limit-n---cursor-token---state-state---tracker-url---extension-ext---tags-tag1tag2---name-fragment"><a class="header" href="#revaer-ls---limit-n---cursor-token---state-state---tracker-url---extension-ext---tags-tag1tag2---name-fragment"><code>revaer ls [--limit &lt;n&gt;] [--cursor &lt;token&gt;] [--state &lt;state&gt;] [--tracker &lt;url&gt;] [--extension &lt;ext&gt;] [--tags &lt;tag1,tag2&gt;] [--name &lt;fragment&gt;]</code></a></h3>
 <ul>
 <li>Lists torrents with the same filters supported by the REST API.</li>
-<li>Default output is a table summarising id, name, state, and progress.</li>
+<li>Default output is a table summarizing id, name, state, and progress.</li>
 <li>Add <code>--output json</code> to emit the raw <code>TorrentListResponse</code>.</li>
 </ul>
 <h3 id="revaer-status-uuid"><a class="header" href="#revaer-status-uuid"><code>revaer status &lt;uuid&gt;</code></a></h3>
@@ -240,7 +249,7 @@
 <li>Returns a detailed view of a single torrent.</li>
 <li>Add <code>--output json</code> to view the full <code>TorrentDetail</code> (including file metadata when available).</li>
 </ul>
-<h3 id="revaer-select-uuid---include-globglob---exclude-globglob---skip-fluff---priority-indexpriority"><a class="header" href="#revaer-select-uuid---include-globglob---exclude-globglob---skip-fluff---priority-indexpriority"><code>revaer select &lt;uuid&gt; [--include &lt;glob,glob&gt;] [--exclude &lt;glob,glob&gt;] [--skip-fluff] [--priority index=priority,…]</code></a></h3>
+<h3 id="revaer-select-uuid---include-globglob---exclude-globglob---skip-fluff---priority-indexpriority"><a class="header" href="#revaer-select-uuid---include-globglob---exclude-globglob---skip-fluff---priority-indexpriority"><code>revaer select &lt;uuid&gt; [--include &lt;glob,glob&gt;] [--exclude &lt;glob,glob&gt;] [--skip-fluff] [--priority index=priority,...]</code></a></h3>
 <ul>
 <li>Updates file-selection rules via <code>POST /v1/torrents/{id}/select</code>.</li>
 <li><code>--priority</code> accepts repeated <code>index=priority</code> pairs (<code>skip|low|normal|high</code>) mapped onto the engine’s <code>FilePriority</code>.</li>
@@ -250,12 +259,12 @@
 <li>One-stop entry point for all torrent actions.</li>
 <li><code>sequential</code> toggles sequential downloads via <code>--enable true|false</code>.</li>
 <li><code>rate</code> updates per-torrent bandwidth caps (bps). Provide <code>--download</code> and/or <code>--upload</code>.</li>
-<li><code>remove</code> honours <code>--delete-data</code>.</li>
+<li><code>remove</code> honors <code>--delete-data</code>.</li>
 </ul>
-<h2 id="event-streaming"><a class="header" href="#event-streaming">Event Streaming</a></h2>
+<h2 id="event-streaming"><a class="header" href="#event-streaming">Event streaming</a></h2>
 <h3 id="revaer-tail---torrent-idid---event-kindkind---state-statestate---resume-file-path---retry-secs-n"><a class="header" href="#revaer-tail---torrent-idid---event-kindkind---state-statestate---resume-file-path---retry-secs-n"><code>revaer tail [--torrent &lt;id,id&gt;] [--event &lt;kind,kind&gt;] [--state &lt;state,state&gt;] [--resume-file &lt;path&gt;] [--retry-secs &lt;n&gt;]</code></a></h3>
 <ul>
-<li>Connects to <code>/v1/events</code> using SSE.</li>
+<li>Connects to <code>/v1/torrents/events</code> (falls back to <code>/v1/events/stream</code>).</li>
 <li>Filters match the API query parameters and enforce UUID/event-kind validation before the request is made.</li>
 <li>When <code>--resume-file</code> is supplied, the CLI persists the last event ID across reconnects so the stream can resume after transient failures.</li>
 <li><code>--retry-secs</code> controls the backoff between reconnect attempts (default: 5 seconds).</li>
