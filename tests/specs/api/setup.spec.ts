@@ -1,12 +1,11 @@
-import { test, expect } from '@playwright/test';
-
+import { test, expect } from '../../fixtures/api';
 
 test.describe('Setup lifecycle', () => {
-  test('setup endpoints reject after activation', async ({ request }) => {
-    const start = await request.post('/admin/setup/start', { data: {} });
-    expect(start.status()).toBe(409);
+  test('setup endpoints reject after activation', async ({ publicApi }) => {
+    const start = await publicApi.POST('/admin/setup/start', { body: {} });
+    expect(start.response.status).toBe(409);
 
-    const complete = await request.post('/admin/setup/complete', { data: {} });
-    expect(complete.status()).toBe(409);
+    const complete = await publicApi.POST('/admin/setup/complete', { body: {} });
+    expect(complete.response.status).toBe(409);
   });
 });

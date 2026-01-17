@@ -1,23 +1,22 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from '../../fixtures/api';
+import { recordApiCoverage } from '../../support/api/coverage';
 import { authHeaders } from '../../support/headers';
-import { loadSession, type ApiSession } from '../../support/session';
-
-let session: ApiSession;
 const apiBaseUrl = process.env.E2E_API_BASE_URL ?? 'http://localhost:7070';
 const STREAM_TIMEOUT_MS = 5000;
 const CHUNK_TIMEOUT_MS = 3000;
 
-test.beforeAll(() => {
-  session = loadSession();
-});
-
-async function openEventStream(path: string, expectChunk: boolean): Promise<void> {
+async function openEventStream(
+  path: string,
+  expectChunk: boolean,
+  headers: Record<string, string>,
+): Promise<void> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), STREAM_TIMEOUT_MS);
   try {
+    recordApiCoverage('GET', path);
     const response = await fetch(`${apiBaseUrl}${path}`, {
       headers: {
-        ...authHeaders(session),
+        ...headers,
         accept: 'text/event-stream',
       },
       signal: controller.signal,
@@ -43,19 +42,19 @@ async function openEventStream(path: string, expectChunk: boolean): Promise<void
 }
 
 test.describe('Event streams', () => {
-  test('streams logs', async () => {
-    await openEventStream('/v1/logs/stream', false);
+  test('streams logs', async ({ session }) => {
+    await openEventStream('/v1/logs/stream', false, authHeaders(session));
   });
 
-  test('streams events', async () => {
-    await openEventStream('/v1/events', true);
+  test('streams events', async ({ session }) => {
+    await openEventStream('/v1/events', true, authHeaders(session));
   });
 
-  test('streams events on explicit endpoint', async () => {
-    await openEventStream('/v1/events/stream', true);
+  test('streams events on explicit endpoint', async ({ session }) => {
+    await openEventStream('/v1/events/stream', true, authHeaders(session));
   });
 
-  test('streams torrent events', async () => {
-    await openEventStream('/v1/torrents/events', true);
+  test('streams torrent events', async ({ session }) => {
+    await openEventStream('/v1/torrents/events', true, authHeaders(session));
   });
 });

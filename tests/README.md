@@ -2,9 +2,10 @@
 
 ## Overview
 
-- `just ui-e2e` provisions temp databases, runs API suites for both auth modes, then runs UI tests.
+- `just ui-e2e` provisions a temp database, runs API suites for both auth modes, then runs UI tests in a single Playwright execution (one final report).
 - API tests execute before UI tests to surface backend failures first.
 - Configuration is loaded from `tests/.env` (overrides are allowed via env vars).
+- API E2E tests use a generated client from `docs/api/openapi.json` (`npm run gen:api-client` runs automatically in `just ui-e2e`).
 
 ## Requirements
 
@@ -24,5 +25,4 @@ just ui-e2e
 - `E2E_DB_ADMIN_URL`: admin connection string used to create temp DBs.
 - `E2E_DB_PREFIX`: prefix for temp DB names.
 - `E2E_FS_ROOT`: filesystem root used by `/v1/fs/browse` and torrent authoring tests (relative paths resolve against the repo root; default is `.server_root/library`).
-- `E2E_SESSION_PATH`: session file used by global setup/teardown.
 - `E2E_BROWSERS`: UI browser list (`chromium`, `firefox`, `webkit`).

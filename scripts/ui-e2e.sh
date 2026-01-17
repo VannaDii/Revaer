@@ -17,9 +17,8 @@ E2E_BASE_URL="${E2E_BASE_URL:-http://localhost:8080}"
 E2E_DB_ADMIN_URL="${E2E_DB_ADMIN_URL:-${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/postgres}}"
 E2E_DB_PREFIX="${E2E_DB_PREFIX:-revaer_e2e}"
 E2E_FS_ROOT="${E2E_FS_ROOT:-${root_dir}}"
-E2E_SESSION_PATH="${E2E_SESSION_PATH:-.auth/session.json}"
 
-export E2E_API_BASE_URL E2E_BASE_URL E2E_DB_ADMIN_URL E2E_DB_PREFIX E2E_FS_ROOT E2E_SESSION_PATH
+export E2E_API_BASE_URL E2E_BASE_URL E2E_DB_ADMIN_URL E2E_DB_PREFIX E2E_FS_ROOT
 
 cd "${root_dir}"
 
@@ -59,6 +58,7 @@ just sqlx-install
 
 cd "${tests_dir}"
 npm install
+npm run gen:api-client
 npx playwright install
 cd "${root_dir}"
 
@@ -294,59 +294,28 @@ cleanup_resources() {
 
 trap cleanup_resources EXIT
 
-run_api_suite() {
-  local auth_mode="$1"
-  require_port_free 7070
-  ACTIVE_DB_URL="$(create_temp_db)"
-  DATABASE_URL="${ACTIVE_DB_URL}" "${API_BIN}" > "${log_dir}/api-${auth_mode}.log" 2>&1 &
-  API_PID="$!"
-  assert_api_db "${API_PID}" "${ACTIVE_DB_URL}"
-  wait_for_http "${E2E_API_BASE_URL}/health" 80
-  assert_api_listener "${API_PID}" 7070
-  (cd "${tests_dir}" && E2E_AUTH_MODE="${auth_mode}" npx playwright test --project api)
-  cleanup_resources
-  API_PID=""
-  ACTIVE_DB_URL=""
-}
-
-run_ui_suite() {
-  local auth_mode="$1"
-  require_port_free 7070
-  require_port_free 8080
-  ACTIVE_DB_URL="$(create_temp_db)"
-  DATABASE_URL="${ACTIVE_DB_URL}" "${API_BIN}" > "${log_dir}/api-ui.log" 2>&1 &
-  API_PID="$!"
-  assert_api_db "${API_PID}" "${ACTIVE_DB_URL}"
-  wait_for_http "${E2E_API_BASE_URL}/health" 80
-  assert_api_listener "${API_PID}" 7070
-  just sync-assets
-  rustup target add wasm32-unknown-unknown
-  if ! command -v trunk >/dev/null 2>&1; then
-    cargo install trunk
-  fi
-  mkdir -p "${root_dir}/crates/revaer-ui/dist-serve/.stage"
-  (cd "${root_dir}/crates/revaer-ui" && DATABASE_URL="${ACTIVE_DB_URL}" RUST_LOG=${RUST_LOG:-info} trunk serve --dist dist-serve --port 8080) > "${log_dir}/ui.log" 2>&1 &
-  UI_PID="$!"
-  wait_for_http "${E2E_BASE_URL}" 80
-  ui_projects=()
-  IFS=',' read -ra browsers <<< "${E2E_BROWSERS:-chromium}"
-  for browser in "${browsers[@]}"; do
-    name="$(echo "${browser}" | xargs)"
-    if [ -n "${name}" ]; then
-      ui_projects+=(--project "ui-${name}")
-    fi
-  done
-  if [ "${#ui_projects[@]}" -eq 0 ]; then
-    ui_projects=(--project ui-chromium)
-  fi
-  (cd "${tests_dir}" && E2E_AUTH_MODE="${auth_mode}" npx playwright test "${ui_projects[@]}")
-  cleanup_resources
-  UI_PID=""
-  API_PID=""
-  ACTIVE_DB_URL=""
-}
-
 stop_dev_servers
-run_api_suite api_key
-run_api_suite none
-run_ui_suite api_key
+require_port_free 7070
+require_port_free 8080
+
+ACTIVE_DB_URL="$(create_temp_db)"
+DATABASE_URL="${ACTIVE_DB_URL}" "${API_BIN}" > "${log_dir}/api.log" 2>&1 &
+API_PID="$!"
+assert_api_db "${API_PID}" "${ACTIVE_DB_URL}"
+wait_for_http "${E2E_API_BASE_URL}/health" 80
+assert_api_listener "${API_PID}" 7070
+
+just sync-assets
+rustup target add wasm32-unknown-unknown
+if ! command -v trunk >/dev/null 2>&1; then
+  cargo install trunk
+fi
+mkdir -p "${root_dir}/crates/revaer-ui/dist-serve/.stage"
+(cd "${root_dir}/crates/revaer-ui" && DATABASE_URL="${ACTIVE_DB_URL}" RUST_LOG=${RUST_LOG:-info} trunk serve --dist dist-serve --port 8080) > "${log_dir}/ui.log" 2>&1 &
+UI_PID="$!"
+wait_for_http "${E2E_BASE_URL}" 80
+
+rm -rf "${tests_dir}/test-results" "${tests_dir}/playwright-report"
+mkdir -p "${tests_dir}/test-results"
+
+(cd "${tests_dir}" && npx playwright test)

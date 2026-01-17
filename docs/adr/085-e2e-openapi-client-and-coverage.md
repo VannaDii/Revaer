@@ -1,0 +1,51 @@
+# 085 - E2E OpenAPI Client and Unified Coverage
+
+- Status: Accepted
+- Date: 2026-01-16
+- Context:
+  - What problem are we solving?
+    - E2E runs overwrote reports and did not enforce full API/UI surface coverage.
+    - API E2E tests needed a generated TypeScript client based on the OpenAPI spec.
+  - What constraints or forces shape the decision?
+    - Use a single Playwright execution with one final report.
+    - Use a maintained generator that supports native Node.js fetch.
+    - Keep OpenAPI synchronized with the router surface.
+- Decision:
+  - Summary of the choice made.
+    - Expand OpenAPI coverage to match all router endpoints and generate a typed E2E client via openapi-typescript + openapi-fetch.
+    - Enforce API operation and UI route coverage in the Playwright teardown.
+    - Run API suites for both auth modes in one Playwright run, then UI tests.
+  - Alternatives considered.
+    - OpenAPI Generator CLI (Java) and swagger-typescript-api; rejected due to heavier toolchain and weaker fit for native fetch.
+- Consequences:
+  - Positive outcomes.
+    - Single Playwright report with explicit API/UI coverage enforcement.
+    - Typed API client aligned to OpenAPI for E2E calls.
+  - Risks or trade-offs.
+    - Additional Node dependencies and a stricter coverage gate that must be updated when routes change.
+- Follow-up:
+  - Implementation tasks.
+    - Keep `docs/api/openapi.json` aligned with router updates and regenerate `tests/support/api/schema.ts` as needed.
+    - Update UI route coverage list when new routes are added.
+  - Review checkpoints.
+    - `just ui-e2e` completes with a single report and no missing coverage.
+    - `just ci` passes cleanly.
+
+## Task Record
+
+- Motivation:
+  - Ensure the E2E suites cover the entire API and UI surface in one continuous execution with a single report.
+- Design notes:
+  - Playwright projects now sequence no-auth API coverage ahead of API-key coverage, then UI coverage.
+  - API requests use a generated OpenAPI client with native fetch and a coverage ledger written per project.
+  - UI navigation records route coverage through the shared AppShell helpers.
+- Test coverage summary:
+  - `just ui-e2e` (single Playwright run with API + UI coverage checks).
+- Observability updates:
+  - Coverage artifacts are written to `tests/test-results` for API and UI coverage validation.
+- Risk & rollback plan:
+  - Risk: coverage failures if OpenAPI or UI routes drift.
+  - Rollback: revert Playwright project sequencing and remove coverage enforcement to return to per-suite execution.
+- Dependency rationale:
+  - Added `openapi-typescript` + `openapi-fetch` to generate a typed client backed by native Node.js fetch.
+  - Alternatives considered: OpenAPI Generator CLI (Java) and swagger-typescript-api; both rejected to avoid heavier toolchains and non-fetch defaults.

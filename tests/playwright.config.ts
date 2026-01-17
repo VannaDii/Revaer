@@ -37,7 +37,6 @@ export default defineConfig({
   fullyParallel: true,
   retries,
   workers,
-  globalSetup: './global-setup',
   globalTeardown: './global-teardown',
   expect: {
     timeout: expectTimeout,
@@ -55,18 +54,40 @@ export default defineConfig({
   },
   projects: [
     {
-      name: 'api',
+      name: 'api-none',
       testMatch: /api\/.*\.spec\.ts/,
       use: {
         baseURL: apiBaseURL,
+      },
+      metadata: {
+        authMode: 'none',
+        keepActive: false,
+        coverageFile: 'test-results/api-coverage-api-none.json',
+      },
+      workers: 1,
+    },
+    {
+      name: 'api-api-key',
+      dependencies: ['api-none'],
+      testMatch: /api\/.*\.spec\.ts/,
+      use: {
+        baseURL: apiBaseURL,
+      },
+      metadata: {
+        authMode: 'api_key',
+        keepActive: true,
+        coverageFile: 'test-results/api-coverage-api-key.json',
       },
       workers: 1,
     },
     ...browsers.map((name) => ({
       name: `ui-${name}`,
-      dependencies: ['api'],
+      dependencies: ['api-api-key'],
       testMatch: /ui\/.*\.spec\.ts/,
       use: { browserName: name },
+      metadata: {
+        coverageFile: `test-results/ui-coverage-ui-${name}.json`,
+      },
     })),
   ],
 });

@@ -7,10 +7,10 @@ test.describe('Settings', () => {
     const settings = new SettingsPage(page);
     await settings.expectLoaded();
 
-    await settings.selectTab('Downloads');
-    await settings.expectConfigPlaceholder();
-
-    await settings.selectTab('Network');
-    await settings.expectConfigPlaceholder();
+    const tabs = ['Downloads', 'Seeding', 'Network', 'Storage', 'Labels', 'System'];
+    for (const tab of tabs) {
+      await settings.selectTab(tab);
+      await settings.expectConfigPlaceholder();
+    }
   });
 });
