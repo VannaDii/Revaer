@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Web UI Flows - Revaer Documentation</title>
+        <title>091: Raise per-crate coverage gate to 90% - Revaer Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -177,95 +177,93 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="web-ui-flows-and-diagrams"><a class="header" href="#web-ui-flows-and-diagrams">Web UI Flows and Diagrams</a></h1>
-<p>Visual references for the Phase 1 UX: navigation, component wiring, SSE handling, and torrent lifecycle. Use these diagrams when extending the UI or adding tests.</p>
-<h2 id="navigation-flow"><a class="header" href="#navigation-flow">Navigation flow</a></h2>
-<pre class="mermaid">flowchart LR
-    Nav["Sidebar / Drawer"] --&gt; Dash[Dashboard]
-    Nav --&gt; Torrents[Torrents]
-    Nav --&gt; Logs[Logs]
-    Nav --&gt; Health[Health]
-    Nav --&gt; Settings[Settings]
-    Torrents --&gt; Detail["Detail route /torrents/:id"]
-    Detail --&gt; Overview[Overview]
-    Detail --&gt; Files[Files]
-    Detail --&gt; Options[Options]
-</pre>
-
-<h2 id="component-graph"><a class="header" href="#component-graph">Component graph</a></h2>
-<pre class="mermaid">flowchart TB
-    app["App (RevaerApp)"]
-    shell["AppShell: nav / theme / locale"]
-    dash[Dashboard]
-    torrents["Torrents list + detail"]
-    settings[Settings]
-    logs[Logs]
-    health[Health]
-    api[API]
-
-    app --&gt; shell
-    shell --&gt; dash
-    shell --&gt; torrents
-    shell --&gt; settings
-    shell --&gt; logs
-    shell --&gt; health
-
-    dash -- "GET /v1/dashboard" --&gt; api
-    torrents -- "GET /v1/torrents" --&gt; api
-    torrents -- "GET /v1/torrents/{id}" --&gt; api
-    torrents -- "POST /v1/torrents/{id}/action" --&gt; api
-    torrents -- "PATCH /v1/torrents/{id}/options" --&gt; api
-    torrents -- "POST /v1/torrents/{id}/select" --&gt; api
-    torrents -- "SSE /v1/torrents/events" --&gt; api
-    logs -- "SSE /v1/logs/stream" --&gt; api
-    health -- "GET /health/full" --&gt; api
-</pre>
-
-<h2 id="sse-event-flow"><a class="header" href="#sse-event-flow">SSE event flow</a></h2>
-<pre class="mermaid">sequenceDiagram
-    participant UI as UI
-    participant Fetch as Fetch Stream
-    participant API as API/SSE
-    participant State as Store
-
-    UI-&gt;&gt;Fetch: build URL + headers (x-revaer-api-key, Last-Event-ID)
-    Fetch-&gt;&gt;API: GET /v1/torrents/events (fallback /v1/events/stream)
-    API--&gt;&gt;Fetch: SSE frames
-    Fetch-&gt;&gt;State: parse + batch updates
-    State-&gt;&gt;UI: render list, detail, dashboard, health badges
-    UI-&gt;&gt;Fetch: reconnect with backoff and resume id
-</pre>
-
-<h2 id="torrent-lifecycle-ui-perspective"><a class="header" href="#torrent-lifecycle-ui-perspective">Torrent lifecycle (UI perspective)</a></h2>
-<pre class="mermaid">stateDiagram-v2
-    [*] --&gt; Added : magnet/upload
-    Added --&gt; Queueing : server-side validation
-    Queueing --&gt; Downloading
-    Downloading --&gt; Checking : recheck or hash
-    Downloading --&gt; Completed : 100% + seeding ready
-    Checking --&gt; Downloading : if data matches
-    Completed --&gt; FsOps : move/rename per policy
-    FsOps --&gt; Seeding
-    Seeding --&gt; Completed : ratio met / stop rules
-    Completed --&gt; Removed : delete (+data optional)
-</pre>
-
-<h2 id="interaction-notes"><a class="header" href="#interaction-notes">Interaction notes</a></h2>
+                        <h1 id="091-raise-per-crate-coverage-gate-to-90"><a class="header" href="#091-raise-per-crate-coverage-gate-to-90">091: Raise per-crate coverage gate to 90%</a></h1>
 <ul>
-<li>SSE disconnect overlay shows last event timestamp, retry countdown (1s to 30s exponential with jitter), and diagnostics (auth mode, reason).</li>
-<li>Table virtualization is required beyond 500 rows; virtual scroll must preserve keyboard focus order and pinned columns.</li>
-<li>Mobile detail view uses tabs (Overview, Files, Options); desktop uses a split layout so overview and options stay visible together at lg+.</li>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-17</li>
+<li>Context:
+<ul>
+<li>The workspace coverage gate previously enforced ≥80% line coverage overall, which masked low-coverage crates.</li>
+<li>The requirement is now ≥90% coverage per crate, without test-only code in production modules.</li>
+<li>The gate must remain Justfile-driven and avoid llvm-cov suppression flags.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Update <code>just cov</code> to run <code>cargo llvm-cov</code> per crate and enforce a ≥90% threshold via the Justfile loop.</li>
+<li>Raise the documented coverage requirement in <code>AGENT.md</code> to 90% per crate.</li>
+<li>Add focused unit tests to raise coverage in low-coverage crates (test-support, asset_sync, doc-indexer, CLI, API setup/docs, UI ANSI parsing, libtorrent types).</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Coverage checks now report per-crate deficits with precise percentages.</li>
+<li>The stricter gate currently fails on multiple crates until additional tests are added.</li>
+<li>More test investment is required for large modules (API handlers, config loader, fsops pipeline, app bootstrap).</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Add tests to raise coverage for: <code>revaer-app</code>, <code>revaer-config</code>, <code>revaer-data</code>, <code>revaer-fsops</code>, <code>revaer-api</code>, <code>revaer-ui</code>, <code>revaer-torrent-libt</code>, <code>asset_sync</code>, and <code>revaer-test-support</code>.</li>
+<li>Re-run <code>just cov</code>, then complete the full <code>just ci</code> and <code>just ui-e2e</code> gates.</li>
+</ul>
+</li>
+</ul>
+<h2 id="motivation"><a class="header" href="#motivation">Motivation</a></h2>
+<ul>
+<li>Ensure test coverage reflects real production risk by enforcing ≥90% per crate.</li>
+</ul>
+<h2 id="design-notes"><a class="header" href="#design-notes">Design notes</a></h2>
+<ul>
+<li>Coverage is computed per crate by running <code>cargo llvm-cov --package</code> in a workspace member loop.</li>
+<li>Crates with zero executable lines are treated as 100% covered by <code>llvm-cov</code> for that package.</li>
+</ul>
+<h2 id="test-coverage-summary"><a class="header" href="#test-coverage-summary">Test coverage summary</a></h2>
+<ul>
+<li><code>just cov</code> run on 2026-01-17; coverage gate failed. Current per-crate results:
+<ul>
+<li>revaer-app: 70.71% (1922/2718)</li>
+<li>revaer-test-support: 71.30% (246/345)</li>
+<li>revaer-data: 72.75% (993/1365)</li>
+<li>revaer-config: 75.65% (2775/3668)</li>
+<li>revaer-fsops: 76.15% (1520/1996)</li>
+<li>asset_sync: 79.16% (300/379)</li>
+<li>revaer-ui: 83.82% (1911/2280)</li>
+<li>revaer-api: 84.37% (7539/8936)</li>
+<li>revaer-torrent-libt: 85.38% (2961/3468)</li>
+<li>revaer-cli: 86.51% (2084/2409)</li>
+<li>revaer-doc-indexer: 89.73% (655/730)</li>
+<li>revaer-telemetry: 92.40% (729/789)</li>
+<li>revaer-torrent-core: 94.34% (250/265)</li>
+<li>revaer-api-models: 95.34% (553/580)</li>
+<li>revaer-events: 96.40% (268/278)</li>
+<li>revaer-runtime: 100.00% (0/0)</li>
+</ul>
+</li>
+</ul>
+<h2 id="observability-updates"><a class="header" href="#observability-updates">Observability updates</a></h2>
+<ul>
+<li>None.</li>
+</ul>
+<h2 id="risk--rollback-plan"><a class="header" href="#risk--rollback-plan">Risk &amp; rollback plan</a></h2>
+<ul>
+<li>Risk: CI remains blocked until per-crate coverage is lifted to 90%.</li>
+<li>Rollback: revert the <code>just cov</code> loop and reset the coverage threshold (not recommended unless blocking critical releases).</li>
+</ul>
+<h2 id="dependency-rationale"><a class="header" href="#dependency-rationale">Dependency rationale</a></h2>
+<ul>
+<li>No new dependencies added.</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../ui/index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../adr/090-ui-log-filters-and-shell-controls.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../platform/configuration.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../adr/092-fsops-coverage-hardening.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -275,11 +273,11 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../ui/index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../adr/090-ui-log-filters-and-shell-controls.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../platform/configuration.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../adr/092-fsops-coverage-hardening.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>

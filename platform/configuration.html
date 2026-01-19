@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-7c8c489f.js";
+            window.path_to_searchindex_js = "../searchindex-0a679ffc.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-c8464fcf.js"></script>
+        <script src="../toc-9a2209f2.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -223,6 +223,7 @@
 <tr><td><code>version</code></td><td>integer</td><td>Optimistic locking counter maintained by <code>ConfigService</code>.</td></tr>
 <tr><td><code>http_port</code></td><td>integer</td><td>Published TCP port for the API server.</td></tr>
 <tr><td><code>bind_addr</code></td><td>string (IPv4/IPv6)</td><td>Listen address for the API server.</td></tr>
+<tr><td><code>local_networks</code></td><td>array</td><td>CIDR ranges treated as local for anonymous access and recovery flows.</td></tr>
 <tr><td><code>telemetry</code></td><td>object</td><td>Structured telemetry config (<code>level</code>, <code>format</code>, <code>otel_enabled</code>, <code>otel_service_name</code>, <code>otel_endpoint</code>).</td></tr>
 <tr><td><code>label_policies</code></td><td>array</td><td>Per-category/tag policy overrides (download dir, rate limits, queue position).</td></tr>
 <tr><td><code>immutable_keys</code></td><td>array</td><td>Fields that cannot be mutated via patches (<code>ConfigError::ImmutableField</code>).</td></tr>

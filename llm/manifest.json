@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2026-01-17T02:55:08.163230327+00:00",
+  "generated": "2026-01-19T01:43:07.537070624+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -915,6 +915,92 @@
         "task-record"
       ],
       "href": "/adr/085-e2e-openapi-client-and-coverage/"
+    },
+    {
+      "id": "adr/086-default-local-auth-bypass",
+      "title": "086 - Default Local Auth Bypass (Task Record)",
+      "summary": "Status: Accepted Date: 2026-01-17",
+      "tags": [
+        "consequences",
+        "decision",
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/086-default-local-auth-bypass/"
+    },
+    {
+      "id": "adr/087-local-network-auth-ranges",
+      "title": "Local network auth ranges and settings validation",
+      "summary": "Status: Accepted Date: 2026-01-17 Context: Local auth bypass must work for recovery even when API key state is broken. Local-only checks must handle reverse proxies (k3s/docker) that rewrite the peer IP. Operators need to adjust what counts as local without locking themselves out. Decision: Persist app profile local network CIDRs and enforce them for no-auth and recovery flows. Trust forwarded client IP headers only when the peer is already within a local range. Validate local network updates against the saving client address before applying. Consequences: Anonymous access is now scoped to configured local networks. Factory reset remains possible from local",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/087-local-network-auth-ranges/"
+    },
+    {
+      "id": "adr/088-live-sse-log-streaming",
+      "title": "Live SSE Log Streaming",
+      "summary": "Status: Accepted Date: 2026-01-17 Context: Motivation: remove dummy SSE data, ensure SSE is the single live update channel, and surface recent logs immediately on open. Constraints: keep the log stream lightweight, avoid new dependencies, and respect existing SSE routes. Decision: Summary: drop the dummy SSE stream, retain a rolling two-minute log buffer for SSE snapshots, and add log level filtering + text search in the UI. Design notes: telemetry now snapshots recent log lines, the API chains the snapshot ahead of the live broadcast, and UI log lines track level + receipt time for filtering and pruning. Dependency rationale: no",
+      "tags": [],
+      "href": "/adr/088-live-sse-log-streaming/"
+    },
+    {
+      "id": "adr/089-port-process-termination",
+      "title": "Port process termination for dev tooling",
+      "summary": "Status: Accepted Date: 2026-01-17 Context: What problem are we solving? Port cleanup for 7070/8080 did not verify termination, leaving ports occupied and making dev or E2E startup flaky. What constraints or forces shape the decision? Keep existing tooling, avoid new dependencies, and ensure startup fails fast when ports cannot be freed. Decision: Summary of the choice made. Add a graceful shutdown path that sends SIGTERM, waits briefly, escalates to SIGKILL, and errors if ports remain bound. Alternatives considered. Leave the kill-only behavior or add external tooling/scripts; rejected to avoid new dependencies and extra surface area. Consequences: Positive outcomes. Cleanup is",
+      "tags": [],
+      "href": "/adr/089-port-process-termination/"
+    },
+    {
+      "id": "adr/090-ui-log-filters-and-shell-controls",
+      "title": "UI log filters and shell controls",
+      "summary": "Status: Accepted Date: 2026-01-17 Context: What problem are we solving? The logs screen needs a DaisyUI filter, consistent search affordances, and SSE-level filtering; shell controls need icon-only indicators, consistent flag icons, and no overlapping z-order with sticky action bars. What constraints or forces shape the decision? Keep the existing UI structure, avoid new dependencies, and ensure E2E coverage for regressions. Decision: Summary of the choice made. Replace the log level select with a DaisyUI filter, make the search input a proper daisyUI input with cmd/ctrl+enter hints, move to minimum-level filtering, update shell menus/icons and sidebar controls to icon-only with tooltips,",
+      "tags": [],
+      "href": "/adr/090-ui-log-filters-and-shell-controls/"
+    },
+    {
+      "id": "adr/091-coverage-90-per-crate",
+      "title": "091: Raise per-crate coverage gate to 90%",
+      "summary": "Status: Accepted Date: 2026-01-17 Context: The workspace coverage gate previously enforced ≥80% line coverage overall, which masked low-coverage crates. The requirement is now ≥90% coverage per crate, without test-only code in production modules. The gate must remain Justfile-driven and avoid llvm-cov suppression flags. Decision: Update just cov to run cargo llvm-cov per crate and enforce a ≥90% threshold via the Justfile loop. Raise the documented coverage requirement in AGENT.md to 90% per crate. Add focused unit tests to raise coverage in low-coverage crates (test-support, asset_sync, doc-indexer, CLI, API setup/docs, UI ANSI parsing, libtorrent types). Consequences: Coverage checks now report per-crate",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/091-coverage-90-per-crate/"
+    },
+    {
+      "id": "adr/092-fsops-coverage-hardening",
+      "title": "092: Fsops coverage hardening",
+      "summary": "Status: Accepted Date: 2026-01-17 Context: The workspace requires at least 90% per-crate line coverage (ADR 091). revaer-fsops contained untested branches in pipeline helpers and filesystem routines. Decision: Add targeted unit tests for fsops pipeline steps, rule parsing, and file operations. Keep all test-only logic inside #[cfg(test)] modules. Alternatives considered: integration tests backed by RuntimeStore + database; rejected for higher cost and slower feedback. Consequences: Positive outcomes: Improved coverage and regression protection for fsops edge cases. Risks or trade-offs: Additional filesystem IO during tests; mitigate with temp dirs and deterministic fixtures. Follow-up: Run just cov and just ci to confirm the",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/092-fsops-coverage-hardening/"
+    },
+    {
+      "id": "adr/093-ui-logic-extraction",
+      "title": "UI logic extraction for testable components",
+      "summary": "Status: Accepted Date: 2026-01-17 Context: The UI layer accumulated view-local parsing and formatting logic that was hard to test. Coverage targets require host-testable logic outside Yew components. Decision: Extract feature-specific helpers into logic.rs modules and keep state types in state.rs. Keep view modules focused on rendering and UseStateHandle orchestration. Consequences: Positive outcomes: improved unit test coverage, clearer separation of concerns. Risks or trade-offs: refactor touchpoints may introduce regressions; mitigated with tests. Motivation: Ensure UI logic is reusable, deterministic, and testable without DOM bindings. Design notes: Logic modules stay pure; only view helpers touch Yew handles. Error surfaces avoid unit error",
+      "tags": [],
+      "href": "/adr/093-ui-logic-extraction/"
     },
     {
       "id": "adr/index",

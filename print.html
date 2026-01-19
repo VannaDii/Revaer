@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-7c8c489f.js";
+            window.path_to_searchindex_js = "searchindex-0a679ffc.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-c8464fcf.js"></script>
+        <script src="toc-9a2209f2.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -789,6 +789,7 @@
 <tr><td><code>version</code></td><td>integer</td><td>Optimistic locking counter maintained by <code>ConfigService</code>.</td></tr>
 <tr><td><code>http_port</code></td><td>integer</td><td>Published TCP port for the API server.</td></tr>
 <tr><td><code>bind_addr</code></td><td>string (IPv4/IPv6)</td><td>Listen address for the API server.</td></tr>
+<tr><td><code>local_networks</code></td><td>array</td><td>CIDR ranges treated as local for anonymous access and recovery flows.</td></tr>
 <tr><td><code>telemetry</code></td><td>object</td><td>Structured telemetry config (<code>level</code>, <code>format</code>, <code>otel_enabled</code>, <code>otel_service_name</code>, <code>otel_endpoint</code>).</td></tr>
 <tr><td><code>label_policies</code></td><td>array</td><td>Per-category/tag policy overrides (download dir, rate limits, queue position).</td></tr>
 <tr><td><code>immutable_keys</code></td><td>array</td><td>Fields that cannot be mutated via patches (<code>ConfigError::ImmutableField</code>).</td></tr>
@@ -1323,6 +1324,14 @@ just test-native
 <li><a href="#083---api-preflight-before-ui-e2e-task-record">083</a> – API preflight before UI E2E</li>
 <li><a href="#084-e2e-api-coverage-with-temp-databases">084</a> – E2E API coverage with temp databases</li>
 <li><a href="#085---e2e-openapi-client-and-unified-coverage">085</a> – E2E OpenAPI client and unified coverage</li>
+<li><a href="#086---default-local-auth-bypass-task-record">086</a> – Default local auth bypass</li>
+<li><a href="#local-network-auth-ranges-and-settings-validation">087</a> – Local network auth ranges and settings validation</li>
+<li><a href="#live-sse-log-streaming">088</a> – Live SSE log streaming</li>
+<li><a href="#port-process-termination-for-dev-tooling">089</a> – Port process termination for dev tooling</li>
+<li><a href="#ui-log-filters-and-shell-controls">090</a> – UI log filters and shell controls</li>
+<li><a href="#091-raise-per-crate-coverage-gate-to-90">091</a> – Raise per-crate coverage gate to 90%</li>
+<li><a href="#092-fsops-coverage-hardening">092</a> – Fsops coverage hardening</li>
+<li><a href="#ui-logic-extraction-for-testable-components">093</a> – UI logic extraction for testable components</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 ADR="" Title="" id=""><a class="header" href="#"></a></h1>
@@ -5386,6 +5395,428 @@ satisfy <code>clippy::multiple_crate_versions</code> without introducing git dep
 <ul>
 <li>Added <code>openapi-typescript</code> + <code>openapi-fetch</code> to generate a typed client backed by native Node.js fetch.</li>
 <li>Alternatives considered: OpenAPI Generator CLI (Java) and swagger-typescript-api; both rejected to avoid heavier toolchains and non-fetch defaults.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="086---default-local-auth-bypass-task-record"><a class="header" href="#086---default-local-auth-bypass-task-record">086 - Default Local Auth Bypass (Task Record)</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-17</li>
+</ul>
+<h2 id="motivation-29"><a class="header" href="#motivation-29">Motivation</a></h2>
+<ul>
+<li>Ensure factory reset remains available when configuration data is broken.</li>
+<li>Default new installs to a recoverable auth state without implicit API key setup.</li>
+</ul>
+<h2 id="design-notes-33"><a class="header" href="#design-notes-33">Design Notes</a></h2>
+<ul>
+<li>Switch <code>AppAuthMode</code> default to <code>none</code> and align setup completion fallback.</li>
+<li>Change the <code>app_profile.auth_mode</code> database default to <code>none</code> via migration.</li>
+<li>Make setup helpers send explicit <code>auth_mode</code> values for both auth paths.</li>
+<li>Update reference configuration documentation to match the new default.</li>
+</ul>
+<h2 id="decision-22"><a class="header" href="#decision-22">Decision</a></h2>
+<ul>
+<li>Default auth mode to no-auth in code and migrations, while leaving explicit API key setups unchanged.</li>
+</ul>
+<h2 id="consequences-22"><a class="header" href="#consequences-22">Consequences</a></h2>
+<ul>
+<li>New databases start with no-auth access until setup selects API key mode.</li>
+<li>Existing databases retain their configured auth mode unless reset.</li>
+</ul>
+<h2 id="test-coverage-summary-34"><a class="header" href="#test-coverage-summary-34">Test Coverage Summary</a></h2>
+<ul>
+<li>Existing API/E2E flows cover both auth modes; setup helper now sets auth mode explicitly.</li>
+</ul>
+<h2 id="observability-updates-34"><a class="header" href="#observability-updates-34">Observability Updates</a></h2>
+<ul>
+<li>None.</li>
+</ul>
+<h2 id="risk--rollback-12"><a class="header" href="#risk--rollback-12">Risk &amp; Rollback</a></h2>
+<ul>
+<li>Risk: integrations relying on implicit API key setup must now send <code>auth_mode</code> explicitly.</li>
+<li>Rollback: revert the auth mode defaults and migration; restore previous setup fallback.</li>
+</ul>
+<h2 id="dependency-rationale-34"><a class="header" href="#dependency-rationale-34">Dependency Rationale</a></h2>
+<ul>
+<li>No new dependencies introduced.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="local-network-auth-ranges-and-settings-validation"><a class="header" href="#local-network-auth-ranges-and-settings-validation">Local network auth ranges and settings validation</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-17</li>
+<li>Context:
+<ul>
+<li>Local auth bypass must work for recovery even when API key state is broken.</li>
+<li>Local-only checks must handle reverse proxies (k3s/docker) that rewrite the peer IP.</li>
+<li>Operators need to adjust what counts as local without locking themselves out.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Persist app profile local network CIDRs and enforce them for no-auth and recovery flows.</li>
+<li>Trust forwarded client IP headers only when the peer is already within a local range.</li>
+<li>Validate local network updates against the saving client address before applying.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Anonymous access is now scoped to configured local networks.</li>
+<li>Factory reset remains possible from local clients even when API key inventory queries fail.</li>
+<li>Misconfigured local ranges can block access until corrected or reset.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Keep OpenAPI and UI fields in sync with <code>app_profile.local_networks</code>.</li>
+<li>Monitor any proxy deployments for forwarded header quirks.</li>
+</ul>
+</li>
+</ul>
+<h2 id="motivation-30"><a class="header" href="#motivation-30">Motivation</a></h2>
+<ul>
+<li>Provide a safe recovery path when auth state or API key inventory is broken.</li>
+<li>Allow common local topologies (LAN device -&gt; k3s/docker service) without false negatives.</li>
+<li>Prevent settings updates that would immediately disconnect the caller.</li>
+</ul>
+<h2 id="design-notes-34"><a class="header" href="#design-notes-34">Design notes</a></h2>
+<ul>
+<li>Added <code>app_profile.local_networks</code> as a normalized list of CIDR strings with defaults for
+loopback, RFC1918, and link-local ranges.</li>
+<li>API auth middleware now derives client IP from ConnectInfo and trusted forwarded headers,
+enforcing local-only access for no-auth and factory reset fallbacks.</li>
+<li>Settings patch validates that the updated local network list still includes the caller IP
+before persisting.</li>
+</ul>
+<h2 id="test-coverage-summary-35"><a class="header" href="#test-coverage-summary-35">Test coverage summary</a></h2>
+<ul>
+<li>Auth middleware tests cover anonymous local access, remote rejection, and factory reset
+allowance when API key inventory checks fail.</li>
+<li>Config validation tests cover CIDR normalization and invalid prefixes.</li>
+</ul>
+<h2 id="observability-updates-35"><a class="header" href="#observability-updates-35">Observability updates</a></h2>
+<ul>
+<li>Auth middleware logs when local network parsing fails or when recovery paths are used.</li>
+</ul>
+<h2 id="risk--rollback-plan-22"><a class="header" href="#risk--rollback-plan-22">Risk &amp; rollback plan</a></h2>
+<ul>
+<li>Risk: misconfigured local CIDRs can block anonymous access or factory reset.
+<ul>
+<li>Mitigation: validation rejects updates that exclude the saving client.</li>
+</ul>
+</li>
+<li>Rollback: revert migration 0009 and remove local network enforcement in auth middleware,
+then restore the previous auth behavior.</li>
+</ul>
+<h2 id="dependency-rationale-35"><a class="header" href="#dependency-rationale-35">Dependency rationale</a></h2>
+<ul>
+<li>No new dependencies. CIDR parsing reuses std-based helpers in <code>revaer-config</code>.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="live-sse-log-streaming"><a class="header" href="#live-sse-log-streaming">Live SSE Log Streaming</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-17</li>
+<li>Context:
+<ul>
+<li>Motivation: remove dummy SSE data, ensure SSE is the single live update channel, and surface recent logs immediately on open.</li>
+<li>Constraints: keep the log stream lightweight, avoid new dependencies, and respect existing SSE routes.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Summary: drop the dummy SSE stream, retain a rolling two-minute log buffer for SSE snapshots, and add log level filtering + text search in the UI.</li>
+<li>Design notes: telemetry now snapshots recent log lines, the API chains the snapshot ahead of the live broadcast, and UI log lines track level + receipt time for filtering and pruning.</li>
+<li>Dependency rationale: no new dependencies; reuse existing serde_json parsing in the UI for log level detection.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes: SSE reflects live event data only, logs open with context, and the logs page can filter by level or search text.</li>
+<li>Risks or trade-offs: some log lines may skip buffer storage under contention, and non-drop SSE errors now require manual retry instead of automatic reconnect.</li>
+<li>Risk &amp; rollback plan: revert the log buffer/snapshot changes to restore streaming-only behavior and re-enable auto-reconnect if needed.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks: adjust telemetry buffering, SSE handlers, and logs UI controls with filtering/search state.</li>
+<li>Test coverage summary: added log buffer tests; run <code>just ci</code> and <code>just ui-e2e</code> to validate full coverage.</li>
+<li>Observability updates: log stream now captures a rolling snapshot; SSE status remains visible via existing UI badges.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="port-process-termination-for-dev-tooling"><a class="header" href="#port-process-termination-for-dev-tooling">Port process termination for dev tooling</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-17</li>
+<li>Context:
+<ul>
+<li>What problem are we solving? Port cleanup for 7070/8080 did not verify termination, leaving ports occupied and making dev or E2E startup flaky.</li>
+<li>What constraints or forces shape the decision? Keep existing tooling, avoid new dependencies, and ensure startup fails fast when ports cannot be freed.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Summary of the choice made. Add a graceful shutdown path that sends SIGTERM, waits briefly, escalates to SIGKILL, and errors if ports remain bound.</li>
+<li>Alternatives considered. Leave the kill-only behavior or add external tooling/scripts; rejected to avoid new dependencies and extra surface area.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes. Cleanup is deterministic and failures surface early when ports cannot be reclaimed.</li>
+<li>Risks or trade-offs. Force-kill can terminate unrelated processes on those ports; failures may require manual cleanup before rerun.</li>
+</ul>
+</li>
+<li>Task record:
+<ul>
+<li>Motivation: Ensure port cleanup actually releases 7070/8080 before starting services.</li>
+<li>Design notes: Use lsof PID discovery, SIGTERM with polling, SIGKILL fallback, and a final port-bound check; reuse in <code>just dev</code>.</li>
+<li>Test coverage summary: Covered by <code>just ci</code> and <code>just ui-e2e</code> runs (no direct unit tests).</li>
+<li>Observability updates: Added console messages in <code>just zombies</code> for graceful/force termination.</li>
+<li>Risk &amp; rollback plan: Revert the justfile changes if termination must be non-fatal; manual kill with lsof remains a fallback.</li>
+<li>Dependency rationale: No new dependencies; lsof already assumed by existing recipes.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks. Keep <code>zombies</code> aligned with any future port changes.</li>
+<li>Review checkpoints. Verify <code>just dev</code> and <code>just ui-e2e</code> startup when ports are in use.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="ui-log-filters-and-shell-controls"><a class="header" href="#ui-log-filters-and-shell-controls">UI log filters and shell controls</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-17</li>
+<li>Context:
+<ul>
+<li>What problem are we solving? The logs screen needs a DaisyUI filter, consistent search affordances, and SSE-level filtering; shell controls need icon-only indicators, consistent flag icons, and no overlapping z-order with sticky action bars.</li>
+<li>What constraints or forces shape the decision? Keep the existing UI structure, avoid new dependencies, and ensure E2E coverage for regressions.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Summary of the choice made. Replace the log level select with a DaisyUI filter, make the search input a proper daisyUI input with cmd/ctrl+enter hints, move to minimum-level filtering, update shell menus/icons and sidebar controls to icon-only with tooltips, and remove home/torrents breadcrumbs.</li>
+<li>Alternatives considered. Keep the select-based filter and add new i18n keys across locales; rejected to avoid translation churn and align with DaisyUI components.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes. Log filtering matches severity expectations, UI controls are more compact, and dropdowns no longer hide behind sticky action bars.</li>
+<li>Risks or trade-offs. Icon-only controls rely on tooltips for clarity; any tooltip styling changes must preserve accessibility.</li>
+</ul>
+</li>
+<li>Task record:
+<ul>
+<li>Motivation: Align log filtering with DaisyUI and ensure shell controls remain stable across layout changes.</li>
+<li>Design notes: Use DaisyUI filter inputs with severity thresholds; add search hint kbd labels; raise dropdown z-index; remove breadcrumb headers; keep icons/titles for accessibility.</li>
+<li>Test coverage summary: Updated Playwright UI specs for logs filter/search, topbar icons, locale flags, breadcrumbs, and dropdown stacking.</li>
+<li>Observability updates: None.</li>
+<li>Risk &amp; rollback plan: Revert the UI component changes and E2E assertions if layouts regress; fallback to prior select-based filter is isolated to logs view.</li>
+<li>Dependency rationale: No new dependencies added.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks. Keep locale flags and icon-only controls consistent across future shell revisions.</li>
+<li>Review checkpoints. Verify log filtering and dropdown stacking in UI E2E runs.</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="091-raise-per-crate-coverage-gate-to-90"><a class="header" href="#091-raise-per-crate-coverage-gate-to-90">091: Raise per-crate coverage gate to 90%</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-17</li>
+<li>Context:
+<ul>
+<li>The workspace coverage gate previously enforced ≥80% line coverage overall, which masked low-coverage crates.</li>
+<li>The requirement is now ≥90% coverage per crate, without test-only code in production modules.</li>
+<li>The gate must remain Justfile-driven and avoid llvm-cov suppression flags.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Update <code>just cov</code> to run <code>cargo llvm-cov</code> per crate and enforce a ≥90% threshold via the Justfile loop.</li>
+<li>Raise the documented coverage requirement in <code>AGENT.md</code> to 90% per crate.</li>
+<li>Add focused unit tests to raise coverage in low-coverage crates (test-support, asset_sync, doc-indexer, CLI, API setup/docs, UI ANSI parsing, libtorrent types).</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Coverage checks now report per-crate deficits with precise percentages.</li>
+<li>The stricter gate currently fails on multiple crates until additional tests are added.</li>
+<li>More test investment is required for large modules (API handlers, config loader, fsops pipeline, app bootstrap).</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Add tests to raise coverage for: <code>revaer-app</code>, <code>revaer-config</code>, <code>revaer-data</code>, <code>revaer-fsops</code>, <code>revaer-api</code>, <code>revaer-ui</code>, <code>revaer-torrent-libt</code>, <code>asset_sync</code>, and <code>revaer-test-support</code>.</li>
+<li>Re-run <code>just cov</code>, then complete the full <code>just ci</code> and <code>just ui-e2e</code> gates.</li>
+</ul>
+</li>
+</ul>
+<h2 id="motivation-31"><a class="header" href="#motivation-31">Motivation</a></h2>
+<ul>
+<li>Ensure test coverage reflects real production risk by enforcing ≥90% per crate.</li>
+</ul>
+<h2 id="design-notes-35"><a class="header" href="#design-notes-35">Design notes</a></h2>
+<ul>
+<li>Coverage is computed per crate by running <code>cargo llvm-cov --package</code> in a workspace member loop.</li>
+<li>Crates with zero executable lines are treated as 100% covered by <code>llvm-cov</code> for that package.</li>
+</ul>
+<h2 id="test-coverage-summary-36"><a class="header" href="#test-coverage-summary-36">Test coverage summary</a></h2>
+<ul>
+<li><code>just cov</code> run on 2026-01-17; coverage gate failed. Current per-crate results:
+<ul>
+<li>revaer-app: 70.71% (1922/2718)</li>
+<li>revaer-test-support: 71.30% (246/345)</li>
+<li>revaer-data: 72.75% (993/1365)</li>
+<li>revaer-config: 75.65% (2775/3668)</li>
+<li>revaer-fsops: 76.15% (1520/1996)</li>
+<li>asset_sync: 79.16% (300/379)</li>
+<li>revaer-ui: 83.82% (1911/2280)</li>
+<li>revaer-api: 84.37% (7539/8936)</li>
+<li>revaer-torrent-libt: 85.38% (2961/3468)</li>
+<li>revaer-cli: 86.51% (2084/2409)</li>
+<li>revaer-doc-indexer: 89.73% (655/730)</li>
+<li>revaer-telemetry: 92.40% (729/789)</li>
+<li>revaer-torrent-core: 94.34% (250/265)</li>
+<li>revaer-api-models: 95.34% (553/580)</li>
+<li>revaer-events: 96.40% (268/278)</li>
+<li>revaer-runtime: 100.00% (0/0)</li>
+</ul>
+</li>
+</ul>
+<h2 id="observability-updates-36"><a class="header" href="#observability-updates-36">Observability updates</a></h2>
+<ul>
+<li>None.</li>
+</ul>
+<h2 id="risk--rollback-plan-23"><a class="header" href="#risk--rollback-plan-23">Risk &amp; rollback plan</a></h2>
+<ul>
+<li>Risk: CI remains blocked until per-crate coverage is lifted to 90%.</li>
+<li>Rollback: revert the <code>just cov</code> loop and reset the coverage threshold (not recommended unless blocking critical releases).</li>
+</ul>
+<h2 id="dependency-rationale-36"><a class="header" href="#dependency-rationale-36">Dependency rationale</a></h2>
+<ul>
+<li>No new dependencies added.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="092-fsops-coverage-hardening"><a class="header" href="#092-fsops-coverage-hardening">092: Fsops coverage hardening</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-17</li>
+<li>Context:
+<ul>
+<li>The workspace requires at least 90% per-crate line coverage (ADR 091).</li>
+<li><code>revaer-fsops</code> contained untested branches in pipeline helpers and filesystem routines.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Add targeted unit tests for fsops pipeline steps, rule parsing, and file operations.</li>
+<li>Keep all test-only logic inside <code>#[cfg(test)]</code> modules.</li>
+<li>Alternatives considered: integration tests backed by <code>RuntimeStore</code> + database; rejected for higher cost and slower feedback.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li>Improved coverage and regression protection for fsops edge cases.</li>
+</ul>
+</li>
+<li>Risks or trade-offs:
+<ul>
+<li>Additional filesystem IO during tests; mitigate with temp dirs and deterministic fixtures.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Run <code>just cov</code> and <code>just ci</code> to confirm the per-crate gate.</li>
+<li>Watch for platform-specific permission semantics in CI.</li>
+</ul>
+</li>
+</ul>
+<h2 id="motivation-32"><a class="header" href="#motivation-32">Motivation</a></h2>
+<p>Raise <code>revaer-fsops</code> coverage to meet the 90% per-crate gate while strengthening confidence in filesystem post-processing edge cases.</p>
+<h2 id="design-notes-36"><a class="header" href="#design-notes-36">Design notes</a></h2>
+<ul>
+<li>Exercise both happy-path and skip/error branches without introducing production-only hooks.</li>
+<li>Favor direct unit tests of helper functions to keep the tests fast and deterministic.</li>
+</ul>
+<h2 id="test-coverage-summary-37"><a class="header" href="#test-coverage-summary-37">Test coverage summary</a></h2>
+<ul>
+<li>Added unit tests for meta initialization, allowlist enforcement, glob parsing errors, archive extension checks, step short-circuiting, and file operation paths.</li>
+<li>Added permission/ownership tests for unix targets to cover <code>apply_permissions</code>, <code>resolve_owner</code>, and <code>resolve_group</code>.</li>
+</ul>
+<h2 id="observability-updates-37"><a class="header" href="#observability-updates-37">Observability updates</a></h2>
+<p>None; no runtime behavior changes.</p>
+<h2 id="risk--rollback-plan-24"><a class="header" href="#risk--rollback-plan-24">Risk &amp; rollback plan</a></h2>
+<ul>
+<li>Risk: file-permission tests may behave differently on non-unix systems.</li>
+<li>Rollback: revert the added tests and rework with platform guards if CI shows instability.</li>
+</ul>
+<h2 id="dependency-rationale-37"><a class="header" href="#dependency-rationale-37">Dependency rationale</a></h2>
+<p>No new dependencies added. Alternative considered: integration coverage via database-backed runtime store, rejected due to setup overhead.</p>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="ui-logic-extraction-for-testable-components"><a class="header" href="#ui-logic-extraction-for-testable-components">UI logic extraction for testable components</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-17</li>
+<li>Context:
+<ul>
+<li>The UI layer accumulated view-local parsing and formatting logic that was hard to test.</li>
+<li>Coverage targets require host-testable logic outside Yew components.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Extract feature-specific helpers into <code>logic.rs</code> modules and keep state types in <code>state.rs</code>.</li>
+<li>Keep view modules focused on rendering and <code>UseStateHandle</code> orchestration.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes: improved unit test coverage, clearer separation of concerns.</li>
+<li>Risks or trade-offs: refactor touchpoints may introduce regressions; mitigated with tests.</li>
+</ul>
+</li>
+<li>Motivation:
+<ul>
+<li>Ensure UI logic is reusable, deterministic, and testable without DOM bindings.</li>
+</ul>
+</li>
+<li>Design notes:
+<ul>
+<li>Logic modules stay pure; only view helpers touch Yew handles.</li>
+<li>Error surfaces avoid unit error types and return typed results where parsing can fail.</li>
+</ul>
+</li>
+<li>Test coverage summary:
+<ul>
+<li>Added unit tests for newly extracted helpers in each UI feature slice.</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>None (UI-only refactor with no telemetry changes).</li>
+</ul>
+</li>
+<li>Risk &amp; rollback plan:
+<ul>
+<li>If regressions appear, revert to the previous view-local helpers and reapply incrementally.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No new dependencies; reused existing crates and standard library helpers.</li>
 </ul>
 </li>
 </ul>

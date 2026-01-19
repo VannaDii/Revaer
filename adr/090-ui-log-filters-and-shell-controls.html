@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>Web UI Flows - Revaer Documentation</title>
+        <title>090: UI log filters and shell controls - Revaer Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -177,95 +177,55 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="web-ui-flows-and-diagrams"><a class="header" href="#web-ui-flows-and-diagrams">Web UI Flows and Diagrams</a></h1>
-<p>Visual references for the Phase 1 UX: navigation, component wiring, SSE handling, and torrent lifecycle. Use these diagrams when extending the UI or adding tests.</p>
-<h2 id="navigation-flow"><a class="header" href="#navigation-flow">Navigation flow</a></h2>
-<pre class="mermaid">flowchart LR
-    Nav["Sidebar / Drawer"] --&gt; Dash[Dashboard]
-    Nav --&gt; Torrents[Torrents]
-    Nav --&gt; Logs[Logs]
-    Nav --&gt; Health[Health]
-    Nav --&gt; Settings[Settings]
-    Torrents --&gt; Detail["Detail route /torrents/:id"]
-    Detail --&gt; Overview[Overview]
-    Detail --&gt; Files[Files]
-    Detail --&gt; Options[Options]
-</pre>
-
-<h2 id="component-graph"><a class="header" href="#component-graph">Component graph</a></h2>
-<pre class="mermaid">flowchart TB
-    app["App (RevaerApp)"]
-    shell["AppShell: nav / theme / locale"]
-    dash[Dashboard]
-    torrents["Torrents list + detail"]
-    settings[Settings]
-    logs[Logs]
-    health[Health]
-    api[API]
-
-    app --&gt; shell
-    shell --&gt; dash
-    shell --&gt; torrents
-    shell --&gt; settings
-    shell --&gt; logs
-    shell --&gt; health
-
-    dash -- "GET /v1/dashboard" --&gt; api
-    torrents -- "GET /v1/torrents" --&gt; api
-    torrents -- "GET /v1/torrents/{id}" --&gt; api
-    torrents -- "POST /v1/torrents/{id}/action" --&gt; api
-    torrents -- "PATCH /v1/torrents/{id}/options" --&gt; api
-    torrents -- "POST /v1/torrents/{id}/select" --&gt; api
-    torrents -- "SSE /v1/torrents/events" --&gt; api
-    logs -- "SSE /v1/logs/stream" --&gt; api
-    health -- "GET /health/full" --&gt; api
-</pre>
-
-<h2 id="sse-event-flow"><a class="header" href="#sse-event-flow">SSE event flow</a></h2>
-<pre class="mermaid">sequenceDiagram
-    participant UI as UI
-    participant Fetch as Fetch Stream
-    participant API as API/SSE
-    participant State as Store
-
-    UI-&gt;&gt;Fetch: build URL + headers (x-revaer-api-key, Last-Event-ID)
-    Fetch-&gt;&gt;API: GET /v1/torrents/events (fallback /v1/events/stream)
-    API--&gt;&gt;Fetch: SSE frames
-    Fetch-&gt;&gt;State: parse + batch updates
-    State-&gt;&gt;UI: render list, detail, dashboard, health badges
-    UI-&gt;&gt;Fetch: reconnect with backoff and resume id
-</pre>
-
-<h2 id="torrent-lifecycle-ui-perspective"><a class="header" href="#torrent-lifecycle-ui-perspective">Torrent lifecycle (UI perspective)</a></h2>
-<pre class="mermaid">stateDiagram-v2
-    [*] --&gt; Added : magnet/upload
-    Added --&gt; Queueing : server-side validation
-    Queueing --&gt; Downloading
-    Downloading --&gt; Checking : recheck or hash
-    Downloading --&gt; Completed : 100% + seeding ready
-    Checking --&gt; Downloading : if data matches
-    Completed --&gt; FsOps : move/rename per policy
-    FsOps --&gt; Seeding
-    Seeding --&gt; Completed : ratio met / stop rules
-    Completed --&gt; Removed : delete (+data optional)
-</pre>
-
-<h2 id="interaction-notes"><a class="header" href="#interaction-notes">Interaction notes</a></h2>
+                        <h1 id="ui-log-filters-and-shell-controls"><a class="header" href="#ui-log-filters-and-shell-controls">UI log filters and shell controls</a></h1>
 <ul>
-<li>SSE disconnect overlay shows last event timestamp, retry countdown (1s to 30s exponential with jitter), and diagnostics (auth mode, reason).</li>
-<li>Table virtualization is required beyond 500 rows; virtual scroll must preserve keyboard focus order and pinned columns.</li>
-<li>Mobile detail view uses tabs (Overview, Files, Options); desktop uses a split layout so overview and options stay visible together at lg+.</li>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-17</li>
+<li>Context:
+<ul>
+<li>What problem are we solving? The logs screen needs a DaisyUI filter, consistent search affordances, and SSE-level filtering; shell controls need icon-only indicators, consistent flag icons, and no overlapping z-order with sticky action bars.</li>
+<li>What constraints or forces shape the decision? Keep the existing UI structure, avoid new dependencies, and ensure E2E coverage for regressions.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Summary of the choice made. Replace the log level select with a DaisyUI filter, make the search input a proper daisyUI input with cmd/ctrl+enter hints, move to minimum-level filtering, update shell menus/icons and sidebar controls to icon-only with tooltips, and remove home/torrents breadcrumbs.</li>
+<li>Alternatives considered. Keep the select-based filter and add new i18n keys across locales; rejected to avoid translation churn and align with DaisyUI components.</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes. Log filtering matches severity expectations, UI controls are more compact, and dropdowns no longer hide behind sticky action bars.</li>
+<li>Risks or trade-offs. Icon-only controls rely on tooltips for clarity; any tooltip styling changes must preserve accessibility.</li>
+</ul>
+</li>
+<li>Task record:
+<ul>
+<li>Motivation: Align log filtering with DaisyUI and ensure shell controls remain stable across layout changes.</li>
+<li>Design notes: Use DaisyUI filter inputs with severity thresholds; add search hint kbd labels; raise dropdown z-index; remove breadcrumb headers; keep icons/titles for accessibility.</li>
+<li>Test coverage summary: Updated Playwright UI specs for logs filter/search, topbar icons, locale flags, breadcrumbs, and dropdown stacking.</li>
+<li>Observability updates: None.</li>
+<li>Risk &amp; rollback plan: Revert the UI component changes and E2E assertions if layouts regress; fallback to prior select-based filter is isolated to logs view.</li>
+<li>Dependency rationale: No new dependencies added.</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks. Keep locale flags and icon-only controls consistent across future shell revisions.</li>
+<li>Review checkpoints. Verify log filtering and dropdown stacking in UI E2E runs.</li>
+</ul>
+</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../ui/index.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../adr/089-port-process-termination.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../platform/configuration.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="../adr/091-coverage-90-per-crate.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -275,11 +235,11 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../ui/index.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../adr/089-port-process-termination.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../platform/configuration.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="../adr/091-coverage-90-per-crate.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
