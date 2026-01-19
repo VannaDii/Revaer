@@ -83,8 +83,9 @@ export const test = base.extend<ApiFixtures & CoverageFixture>({
     const headers = session.apiKey ? { 'x-revaer-api-key': session.apiKey } : undefined;
     await use(createApiClient({ baseUrl, headers }));
   },
-  publicApi: async ({}, use, testInfo) => {
+  publicApi: async ({ session }, use, testInfo) => {
     const baseUrl = resolveBaseUrl(testInfo);
+    void session;
     await use(createApiClient({ baseUrl }));
   },
 });

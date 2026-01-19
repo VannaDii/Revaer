@@ -51,6 +51,7 @@ export default async function globalSetup(): Promise<void> {
       'postgres://revaer:revaer@localhost:5432/postgres';
     const dbPrefix = process.env.E2E_DB_PREFIX ?? 'revaer_e2e';
     const fsRoot = process.env.E2E_FS_ROOT ?? root;
+    const resolvedFsRoot = path.isAbsolute(fsRoot) ? fsRoot : path.resolve(root, fsRoot);
 
     process.env.E2E_API_BASE_URL = apiBaseUrl;
     process.env.E2E_BASE_URL = baseUrl;
@@ -61,6 +62,7 @@ export default async function globalSetup(): Promise<void> {
     stopDevServers();
     await requirePortFree(7070);
     await requirePortFree(8080);
+    fs.mkdirSync(resolvedFsRoot, { recursive: true });
 
     const adminUrl = await resolveAdminUrl(dbAdminUrl);
     const adminHost = urlParts(adminUrl).host;
