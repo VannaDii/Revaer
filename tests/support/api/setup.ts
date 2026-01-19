@@ -1,6 +1,6 @@
 import { authHeaders, setupHeaders } from '../headers';
 import type { ApiSession, AuthMode } from '../session';
-import { createApiClient } from './client';
+import { createApiClient, type ApiClient } from './client';
 
 type SetupOptions = {
   baseUrl: string;
@@ -20,22 +20,49 @@ type WellKnownSnapshot = {
   app_profile?: Record<string, unknown>;
 };
 
-function assertHealthy(response: Response, body?: HealthResponse): void {
+function parseHealthMode(response: Response, body?: HealthResponse): string {
   if (!response.ok) {
     throw new Error(`Health check failed with ${response.status}.`);
   }
-  if (body?.mode !== 'setup') {
-    throw new Error(
-      `Expected setup mode before configuring auth; got ${body?.mode ?? 'unknown'}.`,
-    );
+  const mode = body?.mode;
+  if (!mode) {
+    throw new Error('Health check missing mode in response.');
   }
+  return mode;
+}
+
+function assertSetupMode(mode: string, context: string): void {
+  if (mode !== 'setup') {
+    throw new Error(`Expected setup mode ${context}; got ${mode}.`);
+  }
+}
+
+async function ensureSetupMode(client: ApiClient): Promise<void> {
+  const health = await client.GET('/health');
+  const mode = parseHealthMode(health.response, health.data as HealthResponse | undefined);
+  if (mode === 'setup') {
+    return;
+  }
+
+  const reset = await client.POST('/admin/factory-reset', {
+    body: { confirm: 'factory reset' },
+  });
+  if (reset.response.status !== 204) {
+    throw new Error(`Factory reset failed with ${reset.response.status}.`);
+  }
+
+  const healthAfter = await client.GET('/health');
+  const resetMode = parseHealthMode(
+    healthAfter.response,
+    healthAfter.data as HealthResponse | undefined,
+  );
+  assertSetupMode(resetMode, 'after factory reset');
 }
 
 export async function configureAuthMode(options: SetupOptions): Promise<ApiSession> {
   const publicClient = createApiClient({ baseUrl: options.baseUrl });
 
-  const health = await publicClient.GET('/health');
-  assertHealthy(health.response, health.data as HealthResponse | undefined);
+  await ensureSetupMode(publicClient);
 
   const setupStart = await publicClient.POST('/admin/setup/start', { body: {} });
   if (!setupStart.response.ok || !setupStart.data?.token) {

@@ -2,7 +2,7 @@ import { test as base, expect, type TestInfo } from '@playwright/test';
 import path from 'path';
 import { createApiClient, type ApiClient } from '../support/api/client';
 import { setApiCoveragePath } from '../support/api/coverage';
-import { configureAuthMode, factoryReset } from '../support/api/setup';
+import { configureAuthMode } from '../support/api/setup';
 import type { ApiSession, AuthMode } from '../support/session';
 
 type ApiFixtures = {
@@ -39,11 +39,6 @@ function projectCoveragePath(testInfo: TestInfo): string | undefined {
   return path.resolve(__dirname, '..', metadata.coverageFile);
 }
 
-function projectKeepActive(testInfo: TestInfo): boolean {
-  const metadata = testInfo.project.metadata as { keepActive?: boolean };
-  return Boolean(metadata?.keepActive);
-}
-
 function withWorkerSuffix(filePath: string, workerIndex: number): string {
   const parsed = path.parse(filePath);
   const suffix = `worker-${workerIndex}`;
@@ -68,13 +63,7 @@ export const test = base.extend<ApiFixtures & CoverageFixture>({
       const baseUrl = resolveBaseUrl(testInfo);
       const authMode = projectAuthMode(testInfo);
       const session = await configureAuthMode({ baseUrl, authMode });
-      try {
-        await use(session);
-      } finally {
-        if (!projectKeepActive(testInfo)) {
-          await factoryReset({ baseUrl, session });
-        }
-      }
+      await use(session);
     },
     { scope: 'worker' },
   ],
