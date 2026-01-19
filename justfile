@@ -212,7 +212,11 @@ ui-build: sync-assets
 ui-e2e:
     cd tests && npm install
     cd tests && npm run gen:api-client
-    cd tests && npx playwright install
+    if [ "${CI:-}" = "true" ]; then \
+        cd tests && npx playwright install --with-deps; \
+    else \
+        cd tests && npx playwright install; \
+    fi
     cd tests && npx playwright test
 
 zombies:
@@ -245,7 +249,19 @@ zombies:
 dev: sync-assets
     just db-start
     db_url="${DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"; \
-    just zombies; \
+    check_port_free() { \
+        port="$1"; \
+        name="$2"; \
+        if [ "${DEV_SKIP_PORT_CHECK:-0}" = "1" ]; then \
+            return 0; \
+        fi; \
+        if (echo >/dev/tcp/127.0.0.1/"${port}") >/dev/null 2>&1; then \
+            echo "${name} port ${port} is already in use. Stop the existing service or set DEV_SKIP_PORT_CHECK=1 to skip." >&2; \
+            return 1; \
+        fi; \
+    }; \
+    check_port_free 7070 "API"; \
+    check_port_free 8080 "UI"; \
     if ! command -v cargo-watch >/dev/null 2>&1; then \
         cargo install cargo-watch; \
     fi; \
@@ -263,7 +279,62 @@ dev: sync-assets
     mkdir -p crates/revaer-ui/dist-serve/.stage; \
     ( cd crates/revaer-ui && DATABASE_URL="${db_url}" RUST_LOG=${RUST_LOG:-info} NO_COLOR=true trunk serve --dist dist-serve ) & \
     ui_pid=$!; \
-    trap 'kill -0 $api_pid 2>/dev/null && kill $api_pid; kill -0 $ui_pid 2>/dev/null && kill $ui_pid' EXIT; \
+    terminate_pid() { \
+        pid="$1"; \
+        if [ -z "$pid" ]; then \
+            return 0; \
+        fi; \
+        if ! kill -0 "$pid" 2>/dev/null; then \
+            return 0; \
+        fi; \
+        kill "$pid" 2>/dev/null || true; \
+        for _ in $(seq 1 25); do \
+            if ! kill -0 "$pid" 2>/dev/null; then \
+                return 0; \
+            fi; \
+            sleep 0.2; \
+        done; \
+        kill -9 "$pid" 2>/dev/null || true; \
+    }; \
+    kill_tree() { \
+        pid="$1"; \
+        if [ -z "$pid" ]; then \
+            return 0; \
+        fi; \
+        children="$(ps -o pid= --ppid "$pid" 2>/dev/null || true)"; \
+        for child in $children; do \
+            kill_tree "$child"; \
+        done; \
+        terminate_pid "$pid"; \
+    }; \
+    cleanup_dev() { \
+        trap - EXIT INT TERM; \
+        kill_tree "$api_pid"; \
+        kill_tree "$ui_pid"; \
+    }; \
+    trap cleanup_dev EXIT INT TERM; \
+    wait_for_port() { \
+        port="$1"; \
+        name="$2"; \
+        pid="$3"; \
+        timeout="${DEV_STARTUP_TIMEOUT:-180}"; \
+        deadline=$((SECONDS + timeout)); \
+        while [ "$SECONDS" -lt "$deadline" ]; do \
+            if ! kill -0 "$pid" 2>/dev/null; then \
+                echo "${name} exited before it opened port ${port}" >&2; \
+                return 1; \
+            fi; \
+            if (echo >/dev/tcp/127.0.0.1/"${port}") >/dev/null 2>&1; then \
+                return 0; \
+            fi; \
+            sleep 0.2; \
+        done; \
+        echo "Timed out waiting for ${name} to listen on port ${port}" >&2; \
+        return 1; \
+    }; \
+    echo "Waiting for API (7070) and UI (8080) to start..."; \
+    wait_for_port 7070 "API" "$api_pid"; \
+    wait_for_port 8080 "Trunk" "$ui_pid"; \
     wait $api_pid $ui_pid
 
 docs-install:

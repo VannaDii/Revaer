@@ -274,12 +274,6 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libtorrent-rasterbar-dev pkg-config libpq-dev postgresql-client
 
-      - name: Install Playwright dependencies
-        run: |
-          cd tests
-          npm install
-          npx playwright install --with-deps
-
       - name: UI E2E
         run: just ui-e2e
 

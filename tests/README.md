@@ -27,3 +27,6 @@ just ui-e2e
 - `E2E_DB_PREFIX`: prefix for temp DB names.
 - `E2E_FS_ROOT`: filesystem root used by `/v1/fs/browse` and torrent authoring tests (relative paths resolve against the repo root; default is the repo root).
 - `E2E_BROWSERS`: UI browser list (`chromium`, `firefox`, `webkit`).
+- `E2E_HTTP_WAIT_SECONDS`: max seconds to wait for API/UI to respond during global setup (default 120).
+- `E2E_HTTP_WAIT_INTERVAL_MS`: polling interval for HTTP readiness checks (default 500).
+- `E2E_HTTP_WAIT_ATTEMPTS`: explicit number of readiness attempts (overrides `E2E_HTTP_WAIT_SECONDS`).

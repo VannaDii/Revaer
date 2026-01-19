@@ -20,6 +20,11 @@ type ProcessInfo = {
   logPath: string;
 };
 
+type HttpWaitConfig = {
+  attempts: number;
+  intervalMs: number;
+};
+
 const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', 'host.docker.internal']);
 
 const STOP_PATTERNS = [
@@ -85,7 +90,8 @@ export default async function globalSetup(): Promise<void> {
     writeState({ apiPid: apiProcess.pid, dbUrl: activeDbUrl });
 
     assertApiDb(apiProcess.pid, activeDbUrl);
-    await waitForHttp(`${apiBaseUrl}/health`, 80);
+    const httpWait = httpWaitConfig();
+    await waitForHttp(`${apiBaseUrl}/health`, httpWait, apiProcess, 'API');
     assertApiListener(apiProcess.pid, 7070);
 
     runCommand('just', ['sync-assets'], { cwd: root });
@@ -93,6 +99,9 @@ export default async function globalSetup(): Promise<void> {
     if (!commandExists('trunk')) {
       runCommand('cargo', ['install', 'trunk'], { cwd: root });
     }
+    fs.mkdirSync(path.join(root, 'crates', 'revaer-ui', 'dist-serve', '.stage'), {
+      recursive: true,
+    });
 
     const uiProcess = spawnLogged(
       'trunk',
@@ -109,7 +118,7 @@ export default async function globalSetup(): Promise<void> {
       },
     );
 
-    await waitForHttp(baseUrl, 80);
+    await waitForHttp(baseUrl, httpWait, uiProcess, 'UI');
 
     writeState({ apiPid: apiProcess.pid, uiPid: uiProcess.pid, dbUrl: activeDbUrl });
   } catch (error) {
@@ -335,14 +344,26 @@ function readCommand(pid: number): string {
   }
 }
 
-async function waitForHttp(url: string, attempts: number): Promise<void> {
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
+async function waitForHttp(
+  url: string,
+  config: HttpWaitConfig,
+  processInfo?: ProcessInfo,
+  label?: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < config.attempts; attempt += 1) {
     if (await httpReady(url)) {
       return;
     }
-    await delay(500);
+    if (processInfo && !isPidAlive(processInfo.pid)) {
+      const name = label ?? 'Process';
+      throw new Error(
+        `${name} (pid ${processInfo.pid}) exited before ${url} was ready. Check ${processInfo.logPath}.`,
+      );
+    }
+    await delay(config.intervalMs);
   }
-  throw new Error(`Timed out waiting for ${url}`);
+  const logHint = processInfo ? ` Check ${processInfo.logPath}.` : '';
+  throw new Error(`Timed out waiting for ${url}.${logHint}`);
 }
 
 async function httpReady(url: string): Promise<boolean> {
@@ -373,6 +394,38 @@ async function httpReady(url: string): Promise<boolean> {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parsePositiveInt(value: string | undefined): number | null {
+  if (!value) {
+    return null;
+  }
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return null;
+  }
+  return parsed;
+}
+
+function httpWaitConfig(): HttpWaitConfig {
+  const intervalMs = parsePositiveInt(process.env.E2E_HTTP_WAIT_INTERVAL_MS) ?? 500;
+  const attemptsOverride = parsePositiveInt(process.env.E2E_HTTP_WAIT_ATTEMPTS);
+  if (attemptsOverride) {
+    return { attempts: attemptsOverride, intervalMs };
+  }
+  const waitSeconds = parsePositiveInt(process.env.E2E_HTTP_WAIT_SECONDS) ?? 120;
+  const attempts = Math.max(1, Math.ceil((waitSeconds * 1000) / intervalMs));
+  return { attempts, intervalMs };
+}
+
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    const code = typeof error === 'object' && error ? (error as NodeJS.ErrnoException).code : undefined;
+    return code === 'EPERM';
+  }
 }
 
 async function createTempDb(adminUrl: string, prefix: string, root: string): Promise<string> {
