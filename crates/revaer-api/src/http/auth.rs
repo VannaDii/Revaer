@@ -23,7 +23,7 @@ use crate::http::settings::invalid_params_for_config_error;
 #[cfg(test)]
 mod tests {
     use super::*;
-    use anyhow::Result;
+    use anyhow::{Result, anyhow};
     use async_trait::async_trait;
     use axum::{
         Router,
@@ -489,6 +489,92 @@ mod tests {
         let response = app.oneshot(request).await?;
         assert_eq!(response.status(), StatusCode::OK);
         Ok(())
+    }
+
+    #[test]
+    fn extract_api_key_prefers_primary_header() -> Result<()> {
+        let request = Request::builder()
+            .uri("/?api_key=query")
+            .header(HEADER_API_KEY_LEGACY, "legacy")
+            .header(HEADER_API_KEY, "primary")
+            .body(Body::empty())?;
+        assert_eq!(extract_api_key(&request), Some("primary".to_string()));
+        Ok(())
+    }
+
+    #[test]
+    fn extract_api_key_reads_query_param_when_headers_missing() -> Result<()> {
+        let request = Request::builder()
+            .uri("/?api_key=query-value")
+            .body(Body::empty())?;
+        assert_eq!(extract_api_key(&request), Some("query-value".to_string()));
+        Ok(())
+    }
+
+    #[test]
+    fn extract_api_key_ignores_empty_values() -> Result<()> {
+        let request = Request::builder()
+            .uri("/?api_key=")
+            .header(HEADER_API_KEY, "   ")
+            .body(Body::empty())?;
+        assert!(extract_api_key(&request).is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn parse_ip_value_accepts_ipv6_and_socket_address() -> Result<()> {
+        let ipv6 = parse_ip_value("[::1]", "bad ip")?.ok_or_else(|| anyhow!("expected ipv6"))?;
+        assert_eq!(ipv6, IpAddr::V6(std::net::Ipv6Addr::LOCALHOST));
+
+        let sock = parse_ip_value("127.0.0.1:8080", "bad ip")?
+            .ok_or_else(|| anyhow!("expected socket ip"))?;
+        assert_eq!(sock, IpAddr::V4(Ipv4Addr::LOCALHOST));
+        Ok(())
+    }
+
+    #[test]
+    fn parse_forwarded_for_extracts_first_for_token() -> Result<()> {
+        let ip = parse_forwarded_for("for=203.0.113.1;proto=https")?
+            .ok_or_else(|| anyhow!("expected forwarded ip"))?;
+        assert_eq!(ip, "203.0.113.1".parse::<IpAddr>()?);
+        Ok(())
+    }
+
+    #[test]
+    fn client_ip_prefers_forwarded_headers_for_local_peers() -> Result<()> {
+        let local_networks = default_local_network_entries();
+        let mut request = request_with_ip("GET", local_ip())?;
+        request
+            .headers_mut()
+            .insert("x-forwarded-for", HeaderValue::from_static("203.0.113.9"));
+        let client = client_ip_from_request(&request, &local_networks)?;
+        assert_eq!(client.addr(), "203.0.113.9".parse::<IpAddr>()?);
+        Ok(())
+    }
+
+    #[test]
+    fn pointer_for_encodes_special_segments() {
+        let pointer = pointer_for("app/profile", "auth~mode");
+        assert_eq!(pointer, "/app~1profile/auth~0mode");
+    }
+
+    #[test]
+    fn map_config_error_includes_invalid_params() {
+        let err = ConfigError::InvalidField {
+            section: "app_profile".to_string(),
+            field: "auth_mode".to_string(),
+            value: Some("bad".to_string()),
+            reason: "invalid auth mode",
+        };
+        let api_error = map_config_error(&err, "test");
+        assert_eq!(
+            api_error.kind(),
+            crate::http::constants::PROBLEM_CONFIG_INVALID
+        );
+        let params = api_error.invalid_params().expect("expected invalid params");
+        assert_eq!(params.len(), 1);
+        assert_eq!(params[0].pointer, "/app_profile/auth_mode");
+        assert_eq!(params[0].message, "invalid auth mode");
     }
 }
 

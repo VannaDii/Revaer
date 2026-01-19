@@ -119,7 +119,12 @@ pub(crate) struct TelemetryEmitter {
 impl TelemetryEmitter {
     #[must_use]
     pub(crate) fn from_env() -> Option<Self> {
-        let endpoint = std::env::var("REVAER_TELEMETRY_ENDPOINT").ok()?;
+        let endpoint = std::env::var("REVAER_TELEMETRY_ENDPOINT").ok();
+        Self::from_endpoint(endpoint.as_deref())
+    }
+
+    fn from_endpoint(endpoint: Option<&str>) -> Option<Self> {
+        let endpoint = endpoint?;
         let endpoint = endpoint.parse().ok()?;
         let client = Client::builder()
             .timeout(Duration::from_secs(2))
@@ -254,8 +259,10 @@ pub(crate) async fn classify_problem(response: reqwest::Response) -> CliError {
 mod tests {
     use super::*;
     use anyhow::Result;
+    use clap::Parser;
     use httpmock::MockServer;
     use httpmock::prelude::*;
+    use serde_json::json;
 
     #[test]
     fn random_string_produces_expected_length() {
@@ -284,6 +291,80 @@ mod tests {
             .await;
 
         mock.assert();
+        Ok(())
+    }
+
+    #[test]
+    fn api_key_header_value_formats_value() {
+        let credential = ApiKeyCredential {
+            key_id: "key".into(),
+            secret: "secret".into(),
+        };
+        assert_eq!(credential.header_value(), "key:secret");
+    }
+
+    #[test]
+    fn dependencies_reject_invalid_trace_id() {
+        let cli = crate::cli::Cli::parse_from(["revaer", "config", "get"]);
+        let err = CliDependencies::from_env(&cli, "bad\nid")
+            .err()
+            .expect("expected failure");
+        assert!(matches!(err, CliError::Failure(_)));
+        assert!(err.display_message().contains("trace identifier"));
+    }
+
+    #[test]
+    fn telemetry_emitter_from_env_rejects_invalid_url() {
+        let emitter = TelemetryEmitter::from_endpoint(Some("not-a-url"));
+        assert!(emitter.is_none());
+    }
+
+    #[tokio::test]
+    async fn classify_problem_maps_validation_status() -> Result<()> {
+        let server = MockServer::start_async().await;
+        server.mock(|when, then| {
+            when.method(GET).path("/problem");
+            then.status(400).json_body(json!({
+                "type": "about:blank",
+                "title": "Bad Request",
+                "detail": "Missing field",
+                "status": 400
+            }));
+        });
+
+        let response = Client::new()
+            .get(format!("{}/problem", server.base_url()))
+            .send()
+            .await?;
+        let err = classify_problem(response).await;
+        match err {
+            CliError::Validation(message) => assert_eq!(message, "Missing field"),
+            CliError::Failure(_) => panic!("expected validation error"),
+        }
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn classify_problem_formats_failure_without_json() -> Result<()> {
+        let server = MockServer::start_async().await;
+        server.mock(|when, then| {
+            when.method(GET).path("/fail");
+            then.status(500).body("server error");
+        });
+
+        let response = Client::new()
+            .get(format!("{}/fail", server.base_url()))
+            .send()
+            .await?;
+        let err = classify_problem(response).await;
+        match err {
+            CliError::Failure(error) => {
+                let message = error.to_string();
+                assert!(message.contains("server error"));
+                assert!(message.contains("status 500"));
+            }
+            CliError::Validation(_) => panic!("expected failure"),
+        }
         Ok(())
     }
 }

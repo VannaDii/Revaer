@@ -7,6 +7,7 @@
 use crate::core::store::AppStore;
 use crate::core::store::{FullHealthSnapshot, HealthSnapshot};
 use crate::core::store::{HealthMetricsSnapshot, TorrentHealthSnapshot};
+use crate::features::health::logic::status_badge;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use yew::prelude::*;
 use yewdux::prelude::use_selector;
@@ -46,11 +47,6 @@ pub(crate) fn health_page(props: &HealthPageProps) -> Html {
         <section class="space-y-6">
             <div class="card bg-base-100 shadow">
                 <div class="card-body gap-6">
-                    <div class="space-y-1">
-                        <p class="text-xs uppercase tracking-wide text-base-content/60">{t("nav.health")}</p>
-                        <h3 class="text-lg font-semibold">{t("health.title")}</h3>
-                        <p class="text-sm text-base-content/60">{t("health.body")}</p>
-                    </div>
                     <div class="grid gap-4 lg:grid-cols-2">
                         {render_basic(&t, (*basic).clone())}
                         {render_full(&t, (*full).clone())}
@@ -221,21 +217,4 @@ fn render_torrent_snapshot(snapshot: &TorrentHealthSnapshot) -> Html {
             </div>
         </div>
     }
-}
-
-fn status_badge(status: &str) -> Classes {
-    let tone = match status {
-        "ok" | "healthy" | "active" => Some("badge-success"),
-        "warn" | "warning" | "degraded" => Some("badge-warning"),
-        "error" | "failed" => Some("badge-error"),
-        _ => None,
-    };
-    let mut classes = classes!("badge", "badge-sm");
-    if let Some(tone) = tone {
-        classes.push(tone);
-        classes.push("badge-soft");
-    } else {
-        classes.push("badge-ghost");
-    }
-    classes
 }

@@ -493,6 +493,24 @@ mod tests {
         assert_eq!(clamp_i64(i64::MAX as u64), i64::MAX);
         assert_eq!(clamp_i64(u64::MAX), i64::MAX);
     }
+
+    #[test]
+    fn file_priority_labels_round_trip() {
+        use revaer_torrent_core::FilePriority;
+
+        let priorities = [
+            FilePriority::Skip,
+            FilePriority::Low,
+            FilePriority::Normal,
+            FilePriority::High,
+        ];
+        for priority in priorities {
+            let label = file_priority_label(priority);
+            let parsed = parse_file_priority(label);
+            assert_eq!(parsed, priority);
+        }
+        assert_eq!(parse_file_priority("unknown"), FilePriority::Normal);
+    }
 }
 /// Snapshot of filesystem processing state for a torrent.
 #[derive(Debug, Clone)]

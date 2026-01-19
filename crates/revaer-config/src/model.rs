@@ -193,7 +193,7 @@ impl AppAuthMode {
 
 #[cfg(test)]
 mod tests {
-    use super::AppAuthMode;
+    use super::{AppAuthMode, AppMode, LabelKind, SettingsChangeset, Toggle};
     use std::str::FromStr;
 
     #[test]
@@ -214,6 +214,47 @@ mod tests {
     fn app_auth_mode_as_str_matches_values() {
         assert_eq!(AppAuthMode::ApiKey.as_str(), "api_key");
         assert_eq!(AppAuthMode::NoAuth.as_str(), "none");
+    }
+
+    #[test]
+    fn label_kind_parses_and_formats() {
+        assert_eq!(
+            LabelKind::from_str("category").unwrap(),
+            LabelKind::Category
+        );
+        assert_eq!(LabelKind::from_str("tag").unwrap(), LabelKind::Tag);
+        assert!(LabelKind::from_str("unknown").is_err());
+        assert_eq!(LabelKind::Category.as_str(), "category");
+        assert_eq!(LabelKind::Tag.as_str(), "tag");
+    }
+
+    #[test]
+    fn app_mode_parses_and_formats() {
+        assert_eq!(AppMode::from_str("setup").unwrap(), AppMode::Setup);
+        assert_eq!(AppMode::from_str("active").unwrap(), AppMode::Active);
+        assert!(AppMode::from_str("other").is_err());
+        assert_eq!(AppMode::Setup.as_str(), "setup");
+        assert_eq!(AppMode::Active.as_str(), "active");
+    }
+
+    #[test]
+    fn toggle_converts_and_reports_state() {
+        let toggle = Toggle::from(true);
+        assert!(toggle.is_enabled());
+        let as_bool: bool = toggle.into();
+        assert!(as_bool);
+    }
+
+    #[test]
+    fn settings_changeset_reports_empty_state() {
+        let empty = SettingsChangeset::default();
+        assert!(empty.is_empty());
+
+        let mut non_empty = SettingsChangeset::default();
+        non_empty.secrets.push(crate::SecretPatch::Delete {
+            name: "token".to_string(),
+        });
+        assert!(!non_empty.is_empty());
     }
 }
 

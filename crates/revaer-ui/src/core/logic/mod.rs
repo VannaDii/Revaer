@@ -1,5 +1,10 @@
 //! Pure UI helpers extracted from components for non-wasm testing.
 
+pub mod connectivity;
+pub mod locale;
+pub mod nav;
+pub mod search;
+
 use crate::features::torrents::state::{
     SelectionSet, TorrentSortDirection, TorrentSortKey, TorrentSortState, TorrentsPaging,
     TorrentsQueryModel,

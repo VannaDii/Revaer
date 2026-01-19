@@ -214,10 +214,94 @@ jobs:
       - name: Feature matrix tests (no default features)
         run: just test-features-min
 
+  validate:
+    name: Validate (just validate)
+    runs-on: ubuntu-latest
+    env:
+      REVAER_TEST_DATABASE_URL: postgres://revaer:revaer@localhost:5432/revaer
+      DATABASE_URL: postgres://revaer:revaer@localhost:5432/revaer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: taiki-e/install-action@just
+
+      - name: Install native libtorrent dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtorrent-rasterbar-dev pkg-config libpq-dev postgresql-client
+
+      - name: Validate
+        run: just validate
+
+  ui-e2e:
+    name: UI E2E
+    runs-on: ubuntu-latest
+    env:
+      E2E_API_BASE_URL: http://localhost:7070
+      E2E_BASE_URL: http://localhost:8080
+      E2E_DB_ADMIN_URL: postgres://revaer:revaer@localhost:5432/postgres
+      E2E_SKIP_DB_START: "1"
+      REVAER_TEST_DATABASE_URL: postgres://revaer:revaer@localhost:5432/revaer
+      DATABASE_URL: postgres://revaer:revaer@localhost:5432/revaer
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: revaer
+          POSTGRES_PASSWORD: revaer
+          POSTGRES_DB: revaer
+        options: >-
+          --health-cmd="pg_isready -U revaer -d revaer"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: taiki-e/install-action@just
+
+      - name: Install native libtorrent dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libtorrent-rasterbar-dev pkg-config libpq-dev postgresql-client
+
+      - name: Install Playwright dependencies
+        run: |
+          cd tests
+          npm install
+          npx playwright install --with-deps
+
+      - name: UI E2E
+        run: just ui-e2e
+
   build-release:
     name: Build Release
     if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
+    needs:
+      [
+        fmt,
+        lint,
+        check,
+        coverage,
+        audit,
+        deny,
+        udeps,
+        test,
+        native-it,
+        feature-matrix,
+        validate,
+        ui-e2e,
+      ]
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@master
@@ -329,6 +413,8 @@ jobs:
         test,
         native-it,
         feature-matrix,
+        validate,
+        ui-e2e,
       ]
 
     strategy:

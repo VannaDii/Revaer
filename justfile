@@ -63,9 +63,12 @@ audit:
     install_audit() { \
         cargo install cargo-audit --locked --force --version "${required_audit_version}"; \
     }; \
+    version_ge() { \
+        [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$2" ]; \
+    }; \
     if command -v cargo-audit >/dev/null 2>&1; then \
         installed_version="$(cargo audit -V | awk 'NR==1 {print $2}')"; \
-        if ! python3 -c 'import sys; parse=lambda v:[int(p) for p in v.split(".")] if v else [0]; inst=parse(sys.argv[1] if len(sys.argv)>1 else ""); req=parse(sys.argv[2] if len(sys.argv)>2 else ""); length=max(len(inst), len(req)); inst+= [0]*(length-len(inst)); req+= [0]*(length-len(req)); sys.exit(0 if inst>=req else 1)' "$installed_version" "$required_audit_version"; then \
+        if ! version_ge "$installed_version" "$required_audit_version"; then \
             install_audit; \
         fi; \
     else \
@@ -87,9 +90,12 @@ deny:
     install_deny() { \
         cargo install cargo-deny --locked --force --version "${required_deny_version}"; \
     }; \
+    version_ge() { \
+        [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$2" ]; \
+    }; \
     if command -v cargo-deny >/dev/null 2>&1; then \
         installed_version="$(cargo deny --version | awk 'NR==1 {print $2}')"; \
-        if ! python3 -c 'import sys; parse=lambda v:[int(p) for p in v.split(".")] if v else [0]; inst=parse(sys.argv[1] if len(sys.argv)>1 else ""); req=parse(sys.argv[2] if len(sys.argv)>2 else ""); length=max(len(inst), len(req)); inst+= [0]*(length-len(inst)); req+= [0]*(length-len(req)); sys.exit(0 if inst>=req else 1)' "$installed_version" "$required_deny_version"; then \
+        if ! version_ge "$installed_version" "$required_deny_version"; then \
             install_deny; \
         fi; \
     else \
@@ -105,7 +111,29 @@ cov:
     cargo llvm-cov clean --workspace
     REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}" \
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
-        cargo llvm-cov --workspace --fail-under-lines 80
+        fail_list=""; \
+        while IFS= read -r member; do \
+            manifest="${member}/Cargo.toml"; \
+            if [ ! -f "${manifest}" ]; then \
+                continue; \
+            fi; \
+            if command -v rg >/dev/null 2>&1; then \
+                name="$(rg -m1 '^name = \"' "${manifest}" | sed -E 's/^name = \"([^\"]+)\".*/\\1/')"; \
+            else \
+                name="$(grep -m1 '^name = \"' "${manifest}" | sed -E 's/^name = \"([^\"]+)\".*/\\1/')"; \
+            fi; \
+            if [ -z "${name}" ]; then \
+                continue; \
+            fi; \
+            echo "== coverage: ${name} =="; \
+            if ! cargo llvm-cov --package "${name}" --fail-under-lines 90; then \
+                fail_list="${fail_list} ${name}"; \
+            fi; \
+        done < <(awk '/^members = \\[/{in_members=1;next} in_members && /^]/{in_members=0} in_members { if (match($0, /\"[^\"]+\"/)) print substr($0, RSTART + 1, RLENGTH - 2) }' Cargo.toml); \
+        if [ -n "${fail_list}" ]; then \
+            echo "Coverage below 90% for:${fail_list}"; \
+            exit 1; \
+        fi
 
 sbom:
     mkdir -p artifacts
@@ -121,12 +149,15 @@ licenses:
 api-export:
     cargo run -p revaer-api --bin generate_openapi
 
-ci:
+validate:
     REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}"
     export REVAER_TEST_DATABASE_URL DATABASE_URL
     just db-start
-    just fmt lint check-assets udeps audit deny ui-build test test-features-min cov build-release
+    just fmt lint check-assets udeps audit deny ui-build test test-features-min cov
+
+ci: validate
+    just build-release
 
 docker-build:
     platforms="${PLATFORMS:-linux/amd64,linux/arm64}"; \
@@ -168,7 +199,7 @@ ui-serve: sync-assets
         cargo install trunk; \
     fi
     mkdir -p crates/revaer-ui/dist-serve/.stage
-    cd crates/revaer-ui && trunk serve --dist dist-serve --open
+    cd crates/revaer-ui && NO_COLOR=true trunk serve --dist dist-serve --open
 
 ui-build: sync-assets
     rustup target add wasm32-unknown-unknown
@@ -176,10 +207,13 @@ ui-build: sync-assets
         cargo install trunk; \
     fi
     mkdir -p crates/revaer-ui/dist/.stage
-    cd crates/revaer-ui && trunk build --release
+    cd crates/revaer-ui && NO_COLOR=true trunk build --release
 
 ui-e2e:
-    bash scripts/ui-e2e.sh
+    cd tests && npm install
+    cd tests && npm run gen:api-client
+    cd tests && npx playwright install
+    cd tests && npx playwright test
 
 zombies:
     for port in 7070 8080; do \
@@ -227,7 +261,7 @@ dev: sync-assets
         -x "run -p revaer-app" & \
     api_pid=$!; \
     mkdir -p crates/revaer-ui/dist-serve/.stage; \
-    ( cd crates/revaer-ui && DATABASE_URL="${db_url}" RUST_LOG=${RUST_LOG:-info} trunk serve --dist dist-serve ) & \
+    ( cd crates/revaer-ui && DATABASE_URL="${db_url}" RUST_LOG=${RUST_LOG:-info} NO_COLOR=true trunk serve --dist dist-serve ) & \
     ui_pid=$!; \
     trap 'kill -0 $api_pid 2>/dev/null && kill $api_pid; kill -0 $ui_pid 2>/dev/null && kill $ui_pid' EXIT; \
     wait $api_pid $ui_pid

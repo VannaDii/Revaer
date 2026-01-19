@@ -6,7 +6,9 @@
 
 use crate::components::atoms::icons::IconSearch;
 use crate::components::daisy::{DaisyColor, DaisySize, tone_class};
+use crate::core::logic::search::{debounce_enabled, should_submit_on_key};
 use gloo_timers::callback::Timeout;
+use web_sys::KeyboardEvent;
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
@@ -31,6 +33,8 @@ pub(crate) struct SearchInputProps {
     pub class: Classes,
     #[prop_or_default]
     pub input_class: Classes,
+    #[prop_or_default]
+    pub trailing: Option<Html>,
     #[prop_or_default]
     pub on_search: Callback<String>,
 }
@@ -59,7 +63,7 @@ pub(crate) fn search_input(props: &SearchInputProps) -> Html {
         let timer = timer.clone();
         Callback::from(move |next: String| {
             value_state.set(next.clone());
-            if debounce == 0 {
+            if !debounce_enabled(debounce) {
                 on_search.emit(next);
                 return;
             }
@@ -72,16 +76,40 @@ pub(crate) fn search_input(props: &SearchInputProps) -> Html {
             }));
         })
     };
+    let onkeydown = {
+        let on_search = props.on_search.clone();
+        let value_state = value_state.clone();
+        let timer = timer.clone();
+        Callback::from(move |event: KeyboardEvent| {
+            if !should_submit_on_key(&event.key(), event.ctrl_key(), event.meta_key()) {
+                return;
+            }
+            event.prevent_default();
+            if let Some(timeout) = timer.borrow_mut().take() {
+                drop(timeout);
+            }
+            on_search.emit((*value_state).clone());
+        })
+    };
 
     let size = props.size.with_prefix("input");
     let tone = tone_class("input", props.tone);
     let label_classes = {
-        let mut classes = classes!("input", size, props.class.clone());
+        let mut classes = classes!(
+            "input",
+            "input-bordered",
+            "flex",
+            "items-center",
+            "gap-2",
+            size,
+            props.class.clone()
+        );
         if let Some(tone) = tone {
             classes.push(tone);
         }
         classes
     };
+    let trailing = props.trailing.clone().unwrap_or_default();
 
     html! {
         <label
@@ -89,6 +117,7 @@ pub(crate) fn search_input(props: &SearchInputProps) -> Html {
             <IconSearch class={classes!("text-base-content/80")} size={Some(AttrValue::from("3.5"))} />
             <input
                 class={classes!(
+                    "grow",
                     "text-base",
                     "placeholder:text-sm",
                     props.input_class.clone()
@@ -98,6 +127,7 @@ pub(crate) fn search_input(props: &SearchInputProps) -> Html {
                 value={AttrValue::from((*value_state).clone())}
                 aria-label={props.aria_label.clone()}
                 disabled={props.disabled}
+                onkeydown={onkeydown}
                 oninput={Callback::from(move |event: InputEvent| {
                     if let Some(input) = event.target_dyn_into::<web_sys::HtmlInputElement>() {
                         oninput.emit(input.value());
@@ -105,6 +135,7 @@ pub(crate) fn search_input(props: &SearchInputProps) -> Html {
                 })}
                 ref={props.input_ref.clone()}
             />
+            {trailing}
         </label>
     }
 }

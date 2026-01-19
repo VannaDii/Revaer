@@ -1789,6 +1789,7 @@ fn build_globset(patterns: Vec<String>, field: &'static str) -> FsOpsResult<Opti
 mod tests {
     use super::*;
     use anyhow::Result;
+    use std::cell::Cell;
     use std::fs;
     use std::io::Write;
     use std::path::PathBuf;
@@ -1929,6 +1930,17 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn build_globset_rejects_invalid_pattern() -> TestResult<()> {
+        let err = build_globset(vec!["[]".to_string()], "cleanup_drop")
+            .err()
+            .ok_or(FsOpsError::MissingState {
+                field: "expected_invalid_glob_error",
+            })?;
+        assert!(matches!(err, FsOpsError::Glob { .. }));
+        Ok(())
+    }
+
     fn write_zip_archive(archive: &Path, entries: &[(&str, &[u8])]) -> TestResult<()> {
         let file = File::create(archive)?;
         let mut zip = zip::ZipWriter::new(file);
@@ -1963,6 +1975,54 @@ mod tests {
             result.is_err(),
             "expected directory creation to fail on file path"
         );
+        Ok(())
+    }
+
+    #[test]
+    fn load_or_initialise_meta_populates_missing_paths() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let bus = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
+        let policy_id = Uuid::new_v4();
+        let source = temp.path().join("source");
+        fs::create_dir_all(&source)?;
+        let meta_path = temp.path().join("meta.json");
+
+        let meta = service.load_or_initialise_meta(torrent_id, policy_id, &meta_path, &source)?;
+
+        let canonical = source.canonicalize().unwrap_or_else(|_| source.clone());
+        let expected = canonical.to_string_lossy().into_owned();
+        assert_eq!(meta.source_path.as_deref(), Some(expected.as_str()));
+        assert_eq!(meta.staging_path.as_deref(), Some(expected.as_str()));
+        Ok(())
+    }
+
+    #[test]
+    fn load_or_initialise_meta_respects_existing_source() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let bus = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
+        let policy_id = Uuid::new_v4();
+        let meta_path = temp.path().join("meta.json");
+
+        let pinned_source = temp.path().join("pinned");
+        fs::create_dir_all(&pinned_source)?;
+        let mut meta = FsOpsMeta::new(torrent_id, policy_id);
+        meta.source_path = Some(pinned_source.to_string_lossy().into_owned());
+        persist_meta(&meta_path, &meta)?;
+
+        let provided_source = temp.path().join("provided");
+        fs::create_dir_all(&provided_source)?;
+
+        let loaded =
+            service.load_or_initialise_meta(torrent_id, policy_id, &meta_path, &provided_source)?;
+
+        assert_eq!(loaded.source_path, meta.source_path);
+        assert_eq!(loaded.staging_path, meta.source_path);
         Ok(())
     }
 
@@ -2004,6 +2064,28 @@ mod tests {
         assert!(artifact.ends_with("Season1"));
         assert!(artifact.join("episode.mkv").exists());
 
+        Ok(())
+    }
+
+    #[test]
+    fn enforce_allow_paths_rejects_unpermitted_root() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let root = temp.path().join("library");
+        let allow = vec![temp.path().join("other").display().to_string()];
+
+        let err = enforce_allow_paths(&root, &allow)
+            .err()
+            .ok_or(FsOpsError::MissingState {
+                field: "expected_allowlist_error",
+            })?;
+        assert!(matches!(
+            err,
+            FsOpsError::InvalidPolicy {
+                field: "allow_paths",
+                reason: "root_not_permitted",
+                ..
+            }
+        ));
         Ok(())
     }
 
@@ -2065,6 +2147,29 @@ mod tests {
     }
 
     #[test]
+    fn extract_archive_rejects_missing_extension() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let source = temp.path().join("payload");
+        fs::write(&source, b"data")?;
+        let target = temp.path().join("target");
+
+        let err = FsOpsService::extract_archive(&source, &target)
+            .err()
+            .ok_or(FsOpsError::MissingState {
+                field: "expected_missing_extension_error",
+            })?;
+        assert!(matches!(
+            err,
+            FsOpsError::InvalidInput {
+                field: "archive_extension",
+                reason: "missing",
+                ..
+            }
+        ));
+        Ok(())
+    }
+
+    #[test]
     fn enforce_allow_paths_accepts_parent_directory() -> TestResult<()> {
         let temp = temp_dir()?;
         let root = temp.path().join("library");
@@ -2106,6 +2211,34 @@ mod tests {
     }
 
     #[test]
+    fn execute_step_noops_when_already_completed() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let bus = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
+        let mut meta = FsOpsMeta::new(torrent_id, Uuid::new_v4());
+        let meta_path = temp.path().join("meta.json");
+        meta.update_step(StepKind::Cleanup, StepStatus::Completed, None);
+
+        let called = Cell::new(false);
+        service.execute_step(
+            torrent_id,
+            &mut meta,
+            &meta_path,
+            StepKind::Cleanup,
+            StepPersistence::new(true, true, true),
+            |_| {
+                called.set(true);
+                Ok(StepOutcome::Completed(None))
+            },
+        )?;
+
+        assert!(!called.get(), "expected completed step to skip execution");
+        Ok(())
+    }
+
+    #[test]
     fn execute_step_records_failure_status() -> TestResult<()> {
         let temp = temp_dir()?;
         let bus = EventBus::with_capacity(4);
@@ -2138,6 +2271,100 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn run_extract_skips_when_staging_is_directory() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let bus = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
+        let mut meta = FsOpsMeta::new(torrent_id, Uuid::new_v4());
+        let meta_path = temp.path().join("meta.json");
+
+        let staging = temp.path().join("staging");
+        fs::create_dir_all(&staging)?;
+        meta.staging_path = Some(staging.to_string_lossy().into_owned());
+
+        let mut policy = sample_policy(temp.path());
+        policy.extract = true;
+
+        service.run_extract(torrent_id, &mut meta, &meta_path, &policy)?;
+
+        assert_eq!(
+            meta.step_status(StepKind::Extract),
+            Some(StepStatus::Skipped)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn run_flatten_skips_when_multiple_entries_exist() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let bus = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
+        let mut meta = FsOpsMeta::new(torrent_id, Uuid::new_v4());
+        let meta_path = temp.path().join("meta.json");
+
+        let staging = temp.path().join("staging");
+        fs::create_dir_all(staging.join("one"))?;
+        fs::create_dir_all(staging.join("two"))?;
+        meta.staging_path = Some(staging.to_string_lossy().into_owned());
+
+        let mut policy = sample_policy(temp.path());
+        policy.flatten = true;
+
+        service.run_flatten(torrent_id, &mut meta, &meta_path, &policy)?;
+
+        assert_eq!(
+            meta.step_status(StepKind::Flatten),
+            Some(StepStatus::Skipped)
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn transfer_step_rejects_unknown_move_mode() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let bus = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
+        let mut meta = FsOpsMeta::new(torrent_id, Uuid::new_v4());
+        let meta_path = temp.path().join("meta.json");
+
+        let root = temp.path().join("library");
+        fs::create_dir_all(&root)?;
+        let staging = temp.path().join("staging");
+        fs::create_dir_all(&staging)?;
+        meta.staging_path = Some(staging.to_string_lossy().into_owned());
+
+        let mut policy = sample_policy(temp.path());
+        policy.library_root = root.to_string_lossy().into_owned();
+        policy.move_mode = "teleport".to_string();
+
+        let err = service
+            .run_transfer(torrent_id, &mut meta, &meta_path, &policy, &root)
+            .err()
+            .ok_or(FsOpsError::MissingState {
+                field: "expected_transfer_error",
+            })?;
+        assert!(matches!(
+            err,
+            FsOpsError::InvalidPolicy {
+                field: "move_mode",
+                reason: "unsupported",
+                ..
+            }
+        ));
+        assert_eq!(
+            meta.step_status(StepKind::Transfer),
+            Some(StepStatus::Failed)
+        );
+        Ok(())
+    }
+
     #[cfg(unix)]
     #[test]
     fn hardlink_tree_reuses_inodes() -> TestResult<()> {
@@ -2155,6 +2382,22 @@ mod tests {
 
         let src_meta = fs::metadata(&file)?;
         let dest_meta = fs::metadata(&dest_file)?;
+        assert_eq!(src_meta.ino(), dest_meta.ino());
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn hardlink_tree_links_file_source() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let source = temp.path().join("source.txt");
+        fs::write(&source, b"content")?;
+        let destination = temp.path().join("dest.txt");
+
+        FsOpsService::hardlink_tree(&source, &destination)?;
+
+        let src_meta = fs::metadata(&source)?;
+        let dest_meta = fs::metadata(&destination)?;
         assert_eq!(src_meta.ino(), dest_meta.ino());
         Ok(())
     }
@@ -2209,6 +2452,35 @@ mod tests {
     }
 
     #[test]
+    fn copy_tree_copies_file_source() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let source = temp.path().join("source.txt");
+        fs::write(&source, b"content")?;
+        let destination = temp.path().join("dest.txt");
+
+        FsOpsService::copy_tree(&source, &destination)?;
+
+        assert!(destination.exists());
+        assert_eq!(fs::read(&destination)?, b"content");
+        Ok(())
+    }
+
+    #[test]
+    fn move_tree_moves_file_source() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let source = temp.path().join("source.txt");
+        fs::write(&source, b"content")?;
+        let destination = temp.path().join("dest.txt");
+
+        FsOpsService::move_tree(&source, &destination)?;
+
+        assert!(!source.exists());
+        assert!(destination.exists());
+        assert_eq!(fs::read(&destination)?, b"content");
+        Ok(())
+    }
+
+    #[test]
     fn fsops_meta_updates_status_and_timestamps() {
         let torrent_id = Uuid::new_v4();
         let policy_id = Uuid::new_v4();
@@ -2252,6 +2524,70 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn apply_permissions_reports_unchanged_without_directives() -> TestResult<()> {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = temp_dir()?;
+        let root = temp.path().join("artifact");
+        fs::create_dir_all(&root)?;
+        let file_path = root.join("file.txt");
+        fs::write(&file_path, b"content")?;
+
+        let before = fs::metadata(&file_path)?.permissions().mode() & 0o777;
+
+        let detail = FsOpsService::apply_permissions(&root, None, None, None, None, None)?;
+        assert_eq!(detail, "permissions=unchanged");
+
+        let after = fs::metadata(&file_path)?.permissions().mode() & 0o777;
+        assert_eq!(before, after);
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn apply_permissions_applies_explicit_modes() -> TestResult<()> {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temp = temp_dir()?;
+        let root = temp.path().join("artifact");
+        fs::create_dir_all(&root)?;
+        let nested = root.join("dir");
+        fs::create_dir_all(&nested)?;
+        let file_path = nested.join("file.txt");
+        fs::write(&file_path, b"content")?;
+
+        let detail =
+            FsOpsService::apply_permissions(&root, Some("0o600"), Some("0o700"), None, None, None)?;
+        assert!(
+            detail.contains("file=0o600") && detail.contains("dir=0o700"),
+            "expected explicit modes to be reported"
+        );
+
+        let file_mode = fs::metadata(&file_path)?.permissions().mode() & 0o777;
+        let dir_mode = fs::metadata(&nested)?.permissions().mode() & 0o777;
+        assert_eq!(file_mode, 0o600);
+        assert_eq!(dir_mode, 0o700);
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn resolve_owner_and_group_accept_numeric_ids() -> TestResult<()> {
+        let uid = Uid::current().as_raw();
+        let gid = Gid::current().as_raw();
+
+        let (owner_id, owner_label) = FsOpsService::resolve_owner(&uid.to_string())?;
+        assert_eq!(owner_id.as_raw(), uid);
+        assert!(owner_label.contains("uid("));
+
+        let (group_id, group_label) = FsOpsService::resolve_group(&gid.to_string())?;
+        assert_eq!(group_id.as_raw(), gid);
+        assert!(group_label.contains("gid("));
+        Ok(())
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn apply_permissions_honours_umask_defaults() -> TestResult<()> {
         let temp = temp_dir()?;
         let root = temp.path().join("artifact");
@@ -2271,6 +2607,26 @@ mod tests {
         let dir_mode = fs::metadata(&nested)?.permissions().mode() & 0o777;
         assert_eq!(file_mode, 0o644);
         assert_eq!(dir_mode, 0o755);
+        Ok(())
+    }
+
+    #[test]
+    fn cleanup_step_skips_without_artifact_path() -> TestResult<()> {
+        let temp = temp_dir()?;
+        let bus = EventBus::with_capacity(4);
+        let metrics = Metrics::new()?;
+        let service = FsOpsService::new(bus, metrics);
+        let torrent_id = Uuid::new_v4();
+        let mut meta = FsOpsMeta::new(torrent_id, Uuid::new_v4());
+        let meta_path = temp.path().join("meta.json");
+        let policy = sample_policy(temp.path());
+
+        service.run_cleanup(torrent_id, &mut meta, &meta_path, &policy)?;
+
+        assert_eq!(
+            meta.step_status(StepKind::Cleanup),
+            Some(StepStatus::Skipped)
+        );
         Ok(())
     }
 

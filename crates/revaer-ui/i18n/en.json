@@ -622,7 +622,11 @@
     "tab": {
       "overview": "Overview",
       "files": "Files",
-      "options": "Options"
+      "options": "Options",
+      "peers": "Peers",
+      "trackers": "Trackers",
+      "log": "Log",
+      "info": "Info"
     },
     "overview": {
       "title": "Overview",
@@ -680,6 +684,30 @@
       "comment": "Comment",
       "source": "Source",
       "web_seeds": "Web seeds"
+    },
+    "peers": {
+      "title": "Peers",
+      "body": "Sortable by speed/progress with flag/country when available.",
+      "down": "Down",
+      "up": "Up",
+      "progress": "Progress"
+    },
+    "trackers": {
+      "title": "Trackers",
+      "body": "Status, next announce, and errors with warning badges."
+    },
+    "log": {
+      "title": "Event log",
+      "body": "Warnings, tracker issues, and state transitions."
+    },
+    "info": {
+      "title": "Metadata",
+      "body": "Hash, magnet, size, piece count, and piece size.",
+      "hash": "Hash",
+      "magnet": "Magnet",
+      "size": "Size",
+      "pieces": "Pieces",
+      "piece_size": "Piece size"
     },
     "value_unset": "Unset",
     "value_none": "None",

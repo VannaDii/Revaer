@@ -10,7 +10,7 @@ use crate::components::atoms::EmptyState;
 use crate::core::store::{AppStore, app_dispatch};
 use crate::features::labels::actions::LabelAction;
 use crate::features::labels::api::upsert_label;
-use crate::features::labels::logic::policy_badges;
+use crate::features::labels::logic::{apply_label_form_update, policy_badges};
 use crate::features::labels::state::{AutoManagedChoice, LabelFormState, LabelKind};
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::TorrentLabelEntry;
@@ -130,15 +130,6 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
         })
     };
 
-    let title = match kind {
-        LabelKind::Category => t("labels.categories_title"),
-        LabelKind::Tag => t("labels.tags_title"),
-    };
-    let subtitle = match kind {
-        LabelKind::Category => t("labels.categories_body"),
-        LabelKind::Tag => t("labels.tags_body"),
-    };
-
     let selected_label = selected
         .as_ref()
         .map(|name| format!("Editing: {name}"))
@@ -150,12 +141,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
         <section class="space-y-6">
             <div class="card bg-base-100 shadow">
                 <div class="card-body gap-6">
-                    <div class="flex items-start justify-between gap-4">
-                        <div class="space-y-1">
-                            <p class="text-xs uppercase tracking-wide text-base-content/60">{title.clone()}</p>
-                            <h3 class="text-lg font-semibold">{title}</h3>
-                            <p class="text-sm text-base-content/60">{subtitle}</p>
-                        </div>
+                    <div class="flex items-center justify-end">
                         <button
                             class="btn btn-ghost btn-sm"
                             type="button"
@@ -239,7 +225,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                             let form = form.clone();
                                             Callback::from(move |event: InputEvent| {
                                                 if let Some(input) = event.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                                    update_form_state(&form, |state| state.name = input.value());
+                                                    form.set(apply_label_form_update(&form, |state| state.name = input.value()));
                                                 }
                                             })
                                         }}
@@ -256,7 +242,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                             let form = form.clone();
                                             Callback::from(move |event: InputEvent| {
                                                 if let Some(input) = event.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                                    update_form_state(&form, |state| state.download_dir = input.value());
+                                                    form.set(apply_label_form_update(&form, |state| state.download_dir = input.value()));
                                                 }
                                             })
                                         }}
@@ -279,7 +265,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                                     let form = form.clone();
                                                     Callback::from(move |event: InputEvent| {
                                                         if let Some(input) = event.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                                            update_form_state(&form, |state| state.rate_limit_download = input.value());
+                                                            form.set(apply_label_form_update(&form, |state| state.rate_limit_download = input.value()));
                                                         }
                                                     })
                                                 }}
@@ -297,7 +283,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                                     let form = form.clone();
                                                     Callback::from(move |event: InputEvent| {
                                                         if let Some(input) = event.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                                            update_form_state(&form, |state| state.rate_limit_upload = input.value());
+                                                            form.set(apply_label_form_update(&form, |state| state.rate_limit_upload = input.value()));
                                                         }
                                                     })
                                                 }}
@@ -315,7 +301,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                                     let form = form.clone();
                                                     Callback::from(move |event: InputEvent| {
                                                         if let Some(input) = event.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                                            update_form_state(&form, |state| state.queue_position = input.value());
+                                                            form.set(apply_label_form_update(&form, |state| state.queue_position = input.value()));
                                                         }
                                                     })
                                                 }}
@@ -332,7 +318,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                                         if let Some(select) = event.target_dyn_into::<web_sys::HtmlSelectElement>() {
                                                             let value = select.value();
                                                             let next = AutoManagedChoice::from_value(&value);
-                                                            update_form_state(&form, |state| state.auto_managed = next);
+                                                            form.set(apply_label_form_update(&form, |state| state.auto_managed = next));
                                                         }
                                                     })
                                                 }}
@@ -355,7 +341,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                                     let form = form.clone();
                                                     Callback::from(move |event: InputEvent| {
                                                         if let Some(input) = event.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                                            update_form_state(&form, |state| state.seed_ratio_limit = input.value());
+                                                            form.set(apply_label_form_update(&form, |state| state.seed_ratio_limit = input.value()));
                                                         }
                                                     })
                                                 }}
@@ -373,7 +359,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                                     let form = form.clone();
                                                     Callback::from(move |event: InputEvent| {
                                                         if let Some(input) = event.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                                            update_form_state(&form, |state| state.seed_time_limit = input.value());
+                                                            form.set(apply_label_form_update(&form, |state| state.seed_time_limit = input.value()));
                                                         }
                                                     })
                                                 }}
@@ -399,7 +385,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                                         let form = form.clone();
                                                         Callback::from(move |event: InputEvent| {
                                                             if let Some(input) = event.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                                                update_form_state(&form, |state| state.cleanup_seed_ratio_limit = input.value());
+                                                                form.set(apply_label_form_update(&form, |state| state.cleanup_seed_ratio_limit = input.value()));
                                                             }
                                                         })
                                                     }}
@@ -417,7 +403,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                                         let form = form.clone();
                                                         Callback::from(move |event: InputEvent| {
                                                             if let Some(input) = event.target_dyn_into::<web_sys::HtmlInputElement>() {
-                                                                update_form_state(&form, |state| state.cleanup_seed_time_limit = input.value());
+                                                                form.set(apply_label_form_update(&form, |state| state.cleanup_seed_time_limit = input.value()));
                                                             }
                                                         })
                                                     }}
@@ -434,7 +420,7 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
                                                         Callback::from(move |event: Event| {
                                                             if let Some(input) = event.target_dyn_into::<web_sys::HtmlInputElement>() {
                                                                 let checked = input.checked();
-                                                                update_form_state(&form, |state| state.cleanup_remove_data = checked);
+                                                                form.set(apply_label_form_update(&form, |state| state.cleanup_remove_data = checked));
                                                             }
                                                         })
                                                     }}
@@ -458,13 +444,4 @@ pub(crate) fn labels_page(props: &LabelsPageProps) -> Html {
             </div>
         </section>
     }
-}
-
-fn update_form_state(
-    form: &UseStateHandle<LabelFormState>,
-    update: impl FnOnce(&mut LabelFormState),
-) {
-    let mut next = (**form).clone();
-    update(&mut next);
-    form.set(next);
 }

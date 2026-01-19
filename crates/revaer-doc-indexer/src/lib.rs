@@ -607,11 +607,53 @@ More text.
     }
 
     #[test]
+    fn parse_markdown_skips_when_missing_title() -> std::result::Result<(), Box<dyn Error>> {
+        let docs_root = PathBuf::from("docs");
+        let path = docs_root.join("untitled.md");
+        let markdown = "No headings here.\nJust content.";
+        let entry = parse_markdown(markdown, &path, &docs_root)?;
+        assert!(entry.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn parse_markdown_rejects_short_summary() -> std::result::Result<(), Box<dyn Error>> {
+        let docs_root = PathBuf::from("docs");
+        let path = docs_root.join("short.md");
+        let markdown = "# Title\n> Short\n";
+        let err = parse_markdown(markdown, &path, &docs_root)
+            .err()
+            .ok_or_else(|| std::io::Error::other("expected summary error"))?;
+        assert!(matches!(err, DocIndexError::SummaryTooShort { .. }));
+        Ok(())
+    }
+
+    #[test]
+    fn parse_markdown_rejects_paths_outside_root() -> std::result::Result<(), Box<dyn Error>> {
+        let docs_root = PathBuf::from("docs");
+        let path = PathBuf::from("other/page.md");
+        let markdown = "# Title\n> This summary is long enough.\n";
+        let err = parse_markdown(markdown, &path, &docs_root)
+            .err()
+            .ok_or_else(|| std::io::Error::other("expected root error"))?;
+        assert!(matches!(err, DocIndexError::PathOutsideDocsRoot { .. }));
+        Ok(())
+    }
+
+    #[test]
     fn fallback_summary_rejects_empty_content() -> std::result::Result<(), Box<dyn Error>> {
         let err = fallback_summary("# Title\n\n## Heading\n")
             .err()
             .ok_or_else(|| std::io::Error::other("expected failure"))?;
         assert!(matches!(err, DocIndexError::FallbackSummaryMissing));
+        Ok(())
+    }
+
+    #[test]
+    fn fallback_summary_parses_list_prefixes() -> std::result::Result<(), Box<dyn Error>> {
+        let markdown = "# Title\n1. First item\n2) Second item\n- Bullet\n";
+        let summary = fallback_summary(markdown)?;
+        assert_eq!(summary, "First item Second item Bullet");
         Ok(())
     }
 
@@ -671,6 +713,25 @@ More text.
             .err()
             .ok_or_else(|| std::io::Error::other("pattern mismatch should fail validation"))?;
         assert!(matches!(err, DocIndexError::ManifestInvalid { .. }));
+        Ok(())
+    }
+
+    #[test]
+    fn validate_manifest_rejects_invalid_schema_json() -> std::result::Result<(), Box<dyn Error>> {
+        let temp = TempDir::new()?;
+        let schema_path = temp.path().join("schema.json");
+        write_file(&schema_path, "not-json")?;
+
+        let manifest = Manifest {
+            version: "0.1.0".into(),
+            generated: "2024-01-01T00:00:00Z".into(),
+            entries: Vec::new(),
+        };
+
+        let err = validate_manifest(&manifest, &schema_path)
+            .err()
+            .ok_or_else(|| std::io::Error::other("schema parse should fail"))?;
+        assert!(matches!(err, DocIndexError::SchemaParse { .. }));
         Ok(())
     }
 }

@@ -313,9 +313,10 @@ pub(crate) fn icon_server(props: &IconProps) -> Html {
     icon_svg(
         props,
         html! { <>
-            <rect x="2" y="2" rx="2" ry="2" />
-            <rect x="2" y="14" rx="2" ry="2" />
-            <path d="M6 6h.01M6 18h.01" />
+            <rect x="3" y="3" width="18" height="4" rx="1.5" />
+            <rect x="3" y="10" width="18" height="4" rx="1.5" />
+            <rect x="3" y="17" width="18" height="4" rx="1.5" />
+            <path d="M7 5h.01M7 12h.01M7 19h.01" />
         </> },
     )
 }

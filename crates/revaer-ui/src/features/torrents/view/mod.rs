@@ -23,10 +23,14 @@ use crate::core::logic::{
 };
 use crate::core::store::{AppStore, app_dispatch};
 use crate::features::torrents::actions::TorrentAction;
+use crate::features::torrents::logic::{
+    action_banner_label_key, fsops_badge_class, fsops_label_key, is_interactive_tag,
+    next_sort_state, sort_ids, sort_indicator, status_badge_class,
+};
 use crate::features::torrents::state::{
-    FsopsBadge, FsopsStatus, SelectionSet, TorrentProgressSlice, TorrentRow, TorrentRowBase,
-    TorrentSortDirection, TorrentSortKey, TorrentSortState, select_fsops_badge, select_is_selected,
-    select_torrent_progress_slice, select_torrent_row_base,
+    FsopsBadge, SelectionSet, TorrentProgressSlice, TorrentRow, TorrentRowBase, TorrentSortKey,
+    TorrentSortState, select_fsops_badge, select_is_selected, select_torrent_progress_slice,
+    select_torrent_row_base,
 };
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::{
@@ -468,29 +472,9 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                 class="drawer-end"
                 content={html! {
                     <div class="space-y-4">
-                        <div class="flex items-center justify-between">
-                            <p class="text-lg font-medium">{bundle.text("torrents.title")}</p>
-                            <div class="breadcrumbs hidden p-0 text-sm sm:inline">
-                                <ul>
-                                    <li>
-                                        <button
-                                            type="button"
-                                            class="link"
-                                            onclick={{
-                                                let on_navigate = on_navigate.clone();
-                                                Callback::from(move |_| on_navigate.emit(Route::Dashboard))
-                                            }}
-                                        >
-                                            {bundle.text("nav.dashboard")}
-                                        </button>
-                                    </li>
-                                    <li class="opacity-80">{bundle.text("torrents.title")}</li>
-                                </ul>
-                            </div>
-                        </div>
-
                         <BulkActionBar
                             class={classes!("sticky", "top-2", "z-10")}
+                            test_id={Some(AttrValue::from("torrents-bulk-action-bar"))}
                             select_label={AttrValue::from(t("torrents.select_all"))}
                             selected_label={AttrValue::from(t("torrents.selected"))}
                             selected_count={selected_count}
@@ -1040,8 +1024,8 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
                                 ConfirmKind::Recheck => TorrentAction::Recheck,
                             };
                             on_action.emit((action.clone(), id));
-                            action_banner
-                                .set(Some(action_banner_message(&bundle, &action, &selected_name)));
+                            let label = bundle.text(action_banner_label_key(&action));
+                            action_banner.set(Some(format!("{label} {selected_name}")));
                         }
                     })
                 }}
@@ -1109,42 +1093,13 @@ pub(crate) fn torrent_view(props: &TorrentProps) -> Html {
     }
 }
 
-fn next_sort_state(
-    current: Option<TorrentSortState>,
-    key: TorrentSortKey,
-) -> Option<TorrentSortState> {
-    match current {
-        None => Some(TorrentSortState {
-            key,
-            direction: TorrentSortDirection::Asc,
-        }),
-        Some(state) if state.key != key => Some(TorrentSortState {
-            key,
-            direction: TorrentSortDirection::Asc,
-        }),
-        Some(state) => match state.direction {
-            TorrentSortDirection::Asc => Some(TorrentSortState {
-                key,
-                direction: TorrentSortDirection::Desc,
-            }),
-            TorrentSortDirection::Desc => None,
-        },
-    }
-}
-
 fn sortable_header(
     label: AttrValue,
     key: TorrentSortKey,
     sort_state: Option<TorrentSortState>,
     on_sort: Callback<TorrentSortKey>,
 ) -> Html {
-    let sorting = match sort_state {
-        Some(state) if state.key == key => match state.direction {
-            TorrentSortDirection::Asc => "asc",
-            TorrentSortDirection::Desc => "desc",
-        },
-        _ => "none",
-    };
+    let sorting = sort_indicator(sort_state, key);
     let onclick = Callback::from(move |_| on_sort.emit(key));
     html! {
         <th>
@@ -1174,61 +1129,6 @@ fn sortable_header(
             </div>
         </th>
     }
-}
-
-fn sort_ids(ids: &[Uuid], store: &AppStore, sort_state: Option<TorrentSortState>) -> Vec<Uuid> {
-    let mut next: Vec<Uuid> = ids.to_vec();
-    let Some(sort_state) = sort_state else {
-        return next;
-    };
-    next.sort_by(|a, b| compare_row(store, a, b, sort_state));
-    next
-}
-
-fn compare_row(
-    store: &AppStore,
-    left: &Uuid,
-    right: &Uuid,
-    sort_state: TorrentSortState,
-) -> std::cmp::Ordering {
-    let Some(left_row) = store.torrents.by_id.get(left) else {
-        return std::cmp::Ordering::Equal;
-    };
-    let Some(right_row) = store.torrents.by_id.get(right) else {
-        return std::cmp::Ordering::Equal;
-    };
-    let order = match sort_state.key {
-        TorrentSortKey::Name => left_row.name.cmp(&right_row.name),
-        TorrentSortKey::State => left_row.status.cmp(&right_row.status),
-        TorrentSortKey::Progress => cmp_f64(left_row.progress, right_row.progress),
-        TorrentSortKey::Down => left_row.download_bps.cmp(&right_row.download_bps),
-        TorrentSortKey::Up => left_row.upload_bps.cmp(&right_row.upload_bps),
-        TorrentSortKey::Ratio => cmp_f64(left_row.ratio, right_row.ratio),
-        TorrentSortKey::Size => left_row.size_bytes.cmp(&right_row.size_bytes),
-        TorrentSortKey::Eta => eta_value(&left_row.eta).cmp(&eta_value(&right_row.eta)),
-        TorrentSortKey::Tags => first_tag(left_row).cmp(first_tag(right_row)),
-        TorrentSortKey::Trackers => left_row.tracker.cmp(&right_row.tracker),
-        TorrentSortKey::Updated => left_row.updated.cmp(&right_row.updated),
-    };
-    match sort_state.direction {
-        TorrentSortDirection::Asc => order,
-        TorrentSortDirection::Desc => order.reverse(),
-    }
-}
-
-fn cmp_f64(left: f64, right: f64) -> std::cmp::Ordering {
-    left.partial_cmp(&right)
-        .unwrap_or(std::cmp::Ordering::Equal)
-}
-
-fn eta_value(eta: &Option<String>) -> u64 {
-    eta.as_ref()
-        .and_then(|value| value.trim_end_matches('s').parse::<u64>().ok())
-        .unwrap_or(u64::MAX)
-}
-
-fn first_tag(row: &TorrentRow) -> &str {
-    row.tags.first().map(String::as_str).unwrap_or("")
 }
 
 #[derive(Properties, PartialEq)]
@@ -1370,7 +1270,7 @@ fn render_row(
             ActionMenuItem::danger(bundle.text("toolbar.delete"), prompt_remove),
         ],
     );
-    let fsops_label = fsops_label(&bundle, fsops);
+    let fsops_label = fsops_label_key(fsops).map(|key| bundle.text(key));
     let row_class = classes!(
         "row-hover",
         "cursor-pointer",
@@ -1482,36 +1382,6 @@ fn render_row(
     }
 }
 
-fn status_badge_class(status: &str) -> &'static str {
-    match status {
-        "downloading" | "seeding" | "completed" => "badge-success",
-        "fetching_metadata" | "queued" => "badge-info",
-        "checking" => "badge-warning",
-        "paused" | "stopped" => "badge-neutral",
-        "error" | "failed" => "badge-error",
-        _ => "badge-neutral",
-    }
-}
-
-fn fsops_badge_class(fsops: Option<&FsopsBadge>) -> &'static str {
-    match fsops.map(|badge| &badge.status) {
-        Some(FsopsStatus::InProgress) => "badge-warning",
-        Some(FsopsStatus::Completed) => "badge-success",
-        Some(FsopsStatus::Failed) => "badge-error",
-        None => "badge-neutral",
-    }
-}
-
-fn fsops_label(bundle: &TranslationBundle, fsops: Option<&FsopsBadge>) -> Option<String> {
-    let label = match fsops.map(|badge| &badge.status) {
-        Some(FsopsStatus::InProgress) => bundle.text("torrents.fsops_in_progress"),
-        Some(FsopsStatus::Completed) => bundle.text("torrents.fsops_done"),
-        Some(FsopsStatus::Failed) => bundle.text("torrents.fsops_failed"),
-        None => return None,
-    };
-    Some(label)
-}
-
 fn is_interactive_target(event: &MouseEvent) -> bool {
     let Some(target) = event.target() else {
         return false;
@@ -1519,67 +1389,9 @@ fn is_interactive_target(event: &MouseEvent) -> bool {
     let Ok(element) = target.dyn_into::<web_sys::Element>() else {
         return false;
     };
-    element
-        .closest("button, a, input, select, textarea, label, summary, [role=\"button\"]")
-        .ok()
-        .flatten()
-        .is_some()
-}
-
-fn action_banner_message(bundle: &TranslationBundle, action: &TorrentAction, name: &str) -> String {
-    match action {
-        TorrentAction::Delete { with_data: true } => {
-            format!("{} {name}", bundle.text("torrents.banner.removed_data"))
-        }
-        TorrentAction::Delete { with_data: false } => {
-            format!("{} {name}", bundle.text("torrents.banner.removed"))
-        }
-        TorrentAction::Reannounce => {
-            format!("{} {name}", bundle.text("torrents.banner.reannounce"))
-        }
-        TorrentAction::Recheck => {
-            format!("{} {name}", bundle.text("torrents.banner.recheck"))
-        }
-        TorrentAction::Pause => format!("{} {name}", bundle.text("torrents.banner.pause")),
-        TorrentAction::Resume => format!("{} {name}", bundle.text("torrents.banner.resume")),
-        TorrentAction::Sequential { enable } => {
-            if *enable {
-                format!("{} {name}", bundle.text("torrents.banner.sequential_on"))
-            } else {
-                format!("{} {name}", bundle.text("torrents.banner.sequential_off"))
-            }
-        }
-        TorrentAction::Rate { .. } => {
-            format!("{} {name}", bundle.text("torrents.banner.rate"))
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn status_class_maps_states() {
-        assert_eq!(status_badge_class("downloading"), "badge-success");
-        assert_eq!(status_badge_class("paused"), "badge-neutral");
-        assert_eq!(status_badge_class("unknown"), "badge-neutral");
-    }
-
-    #[test]
-    fn format_rate_scales_units() {
-        assert_eq!(crate::core::logic::format_rate(512), "512 B/s");
-        assert_eq!(crate::core::logic::format_rate(2048), "2.0 KiB/s");
-        assert!(crate::core::logic::format_rate(5_242_880).contains("MiB"));
-        assert!(crate::core::logic::format_rate(2_147_483_648).contains("GiB"));
-    }
-
-    #[test]
-    fn action_banner_uses_locale_strings() {
-        let bundle = TranslationBundle::new(DEFAULT_LOCALE);
-        let msg = action_banner_message(&bundle, &TorrentAction::Pause, "alpha");
-        assert!(msg.contains(&bundle.text("torrents.banner.pause")));
-    }
+    let tag = element.tag_name();
+    let role = element.get_attribute("role");
+    is_interactive_tag(&tag, role.as_deref())
 }
 
 #[derive(Properties, PartialEq)]

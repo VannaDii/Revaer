@@ -1,5 +1,7 @@
 import fs from 'fs';
 import path from 'path';
+
+import { cleanupE2EState } from './support/e2e-cleanup';
 import { repoRoot } from './support/paths';
 import { REQUIRED_UI_ROUTES } from './support/ui-coverage';
 
@@ -61,6 +63,8 @@ function assertCoverage(label: string, required: Set<string>, covered: Set<strin
 }
 
 export default async function globalTeardown(): Promise<void> {
+  await cleanupE2EState();
+
   const root = repoRoot();
   const resultsDir = path.join(root, 'tests', 'test-results');
 

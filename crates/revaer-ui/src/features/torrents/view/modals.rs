@@ -6,6 +6,7 @@
 //! - Validation errors are surfaced inline with clear, localized copy.
 
 use crate::core::logic::{AddInputError, build_add_payload, format_bytes};
+use crate::features::torrents::logic::{optional_string, parse_list};
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::{AddTorrentInput, TorrentAuthorRequest, TorrentAuthorResponse};
 use wasm_bindgen::JsCast;
@@ -656,24 +657,6 @@ pub(crate) fn create_torrent_panel(props: &CreateTorrentProps) -> Html {
                 html! {}
             }}
         </div>
-    }
-}
-
-fn parse_list(value: &str) -> Vec<String> {
-    value
-        .split([',', '\n'])
-        .map(str::trim)
-        .filter(|item| !item.is_empty())
-        .map(str::to_string)
-        .collect()
-}
-
-fn optional_string(value: &str) -> Option<String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        None
-    } else {
-        Some(trimmed.to_string())
     }
 }
 

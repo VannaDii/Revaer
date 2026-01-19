@@ -61,7 +61,11 @@ struct DbCleanup {
 /// Returns an error if no external URL is provided and Postgres binaries are
 /// unavailable or fail to start.
 pub fn start_postgres() -> Result<TestDatabase> {
-    if let Ok(url) = std::env::var("REVAER_TEST_DATABASE_URL") {
+    start_postgres_with_url(std::env::var("REVAER_TEST_DATABASE_URL").ok())
+}
+
+fn start_postgres_with_url(database_url: Option<String>) -> Result<TestDatabase> {
+    if let Some(url) = database_url {
         let created = create_unique_database(&url)?;
         return Ok(TestDatabase {
             connection_string: created.connection_string,
@@ -139,9 +143,14 @@ struct PostgresBinaries {
 }
 
 fn ensure_binaries() -> Result<PostgresBinaries> {
-    let initdb = resolve_binary("initdb")?;
-    let postgres = resolve_binary("postgres")?;
-    let pg_isready = resolve_binary("pg_isready")?;
+    let search_paths = resolve_search_paths();
+    ensure_binaries_in_paths(&search_paths)
+}
+
+fn ensure_binaries_in_paths(search_paths: &[PathBuf]) -> Result<PostgresBinaries> {
+    let initdb = resolve_binary_in_paths("initdb", search_paths)?;
+    let postgres = resolve_binary_in_paths("postgres", search_paths)?;
+    let pg_isready = resolve_binary_in_paths("pg_isready", search_paths)?;
     Ok(PostgresBinaries {
         initdb,
         postgres,
@@ -149,8 +158,8 @@ fn ensure_binaries() -> Result<PostgresBinaries> {
     })
 }
 
-fn resolve_binary(name: &str) -> Result<PathBuf> {
-    let mut search_paths: Vec<PathBuf> = Vec::new();
+fn resolve_search_paths() -> Vec<PathBuf> {
+    let mut search_paths = Vec::new();
     // Prefer full Postgres server installations so `initdb` has the required assets.
     search_paths.extend([
         PathBuf::from("/opt/homebrew/opt/postgresql@16/bin"),
@@ -164,7 +173,10 @@ fn resolve_binary(name: &str) -> Result<PathBuf> {
         PathBuf::from("/usr/local/bin"),
         PathBuf::from("/opt/homebrew/bin"),
     ]);
+    search_paths
+}
 
+fn resolve_binary_in_paths(name: &str, search_paths: &[PathBuf]) -> Result<PathBuf> {
     for dir in search_paths {
         let candidate = dir.join(name);
         if candidate.exists() {
@@ -302,4 +314,108 @@ fn unique_database_name() -> String {
         .as_nanos();
     let pid = std::process::id();
     format!("revaer_test_{pid}_{nanos}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn temp_dir(label: &str) -> PathBuf {
+        let mut path = std::env::temp_dir();
+        let unique = format!("{label}-{}", unique_database_name());
+        path.push(unique);
+        path
+    }
+
+    #[test]
+    fn admin_urls_includes_postgres_and_fallback() -> Result<(), Box<dyn std::error::Error>> {
+        let base = Url::parse("postgres://user@localhost:5432/revaer")?;
+        let urls = admin_urls(&base);
+        assert_eq!(urls.len(), 2);
+        assert!(urls[0].ends_with("/postgres"));
+        assert!(urls[1].ends_with("/revaer"));
+        Ok(())
+    }
+
+    #[test]
+    fn admin_urls_skips_duplicate_when_already_postgres() -> Result<(), Box<dyn std::error::Error>>
+    {
+        let base = Url::parse("postgres://user@localhost:5432/postgres")?;
+        let urls = admin_urls(&base);
+        assert_eq!(urls.len(), 1);
+        assert!(urls[0].ends_with("/postgres"));
+        Ok(())
+    }
+
+    #[test]
+    fn unique_database_name_prefixes_with_pid() {
+        let name = unique_database_name();
+        let pid = std::process::id();
+        assert!(name.starts_with(&format!("revaer_test_{pid}_")));
+    }
+
+    #[test]
+    fn reserve_port_returns_bindable_port() -> Result<(), Box<dyn std::error::Error>> {
+        let port = reserve_port()?;
+        assert!(port > 0);
+        let listener = TcpListener::bind(("127.0.0.1", port))?;
+        drop(listener);
+        Ok(())
+    }
+
+    #[test]
+    fn create_data_dir_builds_unique_directory() -> Result<(), Box<dyn std::error::Error>> {
+        let path = create_data_dir()?;
+        assert!(path.exists());
+        assert!(path.ends_with("postgres") || path.to_string_lossy().contains("postgres"));
+        fs::remove_dir_all(&path)?;
+        Ok(())
+    }
+
+    #[test]
+    fn resolve_binary_returns_error_for_missing_binary() {
+        let result = resolve_binary_in_paths("definitely-missing-binary", &[]);
+        assert!(result.is_err(), "expected error for missing binary");
+    }
+
+    #[test]
+    fn ensure_binaries_uses_path_entries() -> Result<(), Box<dyn std::error::Error>> {
+        let temp = temp_dir("pg-binaries");
+        fs::create_dir_all(&temp)?;
+        for name in ["initdb", "postgres", "pg_isready"] {
+            fs::write(temp.join(name), "")?;
+        }
+        let binaries = ensure_binaries_in_paths(std::slice::from_ref(&temp))?;
+        fs::remove_dir_all(&temp)?;
+        assert!(binaries.initdb.ends_with("initdb"));
+        assert!(binaries.postgres.ends_with("postgres"));
+        assert!(binaries.pg_isready.ends_with("pg_isready"));
+        Ok(())
+    }
+
+    #[test]
+    fn create_unique_database_rejects_invalid_url() {
+        let result = create_unique_database("not-a-url");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn create_and_drop_database_report_connection_errors() {
+        let admin_url = "postgres://127.0.0.1:0/postgres";
+        let create_result = create_database(admin_url, "missing_db");
+        assert!(create_result.is_err());
+
+        let cleanup = DbCleanup {
+            admin_url: admin_url.to_string(),
+            database: "missing_db".to_string(),
+        };
+        let drop_result = drop_database(&cleanup);
+        assert!(drop_result.is_err());
+    }
+
+    #[test]
+    fn start_postgres_rejects_invalid_env_url() {
+        let result = start_postgres_with_url(Some("not-a-url".into()));
+        assert!(result.is_err());
+    }
 }

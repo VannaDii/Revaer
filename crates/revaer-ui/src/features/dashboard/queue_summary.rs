@@ -1,5 +1,6 @@
 use crate::app::Route;
 use crate::components::atoms::icons::IconMessagesSquare;
+use crate::features::dashboard::logic::queue_icon_src;
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::DashboardSnapshot;
 use yew::prelude::*;
@@ -81,9 +82,4 @@ pub(crate) fn dashboard_queue_summary(props: &DashboardQueueSummaryProps) -> Htm
             </div>
         </div>
     }
-}
-
-fn queue_icon_src(index: usize) -> String {
-    let avatar = (index % 5) + 1;
-    format!("/static/nexus/images/avatars/{avatar}.png")
 }

@@ -460,4 +460,110 @@ mod tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn ensure_file_errors_for_missing_and_non_file() {
+        let temp_root = TempRoot::new().expect("temp root");
+        let missing = temp_root.path.join("missing.css");
+        let err = ensure_file(&missing).expect_err("expected missing path error");
+        assert!(matches!(err, AssetSyncError::MissingPath { .. }));
+
+        let dir_path = temp_root.path.join("dir");
+        fs::create_dir_all(&dir_path).expect("create dir");
+        let err = ensure_file(&dir_path).expect_err("expected non-file error");
+        assert!(matches!(err, AssetSyncError::ExpectedFile { .. }));
+    }
+
+    #[test]
+    fn ensure_dir_errors_for_missing_and_non_dir() {
+        let temp_root = TempRoot::new().expect("temp root");
+        let missing = temp_root.path.join("missing");
+        let err = ensure_dir(&missing).expect_err("expected missing path error");
+        assert!(matches!(err, AssetSyncError::MissingPath { .. }));
+
+        let file_path = temp_root.path.join("file.txt");
+        fs::write(&file_path, "data").expect("write file");
+        let err = ensure_dir(&file_path).expect_err("expected non-dir error");
+        assert!(matches!(err, AssetSyncError::ExpectedDir { .. }));
+    }
+
+    #[test]
+    fn copy_dir_replaces_existing_file_target() -> TestResult {
+        let temp_root = TempRoot::new()?;
+        let source = temp_root.path.join("source-dir");
+        fs::create_dir_all(&source)?;
+        fs::write(source.join("asset.txt"), "asset")?;
+
+        let destination_parent = temp_root.path.join("dest");
+        fs::create_dir_all(&destination_parent)?;
+        let destination = destination_parent.join("source-dir");
+        fs::write(&destination, "placeholder")?;
+
+        copy_dir(&source, &destination)?;
+
+        let copied_file = destination.join("asset.txt");
+        assert!(copied_file.is_file());
+        Ok(())
+    }
+
+    #[test]
+    fn validate_css_flags_short_or_missing_marker() -> TestResult {
+        let temp_root = TempRoot::new()?;
+        let short_css = temp_root.path.join("short.css");
+        fs::write(&short_css, ".btn{}")?;
+        let err = validate_css(&short_css).expect_err("expected short css error");
+        assert!(matches!(err, AssetSyncError::CssInvalid { .. }));
+
+        let marker_missing = temp_root.path.join("no-marker.css");
+        let mut contents = String::from("body { color: black; }\n");
+        while contents.len() < MIN_CSS_BYTES {
+            contents.push_str("/* filler */\n");
+        }
+        fs::write(&marker_missing, contents)?;
+        let err = validate_css(&marker_missing).expect_err("expected missing marker error");
+        assert!(matches!(err, AssetSyncError::CssInvalid { .. }));
+        Ok(())
+    }
+
+    #[test]
+    fn sha256_hex_reports_missing_path() {
+        let missing = PathBuf::from("no-such-file");
+        let err = sha256_hex(&missing).expect_err("expected hash error");
+        assert!(matches!(err, AssetSyncError::Io { .. }));
+    }
+
+    #[test]
+    fn dir_stats_counts_files_and_reports_errors() -> TestResult {
+        let temp_root = TempRoot::new()?;
+        let dir = temp_root.path.join("stats");
+        fs::create_dir_all(dir.join("nested"))?;
+        fs::write(dir.join("a.txt"), "a")?;
+        fs::write(dir.join("nested/b.txt"), "b")?;
+
+        let stats = dir_stats(&dir)?;
+        assert_eq!(stats.files, 2);
+        assert!(stats.bytes >= 2);
+
+        let missing = temp_root.path.join("missing");
+        let err = dir_stats(&missing).expect_err("expected walk error");
+        assert!(matches!(err, AssetSyncError::WalkFailed { .. }));
+        Ok(())
+    }
+
+    #[test]
+    fn write_lock_reports_io_error_when_output_is_file() -> TestResult {
+        let temp_root = TempRoot::new()?;
+        let output_root = temp_root.path.join("output");
+        fs::write(&output_root, "not a dir")?;
+
+        let err = write_lock(
+            &output_root,
+            "hash",
+            DirStats { files: 0, bytes: 0 },
+            DirStats { files: 0, bytes: 0 },
+        )
+        .expect_err("expected io error");
+        assert!(matches!(err, AssetSyncError::Io { .. }));
+        Ok(())
+    }
 }

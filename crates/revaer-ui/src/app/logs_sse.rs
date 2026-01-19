@@ -65,6 +65,9 @@ async fn run_log_stream_loop(
                 let decoder = match TextDecoder::new() {
                     Ok(decoder) => decoder,
                     Err(err) => {
+                        if signal.aborted() {
+                            return;
+                        }
                         on_error.emit(format!("decoder error: {err:?}"));
                         return;
                     }
@@ -87,6 +90,9 @@ async fn run_log_stream_loop(
                             {
                                 Ok(text) => text,
                                 Err(err) => {
+                                    if signal.aborted() {
+                                        return;
+                                    }
                                     on_error.emit(format!("decode error: {err:?}"));
                                     break false;
                                 }
@@ -109,6 +115,9 @@ async fn run_log_stream_loop(
                                     }
                                 }
                                 Err(err) => {
+                                    if signal.aborted() {
+                                        return;
+                                    }
                                     on_error.emit(format!("decode error: {err:?}"));
                                 }
                             }
@@ -121,6 +130,9 @@ async fn run_log_stream_loop(
                             break true;
                         }
                         Err(err) => {
+                            if signal.aborted() {
+                                return;
+                            }
                             on_error.emit(err);
                             break true;
                         }
@@ -129,12 +141,18 @@ async fn run_log_stream_loop(
                 reconnect
             }
             Err(err) => {
+                if signal.aborted() {
+                    break;
+                }
                 on_error.emit(err.to_string());
                 should_reconnect(&err)
             }
         };
 
         if !reconnect {
+            break;
+        }
+        if signal.aborted() {
             break;
         }
         attempt = attempt.saturating_add(1);

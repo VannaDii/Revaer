@@ -1,0 +1,23 @@
+# UI log filters and shell controls
+
+- Status: Accepted
+- Date: 2026-01-17
+- Context:
+  - What problem are we solving? The logs screen needs a DaisyUI filter, consistent search affordances, and SSE-level filtering; shell controls need icon-only indicators, consistent flag icons, and no overlapping z-order with sticky action bars.
+  - What constraints or forces shape the decision? Keep the existing UI structure, avoid new dependencies, and ensure E2E coverage for regressions.
+- Decision:
+  - Summary of the choice made. Replace the log level select with a DaisyUI filter, make the search input a proper daisyUI input with cmd/ctrl+enter hints, move to minimum-level filtering, update shell menus/icons and sidebar controls to icon-only with tooltips, and remove home/torrents breadcrumbs.
+  - Alternatives considered. Keep the select-based filter and add new i18n keys across locales; rejected to avoid translation churn and align with DaisyUI components.
+- Consequences:
+  - Positive outcomes. Log filtering matches severity expectations, UI controls are more compact, and dropdowns no longer hide behind sticky action bars.
+  - Risks or trade-offs. Icon-only controls rely on tooltips for clarity; any tooltip styling changes must preserve accessibility.
+- Task record:
+  - Motivation: Align log filtering with DaisyUI and ensure shell controls remain stable across layout changes.
+  - Design notes: Use DaisyUI filter inputs with severity thresholds; add search hint kbd labels; raise dropdown z-index; remove breadcrumb headers; keep icons/titles for accessibility.
+  - Test coverage summary: Updated Playwright UI specs for logs filter/search, topbar icons, locale flags, breadcrumbs, and dropdown stacking.
+  - Observability updates: None.
+  - Risk & rollback plan: Revert the UI component changes and E2E assertions if layouts regress; fallback to prior select-based filter is isolated to logs view.
+  - Dependency rationale: No new dependencies added.
+- Follow-up:
+  - Implementation tasks. Keep locale flags and icon-only controls consistent across future shell revisions.
+  - Review checkpoints. Verify log filtering and dropdown stacking in UI E2E runs.

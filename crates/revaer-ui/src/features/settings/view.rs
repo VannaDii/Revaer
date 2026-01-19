@@ -6,13 +6,32 @@
 //! - Maintain a local draft for config edits to keep the UI responsive.
 
 use crate::app::api::ApiCtx;
-use crate::components::atoms::icons::{IconFile, IconFolder};
+use crate::components::atoms::icons::{
+    IconDownload, IconFile, IconFileText, IconFolder, IconGlobe2, IconServer, IconSettings,
+    IconUpload,
+};
 use crate::components::daisy::{Input, Modal, Select, Toggle};
 use crate::core::auth::{AuthMode, AuthState, LocalAuth};
+use crate::features::settings::logic::{
+    LABEL_POLICIES_FIELD_KEY, WEEKDAYS, alt_speed_values, apply_optional_numeric,
+    build_changeset_from_snapshot, build_settings_draft, changeset_disables_auth_bypass,
+    collect_section_fields, control_for_field, field_label, immutable_key_set, ip_filter_values,
+    is_field_read_only, label_policy_download_dir, label_policy_entries, label_policy_entry_values,
+    label_policy_matches, map_array_strings, map_bool, map_string, next_peer_class_id,
+    normalize_label_policy_entry, ordered_weekdays, parse_numeric, peer_classes_from_value,
+    set_optional_string, settings_status, split_app_fields, split_engine_fields, tracker_values,
+    validate_tracker_map, value_array_as_strings, value_to_display, value_to_raw,
+};
+use crate::features::settings::state::{
+    AltSpeedValues, AppGroups, EngineGroups, FieldControl, FieldDraft, IpFilterValues, LabelKind,
+    LabelPolicyEntryValues, NumericError, NumericKind, PathBrowserState, PathPickerTarget,
+    PeerClassEntry, SelectOptions, SettingsDraft, SettingsField, SettingsSection, SettingsStatus,
+    SettingsTab, StringListOptions, TrackerValues,
+};
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
-use crate::models::{FsEntry, FsEntryKind};
+use crate::models::FsEntryKind;
 use serde_json::{Map, Value, json};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
@@ -68,143 +87,15 @@ struct SettingsConfigProps {
     pub on_error_toast: Callback<String>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SettingsTab {
-    Connection,
-    Downloads,
-    Seeding,
-    Network,
-    Storage,
-    Labels,
-    System,
-}
-
-impl SettingsTab {
-    const fn all() -> [Self; 7] {
-        [
-            Self::Connection,
-            Self::Downloads,
-            Self::Seeding,
-            Self::Network,
-            Self::Storage,
-            Self::Labels,
-            Self::System,
-        ]
-    }
-
-    const fn label_key(self) -> &'static str {
-        match self {
-            Self::Connection => "settings.tabs.connection",
-            Self::Downloads => "settings.tabs.downloads",
-            Self::Seeding => "settings.tabs.seeding",
-            Self::Network => "settings.tabs.network",
-            Self::Storage => "settings.tabs.storage",
-            Self::Labels => "settings.tabs.labels",
-            Self::System => "settings.tabs.system",
-        }
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum SettingsSection {
-    AppProfile,
-    EngineProfile,
-    FsPolicy,
-}
-
-impl SettingsSection {
-    const fn all() -> [Self; 3] {
-        [Self::AppProfile, Self::EngineProfile, Self::FsPolicy]
-    }
-
-    const fn key(self) -> &'static str {
-        match self {
-            Self::AppProfile => "app_profile",
-            Self::EngineProfile => "engine_profile",
-            Self::FsPolicy => "fs_policy",
-        }
-    }
-}
-
-#[derive(Clone, PartialEq)]
-struct FieldDraft {
-    value: Value,
-    raw: String,
-    error: Option<String>,
-}
-
-#[derive(Clone, PartialEq, Default)]
-struct SettingsDraft {
-    fields: BTreeMap<String, FieldDraft>,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-struct SettingsField {
-    section: SettingsSection,
-    key: String,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum LabelKind {
-    Category,
-    Tag,
-}
-
-impl LabelKind {
-    const fn key(self) -> &'static str {
-        match self {
-            Self::Category => "category",
-            Self::Tag => "tag",
-        }
-    }
-
-    fn from_str(value: &str) -> Option<Self> {
-        match value {
-            "category" => Some(Self::Category),
-            "tag" => Some(Self::Tag),
-            _ => None,
-        }
-    }
-
-    const fn label_key(self) -> &'static str {
-        match self {
-            Self::Category => "settings.labels.categories",
-            Self::Tag => "settings.labels.tags",
-        }
-    }
-}
-
-#[derive(Clone, PartialEq, Eq)]
-enum PathPickerTarget {
-    Single(String),
-    AllowPaths(String),
-    LabelPolicy { kind: LabelKind, name: String },
-}
-
-#[derive(Clone, PartialEq)]
-struct PathBrowserState {
-    open: bool,
-    target: Option<PathPickerTarget>,
-    path: String,
-    input: String,
-    entries: Vec<FsEntry>,
-    parent: Option<String>,
-    busy: bool,
-    error: Option<String>,
-}
-
-impl Default for PathBrowserState {
-    fn default() -> Self {
-        Self {
-            open: false,
-            target: None,
-            path: String::new(),
-            input: String::new(),
-            entries: Vec::new(),
-            parent: None,
-            busy: false,
-            error: None,
-        }
+fn settings_tab_icon(tab: SettingsTab) -> Html {
+    match tab {
+        SettingsTab::Connection => html! { <IconServer size={Some(AttrValue::from("3.5"))} /> },
+        SettingsTab::Downloads => html! { <IconDownload size={Some(AttrValue::from("3.5"))} /> },
+        SettingsTab::Seeding => html! { <IconUpload size={Some(AttrValue::from("3.5"))} /> },
+        SettingsTab::Network => html! { <IconGlobe2 size={Some(AttrValue::from("3.5"))} /> },
+        SettingsTab::Storage => html! { <IconFolder size={Some(AttrValue::from("3.5"))} /> },
+        SettingsTab::Labels => html! { <IconFileText size={Some(AttrValue::from("3.5"))} /> },
+        SettingsTab::System => html! { <IconSettings size={Some(AttrValue::from("3.5"))} /> },
     }
 }
 
@@ -216,54 +107,6 @@ struct PathBrowserCallbacks {
     on_navigate: Callback<String>,
     on_parent: Callback<()>,
     on_go: Callback<()>,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum NumericKind {
-    Integer,
-    Float,
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum NumericError {
-    Integer,
-    Float,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-struct SelectOptions {
-    allow_empty: bool,
-    options: Vec<(String, &'static str)>,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-struct StringListOptions {
-    placeholder_key: &'static str,
-    add_label_key: &'static str,
-    empty_label_key: &'static str,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-enum FieldControl {
-    Toggle,
-    Select(SelectOptions),
-    Number(NumericKind),
-    Text,
-    Path,
-    PathList,
-    StringList(StringListOptions),
-    Telemetry,
-    LabelPolicies,
-    AltSpeed,
-    Tracker,
-    IpFilter,
-    PeerClasses,
-}
-
-#[derive(Default, Clone, Copy, PartialEq, Eq)]
-struct SettingsStatus {
-    dirty_count: usize,
-    has_errors: bool,
 }
 
 #[function_component(SettingsPage)]
@@ -332,40 +175,53 @@ pub(crate) fn settings_page(props: &SettingsPageProps) -> Html {
         on_server_logs: props.on_server_logs.clone(),
     };
 
+    let tab_panel = match *active_tab {
+        SettingsTab::Connection => html! {
+            <SettingsConnectionTab ..connection_props />
+        },
+        _ => html! {
+            <SettingsConfigTabs ..config_props />
+        },
+    };
+
     html! {
-        <section class="space-y-6">
-            <div>
-                <p class="text-lg font-medium">{t("settings.title")}</p>
-                <p class="text-sm text-base-content/60">
-                    {t("settings.subtitle")}
-                </p>
-            </div>
-            <div role="tablist" class="tabs tabs-bordered tabs-sm">
+        <section class="space-y-4">
+            <div role="tablist" class="tabs tabs-lift tabs-sm">
                 {for SettingsTab::all().into_iter().map(|tab| {
                     let active_tab = active_tab.clone();
                     let is_active = *active_tab == tab;
                     let label = t(tab.label_key());
-                    let class = classes!("tab", is_active.then_some("tab-active"));
+                    let class = classes!("tab", "gap-2", is_active.then_some("tab-active"));
+                    let tab_id = tab.tab_id();
+                    let panel_id = SettingsTab::panel_id();
                     html! {
-                        <button
+                        <label
                             role="tab"
+                            id={tab_id}
+                            aria-controls={panel_id}
+                            aria-selected={AttrValue::from(if is_active { "true" } else { "false" })}
                             class={class}
-                            aria-selected={is_active.then_some(AttrValue::from("true"))}
-                            onclick={Callback::from(move |_| active_tab.set(tab))}
                         >
-                            {label}
-                        </button>
+                            <input
+                                type="radio"
+                                name="settings-tabs"
+                                checked={is_active}
+                                onchange={Callback::from(move |_| active_tab.set(tab))}
+                            />
+                            {settings_tab_icon(tab)}
+                            <span>{label}</span>
+                        </label>
                     }
                 })}
+                <div
+                    role="tabpanel"
+                    id={SettingsTab::panel_id()}
+                    aria-labelledby={active_tab.tab_id()}
+                    class="tab-content block w-full rounded-box border border-base-200 bg-base-100 p-4"
+                >
+                    {tab_panel}
+                </div>
             </div>
-            {match *active_tab {
-                SettingsTab::Connection => html! {
-                    <SettingsConnectionTab ..connection_props />
-                },
-                _ => html! {
-                    <SettingsConfigTabs ..config_props />
-                },
-            }}
         </section>
     }
 }
@@ -902,7 +758,7 @@ fn path_browser_open_callback(
                 .unwrap_or_default(),
             PathPickerTarget::AllowPaths(_) => String::new(),
             PathPickerTarget::LabelPolicy { kind, name } => {
-                label_policy_download_dir(&draft, *kind, name).unwrap_or_default()
+                label_policy_download_dir(&*draft, *kind, name).unwrap_or_default()
             }
         };
         let path = if initial.trim().is_empty() {
@@ -2054,7 +1910,7 @@ fn render_string_list_field(
             });
         })
     };
-    let placeholder = AttrValue::from(bundle.text(options.placeholder_key));
+    let placeholder = AttrValue::from(bundle.text(options.placeholder));
     html! {
         <div class="form-control w-full">
             <label class="label pb-1">
@@ -2069,7 +1925,7 @@ fn render_string_list_field(
                         oninput={oninput}
                     />
                     <button class="btn btn-outline btn-sm" onclick={on_add}>
-                        {bundle.text(options.add_label_key)}
+                        {bundle.text(options.add_label)}
                     </button>
                 </div>
                 <div class="space-y-2">
@@ -2087,7 +1943,7 @@ fn render_string_list_field(
                     {if entries.is_empty() {
                         html! {
                             <div class="rounded-box border border-base-200 bg-base-200/30 px-2 py-2 text-xs text-base-content/60">
-                                {bundle.text(options.empty_label_key)}
+                                {bundle.text(options.empty_label)}
                             </div>
                         }
                     } else {
@@ -2308,53 +2164,6 @@ fn render_alt_speed_field(
                 }).unwrap_or_default()}
             </div>
         </div>
-    }
-}
-
-struct AltSpeedValues {
-    download_bps: String,
-    upload_bps: String,
-    schedule_enabled: bool,
-    days: Vec<String>,
-    start_time: String,
-    end_time: String,
-}
-
-fn alt_speed_values(map: &Map<String, Value>) -> AltSpeedValues {
-    let download_bps = map
-        .get("download_bps")
-        .and_then(Value::as_i64)
-        .map(|value| value.to_string())
-        .unwrap_or_default();
-    let upload_bps = map
-        .get("upload_bps")
-        .and_then(Value::as_i64)
-        .map(|value| value.to_string())
-        .unwrap_or_default();
-    let schedule = map.get("schedule").and_then(Value::as_object).cloned();
-    let schedule_enabled = schedule.is_some();
-    let schedule_map = schedule.unwrap_or_default();
-    let days = schedule_map
-        .get("days")
-        .map(value_array_as_strings)
-        .unwrap_or_default();
-    let start_time = schedule_map
-        .get("start")
-        .and_then(Value::as_str)
-        .unwrap_or("00:00")
-        .to_string();
-    let end_time = schedule_map
-        .get("end")
-        .and_then(Value::as_str)
-        .unwrap_or("23:59")
-        .to_string();
-    AltSpeedValues {
-        download_bps,
-        upload_bps,
-        schedule_enabled,
-        days,
-        start_time,
-        end_time,
     }
 }
 
@@ -2731,83 +2540,6 @@ fn render_label_policy_list(
                 }
             }}
         </div>
-    }
-}
-
-struct LabelPolicyEntryValues {
-    download_dir: String,
-    queue_position: String,
-    auto_managed: bool,
-    seed_ratio_limit: String,
-    seed_time_limit: String,
-    rate_download: String,
-    rate_upload: String,
-    cleanup_seed_ratio: String,
-    cleanup_seed_time: String,
-    cleanup_remove: bool,
-}
-
-fn label_policy_entry_values(policy: &Map<String, Value>) -> LabelPolicyEntryValues {
-    let download_dir = policy
-        .get("download_dir")
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string();
-    let queue_position = policy
-        .get("queue_position")
-        .and_then(Value::as_i64)
-        .map(|value| value.to_string())
-        .unwrap_or_default();
-    let auto_managed = policy
-        .get("auto_managed")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    let seed_ratio_limit = policy
-        .get("seed_ratio_limit")
-        .and_then(Value::as_f64)
-        .map(|value| value.to_string())
-        .unwrap_or_default();
-    let seed_time_limit = policy
-        .get("seed_time_limit")
-        .and_then(Value::as_i64)
-        .map(|value| value.to_string())
-        .unwrap_or_default();
-    let rate_download = policy
-        .get("rate_limit_download_bps")
-        .and_then(Value::as_i64)
-        .map(|value| value.to_string())
-        .unwrap_or_default();
-    let rate_upload = policy
-        .get("rate_limit_upload_bps")
-        .and_then(Value::as_i64)
-        .map(|value| value.to_string())
-        .unwrap_or_default();
-    let cleanup_seed_ratio = policy
-        .get("cleanup_seed_ratio_limit")
-        .and_then(Value::as_f64)
-        .map(|value| value.to_string())
-        .unwrap_or_default();
-    let cleanup_seed_time = policy
-        .get("cleanup_seed_time_limit")
-        .and_then(Value::as_i64)
-        .map(|value| value.to_string())
-        .unwrap_or_default();
-    let cleanup_remove = policy
-        .get("cleanup_remove_data")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-
-    LabelPolicyEntryValues {
-        download_dir,
-        queue_position,
-        auto_managed,
-        seed_ratio_limit,
-        seed_time_limit,
-        rate_download,
-        rate_upload,
-        cleanup_seed_ratio,
-        cleanup_seed_time,
-        cleanup_remove,
     }
 }
 
@@ -3217,107 +2949,6 @@ struct TrackerContext {
     error_integer: String,
 }
 
-struct TrackerValues {
-    default_list: Vec<String>,
-    extra_list: Vec<String>,
-    replace: bool,
-    announce_to_all: bool,
-    user_agent: String,
-    announce_ip: String,
-    listen_interface: String,
-    request_timeout: String,
-    ssl_cert: String,
-    ssl_private_key: String,
-    ssl_ca_cert: String,
-    ssl_tracker_verify: bool,
-    proxy_enabled: bool,
-    proxy_host: String,
-    proxy_port: String,
-    proxy_kind: String,
-    proxy_user: String,
-    proxy_pass: String,
-    proxy_peers: bool,
-    auth_enabled: bool,
-    auth_user: String,
-    auth_pass: String,
-    auth_cookie: String,
-}
-
-fn tracker_values(map: &Map<String, Value>) -> TrackerValues {
-    let default_list = map_array_strings(map, "default");
-    let extra_list = map_array_strings(map, "extra");
-    let replace = map_bool(map, "replace");
-    let announce_to_all = map_bool(map, "announce_to_all");
-    let user_agent = map_string(map, "user_agent");
-    let announce_ip = map_string(map, "announce_ip");
-    let listen_interface = map_string(map, "listen_interface");
-    let request_timeout = map
-        .get("request_timeout_ms")
-        .and_then(Value::as_i64)
-        .map(|value| value.to_string())
-        .unwrap_or_default();
-    let ssl_cert = map_string(map, "ssl_cert");
-    let ssl_private_key = map_string(map, "ssl_private_key");
-    let ssl_ca_cert = map_string(map, "ssl_ca_cert");
-    let ssl_tracker_verify = map
-        .get("ssl_tracker_verify")
-        .and_then(Value::as_bool)
-        .unwrap_or(true);
-
-    let proxy_value = map.get("proxy");
-    let proxy_enabled = proxy_value.map(|value| !value.is_null()).unwrap_or(false);
-    let proxy_map = proxy_value
-        .and_then(Value::as_object)
-        .cloned()
-        .unwrap_or_default();
-    let proxy_host = map_string(&proxy_map, "host");
-    let proxy_port = proxy_map
-        .get("port")
-        .and_then(Value::as_i64)
-        .map(|value| value.to_string())
-        .unwrap_or_default();
-    let proxy_kind = map_string(&proxy_map, "kind");
-    let proxy_user = map_string(&proxy_map, "username_secret");
-    let proxy_pass = map_string(&proxy_map, "password_secret");
-    let proxy_peers = map_bool(&proxy_map, "proxy_peers");
-
-    let auth_value = map.get("auth");
-    let auth_enabled = auth_value.map(|value| !value.is_null()).unwrap_or(false);
-    let auth_map = auth_value
-        .and_then(Value::as_object)
-        .cloned()
-        .unwrap_or_default();
-    let auth_user = map_string(&auth_map, "username_secret");
-    let auth_pass = map_string(&auth_map, "password_secret");
-    let auth_cookie = map_string(&auth_map, "cookie_secret");
-
-    TrackerValues {
-        default_list,
-        extra_list,
-        replace,
-        announce_to_all,
-        user_agent,
-        announce_ip,
-        listen_interface,
-        request_timeout,
-        ssl_cert,
-        ssl_private_key,
-        ssl_ca_cert,
-        ssl_tracker_verify,
-        proxy_enabled,
-        proxy_host,
-        proxy_port,
-        proxy_kind,
-        proxy_user,
-        proxy_pass,
-        proxy_peers,
-        auth_enabled,
-        auth_user,
-        auth_pass,
-        auth_cookie,
-    }
-}
-
 fn render_tracker_lists(
     context: &TrackerContext,
     values: &TrackerValues,
@@ -3413,12 +3044,12 @@ fn render_tracker_behavior(context: &TrackerContext, values: &TrackerValues) -> 
         <div class="grid gap-3 sm:grid-cols-2">
             <Toggle
                 label={Some(AttrValue::from(context.bundle.text("settings.tracker.replace")))}
-                checked={values.replace}
+                checked={values.announce.replace}
                 onchange={on_replace}
             />
             <Toggle
                 label={Some(AttrValue::from(context.bundle.text("settings.tracker.announce_to_all")))}
-                checked={values.announce_to_all}
+                checked={values.announce.announce_to_all}
                 onchange={on_announce_to_all}
             />
             <div class="form-control w-full">
@@ -3426,7 +3057,7 @@ fn render_tracker_behavior(context: &TrackerContext, values: &TrackerValues) -> 
                     <span class="label-text text-xs">{context.bundle.text("settings.tracker.user_agent")}</span>
                 </label>
                 <Input
-                    value={AttrValue::from(values.user_agent.clone())}
+                    value={AttrValue::from(values.announce.user_agent.clone())}
                     class="w-full"
                     oninput={on_user_agent}
                 />
@@ -3436,7 +3067,7 @@ fn render_tracker_behavior(context: &TrackerContext, values: &TrackerValues) -> 
                     <span class="label-text text-xs">{context.bundle.text("settings.tracker.announce_ip")}</span>
                 </label>
                 <Input
-                    value={AttrValue::from(values.announce_ip.clone())}
+                    value={AttrValue::from(values.announce.announce_ip.clone())}
                     class="w-full"
                     oninput={on_announce_ip}
                 />
@@ -3446,7 +3077,7 @@ fn render_tracker_behavior(context: &TrackerContext, values: &TrackerValues) -> 
                     <span class="label-text text-xs">{context.bundle.text("settings.tracker.listen_interface")}</span>
                 </label>
                 <Input
-                    value={AttrValue::from(values.listen_interface.clone())}
+                    value={AttrValue::from(values.announce.listen_interface.clone())}
                     class="w-full"
                     oninput={on_listen_interface}
                 />
@@ -3456,7 +3087,7 @@ fn render_tracker_behavior(context: &TrackerContext, values: &TrackerValues) -> 
                     <span class="label-text text-xs">{context.bundle.text("settings.tracker.request_timeout")}</span>
                 </label>
                 <Input
-                    value={AttrValue::from(values.request_timeout.clone())}
+                    value={AttrValue::from(values.announce.request_timeout.clone())}
                     input_type={Some(AttrValue::from("number"))}
                     class="w-full"
                     oninput={on_request_timeout}
@@ -3479,7 +3110,7 @@ fn render_tracker_ssl(context: &TrackerContext, values: &TrackerValues) -> Html 
                     <span class="label-text text-xs">{context.bundle.text("settings.tracker.ssl_cert")}</span>
                 </label>
                 <Input
-                    value={AttrValue::from(values.ssl_cert.clone())}
+                    value={AttrValue::from(values.tls.cert.clone())}
                     class="w-full"
                     oninput={on_ssl_cert}
                 />
@@ -3489,7 +3120,7 @@ fn render_tracker_ssl(context: &TrackerContext, values: &TrackerValues) -> Html 
                     <span class="label-text text-xs">{context.bundle.text("settings.tracker.ssl_private_key")}</span>
                 </label>
                 <Input
-                    value={AttrValue::from(values.ssl_private_key.clone())}
+                    value={AttrValue::from(values.tls.private_key.clone())}
                     class="w-full"
                     oninput={on_ssl_key}
                 />
@@ -3499,14 +3130,14 @@ fn render_tracker_ssl(context: &TrackerContext, values: &TrackerValues) -> Html 
                     <span class="label-text text-xs">{context.bundle.text("settings.tracker.ssl_ca_cert")}</span>
                 </label>
                 <Input
-                    value={AttrValue::from(values.ssl_ca_cert.clone())}
+                    value={AttrValue::from(values.tls.ca_cert.clone())}
                     class="w-full"
                     oninput={on_ssl_ca}
                 />
             </div>
             <Toggle
                 label={Some(AttrValue::from(context.bundle.text("settings.tracker.ssl_verify")))}
-                checked={values.ssl_tracker_verify}
+                checked={values.tls.verify}
                 onchange={on_ssl_verify}
             />
         </div>
@@ -3528,10 +3159,10 @@ fn render_tracker_proxy(context: &TrackerContext, values: &TrackerValues) -> Htm
         <div class="rounded-box border border-base-200 bg-base-200/20 p-3 space-y-3">
             <Toggle
                 label={Some(AttrValue::from(context.bundle.text("settings.tracker.proxy_enabled")))}
-                checked={values.proxy_enabled}
+                checked={values.proxy.enabled}
                 onchange={on_proxy_toggle}
             />
-            {if values.proxy_enabled {
+            {if values.proxy.enabled {
                 html! {
                     <div class="grid gap-3 sm:grid-cols-2">
                         <div class="form-control w-full">
@@ -3539,7 +3170,7 @@ fn render_tracker_proxy(context: &TrackerContext, values: &TrackerValues) -> Htm
                                 <span class="label-text text-xs">{context.bundle.text("settings.tracker.proxy_host")}</span>
                             </label>
                             <Input
-                                value={AttrValue::from(values.proxy_host.clone())}
+                                value={AttrValue::from(values.proxy.host.clone())}
                                 class="w-full"
                                 oninput={on_proxy_host}
                             />
@@ -3549,7 +3180,7 @@ fn render_tracker_proxy(context: &TrackerContext, values: &TrackerValues) -> Htm
                                 <span class="label-text text-xs">{context.bundle.text("settings.tracker.proxy_port")}</span>
                             </label>
                             <Input
-                                value={AttrValue::from(values.proxy_port.clone())}
+                                value={AttrValue::from(values.proxy.port.clone())}
                                 input_type={Some(AttrValue::from("number"))}
                                 class="w-full"
                                 oninput={on_proxy_port}
@@ -3560,7 +3191,7 @@ fn render_tracker_proxy(context: &TrackerContext, values: &TrackerValues) -> Htm
                                 <span class="label-text text-xs">{context.bundle.text("settings.tracker.proxy_kind")}</span>
                             </label>
                             <Select
-                                value={(!values.proxy_kind.is_empty()).then(|| AttrValue::from(values.proxy_kind.clone()))}
+                                value={(!values.proxy.kind.is_empty()).then(|| AttrValue::from(values.proxy.kind.clone()))}
                                 options={proxy_kind_options}
                                 placeholder={Some(AttrValue::from(context.bundle.text("settings.option.auto")))}
                                 class="w-full"
@@ -3572,7 +3203,7 @@ fn render_tracker_proxy(context: &TrackerContext, values: &TrackerValues) -> Htm
                                 <span class="label-text text-xs">{context.bundle.text("settings.tracker.proxy_user")}</span>
                             </label>
                             <Input
-                                value={AttrValue::from(values.proxy_user.clone())}
+                                value={AttrValue::from(values.proxy.user.clone())}
                                 class="w-full"
                                 oninput={on_proxy_user}
                             />
@@ -3582,14 +3213,14 @@ fn render_tracker_proxy(context: &TrackerContext, values: &TrackerValues) -> Htm
                                 <span class="label-text text-xs">{context.bundle.text("settings.tracker.proxy_pass")}</span>
                             </label>
                             <Input
-                                value={AttrValue::from(values.proxy_pass.clone())}
+                                value={AttrValue::from(values.proxy.pass.clone())}
                                 class="w-full"
                                 oninput={on_proxy_pass}
                             />
                         </div>
                         <Toggle
                             label={Some(AttrValue::from(context.bundle.text("settings.tracker.proxy_peers")))}
-                            checked={values.proxy_peers}
+                            checked={values.proxy.peers}
                             onchange={on_proxy_peers}
                         />
                     </div>
@@ -3611,10 +3242,10 @@ fn render_tracker_auth(context: &TrackerContext, values: &TrackerValues) -> Html
         <div class="rounded-box border border-base-200 bg-base-200/20 p-3 space-y-3">
             <Toggle
                 label={Some(AttrValue::from(context.bundle.text("settings.tracker.auth_enabled")))}
-                checked={values.auth_enabled}
+                checked={values.auth.enabled}
                 onchange={on_auth_toggle}
             />
-            {if values.auth_enabled {
+            {if values.auth.enabled {
                 html! {
                     <div class="grid gap-3 sm:grid-cols-2">
                         <div class="form-control w-full">
@@ -3622,7 +3253,7 @@ fn render_tracker_auth(context: &TrackerContext, values: &TrackerValues) -> Html
                                 <span class="label-text text-xs">{context.bundle.text("settings.tracker.auth_user")}</span>
                             </label>
                             <Input
-                                value={AttrValue::from(values.auth_user.clone())}
+                                value={AttrValue::from(values.auth.user.clone())}
                                 class="w-full"
                                 oninput={on_auth_user}
                             />
@@ -3632,7 +3263,7 @@ fn render_tracker_auth(context: &TrackerContext, values: &TrackerValues) -> Html
                                 <span class="label-text text-xs">{context.bundle.text("settings.tracker.auth_pass")}</span>
                             </label>
                             <Input
-                                value={AttrValue::from(values.auth_pass.clone())}
+                                value={AttrValue::from(values.auth.pass.clone())}
                                 class="w-full"
                                 oninput={on_auth_pass}
                             />
@@ -3642,7 +3273,7 @@ fn render_tracker_auth(context: &TrackerContext, values: &TrackerValues) -> Html
                                 <span class="label-text text-xs">{context.bundle.text("settings.tracker.auth_cookie")}</span>
                             </label>
                             <Input
-                                value={AttrValue::from(values.auth_cookie.clone())}
+                                value={AttrValue::from(values.auth.cookie.clone())}
                                 class="w-full"
                                 oninput={on_auth_cookie}
                             />
@@ -3943,24 +3574,6 @@ struct IpFilterContext {
     field_key: String,
     bundle: TranslationBundle,
     on_copy_value: Callback<String>,
-}
-
-struct IpFilterValues {
-    cidrs: Vec<String>,
-    blocklist_url: String,
-    etag: String,
-    last_updated: String,
-    last_error: String,
-}
-
-fn ip_filter_values(map: &Map<String, Value>) -> IpFilterValues {
-    IpFilterValues {
-        cidrs: map_array_strings(map, "cidrs"),
-        blocklist_url: map_string(map, "blocklist_url"),
-        etag: map_string(map, "etag"),
-        last_updated: map_string(map, "last_updated_at"),
-        last_error: map_string(map, "last_error"),
-    }
 }
 
 fn ip_filter_input_callback(state: UseStateHandle<String>) -> Callback<String> {
@@ -4531,331 +4144,6 @@ fn render_config_placeholder(bundle: &TranslationBundle, busy: bool) -> Html {
     }
 }
 
-fn settings_status(
-    snapshot: Option<&Value>,
-    draft: &SettingsDraft,
-    immutable_keys: &HashSet<String>,
-) -> SettingsStatus {
-    let Some(snapshot) = snapshot else {
-        return SettingsStatus::default();
-    };
-    let mut status = SettingsStatus::default();
-    for section in SettingsSection::all() {
-        let Some(section_value) = snapshot.get(section.key()) else {
-            continue;
-        };
-        let Some(map) = section_value.as_object() else {
-            continue;
-        };
-        for (key, original) in map {
-            let field_key = format!("{}.{}", section.key(), key);
-            if let Some(state) = draft.fields.get(&field_key) {
-                if state.error.is_some() {
-                    status.has_errors = true;
-                }
-                if is_field_read_only(section, key, immutable_keys) {
-                    continue;
-                }
-                if original != &state.value {
-                    status.dirty_count = status.dirty_count.saturating_add(1);
-                }
-            }
-        }
-    }
-    status
-}
-
-fn build_changeset_from_snapshot(
-    snapshot: &Value,
-    draft: &SettingsDraft,
-    immutable_keys: &HashSet<String>,
-) -> Option<Value> {
-    let mut app_patch = None;
-    let mut engine_patch = None;
-    let mut fs_patch = None;
-    for section in SettingsSection::all() {
-        let Some(section_value) = snapshot.get(section.key()) else {
-            continue;
-        };
-        let Some(map) = section_value.as_object() else {
-            continue;
-        };
-        let mut updated_map = map.clone();
-        let mut dirty = false;
-        for (key, original) in map {
-            if is_field_read_only(section, key, immutable_keys) {
-                continue;
-            }
-            let field_key = format!("{}.{}", section.key(), key);
-            let Some(current) = draft.fields.get(&field_key) else {
-                continue;
-            };
-            if original == &current.value {
-                continue;
-            }
-            updated_map.insert(key.clone(), current.value.clone());
-            dirty = true;
-        }
-        if !dirty {
-            continue;
-        }
-        match section {
-            SettingsSection::AppProfile => app_patch = Some(updated_map),
-            SettingsSection::EngineProfile => engine_patch = Some(updated_map),
-            SettingsSection::FsPolicy => fs_patch = Some(updated_map),
-        }
-    }
-
-    if app_patch.is_none() && engine_patch.is_none() && fs_patch.is_none() {
-        return None;
-    }
-
-    let mut root = Map::new();
-    if let Some(app_patch) = app_patch {
-        root.insert("app_profile".to_string(), Value::Object(app_patch));
-    }
-    if let Some(engine_patch) = engine_patch {
-        root.insert("engine_profile".to_string(), Value::Object(engine_patch));
-    }
-    if let Some(fs_patch) = fs_patch {
-        root.insert("fs_policy".to_string(), Value::Object(fs_patch));
-    }
-
-    Some(Value::Object(root))
-}
-
-fn changeset_disables_auth_bypass(changeset: &Value) -> bool {
-    changeset
-        .get("app_profile")
-        .and_then(|profile| profile.get("auth_mode"))
-        .and_then(Value::as_str)
-        .map_or(false, |mode| mode == "api_key")
-}
-
-fn build_settings_draft(snapshot: &Value) -> SettingsDraft {
-    let mut fields = BTreeMap::new();
-    for section in SettingsSection::all() {
-        let Some(section_value) = snapshot.get(section.key()) else {
-            continue;
-        };
-        let Some(map) = section_value.as_object() else {
-            continue;
-        };
-        for (key, value) in map {
-            let field_key = format!("{}.{}", section.key(), key);
-            fields.insert(
-                field_key,
-                FieldDraft {
-                    value: value.clone(),
-                    raw: value_to_raw(value),
-                    error: None,
-                },
-            );
-        }
-    }
-    SettingsDraft { fields }
-}
-
-fn collect_section_fields(
-    snapshot: Option<&Value>,
-    section: SettingsSection,
-) -> Vec<SettingsField> {
-    let Some(snapshot) = snapshot else {
-        return Vec::new();
-    };
-    let Some(section_value) = snapshot.get(section.key()) else {
-        return Vec::new();
-    };
-    let Some(map) = section_value.as_object() else {
-        return Vec::new();
-    };
-    let mut fields = map
-        .keys()
-        .map(|key| SettingsField {
-            section,
-            key: key.clone(),
-        })
-        .collect::<Vec<_>>();
-    fields.sort_by(|a, b| a.key.cmp(&b.key));
-    fields
-}
-
-fn split_engine_fields(fields: Vec<SettingsField>) -> EngineGroups {
-    let (downloads, remaining) = split_fields(fields, DOWNLOAD_FIELDS);
-    let (seeding, remaining) = split_fields(remaining, SEEDING_FIELDS);
-    let (network, remaining) = split_fields(remaining, NETWORK_FIELDS);
-    let (storage, remaining) = split_fields(remaining, STORAGE_FIELDS);
-
-    EngineGroups {
-        downloads,
-        seeding,
-        network,
-        storage,
-        advanced: remaining,
-    }
-}
-
-struct EngineGroups {
-    downloads: Vec<SettingsField>,
-    seeding: Vec<SettingsField>,
-    network: Vec<SettingsField>,
-    storage: Vec<SettingsField>,
-    advanced: Vec<SettingsField>,
-}
-
-struct AppGroups {
-    info: Vec<SettingsField>,
-    telemetry: Vec<SettingsField>,
-    labels: Vec<SettingsField>,
-    other: Vec<SettingsField>,
-}
-
-const APP_INFO_FIELDS: &[&str] = &[
-    "id",
-    "instance_name",
-    "mode",
-    "auth_mode",
-    "version",
-    "http_port",
-    "bind_addr",
-    "local_networks",
-    "immutable_keys",
-];
-
-const APP_TELEMETRY_FIELDS: &[&str] = &["telemetry"];
-
-const APP_LABEL_FIELDS: &[&str] = &["label_policies"];
-
-const LABEL_POLICIES_FIELD_KEY: &str = "app_profile.label_policies";
-
-const DOWNLOAD_FIELDS: &[&str] = &[
-    "download_root",
-    "resume_dir",
-    "sequential_default",
-    "auto_managed",
-    "max_active",
-    "max_download_bps",
-    "max_upload_bps",
-    "connections_limit",
-    "connections_limit_per_torrent",
-    "unchoke_slots",
-    "half_open_limit",
-    "stats_interval_ms",
-    "alt_speed",
-];
-
-const SEEDING_FIELDS: &[&str] = &[
-    "seed_ratio_limit",
-    "seed_time_limit",
-    "auto_manage_prefer_seeds",
-    "dont_count_slow_torrents",
-    "super_seeding",
-    "strict_super_seeding",
-    "choking_algorithm",
-    "seed_choking_algorithm",
-    "optimistic_unchoke_slots",
-];
-
-const NETWORK_FIELDS: &[&str] = &[
-    "listen_port",
-    "listen_interfaces",
-    "ipv6_mode",
-    "dht",
-    "dht_bootstrap_nodes",
-    "dht_router_nodes",
-    "encryption",
-    "enable_lsd",
-    "enable_upnp",
-    "enable_natpmp",
-    "enable_pex",
-    "enable_outgoing_utp",
-    "enable_incoming_utp",
-    "force_proxy",
-    "prefer_rc4",
-    "allow_multiple_connections_per_ip",
-    "outgoing_port_min",
-    "outgoing_port_max",
-    "peer_dscp",
-    "tracker",
-    "ip_filter",
-    "peer_classes",
-];
-
-const STORAGE_FIELDS: &[&str] = &[
-    "storage_mode",
-    "use_partfile",
-    "disk_read_mode",
-    "disk_write_mode",
-    "verify_piece_hashes",
-    "cache_size",
-    "cache_expiry",
-    "coalesce_reads",
-    "coalesce_writes",
-    "use_disk_cache_pool",
-    "max_queued_disk_bytes",
-];
-
-const WEEKDAYS: [(&str, &str); 7] = [
-    ("mon", "settings.weekday.mon"),
-    ("tue", "settings.weekday.tue"),
-    ("wed", "settings.weekday.wed"),
-    ("thu", "settings.weekday.thu"),
-    ("fri", "settings.weekday.fri"),
-    ("sat", "settings.weekday.sat"),
-    ("sun", "settings.weekday.sun"),
-];
-
-fn split_fields(
-    fields: Vec<SettingsField>,
-    names: &[&str],
-) -> (Vec<SettingsField>, Vec<SettingsField>) {
-    let name_set = names.iter().copied().collect::<HashSet<_>>();
-    let mut selected = Vec::new();
-    let mut remaining = Vec::new();
-    for field in fields {
-        if name_set.contains(field.key.as_str()) {
-            selected.push(field);
-        } else {
-            remaining.push(field);
-        }
-    }
-    (selected, remaining)
-}
-
-fn split_app_fields(fields: Vec<SettingsField>) -> AppGroups {
-    let (labels, remaining) = split_fields(fields, APP_LABEL_FIELDS);
-    let (telemetry, remaining) = split_fields(remaining, APP_TELEMETRY_FIELDS);
-    let (info, remaining) = split_fields(remaining, APP_INFO_FIELDS);
-    AppGroups {
-        info,
-        telemetry,
-        labels,
-        other: remaining,
-    }
-}
-
-fn immutable_key_set(snapshot: Option<&Value>) -> HashSet<String> {
-    let mut keys = HashSet::new();
-    let Some(snapshot) = snapshot else {
-        return keys;
-    };
-    let Some(app) = snapshot.get(SettingsSection::AppProfile.key()) else {
-        return keys;
-    };
-    let Some(value) = app.get("immutable_keys") else {
-        return keys;
-    };
-    let Some(entries) = value.as_array() else {
-        return keys;
-    };
-    for entry in entries {
-        if let Some(item) = entry.as_str() {
-            keys.insert(item.to_string());
-        }
-    }
-    keys
-}
-
 fn update_field(
     draft: &UseStateHandle<SettingsDraft>,
     field_key: &str,
@@ -4888,30 +4176,6 @@ fn field_object_value(
         .unwrap_or_default()
 }
 
-fn map_string(map: &Map<String, Value>, key: &str) -> String {
-    map.get(key)
-        .and_then(Value::as_str)
-        .unwrap_or("")
-        .to_string()
-}
-
-fn map_bool(map: &Map<String, Value>, key: &str) -> bool {
-    map.get(key).and_then(Value::as_bool).unwrap_or(false)
-}
-
-fn map_array_strings(map: &Map<String, Value>, key: &str) -> Vec<String> {
-    map.get(key).map(value_array_as_strings).unwrap_or_default()
-}
-
-fn set_optional_string(map: &mut Map<String, Value>, key: &str, value: &str) {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        map.remove(key);
-    } else {
-        map.insert(key.to_string(), Value::String(trimmed.to_string()));
-    }
-}
-
 fn update_object_field(
     draft: &UseStateHandle<SettingsDraft>,
     field_key: &str,
@@ -4938,49 +4202,6 @@ fn update_object_field_with_error(
         field.error = error;
         field.raw = String::new();
     });
-}
-
-fn ordered_weekdays(days: &[String]) -> Vec<String> {
-    WEEKDAYS
-        .iter()
-        .filter_map(|(day, _)| {
-            days.iter()
-                .any(|entry| entry == day)
-                .then(|| (*day).to_string())
-        })
-        .collect()
-}
-
-fn apply_optional_numeric(raw: &str, kind: NumericKind) -> Result<Option<Value>, NumericError> {
-    let trimmed = raw.trim();
-    if trimmed.is_empty() {
-        return Ok(None);
-    }
-    parse_numeric(kind, trimmed).map(Some)
-}
-
-fn label_policy_entries(value: &Value, kind: LabelKind) -> Vec<(String, Map<String, Value>)> {
-    let mut entries = Vec::new();
-    let Some(list) = value.as_array() else {
-        return entries;
-    };
-    for entry in list {
-        let Some(map) = entry.as_object() else {
-            continue;
-        };
-        let entry_kind = map
-            .get("kind")
-            .and_then(Value::as_str)
-            .and_then(LabelKind::from_str);
-        let Some(name) = map.get("name").and_then(Value::as_str) else {
-            continue;
-        };
-        if entry_kind == Some(kind) {
-            entries.push((name.to_string(), map.clone()));
-        }
-    }
-    entries.sort_by(|a, b| a.0.cmp(&b.0));
-    entries
 }
 
 fn insert_label_policy_entry(
@@ -5057,23 +4278,6 @@ fn update_label_policy_entry_with_error(
     });
 }
 
-fn label_policy_matches(entry: &Value, kind: LabelKind, name: &str) -> bool {
-    let Some(map) = entry.as_object() else {
-        return false;
-    };
-    let entry_kind = map
-        .get("kind")
-        .and_then(Value::as_str)
-        .and_then(LabelKind::from_str);
-    let entry_name = map.get("name").and_then(Value::as_str);
-    entry_kind == Some(kind) && entry_name == Some(name)
-}
-
-fn normalize_label_policy_entry(kind: LabelKind, name: &str, policy: &mut Map<String, Value>) {
-    policy.insert("kind".to_string(), Value::String(kind.key().to_string()));
-    policy.insert("name".to_string(), Value::String(name.to_string()));
-}
-
 fn update_label_policy_string(
     draft: &UseStateHandle<SettingsDraft>,
     field_key: &str,
@@ -5125,26 +4329,6 @@ fn update_label_policy_numeric(
     });
 }
 
-fn label_policy_download_dir(
-    draft: &UseStateHandle<SettingsDraft>,
-    kind: LabelKind,
-    name: &str,
-) -> Option<String> {
-    draft
-        .fields
-        .get(LABEL_POLICIES_FIELD_KEY)
-        .and_then(|field| field.value.as_array())
-        .and_then(|entries| {
-            entries
-                .iter()
-                .find(|entry| label_policy_matches(entry, kind, name))
-        })
-        .and_then(Value::as_object)
-        .and_then(|policy| policy.get("download_dir"))
-        .and_then(Value::as_str)
-        .map(str::to_string)
-}
-
 fn update_label_policy_download_dir(
     draft: &UseStateHandle<SettingsDraft>,
     kind: LabelKind,
@@ -5174,131 +4358,6 @@ fn update_tracker_field(
         field.error = error;
         field.raw = String::new();
     });
-}
-
-fn validate_tracker_map(map: &Map<String, Value>, bundle: &TranslationBundle) -> Option<String> {
-    if let Some(proxy_value) = map.get("proxy") {
-        if proxy_value.is_null() {
-            return None;
-        }
-        let Some(proxy) = proxy_value.as_object() else {
-            return Some(bundle.text("settings.tracker.error_proxy"));
-        };
-        let host = proxy
-            .get("host")
-            .and_then(Value::as_str)
-            .unwrap_or("")
-            .trim();
-        let port = proxy.get("port").and_then(Value::as_i64).unwrap_or(0);
-        if host.is_empty() || !(1..=65_535).contains(&port) {
-            return Some(bundle.text("settings.tracker.error_proxy"));
-        }
-    }
-
-    if let Some(auth_value) = map.get("auth") {
-        if auth_value.is_null() {
-            return None;
-        }
-        let Some(auth) = auth_value.as_object() else {
-            return Some(bundle.text("settings.tracker.error_auth"));
-        };
-        let has_secret = ["username_secret", "password_secret", "cookie_secret"]
-            .iter()
-            .any(|key| {
-                auth.get(*key)
-                    .and_then(Value::as_str)
-                    .is_some_and(|value| !value.trim().is_empty())
-            });
-        if !has_secret {
-            return Some(bundle.text("settings.tracker.error_auth"));
-        }
-    }
-
-    None
-}
-
-#[derive(Clone, PartialEq, Eq)]
-struct PeerClassEntry {
-    id: u8,
-    label: String,
-    download_priority: u16,
-    upload_priority: u16,
-    connection_limit_factor: u16,
-    ignore_unchoke_slots: bool,
-    is_default: bool,
-}
-
-fn peer_classes_from_value(map: &Map<String, Value>) -> Vec<PeerClassEntry> {
-    let defaults = map
-        .get("default")
-        .and_then(Value::as_array)
-        .map(|entries| {
-            entries
-                .iter()
-                .filter_map(Value::as_u64)
-                .filter_map(|value| u8::try_from(value).ok())
-                .collect::<HashSet<_>>()
-        })
-        .unwrap_or_default();
-    let mut classes = Vec::new();
-    if let Some(entries) = map.get("classes").and_then(Value::as_array) {
-        for entry in entries {
-            let Some(obj) = entry.as_object() else {
-                continue;
-            };
-            let Some(id_value) = obj.get("id").and_then(Value::as_u64) else {
-                continue;
-            };
-            let Ok(id) = u8::try_from(id_value) else {
-                continue;
-            };
-            if id > 31 {
-                continue;
-            }
-            let label = obj
-                .get("label")
-                .and_then(Value::as_str)
-                .unwrap_or("")
-                .to_string();
-            let download_priority = obj
-                .get("download_priority")
-                .and_then(Value::as_u64)
-                .and_then(|value| u16::try_from(value).ok())
-                .unwrap_or(1)
-                .max(1);
-            let upload_priority = obj
-                .get("upload_priority")
-                .and_then(Value::as_u64)
-                .and_then(|value| u16::try_from(value).ok())
-                .unwrap_or(1)
-                .max(1);
-            let connection_limit_factor = obj
-                .get("connection_limit_factor")
-                .and_then(Value::as_u64)
-                .and_then(|value| u16::try_from(value).ok())
-                .unwrap_or(100)
-                .max(1);
-            let ignore_unchoke_slots = obj
-                .get("ignore_unchoke_slots")
-                .and_then(Value::as_bool)
-                .unwrap_or(false);
-            let label = if label.is_empty() {
-                format!("class_{id}")
-            } else {
-                label
-            };
-            classes.push(PeerClassEntry {
-                id,
-                label,
-                download_priority,
-                upload_priority,
-                connection_limit_factor,
-                ignore_unchoke_slots,
-                is_default: defaults.contains(&id),
-            });
-        }
-    }
-    classes
 }
 
 fn update_peer_classes(
@@ -5336,341 +4395,4 @@ fn update_peer_classes(
         field.error = None;
         field.raw = String::new();
     });
-}
-
-fn next_peer_class_id(classes: &[PeerClassEntry]) -> Option<u8> {
-    (0..=31).find(|id| classes.iter().all(|entry| entry.id != *id))
-}
-
-fn parse_numeric(kind: NumericKind, value: &str) -> Result<Value, NumericError> {
-    match kind {
-        NumericKind::Integer => value
-            .parse::<i64>()
-            .map(Value::from)
-            .map_err(|_| NumericError::Integer),
-        NumericKind::Float => {
-            let parsed = value.parse::<f64>().map_err(|_| NumericError::Float)?;
-            serde_json::Number::from_f64(parsed)
-                .map(Value::Number)
-                .ok_or(NumericError::Float)
-        }
-    }
-}
-
-fn value_to_raw(value: &Value) -> String {
-    match value {
-        Value::Null => String::new(),
-        Value::String(value) => value.clone(),
-        Value::Bool(value) => value.to_string(),
-        Value::Number(value) => value.to_string(),
-        Value::Array(_) | Value::Object(_) => String::new(),
-    }
-}
-
-fn value_to_display(value: &Value) -> String {
-    match value {
-        Value::Null => String::new(),
-        Value::String(value) => value.clone(),
-        Value::Bool(value) => value.to_string(),
-        Value::Number(value) => value.to_string(),
-        Value::Array(entries) => entries
-            .iter()
-            .map(value_to_display)
-            .filter(|item| !item.is_empty())
-            .collect::<Vec<_>>()
-            .join("\n"),
-        Value::Object(map) => {
-            let mut keys = map.keys().collect::<Vec<_>>();
-            keys.sort();
-            keys.iter()
-                .map(|key| {
-                    let value = map.get(*key).map(value_to_display).unwrap_or_default();
-                    format!("{key}: {value}")
-                })
-                .collect::<Vec<_>>()
-                .join("\n")
-        }
-    }
-}
-
-fn value_array_as_strings(value: &Value) -> Vec<String> {
-    value
-        .as_array()
-        .map(|entries| {
-            entries
-                .iter()
-                .filter_map(|entry| entry.as_str().map(str::to_string))
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default()
-}
-
-fn field_label(bundle: &TranslationBundle, section: SettingsSection, key: &str) -> String {
-    let translation_key = format!("settings.fields.{}.{}", section.key(), key);
-    let translated = bundle.text(&translation_key);
-    if translated == translation_key {
-        humanize_key(key)
-    } else {
-        translated
-    }
-}
-
-fn humanize_key(key: &str) -> String {
-    let mut out = String::new();
-    for (idx, segment) in key.split('_').enumerate() {
-        if segment.is_empty() {
-            continue;
-        }
-        if idx > 0 {
-            out.push(' ');
-        }
-        let mut chars = segment.chars();
-        if let Some(first) = chars.next() {
-            out.push(first.to_ascii_uppercase());
-            for ch in chars {
-                out.push(ch);
-            }
-        }
-    }
-    out
-}
-
-fn is_field_read_only(
-    section: SettingsSection,
-    key: &str,
-    immutable_keys: &HashSet<String>,
-) -> bool {
-    if matches!(
-        (section, key),
-        (SettingsSection::AppProfile, "id")
-            | (SettingsSection::AppProfile, "version")
-            | (SettingsSection::AppProfile, "mode")
-            | (SettingsSection::AppProfile, "bind_addr")
-            | (SettingsSection::AppProfile, "http_port")
-            | (SettingsSection::AppProfile, "immutable_keys")
-            | (SettingsSection::EngineProfile, "id")
-            | (SettingsSection::EngineProfile, "implementation")
-            | (SettingsSection::FsPolicy, "id")
-    ) {
-        return true;
-    }
-    let scoped = format!("{}.{}", section.key(), key);
-    let scoped_wildcard = format!("{}.*", section.key());
-    immutable_keys.contains(section.key())
-        || immutable_keys.contains(key)
-        || immutable_keys.contains(&scoped)
-        || immutable_keys.contains(&scoped_wildcard)
-}
-
-fn control_for_field(section: SettingsSection, key: &str, value: &Value) -> FieldControl {
-    if matches!((section, key), (SettingsSection::AppProfile, "telemetry")) {
-        return FieldControl::Telemetry;
-    }
-    if matches!(
-        (section, key),
-        (SettingsSection::AppProfile, "label_policies")
-    ) {
-        return FieldControl::LabelPolicies;
-    }
-    if matches!(
-        (section, key),
-        (SettingsSection::EngineProfile, "alt_speed")
-    ) {
-        return FieldControl::AltSpeed;
-    }
-    if matches!((section, key), (SettingsSection::EngineProfile, "tracker")) {
-        return FieldControl::Tracker;
-    }
-    if matches!(
-        (section, key),
-        (SettingsSection::EngineProfile, "ip_filter")
-    ) {
-        return FieldControl::IpFilter;
-    }
-    if matches!(
-        (section, key),
-        (SettingsSection::EngineProfile, "peer_classes")
-    ) {
-        return FieldControl::PeerClasses;
-    }
-    if section == SettingsSection::FsPolicy && key == "allow_paths" {
-        return FieldControl::PathList;
-    }
-    if is_directory_field(section, key) {
-        return FieldControl::Path;
-    }
-    if let Some(options) = select_options(section, key, value) {
-        return FieldControl::Select(options);
-    }
-    if let Some(kind) = numeric_kind(section, key) {
-        return FieldControl::Number(kind);
-    }
-    if value.is_boolean() {
-        return FieldControl::Toggle;
-    }
-    if value.is_array() {
-        return FieldControl::StringList(
-            string_list_options(section, key).unwrap_or(default_list_options()),
-        );
-    }
-    FieldControl::Text
-}
-
-fn string_list_options(section: SettingsSection, key: &str) -> Option<StringListOptions> {
-    let options = match (section, key) {
-        (SettingsSection::AppProfile, "local_networks") => StringListOptions {
-            placeholder_key: "settings.list.local_networks_placeholder",
-            add_label_key: "settings.add",
-            empty_label_key: "settings.list.empty",
-        },
-        (SettingsSection::EngineProfile, "listen_interfaces") => StringListOptions {
-            placeholder_key: "settings.list.listen_interfaces_placeholder",
-            add_label_key: "settings.add",
-            empty_label_key: "settings.list.empty",
-        },
-        (SettingsSection::EngineProfile, "dht_bootstrap_nodes") => StringListOptions {
-            placeholder_key: "settings.list.dht_bootstrap_placeholder",
-            add_label_key: "settings.add",
-            empty_label_key: "settings.list.empty",
-        },
-        (SettingsSection::EngineProfile, "dht_router_nodes") => StringListOptions {
-            placeholder_key: "settings.list.dht_router_placeholder",
-            add_label_key: "settings.add",
-            empty_label_key: "settings.list.empty",
-        },
-        (SettingsSection::FsPolicy, "cleanup_keep") => StringListOptions {
-            placeholder_key: "settings.list.cleanup_keep_placeholder",
-            add_label_key: "settings.add",
-            empty_label_key: "settings.list.empty",
-        },
-        (SettingsSection::FsPolicy, "cleanup_drop") => StringListOptions {
-            placeholder_key: "settings.list.cleanup_drop_placeholder",
-            add_label_key: "settings.add",
-            empty_label_key: "settings.list.empty",
-        },
-        _ => return None,
-    };
-    Some(options)
-}
-
-fn default_list_options() -> StringListOptions {
-    StringListOptions {
-        placeholder_key: "settings.list.placeholder",
-        add_label_key: "settings.add",
-        empty_label_key: "settings.list.empty",
-    }
-}
-
-fn is_directory_field(section: SettingsSection, key: &str) -> bool {
-    matches!(
-        (section, key),
-        (SettingsSection::EngineProfile, "download_root")
-            | (SettingsSection::EngineProfile, "resume_dir")
-            | (SettingsSection::FsPolicy, "library_root")
-    )
-}
-
-fn select_options(section: SettingsSection, key: &str, value: &Value) -> Option<SelectOptions> {
-    let allow_empty = value.is_null()
-        || matches!(
-            (section, key),
-            (SettingsSection::EngineProfile, "disk_read_mode")
-                | (SettingsSection::EngineProfile, "disk_write_mode")
-        );
-    let options = match (section, key) {
-        (SettingsSection::AppProfile, "auth_mode") => vec![
-            ("api_key".to_string(), "settings.option.api_key"),
-            ("none".to_string(), "settings.option.no_auth"),
-        ],
-        (SettingsSection::EngineProfile, "ipv6_mode") => vec![
-            ("disabled".to_string(), "settings.option.disabled"),
-            ("enabled".to_string(), "settings.option.enabled"),
-            ("prefer_v6".to_string(), "settings.option.prefer_v6"),
-        ],
-        (SettingsSection::EngineProfile, "encryption") => vec![
-            ("require".to_string(), "settings.option.require"),
-            ("prefer".to_string(), "settings.option.prefer"),
-            ("disable".to_string(), "settings.option.disable"),
-        ],
-        (SettingsSection::EngineProfile, "choking_algorithm") => vec![
-            ("fixed_slots".to_string(), "settings.option.fixed_slots"),
-            ("rate_based".to_string(), "settings.option.rate_based"),
-        ],
-        (SettingsSection::EngineProfile, "seed_choking_algorithm") => vec![
-            ("round_robin".to_string(), "settings.option.round_robin"),
-            (
-                "fastest_upload".to_string(),
-                "settings.option.fastest_upload",
-            ),
-            ("anti_leech".to_string(), "settings.option.anti_leech"),
-        ],
-        (SettingsSection::EngineProfile, "storage_mode") => vec![
-            ("sparse".to_string(), "settings.option.sparse"),
-            ("allocate".to_string(), "settings.option.allocate"),
-        ],
-        (SettingsSection::EngineProfile, "disk_read_mode") => vec![
-            (
-                "enable_os_cache".to_string(),
-                "settings.option.enable_os_cache",
-            ),
-            (
-                "disable_os_cache".to_string(),
-                "settings.option.disable_os_cache",
-            ),
-            ("write_through".to_string(), "settings.option.write_through"),
-        ],
-        (SettingsSection::EngineProfile, "disk_write_mode") => vec![
-            (
-                "enable_os_cache".to_string(),
-                "settings.option.enable_os_cache",
-            ),
-            (
-                "disable_os_cache".to_string(),
-                "settings.option.disable_os_cache",
-            ),
-            ("write_through".to_string(), "settings.option.write_through"),
-        ],
-        (SettingsSection::FsPolicy, "par2") => vec![
-            ("off".to_string(), "settings.option.off"),
-            ("verify".to_string(), "settings.option.verify"),
-            ("repair".to_string(), "settings.option.repair"),
-        ],
-        (SettingsSection::FsPolicy, "move_mode") => vec![
-            ("copy".to_string(), "settings.option.copy"),
-            ("move".to_string(), "settings.option.move"),
-            ("hardlink".to_string(), "settings.option.hardlink"),
-        ],
-        _ => return None,
-    };
-    Some(SelectOptions {
-        allow_empty,
-        options,
-    })
-}
-
-fn numeric_kind(section: SettingsSection, key: &str) -> Option<NumericKind> {
-    if section != SettingsSection::EngineProfile {
-        return None;
-    }
-    match key {
-        "listen_port"
-        | "outgoing_port_min"
-        | "outgoing_port_max"
-        | "peer_dscp"
-        | "max_active"
-        | "connections_limit"
-        | "connections_limit_per_torrent"
-        | "unchoke_slots"
-        | "half_open_limit"
-        | "optimistic_unchoke_slots"
-        | "cache_size"
-        | "cache_expiry" => Some(NumericKind::Integer),
-        "max_download_bps"
-        | "max_upload_bps"
-        | "seed_time_limit"
-        | "stats_interval_ms"
-        | "max_queued_disk_bytes" => Some(NumericKind::Integer),
-        "seed_ratio_limit" => Some(NumericKind::Float),
-        _ => None,
-    }
 }

@@ -57,7 +57,7 @@ pub struct DashboardEvent {
 }
 
 /// Event severity kinds for dashboard events.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EventKind {
     /// Informational event.
     Info,

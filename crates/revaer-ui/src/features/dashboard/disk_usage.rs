@@ -1,6 +1,7 @@
 use crate::components::atoms::IconButton;
 use crate::components::atoms::icons::IconMoreHorizontal;
 use crate::components::daisy::DaisySize;
+use crate::features::dashboard::logic::{format_capacity, usage_percent};
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
 use crate::models::DashboardSnapshot;
 use yew::prelude::*;
@@ -90,22 +91,5 @@ pub(crate) fn dashboard_disk_usage(props: &DashboardDiskUsageProps) -> Html {
                 </div>
             </div>
         </div>
-    }
-}
-
-fn format_capacity(gb: u32) -> String {
-    if gb >= 1024 {
-        let tb = f64::from(gb) / 1024.0;
-        format!("{tb:.1} TB")
-    } else {
-        format!("{gb} GB")
-    }
-}
-
-fn usage_percent(used: u32, total: u32) -> f64 {
-    if total == 0 {
-        0.0
-    } else {
-        f64::from(used) / f64::from(total) * 100.0
     }
 }

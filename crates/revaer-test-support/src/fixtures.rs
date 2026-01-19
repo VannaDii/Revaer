@@ -28,6 +28,7 @@ fn docker_available_with_host(host: Option<String>) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
 
     #[test]
     fn docker_available_respects_unix_socket_env() {
@@ -54,5 +55,15 @@ mod tests {
     fn docker_available_probes_default_channels() {
         // Ensure the default probe path executes even when no override is supplied.
         let _ = docker_available_with_host(None);
+    }
+
+    #[test]
+    fn docker_available_accepts_existing_unix_socket() -> Result<(), Box<dyn std::error::Error>> {
+        let socket_path = std::env::temp_dir().join("revaer-docker.sock");
+        fs::write(&socket_path, "")?;
+        let host = format!("unix://{}", socket_path.display());
+        assert!(docker_available_with_host(Some(host)));
+        fs::remove_file(socket_path)?;
+        Ok(())
     }
 }

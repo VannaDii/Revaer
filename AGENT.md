@@ -193,8 +193,8 @@ target/              # build artifacts
 -   **Property tests** (`proptest`) for parsers, schedulers, selection policies.
 -   **Fuzz** (where applicable): torrent/magnet/file-pattern parsers.
 -   **Determinism**: seeded RNGs; avoid flaky time-based assertions (use injected clocks).
--   **Coverage**: `cargo-llvm-cov` via `just cov`; libraries must meet **≥ 80%** coverage; **no regression** allowed.
--   **All crates are covered**: the workspace coverage gate (80% line) applies to every crate, including new ones. If a crate ships a binary, put logic in `lib` and test it to satisfy the gate; no exemptions.
+-   **Coverage**: `cargo-llvm-cov` via `just cov`; every crate must meet **≥ 90%** line coverage; **no regression** allowed.
+-   **All crates are covered**: the workspace coverage gate (90% line, per-crate) applies to every crate, including new ones. If a crate ships a binary, put logic in `lib` and test it to satisfy the gate; no exemptions.
 -   **No coverage suppression**: never pass `--ignore-filename-regex`, `--ignore-run-fail`, `--no-report`, `--summary-only`, target filters, or any other `cargo llvm-cov` option that hides code from analysis. If the gate fails, add tests or remove code—do not suppress it.
 
 ---
@@ -232,7 +232,7 @@ Since Codex runs locally, **a task is not complete** until **all requirements in
 
     1. Run `just fmt` and `just lint` (no warnings allowed).
     2. Run `just udeps` (must be clean; unused dependencies are disallowed).
-    3. Run `just test` and `just cov` (≥ 80% lib coverage; no regressions).
+    3. Run `just test` and `just cov` (≥ 90% per-crate coverage; no regressions).
     4. Run `just audit` and `just deny` (must pass cleanly; any temporary advisory ignores belong in `.secignore` and require an ADR with remediation steps).
     5. Run `just build-release` to ensure release readiness.
     6. Run `just ui-e2e` (spins up temp DBs + API/UI servers; ports 7070/8080 must be free, runner stops Revaer dev servers; `tests/.env` controls base URLs).
@@ -249,7 +249,7 @@ Since Codex runs locally, **a task is not complete** until **all requirements in
     -   [ ] Tracing/metrics added where relevant; sensitive data redacted
     -   [ ] Config validated at load; effective config logged (secrets redacted)
     -   [ ] OpenAPI/CLI/help/docs updated if surfaces changed
-    -   [ ] Coverage ≥ 80% (libs), **no coverage regression**
+    -   [ ] Coverage ≥ 90% per crate, **no coverage regression**
     -   [ ] UI E2E: `just ui-e2e` (API + UI suites) passes for every change
     -   [ ] All `just` gates (`just ci`) pass **without warnings or errors**
 
@@ -291,7 +291,7 @@ deny:         cargo deny check
 build:        cargo build --workspace --all-features
 build-release:cargo build --workspace --release --all-features
 test:         cargo --config 'build.rustflags=["-Dwarnings"]' test --workspace --all-features
-cov:          cargo llvm-cov --workspace --fail-under-lines 80
+cov:          cargo llvm-cov clean --workspace; per-crate llvm-cov (≥90%) via `just cov`
 
 # API & docs
 api-export:   cargo run -p revaer-api --bin generate_openapi

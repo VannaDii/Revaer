@@ -11,8 +11,12 @@ use crate::components::atoms::{EmptyState, IconButton};
 use crate::components::daisy::DaisySize;
 use crate::core::logic::{format_bytes, format_rate};
 use crate::features::torrents::actions::TorrentAction;
+use crate::features::torrents::logic::{
+    pane_visibility_class, parse_optional_i32, parse_priority, priority_value, state_label,
+    status_class,
+};
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
-use crate::models::{FilePriority, TorrentDetail, TorrentOptionsRequest, TorrentStateKind};
+use crate::models::{FilePriority, TorrentDetail, TorrentOptionsRequest};
 use uuid::Uuid;
 use web_sys::{HtmlInputElement, HtmlSelectElement};
 use yew::prelude::*;
@@ -103,8 +107,8 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
         .clone()
         .unwrap_or_else(|| t("detail.unnamed"));
     let detail_id = detail.summary.id;
-    let status = state_label(&detail.summary.state.kind).to_string();
-    let status_class = status_class(&detail.summary.state.kind);
+    let status = state_label(detail.summary.state.kind).to_string();
+    let status_class = status_class(detail.summary.state.kind);
     let last_error = detail.summary.state.failure_message.clone();
     let progress_percent = detail.summary.progress.percent_complete;
     let progress_label = format!(
@@ -263,7 +267,7 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
                 </div>
 
                 <div class="grid gap-4 lg:grid-cols-2">
-                    <section class={pane_classes(Pane::Overview, *active)} data-pane="overview">
+                    <section class={pane_visibility_class(Pane::Overview, *active)} data-pane="overview">
                         <div class="space-y-1">
                             <h4 class="text-sm font-semibold">{t("detail.overview.title")}</h4>
                             <p class="text-sm text-base-content/60">{t("detail.overview.body")}</p>
@@ -350,72 +354,39 @@ pub(crate) fn detail_view(props: &DetailProps) -> Html {
                         </div>
                     </section>
 
-                    <section class={pane_classes(Pane::Files, *active)} data-pane="files">
+                    <section
+                        class={classes!(
+                            "rounded-box",
+                            "border",
+                            "border-base-200",
+                            "bg-base-200/40",
+                            "p-4",
+                            "space-y-3",
+                            pane_visibility_class(Pane::Files, *active),
+                            "lg:block"
+                        )}
+                        data-pane="files">
                         {files_tab}
                     </section>
 
-                    <section class={pane_classes(Pane::Options, *active)} data-pane="options">
+                    <section
+                        class={classes!(
+                            "rounded-box",
+                            "border",
+                            "border-base-200",
+                            "bg-base-200/40",
+                            "p-4",
+                            "space-y-3",
+                            pane_visibility_class(Pane::Options, *active),
+                            "lg:block"
+                        )}
+                        data-pane="options">
                         {options_tab}
                     </section>
                 </div>
                 {props.footer.clone()}
             </div>
         </section>
-    }
-}
-
-fn pane_classes(pane: Pane, active: Pane) -> Classes {
-    classes!(
-        "rounded-box",
-        "border",
-        "border-base-200",
-        "bg-base-200/40",
-        "p-4",
-        "space-y-3",
-        if pane == active { "block" } else { "hidden" },
-        "lg:block"
-    )
-}
-
-fn state_label(state: &TorrentStateKind) -> &'static str {
-    match state {
-        TorrentStateKind::Queued => "queued",
-        TorrentStateKind::FetchingMetadata => "fetching_metadata",
-        TorrentStateKind::Downloading => "downloading",
-        TorrentStateKind::Seeding => "seeding",
-        TorrentStateKind::Completed => "completed",
-        TorrentStateKind::Failed => "failed",
-        TorrentStateKind::Stopped => "stopped",
-    }
-}
-
-fn status_class(state: &TorrentStateKind) -> &'static str {
-    match state {
-        TorrentStateKind::Downloading | TorrentStateKind::Seeding | TorrentStateKind::Completed => {
-            "badge-success"
-        }
-        TorrentStateKind::Failed => "badge-error",
-        TorrentStateKind::FetchingMetadata => "badge-warning",
-        _ => "badge-ghost",
-    }
-}
-
-fn priority_value(priority: FilePriority) -> &'static str {
-    match priority {
-        FilePriority::Skip => "skip",
-        FilePriority::Low => "low",
-        FilePriority::Normal => "normal",
-        FilePriority::High => "high",
-    }
-}
-
-fn parse_priority(value: &str) -> Option<FilePriority> {
-    match value {
-        "skip" => Some(FilePriority::Skip),
-        "low" => Some(FilePriority::Low),
-        "normal" => Some(FilePriority::Normal),
-        "high" => Some(FilePriority::High),
-        _ => None,
     }
 }
 
@@ -533,7 +504,7 @@ fn render_file_row(
         let index = file.index;
         Callback::from(move |event: Event| {
             if let Some(select) = event.target_dyn_into::<HtmlSelectElement>() {
-                if let Some(priority) = parse_priority(&select.value()) {
+                if let Ok(priority) = parse_priority(&select.value()) {
                     on_update_selection
                         .emit((detail_id, FileSelectionChange::Priority { index, priority }));
                 }
@@ -674,29 +645,31 @@ fn render_options_tab(
         let on_update_options = on_update_options.clone();
         let connections_input = connections_input.clone();
         let connections_error = connections_error.clone();
-        Callback::from(move |_| match parse_optional_i32(&connections_input) {
-            Ok(value) => {
-                let mut request = TorrentOptionsRequest::default();
-                request.connections_limit = value;
-                connections_error.set(None);
-                on_update_options.emit((detail_id, request));
-            }
-            Err(()) => connections_error.set(Some(invalid_label_for_connections.clone())),
-        })
+        Callback::from(
+            move |_| match parse_optional_i32((*connections_input).as_str()) {
+                Ok(value) => {
+                    let mut request = TorrentOptionsRequest::default();
+                    request.connections_limit = value;
+                    connections_error.set(None);
+                    on_update_options.emit((detail_id, request));
+                }
+                Err(_) => connections_error.set(Some(invalid_label_for_connections.clone())),
+            },
+        )
     };
 
     let on_queue_apply = {
         let on_update_options = on_update_options.clone();
         let queue_input = queue_input.clone();
         let queue_error = queue_error.clone();
-        Callback::from(move |_| match parse_optional_i32(&queue_input) {
+        Callback::from(move |_| match parse_optional_i32((*queue_input).as_str()) {
             Ok(value) => {
                 let mut request = TorrentOptionsRequest::default();
                 request.queue_position = value;
                 queue_error.set(None);
                 on_update_options.emit((detail_id, request));
             }
-            Err(()) => queue_error.set(Some(invalid_label_for_queue.clone())),
+            Err(_) => queue_error.set(Some(invalid_label_for_queue.clone())),
         })
     };
 
@@ -1014,12 +987,4 @@ fn render_options_tab(
             </div>
         </>
     }
-}
-
-fn parse_optional_i32(input: &UseStateHandle<String>) -> Result<Option<i32>, ()> {
-    let trimmed = input.trim();
-    if trimmed.is_empty() {
-        return Ok(None);
-    }
-    trimmed.parse::<i32>().map(Some).map_err(|_| ())
 }

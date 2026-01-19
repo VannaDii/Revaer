@@ -24,7 +24,6 @@ pub fn dropdown(props: &DropdownProps) -> Html {
         "menu",
         "bg-base-100",
         "rounded-box",
-        "z-1",
         "w-52",
         "p-2",
         "shadow-sm",

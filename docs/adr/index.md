@@ -101,3 +101,7 @@
 -   [087](087-local-network-auth-ranges.md) – Local network auth ranges and settings validation
 -   [088](088-live-sse-log-streaming.md) – Live SSE log streaming
 -   [089](089-port-process-termination.md) – Port process termination for dev tooling
+-   [090](090-ui-log-filters-and-shell-controls.md) – UI log filters and shell controls
+-   [091](091-coverage-90-per-crate.md) – Raise per-crate coverage gate to 90%
+-   [092](092-fsops-coverage-hardening.md) – Fsops coverage hardening
+-   [093](093-ui-logic-extraction.md) – UI logic extraction for testable components

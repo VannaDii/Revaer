@@ -1,8 +1,9 @@
 use crate::components::atoms::IconButton;
 use crate::components::atoms::icons::{IconDownload, IconEye, IconShoppingBag, IconTrash};
 use crate::components::daisy::{DaisyColor, DaisySize, DaisyVariant, List};
+use crate::features::dashboard::logic::{event_badge, event_icon_src};
 use crate::i18n::{DEFAULT_LOCALE, TranslationBundle};
-use crate::models::{DashboardSnapshot, EventKind};
+use crate::models::DashboardSnapshot;
 use yew::prelude::*;
 
 #[derive(Properties, PartialEq)]
@@ -31,16 +32,9 @@ pub(crate) fn dashboard_recent_events(props: &DashboardRecentEventsProps) -> Htm
                 .take(6)
                 .enumerate()
                 .map(|(idx, event)| {
-                    let badge_class = match event.kind {
-                        EventKind::Info => "badge-info",
-                        EventKind::Warning => "badge-warning",
-                        EventKind::Error => "badge-error",
-                    };
-                    let badge_label = match event.kind {
-                        EventKind::Info => t("dashboard.event_info"),
-                        EventKind::Warning => t("dashboard.event_warn"),
-                        EventKind::Error => t("dashboard.event_error"),
-                    };
+                    let badge = event_badge(event.kind);
+                    let badge_class = badge.class;
+                    let badge_label = t(badge.label_key);
                     html! {
                         <li class="row-hover px-5 py-3">
                             <div class="grid grid-cols-7 items-center gap-3">
@@ -121,9 +115,4 @@ pub(crate) fn dashboard_recent_events(props: &DashboardRecentEventsProps) -> Htm
             </div>
         </div>
     }
-}
-
-fn event_icon_src(index: usize) -> String {
-    let product = (index % 10) + 1;
-    format!("/static/nexus/images/apps/ecommerce/products/{product}.jpg")
 }

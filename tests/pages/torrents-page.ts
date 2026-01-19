@@ -8,6 +8,7 @@ export class TorrentsPage {
     await expect(this.page.getByRole('button', { name: 'Add' })).toBeVisible();
     await expect(this.page.getByRole('button', { name: 'Create torrent' })).toBeVisible();
     await expect(this.page.getByRole('columnheader', { name: 'Name' })).toBeVisible();
+    await expect(this.page.locator('#layout-topbar .breadcrumbs')).toHaveCount(0);
   }
 
   async openAddModal(): Promise<void> {

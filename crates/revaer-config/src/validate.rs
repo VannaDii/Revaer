@@ -279,6 +279,9 @@ fn parse_cidr_entry(entry: &str, section: &str, field: &str) -> ConfigResult<Cid
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
+    use std::net::{Ipv4Addr, Ipv6Addr};
+    use uuid::Uuid;
 
     #[test]
     fn rejects_invalid_ports() {
@@ -314,5 +317,77 @@ mod tests {
             canonicalize_cidr_entries(&entries, "app_profile", "local_networks"),
             Err(ConfigError::InvalidField { .. })
         ));
+    }
+
+    #[test]
+    fn cidr_range_contains_respects_ip_family() {
+        let entry =
+            parse_cidr_entry("10.0.0.0/24", "app_profile", "local_networks").expect("valid cidr");
+        assert!(entry.range.contains(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 1))));
+        assert!(!entry.range.contains(IpAddr::V6(Ipv6Addr::LOCALHOST)));
+    }
+
+    #[test]
+    fn parse_cidr_entry_rejects_empty_and_missing_prefix() {
+        assert!(matches!(
+            parse_cidr_entry("", "app_profile", "local_networks"),
+            Err(ConfigError::InvalidField { .. })
+        ));
+        assert!(matches!(
+            parse_cidr_entry("10.0.0.1", "app_profile", "local_networks"),
+            Err(ConfigError::InvalidField { .. })
+        ));
+    }
+
+    #[test]
+    fn parse_cidr_entry_rejects_invalid_ip() {
+        assert!(matches!(
+            parse_cidr_entry("bad/24", "app_profile", "local_networks"),
+            Err(ConfigError::InvalidField { .. })
+        ));
+    }
+
+    #[test]
+    fn parse_bind_addr_accepts_ip_and_rejects_invalid() {
+        assert_eq!(
+            parse_bind_addr("127.0.0.1").unwrap(),
+            IpAddr::V4(Ipv4Addr::LOCALHOST)
+        );
+        assert_eq!(
+            parse_bind_addr("127.0.0.1/32").unwrap(),
+            IpAddr::V4(Ipv4Addr::LOCALHOST)
+        );
+        assert!(matches!(
+            parse_bind_addr("invalid"),
+            Err(ConfigError::InvalidBindAddr { .. })
+        ));
+    }
+
+    #[test]
+    fn parse_uuid_accepts_and_rejects_values() {
+        let valid = Uuid::new_v4();
+        assert_eq!(parse_uuid(&valid.to_string()).unwrap(), valid);
+        assert!(matches!(
+            parse_uuid("not-a-uuid"),
+            Err(ConfigError::InvalidUuid { .. })
+        ));
+    }
+
+    #[test]
+    fn ensure_mutable_respects_scoped_immutability() {
+        let mut immutables = HashSet::new();
+        immutables.insert("app_profile.http_port".to_string());
+        immutables.insert("engine_profile.*".to_string());
+        ensure_mutable(&immutables, "app_profile", "bind_addr")
+            .expect("unrelated field is mutable");
+        assert!(matches!(
+            ensure_mutable(&immutables, "app_profile", "http_port"),
+            Err(ConfigError::ImmutableField { .. })
+        ));
+        assert!(matches!(
+            ensure_mutable(&immutables, "engine_profile", "listen_port"),
+            Err(ConfigError::ImmutableField { .. })
+        ));
+        assert!(ensure_mutable(&immutables, "app_profile", "immutable_keys").is_ok());
     }
 }

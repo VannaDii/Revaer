@@ -89,6 +89,9 @@ async fn run_sse_loop(
                 let decoder = match TextDecoder::new() {
                     Ok(decoder) => decoder,
                     Err(err) => {
+                        if signal.aborted() {
+                            return;
+                        }
                         let error = SseError {
                             message: format!("decoder error: {err:?}"),
                             status_code: None,
@@ -126,6 +129,9 @@ async fn run_sse_loop(
                             let text = match decoder.decode_with_js_u8_array(&bytes) {
                                 Ok(text) => text,
                                 Err(err) => {
+                                    if signal.aborted() {
+                                        return;
+                                    }
                                     let error = SseError {
                                         message: format!("decode error: {err:?}"),
                                         status_code: None,
@@ -188,7 +194,12 @@ async fn run_sse_loop(
                                         );
                                         on_event.emit(envelope);
                                     }
-                                    Err(err) => on_error.emit(err),
+                                    Err(err) => {
+                                        if signal.aborted() {
+                                            return;
+                                        }
+                                        on_error.emit(err);
+                                    }
                                 }
                             }
                             let error = SseError {
@@ -204,6 +215,9 @@ async fn run_sse_loop(
                                 None,
                                 Some(error.clone()),
                             );
+                            if signal.aborted() {
+                                return;
+                            }
                             schedule_reconnect(
                                 &on_state,
                                 &auth_label,
@@ -229,6 +243,9 @@ async fn run_sse_loop(
                                 None,
                                 Some(error.clone()),
                             );
+                            if signal.aborted() {
+                                return;
+                            }
                             schedule_reconnect(
                                 &on_state,
                                 &auth_label,
@@ -244,6 +261,9 @@ async fn run_sse_loop(
                 }
             }
             Err(err) => {
+                if signal.aborted() {
+                    return;
+                }
                 if matches!(err, ConnectError::Conflict) {
                     clear_last_event_id();
                     last_event_id = None;
@@ -265,6 +285,9 @@ async fn run_sse_loop(
                     } else {
                         attempt
                     };
+                    if signal.aborted() {
+                        return;
+                    }
                     schedule_reconnect(
                         &on_state,
                         &auth_label,

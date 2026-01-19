@@ -31,5 +31,5 @@ pub mod error;
 #[cfg(feature = "libtorrent")]
 pub mod orchestrator;
 
-pub use bootstrap::run_app;
+pub use bootstrap::{run_app, run_app_with_database_url};
 pub use error::{AppError, AppResult};

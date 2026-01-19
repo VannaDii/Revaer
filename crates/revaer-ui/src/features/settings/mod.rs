@@ -4,5 +4,7 @@
 //! - Keep settings rendering in the view module.
 //! - Delegate persistence to app-level callbacks.
 
+pub mod logic;
+pub mod state;
 #[cfg(target_arch = "wasm32")]
 pub mod view;

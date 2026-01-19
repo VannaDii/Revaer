@@ -16,6 +16,8 @@ pub(crate) struct BulkActionBarProps {
     #[prop_or_default]
     pub select_class: Classes,
     #[prop_or_default]
+    pub test_id: Option<AttrValue>,
+    #[prop_or_default]
     pub on_toggle_all: Callback<MouseEvent>,
     #[prop_or_default]
     pub children: Children,
@@ -26,6 +28,7 @@ pub(crate) fn bulk_action_bar(props: &BulkActionBarProps) -> Html {
     html! {
         <div
             role="alert"
+            data-testid={props.test_id.clone()}
             class={classes!(
                 "alert",
                 "bg-base-100",

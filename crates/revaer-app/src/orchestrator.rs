@@ -650,6 +650,7 @@ struct BlocklistResolution {
     skipped: usize,
 }
 
+#[derive(Debug)]
 struct ParsedBlocklist {
     rules: Vec<RuntimeIpFilterRule>,
     skipped: usize,
@@ -1520,7 +1521,7 @@ mod engine_refresh_tests {
     use std::path::PathBuf;
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
     use tokio::net::TcpListener;
-    use tokio::sync::RwLock;
+    use tokio::sync::{Mutex, RwLock};
 
     type TestResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
 
@@ -1612,6 +1613,13 @@ mod engine_refresh_tests {
 
     struct StubConfig {
         secrets: HashMap<String, String>,
+        applied: Mutex<Vec<SettingsChangeset>>,
+    }
+
+    impl StubConfig {
+        async fn applied_len(&self) -> usize {
+            self.applied.lock().await.len()
+        }
     }
 
     #[async_trait]
@@ -1642,8 +1650,9 @@ mod engine_refresh_tests {
             &self,
             _actor: &str,
             _reason: &str,
-            _changeset: SettingsChangeset,
+            changeset: SettingsChangeset,
         ) -> revaer_config::ConfigResult<revaer_config::AppliedChanges> {
+            self.applied.lock().await.push(changeset);
             Ok(revaer_config::AppliedChanges {
                 revision: 0,
                 app_profile: None,
@@ -1822,7 +1831,10 @@ mod engine_refresh_tests {
             ("PROXY_USER".to_string(), "proxy-user".to_string()),
             ("PROXY_PASS".to_string(), "proxy-pass".to_string()),
         ]);
-        let config: Arc<dyn SettingsFacade> = Arc::new(StubConfig { secrets });
+        let config: Arc<dyn SettingsFacade> = Arc::new(StubConfig {
+            secrets,
+            applied: Mutex::new(Vec::new()),
+        });
 
         let mut profile = engine_profile("proxy-auth");
         profile.tracker = TrackerConfig {
@@ -2185,6 +2197,267 @@ mod engine_refresh_tests {
         })?;
         assert_eq!(files[0].index, 0);
         assert_eq!(files[1].index, 1);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn refresh_ip_filter_clears_cache_when_url_missing() -> TestResult<()> {
+        let engine = Arc::new(RecordingEngine::default());
+        let bus = EventBus::new();
+        let metrics = Metrics::new()?;
+        let fsops = FsOpsService::new(bus.clone(), metrics);
+        let orchestrator = Arc::new(TorrentOrchestrator::new(
+            Arc::clone(&engine),
+            fsops,
+            bus,
+            sample_fs_policy(),
+            engine_profile("refresh"),
+            None,
+            None,
+        ));
+
+        orchestrator
+            .set_ip_filter_cache(IpFilterCache {
+                url: "http://example.invalid".to_string(),
+                etag: Some("etag".to_string()),
+                rules: vec![RuntimeIpFilterRule {
+                    start: "10.0.0.1".to_string(),
+                    end: "10.0.0.1".to_string(),
+                }],
+                fetched_at: Instant::now(),
+                last_refreshed: Utc::now(),
+            })
+            .await;
+
+        let mut plan = EngineRuntimePlan::from_profile(&engine_profile("refresh"));
+        orchestrator.refresh_ip_filter(&mut plan).await?;
+
+        assert!(
+            orchestrator.ip_filter_cache.read().await.is_none(),
+            "expected cache to be cleared"
+        );
+        let runtime_filter = plan
+            .runtime
+            .ip_filter
+            .ok_or_else(|| AppError::MissingState {
+                field: "runtime_ip_filter",
+                value: None,
+            })?;
+        assert!(runtime_filter.blocklist_url.is_none());
+        assert!(runtime_filter.etag.is_none());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn load_blocklist_returns_missing_state_on_not_modified_without_cache() -> TestResult<()>
+    {
+        let listener = TcpListener::bind("127.0.0.1:0").await?;
+        let addr = listener.local_addr()?;
+        let server = tokio::spawn(async move {
+            if let Ok((mut stream, _)) = listener.accept().await {
+                let mut buffer = [0_u8; 512];
+                let _ = stream.read(&mut buffer).await;
+                let response = "HTTP/1.1 304 Not Modified\r\nContent-Length: 0\r\n\r\n";
+                let _ = stream.write_all(response.as_bytes()).await;
+            }
+        });
+
+        let engine = Arc::new(RecordingEngine::default());
+        let bus = EventBus::new();
+        let metrics = Metrics::new()?;
+        let fsops = FsOpsService::new(bus, metrics);
+        let orchestrator = Arc::new(TorrentOrchestrator::new(
+            Arc::clone(&engine),
+            fsops,
+            EventBus::new(),
+            sample_fs_policy(),
+            engine_profile("blocklist"),
+            None,
+            None,
+        ));
+
+        let result = orchestrator
+            .load_blocklist(&format!("http://{addr}"), Some("etag".to_string()))
+            .await;
+        let _ = server.await;
+
+        assert!(
+            matches!(
+                result,
+                Err(AppError::MissingState {
+                    field: "blocklist_cache",
+                    ..
+                })
+            ),
+            "expected missing cache error"
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn persist_ip_filter_metadata_skips_when_unchanged() -> TestResult<()> {
+        let config = Arc::new(StubConfig {
+            secrets: HashMap::new(),
+            applied: Mutex::new(Vec::new()),
+        });
+        let engine = Arc::new(RecordingEngine::default());
+        let bus = EventBus::new();
+        let metrics = Metrics::new()?;
+        let fsops = FsOpsService::new(bus, metrics);
+        let orchestrator = Arc::new(TorrentOrchestrator::new(
+            Arc::clone(&engine),
+            fsops,
+            EventBus::new(),
+            sample_fs_policy(),
+            engine_profile("meta"),
+            None,
+            Some(config.clone()),
+        ));
+
+        let previous = IpFilterConfig::default();
+        orchestrator
+            .persist_ip_filter_metadata(config.as_ref(), &previous, &previous)
+            .await?;
+
+        assert_eq!(config.applied_len().await, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn persist_ip_filter_metadata_applies_changes() -> TestResult<()> {
+        let config = Arc::new(StubConfig {
+            secrets: HashMap::new(),
+            applied: Mutex::new(Vec::new()),
+        });
+        let engine = Arc::new(RecordingEngine::default());
+        let bus = EventBus::new();
+        let metrics = Metrics::new()?;
+        let fsops = FsOpsService::new(bus, metrics);
+        let orchestrator = Arc::new(TorrentOrchestrator::new(
+            Arc::clone(&engine),
+            fsops,
+            EventBus::new(),
+            sample_fs_policy(),
+            engine_profile("meta"),
+            None,
+            Some(config.clone()),
+        ));
+
+        let previous = IpFilterConfig::default();
+        let updated = IpFilterConfig {
+            etag: Some("etag".to_string()),
+            ..Default::default()
+        };
+        orchestrator
+            .persist_ip_filter_metadata(config.as_ref(), &previous, &updated)
+            .await?;
+
+        assert_eq!(config.applied_len().await, 1);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod parsing_tests {
+    use super::*;
+    use std::fmt::Write;
+    use tempfile::TempDir;
+
+    type TestResult<T> = Result<T, Box<dyn std::error::Error + Send + Sync>>;
+
+    #[test]
+    fn parse_blocklist_skips_invalid_lines_and_dedupes() -> TestResult<()> {
+        let body = "# header\ninvalid\n10.0.0.1/32\n10.0.0.1/32\n";
+        let parsed = parse_blocklist(body)?;
+        assert_eq!(parsed.rules.len(), 1);
+        assert_eq!(parsed.rules[0].start, "10.0.0.1");
+        assert_eq!(parsed.skipped, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn parse_blocklist_rejects_excess_entries() {
+        let mut body = String::new();
+        for idx in 0..=MAX_BLOCKLIST_RULES {
+            let a = (idx / 65_536) % 256;
+            let b = (idx / 256) % 256;
+            let c = idx % 256;
+            writeln!(&mut body, "10.{a}.{b}.{c}/32").expect("append cidr");
+        }
+        let err = parse_blocklist(&body).expect_err("expected too many entries error");
+        assert!(matches!(
+            err,
+            AppError::InvalidConfig {
+                field: "ip_filter.blocklist_url",
+                reason: "too_many_entries",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn merge_rules_dedupes_additions() {
+        let mut base = vec![RuntimeIpFilterRule {
+            start: "10.0.0.1".to_string(),
+            end: "10.0.0.1".to_string(),
+        }];
+        merge_rules(
+            &mut base,
+            vec![
+                RuntimeIpFilterRule {
+                    start: "10.0.0.1".to_string(),
+                    end: "10.0.0.1".to_string(),
+                },
+                RuntimeIpFilterRule {
+                    start: "10.0.0.2".to_string(),
+                    end: "10.0.0.2".to_string(),
+                },
+            ],
+        );
+        assert_eq!(base.len(), 2);
+    }
+
+    #[test]
+    fn parse_path_list_rejects_empty_entry() {
+        let entries = vec![String::new()];
+        let err = parse_path_list(&entries).expect_err("expected error for empty entry");
+        assert!(matches!(
+            err,
+            AppError::InvalidConfig {
+                field: "allow_paths",
+                reason: "empty_entry",
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn enforce_allow_paths_accepts_nested_path() -> TestResult<()> {
+        let temp = TempDir::new()?;
+        let root = temp.path().join("root");
+        std::fs::create_dir_all(&root)?;
+        let allow_paths = vec![temp.path().to_string_lossy().to_string()];
+        enforce_allow_paths(&root, &allow_paths)?;
+        Ok(())
+    }
+
+    #[test]
+    fn enforce_allow_paths_rejects_unlisted_path() -> TestResult<()> {
+        let temp = TempDir::new()?;
+        let allowed = temp.path().join("allowed");
+        let root = temp.path().join("root");
+        std::fs::create_dir_all(&allowed)?;
+        std::fs::create_dir_all(&root)?;
+        let allow_paths = vec![allowed.to_string_lossy().to_string()];
+        let err = enforce_allow_paths(&root, &allow_paths).expect_err("expected rejection");
+        assert!(matches!(
+            err,
+            AppError::InvalidConfig {
+                field: "allow_paths",
+                reason: "root_not_permitted",
+                ..
+            }
+        ));
         Ok(())
     }
 }

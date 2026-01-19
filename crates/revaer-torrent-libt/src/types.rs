@@ -486,12 +486,67 @@ pub struct TrackerAuthRuntime {
 
 #[cfg(test)]
 mod tests {
-    use super::EncryptionPolicy;
+    use super::{
+        ChokingAlgorithm, DiskIoMode, EncryptionPolicy, Ipv6Mode, SeedChokingAlgorithm,
+        StorageMode, Toggle, TrackerRuntimeConfig,
+    };
+    use revaer_torrent_core::StorageMode as CoreStorageMode;
 
     #[test]
     fn encryption_policy_maps_to_expected_values() {
         assert_eq!(EncryptionPolicy::Require.as_u8(), 0);
         assert_eq!(EncryptionPolicy::Prefer.as_u8(), 1);
         assert_eq!(EncryptionPolicy::Disable.as_u8(), 2);
+    }
+
+    #[test]
+    fn toggle_converts_and_reports_enabled_state() {
+        let toggle = Toggle::from(true);
+        assert!(toggle.is_enabled());
+        let raw: bool = toggle.into();
+        assert!(raw);
+    }
+
+    #[test]
+    fn ipv6_mode_maps_to_expected_values() {
+        assert_eq!(Ipv6Mode::Disabled.as_u8(), 0);
+        assert_eq!(Ipv6Mode::Enabled.as_u8(), 1);
+        assert_eq!(Ipv6Mode::PreferV6.as_u8(), 2);
+    }
+
+    #[test]
+    fn disk_io_mode_maps_to_expected_values() {
+        assert_eq!(DiskIoMode::EnableOsCache.as_i32(), 0);
+        assert_eq!(DiskIoMode::DisableOsCache.as_i32(), 2);
+        assert_eq!(DiskIoMode::WriteThrough.as_i32(), 3);
+    }
+
+    #[test]
+    fn storage_mode_round_trips_with_core() {
+        assert_eq!(StorageMode::Sparse.as_i32(), 0);
+        assert_eq!(StorageMode::Allocate.as_i32(), 1);
+        assert_eq!(
+            StorageMode::from(CoreStorageMode::Sparse),
+            StorageMode::Sparse
+        );
+        let core: CoreStorageMode = StorageMode::Allocate.into();
+        assert_eq!(core, CoreStorageMode::Allocate);
+    }
+
+    #[test]
+    fn choking_algorithms_map_to_expected_values() {
+        assert_eq!(ChokingAlgorithm::FixedSlots.as_i32(), 0);
+        assert_eq!(ChokingAlgorithm::RateBased.as_i32(), 2);
+        assert_eq!(SeedChokingAlgorithm::RoundRobin.as_i32(), 0);
+        assert_eq!(SeedChokingAlgorithm::FastestUpload.as_i32(), 1);
+        assert_eq!(SeedChokingAlgorithm::AntiLeech.as_i32(), 2);
+    }
+
+    #[test]
+    fn tracker_runtime_defaults_are_stable() {
+        let config = TrackerRuntimeConfig::default();
+        assert!(config.default.is_empty());
+        assert_eq!(config.ssl_tracker_verify, Some(true));
+        assert!(!config.announce_to_all);
     }
 }

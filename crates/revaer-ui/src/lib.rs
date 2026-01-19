@@ -19,6 +19,7 @@
 //! This crate holds the Yew front-end entrypoint plus shared tokens and locale metadata.
 
 pub mod core;
+#[cfg(any(target_arch = "wasm32", test))]
 pub mod features;
 pub mod i18n;
 pub mod models;
@@ -37,11 +38,15 @@ pub(crate) mod app;
 pub use app::run_app;
 
 pub use core::breakpoints;
+#[cfg(any(target_arch = "wasm32", test))]
 pub use core::logic;
 pub use core::theme;
 pub use core::ui::{Density, Pane, UiMode};
+#[cfg(any(target_arch = "wasm32", test))]
 pub use features::torrents::actions::TorrentAction;
+#[cfg(any(target_arch = "wasm32", test))]
 pub use features::torrents::actions::success_message;
+#[cfg(any(target_arch = "wasm32", test))]
 pub use features::torrents::state;
 
 #[cfg(test)]

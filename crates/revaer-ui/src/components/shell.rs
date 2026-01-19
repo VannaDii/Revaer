@@ -7,6 +7,7 @@ use crate::components::atoms::icons::{
 use crate::components::connectivity::{ConnectivityIndicator, ConnectivityModal};
 use crate::components::daisy::DaisySize;
 use crate::components::server_menu::ServerMenu;
+use crate::core::logic::nav::menu_item_state_class;
 use crate::core::store::{select_sse_status, select_sse_status_summary};
 use crate::core::theme::ThemeMode;
 use crate::models::NavLabels;
@@ -38,14 +39,6 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
     let settings_active = matches!(props.active, Route::Settings);
     let logs_active = matches!(props.active, Route::Logs);
 
-    let page_label = match props.active {
-        Route::Dashboard => props.nav.dashboard.clone(),
-        Route::Torrents | Route::TorrentDetail { .. } => props.nav.torrents.clone(),
-        Route::Logs => props.nav.logs.clone(),
-        Route::Health => props.nav.health.clone(),
-        Route::Settings => props.nav.settings.clone(),
-        Route::NotFound => "Not Found".to_string(),
-    };
     let connectivity_summary = use_selector(select_sse_status_summary);
     let connectivity_status = use_selector(select_sse_status);
     let show_connectivity = use_state(|| false);
@@ -130,7 +123,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                 <p class="menu-label px-2.5 pt-3 pb-1.5 first:pt-0">{"Overview"}</p>
                                 <Link<Route>
                                     to={Route::Dashboard}
-                                    classes={menu_item_class(home_active)}>
+                                    classes={classes!("menu-item", menu_item_state_class(home_active))}>
                                     <IconHome size={Some(AttrValue::from("4"))} />
                                     <span class="sidebar-nav__label grow">
                                         {props.nav.dashboard.clone()}
@@ -138,7 +131,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                 </Link<Route>>
                                 <Link<Route>
                                     to={Route::Torrents}
-                                    classes={menu_item_class(torrents_active)}>
+                                    classes={classes!("menu-item", menu_item_state_class(torrents_active))}>
                                     <IconDownload size={Some(AttrValue::from("4"))} />
                                     <span class="sidebar-nav__label grow">
                                         {props.nav.torrents.clone()}
@@ -146,7 +139,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                 </Link<Route>>
                                 <Link<Route>
                                     to={Route::Settings}
-                                    classes={menu_item_class(settings_active)}>
+                                    classes={classes!("menu-item", menu_item_state_class(settings_active))}>
                                     <IconSettings size={Some(AttrValue::from("4"))} />
                                     <span class="sidebar-nav__label grow">
                                         {props.nav.settings.clone()}
@@ -161,17 +154,17 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                         <ConnectivityIndicator
                             summary={(*connectivity_summary).clone()}
                             on_open={open_connectivity.clone()}
-                            class="mx-0 grow"
                         />
                         <button
-                            class="btn btn-ghost btn-sm gap-2"
+                            class="btn btn-ghost btn-sm btn-circle tooltip tooltip-right"
                             onclick={{
                                 let cb = props.on_logout.clone();
                                 Callback::from(move |_| cb.emit(()))
                             }}
-                            aria-label="Logout">
+                            aria-label="Logout"
+                            title="Logout"
+                            data-tip="Logout">
                             <IconLogOut size={Some(AttrValue::from("4"))} />
-                            <span class="sidebar-footer__label">{"Logout"}</span>
                         </button>
                     </div>
                 </div>
@@ -182,7 +175,7 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                     <div
                         role="navigation"
                         aria-label="Navbar"
-                        class="relative z-60 flex items-center justify-between px-3"
+                        class="relative z-50 flex items-center justify-between px-3"
                         id="layout-topbar">
                         <div class="inline-flex items-center gap-3">
                             <label
@@ -197,11 +190,6 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                 for="layout-sidebar-hover-trigger">
                                 <IconMenu size={Some(AttrValue::from("5"))} />
                             </label>
-                            <div class="breadcrumbs p-0 text-sm">
-                                <ul>
-                                    <li class="opacity-80">{page_label.clone()}</li>
-                                </ul>
-                            </div>
                         </div>
                         <div class="inline-flex items-center gap-1.5">
                             <IconButton
@@ -245,8 +233,4 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
             }}
         </div>
     }
-}
-
-fn menu_item_class(active: bool) -> Classes {
-    classes!("menu-item", if active { "active" } else { "false" })
 }

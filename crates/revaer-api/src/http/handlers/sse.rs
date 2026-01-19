@@ -269,6 +269,47 @@ mod tests {
         assert!(matches_sse_filter(&envelope, &filter));
     }
 
+    #[test]
+    fn build_sse_filter_rejects_invalid_uuid() {
+        let query = SseQuery {
+            torrent: Some("not-a-uuid".to_string()),
+            event: None,
+            state: None,
+        };
+        let err = build_sse_filter(&query).expect_err("expected invalid uuid error");
+        assert_eq!(err.status(), axum::http::StatusCode::BAD_REQUEST);
+        assert_eq!(err.detail(), Some("torrent filter is not a valid UUID"));
+    }
+
+    #[test]
+    fn build_sse_filter_rejects_invalid_state() {
+        let query = SseQuery {
+            torrent: None,
+            event: None,
+            state: Some("unknown".to_string()),
+        };
+        let err = build_sse_filter(&query).expect_err("expected invalid state error");
+        assert_eq!(err.status(), axum::http::StatusCode::BAD_REQUEST);
+        assert_eq!(err.detail(), Some("state filter is not recognised"));
+    }
+
+    #[test]
+    fn matches_sse_filter_rejects_settings_events_with_torrent_filter() {
+        let filter = SseFilter {
+            torrent_ids: std::iter::once(Uuid::new_v4()).collect(),
+            event_kinds: std::collections::HashSet::new(),
+            states: std::collections::HashSet::new(),
+        };
+        let envelope = EventEnvelope {
+            id: 10,
+            event: CoreEvent::SettingsChanged {
+                description: "updated".to_string(),
+            },
+            timestamp: chrono::Utc::now(),
+        };
+        assert!(!matches_sse_filter(&envelope, &filter));
+    }
+
     #[tokio::test]
     async fn sse_stream_emits_event_for_torrent_added() -> Result<()> {
         let bus = EventBus::with_capacity(16);

@@ -1,0 +1,26 @@
+# UI logic extraction for testable components
+
+- Status: Accepted
+- Date: 2026-01-17
+- Context:
+  - The UI layer accumulated view-local parsing and formatting logic that was hard to test.
+  - Coverage targets require host-testable logic outside Yew components.
+- Decision:
+  - Extract feature-specific helpers into `logic.rs` modules and keep state types in `state.rs`.
+  - Keep view modules focused on rendering and `UseStateHandle` orchestration.
+- Consequences:
+  - Positive outcomes: improved unit test coverage, clearer separation of concerns.
+  - Risks or trade-offs: refactor touchpoints may introduce regressions; mitigated with tests.
+- Motivation:
+  - Ensure UI logic is reusable, deterministic, and testable without DOM bindings.
+- Design notes:
+  - Logic modules stay pure; only view helpers touch Yew handles.
+  - Error surfaces avoid unit error types and return typed results where parsing can fail.
+- Test coverage summary:
+  - Added unit tests for newly extracted helpers in each UI feature slice.
+- Observability updates:
+  - None (UI-only refactor with no telemetry changes).
+- Risk & rollback plan:
+  - If regressions appear, revert to the previous view-local helpers and reapply incrementally.
+- Dependency rationale:
+  - No new dependencies; reused existing crates and standard library helpers.

@@ -121,7 +121,7 @@ impl AnsiColor {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(super) struct AnsiSpan {
+pub(crate) struct AnsiSpan {
     pub(super) text: String,
     pub(super) style: AnsiStyle,
 }
@@ -260,7 +260,9 @@ const fn map_basic_color(code: i32, bright: bool) -> Option<AnsiColor> {
 
 #[cfg(test)]
 mod tests {
-    use super::{AnsiColor, AnsiStyle, parse_ansi_line};
+    use super::{
+        AnsiColor, AnsiStyle, map_basic_color, parse_ansi_line, parse_codes, skip_extended_color,
+    };
 
     #[test]
     fn parse_plain_line_retains_text() {
@@ -298,5 +300,44 @@ mod tests {
     fn ansi_color_css_vars_are_stable() {
         assert_eq!(AnsiColor::Red.css_var(), "--log-ansi-red");
         assert_eq!(AnsiColor::BrightGreen.css_var(), "--log-ansi-bright-green");
+    }
+
+    #[test]
+    fn parse_codes_handles_empty_and_invalid_values() {
+        assert_eq!(parse_codes(""), vec![0]);
+        assert_eq!(parse_codes("1;foo;2"), vec![1, 2]);
+    }
+
+    #[test]
+    fn parse_incomplete_escape_sequence_is_literal() {
+        let spans = parse_ansi_line("alpha\u{1b}[31");
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0].text, "alpha\u{1b}[31");
+    }
+
+    #[test]
+    fn inverse_colors_swap_foreground_and_background() {
+        let spans = parse_ansi_line("\u{1b}[7;31;47mtext\u{1b}[0m");
+        assert_eq!(spans.len(), 1);
+        let (fg, bg) = spans[0].style.resolved_colors();
+        assert_eq!(fg, Some(AnsiColor::White));
+        assert_eq!(bg, Some(AnsiColor::Red));
+    }
+
+    #[test]
+    fn extended_color_codes_are_skipped() {
+        let spans = parse_ansi_line("\u{1b}[38;5;160mtext\u{1b}[0m");
+        assert_eq!(spans.len(), 1);
+        assert_eq!(spans[0].style.fg, None);
+    }
+
+    #[test]
+    fn skip_extended_color_handles_unknown_modes() {
+        assert_eq!(skip_extended_color(&[38, 9, 1], 0), 0);
+    }
+
+    #[test]
+    fn map_basic_color_returns_none_for_unknown() {
+        assert_eq!(map_basic_color(9, false), None);
     }
 }

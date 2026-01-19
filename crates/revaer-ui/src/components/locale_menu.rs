@@ -6,6 +6,7 @@
 //! - Avoid side effects inside the component; emit selected locale via callback.
 
 use crate::components::daisy::Dropdown;
+use crate::core::logic::locale::locale_flag;
 use crate::i18n::LocaleCode;
 use yew::prelude::*;
 
@@ -25,12 +26,19 @@ pub(crate) fn locale_menu(props: &LocaleMenuProps) -> Html {
             class={classes!("dropdown-bottom", "dropdown-center")}
             trigger_label={Some(AttrValue::from("Locale"))}
             trigger_class={classes!("btn-ghost", "btn-circle", "btn-sm", "cursor-pointer")}
-            content_class={classes!("mt-2", "w-40", "p-2", "shadow")}
+            content_class={classes!(
+                "mt-2",
+                "w-40",
+                "p-2",
+                "shadow",
+                "z-50",
+                "locale-menu__content"
+            )}
             trigger={html! {
                 <img
                     src={active_flag_src}
                     alt="Locale"
-                    class="rounded-box size-4.5 object-cover"
+                    class="rounded-full size-4.5 object-cover"
                 />
             }}
         >
@@ -47,7 +55,7 @@ pub(crate) fn locale_menu(props: &LocaleMenuProps) -> Html {
                             <img
                                 src={flag_src}
                                 alt="Locale"
-                                class="rounded-box size-4.5 object-cover"
+                                class="rounded-full size-4.5 object-cover"
                             />
                             <span>{label}</span>
                         </button>
@@ -55,30 +63,5 @@ pub(crate) fn locale_menu(props: &LocaleMenuProps) -> Html {
                 }
             })}
         </Dropdown>
-    }
-}
-
-fn locale_flag(locale: LocaleCode) -> &'static str {
-    match locale {
-        LocaleCode::Ar => "sa",
-        LocaleCode::De => "de",
-        LocaleCode::Es => "es",
-        LocaleCode::Hi => "in",
-        LocaleCode::It => "it",
-        LocaleCode::Jv => "id",
-        LocaleCode::Mr => "in",
-        LocaleCode::Pt => "pt",
-        LocaleCode::Ta => "in",
-        LocaleCode::Tr => "tr",
-        LocaleCode::Bn => "bd",
-        LocaleCode::En => "us",
-        LocaleCode::Fr => "fr",
-        LocaleCode::Id => "id",
-        LocaleCode::Ja => "jp",
-        LocaleCode::Ko => "kr",
-        LocaleCode::Pa => "in",
-        LocaleCode::Ru => "ru",
-        LocaleCode::Te => "in",
-        LocaleCode::Zh => "cn",
     }
 }

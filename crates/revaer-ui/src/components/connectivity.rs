@@ -1,6 +1,9 @@
 use crate::components::atoms::IconButton;
 use crate::components::atoms::icons::{IconCheckCircle2, IconLoader, IconUnplug, IconX};
 use crate::components::daisy::DaisySize;
+use crate::core::logic::connectivity::{
+    IndicatorIcon, format_error, indicator_style, retry_in_seconds,
+};
 use crate::core::store::{SseConnectionState, SseStatus, SseStatusSummary};
 use gloo::console;
 use js_sys::Date;
@@ -13,28 +16,13 @@ pub(crate) struct ConnectivityIndicatorProps {
     pub on_open: Callback<()>,
     #[prop_or_default]
     pub class: Classes,
-    #[prop_or_default]
-    pub label_class: Classes,
 }
 
 #[function_component(ConnectivityIndicator)]
 pub(crate) fn connectivity_indicator(props: &ConnectivityIndicatorProps) -> Html {
-    let (icon, status_class, title) = indicator_style(&props.summary);
-    let label = status_label(&props.summary);
-    let label_class = classes!(
-        "sse-indicator__label",
-        "text-xs",
-        "font-medium",
-        "from-primary",
-        "to-secondary",
-        "bg-gradient-to-r",
-        "bg-clip-text",
-        "text-transparent",
-        "transition-all",
-        "duration-300",
-        "group-hover:text-primary-content",
-        props.label_class.clone()
-    );
+    let now_ms = Date::now() as u64;
+    let style = indicator_style(&props.summary, now_ms);
+    let title = AttrValue::from(style.title);
     let on_open = {
         let on_open = props.on_open.clone();
         Callback::from(move |_| on_open.emit(()))
@@ -44,59 +32,34 @@ pub(crate) fn connectivity_indicator(props: &ConnectivityIndicatorProps) -> Html
         <button
             type="button"
             class={classes!(
+                "btn",
+                "btn-ghost",
+                "btn-sm",
+                "btn-circle",
+                "tooltip",
+                "tooltip-right",
                 "sse-indicator",
-                "group",
-                "rounded-box",
-                "relative",
-                "mx-2.5",
-                "block",
                 props.class.clone()
             )}
             title={title.clone()}
-            aria-label={title}
+            aria-label={title.clone()}
+            data-tip={title.clone()}
             onclick={on_open}
         >
-            <div class="rounded-box absolute inset-0 bg-gradient-to-r from-transparent to-transparent transition-opacity duration-300 group-hover:opacity-0"></div>
-            <div class="from-primary to-secondary rounded-box absolute inset-0 bg-gradient-to-r opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-            <div class="relative flex h-10 items-center gap-3 px-3">
-                {match icon {
+            <span class="indicator">
+                <span class={classes!("indicator-item", "status", style.status_class, "status-sm")}></span>
+                {match style.icon {
                     IndicatorIcon::Connected => html! {
-                        <IconCheckCircle2
-                            class={classes!(
-                                "text-primary",
-                                "transition-all",
-                                "duration-300",
-                                "group-hover:text-primary-content"
-                            )}
-                            size={Some(AttrValue::from("4.5"))}
-                        />
+                        <IconCheckCircle2 class="text-base-content/80" size={Some(AttrValue::from("4"))} />
                     },
                     IndicatorIcon::Reconnecting => html! {
-                        <IconLoader
-                            class={classes!(
-                                "text-primary",
-                                "transition-all",
-                                "duration-300",
-                                "group-hover:text-primary-content"
-                            )}
-                            size={Some(AttrValue::from("4.5"))}
-                        />
+                        <IconLoader class="text-base-content/80" size={Some(AttrValue::from("4"))} />
                     },
                     IndicatorIcon::Disconnected => html! {
-                        <IconUnplug
-                            class={classes!(
-                                "text-primary",
-                                "transition-all",
-                                "duration-300",
-                                "group-hover:text-primary-content"
-                            )}
-                            size={Some(AttrValue::from("4.5"))}
-                        />
+                        <IconUnplug class="text-base-content/80" size={Some(AttrValue::from("4"))} />
                     },
                 }}
-                <span class={classes!("status", status_class, "status-sm")}></span>
-                <span class={label_class}>{label}</span>
-            </div>
+            </span>
         </button>
     }
 }
@@ -144,7 +107,8 @@ pub(crate) fn connectivity_modal(props: &ConnectivityModalProps) -> Html {
         SseConnectionState::Disconnected => "Disconnected",
         SseConnectionState::Reconnecting => "Reconnecting",
     };
-    let retry_in = retry_in_seconds(props.status.next_retry_at_ms);
+    let now_ms = Date::now() as u64;
+    let retry_in = retry_in_seconds(props.status.next_retry_at_ms, now_ms);
     let last_event_id = props
         .status
         .last_event_id
@@ -156,11 +120,14 @@ pub(crate) fn connectivity_modal(props: &ConnectivityModalProps) -> Html {
         .as_ref()
         .map(|err| format_error(err))
         .unwrap_or_else(|| "none".to_string());
-    let (icon, status_class, _) = indicator_style(&SseStatusSummary {
-        state: props.status.state,
-        next_retry_at_ms: props.status.next_retry_at_ms,
-        has_error: props.status.last_error.is_some(),
-    });
+    let style = indicator_style(
+        &SseStatusSummary {
+            state: props.status.state,
+            next_retry_at_ms: props.status.next_retry_at_ms,
+            has_error: props.status.last_error.is_some(),
+        },
+        now_ms,
+    );
 
     html! {
         <dialog
@@ -181,7 +148,7 @@ pub(crate) fn connectivity_modal(props: &ConnectivityModalProps) -> Html {
                     <div class="card-body gap-3 p-4">
                         <div class="flex items-start justify-between">
                             <div class="flex items-center gap-2">
-                                {match icon {
+                                {match style.icon {
                                     IndicatorIcon::Connected => html! {
                                         <IconCheckCircle2 size={Some(AttrValue::from("4"))} />
                                     },
@@ -192,7 +159,7 @@ pub(crate) fn connectivity_modal(props: &ConnectivityModalProps) -> Html {
                                         <IconUnplug size={Some(AttrValue::from("4"))} />
                                     },
                                 }}
-                                <span class={classes!("status", status_class, "status-sm")}></span>
+                                <span class={classes!("status", style.status_class, "status-sm")}></span>
                                 <h3 class="text-sm font-semibold">{"Connectivity"}</h3>
                             </div>
                             <IconButton
@@ -243,65 +210,5 @@ pub(crate) fn connectivity_modal(props: &ConnectivityModalProps) -> Html {
                 </div>
             </div>
         </dialog>
-    }
-}
-
-enum IndicatorIcon {
-    Connected,
-    Reconnecting,
-    Disconnected,
-}
-
-fn indicator_style(summary: &SseStatusSummary) -> (IndicatorIcon, &'static str, String) {
-    let retry_label = retry_in_seconds(summary.next_retry_at_ms)
-        .map(|value| format!("Reconnecting in {value}"))
-        .unwrap_or_default();
-    match summary.state {
-        SseConnectionState::Connected => (
-            IndicatorIcon::Connected,
-            "status-success",
-            "Live".to_string(),
-        ),
-        SseConnectionState::Reconnecting => (
-            IndicatorIcon::Reconnecting,
-            "status-warning",
-            if retry_label.is_empty() {
-                "Reconnecting".to_string()
-            } else {
-                retry_label
-            },
-        ),
-        SseConnectionState::Disconnected => (
-            IndicatorIcon::Disconnected,
-            if summary.has_error {
-                "status-error"
-            } else {
-                "status-warning"
-            },
-            "Disconnected".to_string(),
-        ),
-    }
-}
-
-fn status_label(summary: &SseStatusSummary) -> &'static str {
-    match summary.state {
-        SseConnectionState::Connected => "Live",
-        SseConnectionState::Disconnected => "Disconnected",
-        SseConnectionState::Reconnecting => "Reconnecting",
-    }
-}
-
-fn retry_in_seconds(next_retry_at_ms: Option<u64>) -> Option<String> {
-    let next_retry_at_ms = next_retry_at_ms?;
-    let now = Date::now() as u64;
-    let remaining_ms = next_retry_at_ms.saturating_sub(now);
-    let remaining_secs = (remaining_ms + 999) / 1000;
-    Some(format!("{remaining_secs}s"))
-}
-
-fn format_error(error: &crate::core::store::SseError) -> String {
-    match error.status_code {
-        Some(code) => format!("{} ({code})", error.message),
-        None => error.message.clone(),
     }
 }

@@ -13,7 +13,10 @@ use crate::commands::{config, setup, tail, torrents};
 /// Parses CLI arguments, executes the requested command, and handles
 /// user-facing telemetry emission. Returns the process exit code.
 pub async fn run() -> i32 {
-    let cli = Cli::parse();
+    run_with_cli(Cli::parse()).await
+}
+
+async fn run_with_cli(cli: Cli) -> i32 {
     let command_name = command_label(&cli.command);
     let trace_id = Uuid::new_v4().to_string();
     let deps = match CliDependencies::from_env(&cli, &trace_id) {
@@ -385,8 +388,11 @@ fn parse_existing_directory(path: &str) -> Result<PathBuf, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::{CliError, parse_api_key, parse_url, timestamp_now_ms};
+    use crate::client::{CliError, HEADER_API_KEY, parse_api_key, parse_url, timestamp_now_ms};
     use anyhow::{Result, anyhow};
+    use httpmock::MockServer;
+    use httpmock::prelude::*;
+    use revaer_config::validate::default_local_networks;
     use std::{fs, path::PathBuf};
 
     fn repo_root() -> PathBuf {
@@ -480,6 +486,140 @@ mod tests {
             .to_str()
             .ok_or_else(|| anyhow!("invalid missing dir path"))?;
         assert!(parse_existing_directory(missing_path).is_err());
+        Ok(())
+    }
+
+    fn sample_snapshot() -> Result<revaer_config::ConfigSnapshot> {
+        let engine_profile = revaer_config::EngineProfile {
+            id: Uuid::new_v4(),
+            implementation: "libtorrent".into(),
+            listen_port: Some(6881),
+            listen_interfaces: Vec::new(),
+            ipv6_mode: "disabled".into(),
+            anonymous_mode: false.into(),
+            force_proxy: false.into(),
+            prefer_rc4: false.into(),
+            allow_multiple_connections_per_ip: false.into(),
+            enable_outgoing_utp: false.into(),
+            enable_incoming_utp: false.into(),
+            dht: true,
+            encryption: "prefer".into(),
+            max_active: Some(4),
+            max_download_bps: None,
+            max_upload_bps: None,
+            seed_ratio_limit: None,
+            seed_time_limit: None,
+            connections_limit: None,
+            connections_limit_per_torrent: None,
+            unchoke_slots: None,
+            half_open_limit: None,
+            stats_interval_ms: None,
+            alt_speed: revaer_config::engine_profile::AltSpeedConfig::default(),
+            sequential_default: false,
+            auto_managed: true.into(),
+            auto_manage_prefer_seeds: false.into(),
+            dont_count_slow_torrents: true.into(),
+            super_seeding: false.into(),
+            choking_algorithm: revaer_config::EngineProfile::default_choking_algorithm(),
+            seed_choking_algorithm: revaer_config::EngineProfile::default_seed_choking_algorithm(),
+            strict_super_seeding: false.into(),
+            optimistic_unchoke_slots: None,
+            max_queued_disk_bytes: None,
+            resume_dir: ".server_root/resume".into(),
+            download_root: ".server_root/downloads".into(),
+            storage_mode: revaer_config::EngineProfile::default_storage_mode(),
+            use_partfile: revaer_config::EngineProfile::default_use_partfile(),
+            disk_read_mode: None,
+            disk_write_mode: None,
+            verify_piece_hashes: revaer_config::EngineProfile::default_verify_piece_hashes(),
+            cache_size: None,
+            cache_expiry: None,
+            coalesce_reads: revaer_config::EngineProfile::default_coalesce_reads(),
+            coalesce_writes: revaer_config::EngineProfile::default_coalesce_writes(),
+            use_disk_cache_pool: revaer_config::EngineProfile::default_use_disk_cache_pool(),
+            tracker: revaer_config::engine_profile::TrackerConfig::default(),
+            enable_lsd: false.into(),
+            enable_upnp: false.into(),
+            enable_natpmp: false.into(),
+            enable_pex: false.into(),
+            dht_bootstrap_nodes: Vec::new(),
+            dht_router_nodes: Vec::new(),
+            ip_filter: revaer_config::engine_profile::IpFilterConfig::default(),
+            peer_classes: revaer_config::engine_profile::PeerClassesConfig::default(),
+            outgoing_port_min: None,
+            outgoing_port_max: None,
+            peer_dscp: None,
+        };
+        Ok(revaer_config::ConfigSnapshot {
+            revision: 1,
+            app_profile: revaer_config::AppProfile {
+                id: Uuid::new_v4(),
+                instance_name: "demo".into(),
+                mode: revaer_config::AppMode::Active,
+                auth_mode: revaer_config::AppAuthMode::ApiKey,
+                version: 1,
+                http_port: 7070,
+                bind_addr: "127.0.0.1".parse().map_err(|_| anyhow!("bind addr"))?,
+                local_networks: default_local_networks(),
+                telemetry: revaer_config::TelemetryConfig::default(),
+                label_policies: Vec::new(),
+                immutable_keys: Vec::new(),
+            },
+            engine_profile: engine_profile.clone(),
+            engine_profile_effective: revaer_config::normalize_engine_profile(&engine_profile),
+            fs_policy: revaer_config::FsPolicy {
+                id: Uuid::new_v4(),
+                library_root: ".server_root/library".into(),
+                extract: false,
+                par2: "disabled".into(),
+                flatten: false,
+                move_mode: "copy".into(),
+                cleanup_keep: Vec::new(),
+                cleanup_drop: Vec::new(),
+                chmod_file: None,
+                chmod_dir: None,
+                owner: None,
+                group: None,
+                umask: None,
+                allow_paths: Vec::new(),
+            },
+        })
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_config_get() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let snapshot = sample_snapshot()?;
+        let payload = serde_json::to_value(&snapshot)?;
+        let config_mock = server.mock(|when, then| {
+            when.method(GET)
+                .path("/v1/config")
+                .header(HEADER_API_KEY, "key:secret");
+            then.status(200).json_body(payload);
+        });
+
+        let cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "config",
+            "get",
+        ]);
+
+        let exit_code = run_with_cli(cli).await;
+        config_mock.assert();
+        assert_eq!(exit_code, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_reports_validation_errors() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let cli = Cli::parse_from(["revaer", "--api-url", &server.base_url(), "config", "get"]);
+        let exit_code = run_with_cli(cli).await;
+        assert_eq!(exit_code, 2);
         Ok(())
     }
 }

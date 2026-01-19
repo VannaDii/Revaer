@@ -22,7 +22,8 @@ use crate::core::ui::{Density, UiMode};
 use crate::features::dashboard::DashboardPage;
 use crate::features::health::view::HealthPage;
 use crate::features::logs::view::LogsPage;
-use crate::features::settings::view::{SettingsPage, SettingsTab};
+use crate::features::settings::state::SettingsTab;
+use crate::features::settings::view::SettingsPage;
 use crate::features::torrents::actions::{TorrentAction, success_message};
 use crate::features::torrents::state::{
     ProgressPatch, SelectionSet, TorrentRow, TorrentSortState, TorrentsPaging, TorrentsQueryModel,
@@ -2376,7 +2377,7 @@ fn placeholder(props: &PlaceholderProps) -> Html {
     html! {
         <div class="card bg-base-100 border border-base-200 shadow">
             <div class="card-body gap-2">
-                <h2 class="text-lg font-semibold">{&props.title}</h2>
+                <span class="badge badge-ghost badge-sm">{&props.title}</span>
                 <p class="text-sm text-base-content/60">{&props.body}</p>
                 <span class="badge badge-ghost badge-sm">{bundle.text("placeholder.badge")}</span>
             </div>

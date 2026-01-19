@@ -1537,7 +1537,7 @@ pub async fn update_app_immutable_keys<'e, E>(
 where
     E: Executor<'e, Database = Postgres>,
 {
-    sqlx::query("SELECT revaer_config.update_app_immutable_keys(_id => $1, _keys => $2)")
+    sqlx::query("SELECT revaer_config.update_app_immutable_keys($1, $2)")
         .bind(id)
         .bind(immutable_keys)
         .execute(executor)

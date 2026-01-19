@@ -144,3 +144,105 @@ pub(crate) async fn stream_events(
 
     Ok(last_seen)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use anyhow::Result;
+    use chrono::Utc;
+    use httpmock::MockServer;
+    use httpmock::prelude::*;
+    use reqwest::Client;
+    use revaer_events::{Event, EventEnvelope};
+    use std::fs;
+    use uuid::Uuid;
+
+    fn build_envelope(id: u64) -> EventEnvelope {
+        EventEnvelope {
+            id,
+            timestamp: Utc::now(),
+            event: Event::TorrentAdded {
+                torrent_id: Uuid::new_v4(),
+                name: "demo".to_string(),
+            },
+        }
+    }
+
+    fn sse_payload(id: u64, envelope: &EventEnvelope) -> String {
+        let payload = serde_json::to_string(envelope).expect("serialize event");
+        format!("event: update\nretry: 1000\n{HEADER_REQUEST_ID}: req\nid:{id}\ndata:{payload}\n\n")
+    }
+
+    fn tail_args(resume_file: Option<std::path::PathBuf>) -> TailArgs {
+        TailArgs {
+            torrent: Vec::new(),
+            event: Vec::new(),
+            state: Vec::new(),
+            resume_file,
+            retry_secs: 0,
+        }
+    }
+
+    #[tokio::test]
+    async fn stream_events_updates_resume_and_file() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let envelope1 = build_envelope(1);
+        let envelope2 = build_envelope(2);
+        let body = format!(
+            "{}{}",
+            sse_payload(1, &envelope1),
+            sse_payload(2, &envelope2)
+        );
+        server.mock(|when, then| {
+            when.method(GET).path("/v1/torrents/events");
+            then.status(200)
+                .header("content-type", "text/event-stream")
+                .body(body);
+        });
+
+        let resume_path = std::env::temp_dir().join("revaer-tail-resume.txt");
+        let args = tail_args(Some(resume_path.clone()));
+        let response = Client::new()
+            .get(format!("{}/v1/torrents/events", server.base_url()))
+            .send()
+            .await?;
+        let mut resume_id = 0;
+        let last_id = stream_events(response, &args, Some(&mut resume_id)).await?;
+
+        assert_eq!(last_id, Some(2));
+        assert_eq!(resume_id, 2);
+        let stored = fs::read_to_string(&resume_path)?;
+        assert_eq!(stored.trim(), "2");
+        let _ = fs::remove_file(&resume_path);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn stream_events_skips_duplicate_event_ids() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let envelope = build_envelope(2);
+        server.mock(|when, then| {
+            when.method(GET).path("/v1/torrents/events");
+            then.status(200)
+                .header("content-type", "text/event-stream")
+                .body(sse_payload(2, &envelope));
+        });
+
+        let resume_path = std::env::temp_dir().join("revaer-tail-resume-dup.txt");
+        fs::write(&resume_path, "2")?;
+        let args = tail_args(Some(resume_path.clone()));
+        let response = Client::new()
+            .get(format!("{}/v1/torrents/events", server.base_url()))
+            .send()
+            .await?;
+        let mut resume_id = 2;
+        let last_id = stream_events(response, &args, Some(&mut resume_id)).await?;
+
+        assert_eq!(last_id, Some(2));
+        assert_eq!(resume_id, 2);
+        let stored = fs::read_to_string(&resume_path)?;
+        assert_eq!(stored.trim(), "2");
+        let _ = fs::remove_file(&resume_path);
+        Ok(())
+    }
+}

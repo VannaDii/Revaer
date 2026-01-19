@@ -37,6 +37,7 @@ export default defineConfig({
   fullyParallel: true,
   retries,
   workers,
+  globalSetup: './global-setup',
   globalTeardown: './global-teardown',
   expect: {
     timeout: expectTimeout,

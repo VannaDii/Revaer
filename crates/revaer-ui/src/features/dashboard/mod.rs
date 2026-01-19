@@ -1,5 +1,7 @@
 //! Nexus-based dashboard feature slice.
 
+pub mod logic;
+
 #[cfg(target_arch = "wasm32")]
 mod disk_usage;
 #[cfg(target_arch = "wasm32")]

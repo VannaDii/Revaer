@@ -215,6 +215,9 @@ mod tests {
     #[tokio::test]
     async fn stub_config_exposes_expected_behavior() -> Result<()> {
         let config = StubConfig;
+        let profile = config.get_app_profile().await?;
+        assert_eq!(profile.instance_name, "test");
+
         let token = config
             .issue_setup_token(Duration::from_secs(30), "tester")
             .await?;
@@ -230,8 +233,13 @@ mod tests {
             .ok_or_else(|| anyhow!("expected apply error"))?;
         assert!(matches!(err, ConfigError::Io { .. }));
 
+        let snapshot = config.snapshot().await?;
+        assert_eq!(snapshot.revision, 1);
+
         let auth = config.authenticate_api_key("id", "secret").await?;
         assert!(auth.is_none());
+        assert!(config.has_api_keys().await?);
+        config.factory_reset().await?;
         Ok(())
     }
 }

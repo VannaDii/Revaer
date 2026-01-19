@@ -27,8 +27,19 @@ pub(crate) fn server_menu(props: &ServerMenuProps) -> Html {
             class={classes!("dropdown-bottom", "dropdown-end")}
             trigger_label={Some(AttrValue::from("Server menu"))}
             trigger_class={classes!("btn-ghost", "btn-circle", "btn-sm")}
-            content_class={classes!("mt-2", "w-44", "p-1", "shadow", "z-[70]")}
-            trigger={html! { <IconServer size={Some(AttrValue::from("4.5"))} /> }}
+            content_class={classes!(
+                "mt-2",
+                "w-44",
+                "p-1",
+                "shadow",
+                "z-50",
+                "server-menu__content"
+            )}
+            trigger={html! {
+                <span data-testid="server-menu-icon">
+                    <IconServer size={Some(AttrValue::from("4.5"))} />
+                </span>
+            }}
         >
             <li>
                 <button type="button" onclick={Callback::from(move |_| on_restart.emit(()))}>

@@ -1023,17 +1023,20 @@ fn require_api_key(context: crate::http::auth::AuthContext) -> Result<String, Ap
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::http::handlers::torrents::TorrentMetadataSeed;
     use anyhow::{Result, anyhow};
     use axum::http::StatusCode;
+    use chrono::{TimeZone, Utc};
     use revaer_config::{
         ApiKeyAuth, AppMode, AppProfile, ConfigError, ConfigResult, LabelPolicy, SettingsChangeset,
         TelemetryConfig, validate::default_local_networks,
     };
-    use revaer_events::EventBus;
+    use revaer_events::{EventBus, TorrentState};
     use revaer_telemetry::Metrics;
     use revaer_torrent_core::{
-        AddTorrent, FileSelectionUpdate, PeerChoke, PeerInterest, PeerSnapshot, RemoveTorrent,
-        TorrentCleanupPolicy, TorrentLabelPolicy, TorrentRateLimit, TorrentResult, TorrentStatus,
+        AddTorrent, FilePriority, FileSelectionUpdate, PeerChoke, PeerInterest, PeerSnapshot,
+        RemoveTorrent, TorrentCleanupPolicy, TorrentFile, TorrentLabelPolicy, TorrentRateLimit,
+        TorrentResult, TorrentStatus,
         model::{
             PieceDeadline, TorrentAuthorFile, TorrentAuthorResult, TorrentOptionsUpdate,
             TorrentTrackersUpdate,
@@ -2129,6 +2132,194 @@ mod tests {
 
         let Json(tags) = list_torrent_tags(State(state), Extension(context)).await?;
         assert_eq!(tags.len(), 1);
+        Ok(())
+    }
+
+    #[test]
+    fn parse_list_filters_normalizes_values() -> Result<()> {
+        let query = TorrentListQuery {
+            state: Some("completed".to_string()),
+            tags: Some("Action, Drama".to_string()),
+            tracker: Some("Tracker.Example".to_string()),
+            extension: Some(".MKV".to_string()),
+            name: Some("  Movie ".to_string()),
+            ..TorrentListQuery::default()
+        };
+
+        let filters = parse_list_filters(&query)?;
+        assert_eq!(filters.state, Some(TorrentStateKind::Completed));
+        assert!(filters.tags.contains("action"));
+        assert!(filters.tags.contains("drama"));
+        assert_eq!(filters.tracker.as_deref(), Some("tracker.example"));
+        assert_eq!(filters.extension.as_deref(), Some("mkv"));
+        assert_eq!(filters.name.as_deref(), Some("movie"));
+        Ok(())
+    }
+
+    #[test]
+    fn filter_entries_respects_tags_tracker_extension_name_and_state() -> Result<()> {
+        let now = Utc
+            .with_ymd_and_hms(2024, 1, 1, 0, 0, 0)
+            .single()
+            .ok_or_else(|| anyhow!("invalid timestamp"))?;
+        let id = Uuid::new_v4();
+        let files = vec![TorrentFile {
+            index: 0,
+            path: "movie.mkv".to_string(),
+            size_bytes: 10,
+            bytes_completed: 0,
+            priority: FilePriority::Normal,
+            selected: true,
+        }];
+        let status = TorrentStatus {
+            id,
+            name: Some("My Movie".to_string()),
+            state: TorrentState::Downloading,
+            files: Some(files),
+            last_updated: now,
+            ..TorrentStatus::default()
+        };
+        let metadata = TorrentMetadata::new(TorrentMetadataSeed {
+            tags: vec!["Action".to_string(), "Drama".to_string()],
+            category: None,
+            trackers: vec!["https://tracker.example/announce".to_string()],
+            web_seeds: Vec::new(),
+            rate_limit: None,
+            connections_limit: None,
+            selection: FileSelectionUpdate::default(),
+            download_dir: None,
+            cleanup: None,
+        });
+
+        let mut entries = vec![
+            StatusEntry { status, metadata },
+            StatusEntry {
+                status: TorrentStatus {
+                    id: Uuid::new_v4(),
+                    name: Some("Other".to_string()),
+                    state: TorrentState::Queued,
+                    last_updated: now,
+                    ..TorrentStatus::default()
+                },
+                metadata: TorrentMetadata::default(),
+            },
+        ];
+
+        let filters = ListFilters {
+            state: Some(TorrentStateKind::Downloading),
+            tags: std::iter::once("action".to_string()).collect(),
+            tracker: Some("tracker.example".to_string()),
+            extension: Some("mkv".to_string()),
+            name: Some("movie".to_string()),
+        };
+
+        filter_entries(&mut entries, &filters);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].status.id, id);
+        Ok(())
+    }
+
+    #[test]
+    fn sort_entries_orders_latest_first() -> Result<()> {
+        let earlier = Utc
+            .with_ymd_and_hms(2024, 1, 1, 0, 0, 0)
+            .single()
+            .ok_or_else(|| anyhow!("invalid timestamp"))?;
+        let later = Utc
+            .with_ymd_and_hms(2024, 1, 2, 0, 0, 0)
+            .single()
+            .ok_or_else(|| anyhow!("invalid timestamp"))?;
+
+        let mut entries = vec![
+            StatusEntry {
+                status: TorrentStatus {
+                    id: Uuid::new_v4(),
+                    last_updated: earlier,
+                    ..TorrentStatus::default()
+                },
+                metadata: TorrentMetadata::default(),
+            },
+            StatusEntry {
+                status: TorrentStatus {
+                    id: Uuid::new_v4(),
+                    last_updated: later,
+                    ..TorrentStatus::default()
+                },
+                metadata: TorrentMetadata::default(),
+            },
+        ];
+
+        sort_entries(&mut entries);
+        assert_eq!(entries[0].status.last_updated, later);
+        Ok(())
+    }
+
+    #[test]
+    fn compute_start_index_advances_past_cursor() -> Result<()> {
+        let now = Utc
+            .with_ymd_and_hms(2024, 1, 1, 0, 0, 0)
+            .single()
+            .ok_or_else(|| anyhow!("invalid timestamp"))?;
+        let id = Uuid::new_v4();
+        let entries = vec![
+            StatusEntry {
+                status: TorrentStatus {
+                    id,
+                    last_updated: now,
+                    ..TorrentStatus::default()
+                },
+                metadata: TorrentMetadata::default(),
+            },
+            StatusEntry {
+                status: TorrentStatus {
+                    id: Uuid::new_v4(),
+                    last_updated: now - chrono::Duration::seconds(1),
+                    ..TorrentStatus::default()
+                },
+                metadata: TorrentMetadata::default(),
+            },
+        ];
+        let cursor = CursorToken {
+            last_updated: now,
+            id,
+        };
+        let start = compute_start_index(&entries, Some(&cursor));
+        assert_eq!(start, 1);
+        Ok(())
+    }
+
+    #[test]
+    fn paginate_entries_returns_next_cursor_when_more_results() -> Result<()> {
+        let now = Utc
+            .with_ymd_and_hms(2024, 1, 1, 0, 0, 0)
+            .single()
+            .ok_or_else(|| anyhow!("invalid timestamp"))?;
+        let entries = vec![
+            StatusEntry {
+                status: TorrentStatus {
+                    id: Uuid::new_v4(),
+                    last_updated: now,
+                    ..TorrentStatus::default()
+                },
+                metadata: TorrentMetadata::default(),
+            },
+            StatusEntry {
+                status: TorrentStatus {
+                    id: Uuid::new_v4(),
+                    last_updated: now - chrono::Duration::seconds(1),
+                    ..TorrentStatus::default()
+                },
+                metadata: TorrentMetadata::default(),
+            },
+        ];
+
+        let (page, next) = paginate_entries(&entries, 0, 1)?;
+        assert_eq!(page.len(), 1);
+        assert!(next.is_some());
+
+        let (page, next) = paginate_entries(&entries, 0, 2)?;
+        assert_eq!(page.len(), 2);
+        assert!(next.is_none());
         Ok(())
     }
 }

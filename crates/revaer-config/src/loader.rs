@@ -2478,10 +2478,14 @@ fn map_sqlx_err(operation: &'static str) -> impl FnOnce(sqlx::Error) -> ConfigEr
 mod tests {
     use super::*;
     use crate::LabelKind;
-    use anyhow::anyhow;
+    use anyhow::{Result, anyhow};
+    use chrono::Duration as ChronoDuration;
     use revaer_data::config::{NatToggleSet, PrivacyToggleSet, QueuePolicySet, StorageToggleSet};
+    use std::collections::HashSet;
+    use std::fs;
     use std::net::IpAddr;
     use std::str::FromStr;
+    use uuid::Uuid;
 
     fn sample_label_row(kind: &str) -> LabelPolicyRow {
         LabelPolicyRow {
@@ -2599,6 +2603,10 @@ mod tests {
             alt_speed_days: vec!["mon".to_string(), "Wed".to_string()],
             stats_interval_ms: Some(15000),
         }
+    }
+
+    fn sample_engine_profile() -> EngineProfile {
+        map_engine_profile_row(sample_engine_row())
     }
 
     fn sample_fs_policy_row() -> FsPolicyRow {
@@ -2810,5 +2818,71 @@ mod tests {
             .ok_or_else(|| anyhow!("expected invalid hash error"))?;
         assert!(matches!(err, ConfigError::StoredHashInvalid { .. }));
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn validate_directory_path_rejects_missing_and_non_dir() -> Result<()> {
+        let root = std::env::temp_dir().join(format!("revaer-config-{}", Uuid::new_v4()));
+        let missing = root.join("missing");
+        let missing_path = missing.to_string_lossy().to_string();
+        let err = validate_directory_path("app_profile", "download_root", &missing_path)
+            .await
+            .err()
+            .ok_or_else(|| anyhow!("expected missing path error"))?;
+        assert!(matches!(err, ConfigError::InvalidField { .. }));
+
+        fs::create_dir_all(&root)?;
+        let file_path = root.join("file.txt");
+        fs::write(&file_path, "data")?;
+        let file_path = file_path.to_string_lossy().to_string();
+        let err = validate_directory_path("app_profile", "download_root", &file_path)
+            .await
+            .err()
+            .ok_or_else(|| anyhow!("expected non-directory error"))?;
+        assert!(matches!(err, ConfigError::InvalidField { .. }));
+
+        fs::remove_dir_all(&root)?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn validate_allow_paths_rejects_missing_entries() -> Result<()> {
+        let root = std::env::temp_dir().join(format!("revaer-config-{}", Uuid::new_v4()));
+        let missing = root.join("missing");
+        let err = validate_allow_paths(&[missing.to_string_lossy().to_string()])
+            .await
+            .err()
+            .ok_or_else(|| anyhow!("expected allow path error"))?;
+        assert!(matches!(err, ConfigError::InvalidField { .. }));
+        Ok(())
+    }
+
+    #[test]
+    fn ensure_engine_profile_mutable_rejects_immutable_changes() {
+        let current = sample_engine_profile();
+        let mut update = current.clone();
+        update.listen_port = Some(7000);
+
+        let mut immutables = HashSet::new();
+        immutables.insert("engine_profile.listen_port".to_string());
+
+        let err = ensure_engine_profile_mutable(&current, &update, &immutables)
+            .expect_err("expected immutable error");
+        assert!(matches!(err, ConfigError::ImmutableField { .. }));
+    }
+
+    #[test]
+    fn normalize_engine_profile_for_storage_clamps_listen_port() {
+        let mut profile = sample_engine_profile();
+        profile.listen_port = Some(70_000);
+        let normalized = normalize_engine_profile_for_storage(&profile);
+        assert!(normalized.listen_port.is_none());
+    }
+
+    #[test]
+    fn validate_api_key_expiry_rejects_excess_ttl() {
+        let expires_at = Utc::now() + ChronoDuration::days(API_KEY_TTL_DAYS + 1);
+        let err = validate_api_key_expiry(Some(expires_at)).expect_err("expected expiry violation");
+        assert!(matches!(err, ConfigError::InvalidField { .. }));
     }
 }
