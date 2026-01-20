@@ -1,4 +1,8 @@
+import fs from 'fs';
+import path from 'path';
+import { readState } from '../e2e-state';
 import { authHeaders, setupHeaders } from '../headers';
+import { repoRoot } from '../paths';
 import type { ApiSession, AuthMode } from '../session';
 import { createApiClient, type ApiClient } from './client';
 
@@ -20,6 +24,11 @@ type WellKnownSnapshot = {
   app_profile?: Record<string, unknown>;
 };
 
+type ApiLogTail = {
+  logPath: string;
+  tail: string;
+};
+
 function parseHealthMode(response: Response, body?: HealthResponse): string {
   if (!response.ok) {
     throw new Error(`Health check failed with ${response.status}.`);
@@ -38,20 +47,19 @@ function assertSetupMode(mode: string, context: string): void {
 }
 
 async function ensureSetupMode(client: ApiClient): Promise<void> {
-  const health = await client.GET('/health');
+  const health = await fetchHealth(client, 'initial');
   const mode = parseHealthMode(health.response, health.data as HealthResponse | undefined);
-  if (mode === 'setup') {
-    return;
-  }
 
   const reset = await client.POST('/admin/factory-reset', {
     body: { confirm: 'factory reset' },
   });
   if (reset.response.status !== 204) {
-    throw new Error(`Factory reset failed with ${reset.response.status}.`);
+    throw new Error(
+      `Factory reset failed with ${reset.response.status} while in ${mode} mode.`,
+    );
   }
 
-  const healthAfter = await client.GET('/health');
+  const healthAfter = await fetchHealth(client, 'after factory reset');
   const resetMode = parseHealthMode(
     healthAfter.response,
     healthAfter.data as HealthResponse | undefined,
@@ -104,5 +112,74 @@ export async function factoryReset(options: ResetOptions): Promise<void> {
   });
   if (response.response.status !== 204) {
     throw new Error(`Factory reset failed with ${response.response.status}.`);
+  }
+}
+
+function isPidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    const code = typeof error === 'object' && error ? (error as NodeJS.ErrnoException).code : '';
+    return code === 'EPERM';
+  }
+}
+
+function apiLogTail(lines: number): ApiLogTail | null {
+  const logPath = path.join(repoRoot(), 'tests', 'logs', 'api.log');
+  if (!fs.existsSync(logPath)) {
+    return null;
+  }
+  const raw = fs.readFileSync(logPath, 'utf-8').trim();
+  if (!raw) {
+    return null;
+  }
+  const entries = raw.split(/\r?\n/);
+  const tail = entries.slice(-lines).join('\n');
+  return { logPath, tail };
+}
+
+function apiDiagnostics(): string {
+  const state = readState();
+  if (!state) {
+    return 'E2E state is missing; global setup may not have started the API process.';
+  }
+  if (!state.apiPid) {
+    return 'E2E state is missing the API pid; global setup may not have started the API process.';
+  }
+  if (!isPidAlive(state.apiPid)) {
+    return `API process ${state.apiPid} is not running.`;
+  }
+  return `API process ${state.apiPid} is running.`;
+}
+
+function apiFailureMessage(context: string, error: unknown): string {
+  const detail = error instanceof Error ? error.message : String(error);
+  const lines = [context, detail, apiDiagnostics()];
+  const tail = apiLogTail(60);
+  if (tail) {
+    lines.push(`Last 60 lines from ${tail.logPath}:`);
+    lines.push(tail.tail);
+  }
+  return lines.filter(Boolean).join('\n');
+}
+
+async function fetchHealth(client: ApiClient, context: string): Promise<{
+  response: Response;
+  data?: HealthResponse;
+}> {
+  const state = readState();
+  if (state?.apiPid && !isPidAlive(state.apiPid)) {
+    throw new Error(
+      apiFailureMessage(
+        `API process ${state.apiPid} exited before ${context} health check.`,
+        'API process not running',
+      ),
+    );
+  }
+  try {
+    return await client.GET('/health');
+  } catch (error) {
+    throw new Error(apiFailureMessage(`Health check (${context}) failed to reach API.`, error));
   }
 }
