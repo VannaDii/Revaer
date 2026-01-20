@@ -66,6 +66,7 @@ constexpr std::array<const char*, 5> kSkipFluffPatterns = {
     "**/proof/**",
     "**/screens/**",
 };
+constexpr const char* kInvalidHandleMessage = "invalid torrent handle used";
 constexpr std::size_t kMaxCreatePathLength = 4096;
 
 std::string to_std_string(::rust::Str value) {
@@ -1498,7 +1499,16 @@ public:
 
         auto it = handles_.find(key);
         if (it != handles_.end()) {
-            apply_selection(it->first, it->second);
+            if (!it->second.is_valid()) {
+                drop_torrent_state(key);
+                return ::rust::String(kInvalidHandleMessage);
+            }
+            try {
+                apply_selection(it->first, it->second);
+            } catch (const std::exception& ex) {
+                drop_torrent_state(key);
+                return ::rust::String(ex.what());
+            }
         }
         return ::rust::String();
     }
@@ -1641,8 +1651,17 @@ public:
         if (it == handles_.end()) {
             return peers_out;
         }
+        if (!it->second.is_valid()) {
+            drop_torrent_state(key);
+            return peers_out;
+        }
         std::vector<lt::peer_info> peers;
-        it->second.get_peer_info(peers);
+        try {
+            it->second.get_peer_info(peers);
+        } catch (const std::exception&) {
+            drop_torrent_state(key);
+            return peers_out;
+        }
         peers_out.reserve(peers.size());
         for (const auto& peer : peers) {
             NativePeerInfo info{};
@@ -1669,6 +1688,7 @@ public:
 
     rust::Vec<NativeEvent> poll_events() {
         rust::Vec<NativeEvent> events;
+        std::unordered_set<std::string> stale_ids;
 
         auto push_session_error = [&events](
                                       std::string component,
@@ -1834,9 +1854,19 @@ public:
         }
 
         for (auto& [id, handle] : handles_) {
-            lt::torrent_status status = handle.status(
-                lt::torrent_handle::query_name | lt::torrent_handle::query_save_path |
-                lt::torrent_handle::query_pieces | lt::torrent_handle::query_torrent_file);
+            if (!handle.is_valid()) {
+                note_invalid_handle(id, events, stale_ids, kInvalidHandleMessage);
+                continue;
+            }
+            lt::torrent_status status;
+            try {
+                status = handle.status(
+                    lt::torrent_handle::query_name | lt::torrent_handle::query_save_path |
+                    lt::torrent_handle::query_pieces | lt::torrent_handle::query_torrent_file);
+            } catch (const std::exception& ex) {
+                note_invalid_handle(id, events, stale_ids, ex.what());
+                continue;
+            }
 
             auto& snapshot = snapshots_[id];
             NativeTorrentState current_state = map_state(status.state);
@@ -1851,42 +1881,47 @@ public:
             }
 
             if (!snapshot.metadata_emitted) {
-                auto info = handle.torrent_file();
-                if (info) {
-                    NativeEvent files_evt{};
-                    files_evt.id = id;
-                    files_evt.kind = NativeEventKind::FilesDiscovered;
-                    files_evt.state = current_state;
-                    files_evt.name = info->name();
-                    files_evt.download_dir = status.save_path;
-                    files_evt.files = rust::Vec<NativeFile>();
-                    for (lt::file_index_t idx : info->files().file_range()) {
-                        NativeFile file{};
-                        file.index = static_cast<std::uint32_t>(static_cast<int>(idx));
-                        file.path = info->files().file_path(idx);
-                        file.size_bytes = static_cast<std::uint64_t>(info->files().file_size(idx));
-                        files_evt.files.push_back(std::move(file));
+                try {
+                    auto info = handle.torrent_file();
+                    if (info) {
+                        NativeEvent files_evt{};
+                        files_evt.id = id;
+                        files_evt.kind = NativeEventKind::FilesDiscovered;
+                        files_evt.state = current_state;
+                        files_evt.name = info->name();
+                        files_evt.download_dir = status.save_path;
+                        files_evt.files = rust::Vec<NativeFile>();
+                        for (lt::file_index_t idx : info->files().file_range()) {
+                            NativeFile file{};
+                            file.index = static_cast<std::uint32_t>(static_cast<int>(idx));
+                            file.path = info->files().file_path(idx);
+                            file.size_bytes = static_cast<std::uint64_t>(info->files().file_size(idx));
+                            files_evt.files.push_back(std::move(file));
+                        }
+                        events.push_back(files_evt);
+
+                        const auto details = extract_metainfo_details(*info);
+                        NativeEvent meta_evt{};
+                        meta_evt.id = id;
+                        meta_evt.kind = NativeEventKind::MetadataUpdated;
+                        meta_evt.state = current_state;
+                        meta_evt.name = info->name();
+                        meta_evt.download_dir = status.save_path;
+                        meta_evt.comment = details.comment;
+                        meta_evt.source = details.source;
+                        meta_evt.private_flag = details.private_flag;
+                        meta_evt.has_private = details.has_private;
+                        events.push_back(meta_evt);
+
+                        apply_selection(id, handle);
+                        snapshot.metadata_applied = true;
+                        snapshot.last_name = info->name();
+                        snapshot.last_download_dir = status.save_path;
+                        snapshot.metadata_emitted = true;
                     }
-                    events.push_back(files_evt);
-
-                    const auto details = extract_metainfo_details(*info);
-                    NativeEvent meta_evt{};
-                    meta_evt.id = id;
-                    meta_evt.kind = NativeEventKind::MetadataUpdated;
-                    meta_evt.state = current_state;
-                    meta_evt.name = info->name();
-                    meta_evt.download_dir = status.save_path;
-                    meta_evt.comment = details.comment;
-                    meta_evt.source = details.source;
-                    meta_evt.private_flag = details.private_flag;
-                    meta_evt.has_private = details.has_private;
-                    events.push_back(meta_evt);
-
-                    apply_selection(id, handle);
-                    snapshot.metadata_applied = true;
-                    snapshot.last_name = info->name();
-                    snapshot.last_download_dir = status.save_path;
-                    snapshot.metadata_emitted = true;
+                } catch (const std::exception& ex) {
+                    note_invalid_handle(id, events, stale_ids, ex.what());
+                    continue;
                 }
             }
 
@@ -1897,12 +1932,17 @@ public:
                 meta.state = current_state;
                 meta.name = status.name;
                 meta.download_dir = status.save_path;
-                if (auto info = handle.torrent_file()) {
-                    const auto details = extract_metainfo_details(*info);
-                    meta.comment = details.comment;
-                    meta.source = details.source;
-                    meta.private_flag = details.private_flag;
-                    meta.has_private = details.has_private;
+                try {
+                    if (auto info = handle.torrent_file()) {
+                        const auto details = extract_metainfo_details(*info);
+                        meta.comment = details.comment;
+                        meta.source = details.source;
+                        meta.private_flag = details.private_flag;
+                        meta.has_private = details.has_private;
+                    }
+                } catch (const std::exception& ex) {
+                    note_invalid_handle(id, events, stale_ids, ex.what());
+                    continue;
                 }
                 events.push_back(meta);
                 snapshot.last_name = status.name;
@@ -1960,10 +2000,19 @@ public:
 
             if (status.need_save_resume) {
                 if (!snapshot.resume_requested) {
-                    handle.save_resume_data(lt::torrent_handle::save_resume_flags_t{});
-                    snapshot.resume_requested = true;
+                    try {
+                        handle.save_resume_data(lt::torrent_handle::save_resume_flags_t{});
+                        snapshot.resume_requested = true;
+                    } catch (const std::exception& ex) {
+                        note_invalid_handle(id, events, stale_ids, ex.what());
+                        continue;
+                    }
                 }
             }
+        }
+
+        for (const auto& id : stale_ids) {
+            drop_torrent_state(id);
         }
 
         return events;
@@ -2039,11 +2088,34 @@ private:
 
     std::string find_torrent_id(const lt::torrent_handle& handle) const {
         for (const auto& [id, stored] : handles_) {
+            if (!stored.is_valid()) {
+                continue;
+            }
             if (stored == handle) {
                 return id;
             }
         }
         return {};
+    }
+
+    void drop_torrent_state(const std::string& id) {
+        handles_.erase(id);
+        snapshots_.erase(id);
+        pending_resume_.erase(id);
+        selection_rules_.erase(id);
+    }
+
+    void note_invalid_handle(const std::string& id,
+                             rust::Vec<NativeEvent>& events,
+                             std::unordered_set<std::string>& stale_ids,
+                             const std::string& message) {
+        NativeEvent evt{};
+        evt.id = id;
+        evt.kind = NativeEventKind::Error;
+        evt.state = NativeTorrentState::Failed;
+        evt.message = message;
+        events.push_back(std::move(evt));
+        stale_ids.insert(id);
     }
 
     bool matches_any(const std::vector<std::regex>& patterns, const std::string& value) const {
