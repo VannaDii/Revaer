@@ -387,6 +387,8 @@ jobs:
         feature-matrix,
         ui-e2e,
       ]
+    # Only create a release for tags like refs/tags/v1.2.3
+    if: startsWith(github.ref, 'refs/tags/')
 
     strategy:
       matrix:
@@ -437,6 +439,7 @@ jobs:
             -t "${IMAGE_TAG}" \
             --push \
             .
+
   create-multiarch-manifest:
     name: Multi-arch manifest
     runs-on: ubuntu-latest
