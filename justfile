@@ -217,7 +217,11 @@ ui-e2e:
     else \
         cd tests && npx playwright install; \
     fi
-    cd tests && npx playwright test
+    shard_arg=""; \
+    if [ -n "${PLAYWRIGHT_SHARD_INDEX:-}" ] && [ -n "${PLAYWRIGHT_SHARD_TOTAL:-}" ]; then \
+        shard_arg="--shard=${PLAYWRIGHT_SHARD_INDEX}/${PLAYWRIGHT_SHARD_TOTAL}"; \
+    fi; \
+    cd tests && npx playwright test ${shard_arg}
 
 zombies:
     for port in 7070 8080; do \

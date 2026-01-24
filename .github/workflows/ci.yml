@@ -186,8 +186,12 @@ jobs:
         run: just test-features-min
 
   ui-e2e:
-    name: UI E2E
+    name: UI E2E (shard ${{ matrix.shard }}/3)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     needs: [test]
     env:
       E2E_API_BASE_URL: http://localhost:7070
@@ -196,6 +200,8 @@ jobs:
       E2E_SKIP_DB_START: "1"
       REVAER_TEST_DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
       DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
+      PLAYWRIGHT_SHARD_INDEX: ${{ matrix.shard }}
+      PLAYWRIGHT_SHARD_TOTAL: 3
     services:
       postgres:
         image: postgres:16-alpine
@@ -371,9 +377,9 @@ jobs:
       - name: Select Name
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            echo "IMAGE_NAME=revaer" >> "$GITHUB_ENV"
+            echo "IMAGE_ALIAS_TAG=latest" >> "$GITHUB_ENV"
           else
-            echo "IMAGE_NAME=revaer-dev" >> "$GITHUB_ENV"
+            echo "IMAGE_ALIAS_TAG=dev" >> "$GITHUB_ENV"
           fi
 
       - name: Build & Push Image
@@ -426,9 +432,9 @@ jobs:
       - name: Select image name
         run: |
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            echo "IMAGE_NAME=revaer" >> "$GITHUB_ENV"
+            echo "IMAGE_ALIAS_TAG=latest" >> "$GITHUB_ENV"
           else
-            echo "IMAGE_NAME=revaer-dev" >> "$GITHUB_ENV"
+            echo "IMAGE_ALIAS_TAG=dev" >> "$GITHUB_ENV"
           fi
 
       - name: Create and push multi-arch manifest
@@ -446,17 +452,17 @@ jobs:
           # Digest-based tag
           SHA_TAG="${IMAGE_BASE}:${GIT_SHA_SHORT}"
 
-          LATEST_TAG="${IMAGE_BASE}:latest"
+          ALIAS_TAG="${IMAGE_BASE}:${IMAGE_ALIAS_TAG}"
 
           echo "Will create multi-arch manifest for:"
           echo "  ${SHA_TAG}"
-          echo "  ${LATEST_TAG}"
+          echo "  ${ALIAS_TAG}"
           echo "Using:"
           echo "  ${AMD64_TAG}"
           echo "  ${ARM64_TAG}"
 
           TAG_ARGS="-t ${SHA_TAG}"
-          TAG_ARGS="${TAG_ARGS} -t ${LATEST_TAG}"
+          TAG_ARGS="${TAG_ARGS} -t ${ALIAS_TAG}"
 
           docker buildx imagetools create \
             ${TAG_ARGS} \

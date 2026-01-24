@@ -105,3 +105,5 @@
 -   [091](091-coverage-90-per-crate.md) – Raise per-crate coverage gate to 90%
 -   [092](092-fsops-coverage-hardening.md) – Fsops coverage hardening
 -   [093](093-ui-logic-extraction.md) – UI logic extraction for testable components
+-   [094](094-ui-e2e-sharding.md) – UI E2E sharding in workflows
+-   [095](095-untagged-image-dev-tag.md) – Untagged images use dev tag
