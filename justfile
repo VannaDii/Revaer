@@ -223,6 +223,9 @@ ui-e2e:
     fi; \
     cd tests && npx playwright test ${shard_arg}
 
+ui-e2e-coverage:
+    node tests/scripts/check-e2e-coverage.js
+
 zombies:
     for port in 7070 8080; do \
         pids=$(lsof -ti :$port 2>/dev/null || true); \

@@ -17,6 +17,7 @@ const viewportWidth = parseNumber(process.env.E2E_VIEWPORT_WIDTH, 1440);
 const viewportHeight = parseNumber(process.env.E2E_VIEWPORT_HEIGHT, 900);
 const retries = parseNumber(process.env.E2E_RETRIES, process.env.CI ? 2 : 0);
 const workers = parseOptionalNumber(process.env.E2E_WORKERS);
+const coverageShardSuffix = shardSuffix();
 
 const testTimeout = parseNumber(process.env.E2E_TEST_TIMEOUT_MS, 30_000);
 const expectTimeout = parseNumber(process.env.E2E_EXPECT_TIMEOUT_MS, 5_000);
@@ -63,7 +64,7 @@ export default defineConfig({
       metadata: {
         authMode: 'none',
         keepActive: false,
-        coverageFile: 'test-results/api-coverage-api-none.json',
+        coverageFile: `test-results/api-coverage-api-none${coverageShardSuffix}.json`,
       },
       workers: 1,
     },
@@ -77,7 +78,7 @@ export default defineConfig({
       metadata: {
         authMode: 'api_key',
         keepActive: true,
-        coverageFile: 'test-results/api-coverage-api-key.json',
+        coverageFile: `test-results/api-coverage-api-key${coverageShardSuffix}.json`,
       },
       workers: 1,
     },
@@ -87,7 +88,7 @@ export default defineConfig({
       testMatch: /ui\/.*\.spec\.ts/,
       use: { browserName: name },
       metadata: {
-        coverageFile: `test-results/ui-coverage-ui-${name}.json`,
+        coverageFile: `test-results/ui-coverage-ui-${name}${coverageShardSuffix}.json`,
       },
     })),
   ],
@@ -129,4 +130,13 @@ function parseOptionalNumber(value: string | undefined): number | undefined {
   }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function shardSuffix(): string {
+  const total = parseOptionalNumber(process.env.PLAYWRIGHT_SHARD_TOTAL) ?? 1;
+  const index = parseOptionalNumber(process.env.PLAYWRIGHT_SHARD_INDEX);
+  if (!index || total <= 1) {
+    return '';
+  }
+  return `-shard-${index}`;
 }

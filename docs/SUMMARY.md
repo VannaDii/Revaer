@@ -124,3 +124,4 @@
     -   [093: UI logic extraction for testable components](adr/093-ui-logic-extraction.md)
     -   [094: UI E2E sharding in workflows](adr/094-ui-e2e-sharding.md)
     -   [095: Untagged images use dev tag](adr/095-untagged-image-dev-tag.md)
+    -   [096: Aggregate UI E2E coverage for sharded runs](adr/096-ui-e2e-coverage-aggregation.md)
