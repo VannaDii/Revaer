@@ -1,0 +1,44 @@
+{
+    "include": [
+        {
+            "name": "amd64",
+            "runner": "ubuntu-latest",
+            "platform": "linux/amd64",
+            "rust_target": "x86_64-unknown-linux-musl",
+            "arch_tag": "amd64",
+            "needs_qemu": false
+        },
+        {
+            "name": "arm64",
+            "runner": "ubuntu-24.04-arm",
+            "platform": "linux/arm64",
+            "rust_target": "aarch64-unknown-linux-musl",
+            "arch_tag": "arm64",
+            "needs_qemu": false
+        },
+        {
+            "name": "armv7",
+            "runner": "ubuntu-latest",
+            "platform": "linux/arm/v7",
+            "rust_target": "armv7-unknown-linux-musleabihf",
+            "arch_tag": "armv7",
+            "needs_qemu": true
+        },
+        {
+            "name": "s390x",
+            "runner": "ubuntu-latest",
+            "platform": "linux/s390x",
+            "rust_target": "s390x-unknown-linux-gnu",
+            "arch_tag": "s390x",
+            "needs_qemu": true
+        },
+        {
+            "name": "riscv64",
+            "runner": "ubuntu-latest",
+            "platform": "linux/riscv64",
+            "rust_target": "riscv64gc-unknown-linux-gnu",
+            "arch_tag": "riscv64",
+            "needs_qemu": true
+        }
+    ]
+}
