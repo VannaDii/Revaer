@@ -59,6 +59,7 @@ jobs:
   coverage:
     name: Check Coverage
     runs-on: ubuntu-latest
+    needs: [test]
     env:
       REVAER_TEST_DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
       DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
@@ -94,6 +95,7 @@ jobs:
   test:
     name: Run Tests
     runs-on: ubuntu-latest
+    needs: [fmt, lint, check]
     env:
       REVAER_TEST_DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
       DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
@@ -129,6 +131,7 @@ jobs:
   native-it:
     name: Native Integration Tests
     runs-on: ubuntu-latest
+    needs: [test]
     env:
       REVAER_NATIVE_IT: "1"
       DOCKER_HOST: unix:///var/run/docker.sock
@@ -145,6 +148,7 @@ jobs:
   feature-matrix:
     name: Feature Matrix
     runs-on: ubuntu-latest
+    needs: [test]
     env:
       REVAER_TEST_DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
       DATABASE_URL: ${{ vars.REVAER_DATABASE_URL}}
@@ -180,6 +184,7 @@ jobs:
   ui-e2e:
     name: UI E2E
     runs-on: ubuntu-latest
+    needs: [test]
     env:
       E2E_API_BASE_URL: http://localhost:7070
       E2E_BASE_URL: http://localhost:8080
@@ -215,6 +220,7 @@ jobs:
   audit:
     name: Run Audit
     runs-on: ubuntu-latest
+    needs: [fmt, lint, check]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-revaer
@@ -227,6 +233,7 @@ jobs:
   deny:
     name: Check Deny
     runs-on: ubuntu-latest
+    needs: [fmt, lint, check]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-revaer
@@ -239,6 +246,7 @@ jobs:
   udeps:
     name: Check Unused Deps
     runs-on: ubuntu-latest
+    needs: [fmt, lint, check]
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-revaer
@@ -255,9 +263,6 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       [
-        fmt,
-        lint,
-        check,
         coverage,
         audit,
         deny,
