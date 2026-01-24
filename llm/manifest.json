@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2026-01-24T04:31:53.256208159+00:00",
+  "generated": "2026-01-24T05:07:01.720955409+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -1019,6 +1019,15 @@
         "task-record"
       ],
       "href": "/adr/095-untagged-image-dev-tag/"
+    },
+    {
+      "id": "adr/096-ui-e2e-coverage-aggregation",
+      "title": "Aggregate UI E2E coverage for sharded runs",
+      "summary": "Status: Accepted Date: 2026-01-23 Context: What problem are we solving? Playwright sharding runs global teardown per shard, causing partial coverage checks to fail. What constraints or forces shape the decision? Keep Playwright invoked via just ui-e2e, avoid new dependencies, and preserve coverage gating. Decision: Summary of the choice made. Skip coverage assertions in sharded teardown, write shard-specific coverage files, upload them as artifacts, and run an aggregate coverage check in a dedicated job. Alternatives considered. Disable coverage checks entirely for sharded runs (reduces signal). Keep non-sharded UI E2E only (slower feedback). Consequences: Positive outcomes. Sharded UI E2E runs succeed while",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/096-ui-e2e-coverage-aggregation/"
     },
     {
       "id": "adr/index",

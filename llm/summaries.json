@@ -1018,6 +1018,15 @@
     "href": "/adr/095-untagged-image-dev-tag/"
   },
   {
+    "id": "adr/096-ui-e2e-coverage-aggregation",
+    "title": "Aggregate UI E2E coverage for sharded runs",
+    "summary": "Status: Accepted Date: 2026-01-23 Context: What problem are we solving? Playwright sharding runs global teardown per shard, causing partial coverage checks to fail. What constraints or forces shape the decision? Keep Playwright invoked via just ui-e2e, avoid new dependencies, and preserve coverage gating. Decision: Summary of the choice made. Skip coverage assertions in sharded teardown, write shard-specific coverage files, upload them as artifacts, and run an aggregate coverage check in a dedicated job. Alternatives considered. Disable coverage checks entirely for sharded runs (reduces signal). Keep non-sharded UI E2E only (slower feedback). Consequences: Positive outcomes. Sharded UI E2E runs succeed while",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/096-ui-e2e-coverage-aggregation/"
+  },
+  {
     "id": "adr/index",
     "title": "ADRs",
     "summary": "Create a new ADR using the template in docs/adr/template.md. Give it a sequential identifier (e.g., 001, 002) and a concise title. Capture context, decision, consequences, and follow-up actions. Append the new ADR entry to the end of the Catalogue list above. Append the same entry under ADRs in docs/SUMMARY.md, keeping it nested so the sidebar stays collapsed. Reference ADRs from code comments or docs where the decision applies.",

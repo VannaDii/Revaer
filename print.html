@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-fd33aa55.js";
+            window.path_to_searchindex_js = "searchindex-3737c5d8.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-04936ee3.js"></script>
+        <script src="toc-16c6472b.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1334,6 +1334,7 @@ just test-native
 <li><a href="#ui-logic-extraction-for-testable-components">093</a> – UI logic extraction for testable components</li>
 <li><a href="#ui-e2e-sharding-in-workflows">094</a> – UI E2E sharding in workflows</li>
 <li><a href="#untagged-images-use-dev-tag">095</a> – Untagged images use dev tag</li>
+<li><a href="#aggregate-ui-e2e-coverage-for-sharded-runs">096</a> – Aggregate UI E2E coverage for sharded runs</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 ADR="" Title="" id=""><a class="header" href="#"></a></h1>
@@ -5963,6 +5964,78 @@ then restore the previous auth behavior.</li>
 <li>Test coverage summary: <code>just ci</code> and <code>just ui-e2e</code> passed.</li>
 <li>Observability updates: None (workflow-only change).</li>
 <li>Risk &amp; rollback plan: Revert the alias tag logic in <code>.github/workflows/ci.yml</code> if consumers depend on <code>revaer-dev</code> or <code>latest</code>.</li>
+<li>Dependency rationale: No new dependencies introduced.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="aggregate-ui-e2e-coverage-for-sharded-runs"><a class="header" href="#aggregate-ui-e2e-coverage-for-sharded-runs">Aggregate UI E2E coverage for sharded runs</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-23</li>
+<li>Context:
+<ul>
+<li>What problem are we solving?
+<ul>
+<li>Playwright sharding runs global teardown per shard, causing partial coverage checks to fail.</li>
+</ul>
+</li>
+<li>What constraints or forces shape the decision?
+<ul>
+<li>Keep Playwright invoked via <code>just ui-e2e</code>, avoid new dependencies, and preserve coverage gating.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Summary of the choice made.
+<ul>
+<li>Skip coverage assertions in sharded teardown, write shard-specific coverage files, upload them as artifacts, and run an aggregate coverage check in a dedicated job.</li>
+</ul>
+</li>
+<li>Alternatives considered.
+<ul>
+<li>Disable coverage checks entirely for sharded runs (reduces signal).</li>
+<li>Keep non-sharded UI E2E only (slower feedback).</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes.
+<ul>
+<li>Sharded UI E2E runs succeed while retaining full coverage enforcement.</li>
+</ul>
+</li>
+<li>Risks or trade-offs.
+<ul>
+<li>Additional workflow job and artifact handling.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks.
+<ul>
+<li>Monitor shard duration and artifact sizes.</li>
+</ul>
+</li>
+<li>Review checkpoints.
+<ul>
+<li>Revisit shard count if coverage aggregation becomes slow.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-6"><a class="header" href="#task-record-6">Task record</a></h2>
+<ul>
+<li>Motivation: Fix sharded UI E2E failures while maintaining coverage enforcement.</li>
+<li>Design notes: Shard-specific coverage files with an aggregate coverage check via <code>just ui-e2e-coverage</code>.</li>
+<li>Test coverage summary: <code>just ci</code>, <code>just ui-e2e</code>.</li>
+<li>Observability updates: None (workflow-only change).</li>
+<li>Risk &amp; rollback plan: Revert sharding and coverage aggregation changes if instability persists.</li>
 <li>Dependency rationale: No new dependencies introduced.</li>
 </ul>
 
