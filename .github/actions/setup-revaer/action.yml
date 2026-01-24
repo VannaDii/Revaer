@@ -23,6 +23,20 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Cache Rust artifacts
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/.cargo/bin
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+          ~/.cache/sccache
+        key: ${{ runner.os }}-cargo-${{ inputs.toolchain }}-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-${{ inputs.toolchain }}-
+          ${{ runner.os }}-cargo-
+
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@master
       with:
@@ -37,6 +51,8 @@ runs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ inputs.node-version }}
+        cache: npm
+        cache-dependency-path: tests/package-lock.json
 
     - name: Install apt packages
       shell: bash
@@ -47,10 +63,10 @@ runs:
         if [ -z "${packages}" ]; then
           case "${{ inputs.apt-profile }}" in
             base)
-              packages="libtorrent-rasterbar-dev pkg-config"
+              packages="libtorrent-rasterbar-dev pkg-config sccache"
               ;;
             db)
-              packages="libtorrent-rasterbar-dev pkg-config libpq-dev postgresql-client"
+              packages="libtorrent-rasterbar-dev pkg-config libpq-dev postgresql-client sccache"
               ;;
             "")
               packages=""
@@ -65,4 +81,14 @@ runs:
         if [ -n "${packages}" ]; then
           sudo apt-get update
           sudo apt-get install -y ${packages}
+        fi
+
+    - name: Configure sccache
+      shell: bash
+      run: |
+        if command -v sccache >/dev/null 2>&1; then
+          mkdir -p "${HOME}/.cache/sccache"
+          echo "RUSTC_WRAPPER=sccache" >> "${GITHUB_ENV}"
+          echo "SCCACHE_DIR=${HOME}/.cache/sccache" >> "${GITHUB_ENV}"
+          echo "SCCACHE_CACHE_SIZE=5G" >> "${GITHUB_ENV}"
         fi

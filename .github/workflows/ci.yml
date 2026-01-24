@@ -16,7 +16,7 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
-  NODE_VERSION: 24
+  NODE_VERSION: "lts/*"
 
 jobs:
   # Quick formatting check that can run in parallel
