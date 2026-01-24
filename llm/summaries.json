@@ -1000,6 +1000,24 @@
     "href": "/adr/093-ui-logic-extraction/"
   },
   {
+    "id": "adr/094-ui-e2e-sharding",
+    "title": "UI E2E sharding in workflows",
+    "summary": "Status: Accepted Date: 2026-01-23 Context: What problem are we solving? UI E2E runs are long and delay feedback, especially when other jobs have already passed. What constraints or forces shape the decision? Keep Playwright invoked through just ui-e2e and avoid new dependencies. Decision: Summary of the choice made. Add Playwright sharding support to just ui-e2e and shard the UI E2E jobs with a matrix in CI/PR workflows. Alternatives considered. Increase test workers only (limited benefit because suite already uses Playwright workers). Split tests by directory into separate workflows (more maintenance). Consequences: Positive outcomes. Reduced wall-clock time for UI E2E runs",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/094-ui-e2e-sharding/"
+  },
+  {
+    "id": "adr/095-untagged-image-dev-tag",
+    "title": "Untagged images use dev tag",
+    "summary": "Status: Accepted Date: 2026-01-23 Context: What problem are we solving? Untagged builds currently publish to a separate -dev image name and still apply a latest tag, making it harder to discover the intended development tag. What constraints or forces shape the decision? Keep tagging logic in the GitHub workflow without altering the build artifacts or Dockerfile. Decision: Summary of the choice made. Publish untagged builds to the primary image name with a dev tag, while tagged builds retain latest. Alternatives considered. Keep the -dev image suffix and add an extra dev alias tag. Consequences: Positive outcomes. Untagged images are clearly",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/095-untagged-image-dev-tag/"
+  },
+  {
     "id": "adr/index",
     "title": "ADRs",
     "summary": "Create a new ADR using the template in docs/adr/template.md. Give it a sequential identifier (e.g., 001, 002) and a concise title. Capture context, decision, consequences, and follow-up actions. Append the new ADR entry to the end of the Catalogue list above. Append the same entry under ADRs in docs/SUMMARY.md, keeping it nested so the sidebar stays collapsed. Reference ADRs from code comments or docs where the decision applies.",
