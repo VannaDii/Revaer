@@ -32,10 +32,10 @@ runs:
           ~/.cargo/git
           target
           ~/.cache/sccache
-        key: ${{ runner.os }}-cargo-${{ inputs.toolchain }}-${{ hashFiles('**/Cargo.lock') }}
+        key: ${{ runner.os }}-cargo-${{ inputs.toolchain }}-${{ github.job }}-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: |
+          ${{ runner.os }}-cargo-${{ inputs.toolchain }}-${{ github.job }}-
           ${{ runner.os }}-cargo-${{ inputs.toolchain }}-
-          ${{ runner.os }}-cargo-
 
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@master

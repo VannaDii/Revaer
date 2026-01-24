@@ -31,14 +31,6 @@
             "rust_target": "s390x-unknown-linux-gnu",
             "arch_tag": "s390x",
             "needs_qemu": true
-        },
-        {
-            "name": "riscv64",
-            "runner": "ubuntu-latest",
-            "platform": "linux/riscv64",
-            "rust_target": "riscv64gc-unknown-linux-gnu",
-            "arch_tag": "riscv64",
-            "needs_qemu": true
         }
     ]
 }
