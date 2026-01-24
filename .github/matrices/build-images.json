@@ -15,14 +15,6 @@
             "rust_target": "aarch64-unknown-linux-musl",
             "arch_tag": "arm64",
             "needs_qemu": false
-        },
-        {
-            "name": "armv7",
-            "runner": "ubuntu-latest",
-            "platform": "linux/arm/v7",
-            "rust_target": "armv7-unknown-linux-musleabihf",
-            "arch_tag": "armv7",
-            "needs_qemu": true
         }
     ]
 }
