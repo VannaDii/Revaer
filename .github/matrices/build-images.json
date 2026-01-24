@@ -23,14 +23,6 @@
             "rust_target": "armv7-unknown-linux-musleabihf",
             "arch_tag": "armv7",
             "needs_qemu": true
-        },
-        {
-            "name": "s390x",
-            "runner": "ubuntu-latest",
-            "platform": "linux/s390x",
-            "rust_target": "s390x-unknown-linux-gnu",
-            "arch_tag": "s390x",
-            "needs_qemu": true
         }
     ]
 }
