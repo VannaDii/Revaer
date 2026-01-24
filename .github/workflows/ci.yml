@@ -321,6 +321,20 @@ jobs:
   load-matrix:
     name: Load Matrix
     runs-on: ubuntu-latest
+    needs:
+      [
+        fmt,
+        lint,
+        check,
+        coverage,
+        audit,
+        deny,
+        udeps,
+        test,
+        native-it,
+        feature-matrix,
+        ui-e2e,
+      ]
     outputs:
       matrix: ${{ steps.out.outputs.matrix }}
     steps:
@@ -332,11 +346,12 @@ jobs:
           set -euo pipefail
 
           if [[ "${GITHUB_REF}" == "refs/heads/main" || "${GITHUB_REF}" == refs/tags/* ]]; then
-            # Read committed matrix JSON and emit as a single-line output
-            MATRIX_JSON="$(cat .github/matrices/build-images.json)"
-            echo "matrix=${MATRIX_JSON}" >> "$GITHUB_OUTPUT"
+            {
+              echo "matrix<<EOF"
+              cat .github/matrices/build-images.json
+              echo "EOF"
+            } >> "$GITHUB_OUTPUT"
           else
-            # Empty => no matrix children => no UI clutter
             echo 'matrix={"include":[]}' >> "$GITHUB_OUTPUT"
           fi
 
