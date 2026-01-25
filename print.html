@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-0db6779b.js";
+            window.path_to_searchindex_js = "searchindex-1916e362.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-d6820000.js"></script>
+        <script src="toc-153ddeff.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1336,6 +1336,8 @@ just test-native
 <li><a href="#untagged-images-use-dev-tag">095</a> – Untagged images use dev tag</li>
 <li><a href="#aggregate-ui-e2e-coverage-for-sharded-runs">096</a> – Aggregate UI E2E coverage for sharded runs</li>
 <li><a href="#dev-prereleases-and-pr-image-previews">097</a> – Dev prereleases and PR image previews</li>
+<li><a href="#reusable-image-build-workflow">098</a> – Reusable image build workflow</li>
+<li><a href="#indexer-erd-single-tenant-and-audit-fields">099</a> – Indexer ERD single-tenant and audit fields</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 ADR="" Title="" id=""><a class="header" href="#"></a></h1>
@@ -6112,6 +6114,138 @@ then restore the previous auth behavior.</li>
 <li>Observability updates: None (workflow-only change).</li>
 <li>Risk &amp; rollback plan: Remove release-dev and PR image jobs and revert to tag-only releases if prereleases cause instability.</li>
 <li>Dependency rationale: Add semantic-release tooling in <code>release/</code> to analyze Conventional Commits and publish prereleases with assets.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="reusable-image-build-workflow"><a class="header" href="#reusable-image-build-workflow">Reusable image build workflow</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-24</li>
+<li>Context:
+<ul>
+<li>What problem are we solving?
+<ul>
+<li>Image build logic is duplicated across CI and PR workflows, and CI was failing to load due to invalid tag filters.</li>
+</ul>
+</li>
+<li>What constraints or forces shape the decision?
+<ul>
+<li>Keep CI driven by <code>just</code>, avoid dev tag releases updating stable artifacts, and reduce workflow duplication.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Summary of the choice made.
+<ul>
+<li>Introduce a reusable workflow for multi-arch image build/manifest creation and use it from both CI and PR workflows, while gating CI roots to skip dev tag pushes.</li>
+</ul>
+</li>
+<li>Alternatives considered.
+<ul>
+<li>Keep duplicated image steps in each workflow.</li>
+<li>Split tag builds into a separate workflow without reuse.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes.
+<ul>
+<li>Consistent image build behavior across workflows with less duplication and clear tag policies.</li>
+</ul>
+</li>
+<li>Risks or trade-offs.
+<ul>
+<li>Reusable workflows add indirection when tracing failures.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks.
+<ul>
+<li>Monitor build images runs for any tag mismatches or manifest issues.</li>
+</ul>
+</li>
+<li>Review checkpoints.
+<ul>
+<li>Revisit tag gating if GitHub tag filters expand to support exclusion patterns.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-8"><a class="header" href="#task-record-8">Task record</a></h2>
+<ul>
+<li>Motivation: Fix CI failures and share image build logic between CI and PR workflows.</li>
+<li>Design notes: Use a reusable workflow with parameterized tags and checkout refs to drive both dev and PR image builds.</li>
+<li>Test coverage summary: <code>just ci</code>, <code>just ui-e2e</code>.</li>
+<li>Observability updates: None (workflow-only change).</li>
+<li>Risk &amp; rollback plan: Revert to inline workflow steps if reuse introduces instability.</li>
+<li>Dependency rationale: No new dependencies introduced.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="indexer-erd-single-tenant-and-audit-fields"><a class="header" href="#indexer-erd-single-tenant-and-audit-fields">Indexer ERD Single-Tenant and Audit Fields</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-25</li>
+<li>Context:
+<ul>
+<li>The indexer ERD needed to reflect single-tenant deployments and remove workspace/membership constructs.</li>
+<li>Audit actor fields must be non-null and use a system sentinel instead of NULL.</li>
+<li>Global configuration should be reusable across future media management features.</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Remove workspace/membership/invite constructs and document deployment-global scoping.</li>
+<li>Promote deployment_config and deployment_maintenance_state as singleton global config tables.</li>
+<li>Require created_by_user_id/updated_by_user_id/changed_by_user_id to be NN with system sentinel semantics.</li>
+<li>Update procedures, constraints, and index guidance to align with deployment-global indexing.</li>
+<li>Task Record:
+<ul>
+<li>Motivation: Align the ERD with the single-tenant deployment model and explicit audit actors.</li>
+<li>Design notes: Removed workspace scoping, added deployment_role on app_user, documented system user_id=0 and all-zero UUID, revised procedures/constraints/indexes for deployment scope, and serialized log stream tests to avoid global buffer races.</li>
+<li>Test coverage summary: <code>just ci</code> and <code>just ui-e2e</code> run locally.</li>
+<li>Observability updates: None (documentation and test-stability change only).</li>
+<li>Risk &amp; rollback plan: Low risk; revert ERD edits if multi-tenant scope is reintroduced.</li>
+<li>Dependency rationale: None; no new dependencies. Alternatives considered: keep workspace scoping and NULL system actors (rejected).</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li>ERD aligns with single-tenant deployments and global config reuse.</li>
+<li>Audit fields are explicit and consistent with system sentinel usage.</li>
+</ul>
+</li>
+<li>Risks or trade-offs:
+<ul>
+<li>Future multi-tenant support would require reintroducing tenant scoping.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks:
+<ul>
+<li>Keep migrations and runtime schema changes aligned with the updated ERD.</li>
+</ul>
+</li>
+<li>Review checkpoints:
+<ul>
+<li>Validate stored procedures and schema changes during implementation.</li>
+</ul>
+</li>
+</ul>
+</li>
 </ul>
 
                     </main>
