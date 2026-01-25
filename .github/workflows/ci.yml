@@ -19,14 +19,12 @@ env:
   NODE_VERSION: "lts/*"
   IMAGE_NAME: revaer
 
-x-run-guard: &run_guard ${{ github.ref == 'refs/heads/main' || (startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')) }}
-
 jobs:
   # Quick formatting check that can run in parallel
   fmt:
     name: Check Formatting
     runs-on: ubuntu-latest
-    if: *run_guard
+    if: ${{ github.ref == 'refs/heads/main' || (startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')) }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-revaer
@@ -40,7 +38,7 @@ jobs:
   lint:
     name: Check Lint
     runs-on: ubuntu-latest
-    if: *run_guard
+    if: ${{ github.ref == 'refs/heads/main' || (startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')) }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-revaer
@@ -55,7 +53,7 @@ jobs:
   check:
     name: Run Checks
     runs-on: ubuntu-latest
-    if: *run_guard
+    if: ${{ github.ref == 'refs/heads/main' || (startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')) }}
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup-revaer
