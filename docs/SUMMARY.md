@@ -125,3 +125,4 @@
     -   [094: UI E2E sharding in workflows](adr/094-ui-e2e-sharding.md)
     -   [095: Untagged images use dev tag](adr/095-untagged-image-dev-tag.md)
     -   [096: Aggregate UI E2E coverage for sharded runs](adr/096-ui-e2e-coverage-aggregation.md)
+    -   [097: Dev prereleases and PR image previews](adr/097-dev-release-flow.md)

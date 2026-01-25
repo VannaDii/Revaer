@@ -13,6 +13,7 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   NODE_VERSION: "lts/*"
+  IMAGE_NAME: revaer
 
 jobs:
   # Quick formatting check that can run in parallel
@@ -253,6 +254,134 @@ jobs:
 
       - name: UI E2E coverage
         run: just ui-e2e-coverage
+
+  load-matrix:
+    name: Load Matrix
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.out.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: out
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          {
+            echo "matrix<<EOF"
+            cat .github/matrices/build-images.json
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  build-pr-images:
+    name: Build & Push PR Image ${{ matrix.name }}
+    needs: [ui-e2e-coverage, load-matrix]
+    if: github.event.pull_request.head.repo.fork == false
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix: ${{ fromJSON(needs.load-matrix.outputs.matrix) }}
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        if: matrix.needs_qemu == true
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push PR Image
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          ARCH_TAG: ${{ matrix.arch_tag }}
+        run: |
+          set -euo pipefail
+
+          GIT_SHA_SHORT=$(git rev-parse --short HEAD)
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          PR_TAG="pr-${PR_NUMBER}-${GIT_SHA_SHORT}"
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_BASE="ghcr.io/${REPO_OWNER}/${IMAGE_NAME}"
+          IMAGE_TAG="${IMAGE_BASE}:${PR_TAG}-${ARCH_TAG}"
+          RUST_TARGET="${{ matrix.rust_target }}"
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          REVISION="${GIT_SHA_SHORT}"
+
+          echo "Building ${IMAGE_TAG} for ${PLATFORM}"
+
+          docker buildx build \
+            --platform "${PLATFORM}" \
+            -t "${IMAGE_TAG}" \
+            --push \
+            --build-arg RUST_TARGET="${RUST_TARGET}" \
+            --build-arg BUILD_DATE="${BUILD_DATE}" \
+            --build-arg VERSION="${PR_TAG}" \
+            --build-arg REVISION="${REVISION}" \
+            .
+
+  create-pr-manifest:
+    name: PR Multi-arch Manifest
+    runs-on: ubuntu-latest
+    needs: build-pr-images
+    if: github.event.pull_request.head.repo.fork == false && needs.build-pr-images.result == 'success'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push multi-arch manifest
+        run: |
+          set -euo pipefail
+
+          GIT_SHA_SHORT=$(git rev-parse --short HEAD)
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          PR_TAG="pr-${PR_NUMBER}-${GIT_SHA_SHORT}"
+          PR_ALIAS_TAG="pr-${PR_NUMBER}"
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE_BASE="ghcr.io/${REPO_OWNER}/${IMAGE_NAME}"
+
+          AMD64_TAG="${IMAGE_BASE}:${PR_TAG}-amd64"
+          ARM64_TAG="${IMAGE_BASE}:${PR_TAG}-arm64"
+          VERSION_TAG="${IMAGE_BASE}:${PR_TAG}"
+          ALIAS_TAG="${IMAGE_BASE}:${PR_ALIAS_TAG}"
+
+          echo "Will create multi-arch manifest for:"
+          echo "  ${VERSION_TAG}"
+          echo "  ${ALIAS_TAG}"
+          echo "Using:"
+          echo "  ${AMD64_TAG}"
+          echo "  ${ARM64_TAG}"
+
+          TAG_ARGS="-t ${VERSION_TAG} -t ${ALIAS_TAG}"
+
+          docker buildx imagetools create \
+            ${TAG_ARGS} \
+            "${AMD64_TAG}" \
+            "${ARM64_TAG}"
 
   audit:
     name: Run Audit
