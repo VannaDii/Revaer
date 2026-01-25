@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-3737c5d8.js";
+            window.path_to_searchindex_js = "searchindex-0db6779b.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-16c6472b.js"></script>
+        <script src="toc-d6820000.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1335,6 +1335,7 @@ just test-native
 <li><a href="#ui-e2e-sharding-in-workflows">094</a> – UI E2E sharding in workflows</li>
 <li><a href="#untagged-images-use-dev-tag">095</a> – Untagged images use dev tag</li>
 <li><a href="#aggregate-ui-e2e-coverage-for-sharded-runs">096</a> – Aggregate UI E2E coverage for sharded runs</li>
+<li><a href="#dev-prereleases-and-pr-image-previews">097</a> – Dev prereleases and PR image previews</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 ADR="" Title="" id=""><a class="header" href="#"></a></h1>
@@ -6037,6 +6038,80 @@ then restore the previous auth behavior.</li>
 <li>Observability updates: None (workflow-only change).</li>
 <li>Risk &amp; rollback plan: Revert sharding and coverage aggregation changes if instability persists.</li>
 <li>Dependency rationale: No new dependencies introduced.</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="dev-prereleases-and-pr-image-previews"><a class="header" href="#dev-prereleases-and-pr-image-previews">Dev prereleases and PR image previews</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-01-24</li>
+<li>Context:
+<ul>
+<li>What problem are we solving?
+<ul>
+<li>Main should publish dev prereleases and dev-tagged images without displacing stable “latest” artifacts.</li>
+<li>PRs need preview images without exposing secrets to forks.</li>
+</ul>
+</li>
+<li>What constraints or forces shape the decision?
+<ul>
+<li>CI must run via <code>just</code>, releases must be semver-based from Conventional Commits, and stable releases/images stay version-tagged.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Summary of the choice made.
+<ul>
+<li>Use semantic-release on main to publish <code>-dev.N</code> prereleases with attached artifacts, tag dev images with the prerelease tag plus <code>dev</code>, and publish PR preview images for non-fork PRs using <code>pr-&lt;num&gt;</code> and <code>pr-&lt;num&gt;-&lt;sha&gt;</code> tags only.</li>
+</ul>
+</li>
+<li>Alternatives considered.
+<ul>
+<li>Continue tag-only releases (no dev prereleases).</li>
+<li>Publish dev images under a separate repository name.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes.
+<ul>
+<li>Main builds produce versioned dev releases and dev images without changing the stable “latest” artifacts.</li>
+<li>Non-fork PRs get preview images with consistent tags.</li>
+</ul>
+</li>
+<li>Risks or trade-offs.
+<ul>
+<li>Adds release tooling dependencies and requires Conventional Commit discipline for every main merge.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks.
+<ul>
+<li>Monitor semantic-release output and adjust release rules if release cadence is too strict or too noisy.</li>
+</ul>
+</li>
+<li>Review checkpoints.
+<ul>
+<li>Revisit tag patterns if GitHub tag filters or image consumers need additional aliases.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record-7"><a class="header" href="#task-record-7">Task record</a></h2>
+<ul>
+<li>Motivation: Publish dev prereleases and PR preview images without displacing stable releases or <code>latest</code> images.</li>
+<li>Design notes: Semantic-release prereleases on main drive version tags; PR images are tagged <code>pr-&lt;num&gt;</code> and <code>pr-&lt;num&gt;-&lt;sha&gt;</code> only.</li>
+<li>Test coverage summary: <code>just ci</code>, <code>just ui-e2e</code>.</li>
+<li>Observability updates: None (workflow-only change).</li>
+<li>Risk &amp; rollback plan: Remove release-dev and PR image jobs and revert to tag-only releases if prereleases cause instability.</li>
+<li>Dependency rationale: Add semantic-release tooling in <code>release/</code> to analyze Conventional Commits and publish prereleases with assets.</li>
 </ul>
 
                     </main>

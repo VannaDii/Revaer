@@ -3,7 +3,7 @@
     <head>
         <!-- Book generated using mdBook -->
         <meta charset="UTF-8">
-        <title>009: FS ops permission hardening - Revaer Documentation</title>
+        <title>097: Dev prereleases and PR image previews - Revaer Documentation</title>
 
 
         <!-- Custom HTML head -->
@@ -177,63 +177,88 @@
 
                 <div id="mdbook-content" class="content">
                     <main>
-                        <h1 id="009--fsops-permission-hardening"><a class="header" href="#009--fsops-permission-hardening">009 – FsOps Permission Hardening</a></h1>
+                        <h1 id="dev-prereleases-and-pr-image-previews"><a class="header" href="#dev-prereleases-and-pr-image-previews">Dev prereleases and PR image previews</a></h1>
 <ul>
 <li>Status: Accepted</li>
-<li>Date: 2025-10-18</li>
+<li>Date: 2026-01-24</li>
+<li>Context:
+<ul>
+<li>What problem are we solving?
+<ul>
+<li>Main should publish dev prereleases and dev-tagged images without displacing stable “latest” artifacts.</li>
+<li>PRs need preview images without exposing secrets to forks.</li>
 </ul>
-<h2 id="motivation"><a class="header" href="#motivation">Motivation</a></h2>
-<p>Phase One requires the filesystem pipeline to perform deterministic post-processing with metadata that survives restarts. The previous implementation only validated the library root and left extraction, flattening, transfer, and permission handling as TODOs. As a result, completed torrents could not be moved safely into the library, policies depending on chmod/chown/umask were ignored, and the orchestrator lacked the context to resume partially processed jobs.</p>
-<h2 id="design-notes"><a class="header" href="#design-notes">Design Notes</a></h2>
+</li>
+<li>What constraints or forces shape the decision?
 <ul>
-<li><code>FsOpsService::apply</code> now accepts an explicit <code>FsOpsRequest</code> containing the torrent id, canonicalised source path, and the snapshot of the <code>FsPolicy</code>. The orchestrator resolves the source path from its catalog before invoking the pipeline.</li>
-<li>The pipeline executes deterministic stages (<code>validate_policy</code>, <code>allowlist</code>, <code>prepare_directories</code>, <code>compile_rules</code>, <code>locate_source</code>, <code>prepare_work_dir</code>, <code>extract</code>, <code>flatten</code>, <code>transfer</code>, <code>set_permissions</code>, <code>cleanup</code>, <code>finalise</code>) while persisting <code>.revaer.meta</code> after each critical transition. Resume attempts skip completed steps automatically.</li>
-<li>Extraction currently supports directory payloads and zip archives. Unsupported formats degrade the pipeline with a structured error and leave metadata untouched for later retries.</li>
-<li>The transfer step supports copy/move/hardlink semantics, records the chosen mode, and keeps destination metadata in-sync with the persisted record.</li>
-<li>Permission handling honours <code>chmod_file</code>, <code>chmod_dir</code>, <code>owner</code>, <code>group</code>, and <code>umask</code> directives. Unix platforms apply ownership changes using <code>nix::unistd::chown</code>; non-Unix targets reject ownership overrides with a descriptive error to avoid silent drift.</li>
-<li>Cleanup enforces <code>cleanup_keep</code>/<code>cleanup_drop</code> glob rules (including the <code>@skip_fluff</code> preset) and reports how many artefacts were removed.</li>
-<li>Errors mark the FsOps health component as degraded and emit <code>FsopsFailed</code> events; successful reruns clear the health flag and emit <code>FsopsCompleted</code>.</li>
-</ul>
-<h2 id="dependency-rationale"><a class="header" href="#dependency-rationale">Dependency Rationale</a></h2>
-<ul>
-<li>Added <code>nix</code> (<code>features = ["user", "fs"]</code>) to resolve system users/groups and call <code>chown</code> in a portable, audited fashion. Standard library support is limited to numeric ownership changes on Unix and is entirely absent on non-Unix platforms. Alternatives considered:
-<ul>
-<li>Calling <code>libc::chown</code> directly: rejected to maintain the repository’s “no unsafe” guarantee and avoid platform-specific shims.</li>
-<li>Shelling out to <code>chown</code>: rejected due to portability concerns, lack of atomic error propagation, and difficulty capturing precise failures for telemetry.
-<code>nix</code> provides safe wrappers, clear error types, and minimal dependencies, aligning with the minimal-footprint policy.</li>
+<li>CI must run via <code>just</code>, releases must be semver-based from Conventional Commits, and stable releases/images stay version-tagged.</li>
 </ul>
 </li>
 </ul>
-<h2 id="test-coverage-summary"><a class="header" href="#test-coverage-summary">Test Coverage Summary</a></h2>
+</li>
+<li>Decision:
 <ul>
-<li><code>revaer-fsops</code> unit tests now exercise the full happy path, resume semantics, flattening, allow-list enforcement, and permission error propagation. The new tests wait on pipeline events instead of arbitrary sleeps to reduce flakiness.</li>
-<li><code>revaer-app</code> orchestrator tests were updated to subscribe to FsOps events and assert completion/failure handling without relying on time-based guesses.</li>
-<li><code>just ci</code> (fmt, lint, udeps, audit, deny, test, cov) runs clean with the stricter pipeline enabled.</li>
+<li>Summary of the choice made.
+<ul>
+<li>Use semantic-release on main to publish <code>-dev.N</code> prereleases with attached artifacts, tag dev images with the prerelease tag plus <code>dev</code>, and publish PR preview images for non-fork PRs using <code>pr-&lt;num&gt;</code> and <code>pr-&lt;num&gt;-&lt;sha&gt;</code> tags only.</li>
 </ul>
-<h2 id="observability-updates"><a class="header" href="#observability-updates">Observability Updates</a></h2>
+</li>
+<li>Alternatives considered.
 <ul>
-<li>Each FsOps stage increments the <code>fsops_steps_total</code> metric with its status (started/completed/failed/skipped).</li>
-<li>Success and failure events now include richer detail strings (source, destination, permission modes, cleanup counts) to aid operators.</li>
-<li>The health component toggles between degraded/recovered based on pipeline outcomes, ensuring <code>/health/full</code> reflects the current FsOps status.</li>
+<li>Continue tag-only releases (no dev prereleases).</li>
+<li>Publish dev images under a separate repository name.</li>
 </ul>
-<h2 id="risk--rollback-plan"><a class="header" href="#risk--rollback-plan">Risk &amp; Rollback Plan</a></h2>
+</li>
+</ul>
+</li>
+<li>Consequences:
 <ul>
-<li>Metadata persistence keeps prior state, so a rollback simply restores the previous binary without corrupting output directories.</li>
-<li>Ownership adjustments are gated to Unix platforms. Operators running on other OSes receive actionable errors instead of partial changes.</li>
-<li>Unsupported archive formats cause the pipeline to fail early without modifying destination directories, making forward fixes safe to deploy incrementally.</li>
+<li>Positive outcomes.
+<ul>
+<li>Main builds produce versioned dev releases and dev images without changing the stable “latest” artifacts.</li>
+<li>Non-fork PRs get preview images with consistent tags.</li>
+</ul>
+</li>
+<li>Risks or trade-offs.
+<ul>
+<li>Adds release tooling dependencies and requires Conventional Commit discipline for every main merge.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Implementation tasks.
+<ul>
+<li>Monitor semantic-release output and adjust release rules if release cadence is too strict or too noisy.</li>
+</ul>
+</li>
+<li>Review checkpoints.
+<ul>
+<li>Revisit tag patterns if GitHub tag filters or image consumers need additional aliases.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<h2 id="task-record"><a class="header" href="#task-record">Task record</a></h2>
+<ul>
+<li>Motivation: Publish dev prereleases and PR preview images without displacing stable releases or <code>latest</code> images.</li>
+<li>Design notes: Semantic-release prereleases on main drive version tags; PR images are tagged <code>pr-&lt;num&gt;</code> and <code>pr-&lt;num&gt;-&lt;sha&gt;</code> only.</li>
+<li>Test coverage summary: <code>just ci</code>, <code>just ui-e2e</code>.</li>
+<li>Observability updates: None (workflow-only change).</li>
+<li>Risk &amp; rollback plan: Remove release-dev and PR image jobs and revert to tag-only releases if prereleases cause instability.</li>
+<li>Dependency rationale: Add semantic-release tooling in <code>release/</code> to analyze Conventional Commits and publish prereleases with assets.</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../adr/008-phase-one-remaining-task.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../adr/096-ui-e2e-coverage-aggregation.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="../adr/010-agent-compliance-sweep.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                                <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
-                            </a>
 
                         <div style="clear: both"></div>
                     </nav>
@@ -241,13 +266,10 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../adr/008-phase-one-remaining-task.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../adr/096-ui-e2e-coverage-aggregation.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="../adr/010-agent-compliance-sweep.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
-                        <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
-                    </a>
             </nav>
 
         </div>

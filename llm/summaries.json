@@ -1027,6 +1027,15 @@
     "href": "/adr/096-ui-e2e-coverage-aggregation/"
   },
   {
+    "id": "adr/097-dev-release-flow",
+    "title": "Dev prereleases and PR image previews",
+    "summary": "Status: Accepted Date: 2026-01-24 Context: What problem are we solving? Main should publish dev prereleases and dev-tagged images without displacing stable “latest” artifacts. PRs need preview images without exposing secrets to forks. What constraints or forces shape the decision? CI must run via just, releases must be semver-based from Conventional Commits, and stable releases/images stay version-tagged. Decision: Summary of the choice made. Use semantic-release on main to publish -dev.N prereleases with attached artifacts, tag dev images with the prerelease tag plus dev, and publish PR preview images for non-fork PRs using pr-<num> and pr-<num>-<sha> tags only. Alternatives considered. Continue tag-only",
+    "tags": [
+      "task-record"
+    ],
+    "href": "/adr/097-dev-release-flow/"
+  },
+  {
     "id": "adr/index",
     "title": "ADRs",
     "summary": "Create a new ADR using the template in docs/adr/template.md. Give it a sequential identifier (e.g., 001, 002) and a concise title. Capture context, decision, consequences, and follow-up actions. Append the new ADR entry to the end of the Catalogue list above. Append the same entry under ADRs in docs/SUMMARY.md, keeping it nested so the sidebar stays collapsed. Reference ADRs from code comments or docs where the decision applies.",

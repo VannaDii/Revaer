@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2026-01-24T17:55:54.744539077+00:00",
+  "generated": "2026-01-25T01:32:09.807749314+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -1028,6 +1028,15 @@
         "task-record"
       ],
       "href": "/adr/096-ui-e2e-coverage-aggregation/"
+    },
+    {
+      "id": "adr/097-dev-release-flow",
+      "title": "Dev prereleases and PR image previews",
+      "summary": "Status: Accepted Date: 2026-01-24 Context: What problem are we solving? Main should publish dev prereleases and dev-tagged images without displacing stable “latest” artifacts. PRs need preview images without exposing secrets to forks. What constraints or forces shape the decision? CI must run via just, releases must be semver-based from Conventional Commits, and stable releases/images stay version-tagged. Decision: Summary of the choice made. Use semantic-release on main to publish -dev.N prereleases with attached artifacts, tag dev images with the prerelease tag plus dev, and publish PR preview images for non-fork PRs using pr-<num> and pr-<num>-<sha> tags only. Alternatives considered. Continue tag-only",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/097-dev-release-flow/"
     },
     {
       "id": "adr/index",
