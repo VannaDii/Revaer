@@ -19,3 +19,4 @@ docs/book
 /tests/.auth
 /tests/logs
 node_modules
+release/next-release.json

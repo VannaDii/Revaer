@@ -37,6 +37,12 @@ build: sync-assets
 build-release:
     cargo build --workspace --release --all-targets --all-features
 
+release-artifacts: build-release api-export
+    mkdir -p dist
+    cp target/release/revaer-app dist/revaer-app
+    sha256sum dist/revaer-app > dist/revaer-app.sha256
+    cp docs/api/openapi.json dist/openapi.json
+
 udeps:
     if ! command -v cargo-udeps >/dev/null 2>&1; then \
         cargo install cargo-udeps --locked; \
@@ -148,6 +154,10 @@ licenses:
 
 api-export:
     cargo run -p revaer-api --bin generate_openapi
+
+release-dev:
+    npm --prefix release ci
+    node release/node_modules/.bin/semantic-release --extends release/release.config.js
 
 validate:
     REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"
