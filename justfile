@@ -157,7 +157,7 @@ api-export:
 
 release-dev:
     npm --prefix release ci
-    node release/node_modules/.bin/semantic-release --extends release/release.config.js
+    node release/node_modules/.bin/semantic-release --extends ./release/release.config.js
 
 validate:
     REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"
