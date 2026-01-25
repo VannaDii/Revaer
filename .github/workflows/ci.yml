@@ -466,7 +466,7 @@ jobs:
     uses: ./.github/workflows/build-images.yml
     with:
       matrix: ${{ needs.load-matrix.outputs.matrix }}
-      image_name: ${{ env.IMAGE_NAME }}
+      image_name: revaer
       version_tag: >-
         ${{ needs.release-dev.outputs.release_tag != '' &&
             needs.release-dev.outputs.release_tag ||

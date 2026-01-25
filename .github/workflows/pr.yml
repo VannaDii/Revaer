@@ -293,7 +293,7 @@ jobs:
       packages: write
     with:
       matrix: ${{ needs.load-matrix.outputs.matrix }}
-      image_name: ${{ env.IMAGE_NAME }}
+      image_name: revaer
       version_tag: pr-${{ github.event.pull_request.number }}-${{ needs.load-matrix.outputs.short_sha }}
       alias_tag: pr-${{ github.event.pull_request.number }}
       include_sha_tag: false
