@@ -1,0 +1,31 @@
+# Indexer ERD Single-Tenant and Audit Fields
+
+- Status: Accepted
+- Date: 2026-01-25
+- Context:
+  - The indexer ERD needed to reflect single-tenant deployments and remove workspace/membership constructs.
+  - Audit actor fields must be non-null and use a system sentinel instead of NULL.
+  - Global configuration should be reusable across future media management features.
+- Decision:
+  - Remove workspace/membership/invite constructs and document deployment-global scoping.
+  - Promote deployment_config and deployment_maintenance_state as singleton global config tables.
+  - Require created_by_user_id/updated_by_user_id/changed_by_user_id to be NN with system sentinel semantics.
+  - Update procedures, constraints, and index guidance to align with deployment-global indexing.
+  - Task Record:
+    - Motivation: Align the ERD with the single-tenant deployment model and explicit audit actors.
+    - Design notes: Removed workspace scoping, added deployment_role on app_user, documented system user_id=0 and all-zero UUID, revised procedures/constraints/indexes for deployment scope, and serialized log stream tests to avoid global buffer races.
+    - Test coverage summary: `just ci` and `just ui-e2e` run locally.
+    - Observability updates: None (documentation and test-stability change only).
+    - Risk & rollback plan: Low risk; revert ERD edits if multi-tenant scope is reintroduced.
+    - Dependency rationale: None; no new dependencies. Alternatives considered: keep workspace scoping and NULL system actors (rejected).
+- Consequences:
+  - Positive outcomes:
+    - ERD aligns with single-tenant deployments and global config reuse.
+    - Audit fields are explicit and consistent with system sentinel usage.
+  - Risks or trade-offs:
+    - Future multi-tenant support would require reintroducing tenant scoping.
+- Follow-up:
+  - Implementation tasks:
+    - Keep migrations and runtime schema changes aligned with the updated ERD.
+  - Review checkpoints:
+    - Validate stored procedures and schema changes during implementation.

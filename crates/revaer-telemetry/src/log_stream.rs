@@ -204,8 +204,16 @@ mod tests {
         log_stream_writer, prune_log_buffer,
     };
     use std::io::Write;
+    use std::sync::{Mutex, OnceLock};
     use std::time::{Duration, Instant};
     use tracing_subscriber::fmt::MakeWriter;
+
+    fn with_log_stream_lock<T>(action: impl FnOnce() -> T) -> T {
+        static TEST_LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        let lock = TEST_LOCK.get_or_init(|| Mutex::new(()));
+        let _guard = lock.lock().expect("log stream test lock poisoned");
+        action()
+    }
 
     #[test]
     fn line_buffer_splits_on_newlines() {
@@ -232,42 +240,46 @@ mod tests {
 
     #[test]
     fn log_stream_writer_emits_lines_and_flushes_on_drop() -> std::io::Result<()> {
-        if let Ok(mut buffer) = log_stream_buffer().lock() {
-            buffer.clear();
-        }
-        let mut log_receiver = log_stream_receiver();
-        let make_writer = log_stream_writer();
-        {
-            let mut writer = make_writer.make_writer();
-            writer.write_all(b"alpha\nbeta\npartial")?;
-        }
-
-        let mut lines = Vec::new();
-        for _ in 0..5 {
-            if let Ok(line) = log_receiver.try_recv() {
-                lines.push(line);
+        with_log_stream_lock(|| {
+            if let Ok(mut buffer) = log_stream_buffer().lock() {
+                buffer.clear();
             }
-        }
+            let mut log_receiver = log_stream_receiver();
+            let make_writer = log_stream_writer();
+            {
+                let mut writer = make_writer.make_writer();
+                writer.write_all(b"alpha\nbeta\npartial")?;
+            }
 
-        assert!(lines.contains(&"alpha".to_string()));
-        assert!(lines.contains(&"beta".to_string()));
-        assert!(lines.contains(&"partial".to_string()));
-        Ok(())
+            let mut lines = Vec::new();
+            for _ in 0..5 {
+                if let Ok(line) = log_receiver.try_recv() {
+                    lines.push(line);
+                }
+            }
+
+            assert!(lines.contains(&"alpha".to_string()));
+            assert!(lines.contains(&"beta".to_string()));
+            assert!(lines.contains(&"partial".to_string()));
+            Ok(())
+        })
     }
 
     #[test]
     fn log_stream_snapshot_returns_recent_lines() {
-        if let Ok(mut buffer) = log_stream_buffer().lock() {
-            buffer.clear();
-        }
-        let now = Instant::now();
-        if let Ok(mut buffer) = log_stream_buffer().lock() {
-            buffer.push_back(LogEntry {
-                at: now,
-                line: "recent".to_string(),
-            });
-        }
-        assert_eq!(log_stream_snapshot(), vec!["recent".to_string()]);
+        with_log_stream_lock(|| {
+            if let Ok(mut buffer) = log_stream_buffer().lock() {
+                buffer.clear();
+            }
+            let now = Instant::now();
+            if let Ok(mut buffer) = log_stream_buffer().lock() {
+                buffer.push_back(LogEntry {
+                    at: now,
+                    line: "recent".to_string(),
+                });
+            }
+            assert_eq!(log_stream_snapshot(), vec!["recent".to_string()]);
+        });
     }
 
     #[test]

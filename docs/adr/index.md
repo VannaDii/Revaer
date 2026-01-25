@@ -109,3 +109,5 @@
 -   [095](095-untagged-image-dev-tag.md) – Untagged images use dev tag
 -   [096](096-ui-e2e-coverage-aggregation.md) – Aggregate UI E2E coverage for sharded runs
 -   [097](097-dev-release-flow.md) – Dev prereleases and PR image previews
+-   [098](098-workflow-image-reuse.md) – Reusable image build workflow
+-   [099](099-indexer-erd-single-tenant.md) – Indexer ERD single-tenant and audit fields
