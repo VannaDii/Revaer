@@ -46,6 +46,13 @@ module.exports = {
           'node release/scripts/write-release-info.js "${nextRelease.version}" "${nextRelease.gitTag}"',
       },
     ],
-    ['@semantic-release/github', { assets }],
+    [
+      '@semantic-release/github',
+      {
+        assets,
+        successComment: false,
+        releasedLabels: false,
+      },
+    ],
   ],
 };
