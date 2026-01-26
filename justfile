@@ -159,6 +159,9 @@ release-dev:
     npm --prefix release ci
     node release/node_modules/.bin/semantic-release --extends ./release/release.config.js
 
+release-lock:
+    npm --prefix release install --package-lock-only
+
 validate:
     REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}"
