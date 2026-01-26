@@ -19,7 +19,7 @@ const assets = [
 ];
 
 module.exports = {
-  branches: [{ name: 'main', prerelease: 'dev' }],
+  branches: [{ name: 'main', prerelease: 'dev' }, 'gh-pages'],
   tagFormat: 'v${version}',
   plugins: [
     [
