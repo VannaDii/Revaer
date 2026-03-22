@@ -1,0 +1,40 @@
+# SonarQube Workflow With Root Coverage LCOV
+
+- Status: Accepted
+- Date: 2026-03-22
+- Context:
+  - Motivation:
+    - Add automated SonarQube analysis for every pull request and every push to `main`.
+    - Publish Rust coverage into SonarQube from a deterministic file in the repository root.
+  - Constraints:
+    - CI workflows must use `just` recipes for operational steps.
+    - Coverage artifact must be generated as `coverage/lcov.info`.
+    - Generated coverage file must not be tracked by git.
+- Decision:
+  - Add `just cov-lcov` to build a combined workspace LCOV report at `coverage/lcov.info`.
+  - Add `.github/workflows/sonar.yml` to trigger on `pull_request` and `push` to `main`.
+  - In the Sonar workflow, run migrations, generate the LCOV file via `just cov-lcov`, and run `SonarSource/sonarqube-scan-action@v6` with:
+    - `sonar.projectKey=VannaDii_Revaer`
+    - `sonar.organization=vannadii`
+    - `sonar.rust.lcov.reportPaths=coverage/lcov.info`
+  - Ignore `/coverage` in `.gitignore`.
+  - Alternatives considered:
+    - Separate per-crate LCOV files merged post-process: rejected as unnecessary complexity for Sonar ingestion.
+    - Invoking cargo directly in workflow: rejected because repository policy requires `just` recipes.
+- Consequences:
+  - Positive outcomes:
+    - SonarQube now runs on PRs and `main` pushes with workspace Rust coverage.
+    - Coverage path is stable and tool-agnostic (`coverage/lcov.info`).
+  - Risks and trade-offs:
+    - Sonar job runtime includes full coverage execution and DB-backed tests.
+    - Workflow requires valid `SONAR_TOKEN` repository secret and database variable setup.
+- Follow-up:
+  - Test coverage summary:
+    - Added coverage generation path via `just cov-lcov`; validation to be executed via CI and local `just` gates.
+  - Observability updates:
+    - No runtime telemetry changes; this is CI/workflow-only.
+  - Risk and rollback plan:
+    - Roll back by removing `sonar.yml` and `cov-lcov` recipe if scan configuration causes CI disruption.
+  - Dependency rationale:
+    - No Rust dependencies added.
+    - GitHub Action dependency added: `SonarSource/sonarqube-scan-action@v6` (official maintained scanner wrapper). Alternative was raw scanner CLI install steps, rejected for higher maintenance.

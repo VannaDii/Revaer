@@ -141,6 +141,17 @@ cov:
             exit 1; \
         fi
 
+cov-lcov:
+    if ! command -v cargo-llvm-cov >/dev/null 2>&1; then \
+        cargo install cargo-llvm-cov --locked; \
+    fi
+    rustup component add llvm-tools-preview
+    mkdir -p coverage
+    cargo llvm-cov clean --workspace
+    REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}" \
+    DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
+        cargo llvm-cov --workspace --all-features --lcov --output-path coverage/lcov.info
+
 sbom:
     mkdir -p artifacts
     cargo metadata --format-version 1 --all-features --locked > artifacts/sbom.json
