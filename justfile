@@ -110,8 +110,20 @@ deny:
     cargo deny check
 
 cov:
-    if ! command -v cargo-llvm-cov >/dev/null 2>&1; then \
-        cargo install cargo-llvm-cov --locked; \
+    required_llvm_cov_version="0.8.5"; \
+    install_llvm_cov() { \
+        cargo install cargo-llvm-cov --locked --force --version "${required_llvm_cov_version}"; \
+    }; \
+    version_ge() { \
+        [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -n1)" = "$2" ]; \
+    }; \
+    if command -v cargo-llvm-cov >/dev/null 2>&1; then \
+        installed_version="$(cargo llvm-cov --version | awk '{print $2}')"; \
+        if ! version_ge "$installed_version" "$required_llvm_cov_version"; then \
+            install_llvm_cov; \
+        fi; \
+    else \
+        install_llvm_cov; \
     fi
     rustup component add llvm-tools-preview
     cargo llvm-cov clean --workspace
@@ -140,17 +152,15 @@ cov:
             echo "Coverage below 90% for:${fail_list}"; \
             exit 1; \
         fi
-
-cov-lcov:
-    if ! command -v cargo-llvm-cov >/dev/null 2>&1; then \
-        cargo install cargo-llvm-cov --locked; \
-    fi
-    rustup component add llvm-tools-preview
+    rm -rf coverage
     mkdir -p coverage
     cargo llvm-cov clean --workspace
     REVAER_TEST_DATABASE_URL="${REVAER_TEST_DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}" \
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}" \
-        cargo llvm-cov --workspace --all-features --lcov --output-path coverage/lcov.info
+    CARGO_BUILD_JOBS="${CARGO_BUILD_JOBS:-1}" \
+        cargo llvm-cov --workspace --all-features --no-report
+    cargo llvm-cov report --lcov --output-path coverage/lcov.info
+    cargo llvm-cov report --html --output-dir coverage
 
 sbom:
     mkdir -p artifacts

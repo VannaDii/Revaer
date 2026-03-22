@@ -53,12 +53,20 @@ jobs:
         run: just db-migrate
 
       - name: Build combined LCOV report
-        run: just cov-lcov
+        run: just cov
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonar-coverage
+          path: coverage
+          if-no-files-found: error
 
       - name: SonarQube scan
-        uses: SonarSource/sonarqube-scan-action@v6
+        uses: SonarSource/sonarqube-scan-action@v7
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN || secrets.SONARQUBE_TOKEN }}
         with:
           args: >
             -Dsonar.projectKey=VannaDii_Revaer
