@@ -63,6 +63,9 @@ jobs:
           path: coverage
           if-no-files-found: error
 
+      - name: Build native compile database
+        run: just sonar-compile-db
+
       - name: SonarQube scan
         uses: SonarSource/sonarqube-scan-action@v7
         env:
@@ -72,3 +75,4 @@ jobs:
             -Dsonar.projectKey=VannaDii_Revaer
             -Dsonar.organization=vannadii
             -Dsonar.rust.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.cfamily.compile-commands=coverage/compile_commands.json

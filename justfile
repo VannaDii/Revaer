@@ -162,6 +162,15 @@ cov:
     cargo llvm-cov report --lcov --output-path coverage/lcov.info
     cargo llvm-cov report --html --output-dir coverage
 
+sonar-compile-db:
+    mkdir -p coverage
+    rm -f coverage/compile_commands.json
+    mkdir -p target/sonar-build
+    REVAER_NATIVE_IT=1 \
+    CARGO_TARGET_DIR="${PWD}/target/sonar-build" \
+    REVAER_NATIVE_COMPILE_COMMANDS_PATH="${PWD}/coverage/compile_commands.json" \
+        cargo --config 'build.rustflags=["-Dwarnings"]' build -p revaer-torrent-libt --all-features
+
 sbom:
     mkdir -p artifacts
     cargo metadata --format-version 1 --all-features --locked > artifacts/sbom.json
