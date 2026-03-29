@@ -36,10 +36,10 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "searchindex-1916e362.js";
+            window.path_to_searchindex_js = "searchindex-7e76d2bd.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-153ddeff.js"></script>
+        <script src="toc-bcd22581.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -1338,6 +1338,7 @@ just test-native
 <li><a href="#dev-prereleases-and-pr-image-previews">097</a> – Dev prereleases and PR image previews</li>
 <li><a href="#reusable-image-build-workflow">098</a> – Reusable image build workflow</li>
 <li><a href="#indexer-erd-single-tenant-and-audit-fields">099</a> – Indexer ERD single-tenant and audit fields</li>
+<li><a href="#sonarqube-workflow-with-root-coverage-lcov">100</a> – SonarQube workflow with root coverage LCOV</li>
 </ul>
 <div style="break-before: page; page-break-before: always;"></div>
 <h1 ADR="" Title="" id=""><a class="header" href="#"></a></h1>
@@ -6242,6 +6243,98 @@ then restore the previous auth behavior.</li>
 <li>Review checkpoints:
 <ul>
 <li>Validate stored procedures and schema changes during implementation.</li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+<div style="break-before: page; page-break-before: always;"></div>
+<h1 id="sonarqube-workflow-with-root-coverage-lcov"><a class="header" href="#sonarqube-workflow-with-root-coverage-lcov">SonarQube Workflow With Root Coverage LCOV</a></h1>
+<ul>
+<li>Status: Accepted</li>
+<li>Date: 2026-03-22</li>
+<li>Context:
+<ul>
+<li>Motivation:
+<ul>
+<li>Add automated SonarQube analysis for every pull request and every push to <code>main</code>.</li>
+<li>Publish Rust coverage into SonarQube from a deterministic file in the repository root.</li>
+<li>Keep the native libtorrent FFI source analyzed instead of excluding it from SonarQube.</li>
+</ul>
+</li>
+<li>Constraints:
+<ul>
+<li>CI workflows must use <code>just</code> recipes for operational steps.</li>
+<li>Coverage artifact must be generated as <code>coverage/lcov.info</code>.</li>
+<li>Generated coverage file must not be tracked by git.</li>
+<li>The repository contains C++ FFI sources under <code>crates/revaer-torrent-libt/src/ffi</code>, and SonarQube requires a C-family compilation database to analyze them correctly.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Decision:
+<ul>
+<li>Use <code>just cov</code> to build a combined workspace LCOV report at <code>coverage/lcov.info</code>.</li>
+<li>Add <code>just sonar-compile-db</code> to build <code>revaer-torrent-libt</code> with <code>REVAER_NATIVE_COMPILE_COMMANDS_PATH</code> set so <code>build.rs</code> emits <code>coverage/compile_commands.json</code>.</li>
+<li>Add <code>.github/workflows/sonar.yml</code> to trigger on <code>pull_request</code> and <code>push</code> to <code>main</code>.</li>
+<li>In the Sonar workflow, run migrations, generate the LCOV file via <code>just cov</code>, generate the native compile database via <code>just sonar-compile-db</code>, and run <code>SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9</code> (<code>v7</code>) with:
+<ul>
+<li><code>sonar.projectKey=VannaDii_Revaer</code></li>
+<li><code>sonar.organization=vannadii</code></li>
+<li><code>sonar.rust.lcov.reportPaths=coverage/lcov.info</code></li>
+<li><code>sonar.cfamily.compile-commands=coverage/compile_commands.json</code></li>
+</ul>
+</li>
+<li>Ignore <code>/coverage</code> in <code>.gitignore</code>.</li>
+<li>Alternatives considered:
+<ul>
+<li>Separate per-crate LCOV files merged post-process: rejected as unnecessary complexity for Sonar ingestion.</li>
+<li>Invoking cargo directly in workflow: rejected because repository policy requires <code>just</code> recipes.</li>
+<li>Excluding C-family files from SonarQube: rejected because the native adapter is first-party code and should remain part of static analysis.</li>
+<li>Using external interception tooling such as Bear: rejected because the existing <code>cxx_build</code> path already knows the exact compiler flags, so emitting the compile database in <code>build.rs</code> keeps local and CI behavior aligned with fewer moving parts.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Consequences:
+<ul>
+<li>Positive outcomes:
+<ul>
+<li>SonarQube now runs on PRs and <code>main</code> pushes with workspace Rust coverage.</li>
+<li>Coverage path is stable and tool-agnostic (<code>coverage/lcov.info</code>).</li>
+<li>Native FFI shim sources stay included in SonarQube analysis with the correct compiler context.</li>
+</ul>
+</li>
+<li>Risks and trade-offs:
+<ul>
+<li>Sonar job runtime includes full coverage execution and DB-backed tests.</li>
+<li>Workflow requires valid <code>SONAR_TOKEN</code> repository secret and database variable setup.</li>
+<li>The compile database currently describes the checked-in <code>session.cpp</code> translation unit, so future native sources must be added deliberately if the FFI surface grows.</li>
+</ul>
+</li>
+</ul>
+</li>
+<li>Follow-up:
+<ul>
+<li>Test coverage summary:
+<ul>
+<li>Validation must cover <code>just sonar-compile-db</code> producing <code>coverage/compile_commands.json</code> plus the repository’s required <code>just</code> gates.</li>
+</ul>
+</li>
+<li>Observability updates:
+<ul>
+<li>No runtime telemetry changes; this is CI/workflow-only.</li>
+</ul>
+</li>
+<li>Risk and rollback plan:
+<ul>
+<li>Roll back by removing <code>just sonar-compile-db</code>, the <code>build.rs</code> compile database emission, and the workflow scan property if SonarQube compilation-database support causes instability.</li>
+</ul>
+</li>
+<li>Dependency rationale:
+<ul>
+<li>No Rust dependencies added.</li>
+<li>GitHub Action dependency remains <code>SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9</code> (<code>v7</code>, official maintained scanner wrapper). Alternative was raw scanner CLI install steps, rejected for higher maintenance.</li>
 </ul>
 </li>
 </ul>

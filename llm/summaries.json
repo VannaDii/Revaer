@@ -1052,6 +1052,13 @@
     "href": "/adr/099-indexer-erd-single-tenant/"
   },
   {
+    "id": "adr/100-sonar-scan-workflow-lcov",
+    "title": "SonarQube Workflow With Root Coverage LCOV",
+    "summary": "Status: Accepted Date: 2026-03-22 Context: Motivation: Add automated SonarQube analysis for every pull request and every push to main. Publish Rust coverage into SonarQube from a deterministic file in the repository root. Keep the native libtorrent FFI source analyzed instead of excluding it from SonarQube. Constraints: CI workflows must use just recipes for operational steps. Coverage artifact must be generated as coverage/lcov.info. Generated coverage file must not be tracked by git. The repository contains C++ FFI sources under crates/revaer-torrent-libt/src/ffi, and SonarQube requires a C-family compilation database to analyze them correctly. Decision: Use just cov to build a combined workspace LCOV",
+    "tags": [],
+    "href": "/adr/100-sonar-scan-workflow-lcov/"
+  },
+  {
     "id": "adr/index",
     "title": "ADRs",
     "summary": "Create a new ADR using the template in docs/adr/template.md. Give it a sequential identifier (e.g., 001, 002) and a concise title. Capture context, decision, consequences, and follow-up actions. Append the new ADR entry to the end of the Catalogue list above. Append the same entry under ADRs in docs/SUMMARY.md, keeping it nested so the sidebar stays collapsed. Reference ADRs from code comments or docs where the decision applies.",
