@@ -137,7 +137,10 @@ fn maybe_write_compile_commands(
         .parent()
         .and_then(Path::parent)
         .ok_or(BuildError::MissingWorkspaceRoot)?;
-    let output_object = workspace_root.join("target/sonar/session.cpp.o");
+    let target_dir = env::var_os("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| workspace_root.join("target"));
+    let output_object = target_dir.join("sonar/session.cpp.o");
     let command = compile_command(compiler_path, compiler_args, &source_path, &output_object);
     let contents = format!(
         "[\n  {{\n    \"directory\": \"{}\",\n    \"file\": \"{}\",\n    \"command\": \"{}\"\n  }}\n]\n",

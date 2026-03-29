@@ -48,7 +48,8 @@ revaer/
 -   `just audit` – scan dependencies for published advisories (`cargo-audit`).
 -   `just deny` – enforce the license and advisory policy (`cargo-deny`).
 -   `just cov` – run source-based coverage with LLVM (requires `llvm-tools-preview`).
--   `just sonar-compile-db` – build the native libtorrent shim and emit `coverage/compile_commands.json` for local SonarQube C-family analysis.
+-   `just cov-lcov` – generate the combined workspace LCOV and HTML coverage reports under `coverage/`.
+-   `just sonar-compile-db` – build the native libtorrent shim and emit `coverage/compile_commands.json` for SonarCloud C-family analysis.
 -   `just ci` – execute all required quality gates locally.
 -   `just ui-e2e` – run Playwright API + UI E2E tests with temp databases and managed servers.
 
