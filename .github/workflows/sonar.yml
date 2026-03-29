@@ -1,0 +1,78 @@
+name: SonarQube Scan
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: sonar-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  sonar:
+    name: SonarQube
+    runs-on: ubuntu-latest
+    env:
+      REVAER_TEST_DATABASE_URL: ${{ vars.REVAER_DATABASE_URL }}
+      DATABASE_URL: ${{ vars.REVAER_DATABASE_URL }}
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: revaer
+          POSTGRES_PASSWORD: revaer
+          POSTGRES_DB: revaer
+        options: >-
+          --health-cmd="pg_isready -U revaer -d revaer"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+        ports:
+          - 5432:5432
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: ./.github/actions/setup-revaer
+        with:
+          toolchain: ${{ vars.RUST_TOOLCHAIN_VERSION }}
+          apt-profile: db
+
+      - name: Run migrations
+        env:
+          DATABASE_URL: ${{ env.REVAER_TEST_DATABASE_URL }}
+        run: just db-migrate
+
+      - name: Build combined LCOV report
+        run: just cov
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sonar-coverage
+          path: coverage
+          if-no-files-found: error
+
+      - name: Build native compile database
+        run: just sonar-compile-db
+
+      - name: SonarQube scan
+        uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN || secrets.SONARQUBE_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=VannaDii_Revaer
+            -Dsonar.organization=vannadii
+            -Dsonar.rust.lcov.reportPaths=coverage/lcov.info
+            -Dsonar.cfamily.compile-commands=coverage/compile_commands.json

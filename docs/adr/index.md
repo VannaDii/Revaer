@@ -111,3 +111,4 @@
 -   [097](097-dev-release-flow.md) – Dev prereleases and PR image previews
 -   [098](098-workflow-image-reuse.md) – Reusable image build workflow
 -   [099](099-indexer-erd-single-tenant.md) – Indexer ERD single-tenant and audit fields
+-   [100](100-sonar-scan-workflow-lcov.md) – SonarQube workflow with root coverage LCOV

@@ -1,5 +1,6 @@
 use std::env;
 use std::error::Error;
+use std::ffi::OsString;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -18,12 +19,16 @@ fn try_main() -> Result<(), BuildError> {
     println!("cargo:rerun-if-env-changed=LIBTORRENT_LIB_DIR");
     println!("cargo:rerun-if-env-changed=LIBTORRENT_BUNDLE_DIR");
     println!("cargo:rerun-if-env-changed=REVAER_NATIVE_IT");
+    println!("cargo:rerun-if-env-changed=REVAER_NATIVE_COMPILE_COMMANDS_PATH");
     println!("cargo:rustc-check-cfg=cfg(libtorrent_native)");
 
     if env::var_os("CARGO_FEATURE_LIBTORRENT").is_none() {
         return Ok(());
     }
     let native_required = env::var_os("REVAER_NATIVE_IT").is_some();
+    let manifest_dir = env::var_os("CARGO_MANIFEST_DIR")
+        .map(PathBuf::from)
+        .ok_or(BuildError::MissingManifestDir)?;
 
     let mut bridge = cxx_build::bridge("src/ffi/bridge.rs");
     bridge.flag_if_supported("-std=c++17");
@@ -102,11 +107,97 @@ fn try_main() -> Result<(), BuildError> {
         }
     };
 
+    let compiler = bridge.get_compiler();
+    maybe_write_compile_commands(&manifest_dir, compiler.path(), compiler.args())?;
     bridge.compile("revaer-libtorrent");
     println!("cargo:rustc-cfg=libtorrent_native");
     emit_link_libs(libs);
     emit_reruns();
     Ok(())
+}
+
+fn maybe_write_compile_commands(
+    manifest_dir: &Path,
+    compiler_path: &Path,
+    compiler_args: &[OsString],
+) -> Result<(), BuildError> {
+    let Some(output_path) = env::var_os("REVAER_NATIVE_COMPILE_COMMANDS_PATH").map(PathBuf::from)
+    else {
+        return Ok(());
+    };
+
+    let source_path = manifest_dir
+        .join("src/ffi/session.cpp")
+        .canonicalize()
+        .map_err(|source| BuildError::ResolveCompileCommandsPath { source })?;
+    let directory = manifest_dir
+        .canonicalize()
+        .map_err(|source| BuildError::ResolveCompileCommandsPath { source })?;
+    let workspace_root = manifest_dir
+        .parent()
+        .and_then(Path::parent)
+        .ok_or(BuildError::MissingWorkspaceRoot)?;
+    let output_object = workspace_root.join("target/sonar/session.cpp.o");
+    let command = compile_command(compiler_path, compiler_args, &source_path, &output_object);
+    let contents = format!(
+        "[\n  {{\n    \"directory\": \"{}\",\n    \"file\": \"{}\",\n    \"command\": \"{}\"\n  }}\n]\n",
+        json_escape(directory.to_string_lossy().as_ref()),
+        json_escape(source_path.to_string_lossy().as_ref()),
+        json_escape(&command),
+    );
+
+    if let Some(parent) = output_path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|source| BuildError::CreateCompileCommandsDir { source })?;
+    }
+    fs::write(output_path, contents).map_err(|source| BuildError::WriteCompileCommands { source })
+}
+
+fn compile_command(
+    compiler_path: &Path,
+    compiler_args: &[OsString],
+    source_path: &Path,
+    output_object: &Path,
+) -> String {
+    let mut parts = Vec::with_capacity(compiler_args.len() + 5);
+    parts.push(shell_escape(compiler_path.to_string_lossy().as_ref()));
+    for argument in compiler_args {
+        parts.push(shell_escape(argument.to_string_lossy().as_ref()));
+    }
+    parts.push("-c".to_string());
+    parts.push(shell_escape(source_path.to_string_lossy().as_ref()));
+    parts.push("-o".to_string());
+    parts.push(shell_escape(output_object.to_string_lossy().as_ref()));
+    parts.join(" ")
+}
+
+fn shell_escape(value: &str) -> String {
+    if value.is_empty()
+        || value.chars().any(|character| {
+            character.is_whitespace()
+                || matches!(character, '"' | '\\' | '$' | '`' | '\'' | '!' | '&' | '|')
+        })
+    {
+        let escaped = value.replace('\\', "\\\\").replace('"', "\\\"");
+        format!("\"{escaped}\"")
+    } else {
+        value.to_string()
+    }
+}
+
+fn json_escape(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for character in value.chars() {
+        match character {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            _ => escaped.push(character),
+        }
+    }
+    escaped
 }
 
 fn bundled_paths() -> Option<(PathBuf, PathBuf)> {
@@ -184,9 +275,14 @@ fn parse_version_part(value: Option<&str>) -> Option<u32> {
 
 #[derive(Debug)]
 enum BuildError {
+    MissingManifestDir,
+    MissingWorkspaceRoot,
     MissingIncludeDir,
     PkgConfig(pkg_config::Error),
     ReadHeader { source: std::io::Error },
+    ResolveCompileCommandsPath { source: std::io::Error },
+    CreateCompileCommandsDir { source: std::io::Error },
+    WriteCompileCommands { source: std::io::Error },
     MissingDefine,
     InvalidMinVersion,
     VersionTooOld,
@@ -195,9 +291,20 @@ enum BuildError {
 impl fmt::Display for BuildError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            BuildError::MissingManifestDir => write!(f, "cargo manifest directory missing"),
+            BuildError::MissingWorkspaceRoot => write!(f, "workspace root unavailable"),
             BuildError::MissingIncludeDir => write!(f, "libtorrent include directory missing"),
             BuildError::PkgConfig(_) => write!(f, "libtorrent pkg-config probe failed"),
             BuildError::ReadHeader { .. } => write!(f, "libtorrent version header read failed"),
+            BuildError::ResolveCompileCommandsPath { .. } => {
+                write!(f, "compile commands path resolution failed")
+            }
+            BuildError::CreateCompileCommandsDir { .. } => {
+                write!(f, "compile commands directory creation failed")
+            }
+            BuildError::WriteCompileCommands { .. } => {
+                write!(f, "compile commands write failed")
+            }
             BuildError::MissingDefine => write!(f, "libtorrent version header missing field"),
             BuildError::InvalidMinVersion => write!(f, "invalid libtorrent minimum version"),
             BuildError::VersionTooOld => write!(f, "libtorrent version is too old"),
@@ -210,6 +317,9 @@ impl Error for BuildError {
         match self {
             BuildError::PkgConfig(err) => Some(err),
             BuildError::ReadHeader { source, .. } => Some(source),
+            BuildError::ResolveCompileCommandsPath { source, .. } => Some(source),
+            BuildError::CreateCompileCommandsDir { source, .. } => Some(source),
+            BuildError::WriteCompileCommands { source, .. } => Some(source),
             _ => None,
         }
     }

@@ -13,6 +13,7 @@ dist-serve
 docs/book
 /deploy
 /artifacts
+/coverage
 /tests/test-results
 /tests/playwright-report
 /tests/.playwright
