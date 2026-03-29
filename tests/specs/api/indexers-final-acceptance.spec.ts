@@ -1,5 +1,6 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { test, expect } from '../../fixtures/api';
+import { buildInsecureTestUrl } from '../../support/urls';
 
 test.describe('Indexer final acceptance', () => {
   test('keeps hard blockers explicit, inspectable, and reversible', async ({
@@ -57,7 +58,7 @@ test.describe('Indexer final acceptance', () => {
     const apiRun = await api.POST('/v1/indexers/import-jobs/{import_job_public_id}/run/prowlarr-api', {
       params: { path: { import_job_public_id: apiJobId } },
       body: {
-        prowlarr_url: 'http://prowlarr.local',
+        prowlarr_url: buildInsecureTestUrl('prowlarr.local'),
         prowlarr_api_key_secret_public_id: randomUUID(),
       },
     });

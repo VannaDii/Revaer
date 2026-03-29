@@ -75,94 +75,146 @@ async fn run_with_cli(cli: Cli) -> i32 {
 
 async fn dispatch(cli: Cli, deps: &AppContext) -> CliResult<()> {
     match cli.command {
-        Command::Setup(setup_command) => match setup_command {
-            SetupCommand::Start(args) => setup::handle_setup_start(deps, args).await,
-            SetupCommand::Complete(args) => setup::handle_setup_complete(deps, args).await,
-        },
-        Command::Config(config_command) => match config_command {
-            ConfigCommand::Get(_) => config::handle_config_get(deps, cli.output).await,
-            ConfigCommand::Set(args) => config::handle_config_set(deps, args).await,
-        },
-        Command::Settings(settings_command) => match settings_command {
-            SettingsCommand::Patch(args) => config::handle_config_set(deps, args).await,
-        },
-        Command::Torrent(torrent_command) => match torrent_command {
-            TorrentCommand::Add(args) => torrents::handle_torrent_add(deps, args).await,
-            TorrentCommand::Remove(args) => torrents::handle_torrent_remove(deps, args).await,
-        },
-        Command::Indexer(indexer_command) => match indexer_command {
-            IndexerCommand::Import(import_command) => match import_command {
-                IndexerImportCommand::Create(args) => {
-                    indexers::handle_import_job_create(deps, args, cli.output).await
-                }
-                IndexerImportCommand::RunProwlarrApi(args) => {
-                    indexers::handle_import_job_run_prowlarr_api(deps, args).await
-                }
-                IndexerImportCommand::RunProwlarrBackup(args) => {
-                    indexers::handle_import_job_run_prowlarr_backup(deps, args).await
-                }
-                IndexerImportCommand::Status(args) => {
-                    indexers::handle_import_job_status(deps, args, cli.output).await
-                }
-                IndexerImportCommand::Results(args) => {
-                    indexers::handle_import_job_results(deps, args, cli.output).await
-                }
-            },
-            IndexerCommand::Torznab(torznab_command) => match torznab_command {
-                TorznabCommand::Create(args) => {
-                    indexers::handle_torznab_create(deps, args, cli.output).await
-                }
-                TorznabCommand::Rotate(args) => {
-                    indexers::handle_torznab_rotate(deps, args, cli.output).await
-                }
-                TorznabCommand::SetState(args) => {
-                    indexers::handle_torznab_set_state(deps, args).await
-                }
-                TorznabCommand::Delete(args) => indexers::handle_torznab_delete(deps, args).await,
-            },
-            IndexerCommand::Policy(policy_command) => match *policy_command {
-                PolicyCommand::SetCreate(args) => {
-                    indexers::handle_policy_set_create(deps, args, cli.output).await
-                }
-                PolicyCommand::SetUpdate(args) => {
-                    indexers::handle_policy_set_update(deps, args, cli.output).await
-                }
-                PolicyCommand::SetEnable(args) => {
-                    indexers::handle_policy_set_enable(deps, args).await
-                }
-                PolicyCommand::SetDisable(args) => {
-                    indexers::handle_policy_set_disable(deps, args).await
-                }
-                PolicyCommand::SetReorder(args) => {
-                    indexers::handle_policy_set_reorder(deps, args).await
-                }
-                PolicyCommand::RuleCreate(args) => {
-                    indexers::handle_policy_rule_create(deps, *args, cli.output).await
-                }
-                PolicyCommand::RuleEnable(args) => {
-                    indexers::handle_policy_rule_enable(deps, args).await
-                }
-                PolicyCommand::RuleDisable(args) => {
-                    indexers::handle_policy_rule_disable(deps, args).await
-                }
-                PolicyCommand::RuleReorder(args) => {
-                    indexers::handle_policy_rule_reorder(deps, args).await
-                }
-            },
-            IndexerCommand::Instance(instance_command) => match *instance_command {
-                IndexerInstanceCommand::TestPrepare(args) => {
-                    indexers::handle_indexer_instance_test_prepare(deps, args, cli.output).await
-                }
-                IndexerInstanceCommand::TestFinalize(args) => {
-                    indexers::handle_indexer_instance_test_finalize(deps, args, cli.output).await
-                }
-            },
-        },
+        Command::Setup(setup_command) => dispatch_setup(setup_command, deps).await,
+        Command::Config(config_command) => dispatch_config(config_command, deps, cli.output).await,
+        Command::Settings(settings_command) => dispatch_settings(settings_command, deps).await,
+        Command::Torrent(torrent_command) => dispatch_torrent(torrent_command, deps).await,
+        Command::Indexer(indexer_command) => {
+            dispatch_indexer(indexer_command, deps, cli.output).await
+        }
         Command::Ls(args) => torrents::handle_torrent_list(deps, args, cli.output).await,
         Command::Status(args) => torrents::handle_torrent_status(deps, args, cli.output).await,
         Command::Select(args) => torrents::handle_torrent_select(deps, args).await,
         Command::Action(args) => torrents::handle_torrent_action(deps, args).await,
         Command::Tail(args) => tail::handle_tail(deps, args).await,
+    }
+}
+
+async fn dispatch_setup(command: SetupCommand, deps: &AppContext) -> CliResult<()> {
+    match command {
+        SetupCommand::Start(args) => setup::handle_setup_start(deps, args).await,
+        SetupCommand::Complete(args) => setup::handle_setup_complete(deps, args).await,
+    }
+}
+
+async fn dispatch_config(
+    command: ConfigCommand,
+    deps: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    match command {
+        ConfigCommand::Get(_) => config::handle_config_get(deps, output).await,
+        ConfigCommand::Set(args) => config::handle_config_set(deps, args).await,
+    }
+}
+
+async fn dispatch_settings(command: SettingsCommand, deps: &AppContext) -> CliResult<()> {
+    match command {
+        SettingsCommand::Patch(args) => config::handle_config_set(deps, args).await,
+    }
+}
+
+async fn dispatch_torrent(command: TorrentCommand, deps: &AppContext) -> CliResult<()> {
+    match command {
+        TorrentCommand::Add(args) => torrents::handle_torrent_add(deps, args).await,
+        TorrentCommand::Remove(args) => torrents::handle_torrent_remove(deps, args).await,
+    }
+}
+
+async fn dispatch_indexer(
+    command: IndexerCommand,
+    deps: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    match command {
+        IndexerCommand::Import(import_command) => {
+            dispatch_indexer_import(import_command, deps, output).await
+        }
+        IndexerCommand::Torznab(torznab_command) => {
+            dispatch_indexer_torznab(torznab_command, deps, output).await
+        }
+        IndexerCommand::Policy(policy_command) => {
+            dispatch_indexer_policy(*policy_command, deps, output).await
+        }
+        IndexerCommand::Instance(instance_command) => {
+            dispatch_indexer_instance(*instance_command, deps, output).await
+        }
+    }
+}
+
+async fn dispatch_indexer_import(
+    command: IndexerImportCommand,
+    deps: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    match command {
+        IndexerImportCommand::Create(args) => {
+            indexers::handle_import_job_create(deps, args, output).await
+        }
+        IndexerImportCommand::RunProwlarrApi(args) => {
+            indexers::handle_import_job_run_prowlarr_api(deps, args).await
+        }
+        IndexerImportCommand::RunProwlarrBackup(args) => {
+            indexers::handle_import_job_run_prowlarr_backup(deps, args).await
+        }
+        IndexerImportCommand::Status(args) => {
+            indexers::handle_import_job_status(deps, args, output).await
+        }
+        IndexerImportCommand::Results(args) => {
+            indexers::handle_import_job_results(deps, args, output).await
+        }
+    }
+}
+
+async fn dispatch_indexer_torznab(
+    command: TorznabCommand,
+    deps: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    match command {
+        TorznabCommand::Create(args) => indexers::handle_torznab_create(deps, args, output).await,
+        TorznabCommand::Rotate(args) => indexers::handle_torznab_rotate(deps, args, output).await,
+        TorznabCommand::SetState(args) => indexers::handle_torznab_set_state(deps, args).await,
+        TorznabCommand::Delete(args) => indexers::handle_torznab_delete(deps, args).await,
+    }
+}
+
+async fn dispatch_indexer_policy(
+    command: PolicyCommand,
+    deps: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    match command {
+        PolicyCommand::SetCreate(args) => {
+            indexers::handle_policy_set_create(deps, args, output).await
+        }
+        PolicyCommand::SetUpdate(args) => {
+            indexers::handle_policy_set_update(deps, args, output).await
+        }
+        PolicyCommand::SetEnable(args) => indexers::handle_policy_set_enable(deps, args).await,
+        PolicyCommand::SetDisable(args) => indexers::handle_policy_set_disable(deps, args).await,
+        PolicyCommand::SetReorder(args) => indexers::handle_policy_set_reorder(deps, args).await,
+        PolicyCommand::RuleCreate(args) => {
+            indexers::handle_policy_rule_create(deps, *args, output).await
+        }
+        PolicyCommand::RuleEnable(args) => indexers::handle_policy_rule_enable(deps, args).await,
+        PolicyCommand::RuleDisable(args) => indexers::handle_policy_rule_disable(deps, args).await,
+        PolicyCommand::RuleReorder(args) => indexers::handle_policy_rule_reorder(deps, args).await,
+    }
+}
+
+async fn dispatch_indexer_instance(
+    command: IndexerInstanceCommand,
+    deps: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    match command {
+        IndexerInstanceCommand::TestPrepare(args) => {
+            indexers::handle_indexer_instance_test_prepare(deps, args, output).await
+        }
+        IndexerInstanceCommand::TestFinalize(args) => {
+            indexers::handle_indexer_instance_test_finalize(deps, args, output).await
+        }
     }
 }
 

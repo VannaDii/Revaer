@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/app';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 
 test.describe('Route coverage', () => {
   test('opens torrent detail route', async ({ app, page }) => {

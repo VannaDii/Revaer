@@ -4009,79 +4009,10 @@ fn build_backup_indexer_instances(
     let mut fields = BTreeMap::<String, BTreeMap<String, IndexerBackupFieldItem>>::new();
 
     for row in rows {
-        let entry = instances
-            .entry(row.display_name.clone())
-            .or_insert_with(|| IndexerBackupIndexerInstanceItem {
-                upstream_slug: row.upstream_slug.clone(),
-                display_name: row.display_name.clone(),
-                instance_status: row.instance_status.clone(),
-                rss_status: row.rss_status.clone(),
-                automatic_search_status: row.automatic_search_status.clone(),
-                interactive_search_status: row.interactive_search_status.clone(),
-                priority: row.priority,
-                trust_tier_key: row.trust_tier_key.clone(),
-                routing_policy_display_name: row.routing_policy_display_name.clone(),
-                connect_timeout_ms: row.connect_timeout_ms,
-                read_timeout_ms: row.read_timeout_ms,
-                max_parallel_requests: row.max_parallel_requests,
-                rate_limit_display_name: row.rate_limit_display_name.clone(),
-                rss_subscription_enabled: row.rss_subscription_enabled,
-                rss_interval_seconds: row.rss_interval_seconds,
-                media_domain_keys: Vec::new(),
-                tag_keys: Vec::new(),
-                fields: Vec::new(),
-            });
-        entry.routing_policy_display_name = entry
-            .routing_policy_display_name
-            .clone()
-            .or_else(|| row.routing_policy_display_name.clone());
-        entry.rate_limit_display_name = entry
-            .rate_limit_display_name
-            .clone()
-            .or_else(|| row.rate_limit_display_name.clone());
-        entry.rss_subscription_enabled = entry
-            .rss_subscription_enabled
-            .or(row.rss_subscription_enabled);
-        entry.rss_interval_seconds = entry.rss_interval_seconds.or(row.rss_interval_seconds);
-
-        if let Some(media_domain_key) = row.media_domain_key.clone() {
-            media_domain_keys
-                .entry(row.display_name.clone())
-                .or_default()
-                .insert(media_domain_key);
-        }
-        if let Some(tag_key) = row.tag_key.clone() {
-            tag_keys
-                .entry(row.display_name.clone())
-                .or_default()
-                .insert(tag_key);
-        }
-        if let Some(field_name) = row.field_name.clone() {
-            if let (Some(secret_public_id), Some(secret_type)) =
-                (row.secret_public_id, row.secret_type.clone())
-            {
-                secret_refs.insert(
-                    secret_public_id,
-                    IndexerBackupSecretRef {
-                        secret_public_id,
-                        secret_type,
-                    },
-                );
-            }
-            fields
-                .entry(row.display_name.clone())
-                .or_default()
-                .entry(field_name.clone())
-                .or_insert_with(|| IndexerBackupFieldItem {
-                    field_name,
-                    field_type: row.field_type.clone().unwrap_or_default(),
-                    value_plain: row.value_plain.clone(),
-                    value_int: row.value_int,
-                    value_decimal: row.value_decimal.clone(),
-                    value_bool: row.value_bool,
-                    secret_public_id: row.secret_public_id,
-                });
-        }
+        update_backup_instance_entry(&mut instances, row);
+        insert_backup_media_domain(&mut media_domain_keys, row);
+        insert_backup_tag(&mut tag_keys, row);
+        insert_backup_field(&mut fields, secret_refs, row);
     }
 
     for (display_name, media_domain_set) in media_domain_keys {
@@ -4101,6 +4032,106 @@ fn build_backup_indexer_instances(
     }
 
     instances.into_values().collect()
+}
+
+fn update_backup_instance_entry(
+    instances: &mut BTreeMap<String, IndexerBackupIndexerInstanceItem>,
+    row: &BackupIndexerInstanceRow,
+) {
+    let entry = instances
+        .entry(row.display_name.clone())
+        .or_insert_with(|| IndexerBackupIndexerInstanceItem {
+            upstream_slug: row.upstream_slug.clone(),
+            display_name: row.display_name.clone(),
+            instance_status: row.instance_status.clone(),
+            rss_status: row.rss_status.clone(),
+            automatic_search_status: row.automatic_search_status.clone(),
+            interactive_search_status: row.interactive_search_status.clone(),
+            priority: row.priority,
+            trust_tier_key: row.trust_tier_key.clone(),
+            routing_policy_display_name: row.routing_policy_display_name.clone(),
+            connect_timeout_ms: row.connect_timeout_ms,
+            read_timeout_ms: row.read_timeout_ms,
+            max_parallel_requests: row.max_parallel_requests,
+            rate_limit_display_name: row.rate_limit_display_name.clone(),
+            rss_subscription_enabled: row.rss_subscription_enabled,
+            rss_interval_seconds: row.rss_interval_seconds,
+            media_domain_keys: Vec::new(),
+            tag_keys: Vec::new(),
+            fields: Vec::new(),
+        });
+    entry.routing_policy_display_name = entry
+        .routing_policy_display_name
+        .clone()
+        .or_else(|| row.routing_policy_display_name.clone());
+    entry.rate_limit_display_name = entry
+        .rate_limit_display_name
+        .clone()
+        .or_else(|| row.rate_limit_display_name.clone());
+    entry.rss_subscription_enabled = entry
+        .rss_subscription_enabled
+        .or(row.rss_subscription_enabled);
+    entry.rss_interval_seconds = entry.rss_interval_seconds.or(row.rss_interval_seconds);
+}
+
+fn insert_backup_media_domain(
+    media_domain_keys: &mut BTreeMap<String, BTreeSet<String>>,
+    row: &BackupIndexerInstanceRow,
+) {
+    if let Some(media_domain_key) = row.media_domain_key.clone() {
+        media_domain_keys
+            .entry(row.display_name.clone())
+            .or_default()
+            .insert(media_domain_key);
+    }
+}
+
+fn insert_backup_tag(
+    tag_keys: &mut BTreeMap<String, BTreeSet<String>>,
+    row: &BackupIndexerInstanceRow,
+) {
+    if let Some(tag_key) = row.tag_key.clone() {
+        tag_keys
+            .entry(row.display_name.clone())
+            .or_default()
+            .insert(tag_key);
+    }
+}
+
+fn insert_backup_field(
+    fields: &mut BTreeMap<String, BTreeMap<String, IndexerBackupFieldItem>>,
+    secret_refs: &mut BTreeMap<Uuid, IndexerBackupSecretRef>,
+    row: &BackupIndexerInstanceRow,
+) {
+    let Some(field_name) = row.field_name.clone() else {
+        return;
+    };
+
+    if let (Some(secret_public_id), Some(secret_type)) =
+        (row.secret_public_id, row.secret_type.clone())
+    {
+        secret_refs.insert(
+            secret_public_id,
+            IndexerBackupSecretRef {
+                secret_public_id,
+                secret_type,
+            },
+        );
+    }
+
+    fields
+        .entry(row.display_name.clone())
+        .or_default()
+        .entry(field_name.clone())
+        .or_insert_with(|| IndexerBackupFieldItem {
+            field_name,
+            field_type: row.field_type.clone().unwrap_or_default(),
+            value_plain: row.value_plain.clone(),
+            value_int: row.value_int,
+            value_decimal: row.value_decimal.clone(),
+            value_bool: row.value_bool,
+            secret_public_id: row.secret_public_id,
+        });
 }
 
 fn map_indexer_backup_error(

@@ -1,5 +1,6 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { test, expect } from '../../fixtures/api';
+import { buildInsecureTestUrl } from '../../support/urls';
 
 test.describe('Indexer import jobs', () => {
   test('covers import job endpoints', async ({ api, publicApi, session }) => {
@@ -22,7 +23,7 @@ test.describe('Indexer import jobs', () => {
       {
         params: { path: { import_job_public_id: apiImportJobId } },
         body: {
-          prowlarr_url: 'http://prowlarr.local',
+          prowlarr_url: buildInsecureTestUrl('prowlarr.local'),
           prowlarr_api_key_secret_public_id: randomUUID(),
         },
       }
@@ -58,7 +59,7 @@ test.describe('Indexer import jobs', () => {
       {
         params: { path: { import_job_public_id: backupImportJobId } },
         body: {
-          prowlarr_url: 'http://prowlarr.local',
+          prowlarr_url: buildInsecureTestUrl('prowlarr.local'),
           prowlarr_api_key_secret_public_id: randomUUID(),
         },
       }

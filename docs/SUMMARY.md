@@ -292,3 +292,4 @@
     -   [260: PR CodeQL closeout](adr/260-pr-codeql-closeout.md)
     -   [261: PR security and thread closeout](adr/261-pr-security-and-thread-closeout.md)
     -   [262: PR final thread closeout](adr/262-pr-final-thread-closeout.md)
+    -   [263: SonarCloud PR issue cleanup and scope alignment](adr/263-sonarcloud-pr-issue-cleanup.md)

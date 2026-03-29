@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { test, expect } from '../../fixtures/api';
 
 test.describe('Indexer rate limits', () => {

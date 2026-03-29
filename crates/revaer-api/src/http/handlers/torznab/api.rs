@@ -276,6 +276,68 @@ fn normalize_positive_number(value: Option<&str>) -> Option<String> {
     (parsed > 0).then(|| parsed.to_string())
 }
 
+#[derive(Default)]
+struct IdentifierCandidates {
+    imdb: Vec<String>,
+    tmdb: Vec<String>,
+    tvdb: Vec<String>,
+}
+
+impl IdentifierCandidates {
+    fn push_token(&mut self, token: &str) {
+        let lowered = token.to_ascii_lowercase();
+        if let Some(imdb) = normalize_imdb(Some(&lowered)) {
+            self.imdb.push(imdb);
+            return;
+        }
+
+        if let Some(tmdb) = lowered
+            .strip_prefix("tmdb:")
+            .and_then(|suffix| normalize_positive_number(Some(suffix)))
+        {
+            self.tmdb.push(tmdb);
+            return;
+        }
+
+        if let Some(tvdb) = lowered
+            .strip_prefix("tvdb:")
+            .and_then(|suffix| normalize_positive_number(Some(suffix)))
+        {
+            self.tvdb.push(tvdb);
+        }
+    }
+
+    fn is_invalid(&self) -> bool {
+        self.non_empty_count() > 1 || self.has_multiple_candidates()
+    }
+
+    fn into_identifier(self) -> Option<(&'static str, String)> {
+        self.imdb
+            .into_iter()
+            .next()
+            .map(|value| ("imdb", value))
+            .or_else(|| self.tmdb.into_iter().next().map(|value| ("tmdb", value)))
+            .or_else(|| self.tvdb.into_iter().next().map(|value| ("tvdb", value)))
+    }
+
+    fn non_empty_count(&self) -> usize {
+        [
+            !self.imdb.is_empty(),
+            !self.tmdb.is_empty(),
+            !self.tvdb.is_empty(),
+        ]
+        .into_iter()
+        .filter(|present| *present)
+        .count()
+    }
+
+    fn has_multiple_candidates(&self) -> bool {
+        [self.imdb.len(), self.tmdb.len(), self.tvdb.len()]
+            .into_iter()
+            .any(|count| count > 1)
+    }
+}
+
 fn parse_identifier_from_query(
     value: Option<&str>,
 ) -> Result<Option<(&'static str, String)>, &'static str> {
@@ -284,56 +346,16 @@ fn parse_identifier_from_query(
         return Ok(None);
     }
 
-    let mut imdb_candidates = Vec::new();
-    let mut movie_db_candidates = Vec::new();
-    let mut tv_index_candidates = Vec::new();
-
+    let mut candidates = IdentifierCandidates::default();
     for token in raw.split_whitespace() {
-        let lowered = token.to_ascii_lowercase();
-        if let Some(imdb) = normalize_imdb(Some(&lowered)) {
-            imdb_candidates.push(imdb);
-            continue;
-        }
-
-        if let Some(suffix) = lowered.strip_prefix("tmdb:") {
-            if let Some(tmdb) = normalize_positive_number(Some(suffix)) {
-                movie_db_candidates.push(tmdb);
-            }
-            continue;
-        }
-
-        if let Some(suffix) = lowered.strip_prefix("tvdb:")
-            && let Some(tvdb) = normalize_positive_number(Some(suffix))
-        {
-            tv_index_candidates.push(tvdb);
-        }
+        candidates.push_token(token);
     }
 
-    let non_empty_kinds = [
-        !imdb_candidates.is_empty(),
-        !movie_db_candidates.is_empty(),
-        !tv_index_candidates.is_empty(),
-    ]
-    .iter()
-    .filter(|present| **present)
-    .count();
-    if non_empty_kinds > 1 {
-        return Err("invalid_identifier_combo");
-    }
-    if imdb_candidates.len() > 1 || movie_db_candidates.len() > 1 || tv_index_candidates.len() > 1 {
+    if candidates.is_invalid() {
         return Err("invalid_identifier_combo");
     }
 
-    if let Some(value) = imdb_candidates.pop() {
-        return Ok(Some(("imdb", value)));
-    }
-    if let Some(value) = movie_db_candidates.pop() {
-        return Ok(Some(("tmdb", value)));
-    }
-    if let Some(value) = tv_index_candidates.pop() {
-        return Ok(Some(("tvdb", value)));
-    }
-    Ok(None)
+    Ok(candidates.into_identifier())
 }
 
 fn is_invalid_combo(

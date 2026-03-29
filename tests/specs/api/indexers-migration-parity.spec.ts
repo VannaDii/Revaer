@@ -1,5 +1,6 @@
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import { test, expect } from '../../fixtures/api';
+import { buildInsecureTestUrl } from '../../support/urls';
 
 test.describe('Indexer migration parity flows', () => {
   test('covers prowlarr import and torznab parity/download paths', async ({ api, publicApi, session }) => {
@@ -95,7 +96,7 @@ test.describe('Indexer migration parity flows', () => {
       {
         params: { path: { import_job_public_id: apiImportJobId } },
         body: {
-          prowlarr_url: 'http://prowlarr.local',
+          prowlarr_url: buildInsecureTestUrl('prowlarr.local'),
           prowlarr_api_key_secret_public_id: randomUUID(),
         },
       }
