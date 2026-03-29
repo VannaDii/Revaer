@@ -71,7 +71,7 @@ pub(crate) fn load_locale() -> LocaleCode {
     DEFAULT_LOCALE
 }
 
-pub(crate) fn load_api_key(_allow_anon: bool) -> Option<String> {
+pub(crate) fn load_stored_auth_token(_allow_anon: bool) -> Option<String> {
     let value = LocalStorage::get::<String>(API_KEY_KEY).ok()?;
     if value.trim().is_empty() {
         clear_api_key_storage();
@@ -117,7 +117,10 @@ pub(crate) fn load_auth_state(mode: AuthMode, allow_anon: bool) -> Option<AuthSt
         return Some(AuthState::Anonymous);
     }
     match mode {
-        AuthMode::ApiKey => load_api_key(allow_anon).map(AuthState::ApiKey),
+        AuthMode::ApiKey => {
+            let stored_api_key = load_stored_auth_token(allow_anon)?;
+            Some(AuthState::ApiKey(stored_api_key))
+        }
         AuthMode::Local => load_local_auth().map(AuthState::Local),
     }
 }
@@ -278,8 +281,8 @@ pub(crate) fn api_base_url() -> String {
 }
 
 fn set_storage<T: Serialize>(key: &'static str, value: T) {
-    if let Err(err) = LocalStorage::set(key, value) {
-        log_storage_error("set", key, &err.to_string());
+    if LocalStorage::set(key, value).is_err() {
+        log_storage_error();
     }
 }
 
@@ -287,6 +290,6 @@ fn delete_storage(key: &'static str) {
     LocalStorage::delete(key);
 }
 
-fn log_storage_error(operation: &'static str, key: &'static str, detail: &str) {
-    console::error!("storage operation failed", operation, key, detail);
+fn log_storage_error() {
+    console::error!("storage operation failed");
 }

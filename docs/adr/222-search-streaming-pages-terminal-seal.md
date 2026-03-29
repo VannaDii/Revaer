@@ -1,0 +1,35 @@
+# Search streaming pages terminal sealing and append-only ordering
+
+- Status: Accepted
+- Date: 2026-02-26
+- Context:
+  - Motivation: ERD acceptance item 586 requires streaming search behavior with early page emission, append-only ordering, and deterministic page sealing at terminal request state.
+  - Constraints:
+    - Runtime DB behavior must remain stored-procedure driven.
+    - Search-page ordering must not reorder based on later score updates.
+  - Dependency rationale:
+    - No new dependencies were added.
+    - Alternative considered: rely on API-layer finalization when runs complete. Rejected because sealing and terminal status must stay deterministic inside database state transitions.
+- Decision:
+  - Added migration `0095_search_request_terminal_seal.sql`:
+    - Creates trigger function `search_request_finalize_on_runs_terminal_v1`.
+    - On indexer run terminal updates, finalizes `search_request` when no queued/running runs remain.
+    - Seals any unsealed `search_page` rows at request finalization time.
+  - Extended `search_result_ingest` integration coverage in `crates/revaer-data/src/indexers/search_results.rs`:
+    - Added deterministic append-order streaming test across two pages with a late high-seeder result.
+    - Added request-finished + page-sealed assertions after run completion.
+- Consequences:
+  - Positive outcomes:
+    - Search requests now reach terminal status and sealed pages deterministically when runs complete.
+    - Streaming append-only behavior is explicitly regression-tested.
+  - Risks or trade-offs:
+    - Trigger introduces additional write work during run terminal updates; scope is bounded to the affected request.
+- Follow-up:
+  - Test coverage summary:
+    - Verified with `just ci` and `just ui-e2e`.
+  - Observability updates:
+    - No new telemetry fields were introduced.
+  - Risk and rollback:
+    - Rollback is isolated to migration `0095` and associated test/checklist/docs changes.
+  - Review checkpoints:
+    - Continue with next unchecked ERD acceptance item after 586.

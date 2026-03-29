@@ -1,0 +1,31 @@
+# Retention and derived refresh strategy coverage
+
+- Status: Accepted
+- Date: 2026-02-21
+- Context:
+  - `ERD_INDEXERS.md` requires retention windows and derived refresh strategy to be enforced via scheduled jobs.
+  - Coverage existed across job tests but the checklist item remained open.
+- Decision:
+  - Close the checklist item after mapping and validating existing executable coverage:
+    - retention purge windows and table cleanup:
+      - `job_run_retention_purge_applies_table_windows`
+    - derived cadence and schedule correctness:
+      - `job_schedule_cadence_matches_erd_refresh_timing`
+    - rollup window behavior and boundary semantics:
+      - `job_run_reputation_rollup_skips_insufficient_samples`
+      - `job_run_reputation_rollup_writes_rates_for_eligible_samples`
+      - `job_run_reputation_rollup_respects_window_boundaries`
+    - derived refresh jobs:
+      - `job_run_base_score_refresh_recent_uses_durable_source_activity`
+      - `job_run_canonical_backfill_best_source_recomputes_recent_durable_sources`
+- Consequences:
+  - Positive outcomes:
+    - checklist status now matches implemented, tested ERD behavior.
+  - Risks or trade-offs:
+    - cadence/window rule changes require test expectation updates in lockstep.
+- Follow-up:
+  - Implementation tasks:
+    - Continue with the next unchecked behavioral-rule item.
+  - Review checkpoints:
+    - `just ci`
+    - `just ui-e2e`

@@ -28,23 +28,26 @@ export class AppShell {
   }
 
   private async handleOverlays(): Promise<void> {
-    const setupOverlay = this.page.locator('.setup-overlay');
-    if (await setupOverlay.isVisible()) {
+    const setupOverlay = await this.page.$('.setup-overlay');
+    if (setupOverlay && (await setupOverlay.isVisible())) {
       throw new Error('Setup required; the UI must be activated before running E2E tests.');
     }
 
-    const authOverlay = this.page.locator('.auth-overlay');
-    if (await authOverlay.isVisible()) {
-      const dismiss = authOverlay.locator('button.btn-circle[aria-label="Dismiss"]');
-      if (await dismiss.isVisible()) {
-        await dismiss.click();
-        await expect(authOverlay).toBeHidden();
+    const authOverlay = await this.page.$('.auth-overlay');
+    if (authOverlay && (await authOverlay.isVisible())) {
+      const useAnonymous = await authOverlay.$('button:has-text("Use anonymous")');
+      if (useAnonymous && (await useAnonymous.isVisible())) {
+        await useAnonymous.click();
+        await expect(this.page.locator('.auth-overlay')).toBeHidden();
         return;
       }
-      const fallback = authOverlay.locator('button.btn-ghost.btn-sm', { hasText: 'Dismiss' });
-      if (await fallback.isVisible()) {
-        await fallback.click();
-        await expect(authOverlay).toBeHidden();
+
+      const dismiss =
+        (await authOverlay.$('button.btn-circle[aria-label="Dismiss"]')) ??
+        (await authOverlay.$('button.btn-ghost.btn-sm:has-text("Dismiss")'));
+      if (dismiss && (await dismiss.isVisible())) {
+        await dismiss.click();
+        await expect(this.page.locator('.auth-overlay')).toBeHidden();
       }
     }
   }

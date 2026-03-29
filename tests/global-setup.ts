@@ -89,7 +89,10 @@ export default async function globalSetup(): Promise<void> {
       cwd: root,
       env: { ...process.env, DATABASE_URL: activeDbUrl },
     });
-    writeState({ apiPid: apiProcess.pid, dbUrl: activeDbUrl });
+    writeState({
+      apiPid: apiProcess.pid,
+      dbUrl: activeDbUrl,
+    });
 
     assertApiDb(apiProcess.pid, activeDbUrl);
     const httpWait = httpWaitConfig();
@@ -122,7 +125,11 @@ export default async function globalSetup(): Promise<void> {
 
     await waitForHttp(baseUrl, httpWait, uiProcess, 'UI');
 
-    writeState({ apiPid: apiProcess.pid, uiPid: uiProcess.pid, dbUrl: activeDbUrl });
+    writeState({
+      apiPid: apiProcess.pid,
+      dbUrl: activeDbUrl,
+      uiPid: uiProcess.pid,
+    });
   } catch (error) {
     await cleanupE2EState();
     throw error;

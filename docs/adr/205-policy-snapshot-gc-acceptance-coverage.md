@@ -1,0 +1,28 @@
+# Policy snapshot GC acceptance coverage
+
+- Status: Accepted
+- Date: 2026-02-21
+- Context:
+  - `ERD_INDEXERS.md` requires policy snapshot reuse via hash, transactional `ref_count` tracking, and garbage collection for stale snapshots.
+  - Existing job-level tests already verify GC behavior and refcount repair ordering, while the latest search-request tests verify create-time reuse and retention-time decrements.
+  - The Phase 9 acceptance checklist item remained open despite complete executable coverage.
+- Decision:
+  - Mark the acceptance item `Policy snapshot reuse and GC rules match ERD` complete in `ERD_INDEXERS_CHECKLIST.md`.
+  - Keep GC/refcount verification at the data boundary using existing tests:
+    - `indexers::jobs::tests::job_run_policy_snapshot_gc_repairs_ref_count_before_delete`
+    - `indexers::search_requests::tests::search_request_create_reuses_policy_snapshot_by_hash_and_increments_ref_count`
+    - `indexers::search_requests::tests::retention_purge_decrements_policy_snapshot_ref_count`
+  - Alternatives considered:
+    - add duplicate API-layer tests for the same behavior: rejected because stored-procedure tests already exercise authoritative behavior directly.
+- Consequences:
+  - Positive outcomes:
+    - acceptance checklist now matches implemented and tested ERD behavior;
+    - policy snapshot lifecycle remains covered at create, purge, and GC phases.
+  - Risks or trade-offs:
+    - if snapshot lifecycle semantics change, tests and checklist mapping must be updated together.
+- Follow-up:
+  - Implementation tasks:
+    - Continue with the next unchecked acceptance and hard-blocker items.
+  - Review checkpoints:
+    - `just ci`
+    - `just ui-e2e`

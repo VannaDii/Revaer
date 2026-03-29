@@ -1,0 +1,32 @@
+# Torznab Search Query Mapping and Pagination
+
+- Status: Accepted
+- Date: 2026-02-25
+- Context:
+  - Torznab `/api` had auth and caps coverage, but search requests returned only empty feeds and did not map query semantics from `ERD_INDEXERS.md`.
+  - ERD acceptance requires handler-level validation/short-circuiting for invalid Torznab combinations, request mapping to search requests, and append-order pagination behavior.
+  - Existing search orchestration already exposed `search_request_create`, `search_page_list`, and `search_page_fetch` APIs, so the missing layer was Torznab query translation and XML rendering.
+- Decision:
+  - Implemented Torznab request parsing and mapping in `crates/revaer-api/src/http/handlers/torznab/api.rs` for:
+    - `t=search|tvsearch|movie|moviesearch` mode handling.
+    - `q`, `imdbid`, `tmdbid`, `tvdbid`, `season`, `ep`, `cat`, `offset`, and `limit` parsing.
+    - invalid-combination short-circuiting to empty XML with invalid-request metrics.
+    - request creation via `search_request_create` and append-order flattening via `search_page_list` + `search_page_fetch` with offset/limit slicing.
+  - Expanded XML rendering in `crates/revaer-api/src/http/handlers/torznab/xml.rs` to produce itemized RSS output with Torznab attrs and response metadata (`offset`, `total`).
+  - Added API E2E coverage in `tests/specs/api/indexers-torznab-instances.spec.ts` for generic search paging offset behavior, invalid TV combo handling, and invalid category short-circuit responses.
+  - Added focused unit tests for Torznab parse and XML helpers.
+  - Dependency rationale: no new dependencies were added; implementation reused existing crates (`chrono`, `uuid`) already in the dependency graph.
+  - Alternatives considered:
+    - Add a dedicated Torznab orchestration service with its own paging/storage tables now: rejected for this step to keep scope aligned with existing search-request/page model.
+    - Keep Torznab handler as caps/auth only and defer search mapping entirely: rejected because it blocks ERD parity acceptance items.
+- Consequences:
+  - Positive outcomes:
+    - Torznab `/api` now maps request semantics into existing search orchestration and returns structured RSS responses with deterministic offset slicing.
+    - Invalid Torznab query combinations are handled with empty responses instead of API errors.
+    - Test coverage now exercises Torznab query-path behavior in both unit and API E2E suites.
+  - Risks or trade-offs:
+    - Category output currently follows available page item category data; deeper tracker-category remapping parity remains coupled to ingestion metadata completeness.
+    - Pagination works on currently materialized pages; runtime behavior still depends on upstream run scheduling/ingestion progress.
+- Follow-up:
+  - Verify category-to-domain fallback behavior (especially explicit `8000` handling) against broader fixture matrices.
+  - Extend E2E coverage once richer seeded search-page fixtures are available for multi-page and mixed-category result sets.

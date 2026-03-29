@@ -1,0 +1,42 @@
+# Torznab Parity Integration Tests for Endpoint Format and Auth Semantics
+
+- Status: Accepted
+- Date: 2026-02-25
+- Context:
+  - Motivation:
+    - ERD checklist gaps remained for Torznab endpoint format/auth/invalid-request behavior and Torznab parity integration coverage.
+    - Existing API E2E tests only exercised not-found paths for Torznab endpoints with random IDs.
+  - Constraints:
+    - Keep tests deterministic and use existing API setup fixtures.
+    - Avoid introducing new dependencies or non-`just` workflows.
+    - Ensure API keys are not logged in traces or test output.
+- Decision:
+  - Extended `tests/specs/api/indexers-torznab-instances.spec.ts` to create a real search profile and Torznab instance, then validate:
+    - Missing `apikey` on `/torznab/{id}/api` returns 401.
+    - Invalid `apikey` on `/torznab/{id}/api` returns 401.
+    - Valid `apikey` + `t=caps` returns 200 with XML `<caps>` payload.
+    - Unsupported query type with valid key returns deterministic empty RSS response.
+    - Download endpoint enforces missing/invalid key with 401 and missing source with 404 for a valid instance.
+  - Updated checklist entries to mark:
+    - Integration tests for REST/Torznab parity.
+    - Torznab endpoint format/auth/invalid request handling criterion.
+  - Alternatives considered:
+    - Unit-only handler tests were rejected because parity expectations need full HTTP behavior and fixture-auth integration.
+    - New dedicated Torznab spec file was rejected to avoid duplication while current spec already owns endpoint lifecycle coverage.
+- Consequences:
+  - Positive outcomes:
+    - Torznab public endpoints now have end-to-end coverage against ERD-facing semantics.
+    - Reduces regression risk for auth and XML response shape behavior.
+  - Risks and trade-offs:
+    - Test runtime increases slightly due to additional create/check steps.
+    - Full Torznab query semantics parity (tvsearch/movie/search behavior depth) remains a separate follow-up.
+- Follow-up:
+  - Test coverage summary:
+    - API E2E Torznab tests now cover valid + invalid key paths, caps XML response, unsupported query fallback, and download auth/status behavior.
+    - Full gate set rerun through `just ci` and `just ui-e2e`.
+  - Observability updates:
+    - No direct telemetry schema changes; behavior uses existing counters/spans.
+  - Risk and rollback plan:
+    - Rollback by reverting spec updates and checklist updates if fixture assumptions change.
+  - Dependency rationale:
+    - No new dependencies added.

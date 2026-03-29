@@ -1,0 +1,26 @@
+# PR Security And Thread Closeout
+
+- Status: Accepted
+- Date: 2026-03-28
+- Context:
+  - PR #6 still had open CodeQL alerts and several live Copilot review threads after the earlier review-closeout commits.
+  - The remaining JavaScript findings were caused by Playwright UI tests seeding API-key state into the browser, and the remaining Rust finding was a false-positive-prone CLI redaction path.
+  - The repo still requires accurate task records, updated catalogues, and green `just ci` plus `just ui-e2e` validation before hand-off.
+- Decision:
+  - Remove the Playwright UI API-key handoff entirely and run browser projects against the existing no-auth local API mode, relying on anonymous-local auth handling in the app shell.
+  - Tighten the remaining low-risk review items in the same pass: fix Torznab XML UTF-8 capacity accounting, write numeric XML fields directly into the response buffer, align bootstrap docs with byte-length validation, return allocation-pressure rejections as service-unavailable, and add a path-based tag delete route while preserving the existing body-based compatibility path.
+  - Alternatives considered:
+    - Keep the session broker and try to appease CodeQL with more indirection: rejected because the browser still ended up storing API-key material.
+    - Dismiss the remaining review and security alerts: rejected because the user explicitly asked for real fixes and green local/CI checks.
+- Consequences:
+  - Positive outcomes:
+    - Removes the remaining test-only secret persistence path from the PR head.
+    - Closes several live review comments without broad architecture churn.
+    - Preserves backwards compatibility for existing tag-delete clients while providing a path-based route for better client/proxy interoperability.
+  - Risks or trade-offs:
+    - UI E2E now depends on anonymous-local behavior in the app shell, so regressions in that flow will surface earlier in browser tests.
+    - The tag delete surface is temporarily dual-path until downstream clients fully converge on the path-based route.
+- Follow-up:
+  - Re-run `just ci`.
+  - Re-run `just ui-e2e`.
+  - Re-check PR #6 review threads and CodeQL alerts after the push, then reply directly on the newly addressed threads.

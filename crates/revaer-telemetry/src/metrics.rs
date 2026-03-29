@@ -9,7 +9,10 @@ use std::time::Duration;
 
 use crate::error::{Result, TelemetryError};
 use prometheus::core::Collector;
-use prometheus::{Encoder, IntCounter, IntCounterVec, IntGauge, Opts, Registry, TextEncoder};
+use prometheus::{
+    Encoder, HistogramOpts, HistogramVec, IntCounter, IntCounterVec, IntGauge, Opts, Registry,
+    TextEncoder,
+};
 use serde::Serialize;
 
 /// Prometheus-backed metrics registry shared across services.
@@ -33,6 +36,11 @@ struct MetricsInner {
     config_watch_slow_total: IntCounter,
     guardrail_violations_total: IntCounter,
     rate_limit_throttled_total: IntCounter,
+    torznab_invalid_requests_total: IntCounterVec,
+    indexer_search_requests_total: IntCounterVec,
+    indexer_job_outcomes_total: IntCounterVec,
+    indexer_operations_total: IntCounterVec,
+    indexer_operation_latency_ms: HistogramVec,
 }
 
 struct MetricsCollectors {
@@ -49,6 +57,11 @@ struct MetricsCollectors {
     config_watch_slow_total: IntCounter,
     guardrail_violations_total: IntCounter,
     rate_limit_throttled_total: IntCounter,
+    torznab_invalid_requests_total: IntCounterVec,
+    indexer_search_requests_total: IntCounterVec,
+    indexer_job_outcomes_total: IntCounterVec,
+    indexer_operations_total: IntCounterVec,
+    indexer_operation_latency_ms: HistogramVec,
 }
 
 /// Snapshot of selected gauges and counters for health reporting.
@@ -164,6 +177,51 @@ impl Metrics {
         self.inner.rate_limit_throttled_total.inc();
     }
 
+    /// Increment Torznab invalid-request counter with a stable reason label.
+    pub fn inc_torznab_invalid_request(&self, reason: &str) {
+        self.inner
+            .torznab_invalid_requests_total
+            .with_label_values(&[reason])
+            .inc();
+    }
+
+    /// Increment indexer search throughput counter.
+    pub fn inc_indexer_search_request(&self, operation: &str, outcome: &str) {
+        self.inner
+            .indexer_search_requests_total
+            .with_label_values(&[operation, outcome])
+            .inc();
+    }
+
+    /// Increment indexer job outcome counter.
+    pub fn inc_indexer_job_outcome(&self, operation: &str, outcome: &str) {
+        self.inner
+            .indexer_job_outcomes_total
+            .with_label_values(&[operation, outcome])
+            .inc();
+    }
+
+    /// Increment indexer service operation throughput counter.
+    pub fn inc_indexer_operation(&self, operation: &str, outcome: &str) {
+        self.inner
+            .indexer_operations_total
+            .with_label_values(&[operation, outcome])
+            .inc();
+    }
+
+    /// Observe indexer service operation latency in milliseconds.
+    pub fn observe_indexer_operation_latency(
+        &self,
+        operation: &str,
+        outcome: &str,
+        duration: Duration,
+    ) {
+        self.inner
+            .indexer_operation_latency_ms
+            .with_label_values(&[operation, outcome])
+            .observe(duration.as_secs_f64() * 1000.0);
+    }
+
     /// Render the metrics registry using the Prometheus text exposition format.
     ///
     /// # Errors
@@ -219,6 +277,11 @@ impl MetricsInner {
             config_watch_slow_total,
             guardrail_violations_total,
             rate_limit_throttled_total,
+            torznab_invalid_requests_total,
+            indexer_search_requests_total,
+            indexer_job_outcomes_total,
+            indexer_operations_total,
+            indexer_operation_latency_ms,
         } = collectors;
 
         Ok(Self {
@@ -236,6 +299,11 @@ impl MetricsInner {
             config_watch_slow_total,
             guardrail_violations_total,
             rate_limit_throttled_total,
+            torznab_invalid_requests_total,
+            indexer_search_requests_total,
+            indexer_job_outcomes_total,
+            indexer_operations_total,
+            indexer_operation_latency_ms,
         })
     }
 }
@@ -285,6 +353,31 @@ impl MetricsCollectors {
             rate_limit_throttled_total: counter(
                 "api_rate_limit_throttled_total",
                 "Requests rejected due to API rate limiting",
+            )?,
+            torznab_invalid_requests_total: counter_vec(
+                "indexer_torznab_invalid_requests_total",
+                "Invalid Torznab requests by reason",
+                &["reason"],
+            )?,
+            indexer_search_requests_total: counter_vec(
+                "indexer_search_requests_total",
+                "Indexer search request throughput by operation and outcome",
+                &["operation", "outcome"],
+            )?,
+            indexer_job_outcomes_total: counter_vec(
+                "indexer_job_outcomes_total",
+                "Indexer job outcomes by operation and outcome",
+                &["operation", "outcome"],
+            )?,
+            indexer_operations_total: counter_vec(
+                "indexer_operations_total",
+                "Indexer service operations by operation and outcome",
+                &["operation", "outcome"],
+            )?,
+            indexer_operation_latency_ms: histogram_vec(
+                "indexer_operation_latency_ms",
+                "Indexer service operation latency in milliseconds by operation and outcome",
+                &["operation", "outcome"],
             )?,
         })
     }
@@ -339,6 +432,31 @@ impl MetricsCollectors {
             "api_rate_limit_throttled_total",
             self.rate_limit_throttled_total.clone(),
         )?;
+        register_collector(
+            registry,
+            "indexer_torznab_invalid_requests_total",
+            self.torznab_invalid_requests_total.clone(),
+        )?;
+        register_collector(
+            registry,
+            "indexer_search_requests_total",
+            self.indexer_search_requests_total.clone(),
+        )?;
+        register_collector(
+            registry,
+            "indexer_job_outcomes_total",
+            self.indexer_job_outcomes_total.clone(),
+        )?;
+        register_collector(
+            registry,
+            "indexer_operations_total",
+            self.indexer_operations_total.clone(),
+        )?;
+        register_collector(
+            registry,
+            "indexer_operation_latency_ms",
+            self.indexer_operation_latency_ms.clone(),
+        )?;
         Ok(())
     }
 }
@@ -350,6 +468,11 @@ fn counter_vec(name: &'static str, help: &'static str, labels: &[&str]) -> Resul
 
 fn counter(name: &'static str, help: &'static str) -> Result<IntCounter> {
     IntCounter::with_opts(Opts::new(name, help))
+        .map_err(|source| TelemetryError::MetricsCollector { name, source })
+}
+
+fn histogram_vec(name: &'static str, help: &'static str, labels: &[&str]) -> Result<HistogramVec> {
+    HistogramVec::new(HistogramOpts::new(name, help), labels)
         .map_err(|source| TelemetryError::MetricsCollector { name, source })
 }
 
@@ -394,6 +517,15 @@ mod tests {
         metrics.inc_config_watch_slow();
         metrics.inc_guardrail_violation();
         metrics.inc_rate_limit_throttled();
+        metrics.inc_torznab_invalid_request("missing_apikey");
+        metrics.inc_indexer_search_request("create", "success");
+        metrics.inc_indexer_job_outcome("import_create", "success");
+        metrics.inc_indexer_operation("instance_create", "success");
+        metrics.observe_indexer_operation_latency(
+            "instance_create",
+            "success",
+            Duration::from_millis(75),
+        );
 
         let snapshot = metrics.snapshot();
         assert_eq!(snapshot.active_torrents, 5);
@@ -409,6 +541,11 @@ mod tests {
         assert!(rendered.contains("http_requests_total"));
         assert!(rendered.contains("fsops_steps_total"));
         assert!(rendered.contains("config_guardrail_violations_total"));
+        assert!(rendered.contains("indexer_torznab_invalid_requests_total"));
+        assert!(rendered.contains("indexer_search_requests_total"));
+        assert!(rendered.contains("indexer_job_outcomes_total"));
+        assert!(rendered.contains("indexer_operations_total"));
+        assert!(rendered.contains("indexer_operation_latency_ms"));
         Ok(())
     }
 }

@@ -1,0 +1,26 @@
+# PR CodeQL Closeout
+
+- Status: Accepted
+- Date: 2026-03-28
+- Context:
+  - PR #6 still had a failing `CodeQL` check after the earlier review-response pass, despite local Rust and E2E gates being green.
+  - The remaining alerts mixed live runtime/test code with a large set of unused vendored Nexus reference HTML pages that were no longer part of the runtime asset pipeline.
+  - The repo still requires accurate docs and a clean local `just ci` plus `just ui-e2e` pass before hand-off.
+- Decision:
+  - Remove the Playwright API-key handoff for browser projects entirely and run the UI suite against the existing no-auth local E2E project, relying on the app shell's anonymous-local flow instead of persisting or brokering API keys.
+  - Harden the remaining live findings by avoiding default-from-user setup payload allocation patterns, bounding indexer tag normalization allocations, and removing sensitive/semi-sensitive CLI/UI logging surfaces.
+  - Remove the unused executable vendor HTML reference files under `crates/revaer-ui/ui_vendor/nexus-html@3.1.0/{src,html}` while keeping the runtime asset inputs (`html/assets`, `html/images`, `public/js`) used by `asset_sync`.
+  - Alternatives considered:
+    - Dismissing alerts or relying on PR replies alone: rejected because the PR check must go green from real code changes.
+    - Adding more vendored third-party JS/CSS with SRI or rewriting the vendor reference pages: rejected because those files are not part of the shipped runtime path.
+- Consequences:
+  - Positive outcomes:
+    - Removes the remaining PR-head CodeQL blockers without changing the shipped UI behavior.
+    - Shrinks the repository’s unused executable HTML surface and avoids persisting or brokering API keys for Playwright UI setup.
+    - Keeps the runtime asset sync path intact for `static/nexus`.
+  - Risks or trade-offs:
+    - The full Nexus reference markup is no longer kept in-tree, so future visual diffing must rely on the preserved asset kit and the implemented Revaer UI rather than those vendor sample pages.
+- Follow-up:
+  - Re-run local `just ci` and `just ui-e2e`.
+  - Re-check PR #6 checks and open code-scanning alerts after the push.
+  - Reply directly on any newly addressed PR threads if GitHub leaves them unresolved.

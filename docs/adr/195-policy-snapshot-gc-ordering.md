@@ -1,0 +1,25 @@
+# 194 Policy snapshot GC ordering
+
+- Status: Accepted
+- Date: 2026-02-15
+- Context:
+  - Motivation: enforce ERD ordering that policy snapshot refcount repair runs before policy snapshot GC.
+  - Constraints: runtime DB operations must remain stored-procedure based with stable wrappers and constant error messages.
+- Decision:
+  - Update `job_run_policy_snapshot_gc_v2` to invoke `job_run_policy_snapshot_refcount_repair_v1` before `job_run_policy_snapshot_gc_v1`.
+  - Keep `job_schedule` completion behavior unchanged so `policy_snapshot_gc` still advances cadence and clears locks in one place.
+  - Alternatives considered: scheduler-only ordering in application code (rejected: ordering belongs in DB job semantics) and changing `v1` procedures directly (rejected: keep compatibility and add behavior through versioned wrappers).
+- Consequences:
+  - Positive outcomes: stale `policy_snapshot.ref_count` values are repaired before GC evaluation, preventing orphaned old snapshots from being retained incorrectly.
+  - Risks or trade-offs: `policy_snapshot_gc` runtime now includes repair cost; daily cadence keeps this acceptable.
+- Follow-up:
+  - Maintain this ordering if future `policy_snapshot` maintenance jobs are introduced.
+  - Review checkpoint: ensure callers continue to execute `job_run_policy_snapshot_gc`/`job_run_policy_snapshot_gc_v2`, not direct table mutations.
+- Test coverage summary:
+  - Added integration test proving `job_run_policy_snapshot_gc` repairs stale ref_count values before deleting old snapshots.
+- Observability updates:
+  - None (stored-procedure ordering change only).
+- Risk & rollback plan:
+  - Roll back by reverting migration `0086_indexer_policy_snapshot_gc_ordering.sql`.
+- Dependency rationale:
+  - No new dependencies. Alternatives considered: not applicable.

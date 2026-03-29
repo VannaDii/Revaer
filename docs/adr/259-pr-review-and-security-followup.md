@@ -1,0 +1,22 @@
+# PR Review And Security Follow-Up
+
+- Status: Accepted
+- Date: 2026-03-22
+- Context:
+  - Pull request 6 still had unresolved inline review threads after the earlier closeout pass, including feedback on tag handler validation and test-maintenance duplication.
+  - The branch also still exposed non-vendored security findings in lockfiles used by release tooling and browser tests.
+- Decision:
+  - Reuse the shared indexer handler `RecordingIndexers` test support in `tags.rs` and add explicit handler-level validation requiring a tag identifier for update and delete requests.
+  - Preserve non-Unicode environment-variable failures as invalid configuration by testing the env-read helper through an injected getter instead of mutating process env in Rust 2024 test code.
+  - Stop echoing freshly issued setup API keys to CLI stdout so the setup flow no longer prints secrets in cleartext.
+  - Refresh `release/package-lock.json` and `tests/package-lock.json` to pick up available transitive security fixes without vendoring or widening the application dependency surface.
+  - Reply inline to each remaining unresolved PR comment with the concrete action taken or the rationale for keeping the current implementation where the behavior is intentionally unchanged.
+- Consequences:
+  - Tag handler tests now track the common test harness instead of a large local facade stub, reducing future review churn as `IndexerFacade` evolves.
+  - Update and delete tag requests now fail fast with a stable 400 response when both `tag_public_id` and `tag_key` are absent after normalization.
+  - Secret-session bootstrap now rejects non-Unicode env input without requiring unsafe test-only environment mutation.
+  - The CLI setup flow still provisions bootstrap credentials, but it no longer writes the returned API key plaintext to stdout.
+  - The tests lockfile clears its open npm audit issue, while the release lockfile is reduced to one remaining bundled npm advisory outside the direct Revaer dependency graph.
+- Follow-up:
+  - Revisit the remaining release-tooling bundled npm advisory if an upstream semantic-release/npm dependency chain publishes a clean transitive update.
+  - Close remaining PR threads after maintainers confirm the inline responses and refreshed validation results.

@@ -146,8 +146,9 @@ pub(crate) async fn handle_setup_complete(
             })?;
         let instance_name = &body.snapshot.app_profile.instance_name;
         println!("Setup complete for instance '{instance_name}'.");
-        if let Some(api_key) = body.api_key {
-            println!("API key created (store securely): {api_key}");
+        if body.api_key.is_some() {
+            println!("API key issued.");
+            println!("The plaintext key is not echoed to stdout.");
         } else {
             println!("No API key issued (auth disabled).");
         }

@@ -130,6 +130,7 @@ pub(crate) async fn metrics(State(state): State<Arc<ApiState>>) -> Result<Respon
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::indexers::test_indexers;
     use crate::config::ConfigFacade;
     use anyhow::{Result, anyhow};
     use async_trait::async_trait;
@@ -345,6 +346,7 @@ mod tests {
         let telemetry = Metrics::new()?;
         let state = Arc::new(ApiState::new(
             config,
+            test_indexers(),
             telemetry,
             Arc::new(serde_json::json!({})),
             EventBus::new(),
@@ -367,6 +369,7 @@ mod tests {
         let telemetry = Metrics::new()?;
         let state = Arc::new(ApiState::new(
             config,
+            test_indexers(),
             telemetry,
             Arc::new(serde_json::json!({})),
             EventBus::new(),
@@ -394,6 +397,7 @@ mod tests {
         let telemetry = Metrics::new()?;
         let state = Arc::new(ApiState::new(
             config,
+            test_indexers(),
             telemetry,
             Arc::new(serde_json::json!({})),
             EventBus::new(),

@@ -112,6 +112,7 @@ const fn kind_rank(kind: &FsEntryKind) -> u8 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::indexers::test_indexers;
     use crate::config::ConfigFacade;
     use anyhow::{Result, anyhow};
     use async_trait::async_trait;
@@ -225,6 +226,7 @@ mod tests {
     fn test_state() -> Result<Arc<ApiState>> {
         Ok(Arc::new(ApiState::new(
             Arc::new(StubConfig),
+            test_indexers(),
             Metrics::new()?,
             Arc::new(json!({})),
             EventBus::with_capacity(4),

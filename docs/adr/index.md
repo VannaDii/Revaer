@@ -112,3 +112,165 @@
 -   [098](098-workflow-image-reuse.md) – Reusable image build workflow
 -   [099](099-indexer-erd-single-tenant.md) – Indexer ERD single-tenant and audit fields
 -   [100](100-sonar-scan-workflow-lcov.md) – SonarQube workflow with root coverage LCOV
+-   [101](101-indexer-erd-checklist.md) – Indexer ERD implementation checklist
+-   [102](102-indexer-core-schema.md) – Indexer core schema foundations
+-   [103](103-indexer-definition-schema.md) – Indexer definition schema
+-   [104](104-indexer-instance-schema.md) – Indexer instance schema and RSS
+-   [105](105-indexer-secret-schema.md) – Indexer secret schema
+-   [106](106-indexer-search-profile-torznab-schema.md) – Indexer search profiles and Torznab schema
+-   [107](107-indexer-import-schema.md) – Indexer import schema
+-   [108](108-indexer-rate-limit-cf-schema.md) – Indexer rate limit and Cloudflare schema
+-   [109](109-indexer-policy-schema.md) – Indexer policy schema
+-   [110](110-indexer-torznab-category-schema.md) – Indexer Torznab category schema
+-   [111](111-indexer-connectivity-audit-schema.md) – Indexer connectivity and audit schema
+-   [112](112-indexer-canonicalization-schema.md) – Indexer canonicalization schema
+-   [113](113-indexer-search-request-schema.md) – Indexer search request schema
+-   [114](114-indexer-scoring-schema.md) – Indexer scoring schema
+-   [115](115-indexer-conflict-decision-schema.md) – Indexer conflict and decision schema
+-   [116](116-indexer-user-action-schema.md) – Indexer user action and acquisition schema
+-   [117](117-indexer-telemetry-reputation-schema.md) – Indexer telemetry and reputation schema
+-   [118](118-indexer-job-schedule-schema.md) – Indexer job schedule schema
+-   [119](119-indexer-fk-on-delete-rules.md) – Indexer FK on-delete rules
+-   [120](120-indexer-seed-data.md) – Indexer seed data and defaults
+-   [121](121-indexer-query-indexes.md) – Indexer query indexes
+-   [122](122-indexer-deployment-init-proc.md) – Indexer deployment initialization procedure
+-   [123](123-indexer-app-user-procs.md) – Indexer app_user stored procedures
+-   [124](124-indexer-tag-procs.md) – Indexer tag stored procedures
+-   [125](125-indexer-routing-policy-procs.md) – Indexer routing policy stored procedures
+-   [126](126-indexer-cf-reset-proc.md) – Indexer Cloudflare reset procedure
+-   [127](127-indexer-rate-limit-procs.md) – Indexer rate limit stored procedures
+-   [128](128-indexer-instance-procs.md) – Indexer instance stored procedures
+-   [129](129-indexer-category-mapping-procs.md) – Indexer category mapping procedures
+-   [130](130-indexer-policy-set-procs.md) – Indexer policy set procedures
+-   [131](131-indexer-search-profile-procs.md) – Indexer search profile procedures
+-   [132](132-indexer-policy-rule-create-proc.md) – Indexer policy rule create procedure
+-   [133](133-indexer-outbound-request-log-proc.md) – Indexer outbound request log procedure
+-   [134](134-indexer-torznab-instance-state-procs.md) – Indexer Torznab instance state procedures
+-   [135](135-indexer-conflict-resolution-procs.md) – Indexer conflict resolution procedures
+-   [136](136-indexer-job-runner-procs.md) – Indexer job runner procedures
+-   [137](137-indexer-search-request-cancel-proc.md) – Indexer search request cancel procedure
+-   [138](138-indexer-search-run-procs.md) – Indexer search run procedures
+-   [139](139-indexer-canonical-disambiguation-rule-proc.md) – Indexer canonical disambiguation rule procedure
+-   [140](140-indexer-search-request-create-proc.md) – Indexer search request create procedure
+-   [141](141-indexer-job-runner-followups.md) – Indexer job runner follow-up procedures
+-   [142](142-indexer-executor-handoff-procs.md) – Indexer executor handoff stored procedures
+-   [143](143-indexer-tag-api.md) – Indexer tag API surface
+-   [144](144-task-indexer-proc-fixes.md) – Task: Indexer procedure fixes (RSS apply, base score refresh, normalization)
+-   [145](145-indexer-domain-mapping.md) – Indexer domain mapping and DI boundaries
+-   [146](146-indexer-test-harness.md) – Indexer stored-proc test harness
+-   [147](147-indexer-error-code-taxonomy.md) – Indexer error-code taxonomy
+-   [148](148-indexer-v1-scope-routing.md) – Indexer v1 scope enforcement
+-   [149](149-indexer-json-ban-verification.md) – Indexer schema JSON ban verification
+-   [150](150-indexer-public-id-identity.md) – Indexer public-id and bigint identity verification
+-   [151](151-indexer-soft-delete-verification.md) – Indexer soft-delete coverage verification
+-   [152](152-indexer-audit-timestamps-verification.md) – Indexer audit fields and timestamp defaults verification
+-   [153](153-indexer-api-boundary-public-ids.md) – Indexer API boundary public-id verification
+-   [154](154-indexer-external-reference-public-ids.md) – Indexer external reference public-id verification
+-   [155](155-indexer-system-sentinel-usage.md) – Indexer system sentinel usage verification
+-   [156](156-indexer-text-caps-lowercase.md) – Indexer text caps and lowercase key enforcement verification
+-   [157](157-indexer-normalized-columns.md) – Indexer normalized column verification
+-   [158](158-indexer-hash-identity-rules.md) – Indexer hash identity rules verification
+-   [159](159-indexer-secret-binding-only.md) – Indexer secret binding linkage verification
+-   [160](160-indexer-single-tenant-scope.md) – Indexer single-tenant scope verification
+-   [161](161-indexer-table-constraint-alignment.md) – Indexer table/constraint alignment verification
+-   [162](162-indexer-per-table-notes-verification.md) – Indexer per-table Notes verification
+-   [163](163-indexer-proc-error-codes.md) – Indexer proc error-code alignment for key lookups
+-   [164](164-indexer-errors-normalization.md) – Indexer error enums and normalization helpers verification
+-   [165](165-indexer-no-panics-result-only.md) – Indexer result-only returns and no-panics verification
+-   [166](166-indexer-tryop-wrappers.md) – Indexer tryOp wrappers for external operations
+-   [167](167-indexer-routing-policies.md) – Indexer routing policy service and endpoints
+-   [168](168-indexer-definition-list.md) – Indexer definition list endpoint
+-   [169](169-indexer-cf-state-get.md) – Indexer CF state read endpoint
+-   [170](170-indexer-cf-state-e2e-coverage.md) – Indexer CF state E2E coverage
+-   [171](171-indexer-category-mapping-api.md) – Indexer category mapping API endpoints
+-   [172](172-indexer-torznab-instance-api.md) – Indexer Torznab instance API endpoints
+-   [173](173-indexer-search-profile-api.md) – Indexer search profile API endpoints
+-   [174](174-indexer-import-jobs-api.md) – Indexer import jobs API endpoints
+-   [175](175-indexer-import-cli.md) – Indexer import jobs CLI commands
+-   [176](176-indexer-torznab-cli.md) – Indexer Torznab CLI management
+-   [177](177-indexer-policy-cli.md) – Indexer policy CLI management
+-   [178](178-indexer-instance-test-api.md) – Indexer instance test API and CLI
+-   [179](179-indexer-allocation-guard.md) – Indexer allocation safety guard
+-   [180](180-auth-prompt-dismissal.md) – Auth prompt dismissal stability
+-   [181](181-allocation-live-memory-probe.md) – Cross-platform allocation safety probe
+-   [182](182-indexer-pr-feedback.md) – Indexer PR feedback follow-through
+-   [183](183-indexer-pr-feedback-allocations.md) – Indexer PR feedback allocation follow-up
+-   [184](184-indexer-pr-feedback-more.md) – Indexer PR feedback allocation caps
+-   [185](185-indexer-torznab-caps-endpoint.md) – Indexer Torznab caps endpoint
+-   [186](186-indexer-torznab-download-and-allocation-guards.md) – Indexer Torznab download and allocation guards
+-   [187](187-indexer-search-requests-api.md) – Indexer search requests API and allocation guard refinements
+-   [188](188-indexer-search-request-auth-e2e.md) – Indexer search request auth E2E coverage
+-   [189](189-indexer-search-pages-api.md) – Indexer search pages API
+-   [190](190-search-request-validation-tests.md) – Search request validation tests
+-   [191](191-hash-identity-derivation-tests.md) – Hash identity derivation tests
+-   [192](192-rate-limit-state-purge-test.md) – Rate limit state purge test
+-   [193](193-job-schedule-completion.md) – Job schedule completion updates
+-   [194](194-job-claim-locking-and-leases.md) – Job claim locking and lease durations
+-   [195](195-policy-snapshot-gc-ordering.md) – Policy snapshot GC ordering
+-   [196](196-retention-purge-context-cleanup.md) – Retention purge context cleanup
+-   [197](197-indexer-connectivity-profile-refresh-rollups.md) – Indexer connectivity profile refresh rollups
+-   [198](198-reputation-rollup-sample-thresholds.md) – Reputation rollup sample thresholds
+-   [199](199-canonical-refresh-durable-source-cadence.md) – Canonical refresh durable source cadence
+-   [200](200-canonical-prune-source-link-policy.md) – Canonical prune source-link policy alignment
+-   [201](201-rss-poll-and-backfill-workflows.md) – RSS poll and subscription backfill workflows
+-   [202](202-rss-scheduling-backoff-dedupe-validation.md) – RSS scheduling, backoff, and dedupe validation
+-   [203](203-rate-limit-token-bucket-and-rss-rate-limited-semantics.md) – Rate limit token bucket and RSS rate-limited semantics
+-   [204](204-cf-state-transition-and-mitigation-validation.md) – Cloudflare state transition and mitigation validation
+-   [205](205-policy-snapshot-reuse-and-refcount-validation.md) – Policy snapshot reuse and refcount validation
+-   [206](206-policy-snapshot-gc-acceptance-coverage.md) – Policy snapshot GC acceptance coverage
+-   [207](207-derived-refresh-timing-and-caching-validation.md) – Derived refresh timing and caching validation
+-   [208](208-retention-and-rollup-job-window-validation.md) – Retention and rollup job window validation
+-   [209](209-retention-and-derived-refresh-strategy-coverage.md) – Retention and derived refresh strategy coverage
+-   [210](210-policy-rule-disable-enable-and-reorder-validation.md) – Policy rule disable/enable and reorder validation
+-   [211](211-search-result-observation-rules-validation.md) – Search-result observation rules validation
+-   [212](212-category-mapping-domain-filter-validation.md) – Category mapping and domain filter validation
+-   [213](213-indexer-observability-counters.md) – Indexer observability counters for Torznab, search, and import jobs
+-   [214](214-indexer-request-span-coverage.md) – Indexer request span coverage for Torznab, search, and import jobs
+-   [215](215-torznab-parity-integration-tests.md) – Torznab parity integration tests for endpoint format and auth semantics
+-   [216](216-torznab-search-query-mapping-and-pagination.md) – Torznab search query mapping and append-order pagination
+-   [217](217-torznab-download-redirect-acquisition-attempt-coverage.md) – Torznab download redirect and acquisition-attempt coverage
+-   [218](218-torznab-feed-category-emission-and-test-fixture-hardening.md) – Torznab feed category emission and test fixture hardening
+-   [219](219-torznab-multi-category-domain-and-other-coverage.md) – Torznab multi-category domain mapping and Other (8000) behavior coverage
+-   [220](220-rate-limit-defaults-and-scope-enforcement-coverage.md) – Rate-limit defaults and indexer/routing scope enforcement coverage
+-   [221](221-search-run-retry-behavior-coverage.md) – Search-run retry behavior coverage for rate-limited and transient errors
+-   [222](222-rss-cloudflare-state-transition-alignment.md) – RSS Cloudflare state transition alignment with ERD
+-   [223](223-search-streaming-pages-terminal-seal.md) – Search streaming pages terminal sealing and append-only ordering
+-   [224](224-search-dropped-source-audit-and-paging-exclusion.md) – Search dropped-source audit persistence and paging exclusion
+-   [225](225-canonicalization-conflict-coverage.md) – Canonicalization conflict coverage
+-   [226](226-indexer-unit-test-domain-coverage.md) – Indexer unit test domain coverage
+-   [227](227-health-reputation-rollup-semantics.md) – Health and reputation rollup semantics from outbound logs
+-   [228](228-search-zero-result-explainability.md) – Search zero-result explainability
+-   [229](229-prowlarr-import-source-parity-tests.md) – Prowlarr import source parity and dry-run coverage
+-   [230](230-import-result-mapping-unmapped-coverage.md) – Import result mapping and unmapped-definition coverage
+-   [231](231-migration-parity-e2e-flows.md) – Migration parity E2E flow coverage
+-   [232](232-indexer-schema-and-procedure-catalog-tests.md) – Indexer schema and procedure catalog verification tests
+-   [233](233-import-result-fidelity-snapshots.md) – Import result fidelity snapshots
+-   [234](234-secret-binding-and-test-error-class-coverage.md) – Secret binding and test error class coverage
+-   [235](235-indexer-instance-create-uses-definition-slug-key.md) – Indexer instance creation uses the public definition slug key
+-   [236](236-indexer-service-operation-metrics-and-spans.md) – Indexer service operation metrics and spans
+-   [237](237-indexer-di-boundary-enforcement.md) – Indexer dependency-injection boundary enforcement
+-   [238](238-manual-search-ui.md) – Manual search UI
+-   [239](239-indexer-admin-console-ui.md) – Indexer admin console UI
+-   [240](240-indexer-schedule-controls-ui.md) – Indexer schedule controls UI
+-   [241](241-indexer-rss-management-ui.md) – Indexer RSS management UI
+-   [242](242-indexer-connectivity-reputation-ui.md) – Indexer connectivity and reputation UI
+-   [243](243-indexer-routing-policy-visibility.md) – Indexer routing policy visibility
+-   [244](244-indexer-import-job-dashboard.md) – Indexer import job dashboard
+-   [245](245-indexer-health-event-drilldown.md) – Indexer health event drill-down
+-   [246](246-indexer-origin-only-error-logging.md) – Indexer origin-only error logging
+-   [247](247-indexer-health-summary-panels.md) – Indexer health summary panels
+-   [248](248-indexer-backup-restore.md) – Indexer backup and restore
+-   [249](249-indexer-coexistence-rollback-acceptance.md) – Indexer coexistence and rollback acceptance coverage
+-   [250](250-indexer-domain-service-closeout.md) – Indexer domain service closeout
+-   [251](251-indexer-instance-category-overrides.md) – Indexer instance category overrides
+-   [252](252-indexer-final-acceptance-closeout.md) – Indexer final acceptance closeout
+-   [253](253-indexer-health-notification-hooks.md) – Indexer health notification hooks
+-   [254](254-indexer-app-sync-provisioning-ui.md) – Indexer app sync provisioning UI
+-   [255](255-indexer-app-scoped-category-overrides.md) – Indexer app-scoped category overrides
+-   [256](256-indexer-source-conflict-operator-ui.md) – Indexer source conflict operator UI
+-   [257](257-indexer-cardigann-definition-import.md) – Indexer Cardigann definition import
+-   [258](258-pr-review-closeout.md) – PR review closeout
+-   [259](259-pr-review-and-security-followup.md) – PR review and security follow-up
+-   [260](260-pr-codeql-closeout.md) – PR CodeQL closeout
+-   [261](261-pr-security-and-thread-closeout.md) – PR security and thread closeout
+-   [262](262-pr-final-thread-closeout.md) – PR final thread closeout

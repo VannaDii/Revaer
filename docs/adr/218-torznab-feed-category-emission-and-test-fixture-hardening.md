@@ -1,0 +1,28 @@
+# Torznab Feed Category Emission and Test Fixture Hardening
+
+- Status: Accepted
+- Date: 2026-02-25
+- Context:
+  - Torznab search response items emitted only one category value (`tracker_category`) and dropped `tracker_subcategory`, which reduced category fidelity for consumers that expect parent + subcategory IDs.
+  - Torznab download stored-proc tests depended on `torznab_instance_create`, which can fail in test environments without `gen_salt` support (`pgcrypto`) even though download behavior itself does not require API-key generation.
+- Decision:
+  - Updated Torznab feed item mapping in `crates/revaer-api/src/http/handlers/torznab/api.rs` to emit:
+    - `tracker_category` when present,
+    - `tracker_subcategory` when positive and distinct,
+    - fallback to `8000` (`Other`) when no category metadata exists.
+  - Added unit coverage for category emission behavior:
+    - category + subcategory inclusion,
+    - `8000` fallback.
+  - Hardened `crates/revaer-data/src/indexers/torznab.rs` test fixture setup by inserting `torznab_instance` rows directly for download-proc tests, avoiding dependence on API-key hashing internals unrelated to the redirect/acquisition semantics under test.
+  - Dependency rationale: no new dependencies were added.
+  - Alternatives considered:
+    - Keep single-category emission and defer multi-cat output: rejected because it preserves avoidable Torznab parity drift.
+    - Keep proc-based fixture creation and require extension setup in tests: rejected because it couples download tests to unrelated crypto-extension availability.
+- Consequences:
+  - Positive outcomes:
+    - Torznab item category payloads are closer to expected multi-category semantics.
+    - Download-proc tests are stable across environments where `gen_salt` may be unavailable.
+  - Risks or trade-offs:
+    - This step improves output fidelity but does not fully close all ERD category-domain acceptance checks by itself.
+- Follow-up:
+  - Complete stored-proc acceptance coverage for `cat=8000` catch-all and explicit multi-domain category filtering behavior.

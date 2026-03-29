@@ -1,0 +1,23 @@
+# Indexer import job dashboard
+
+- Status: Accepted
+- Date: 2026-03-16
+- Motivation:
+  - The indexer admin console already exposed import job create/run/status/result endpoints, but the workflow still depended on copying IDs out of the activity log and mentally reconciling counts with raw JSON.
+  - `ERD_INDEXERS_CHECKLIST.md` still calls out import pipeline UX, so the existing import surface needed to become operator-friendly before broader Cardigann and conflict-resolution work lands.
+- Design notes:
+  - Keep the current `/indexers` route and extend it with import job state that persists the latest job status and result payloads in the feature slice.
+  - Promote the created or executed `import_job_public_id` back into the form state so the next fetch actions operate on the active job without manual copying.
+  - Render status rollups and per-result cards directly in the import section so duplicate skips, unmapped definitions, missing secrets, and imported instances stay visible.
+- Test coverage summary:
+  - Updated the indexer UI route smoke test to assert the new import status and import results sections render.
+  - Full regression gates remain `just ci` and `just ui-e2e`.
+- Observability updates:
+  - No new backend telemetry was required; the work reuses existing import job spans and activity-log JSON captures.
+  - The UI keeps recording import responses in the activity log while also surfacing the latest structured view.
+- Risk & rollback plan:
+  - Risk is limited to client-side state handling on the admin page.
+  - Rollback is a straightforward revert of the import dashboard state/rendering if operators prefer the previous raw-log flow.
+- Dependency rationale:
+  - No new dependencies were added.
+  - Alternatives considered: adding a separate import route or introducing server-side aggregation endpoints. Both were rejected because the current API already carries the required data and the admin page is the established operator surface.

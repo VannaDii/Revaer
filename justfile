@@ -457,7 +457,7 @@ db-start:
     DATABASE_URL="${db_url}" sqlx database create --database-url "${db_url}" 2>/dev/null || true; \
     reset_db="${REVAER_DB_RESET:-0}"; \
     if [ "${reset_db}" = "1" ]; then \
-        if echo "${db_url}" | grep -Eq '@(localhost|127\\.0\\.0\\.1)(:|/)'; then \
+        if echo "${db_url}" | grep -Eq '@(localhost|127\.0\.0\.1|host\.docker\.internal)(:|/)'; then \
             echo "Resetting local database..."; \
             DATABASE_URL="${db_url}" sqlx database reset -y --database-url "${db_url}" --source crates/revaer-data/migrations; \
         else \
@@ -466,7 +466,7 @@ db-start:
         fi; \
     else \
         if ! DATABASE_URL="${db_url}" sqlx migrate run --database-url "${db_url}" --source crates/revaer-data/migrations; then \
-            if echo "${db_url}" | grep -Eq '@(localhost|127\\.0\\.0\\.1)(:|/)'; then \
+            if echo "${db_url}" | grep -Eq '@(localhost|127\.0\.0\.1|host\.docker\.internal)(:|/)'; then \
                 echo "Migration history mismatch; resetting local database..."; \
                 DATABASE_URL="${db_url}" sqlx database reset -y --database-url "${db_url}" --source crates/revaer-data/migrations; \
             else \

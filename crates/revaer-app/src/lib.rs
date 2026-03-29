@@ -27,6 +27,8 @@ pub mod bootstrap;
 pub mod engine_config;
 /// Application-wide error types.
 pub mod error;
+/// Indexer service wiring for API facade.
+pub mod indexers;
 /// Torrent orchestrator wiring.
 #[cfg(feature = "libtorrent")]
 pub mod orchestrator;

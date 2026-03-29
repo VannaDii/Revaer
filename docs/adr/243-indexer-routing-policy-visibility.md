@@ -1,0 +1,24 @@
+# Indexer routing policy visibility
+
+- Status: Accepted
+- Date: 2026-03-15
+- Motivation:
+  - `ERD_INDEXERS.md` requires per-indexer proxy and flaresolverr controls with operator-visible health and configuration context.
+  - The admin console already allowed routing policy creation, parameter updates, secret binding, and instance assignment, but operators could not read the resulting configuration without database access.
+- Design notes:
+  - Add a stored-procedure read path, `routing_policy_get`, that validates actor scope and returns routing policy metadata, assigned rate-limit policy fields, parameter values, and bound secret references.
+  - Aggregate the row-oriented stored-proc result into a typed API model so the HTTP and UI layers can render routing policy state without database-specific joins.
+  - Extend the `/indexers` admin console with an explicit fetch action and summary panel instead of introducing a new route, keeping proxy and Cloudflare controls together.
+- Test coverage summary:
+  - Added `revaer-data` coverage for routing policy reads across parameters, secret bindings, and rate-limit assignments.
+  - Added `revaer-api` handler coverage for routing policy fetch success and not-found mapping.
+  - Updated the UI route smoke test to assert the routing policy fetch control is present.
+- Observability updates:
+  - Added the `indexer.routing_policy_get` service span with actor and routing policy identifiers.
+  - Reused the existing routing-policy error mapping so operator-facing failures preserve structured `error_code` and `sqlstate` context.
+- Risk & rollback plan:
+  - Risk is limited to a new read-only stored procedure and endpoint; existing mutation flows are unchanged.
+  - Rollback is straightforward: revert the new migration, API route, and UI fetch panel if the response shape proves insufficient.
+- Dependency rationale:
+  - No new dependencies were added.
+  - Alternatives considered: embedding raw SQL in the API layer or scraping existing mutation responses. Both were rejected because AGENTS requires stored procedures for runtime DB access and a read endpoint is the stable operator contract.

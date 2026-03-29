@@ -1,0 +1,32 @@
+# RSS poll and subscription backfill workflows
+
+- Status: Accepted
+- Date: 2026-02-21
+- Context:
+  - `ERD_INDEXERS.md` requires `rss_poll` and `rss_subscription_backfill` workflows with strict eligibility, retry/disable behavior, and job schedule completion semantics.
+  - Existing stored procedures were in place, but coverage did not prove the v1 behavioral requirements end-to-end from the Rust data-access layer.
+  - Phase 9 checklist item remained open until those workflows were validated through representative job and executor paths.
+- Decision:
+  - Add data-layer tests in `revaer-data` for RSS claim/apply and backfill job execution:
+    - `rss_poll_claim` returns only due, enabled subscriptions for enabled RSS-capable instances.
+    - successful `rss_poll_apply` updates subscription state and deduplicates item inserts.
+    - non-retryable `rss_poll_apply` disables subscription and writes the expected config audit record.
+    - `job_run_rss_subscription_backfill` creates missing rows, applies enable/disable state, marks maintenance completion, and disables its own schedule.
+    - backfill job no-ops once maintenance completion is present.
+  - Keep implementation dependency-free (no new crates).
+  - Alternatives considered:
+    - Validate only through SQL migration tests: rejected because data-layer contract behavior could still drift.
+    - Validate only via API/E2E: rejected because it obscures SP-level failure modes and slows iteration.
+- Consequences:
+  - Positive outcomes:
+    - RSS workflows are now verified against ERD-required behavior at the stored-proc integration boundary.
+    - Regression risk for subscription claim/apply and one-time backfill scheduling is reduced.
+  - Risks or trade-offs:
+    - Tests rely on fixture DB state and must keep helper inserts aligned with table constraints.
+- Follow-up:
+  - Implementation tasks:
+    - Mark Phase 9 RSS workflow checklist item complete.
+    - Continue with the next Phase 9 derived refresh timing/caching checklist item.
+  - Review checkpoints:
+    - `just ci`
+    - `just ui-e2e`

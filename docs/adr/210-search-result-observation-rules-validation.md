@@ -1,0 +1,25 @@
+# Search-result observation rules validation
+
+- Status: Accepted
+- Date: 2026-02-21
+- Context:
+  - `ERD_INDEXERS.md` requires observation processing to enforce latest-observation precedence, monotonic durable `last_seen_*` fields, and duplicate attribute rejection.
+  - `search_result_ingest` tests only covered missing request failures and did not directly verify these rule-level invariants.
+- Decision:
+  - Add `revaer-data` tests for observation behavior:
+    - `search_result_ingest_rejects_duplicate_attr_keys`
+    - `search_result_ingest_keeps_last_seen_monotonic`
+  - Use stored-procedure path end-to-end (`search_request_create`, `search_result_ingest`) with deterministic fixture setup.
+  - Mark the observation-rule checklist item complete.
+- Consequences:
+  - Positive outcomes:
+    - observation invariants are now executable and regression-safe at the data boundary;
+    - duplicate attr-key rejection is explicitly covered.
+  - Risks or trade-offs:
+    - setup fixtures are more involved because ingest requires search+indexer run scope.
+- Follow-up:
+  - Implementation tasks:
+    - Continue with remaining Phase 7 behavioral items.
+  - Review checkpoints:
+    - `just ci`
+    - `just ui-e2e`

@@ -149,7 +149,7 @@
 
 ## 1) UX constraints and source-of-truth rules
 
--   [x] Treat ui_vendor/nexus-html@3.1.0/src as markup reference only; do not run any Node tooling.
+-   [x] Treat the remaining `ui_vendor/nexus-html@3.1.0` tree as static asset input only; do not keep or run executable vendor HTML/Node tooling in-tree.
 -   [x] Treat static/nexus as the runtime asset kit (compiled CSS, images, client-side JS).
 -   [x] Use DaisyUI Blueprint MCP as the canonical reference for DaisyUI v5 component patterns, variants, accessibility, and form layout; if Nexus markup differs, Nexus wins for visual parity unless intentionally standardizing.
 -   [x] Translation bundle surfaces missing keys (no default/fallback strings).

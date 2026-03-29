@@ -159,6 +159,7 @@ pub(crate) fn invalid_params_for_config_error(error: &ConfigError) -> Vec<Proble
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::indexers::test_indexers;
     use crate::config::ConfigFacade;
     use anyhow::{Result, anyhow};
     use async_trait::async_trait;
@@ -383,6 +384,7 @@ mod tests {
             Arc::new(StubConfig {
                 snapshot: sample_snapshot()?,
             }),
+            test_indexers(),
             Metrics::new()?,
             Arc::new(serde_json::json!({})),
             EventBus::new(),
@@ -407,6 +409,7 @@ mod tests {
             Arc::new(StubConfig {
                 snapshot: snapshot.clone(),
             }),
+            test_indexers(),
             Metrics::new()?,
             Arc::new(serde_json::json!({})),
             EventBus::new(),

@@ -1,0 +1,35 @@
+# RSS Cloudflare state transition alignment with ERD
+
+- Status: Accepted
+- Date: 2026-02-25
+- Context:
+  - Motivation: ERD acceptance item 585 requires Cloudflare detection and state transitions to follow ERD semantics, including FlareSolverr preference behavior.
+  - Constraints:
+    - Runtime DB behavior must be enforced in stored procedures only.
+    - Changes must preserve existing retry/backoff behavior and quality-gate compliance.
+  - Dependency rationale:
+    - No new dependencies were added.
+    - Alternative considered: leave existing retryable CF behavior unchanged and only add tests. Rejected because existing logic skipped required `clear/solved -> challenged` transitions.
+- Decision:
+  - Added migration `0094_rss_poll_cf_state_transitions.sql` to update `rss_poll_apply_v1`:
+    - Apply CF challenge transitions for all `cf_challenge` failures (not only non-retryable paths).
+    - Transition `challenged/cooldown -> solved` on successful FlareSolverr poll (`via_mitigation='flaresolverr'`, parse success).
+    - Clear cooldown timestamp on `challenged` transition and reset solved-state counters/backoff fields.
+  - Updated stored-proc tests in `crates/revaer-data/src/indexers/executor.rs`:
+    - `rss_poll_apply_cf_challenge_retryable_sets_challenged_state`
+    - `rss_poll_apply_flaresolverr_success_promotes_challenged_to_solved`
+- Consequences:
+  - Positive outcomes:
+    - CF state transitions now match ERD transition requirements for challenge detection and FlareSolverr success paths.
+    - Regression coverage now verifies both retryable CF challenge behavior and solved-state promotion.
+  - Risks or trade-offs:
+    - Transition behavior remains bounded to RSS polling procedure scope; broader scheduler routing policy decisions continue to rely on existing routing inputs.
+- Follow-up:
+  - Test coverage summary:
+    - Covered by `just ci` and `just ui-e2e`.
+  - Observability updates:
+    - No schema or telemetry surface changes required.
+  - Risk and rollback:
+    - Rollback is isolated to one migration and related tests/checklist/docs updates.
+  - Review checkpoints:
+    - Continue with remaining unchecked ERD acceptance items (586, 587, 589+).

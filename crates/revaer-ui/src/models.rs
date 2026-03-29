@@ -129,6 +129,10 @@ pub struct Toast {
 pub struct NavLabels {
     /// Dashboard nav label.
     pub dashboard: String,
+    /// Indexers nav label.
+    pub indexers: String,
+    /// Search nav label.
+    pub search: String,
     /// Torrents nav label.
     pub torrents: String,
     /// Logs nav label.

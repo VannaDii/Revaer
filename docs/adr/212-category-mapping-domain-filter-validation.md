@@ -1,0 +1,28 @@
+# Category mapping and domain filter validation
+
+- Status: Accepted
+- Date: 2026-02-21
+- Context:
+  - `ERD_INDEXERS.md` requires Torznab category filters to map into effective media-domain constraints.
+  - `ERD_INDEXERS.md` also requires profile domain allowlists to reject category filters that collapse to an empty effective category set.
+  - Existing `search_request_create` tests validated basic category input checks but did not verify mapped-domain persistence or allowlist conflict rejection.
+- Decision:
+  - Added `search_request_create_maps_torznab_categories_to_effective_media_domain` to assert:
+    - Torznab category `2000` maps to `effective_media_domain_id = movies`.
+    - requested domain remains unset when the caller does not provide `requested_media_domain_key`.
+    - the effective category join row is persisted for `2000`.
+  - Added `search_request_create_rejects_category_filter_outside_profile_allowlist` to assert:
+    - a `tv`-only profile allowlist rejects a `movies` category filter with `invalid_category_filter`.
+  - Marked checklist item `ERD_INDEXERS_CHECKLIST.md` Phase 7 category/domain rule as complete.
+- Consequences:
+  - Positive outcomes:
+    - category mapping behavior is now regression-tested at stored-procedure boundaries.
+    - domain filtering against profile allowlists is validated with explicit failure semantics.
+  - Risks or trade-offs:
+    - test setup now includes profile provisioning and allowlist mutation, adding small runtime overhead.
+- Follow-up:
+  - Implementation tasks:
+    - continue with remaining unchecked Phase 6/7/8/10 items.
+  - Review checkpoints:
+    - `just ci`
+    - `just ui-e2e`

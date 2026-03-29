@@ -67,6 +67,7 @@ fn log_status_message(err: &BroadcastStreamRecvError) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::indexers::test_indexers;
     use crate::config::ConfigFacade;
     use async_trait::async_trait;
     use axum::response::IntoResponse;
@@ -176,6 +177,7 @@ mod tests {
         let telemetry = Metrics::new().map_err(|err| ApiError::internal(err.to_string()))?;
         let state = Arc::new(ApiState::new(
             config,
+            test_indexers(),
             telemetry,
             Arc::new(serde_json::json!({})),
             EventBus::new(),

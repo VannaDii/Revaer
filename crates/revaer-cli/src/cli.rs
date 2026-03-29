@@ -4,11 +4,16 @@ use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
 use reqwest::Url;
+use serde::Deserialize;
 use uuid::Uuid;
 
 use crate::client::{AppContext, CliDependencies, CliResult, parse_api_key, parse_url};
+use crate::commands::indexers::{
+    parse_import_job_id, parse_indexer_instance_id, parse_policy_rule_id, parse_policy_set_id,
+    parse_torznab_instance_id,
+};
 use crate::commands::torrents::{FilePriorityOverrideArg, StorageModeArg};
-use crate::commands::{config, setup, tail, torrents};
+use crate::commands::{config, indexers, setup, tail, torrents};
 
 /// Parses CLI arguments, executes the requested command, and handles
 /// user-facing telemetry emission. Returns the process exit code.
@@ -85,6 +90,74 @@ async fn dispatch(cli: Cli, deps: &AppContext) -> CliResult<()> {
             TorrentCommand::Add(args) => torrents::handle_torrent_add(deps, args).await,
             TorrentCommand::Remove(args) => torrents::handle_torrent_remove(deps, args).await,
         },
+        Command::Indexer(indexer_command) => match indexer_command {
+            IndexerCommand::Import(import_command) => match import_command {
+                IndexerImportCommand::Create(args) => {
+                    indexers::handle_import_job_create(deps, args, cli.output).await
+                }
+                IndexerImportCommand::RunProwlarrApi(args) => {
+                    indexers::handle_import_job_run_prowlarr_api(deps, args).await
+                }
+                IndexerImportCommand::RunProwlarrBackup(args) => {
+                    indexers::handle_import_job_run_prowlarr_backup(deps, args).await
+                }
+                IndexerImportCommand::Status(args) => {
+                    indexers::handle_import_job_status(deps, args, cli.output).await
+                }
+                IndexerImportCommand::Results(args) => {
+                    indexers::handle_import_job_results(deps, args, cli.output).await
+                }
+            },
+            IndexerCommand::Torznab(torznab_command) => match torznab_command {
+                TorznabCommand::Create(args) => {
+                    indexers::handle_torznab_create(deps, args, cli.output).await
+                }
+                TorznabCommand::Rotate(args) => {
+                    indexers::handle_torznab_rotate(deps, args, cli.output).await
+                }
+                TorznabCommand::SetState(args) => {
+                    indexers::handle_torznab_set_state(deps, args).await
+                }
+                TorznabCommand::Delete(args) => indexers::handle_torznab_delete(deps, args).await,
+            },
+            IndexerCommand::Policy(policy_command) => match *policy_command {
+                PolicyCommand::SetCreate(args) => {
+                    indexers::handle_policy_set_create(deps, args, cli.output).await
+                }
+                PolicyCommand::SetUpdate(args) => {
+                    indexers::handle_policy_set_update(deps, args, cli.output).await
+                }
+                PolicyCommand::SetEnable(args) => {
+                    indexers::handle_policy_set_enable(deps, args).await
+                }
+                PolicyCommand::SetDisable(args) => {
+                    indexers::handle_policy_set_disable(deps, args).await
+                }
+                PolicyCommand::SetReorder(args) => {
+                    indexers::handle_policy_set_reorder(deps, args).await
+                }
+                PolicyCommand::RuleCreate(args) => {
+                    indexers::handle_policy_rule_create(deps, *args, cli.output).await
+                }
+                PolicyCommand::RuleEnable(args) => {
+                    indexers::handle_policy_rule_enable(deps, args).await
+                }
+                PolicyCommand::RuleDisable(args) => {
+                    indexers::handle_policy_rule_disable(deps, args).await
+                }
+                PolicyCommand::RuleReorder(args) => {
+                    indexers::handle_policy_rule_reorder(deps, args).await
+                }
+            },
+            IndexerCommand::Instance(instance_command) => match *instance_command {
+                IndexerInstanceCommand::TestPrepare(args) => {
+                    indexers::handle_indexer_instance_test_prepare(deps, args, cli.output).await
+                }
+                IndexerInstanceCommand::TestFinalize(args) => {
+                    indexers::handle_indexer_instance_test_finalize(deps, args, cli.output).await
+                }
+            },
+        },
         Command::Ls(args) => torrents::handle_torrent_list(deps, args, cli.output).await,
         Command::Status(args) => torrents::handle_torrent_status(deps, args, cli.output).await,
         Command::Select(args) => torrents::handle_torrent_select(deps, args).await,
@@ -93,7 +166,7 @@ async fn dispatch(cli: Cli, deps: &AppContext) -> CliResult<()> {
     }
 }
 
-const fn command_label(command: &Command) -> &'static str {
+fn command_label(command: &Command) -> &'static str {
     match command {
         Command::Setup(SetupCommand::Start(_)) => "setup_start",
         Command::Setup(SetupCommand::Complete(_)) => "setup_complete",
@@ -116,6 +189,50 @@ const fn command_label(command: &Command) -> &'static str {
             ActionType::Move => "action_move",
         },
         Command::Tail(_) => "tail",
+        Command::Indexer(IndexerCommand::Import(IndexerImportCommand::Create(_))) => {
+            "indexer_import_create"
+        }
+        Command::Indexer(IndexerCommand::Import(IndexerImportCommand::RunProwlarrApi(_))) => {
+            "indexer_import_run_prowlarr_api"
+        }
+        Command::Indexer(IndexerCommand::Import(IndexerImportCommand::RunProwlarrBackup(_))) => {
+            "indexer_import_run_prowlarr_backup"
+        }
+        Command::Indexer(IndexerCommand::Import(IndexerImportCommand::Status(_))) => {
+            "indexer_import_status"
+        }
+        Command::Indexer(IndexerCommand::Import(IndexerImportCommand::Results(_))) => {
+            "indexer_import_results"
+        }
+        Command::Indexer(IndexerCommand::Torznab(TorznabCommand::Create(_))) => {
+            "indexer_torznab_create"
+        }
+        Command::Indexer(IndexerCommand::Torznab(TorznabCommand::Rotate(_))) => {
+            "indexer_torznab_rotate"
+        }
+        Command::Indexer(IndexerCommand::Torznab(TorznabCommand::SetState(_))) => {
+            "indexer_torznab_set_state"
+        }
+        Command::Indexer(IndexerCommand::Torznab(TorznabCommand::Delete(_))) => {
+            "indexer_torznab_delete"
+        }
+        Command::Indexer(IndexerCommand::Policy(policy_command)) => match policy_command.as_ref() {
+            PolicyCommand::SetCreate(_) => "indexer_policy_set_create",
+            PolicyCommand::SetUpdate(_) => "indexer_policy_set_update",
+            PolicyCommand::SetEnable(_) => "indexer_policy_set_enable",
+            PolicyCommand::SetDisable(_) => "indexer_policy_set_disable",
+            PolicyCommand::SetReorder(_) => "indexer_policy_set_reorder",
+            PolicyCommand::RuleCreate(_) => "indexer_policy_rule_create",
+            PolicyCommand::RuleEnable(_) => "indexer_policy_rule_enable",
+            PolicyCommand::RuleDisable(_) => "indexer_policy_rule_disable",
+            PolicyCommand::RuleReorder(_) => "indexer_policy_rule_reorder",
+        },
+        Command::Indexer(IndexerCommand::Instance(instance_command)) => {
+            match instance_command.as_ref() {
+                IndexerInstanceCommand::TestPrepare(_) => "indexer_instance_test_prepare",
+                IndexerInstanceCommand::TestFinalize(_) => "indexer_instance_test_finalize",
+            }
+        }
     }
 }
 
@@ -162,6 +279,8 @@ pub(crate) enum Command {
     Settings(SettingsCommand),
     #[command(subcommand)]
     Torrent(TorrentCommand),
+    #[command(subcommand)]
+    Indexer(IndexerCommand),
     Ls(TorrentListArgs),
     Status(TorrentStatusArgs),
     Select(TorrentSelectArgs),
@@ -190,6 +309,261 @@ pub(crate) enum SettingsCommand {
 pub(crate) enum TorrentCommand {
     Add(TorrentAddArgs),
     Remove(TorrentRemoveArgs),
+}
+
+#[derive(Subcommand)]
+pub(crate) enum IndexerCommand {
+    #[command(subcommand)]
+    Import(IndexerImportCommand),
+    #[command(subcommand)]
+    Torznab(TorznabCommand),
+    #[command(subcommand)]
+    Policy(Box<PolicyCommand>),
+    #[command(subcommand)]
+    Instance(Box<IndexerInstanceCommand>),
+}
+
+#[derive(Subcommand)]
+pub(crate) enum IndexerImportCommand {
+    Create(ImportJobCreateArgs),
+    RunProwlarrApi(ImportJobRunProwlarrApiArgs),
+    RunProwlarrBackup(ImportJobRunProwlarrBackupArgs),
+    Status(ImportJobStatusArgs),
+    Results(ImportJobResultsArgs),
+}
+
+#[derive(Subcommand)]
+pub(crate) enum TorznabCommand {
+    Create(TorznabCreateArgs),
+    Rotate(TorznabRotateArgs),
+    SetState(TorznabSetStateArgs),
+    Delete(TorznabDeleteArgs),
+}
+
+#[derive(Subcommand)]
+pub(crate) enum IndexerInstanceCommand {
+    TestPrepare(IndexerInstanceTestPrepareArgs),
+    TestFinalize(IndexerInstanceTestFinalizeArgs),
+}
+
+#[derive(Subcommand)]
+pub(crate) enum PolicyCommand {
+    SetCreate(PolicySetCreateArgs),
+    SetUpdate(PolicySetUpdateArgs),
+    SetEnable(PolicySetEnableArgs),
+    SetDisable(PolicySetDisableArgs),
+    SetReorder(PolicySetReorderArgs),
+    RuleCreate(Box<PolicyRuleCreateArgs>),
+    RuleEnable(PolicyRuleEnableArgs),
+    RuleDisable(PolicyRuleDisableArgs),
+    RuleReorder(PolicyRuleReorderArgs),
+}
+
+#[derive(Args)]
+pub(crate) struct PolicySetCreateArgs {
+    #[arg(long, help = "Display name for the policy set")]
+    pub display_name: String,
+    #[arg(long, help = "Policy scope key (global, user, profile, request)")]
+    pub scope: String,
+    #[arg(long, default_value_t = true, help = "Enable policy set on creation")]
+    pub enabled: bool,
+}
+
+#[derive(Args)]
+pub(crate) struct PolicySetUpdateArgs {
+    #[arg(value_parser = parse_policy_set_id, help = "Policy set public id")]
+    pub policy_set_public_id: Uuid,
+    #[arg(long, help = "Updated display name (optional)")]
+    pub display_name: Option<String>,
+}
+
+#[derive(Args)]
+pub(crate) struct PolicySetEnableArgs {
+    #[arg(value_parser = parse_policy_set_id, help = "Policy set public id")]
+    pub policy_set_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct PolicySetDisableArgs {
+    #[arg(value_parser = parse_policy_set_id, help = "Policy set public id")]
+    pub policy_set_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct PolicySetReorderArgs {
+    #[arg(long, value_delimiter = ',', help = "Ordered policy set public ids")]
+    pub ordered_policy_set_public_ids: Vec<Uuid>,
+}
+
+#[derive(Args)]
+pub(crate) struct PolicyRuleCreateArgs {
+    #[arg(value_parser = parse_policy_set_id, help = "Policy set public id")]
+    pub policy_set_public_id: Uuid,
+    #[arg(long, help = "Policy rule type key")]
+    pub rule_type: String,
+    #[arg(long, help = "Policy match field key")]
+    pub match_field: String,
+    #[arg(long, help = "Policy match operator key")]
+    pub match_operator: String,
+    #[arg(long, help = "Policy action key")]
+    pub action: String,
+    #[arg(long, help = "Policy severity key")]
+    pub severity: String,
+    #[arg(long, help = "Sort order for policy rule evaluation")]
+    pub sort_order: i32,
+    #[arg(long, help = "Match value text")]
+    pub match_value_text: Option<String>,
+    #[arg(long, help = "Match value integer")]
+    pub match_value_int: Option<i32>,
+    #[arg(long, help = "Match value UUID")]
+    pub match_value_uuid: Option<Uuid>,
+    #[arg(long, value_delimiter = ',', help = "Value-set items (text values)")]
+    pub value_set_text: Vec<String>,
+    #[arg(long, value_delimiter = ',', help = "Value-set items (int values)")]
+    pub value_set_int: Vec<i32>,
+    #[arg(long, value_delimiter = ',', help = "Value-set items (bigint values)")]
+    pub value_set_bigint: Vec<i64>,
+    #[arg(long, value_delimiter = ',', help = "Value-set items (UUID values)")]
+    pub value_set_uuid: Vec<Uuid>,
+    #[arg(long, help = "Enable case insensitive matching")]
+    pub case_insensitive: bool,
+    #[arg(long, help = "Policy rule rationale")]
+    pub rationale: Option<String>,
+    #[arg(long, help = "Expiry timestamp (RFC3339)")]
+    pub expires_at: Option<String>,
+}
+
+#[derive(Args)]
+pub(crate) struct PolicyRuleEnableArgs {
+    #[arg(value_parser = parse_policy_rule_id, help = "Policy rule public id")]
+    pub policy_rule_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct PolicyRuleDisableArgs {
+    #[arg(value_parser = parse_policy_rule_id, help = "Policy rule public id")]
+    pub policy_rule_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct PolicyRuleReorderArgs {
+    #[arg(value_parser = parse_policy_set_id, help = "Policy set public id")]
+    pub policy_set_public_id: Uuid,
+    #[arg(long, value_delimiter = ',', help = "Ordered policy rule public ids")]
+    pub ordered_policy_rule_public_ids: Vec<Uuid>,
+}
+
+#[derive(Args)]
+pub(crate) struct ImportJobCreateArgs {
+    #[arg(
+        long,
+        value_enum,
+        help = "Import source (prowlarr_api or prowlarr_backup)"
+    )]
+    pub source: ImportSourceArg,
+    #[arg(long, help = "Mark import job as dry-run only")]
+    pub dry_run: bool,
+    #[arg(long, help = "Target search profile public id (optional)")]
+    pub target_search_profile: Option<Uuid>,
+    #[arg(long, help = "Target Torznab instance public id (optional)")]
+    pub target_torznab_instance: Option<Uuid>,
+}
+
+#[derive(Args)]
+pub(crate) struct ImportJobRunProwlarrApiArgs {
+    #[arg(value_parser = parse_import_job_id, help = "Import job public id")]
+    pub import_job_public_id: Uuid,
+    #[arg(long, help = "Prowlarr base URL")]
+    pub prowlarr_url: String,
+    #[arg(long, help = "Secret public id containing the Prowlarr API key")]
+    pub prowlarr_api_key_secret_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct ImportJobRunProwlarrBackupArgs {
+    #[arg(value_parser = parse_import_job_id, help = "Import job public id")]
+    pub import_job_public_id: Uuid,
+    #[arg(long, help = "Backup blob reference")]
+    pub backup_blob_ref: String,
+}
+
+#[derive(Args)]
+pub(crate) struct ImportJobStatusArgs {
+    #[arg(value_parser = parse_import_job_id, help = "Import job public id")]
+    pub import_job_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct ImportJobResultsArgs {
+    #[arg(value_parser = parse_import_job_id, help = "Import job public id")]
+    pub import_job_public_id: Uuid,
+}
+
+#[derive(Copy, Clone, Debug, Deserialize, ValueEnum)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ImportSourceArg {
+    ProwlarrApi,
+    ProwlarrBackup,
+}
+
+impl ImportSourceArg {
+    #[must_use]
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::ProwlarrApi => "prowlarr_api",
+            Self::ProwlarrBackup => "prowlarr_backup",
+        }
+    }
+}
+
+#[derive(Args)]
+pub(crate) struct TorznabCreateArgs {
+    #[arg(long, help = "Search profile public id to bind")]
+    pub search_profile_public_id: Uuid,
+    #[arg(long, help = "Display name for the instance")]
+    pub display_name: String,
+}
+
+#[derive(Args)]
+pub(crate) struct TorznabRotateArgs {
+    #[arg(value_parser = parse_torznab_instance_id, help = "Torznab instance public id")]
+    pub torznab_instance_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct TorznabSetStateArgs {
+    #[arg(value_parser = parse_torznab_instance_id, help = "Torznab instance public id")]
+    pub torznab_instance_public_id: Uuid,
+    #[arg(long, help = "Enable or disable the instance")]
+    pub enabled: bool,
+}
+
+#[derive(Args)]
+pub(crate) struct TorznabDeleteArgs {
+    #[arg(value_parser = parse_torznab_instance_id, help = "Torznab instance public id")]
+    pub torznab_instance_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct IndexerInstanceTestPrepareArgs {
+    #[arg(value_parser = parse_indexer_instance_id, help = "Indexer instance public id")]
+    pub indexer_instance_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct IndexerInstanceTestFinalizeArgs {
+    #[arg(value_parser = parse_indexer_instance_id, help = "Indexer instance public id")]
+    pub indexer_instance_public_id: Uuid,
+    #[arg(long, help = "Mark test as successful")]
+    pub ok: bool,
+    #[arg(long, help = "Error class label (optional)")]
+    pub error_class: Option<String>,
+    #[arg(long, help = "Error code label (optional)")]
+    pub error_code: Option<String>,
+    #[arg(long, help = "Detail string (optional)")]
+    pub detail: Option<String>,
+    #[arg(long, help = "Result count (optional)")]
+    pub result_count: Option<i32>,
 }
 
 #[derive(Args)]
@@ -453,6 +827,43 @@ mod tests {
                 download_dir: None,
             })),
             "action_pause"
+        );
+        assert_eq!(
+            command_label(&Command::Indexer(IndexerCommand::Import(
+                IndexerImportCommand::Create(ImportJobCreateArgs {
+                    source: ImportSourceArg::ProwlarrApi,
+                    dry_run: false,
+                    target_search_profile: None,
+                    target_torznab_instance: None,
+                })
+            ))),
+            "indexer_import_create"
+        );
+        assert_eq!(
+            command_label(&Command::Indexer(IndexerCommand::Torznab(
+                TorznabCommand::Rotate(TorznabRotateArgs {
+                    torznab_instance_public_id: Uuid::nil(),
+                })
+            ))),
+            "indexer_torznab_rotate"
+        );
+        assert_eq!(
+            command_label(&Command::Indexer(IndexerCommand::Policy(Box::new(
+                PolicyCommand::SetCreate(PolicySetCreateArgs {
+                    display_name: "Demo".to_string(),
+                    scope: "global".to_string(),
+                    enabled: true,
+                })
+            )))),
+            "indexer_policy_set_create"
+        );
+        assert_eq!(
+            command_label(&Command::Indexer(IndexerCommand::Instance(Box::new(
+                IndexerInstanceCommand::TestPrepare(IndexerInstanceTestPrepareArgs {
+                    indexer_instance_public_id: Uuid::nil(),
+                })
+            )))),
+            "indexer_instance_test_prepare"
         );
     }
 

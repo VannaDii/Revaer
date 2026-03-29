@@ -1,0 +1,44 @@
+# Indexer Observability Counters for Torznab, Search, and Import Jobs
+
+- Status: Accepted
+- Date: 2026-02-25
+- Context:
+  - Motivation:
+    - ERD indexer checklist Phase 10 still required explicit metrics for invalid Torznab requests, search throughput, and job outcomes.
+    - Existing telemetry covered HTTP and generic guardrails but did not provide indexer-specific counters for those acceptance points.
+  - Constraints:
+    - Keep error messages constant and avoid adding fallback/dead code.
+    - Reuse existing telemetry infrastructure and avoid new dependencies.
+    - Preserve stored-procedure-only runtime DB access boundaries.
+- Decision:
+  - Added new Prometheus counters in `revaer-telemetry`:
+    - `indexer_torznab_invalid_requests_total{reason}`
+    - `indexer_search_requests_total{operation,outcome}`
+    - `indexer_job_outcomes_total{operation,outcome}`
+  - Wired increments in API handlers:
+    - Torznab API/download handlers increment invalid-request reasons for missing API key, unauthorized access, missing instances/sources, and unsupported query type.
+    - Search request/page handlers increment throughput counters on success/error for create, cancel, page list, and page fetch operations.
+    - Import job handlers increment job outcome counters on success/error for create, run, status, and results operations.
+  - Design notes:
+    - Metrics were recorded at request boundaries to avoid duplicate increments in deeper call chains.
+    - Label values are constrained to stable constant strings to keep metric cardinality bounded.
+  - Alternatives considered:
+    - Adding counters in app/data layers instead of HTTP handlers was rejected because request intent and invalid Torznab semantics are best known at the API boundary.
+    - Reusing generic `events_emitted_total` was rejected because it cannot express required ERD dimensions without overloading labels.
+- Consequences:
+  - Positive outcomes:
+    - ERD observability coverage improved with explicit counters for previously untracked indexer flows.
+    - Metrics remain low-cardinality and aligned with existing Prometheus collection.
+  - Risks and trade-offs:
+    - Handler-level instrumentation can miss non-HTTP flows by design; background internal jobs still require separate instrumentation where applicable.
+    - Reason labels must remain curated to avoid accidental cardinality growth.
+- Follow-up:
+  - Test coverage summary:
+    - Updated telemetry unit tests to assert new metrics are registered/rendered.
+    - Verified API/indexer, workspace, and E2E suites pass via `just ci` and `just ui-e2e`.
+  - Observability updates:
+    - New counters are exposed via `/metrics` immediately with no schema migrations.
+  - Risk and rollback plan:
+    - Safe rollback by removing handler increments and metric registration if operational overhead appears; no data migration impact.
+  - Dependency rationale:
+    - No new dependencies added; reused existing `prometheus` primitives in `revaer-telemetry`.

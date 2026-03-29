@@ -1023,6 +1023,7 @@ fn require_api_key(context: crate::http::auth::AuthContext) -> Result<String, Ap
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::indexers::test_indexers;
     use crate::http::handlers::torrents::TorrentMetadataSeed;
     use anyhow::{Result, anyhow};
     use axum::http::StatusCode;
@@ -1894,6 +1895,7 @@ mod tests {
     ) -> Result<Arc<ApiState>> {
         Ok(Arc::new(ApiState::new(
             config,
+            test_indexers(),
             Metrics::new().map_err(|_| anyhow!("metrics init"))?,
             Arc::new(json!({})),
             EventBus::with_capacity(4),
