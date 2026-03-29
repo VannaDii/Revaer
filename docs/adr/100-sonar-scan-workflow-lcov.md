@@ -16,7 +16,7 @@
   - Use `just cov` to build a combined workspace LCOV report at `coverage/lcov.info`.
   - Add `just sonar-compile-db` to build `revaer-torrent-libt` with `REVAER_NATIVE_COMPILE_COMMANDS_PATH` set so `build.rs` emits `coverage/compile_commands.json`.
   - Add `.github/workflows/sonar.yml` to trigger on `pull_request` and `push` to `main`.
-  - In the Sonar workflow, run migrations, generate the LCOV file via `just cov`, generate the native compile database via `just sonar-compile-db`, and run `SonarSource/sonarqube-scan-action@v7` with:
+  - In the Sonar workflow, run migrations, generate the LCOV file via `just cov`, generate the native compile database via `just sonar-compile-db`, and run `SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9` (`v7`) with:
     - `sonar.projectKey=VannaDii_Revaer`
     - `sonar.organization=vannadii`
     - `sonar.rust.lcov.reportPaths=coverage/lcov.info`
@@ -45,4 +45,4 @@
     - Roll back by removing `just sonar-compile-db`, the `build.rs` compile database emission, and the workflow scan property if SonarQube compilation-database support causes instability.
   - Dependency rationale:
     - No Rust dependencies added.
-    - GitHub Action dependency remains `SonarSource/sonarqube-scan-action@v7` (official maintained scanner wrapper). Alternative was raw scanner CLI install steps, rejected for higher maintenance.
+    - GitHub Action dependency remains `SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9` (`v7`, official maintained scanner wrapper). Alternative was raw scanner CLI install steps, rejected for higher maintenance.
