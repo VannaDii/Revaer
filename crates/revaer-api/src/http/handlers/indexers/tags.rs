@@ -11,7 +11,9 @@ use crate::app::indexers::{TagServiceError, TagServiceErrorKind};
 use crate::app::state::ApiState;
 use crate::http::errors::ApiError;
 use crate::http::handlers::indexers::SYSTEM_ACTOR_PUBLIC_ID;
-use crate::http::handlers::indexers::normalization::trim_and_filter_empty;
+use crate::http::handlers::indexers::normalization::{
+    normalize_required_str_field, trim_and_filter_empty,
+};
 use crate::models::{TagCreateRequest, TagDeleteRequest, TagResponse, TagUpdateRequest};
 use axum::{
     Json,
@@ -23,13 +25,16 @@ const TAG_CREATE_FAILED: &str = "failed to create tag";
 const TAG_UPDATE_FAILED: &str = "failed to update tag";
 const TAG_DELETE_FAILED: &str = "failed to delete tag";
 const TAG_REFERENCE_REQUIRED: &str = "tag identifier is required";
+const TAG_KEY_REQUIRED: &str = "tag_key is required";
+const TAG_DISPLAY_NAME_REQUIRED: &str = "display_name is required";
 
 pub(crate) async fn create_tag(
     State(state): State<Arc<ApiState>>,
     Json(request): Json<TagCreateRequest>,
 ) -> Result<(StatusCode, Json<TagResponse>), ApiError> {
-    let tag_key = request.tag_key.trim();
-    let display_name = request.display_name.trim();
+    let tag_key = normalize_required_str_field(&request.tag_key, TAG_KEY_REQUIRED)?;
+    let display_name =
+        normalize_required_str_field(&request.display_name, TAG_DISPLAY_NAME_REQUIRED)?;
     let tag_public_id = state
         .indexers
         .tag_create(SYSTEM_ACTOR_PUBLIC_ID, tag_key, display_name)
@@ -181,7 +186,7 @@ mod tests {
         let state = indexer_test_state(indexers)?;
 
         let request = TagCreateRequest {
-            tag_key: String::new(),
+            tag_key: "favorites".to_string(),
             display_name: "Name".to_string(),
         };
 
@@ -191,8 +196,43 @@ mod tests {
         let response = err.into_response();
         assert_eq!(response.status(), StatusCode::BAD_REQUEST);
         let problem = parse_problem(response).await;
+        assert_eq!(problem.detail.as_deref(), Some(TAG_CREATE_FAILED));
         let context = problem.context.unwrap_or_default();
         assert!(context.iter().any(|field| field.name == "error_code"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn create_tag_requires_non_blank_fields() -> Result<(), ApiError> {
+        let state = indexer_test_state(Arc::new(RecordingIndexers::default()))?;
+
+        let err = create_tag(
+            State(state.clone()),
+            Json(TagCreateRequest {
+                tag_key: "   ".to_string(),
+                display_name: "Favorites".to_string(),
+            }),
+        )
+        .await
+        .expect_err("blank tag key should fail");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let problem = parse_problem(response).await;
+        assert_eq!(problem.detail.as_deref(), Some(TAG_KEY_REQUIRED));
+
+        let err = create_tag(
+            State(state),
+            Json(TagCreateRequest {
+                tag_key: "favorites".to_string(),
+                display_name: "   ".to_string(),
+            }),
+        )
+        .await
+        .expect_err("blank display name should fail");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let problem = parse_problem(response).await;
+        assert_eq!(problem.detail.as_deref(), Some(TAG_DISPLAY_NAME_REQUIRED));
         Ok(())
     }
 

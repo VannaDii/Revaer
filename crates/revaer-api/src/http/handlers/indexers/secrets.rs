@@ -11,6 +11,7 @@ use crate::app::indexers::{SecretServiceError, SecretServiceErrorKind};
 use crate::app::state::ApiState;
 use crate::http::errors::ApiError;
 use crate::http::handlers::indexers::SYSTEM_ACTOR_PUBLIC_ID;
+use crate::http::handlers::indexers::normalization::normalize_required_str_field;
 use crate::models::{
     SecretCreateRequest, SecretResponse, SecretRevokeRequest, SecretRotateRequest,
 };
@@ -19,12 +20,13 @@ use axum::{Json, extract::State, http::StatusCode};
 const SECRET_CREATE_FAILED: &str = "failed to create secret";
 const SECRET_ROTATE_FAILED: &str = "failed to rotate secret";
 const SECRET_REVOKE_FAILED: &str = "failed to revoke secret";
+const SECRET_TYPE_REQUIRED: &str = "secret_type is required";
 
 pub(crate) async fn create_secret(
     State(state): State<Arc<ApiState>>,
     Json(request): Json<SecretCreateRequest>,
 ) -> Result<(StatusCode, Json<SecretResponse>), ApiError> {
-    let secret_type = request.secret_type.trim();
+    let secret_type = normalize_required_str_field(&request.secret_type, SECRET_TYPE_REQUIRED)?;
     let secret_public_id = state
         .indexers
         .secret_create(SYSTEM_ACTOR_PUBLIC_ID, secret_type, &request.secret_value)
@@ -219,5 +221,25 @@ mod tests {
         assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
         let problem = parse_problem(response).await;
         assert_eq!(problem.title, "authentication required");
+    }
+
+    #[tokio::test]
+    async fn create_secret_requires_non_blank_secret_type() -> Result<(), ApiError> {
+        let state = indexer_test_state(Arc::new(RecordingIndexers::default()))?;
+        let err = create_secret(
+            State(state),
+            Json(SecretCreateRequest {
+                secret_type: "   ".to_string(),
+                secret_value: "value".to_string(),
+            }),
+        )
+        .await
+        .expect_err("blank secret type should fail");
+
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let problem = parse_problem(response).await;
+        assert_eq!(problem.detail.as_deref(), Some(SECRET_TYPE_REQUIRED));
+        Ok(())
     }
 }

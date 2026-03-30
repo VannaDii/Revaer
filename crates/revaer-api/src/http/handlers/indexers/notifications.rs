@@ -14,7 +14,9 @@ use crate::app::indexers::{
 use crate::app::state::ApiState;
 use crate::http::errors::ApiError;
 use crate::http::handlers::indexers::SYSTEM_ACTOR_PUBLIC_ID;
-use crate::http::handlers::indexers::normalization::trim_and_filter_empty;
+use crate::http::handlers::indexers::normalization::{
+    normalize_required_str_field, trim_and_filter_empty,
+};
 use crate::models::{
     IndexerHealthNotificationHookCreateRequest, IndexerHealthNotificationHookDeleteRequest,
     IndexerHealthNotificationHookListResponse, IndexerHealthNotificationHookResponse,
@@ -27,6 +29,9 @@ const HOOK_GET_FAILED: &str = "failed to get health notification hook";
 const HOOK_CREATE_FAILED: &str = "failed to create health notification hook";
 const HOOK_UPDATE_FAILED: &str = "failed to update health notification hook";
 const HOOK_DELETE_FAILED: &str = "failed to delete health notification hook";
+const HOOK_CHANNEL_REQUIRED: &str = "channel is required";
+const HOOK_DISPLAY_NAME_REQUIRED: &str = "display_name is required";
+const HOOK_STATUS_THRESHOLD_REQUIRED: &str = "status_threshold is required";
 
 pub(crate) async fn list_health_notification_hooks(
     State(state): State<Arc<ApiState>>,
@@ -43,9 +48,11 @@ pub(crate) async fn create_health_notification_hook(
     State(state): State<Arc<ApiState>>,
     Json(request): Json<IndexerHealthNotificationHookCreateRequest>,
 ) -> Result<(StatusCode, Json<IndexerHealthNotificationHookResponse>), ApiError> {
-    let channel = request.channel.trim();
-    let display_name = request.display_name.trim();
-    let status_threshold = request.status_threshold.trim();
+    let channel = normalize_required_str_field(&request.channel, HOOK_CHANNEL_REQUIRED)?;
+    let display_name =
+        normalize_required_str_field(&request.display_name, HOOK_DISPLAY_NAME_REQUIRED)?;
+    let status_threshold =
+        normalize_required_str_field(&request.status_threshold, HOOK_STATUS_THRESHOLD_REQUIRED)?;
     let webhook_url = trim_and_filter_empty(request.webhook_url.as_deref());
     let email = trim_and_filter_empty(request.email.as_deref());
 
@@ -240,5 +247,64 @@ mod tests {
 
         assert_eq!(response.webhook_url, None);
         assert_eq!(response.email, None);
+    }
+
+    #[tokio::test]
+    async fn create_health_notification_hook_requires_non_blank_fields() {
+        let state = indexer_test_state(Arc::new(RecordingIndexers::default())).expect("state");
+
+        let err = create_health_notification_hook(
+            State(state.clone()),
+            Json(IndexerHealthNotificationHookCreateRequest {
+                channel: "   ".to_string(),
+                display_name: "Pager".to_string(),
+                status_threshold: "failing".to_string(),
+                webhook_url: None,
+                email: None,
+            }),
+        )
+        .await
+        .expect_err("blank channel should fail");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let problem = parse_problem(response).await;
+        assert_eq!(problem.detail.as_deref(), Some(HOOK_CHANNEL_REQUIRED));
+
+        let err = create_health_notification_hook(
+            State(state.clone()),
+            Json(IndexerHealthNotificationHookCreateRequest {
+                channel: "webhook".to_string(),
+                display_name: "   ".to_string(),
+                status_threshold: "failing".to_string(),
+                webhook_url: None,
+                email: None,
+            }),
+        )
+        .await
+        .expect_err("blank display name should fail");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let problem = parse_problem(response).await;
+        assert_eq!(problem.detail.as_deref(), Some(HOOK_DISPLAY_NAME_REQUIRED));
+
+        let err = create_health_notification_hook(
+            State(state),
+            Json(IndexerHealthNotificationHookCreateRequest {
+                channel: "webhook".to_string(),
+                display_name: "Pager".to_string(),
+                status_threshold: "   ".to_string(),
+                webhook_url: None,
+                email: None,
+            }),
+        )
+        .await
+        .expect_err("blank status threshold should fail");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let problem = parse_problem(response).await;
+        assert_eq!(
+            problem.detail.as_deref(),
+            Some(HOOK_STATUS_THRESHOLD_REQUIRED)
+        );
     }
 }

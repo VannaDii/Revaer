@@ -18,7 +18,6 @@ use crate::app::indexers::{
 use crate::app::state::ApiState;
 use crate::http::errors::ApiError;
 use crate::http::handlers::indexers::SYSTEM_ACTOR_PUBLIC_ID;
-use crate::http::handlers::indexers::allocation::checked_vec_capacity;
 use crate::http::handlers::indexers::normalization::{
     normalize_required_str_field, trim_and_filter_empty,
 };
@@ -137,7 +136,7 @@ pub(crate) async fn set_indexer_instance_tags(
     Path(indexer_instance_public_id): Path<Uuid>,
     Json(request): Json<IndexerInstanceTagsRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let normalized_tag_keys = request.tag_keys.map(normalize_tag_keys).transpose()?;
+    let normalized_tag_keys = request.tag_keys.map(normalize_tag_keys);
     let tag_public_ids = request.tag_public_ids.as_deref();
     let tag_keys = normalized_tag_keys.as_deref();
     state
@@ -156,16 +155,15 @@ pub(crate) async fn set_indexer_instance_tags(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn normalize_tag_keys(keys: Vec<String>) -> Result<Vec<String>, ApiError> {
-    let capacity = keys.len();
-    let mut normalized = checked_vec_capacity::<String>(capacity)?;
+fn normalize_tag_keys(keys: Vec<String>) -> Vec<String> {
+    let mut normalized = Vec::with_capacity(keys.len());
     for key in keys {
         let trimmed = key.trim();
         if !trimmed.is_empty() {
             normalized.push(trimmed.to_string());
         }
     }
-    Ok(normalized)
+    normalized
 }
 
 pub(crate) async fn set_indexer_instance_field_value(
