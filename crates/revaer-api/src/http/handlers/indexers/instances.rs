@@ -39,6 +39,10 @@ const INSTANCE_CF_STATE_RESET_FAILED: &str = "failed to reset cf state";
 const INSTANCE_CF_STATE_GET_FAILED: &str = "failed to fetch cf state";
 const INSTANCE_TEST_PREPARE_FAILED: &str = "failed to prepare instance test";
 const INSTANCE_TEST_FINALIZE_FAILED: &str = "failed to finalize instance test";
+const INSTANCE_TAG_KEYS_TOO_LARGE: &str = "tag_keys exceeds maximum size";
+const INSTANCE_TAG_KEY_TOO_LARGE: &str = "tag_key exceeds maximum size";
+const INSTANCE_TAG_KEYS_MAX_LEN: usize = 1024;
+const INSTANCE_TAG_KEY_MAX_BYTES: usize = 1024;
 
 pub(crate) async fn create_indexer_instance(
     State(state): State<Arc<ApiState>>,
@@ -136,7 +140,7 @@ pub(crate) async fn set_indexer_instance_tags(
     Path(indexer_instance_public_id): Path<Uuid>,
     Json(request): Json<IndexerInstanceTagsRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let normalized_tag_keys = request.tag_keys.map(normalize_tag_keys);
+    let normalized_tag_keys = request.tag_keys.map(normalize_tag_keys).transpose()?;
     let tag_public_ids = request.tag_public_ids.as_deref();
     let tag_keys = normalized_tag_keys.as_deref();
     state
@@ -155,15 +159,34 @@ pub(crate) async fn set_indexer_instance_tags(
     Ok(StatusCode::NO_CONTENT)
 }
 
-fn normalize_tag_keys(keys: Vec<String>) -> Vec<String> {
-    let mut normalized = Vec::with_capacity(keys.len());
+fn normalize_tag_keys(keys: Vec<String>) -> Result<Vec<String>, ApiError> {
+    if keys.len() > INSTANCE_TAG_KEYS_MAX_LEN {
+        let mut error = ApiError::bad_request(INSTANCE_TAG_KEYS_TOO_LARGE);
+        error = error.with_context_field("max_len", INSTANCE_TAG_KEYS_MAX_LEN.to_string());
+        return Err(error);
+    }
+
+    let mut normalized_len = 0_usize;
+    for key in &keys {
+        let trimmed = key.trim();
+        if trimmed.len() > INSTANCE_TAG_KEY_MAX_BYTES {
+            let mut error = ApiError::bad_request(INSTANCE_TAG_KEY_TOO_LARGE);
+            error = error.with_context_field("max_len", INSTANCE_TAG_KEY_MAX_BYTES.to_string());
+            return Err(error);
+        }
+        if !trimmed.is_empty() {
+            normalized_len = normalized_len.saturating_add(1);
+        }
+    }
+
+    let mut normalized = Vec::with_capacity(normalized_len);
     for key in keys {
         let trimmed = key.trim();
         if !trimmed.is_empty() {
             normalized.push(trimmed.to_string());
         }
     }
-    normalized
+    Ok(normalized)
 }
 
 pub(crate) async fn set_indexer_instance_field_value(
@@ -383,9 +406,10 @@ mod tests {
         TagServiceErrorKind, TorznabInstanceCredentials, TorznabInstanceServiceError,
         TorznabInstanceServiceErrorKind,
     };
-    use crate::http::handlers::indexers::test_support::indexer_test_state;
+    use crate::http::handlers::indexers::test_support::{indexer_test_state, parse_problem};
     use crate::models::{IndexerCfStateResponse, IndexerDefinitionResponse};
     use async_trait::async_trait;
+    use axum::response::IntoResponse;
     use std::sync::{Arc, Mutex};
 
     #[derive(Default)]
@@ -936,6 +960,44 @@ mod tests {
             .0;
 
         assert_eq!(response, StatusCode::CREATED);
+    }
+
+    #[tokio::test]
+    async fn set_indexer_instance_tags_rejects_excessive_key_count() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers)?;
+        let request = IndexerInstanceTagsRequest {
+            tag_public_ids: None,
+            tag_keys: Some(vec!["tag".to_string(); INSTANCE_TAG_KEYS_MAX_LEN + 1]),
+        };
+
+        let err = set_indexer_instance_tags(State(state), Path(Uuid::new_v4()), Json(request))
+            .await
+            .expect_err("excessive tag key count should fail");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let problem = parse_problem(response).await;
+        assert_eq!(problem.detail.as_deref(), Some(INSTANCE_TAG_KEYS_TOO_LARGE));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn set_indexer_instance_tags_rejects_oversized_key() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers)?;
+        let request = IndexerInstanceTagsRequest {
+            tag_public_ids: None,
+            tag_keys: Some(vec!["x".repeat(INSTANCE_TAG_KEY_MAX_BYTES + 1)]),
+        };
+
+        let err = set_indexer_instance_tags(State(state), Path(Uuid::new_v4()), Json(request))
+            .await
+            .expect_err("oversized tag key should fail");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let problem = parse_problem(response).await;
+        assert_eq!(problem.detail.as_deref(), Some(INSTANCE_TAG_KEY_TOO_LARGE));
+        Ok(())
     }
 
     #[tokio::test]

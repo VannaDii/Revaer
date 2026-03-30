@@ -295,3 +295,4 @@
     -   [263: SonarCloud PR issue cleanup and scope alignment](adr/263-sonarcloud-pr-issue-cleanup.md)
     -   [264: PR unresolved feedback closeout](adr/264-pr-unresolved-feedback-closeout.md)
     -   [265: PR feedback boundary validation closeout](adr/265-pr-feedback-boundary-validation-closeout.md)
+    -   [266: PR CodeQL follow-up on instance tag bounds](adr/266-pr-codeql-followup-on-instance-tag-bounds.md)
