@@ -20,6 +20,7 @@ use crate::app::indexers::{
 use crate::app::state::ApiState;
 use crate::http::errors::ApiError;
 use crate::http::handlers::indexers::SYSTEM_ACTOR_PUBLIC_ID;
+use crate::http::handlers::indexers::normalization::trim_and_filter_empty;
 use crate::models::{
     IndexerSourceMetadataConflictListResponse, IndexerSourceMetadataConflictReopenRequest,
     IndexerSourceMetadataConflictResolveRequest,
@@ -66,7 +67,7 @@ pub(crate) async fn resolve_source_metadata_conflict(
             SYSTEM_ACTOR_PUBLIC_ID,
             request.conflict_id,
             request.resolution.trim(),
-            request.resolution_note.as_deref().map(str::trim),
+            trim_and_filter_empty(request.resolution_note.as_deref()),
         )
         .await
         .map_err(|err| {
@@ -89,7 +90,7 @@ pub(crate) async fn reopen_source_metadata_conflict(
         .source_metadata_conflict_reopen(
             SYSTEM_ACTOR_PUBLIC_ID,
             request.conflict_id,
-            request.resolution_note.as_deref().map(str::trim),
+            trim_and_filter_empty(request.resolution_note.as_deref()),
         )
         .await
         .map_err(|err| {
@@ -124,4 +125,62 @@ fn map_source_metadata_conflict_error(
         api_error = api_error.with_context_field("sqlstate", sqlstate);
     }
     api_error
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::http::handlers::indexers::test_support::{RecordingIndexers, indexer_test_state};
+    use axum::{Json, extract::State};
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn resolve_source_metadata_conflict_filters_blank_note() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let request = IndexerSourceMetadataConflictResolveRequest {
+            conflict_id: 42,
+            resolution: " accepted_incoming ".to_string(),
+            resolution_note: Some("   ".to_string()),
+        };
+
+        let status = resolve_source_metadata_conflict(State(state), Json(request)).await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .source_metadata_conflict_resolve_calls
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0, SYSTEM_ACTOR_PUBLIC_ID);
+        assert_eq!(calls[0].1, 42);
+        assert_eq!(calls[0].2, "accepted_incoming");
+        assert_eq!(calls[0].3, None);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn reopen_source_metadata_conflict_filters_blank_note() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers.clone())?;
+        let request = IndexerSourceMetadataConflictReopenRequest {
+            conflict_id: 7,
+            resolution_note: Some("   ".to_string()),
+        };
+
+        let status = reopen_source_metadata_conflict(State(state), Json(request)).await?;
+        assert_eq!(status, StatusCode::NO_CONTENT);
+
+        let calls = indexers
+            .source_metadata_conflict_reopen_calls
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].0, SYSTEM_ACTOR_PUBLIC_ID);
+        assert_eq!(calls[0].1, 7);
+        assert_eq!(calls[0].2, None);
+        Ok(())
+    }
 }

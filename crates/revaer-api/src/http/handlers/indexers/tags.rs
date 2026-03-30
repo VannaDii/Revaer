@@ -102,7 +102,7 @@ pub(crate) async fn delete_tag_by_key(
         .indexers
         .tag_delete(SYSTEM_ACTOR_PUBLIC_ID, None, trimmed_tag_key)
         .await
-        .map_err(|err| map_tag_error("tag_delete", TAG_DELETE_FAILED, &err))?;
+        .map_err(|err| map_tag_error("tag_delete_by_key", TAG_DELETE_FAILED, &err))?;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -266,6 +266,31 @@ mod tests {
 
         let status = delete_tag_by_key(State(state), Path("  quality  ".to_string())).await?;
         assert_eq!(status, StatusCode::NO_CONTENT);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn delete_tag_by_key_reports_distinct_operation_context() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        indexers
+            .tag_error
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .replace(TagServiceError::new(TagServiceErrorKind::Storage));
+        let state = indexer_test_state(indexers)?;
+
+        let err = delete_tag_by_key(State(state), Path("quality".to_string()))
+            .await
+            .expect_err("storage error should fail");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let problem = parse_problem(response).await;
+        let context = problem.context.unwrap_or_default();
+        assert!(
+            context
+                .iter()
+                .any(|field| field.name == "operation" && field.value == "tag_delete_by_key")
+        );
         Ok(())
     }
 }

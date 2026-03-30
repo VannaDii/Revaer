@@ -293,3 +293,4 @@
     -   [261: PR security and thread closeout](adr/261-pr-security-and-thread-closeout.md)
     -   [262: PR final thread closeout](adr/262-pr-final-thread-closeout.md)
     -   [263: SonarCloud PR issue cleanup and scope alignment](adr/263-sonarcloud-pr-issue-cleanup.md)
+    -   [264: PR unresolved feedback closeout](adr/264-pr-unresolved-feedback-closeout.md)

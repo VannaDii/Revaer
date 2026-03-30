@@ -12,8 +12,8 @@ use crate::app::indexers::{
     RateLimitPolicyServiceError, RateLimitPolicyServiceErrorKind, RoutingPolicyServiceError,
     RoutingPolicyServiceErrorKind, SearchProfileServiceError, SearchProfileServiceErrorKind,
     SearchRequestCreateParams, SearchRequestServiceError, SearchRequestServiceErrorKind,
-    SecretServiceError, TagServiceError, TorznabInstanceCredentials, TorznabInstanceServiceError,
-    TorznabInstanceServiceErrorKind,
+    SecretServiceError, SourceMetadataConflictServiceError, TagServiceError,
+    TorznabInstanceCredentials, TorznabInstanceServiceError, TorznabInstanceServiceErrorKind,
 };
 use crate::app::state::ApiState;
 use crate::config::ConfigFacade;
@@ -50,6 +50,9 @@ const DEFAULT_SEARCH_REQUEST_PUBLIC_ID: Uuid = Uuid::from_u128(3);
 const DEFAULT_REQUEST_POLICY_SET_PUBLIC_ID: Uuid = Uuid::from_u128(4);
 const DEFAULT_SECRET_PUBLIC_ID: Uuid = Uuid::from_u128(5);
 const DEFAULT_INDEXER_INSTANCE_PUBLIC_ID: Uuid = Uuid::from_u128(6);
+
+type SourceMetadataConflictResolveCall = (Uuid, i64, String, Option<String>);
+type SourceMetadataConflictReopenCall = (Uuid, i64, Option<String>);
 
 #[derive(Clone)]
 struct StubConfig;
@@ -184,6 +187,12 @@ pub(super) struct RecordingIndexers {
     pub(super) tag_calls: Arc<Mutex<Vec<(Uuid, String, String)>>>,
     pub(super) tag_result: Arc<Mutex<Option<Result<Uuid, TagServiceError>>>>,
     pub(super) tag_error: Arc<Mutex<Option<TagServiceError>>>,
+    pub(super) source_metadata_conflict_resolve_calls:
+        Arc<Mutex<Vec<SourceMetadataConflictResolveCall>>>,
+    pub(super) source_metadata_conflict_reopen_calls:
+        Arc<Mutex<Vec<SourceMetadataConflictReopenCall>>>,
+    pub(super) source_metadata_conflict_error:
+        Arc<Mutex<Option<SourceMetadataConflictServiceError>>>,
 }
 
 /// Snapshot of search request create inputs for assertions.
@@ -637,6 +646,78 @@ impl IndexerFacade for RecordingIndexers {
     ) -> Result<(), TagServiceError> {
         let tag_error = self.tag_error.lock().expect("lock poisoned").take();
         if let Some(error) = tag_error {
+            return Err(error);
+        }
+        Ok(())
+    }
+
+    async fn source_metadata_conflict_list(
+        &self,
+        _actor_user_public_id: Uuid,
+        _include_resolved: Option<bool>,
+        _limit: Option<i32>,
+    ) -> Result<
+        Vec<crate::models::IndexerSourceMetadataConflictResponse>,
+        SourceMetadataConflictServiceError,
+    > {
+        let error = self
+            .source_metadata_conflict_error
+            .lock()
+            .expect("lock poisoned")
+            .take();
+        if let Some(error) = error {
+            return Err(error);
+        }
+        Ok(Vec::new())
+    }
+
+    async fn source_metadata_conflict_resolve(
+        &self,
+        actor_user_public_id: Uuid,
+        conflict_id: i64,
+        resolution: &str,
+        resolution_note: Option<&str>,
+    ) -> Result<(), SourceMetadataConflictServiceError> {
+        self.source_metadata_conflict_resolve_calls
+            .lock()
+            .expect("lock poisoned")
+            .push((
+                actor_user_public_id,
+                conflict_id,
+                resolution.to_string(),
+                resolution_note.map(str::to_string),
+            ));
+        let error = self
+            .source_metadata_conflict_error
+            .lock()
+            .expect("lock poisoned")
+            .take();
+        if let Some(error) = error {
+            return Err(error);
+        }
+        Ok(())
+    }
+
+    async fn source_metadata_conflict_reopen(
+        &self,
+        actor_user_public_id: Uuid,
+        conflict_id: i64,
+        resolution_note: Option<&str>,
+    ) -> Result<(), SourceMetadataConflictServiceError> {
+        self.source_metadata_conflict_reopen_calls
+            .lock()
+            .expect("lock poisoned")
+            .push((
+                actor_user_public_id,
+                conflict_id,
+                resolution_note.map(str::to_string),
+            ));
+        let error = self
+            .source_metadata_conflict_error
+            .lock()
+            .expect("lock poisoned")
+            .take();
+        if let Some(error) = error {
             return Err(error);
         }
         Ok(())
