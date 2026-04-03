@@ -49,10 +49,12 @@ use revaer_api::models::{
     IndexerInstanceTestFinalizeResponse, IndexerInstanceTestPrepareResponse,
     IndexerRssSeenItemResponse, IndexerRssSeenMarkResponse, IndexerRssSubscriptionResponse,
     IndexerSourceMetadataConflictResponse, IndexerSourceReputationResponse,
-    RateLimitPolicyListItemResponse, RoutingPolicyDetailResponse, RoutingPolicyListItemResponse,
-    RoutingPolicyParameterResponse, SearchPageItemResponse, SearchPageListResponse,
-    SearchPageResponse, SearchPageSummaryResponse, SearchRequestCreateResponse,
+    PolicyRuleListItemResponse, PolicySetListItemResponse, RateLimitPolicyListItemResponse,
+    RoutingPolicyDetailResponse, RoutingPolicyListItemResponse, RoutingPolicyParameterResponse,
+    SearchPageItemResponse, SearchPageListResponse, SearchPageResponse, SearchPageSummaryResponse,
+    SearchProfileListItemResponse, SearchRequestCreateResponse,
     SearchRequestExplainabilityResponse, SecretMetadataResponse, TagListItemResponse,
+    TorznabInstanceListItemResponse,
 };
 use revaer_config::ConfigService;
 use revaer_data::DataError;
@@ -99,9 +101,10 @@ use revaer_data::indexers::notifications::{
     indexer_health_notification_hook_update,
 };
 use revaer_data::indexers::policies::{
-    PolicyRuleCreateInput, PolicyRuleValueItem as DataPolicyRuleValueItem, policy_rule_create,
-    policy_rule_disable, policy_rule_enable, policy_rule_reorder, policy_set_create,
-    policy_set_disable, policy_set_enable, policy_set_reorder, policy_set_update,
+    PolicyRuleCreateInput, PolicyRuleValueItem as DataPolicyRuleValueItem, PolicySetRuleListRow,
+    policy_rule_create, policy_rule_disable, policy_rule_enable, policy_rule_reorder,
+    policy_set_create, policy_set_disable, policy_set_enable, policy_set_reorder,
+    policy_set_rule_list, policy_set_update,
 };
 use revaer_data::indexers::rate_limits::{
     indexer_instance_set_rate_limit_policy, rate_limit_policy_create,
@@ -118,8 +121,9 @@ use revaer_data::indexers::search_pages::{
     search_page_list, search_request_explainability,
 };
 use revaer_data::indexers::search_profiles::{
-    search_profile_add_policy_set, search_profile_create, search_profile_indexer_allow,
-    search_profile_indexer_block, search_profile_remove_policy_set, search_profile_set_default,
+    SearchProfileListRow, search_profile_add_policy_set, search_profile_create,
+    search_profile_indexer_allow, search_profile_indexer_block, search_profile_list,
+    search_profile_remove_policy_set, search_profile_set_default,
     search_profile_set_default_domain, search_profile_set_domain_allowlist,
     search_profile_tag_allow, search_profile_tag_block, search_profile_tag_prefer,
     search_profile_update,
@@ -132,9 +136,9 @@ use revaer_data::indexers::secrets::{
 };
 use revaer_data::indexers::tags::{tag_create, tag_list, tag_soft_delete, tag_update};
 use revaer_data::indexers::torznab::{
-    torznab_category_list, torznab_download_prepare, torznab_instance_authenticate,
-    torznab_instance_create, torznab_instance_enable_disable, torznab_instance_rotate_key,
-    torznab_instance_soft_delete,
+    TorznabInstanceListRow, torznab_category_list, torznab_download_prepare,
+    torznab_instance_authenticate, torznab_instance_create, torznab_instance_enable_disable,
+    torznab_instance_list, torznab_instance_rotate_key, torznab_instance_soft_delete,
 };
 use revaer_telemetry::Metrics;
 
@@ -1706,6 +1710,28 @@ impl IndexerFacade for IndexerService {
         .await
     }
 
+    async fn search_profile_list(
+        &self,
+        actor_user_public_id: Uuid,
+    ) -> Result<Vec<SearchProfileListItemResponse>, SearchProfileServiceError> {
+        let span = info_span!(
+            "indexer.search_profile_list",
+            actor_user_public_id = %actor_user_public_id
+        );
+        let rows = self
+            .run_operation(
+                "indexer.search_profile_list",
+                search_profile_list(self.config.pool(), actor_user_public_id).instrument(span),
+                |error| map_search_profile_error("search_profile_list", error),
+            )
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(build_search_profile_inventory_item)
+            .collect())
+    }
+
     async fn import_job_create(
         &self,
         actor_user_public_id: Uuid,
@@ -2229,6 +2255,25 @@ impl IndexerFacade for IndexerService {
         .await
     }
 
+    async fn policy_set_list(
+        &self,
+        actor_user_public_id: Uuid,
+    ) -> Result<Vec<PolicySetListItemResponse>, PolicyServiceError> {
+        let span = info_span!(
+            "indexer.policy_set_list",
+            actor_user_public_id = %actor_user_public_id
+        );
+        let rows = self
+            .run_operation(
+                "indexer.policy_set_list",
+                policy_set_rule_list(self.config.pool(), actor_user_public_id).instrument(span),
+                |error| map_policy_error("policy_set_rule_list", error),
+            )
+            .await?;
+
+        Ok(build_policy_set_inventory(&rows))
+    }
+
     async fn tracker_category_mapping_upsert(
         &self,
         params: TrackerCategoryMappingUpsertParams<'_>,
@@ -2442,6 +2487,28 @@ impl IndexerFacade for IndexerService {
             |error| map_torznab_instance_error("torznab_instance_soft_delete", error),
         )
         .await
+    }
+
+    async fn torznab_instance_list(
+        &self,
+        actor_user_public_id: Uuid,
+    ) -> Result<Vec<TorznabInstanceListItemResponse>, TorznabInstanceServiceError> {
+        let span = info_span!(
+            "indexer.torznab_instance_list",
+            actor_user_public_id = %actor_user_public_id
+        );
+        let rows = self
+            .run_operation(
+                "indexer.torznab_instance_list",
+                torznab_instance_list(self.config.pool(), actor_user_public_id).instrument(span),
+                |error| map_torznab_instance_error("torznab_instance_list", error),
+            )
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(build_torznab_instance_inventory_item)
+            .collect())
     }
 
     async fn torznab_instance_authenticate(
@@ -4144,6 +4211,99 @@ fn build_indexer_instance_inventory(
     let mut items = instances.into_values().collect::<Vec<_>>();
     items.sort_by(|left, right| left.display_name.cmp(&right.display_name));
     items
+}
+
+fn build_search_profile_inventory_item(row: SearchProfileListRow) -> SearchProfileListItemResponse {
+    SearchProfileListItemResponse {
+        search_profile_public_id: row.search_profile_public_id,
+        display_name: row.display_name,
+        is_default: row.is_default,
+        page_size: row.page_size,
+        default_media_domain_key: row.default_media_domain_key,
+        media_domain_keys: row.media_domain_keys,
+        policy_set_public_ids: row.policy_set_public_ids,
+        policy_set_display_names: row.policy_set_display_names,
+        allow_indexer_public_ids: row.allow_indexer_public_ids,
+        block_indexer_public_ids: row.block_indexer_public_ids,
+        allow_tag_keys: row.allow_tag_keys,
+        block_tag_keys: row.block_tag_keys,
+        prefer_tag_keys: row.prefer_tag_keys,
+    }
+}
+
+fn build_policy_set_inventory(rows: &[PolicySetRuleListRow]) -> Vec<PolicySetListItemResponse> {
+    let mut policy_sets = BTreeMap::<Uuid, PolicySetListItemResponse>::new();
+
+    for row in rows {
+        let entry = policy_sets
+            .entry(row.policy_set_public_id)
+            .or_insert_with(|| PolicySetListItemResponse {
+                policy_set_public_id: row.policy_set_public_id,
+                display_name: row.policy_set_display_name.clone(),
+                scope: row.scope.clone(),
+                is_enabled: row.is_enabled,
+                user_public_id: row.user_public_id,
+                rules: Vec::new(),
+            });
+
+        if let (
+            Some(policy_rule_public_id),
+            Some(rule_type),
+            Some(match_field),
+            Some(match_operator),
+            Some(sort_order),
+            Some(action),
+            Some(severity),
+        ) = (
+            row.policy_rule_public_id,
+            row.rule_type.as_ref(),
+            row.match_field.as_ref(),
+            row.match_operator.as_ref(),
+            row.sort_order,
+            row.action.as_ref(),
+            row.severity.as_ref(),
+        ) {
+            entry.rules.push(PolicyRuleListItemResponse {
+                policy_rule_public_id,
+                rule_type: rule_type.clone(),
+                match_field: match_field.clone(),
+                match_operator: match_operator.clone(),
+                sort_order,
+                match_value_text: row.match_value_text.clone(),
+                match_value_int: row.match_value_int,
+                match_value_uuid: row.match_value_uuid,
+                action: action.clone(),
+                severity: severity.clone(),
+                is_case_insensitive: row.is_case_insensitive.unwrap_or(false),
+                rationale: row.rationale.clone(),
+                expires_at: row.expires_at,
+                is_disabled: row.is_rule_disabled.unwrap_or(false),
+            });
+        }
+    }
+
+    let mut items = policy_sets.into_values().collect::<Vec<_>>();
+    items.sort_by(|left, right| left.display_name.cmp(&right.display_name));
+    for item in &mut items {
+        item.rules.sort_by(|left, right| {
+            left.sort_order
+                .cmp(&right.sort_order)
+                .then_with(|| left.policy_rule_public_id.cmp(&right.policy_rule_public_id))
+        });
+    }
+    items
+}
+
+fn build_torznab_instance_inventory_item(
+    row: TorznabInstanceListRow,
+) -> TorznabInstanceListItemResponse {
+    TorznabInstanceListItemResponse {
+        torznab_instance_public_id: row.torznab_instance_public_id,
+        display_name: row.display_name,
+        is_enabled: row.is_enabled,
+        search_profile_public_id: row.search_profile_public_id,
+        search_profile_display_name: row.search_profile_display_name,
+    }
 }
 
 fn update_indexer_instance_inventory_entry(

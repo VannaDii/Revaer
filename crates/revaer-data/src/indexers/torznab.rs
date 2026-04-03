@@ -63,6 +63,18 @@ const TORZNAB_DOWNLOAD_PREPARE_CALL: &str = r"
     )
 ";
 
+const TORZNAB_INSTANCE_LIST_CALL: &str = r"
+    SELECT
+        torznab_instance_public_id,
+        display_name,
+        is_enabled,
+        search_profile_public_id,
+        search_profile_display_name
+    FROM indexer_torznab_instance_list(
+        actor_user_public_id => $1
+    )
+";
+
 /// Credentials returned when creating a Torznab instance.
 #[derive(Debug, Clone, FromRow)]
 pub struct TorznabInstanceCredentials {
@@ -90,6 +102,21 @@ pub struct TorznabCategoryRow {
     pub torznab_cat_id: i32,
     /// Human-readable category name.
     pub name: String,
+}
+
+/// Operator-facing Torznab-instance inventory row.
+#[derive(Debug, Clone, PartialEq, Eq, FromRow)]
+pub struct TorznabInstanceListRow {
+    /// Torznab-instance public identifier.
+    pub torznab_instance_public_id: Uuid,
+    /// Operator-facing display name.
+    pub display_name: String,
+    /// Whether the endpoint is enabled.
+    pub is_enabled: bool,
+    /// Linked search-profile public identifier.
+    pub search_profile_public_id: Uuid,
+    /// Linked search-profile display name.
+    pub search_profile_display_name: String,
 }
 
 /// Download target for Torznab redirects.
@@ -205,6 +232,22 @@ pub async fn torznab_category_list(pool: &PgPool) -> Result<Vec<TorznabCategoryR
         .fetch_all(pool)
         .await
         .map_err(try_op("torznab category list"))
+}
+
+/// List Torznab instances for operator inventory flows.
+///
+/// # Errors
+///
+/// Returns an error if the stored procedure rejects the actor or query.
+pub async fn torznab_instance_list(
+    pool: &PgPool,
+    actor_user_public_id: Uuid,
+) -> Result<Vec<TorznabInstanceListRow>> {
+    sqlx::query_as(TORZNAB_INSTANCE_LIST_CALL)
+        .bind(actor_user_public_id)
+        .fetch_all(pool)
+        .await
+        .map_err(try_op("torznab instance list"))
 }
 
 /// Prepare a Torznab download redirect and record an acquisition attempt.

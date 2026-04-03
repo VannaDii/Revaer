@@ -467,7 +467,8 @@ impl ApiServer {
         Router::new()
             .route(
                 "/v1/indexers/torznab-instances",
-                post(indexer_handlers::create_torznab_instance),
+                get(indexer_handlers::list_torznab_instances)
+                    .post(indexer_handlers::create_torznab_instance),
             )
             .route(
                 "/v1/indexers/torznab-instances/{torznab_instance_public_id}/rotate",
@@ -540,7 +541,8 @@ impl ApiServer {
         Router::new()
             .route(
                 "/v1/indexers/search-profiles",
-                post(indexer_handlers::create_search_profile),
+                get(indexer_handlers::list_search_profiles)
+                    .post(indexer_handlers::create_search_profile),
             )
             .route(
                 "/v1/indexers/search-profiles/{search_profile_public_id}",
@@ -592,7 +594,7 @@ impl ApiServer {
         Router::new()
             .route(
                 "/v1/indexers/policies",
-                post(indexer_handlers::create_policy_set),
+                get(indexer_handlers::list_policy_sets).post(indexer_handlers::create_policy_set),
             )
             .route(
                 "/v1/indexers/policies/{policy_set_public_id}",

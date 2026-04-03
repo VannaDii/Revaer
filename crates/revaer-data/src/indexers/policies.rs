@@ -7,7 +7,7 @@
 
 use crate::error::{Result, try_op};
 use chrono::{DateTime, Utc};
-use sqlx::PgPool;
+use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
 const POLICY_SET_CREATE_CALL: &str = r"
@@ -89,6 +89,75 @@ const POLICY_RULE_REORDER_CALL: &str = r"
         ordered_rule_public_ids => $3
     )
 ";
+
+const POLICY_SET_RULE_LIST_CALL: &str = r"
+    SELECT
+        policy_set_public_id,
+        policy_set_display_name,
+        scope::text AS scope,
+        is_enabled,
+        user_public_id,
+        policy_rule_public_id,
+        rule_type::text AS rule_type,
+        match_field::text AS match_field,
+        match_operator::text AS match_operator,
+        sort_order,
+        match_value_text,
+        match_value_int,
+        match_value_uuid,
+        action::text AS action,
+        severity::text AS severity,
+        is_case_insensitive,
+        rationale,
+        expires_at,
+        is_rule_disabled
+    FROM indexer_policy_set_rule_list(
+        actor_user_public_id => $1
+    )
+";
+
+/// Flattened policy-set/rule inventory row.
+#[derive(Debug, Clone, PartialEq, Eq, FromRow)]
+pub struct PolicySetRuleListRow {
+    /// Policy-set public identifier.
+    pub policy_set_public_id: Uuid,
+    /// Policy-set display name.
+    pub policy_set_display_name: String,
+    /// Scope key for the policy set.
+    pub scope: String,
+    /// Whether the set is enabled.
+    pub is_enabled: bool,
+    /// Optional user public identifier for user-scoped sets.
+    pub user_public_id: Option<Uuid>,
+    /// Optional policy-rule public identifier.
+    pub policy_rule_public_id: Option<Uuid>,
+    /// Optional rule type.
+    pub rule_type: Option<String>,
+    /// Optional match field.
+    pub match_field: Option<String>,
+    /// Optional match operator.
+    pub match_operator: Option<String>,
+    /// Optional rule sort order.
+    pub sort_order: Option<i32>,
+    /// Optional text match value.
+    pub match_value_text: Option<String>,
+    /// Optional integer match value.
+    pub match_value_int: Option<i32>,
+    /// Optional UUID match value.
+    pub match_value_uuid: Option<Uuid>,
+    /// Optional action key.
+    pub action: Option<String>,
+    /// Optional severity key.
+    pub severity: Option<String>,
+    /// Optional case-insensitive flag.
+    pub is_case_insensitive: Option<bool>,
+    /// Optional rationale text.
+    pub rationale: Option<String>,
+    /// Optional expiry timestamp.
+    pub expires_at: Option<DateTime<Utc>>,
+    /// Optional disabled marker for a rule.
+    pub is_rule_disabled: Option<bool>,
+}
 
 /// Create a policy set.
 ///
@@ -322,6 +391,22 @@ pub async fn policy_rule_reorder(
         .await
         .map_err(try_op("policy rule reorder"))?;
     Ok(())
+}
+
+/// List policy sets with flattened rule rows for operator inventory flows.
+///
+/// # Errors
+///
+/// Returns an error if the stored procedure rejects the actor or query.
+pub async fn policy_set_rule_list(
+    pool: &PgPool,
+    actor_user_public_id: Uuid,
+) -> Result<Vec<PolicySetRuleListRow>> {
+    sqlx::query_as(POLICY_SET_RULE_LIST_CALL)
+        .bind(actor_user_public_id)
+        .fetch_all(pool)
+        .await
+        .map_err(try_op("policy set rule list"))
 }
 
 #[cfg(test)]

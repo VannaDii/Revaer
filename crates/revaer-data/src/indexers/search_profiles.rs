@@ -6,7 +6,7 @@
 //! - Uses constant error messages for mapping database failures.
 
 use crate::error::{Result, try_op};
-use sqlx::PgPool;
+use sqlx::{FromRow, PgPool};
 use uuid::Uuid;
 
 const SEARCH_PROFILE_CREATE_CALL: &str = r"
@@ -111,6 +111,57 @@ const SEARCH_PROFILE_TAG_PREFER_CALL: &str = r"
         tag_keys_input => $4
     )
 ";
+
+const SEARCH_PROFILE_LIST_CALL: &str = r"
+    SELECT
+        search_profile_public_id,
+        display_name,
+        is_default,
+        page_size,
+        default_media_domain_key::text AS default_media_domain_key,
+        media_domain_keys,
+        policy_set_public_ids,
+        policy_set_display_names,
+        allow_indexer_public_ids,
+        block_indexer_public_ids,
+        allow_tag_keys,
+        block_tag_keys,
+        prefer_tag_keys
+    FROM indexer_search_profile_list(
+        actor_user_public_id => $1
+    )
+";
+
+/// Search-profile inventory row for operator read/list surfaces.
+#[derive(Debug, Clone, PartialEq, Eq, FromRow)]
+pub struct SearchProfileListRow {
+    /// Search-profile public identifier.
+    pub search_profile_public_id: Uuid,
+    /// Operator-facing display name.
+    pub display_name: String,
+    /// Whether the profile is the default.
+    pub is_default: bool,
+    /// Optional page-size override.
+    pub page_size: Option<i32>,
+    /// Optional default media-domain key.
+    pub default_media_domain_key: Option<String>,
+    /// Allowed media-domain keys.
+    pub media_domain_keys: Vec<String>,
+    /// Attached policy-set public identifiers.
+    pub policy_set_public_ids: Vec<Uuid>,
+    /// Attached policy-set display names.
+    pub policy_set_display_names: Vec<String>,
+    /// Allowed indexer-instance public identifiers.
+    pub allow_indexer_public_ids: Vec<Uuid>,
+    /// Blocked indexer-instance public identifiers.
+    pub block_indexer_public_ids: Vec<Uuid>,
+    /// Allowed tag keys.
+    pub allow_tag_keys: Vec<String>,
+    /// Blocked tag keys.
+    pub block_tag_keys: Vec<String>,
+    /// Preferred tag keys.
+    pub prefer_tag_keys: Vec<String>,
+}
 
 /// Create a search profile.
 ///
@@ -374,6 +425,22 @@ pub async fn search_profile_tag_prefer(
         .await
         .map_err(try_op("search profile tag prefer"))?;
     Ok(())
+}
+
+/// List search profiles for operator inventory flows.
+///
+/// # Errors
+///
+/// Returns an error if the stored procedure rejects the actor or query.
+pub async fn search_profile_list(
+    pool: &PgPool,
+    actor_user_public_id: Uuid,
+) -> Result<Vec<SearchProfileListRow>> {
+    sqlx::query_as(SEARCH_PROFILE_LIST_CALL)
+        .bind(actor_user_public_id)
+        .fetch_all(pool)
+        .await
+        .map_err(try_op("search profile list"))
 }
 
 #[cfg(test)]

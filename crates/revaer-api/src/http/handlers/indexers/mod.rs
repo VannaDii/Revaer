@@ -72,8 +72,8 @@ pub(crate) use notifications::{
 };
 pub(crate) use policies::{
     create_policy_rule, create_policy_set, disable_policy_rule, disable_policy_set,
-    enable_policy_rule, enable_policy_set, reorder_policy_rules, reorder_policy_sets,
-    update_policy_set,
+    enable_policy_rule, enable_policy_set, list_policy_sets, reorder_policy_rules,
+    reorder_policy_sets, update_policy_set,
 };
 pub(crate) use rate_limits::{
     create_rate_limit_policy, delete_rate_limit_policy, list_rate_limit_policies,
@@ -89,16 +89,17 @@ pub(crate) use rss::{
 };
 pub(crate) use search_pages::{get_search_page, list_search_pages};
 pub(crate) use search_profiles::{
-    add_search_profile_policy_set, create_search_profile, remove_search_profile_policy_set,
-    set_search_profile_default, set_search_profile_default_domain,
-    set_search_profile_domain_allowlist, set_search_profile_indexer_allow,
-    set_search_profile_indexer_block, set_search_profile_tag_allow, set_search_profile_tag_block,
-    set_search_profile_tag_prefer, update_search_profile,
+    add_search_profile_policy_set, create_search_profile, list_search_profiles,
+    remove_search_profile_policy_set, set_search_profile_default,
+    set_search_profile_default_domain, set_search_profile_domain_allowlist,
+    set_search_profile_indexer_allow, set_search_profile_indexer_block,
+    set_search_profile_tag_allow, set_search_profile_tag_block, set_search_profile_tag_prefer,
+    update_search_profile,
 };
 pub(crate) use search_requests::{cancel_search_request, create_search_request};
 pub(crate) use secrets::{create_secret, list_secret_metadata, revoke_secret, rotate_secret};
 pub(crate) use tags::{create_tag, delete_tag, delete_tag_by_key, list_tags, update_tag};
 pub(crate) use torznab_instances::{
-    create_torznab_instance, delete_torznab_instance, rotate_torznab_instance_key,
-    set_torznab_instance_state,
+    create_torznab_instance, delete_torznab_instance, list_torznab_instances,
+    rotate_torznab_instance_key, set_torznab_instance_state,
 };

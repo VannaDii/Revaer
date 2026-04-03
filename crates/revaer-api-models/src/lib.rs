@@ -511,6 +511,28 @@ pub struct TorznabInstanceResponse {
     pub api_key_plaintext: String,
 }
 
+/// Torznab-instance inventory item for operator read/list surfaces.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TorznabInstanceListItemResponse {
+    /// Torznab-instance public identifier.
+    pub torznab_instance_public_id: Uuid,
+    /// Operator-facing display name.
+    pub display_name: String,
+    /// Whether the Torznab endpoint is enabled.
+    pub is_enabled: bool,
+    /// Linked search-profile public identifier.
+    pub search_profile_public_id: Uuid,
+    /// Linked search-profile display name.
+    pub search_profile_display_name: String,
+}
+
+/// Torznab-instance inventory response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TorznabInstanceListResponse {
+    /// Operator-visible Torznab instances.
+    pub torznab_instances: Vec<TorznabInstanceListItemResponse>,
+}
+
 /// Search profile creation request payload.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SearchProfileCreateRequest {
@@ -594,6 +616,46 @@ pub struct SearchProfileTagSetRequest {
 pub struct SearchProfileResponse {
     /// Search profile public identifier.
     pub search_profile_public_id: Uuid,
+}
+
+/// Search-profile inventory item for operator read/list surfaces.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchProfileListItemResponse {
+    /// Search-profile public identifier.
+    pub search_profile_public_id: Uuid,
+    /// Operator-facing display name.
+    pub display_name: String,
+    /// Whether the profile is marked as default.
+    pub is_default: bool,
+    /// Optional page-size override.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_size: Option<i32>,
+    /// Optional default media-domain key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_media_domain_key: Option<String>,
+    /// Allowed media-domain keys.
+    pub media_domain_keys: Vec<String>,
+    /// Attached policy-set public identifiers.
+    pub policy_set_public_ids: Vec<Uuid>,
+    /// Attached policy-set display names.
+    pub policy_set_display_names: Vec<String>,
+    /// Explicitly allowed indexer-instance public identifiers.
+    pub allow_indexer_public_ids: Vec<Uuid>,
+    /// Explicitly blocked indexer-instance public identifiers.
+    pub block_indexer_public_ids: Vec<Uuid>,
+    /// Allowed tag keys.
+    pub allow_tag_keys: Vec<String>,
+    /// Blocked tag keys.
+    pub block_tag_keys: Vec<String>,
+    /// Preferred tag keys.
+    pub prefer_tag_keys: Vec<String>,
+}
+
+/// Search-profile inventory response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchProfileListResponse {
+    /// Operator-visible search profiles.
+    pub search_profiles: Vec<SearchProfileListItemResponse>,
 }
 
 /// Search request creation request payload.
@@ -789,6 +851,69 @@ pub struct PolicySetReorderRequest {
 pub struct PolicySetResponse {
     /// Policy set public identifier.
     pub policy_set_public_id: Uuid,
+}
+
+/// Policy-rule inventory item nested under a policy set.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PolicyRuleListItemResponse {
+    /// Policy-rule public identifier.
+    pub policy_rule_public_id: Uuid,
+    /// Rule type key.
+    pub rule_type: String,
+    /// Match field key.
+    pub match_field: String,
+    /// Match operator key.
+    pub match_operator: String,
+    /// Sort order for evaluation.
+    pub sort_order: i32,
+    /// Optional text match value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub match_value_text: Option<String>,
+    /// Optional integer match value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub match_value_int: Option<i32>,
+    /// Optional UUID match value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub match_value_uuid: Option<Uuid>,
+    /// Action key.
+    pub action: String,
+    /// Severity key.
+    pub severity: String,
+    /// Whether matching is case-insensitive.
+    pub is_case_insensitive: bool,
+    /// Optional rationale text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rationale: Option<String>,
+    /// Optional expiry timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<DateTime<Utc>>,
+    /// Whether the rule is disabled.
+    pub is_disabled: bool,
+}
+
+/// Policy-set inventory item for operator read/list surfaces.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PolicySetListItemResponse {
+    /// Policy-set public identifier.
+    pub policy_set_public_id: Uuid,
+    /// Operator-facing display name.
+    pub display_name: String,
+    /// Scope key.
+    pub scope: String,
+    /// Whether the set is enabled.
+    pub is_enabled: bool,
+    /// Optional user public identifier for user-scoped sets.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_public_id: Option<Uuid>,
+    /// Ordered policy rules attached to the set.
+    pub rules: Vec<PolicyRuleListItemResponse>,
+}
+
+/// Policy-set inventory response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PolicySetListResponse {
+    /// Operator-visible policy sets.
+    pub policy_sets: Vec<PolicySetListItemResponse>,
 }
 
 /// Value-set item for policy rule creation.

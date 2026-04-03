@@ -29,18 +29,18 @@ use crate::models::{
     IndexerRssSubscriptionUpdateRequest, IndexerSourceMetadataConflictListResponse,
     IndexerSourceMetadataConflictReopenRequest, IndexerSourceMetadataConflictResolveRequest,
     IndexerSourceReputationListResponse, PolicyRuleCreateRequest, PolicyRuleResponse,
-    PolicyRuleValueItemRequest, PolicySetCreateRequest, PolicySetResponse,
+    PolicyRuleValueItemRequest, PolicySetCreateRequest, PolicySetListResponse, PolicySetResponse,
     RateLimitPolicyAssignmentRequest, RateLimitPolicyCreateRequest, RateLimitPolicyListResponse,
     RateLimitPolicyResponse, RateLimitPolicyUpdateRequest, RoutingPolicyCreateRequest,
     RoutingPolicyDetailResponse, RoutingPolicyListResponse, RoutingPolicyParamSetRequest,
     RoutingPolicyResponse, RoutingPolicySecretBindRequest, SearchProfileCreateRequest,
     SearchProfileDefaultDomainRequest, SearchProfileDomainAllowlistRequest,
-    SearchProfileIndexerSetRequest, SearchProfilePolicySetRequest, SearchProfileResponse,
-    SearchProfileTagSetRequest, SearchProfileUpdateRequest, SecretCreateRequest,
-    SecretMetadataListResponse, SecretResponse, TagCreateRequest, TagDeleteRequest,
-    TagListResponse, TagResponse, TagUpdateRequest, TorznabInstanceCreateRequest,
-    TorznabInstanceResponse, TorznabInstanceStateRequest, TrackerCategoryMappingDeleteRequest,
-    TrackerCategoryMappingUpsertRequest,
+    SearchProfileIndexerSetRequest, SearchProfileListResponse, SearchProfilePolicySetRequest,
+    SearchProfileResponse, SearchProfileTagSetRequest, SearchProfileUpdateRequest,
+    SecretCreateRequest, SecretMetadataListResponse, SecretResponse, TagCreateRequest,
+    TagDeleteRequest, TagListResponse, TagResponse, TagUpdateRequest, TorznabInstanceCreateRequest,
+    TorznabInstanceListResponse, TorznabInstanceResponse, TorznabInstanceStateRequest,
+    TrackerCategoryMappingDeleteRequest, TrackerCategoryMappingUpsertRequest,
 };
 use crate::services::api::{ApiClient, ApiError};
 
@@ -226,6 +226,31 @@ pub(crate) async fn fetch_secret_metadata(
 ) -> Result<SecretMetadataListResponse, String> {
     client
         .get_api("/v1/indexers/secrets")
+        .await
+        .map_err(|err| err.to_string())
+}
+
+pub(crate) async fn fetch_search_profiles(
+    client: &ApiClient,
+) -> Result<SearchProfileListResponse, String> {
+    client
+        .get_api("/v1/indexers/search-profiles")
+        .await
+        .map_err(|err| err.to_string())
+}
+
+pub(crate) async fn fetch_policy_sets(client: &ApiClient) -> Result<PolicySetListResponse, String> {
+    client
+        .get_api("/v1/indexers/policies")
+        .await
+        .map_err(|err| err.to_string())
+}
+
+pub(crate) async fn fetch_torznab_instances(
+    client: &ApiClient,
+) -> Result<TorznabInstanceListResponse, String> {
+    client
+        .get_api("/v1/indexers/torznab-instances")
         .await
         .map_err(|err| err.to_string())
 }

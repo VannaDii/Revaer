@@ -14,10 +14,12 @@ use crate::app::state::ApiState;
 use crate::http::errors::ApiError;
 use crate::http::handlers::indexers::SYSTEM_ACTOR_PUBLIC_ID;
 use crate::models::{
-    TorznabInstanceCreateRequest, TorznabInstanceResponse, TorznabInstanceStateRequest,
+    TorznabInstanceCreateRequest, TorznabInstanceListResponse, TorznabInstanceResponse,
+    TorznabInstanceStateRequest,
 };
 use uuid::Uuid;
 
+const TORZNAB_INSTANCE_LIST_FAILED: &str = "failed to list torznab instances";
 const TORZNAB_INSTANCE_CREATE_FAILED: &str = "failed to create torznab instance";
 const TORZNAB_INSTANCE_ROTATE_FAILED: &str = "failed to rotate torznab api key";
 const TORZNAB_INSTANCE_STATE_FAILED: &str = "failed to update torznab instance state";
@@ -51,6 +53,20 @@ pub(crate) async fn create_torznab_instance(
             api_key_plaintext: credentials.api_key_plaintext,
         }),
     ))
+}
+
+pub(crate) async fn list_torznab_instances(
+    State(state): State<Arc<ApiState>>,
+) -> Result<Json<TorznabInstanceListResponse>, ApiError> {
+    let torznab_instances = state
+        .indexers
+        .torznab_instance_list(SYSTEM_ACTOR_PUBLIC_ID)
+        .await
+        .map_err(|err| {
+            map_torznab_instance_error("torznab_instance_list", TORZNAB_INSTANCE_LIST_FAILED, &err)
+        })?;
+
+    Ok(Json(TorznabInstanceListResponse { torznab_instances }))
 }
 
 pub(crate) async fn rotate_torznab_instance_key(

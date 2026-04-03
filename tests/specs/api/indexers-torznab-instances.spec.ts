@@ -34,6 +34,18 @@ test.describe('Torznab instances', () => {
     const hasCreatedInstance =
       create.response.status === 201 && Boolean(createdInstanceId) && Boolean(createdApiKey);
 
+    const listed = await api.GET('/v1/indexers/torznab-instances');
+    expect(listed.response.status).toBe(200);
+    if (hasCreatedInstance) {
+      expect(
+        listed.data?.torznab_instances.some(
+          (instance) =>
+            instance.torznab_instance_public_id === createdInstanceId &&
+            instance.search_profile_public_id === searchProfileId
+        )
+      ).toBeTruthy();
+    }
+
     if (hasCreatedInstance) {
       const capsMissingKey = await publicApi.GET('/torznab/{torznab_instance_public_id}/api', {
         params: { path: { torznab_instance_public_id: createdInstanceId! }, query: { t: 'caps' } },
@@ -159,6 +171,22 @@ test.describe('Torznab instances', () => {
     expect(download.response.status).toBe(404);
 
     if (hasCreatedInstance) {
+      const disabled = await api.PUT(
+        '/v1/indexers/torznab-instances/{torznab_instance_public_id}/state',
+        {
+          params: { path: { torznab_instance_public_id: createdInstanceId! } },
+          body: { is_enabled: false },
+        }
+      );
+      expect(disabled.response.status).toBe(204);
+
+      const listedDisabled = await api.GET('/v1/indexers/torznab-instances');
+      expect(listedDisabled.response.status).toBe(200);
+      const disabledInstance = listedDisabled.data?.torznab_instances.find(
+        (instance) => instance.torznab_instance_public_id === createdInstanceId
+      );
+      expect(disabledInstance?.is_enabled).toBe(false);
+
       const createdDownloadMissingKey = await publicApi.GET(
         '/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}',
         {

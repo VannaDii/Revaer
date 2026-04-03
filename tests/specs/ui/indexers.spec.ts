@@ -52,6 +52,13 @@ test.describe('Indexers', () => {
     ).toBeVisible();
     await expect(page.getByRole('button', { name: 'Fetch tags' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Fetch secrets' })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Fetch search profiles' }),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Fetch policy sets' })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Fetch Torznab instances' }),
+    ).toBeVisible();
     await expect(page.getByRole('heading', { name: 'App sync', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Provision app sync' })).toBeVisible();
     await expect(
@@ -63,6 +70,11 @@ test.describe('Indexers', () => {
     await expect(page.getByRole('heading', { name: 'Health events' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Import status' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'Import results' })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Search-profile inventory' }),
+    ).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Policy-set inventory' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Torznab inventory' })).toBeVisible();
     await expect(
       page.getByRole('heading', { name: 'Source conflict resolution' }),
     ).toBeVisible();

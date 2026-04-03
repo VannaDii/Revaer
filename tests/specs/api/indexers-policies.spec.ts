@@ -27,6 +27,16 @@ test.describe('Indexer policies', () => {
     });
     expect(updated.response.ok).toBeTruthy();
 
+    const listed = await api.GET('/v1/indexers/policies');
+    expect(listed.response.status).toBe(200);
+    expect(
+      listed.data?.policy_sets.some(
+        (policySet) =>
+          policySet.policy_set_public_id === policySetId &&
+          policySet.display_name === `${displayName} Updated`
+      )
+    ).toBeTruthy();
+
     const enabled = await api.POST('/v1/indexers/policies/{policy_set_public_id}/enable', {
       params: { path: { policy_set_public_id: policySetId } },
     });
@@ -64,6 +74,15 @@ test.describe('Indexer policies', () => {
     if (!ruleId) {
       throw new Error('Missing policy_rule_public_id');
     }
+
+    const listedWithRule = await api.GET('/v1/indexers/policies');
+    expect(listedWithRule.response.status).toBe(200);
+    const listedPolicySet = listedWithRule.data?.policy_sets.find(
+      (policySet) => policySet.policy_set_public_id === policySetId
+    );
+    expect(listedPolicySet?.rules.some((rule) => rule.policy_rule_public_id === ruleId)).toBe(
+      true
+    );
 
     const ruleEnabled = await api.POST(
       '/v1/indexers/policies/rules/{policy_rule_public_id}/enable',

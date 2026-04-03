@@ -11,8 +11,9 @@ use crate::models::{
     IndexerConnectivityProfileResponse, IndexerDefinitionResponse, IndexerHealthEventResponse,
     IndexerHealthNotificationHookResponse, IndexerInstanceListItemResponse,
     IndexerSourceMetadataConflictResponse, IndexerSourceReputationResponse,
-    RateLimitPolicyListItemResponse, RoutingPolicyDetailResponse, RoutingPolicyListItemResponse,
-    SecretMetadataResponse, TagListItemResponse,
+    PolicySetListItemResponse, RateLimitPolicyListItemResponse, RoutingPolicyDetailResponse,
+    RoutingPolicyListItemResponse, SearchProfileListItemResponse, SecretMetadataResponse,
+    TagListItemResponse, TorznabInstanceListItemResponse,
 };
 use serde::Serialize;
 use uuid::Uuid;
@@ -292,6 +293,21 @@ pub(crate) struct RateLimitInventoryState {
 #[derive(Clone, PartialEq, Eq, Default)]
 pub(crate) struct IndexerInstanceInventoryState {
     pub items: Vec<IndexerInstanceListItemResponse>,
+}
+
+#[derive(Clone, PartialEq, Eq, Default)]
+pub(crate) struct SearchProfileInventoryState {
+    pub items: Vec<SearchProfileListItemResponse>,
+}
+
+#[derive(Clone, PartialEq, Eq, Default)]
+pub(crate) struct PolicySetInventoryState {
+    pub items: Vec<PolicySetListItemResponse>,
+}
+
+#[derive(Clone, PartialEq, Eq, Default)]
+pub(crate) struct TorznabInstanceInventoryState {
+    pub items: Vec<TorznabInstanceListItemResponse>,
 }
 
 #[derive(Clone, PartialEq, Eq, Default)]

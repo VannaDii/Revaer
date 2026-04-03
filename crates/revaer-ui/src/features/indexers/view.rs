@@ -18,10 +18,11 @@ use crate::features::indexers::api::{
     fetch_cf_state, fetch_definitions, fetch_health_notification_hooks, fetch_import_job_results,
     fetch_import_job_status, fetch_indexer_connectivity_profile, fetch_indexer_health_events,
     fetch_indexer_instances, fetch_indexer_rss_items, fetch_indexer_rss_subscription,
-    fetch_indexer_source_reputation, fetch_rate_limit_policies, fetch_routing_policies,
-    fetch_routing_policy, fetch_secret_metadata, fetch_source_metadata_conflicts, fetch_tags,
-    finalize_indexer_test, import_cardigann_definition, mark_indexer_rss_item_seen,
-    prepare_indexer_test, provision_app_sync, reopen_source_metadata_conflict, reset_cf_state,
+    fetch_indexer_source_reputation, fetch_policy_sets, fetch_rate_limit_policies,
+    fetch_routing_policies, fetch_routing_policy, fetch_search_profiles, fetch_secret_metadata,
+    fetch_source_metadata_conflicts, fetch_tags, fetch_torznab_instances, finalize_indexer_test,
+    import_cardigann_definition, mark_indexer_rss_item_seen, prepare_indexer_test,
+    provision_app_sync, reopen_source_metadata_conflict, reset_cf_state,
     resolve_source_metadata_conflict, restore_backup_snapshot, revoke_secret, rotate_secret,
     rotate_torznab_key, run_import_job_api, run_import_job_backup, set_indexer_field_value,
     set_indexer_media_domains, set_indexer_tags, set_routing_param,
@@ -38,8 +39,9 @@ use crate::features::indexers::state::{
     AppSyncProvisionSummary, AppSyncState, BackupState, CardigannImportState,
     ConnectivityInsightsState, DefinitionsState, HealthEventsState, HealthNotificationHooksState,
     ImportJobState, IndexerInstanceInventoryState, IndexersDraft, OperationRecord,
-    RateLimitInventoryState, RoutingPolicyInventoryState, RoutingPolicyState, SecretInventoryState,
-    SourceMetadataConflictsState, TagInventoryState,
+    PolicySetInventoryState, RateLimitInventoryState, RoutingPolicyInventoryState,
+    RoutingPolicyState, SearchProfileInventoryState, SecretInventoryState,
+    SourceMetadataConflictsState, TagInventoryState, TorznabInstanceInventoryState,
 };
 use crate::models::{
     CardigannDefinitionImportResponse, ImportJobResultResponse, ImportJobStatusResponse,
@@ -47,11 +49,13 @@ use crate::models::{
     IndexerConnectivityProfileResponse, IndexerDefinitionResponse, IndexerHealthEventResponse,
     IndexerHealthNotificationHookResponse, IndexerInstanceListItemResponse,
     IndexerSourceMetadataConflictResponse, IndexerSourceReputationResponse,
-    RateLimitPolicyListItemResponse, RoutingPolicyDetailResponse, RoutingPolicyListItemResponse,
-    SecretMetadataResponse, TagListItemResponse,
+    PolicySetListItemResponse, RateLimitPolicyListItemResponse, RoutingPolicyDetailResponse,
+    RoutingPolicyListItemResponse, SearchProfileListItemResponse, SecretMetadataResponse,
+    TagListItemResponse, TorznabInstanceListItemResponse,
 };
 use serde::Serialize;
 use std::future::Future;
+use uuid::Uuid;
 use wasm_bindgen::JsCast;
 use web_sys::HtmlInputElement;
 use yew::platform::spawn_local;
@@ -98,7 +102,11 @@ struct SecretSectionProps {
 #[derive(Properties, PartialEq)]
 struct ProfilesPoliciesSectionProps {
     draft: UseStateHandle<IndexersDraft>,
+    search_profiles: SearchProfileInventoryState,
+    policy_sets: PolicySetInventoryState,
     busy: bool,
+    on_fetch_search_profiles: Callback<MouseEvent>,
+    on_fetch_policy_sets: Callback<MouseEvent>,
     on_create_profile: Callback<MouseEvent>,
     on_update_profile: Callback<MouseEvent>,
     on_default_domain: Callback<MouseEvent>,
@@ -120,7 +128,9 @@ struct ImportTorznabSectionProps {
     import_job: ImportJobState,
     source_conflicts: SourceMetadataConflictsState,
     backup: BackupState,
+    torznab_instances: TorznabInstanceInventoryState,
     busy: bool,
+    on_fetch_torznab_instances: Callback<MouseEvent>,
     on_provision_app_sync: Callback<MouseEvent>,
     on_create_import_job: Callback<MouseEvent>,
     on_run_import_api: Callback<MouseEvent>,
@@ -787,6 +797,9 @@ pub(crate) fn indexers_page(props: &IndexersPageProps) -> Html {
     let routing_inventory = use_state(RoutingPolicyInventoryState::default);
     let rate_limit_inventory = use_state(RateLimitInventoryState::default);
     let indexer_instance_inventory = use_state(IndexerInstanceInventoryState::default);
+    let search_profile_inventory = use_state(SearchProfileInventoryState::default);
+    let policy_set_inventory = use_state(PolicySetInventoryState::default);
+    let torznab_instance_inventory = use_state(TorznabInstanceInventoryState::default);
     let app_sync = use_state(AppSyncState::default);
     let import_job = use_state(ImportJobState::default);
     let source_conflicts = use_state(SourceMetadataConflictsState::default);
@@ -1196,6 +1209,146 @@ pub(crate) fn indexers_page(props: &IndexersPageProps) -> Html {
                     Err(error) => {
                         append_record(&records, "Indexer instance inventory", error.clone());
                         on_error_toast.emit(format!("Indexer instance inventory: {error}"));
+                    }
+                }
+                busy.set(false);
+            });
+        })
+    };
+    let on_fetch_search_profiles = {
+        let api = api.clone();
+        let busy = busy.clone();
+        let records = records.clone();
+        let search_profile_inventory = search_profile_inventory.clone();
+        let on_success_toast = props.on_success_toast.clone();
+        let on_error_toast = props.on_error_toast.clone();
+        Callback::from(move |_| {
+            let Some(api) = api.clone() else {
+                append_record(
+                    &records,
+                    "Search-profile inventory",
+                    "API context is unavailable",
+                );
+                on_error_toast
+                    .emit("Search-profile inventory: API context is unavailable".to_string());
+                return;
+            };
+            if *busy {
+                return;
+            }
+            busy.set(true);
+            let client = api.client.clone();
+            let busy = busy.clone();
+            let records = records.clone();
+            let search_profile_inventory = search_profile_inventory.clone();
+            let on_success_toast = on_success_toast.clone();
+            let on_error_toast = on_error_toast.clone();
+            spawn_local(async move {
+                match fetch_search_profiles(&client).await {
+                    Ok(response) => {
+                        append_json_record(
+                            &records,
+                            "Search-profile inventory",
+                            &response.search_profiles,
+                        );
+                        search_profile_inventory.set(SearchProfileInventoryState {
+                            items: response.search_profiles,
+                        });
+                        on_success_toast.emit("Search-profile inventory loaded".to_string());
+                    }
+                    Err(error) => {
+                        append_record(&records, "Search-profile inventory", error.clone());
+                        on_error_toast.emit(format!("Search-profile inventory: {error}"));
+                    }
+                }
+                busy.set(false);
+            });
+        })
+    };
+    let on_fetch_policy_sets = {
+        let api = api.clone();
+        let busy = busy.clone();
+        let records = records.clone();
+        let policy_set_inventory = policy_set_inventory.clone();
+        let on_success_toast = props.on_success_toast.clone();
+        let on_error_toast = props.on_error_toast.clone();
+        Callback::from(move |_| {
+            let Some(api) = api.clone() else {
+                append_record(
+                    &records,
+                    "Policy-set inventory",
+                    "API context is unavailable",
+                );
+                on_error_toast.emit("Policy-set inventory: API context is unavailable".to_string());
+                return;
+            };
+            if *busy {
+                return;
+            }
+            busy.set(true);
+            let client = api.client.clone();
+            let busy = busy.clone();
+            let records = records.clone();
+            let policy_set_inventory = policy_set_inventory.clone();
+            let on_success_toast = on_success_toast.clone();
+            let on_error_toast = on_error_toast.clone();
+            spawn_local(async move {
+                match fetch_policy_sets(&client).await {
+                    Ok(response) => {
+                        append_json_record(&records, "Policy-set inventory", &response.policy_sets);
+                        policy_set_inventory.set(PolicySetInventoryState {
+                            items: response.policy_sets,
+                        });
+                        on_success_toast.emit("Policy-set inventory loaded".to_string());
+                    }
+                    Err(error) => {
+                        append_record(&records, "Policy-set inventory", error.clone());
+                        on_error_toast.emit(format!("Policy-set inventory: {error}"));
+                    }
+                }
+                busy.set(false);
+            });
+        })
+    };
+    let on_fetch_torznab_instances = {
+        let api = api.clone();
+        let busy = busy.clone();
+        let records = records.clone();
+        let torznab_instance_inventory = torznab_instance_inventory.clone();
+        let on_success_toast = props.on_success_toast.clone();
+        let on_error_toast = props.on_error_toast.clone();
+        Callback::from(move |_| {
+            let Some(api) = api.clone() else {
+                append_record(&records, "Torznab inventory", "API context is unavailable");
+                on_error_toast.emit("Torznab inventory: API context is unavailable".to_string());
+                return;
+            };
+            if *busy {
+                return;
+            }
+            busy.set(true);
+            let client = api.client.clone();
+            let busy = busy.clone();
+            let records = records.clone();
+            let torznab_instance_inventory = torznab_instance_inventory.clone();
+            let on_success_toast = on_success_toast.clone();
+            let on_error_toast = on_error_toast.clone();
+            spawn_local(async move {
+                match fetch_torznab_instances(&client).await {
+                    Ok(response) => {
+                        append_json_record(
+                            &records,
+                            "Torznab inventory",
+                            &response.torznab_instances,
+                        );
+                        torznab_instance_inventory.set(TorznabInstanceInventoryState {
+                            items: response.torznab_instances,
+                        });
+                        on_success_toast.emit("Torznab inventory loaded".to_string());
+                    }
+                    Err(error) => {
+                        append_record(&records, "Torznab inventory", error.clone());
+                        on_error_toast.emit(format!("Torznab inventory: {error}"));
                     }
                 }
                 busy.set(false);
@@ -2948,7 +3101,11 @@ pub(crate) fn indexers_page(props: &IndexersPageProps) -> Html {
             />
             <ProfilesPoliciesSection
                 draft={draft.clone()}
+                search_profiles={(*search_profile_inventory).clone()}
+                policy_sets={(*policy_set_inventory).clone()}
                 busy={*busy}
+                on_fetch_search_profiles={on_fetch_search_profiles}
+                on_fetch_policy_sets={on_fetch_policy_sets}
                 on_create_profile={on_create_profile}
                 on_update_profile={on_update_profile}
                 on_default_domain={on_set_profile_default_domain}
@@ -2962,24 +3119,26 @@ pub(crate) fn indexers_page(props: &IndexersPageProps) -> Html {
                 on_create_policy_set={on_create_policy_set}
                 on_create_policy_rule={on_create_policy_rule}
             />
-                <ImportTorznabSection
-                    draft={draft.clone()}
-                    app_sync={(*app_sync).clone()}
-                    import_job={(*import_job).clone()}
-                    source_conflicts={(*source_conflicts).clone()}
-                    backup={(*backup).clone()}
-                    busy={*busy}
-                    on_provision_app_sync={on_provision_app_sync}
-                    on_create_import_job={on_create_import_job}
-                    on_run_import_api={on_run_import_api}
-                    on_run_import_backup={on_run_import_backup}
-                    on_fetch_import_status={on_fetch_import_status}
-                    on_fetch_import_results={on_fetch_import_results}
-                    on_fetch_source_conflicts={on_fetch_source_conflicts}
-                    on_resolve_source_conflict={on_resolve_source_conflict}
-                    on_reopen_source_conflict={on_reopen_source_conflict}
-                    on_export_backup={on_export_backup}
-                    on_restore_backup={on_restore_backup}
+            <ImportTorznabSection
+                draft={draft.clone()}
+                app_sync={(*app_sync).clone()}
+                import_job={(*import_job).clone()}
+                source_conflicts={(*source_conflicts).clone()}
+                backup={(*backup).clone()}
+                torznab_instances={(*torznab_instance_inventory).clone()}
+                busy={*busy}
+                on_fetch_torznab_instances={on_fetch_torznab_instances}
+                on_provision_app_sync={on_provision_app_sync}
+                on_create_import_job={on_create_import_job}
+                on_run_import_api={on_run_import_api}
+                on_run_import_backup={on_run_import_backup}
+                on_fetch_import_status={on_fetch_import_status}
+                on_fetch_import_results={on_fetch_import_results}
+                on_fetch_source_conflicts={on_fetch_source_conflicts}
+                on_resolve_source_conflict={on_resolve_source_conflict}
+                on_reopen_source_conflict={on_reopen_source_conflict}
+                on_export_backup={on_export_backup}
+                on_restore_backup={on_restore_backup}
                 on_create_torznab={on_create_torznab}
                 on_rotate_torznab={on_rotate_torznab}
                 on_set_torznab_state={on_set_torznab_state}
@@ -3263,6 +3422,149 @@ fn render_indexer_instance_inventory_item(
             </div>
         </div>
     }
+}
+
+fn render_search_profile_inventory_item(
+    item: &SearchProfileListItemResponse,
+    on_use_profile: Callback<MouseEvent>,
+    on_use_allow_indexers: Callback<MouseEvent>,
+    on_use_block_indexers: Callback<MouseEvent>,
+) -> Html {
+    html! {
+        <div class="rounded-box border border-base-300 p-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <div class="font-semibold">{&item.display_name}</div>
+                    <div class="text-xs text-base-content/60 font-mono break-all">
+                        {item.search_profile_public_id.to_string()}
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    {
+                        if item.is_default {
+                            html! { <span class="badge badge-primary badge-outline">{"default"}</span> }
+                        } else {
+                            Html::default()
+                        }
+                    }
+                    {
+                        if let Some(page_size) = item.page_size {
+                            html! { <span class="badge badge-outline">{format!("page size {page_size}")}</span> }
+                        } else {
+                            Html::default()
+                        }
+                    }
+                </div>
+            </div>
+            <div class="mt-3 text-sm text-base-content/70 space-y-1">
+                <div>{format!("Default domain: {}", item.default_media_domain_key.clone().unwrap_or_else(|| "none".to_string()))}</div>
+                <div>{format!("Media domains: {}", comma_list(&item.media_domain_keys))}</div>
+                <div>{format!("Policy sets: {}", comma_list(&item.policy_set_display_names))}</div>
+                <div>{format!("Allow tags: {}", comma_list(&item.allow_tag_keys))}</div>
+                <div>{format!("Block tags: {}", comma_list(&item.block_tag_keys))}</div>
+                <div>{format!("Prefer tags: {}", comma_list(&item.prefer_tag_keys))}</div>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+                <Button onclick={on_use_profile}>{"Use profile"}</Button>
+                <Button onclick={on_use_allow_indexers}>{"Use allow-list"}</Button>
+                <Button onclick={on_use_block_indexers}>{"Use block-list"}</Button>
+            </div>
+        </div>
+    }
+}
+
+fn render_policy_set_inventory_item(
+    item: &PolicySetListItemResponse,
+    on_use_set: Callback<MouseEvent>,
+    on_use_first_rule: Callback<MouseEvent>,
+) -> Html {
+    let rules = item.rules.iter().map(|rule| {
+        html! {
+            <li class="text-sm text-base-content/70">
+                {format!(
+                    "#{} {} {} -> {} ({}){}",
+                    rule.sort_order,
+                    rule.rule_type,
+                    rule.match_operator,
+                    rule.action,
+                    rule.severity,
+                    if rule.is_disabled { " disabled" } else { "" }
+                )}
+            </li>
+        }
+    });
+
+    html! {
+        <div class="rounded-box border border-base-300 p-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <div class="font-semibold">{&item.display_name}</div>
+                    <div class="text-xs text-base-content/60 font-mono break-all">
+                        {item.policy_set_public_id.to_string()}
+                    </div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                    <span class="badge badge-outline">{&item.scope}</span>
+                    <span class="badge badge-outline">{if item.is_enabled { "enabled" } else { "disabled" }}</span>
+                    <span class="badge badge-outline">{format!("rules {}", item.rules.len())}</span>
+                </div>
+            </div>
+            <div class="mt-3 text-sm text-base-content/70">
+                {format!(
+                    "User scope: {}",
+                    item.user_public_id.map(|value| value.to_string()).unwrap_or_else(|| "none".to_string())
+                )}
+            </div>
+            <ul class="mt-3 space-y-1">
+                {for rules}
+            </ul>
+            <div class="mt-3 flex flex-wrap gap-2">
+                <Button onclick={on_use_set}>{"Use policy set"}</Button>
+                <Button onclick={on_use_first_rule} disabled={item.rules.is_empty()}>{"Use first rule"}</Button>
+            </div>
+        </div>
+    }
+}
+
+fn render_torznab_instance_inventory_item(
+    item: &TorznabInstanceListItemResponse,
+    on_use_instance: Callback<MouseEvent>,
+    on_use_profile: Callback<MouseEvent>,
+    on_use_category_mapping: Callback<MouseEvent>,
+) -> Html {
+    html! {
+        <div class="rounded-box border border-base-300 p-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                    <div class="font-semibold">{&item.display_name}</div>
+                    <div class="text-xs text-base-content/60 font-mono break-all">
+                        {item.torznab_instance_public_id.to_string()}
+                    </div>
+                </div>
+                <span class="badge badge-outline">{if item.is_enabled { "enabled" } else { "disabled" }}</span>
+            </div>
+            <div class="mt-3 text-sm text-base-content/70 space-y-1">
+                <div>{format!("Search profile: {}", item.search_profile_display_name)}</div>
+                <div class="font-mono break-all">{item.search_profile_public_id.to_string()}</div>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+                <Button onclick={on_use_instance}>{"Use Torznab"}</Button>
+                <Button onclick={on_use_profile}>{"Use profile"}</Button>
+                <Button onclick={on_use_category_mapping}>{"Use for mappings"}</Button>
+            </div>
+        </div>
+    }
+}
+
+fn comma_list(values: &[impl AsRef<str>]) -> String {
+    if values.is_empty() {
+        return "none".to_string();
+    }
+    values
+        .iter()
+        .map(|value| value.as_ref().to_string())
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn render_secret_inventory_item(
@@ -4373,12 +4675,127 @@ fn profiles_policies_section(props: &ProfilesPoliciesSectionProps) -> Html {
     let on_value_set = text_callback(props.draft.clone(), |draft, value| {
         draft.policy_value_set_text = value;
     });
+    let search_profile_inventory = props.search_profiles.items.iter().map(|item| {
+        let use_profile_item = item.clone();
+        let use_allow_item = item.clone();
+        let use_block_item = item.clone();
+        let on_use_profile = {
+            let draft = props.draft.clone();
+            Callback::from(move |_| {
+                let mut next = (*draft).clone();
+                next.search_profile_public_id =
+                    use_profile_item.search_profile_public_id.to_string();
+                next.search_profile_display_name
+                    .clone_from(&use_profile_item.display_name);
+                next.search_profile_is_default = use_profile_item.is_default;
+                next.search_profile_page_size = use_profile_item
+                    .page_size
+                    .map(|value| value.to_string())
+                    .unwrap_or_default();
+                next.search_profile_default_media_domain_key = use_profile_item
+                    .default_media_domain_key
+                    .clone()
+                    .unwrap_or_default();
+                next.search_profile_media_domain_keys =
+                    use_profile_item.media_domain_keys.join(", ");
+                next.search_profile_policy_set_public_id = use_profile_item
+                    .policy_set_public_ids
+                    .first()
+                    .map(Uuid::to_string)
+                    .unwrap_or_default();
+                next.search_profile_tag_keys_allow = use_profile_item.allow_tag_keys.join(", ");
+                next.search_profile_tag_keys_block = use_profile_item.block_tag_keys.join(", ");
+                next.search_profile_tag_keys_prefer = use_profile_item.prefer_tag_keys.join(", ");
+                draft.set(next);
+            })
+        };
+        let on_use_allow = {
+            let draft = props.draft.clone();
+            Callback::from(move |_| {
+                let mut next = (*draft).clone();
+                next.search_profile_public_id = use_allow_item.search_profile_public_id.to_string();
+                next.search_profile_indexer_public_ids = use_allow_item
+                    .allow_indexer_public_ids
+                    .iter()
+                    .map(Uuid::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                draft.set(next);
+            })
+        };
+        let on_use_block = {
+            let draft = props.draft.clone();
+            Callback::from(move |_| {
+                let mut next = (*draft).clone();
+                next.search_profile_public_id = use_block_item.search_profile_public_id.to_string();
+                next.search_profile_indexer_public_ids = use_block_item
+                    .block_indexer_public_ids
+                    .iter()
+                    .map(Uuid::to_string)
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                draft.set(next);
+            })
+        };
+        render_search_profile_inventory_item(item, on_use_profile, on_use_allow, on_use_block)
+    });
+    let policy_set_inventory = props.policy_sets.items.iter().map(|item| {
+        let use_set_item = item.clone();
+        let use_rule_item = item.clone();
+        let on_use_set = {
+            let draft = props.draft.clone();
+            Callback::from(move |_| {
+                let mut next = (*draft).clone();
+                next.policy_set_public_id = use_set_item.policy_set_public_id.to_string();
+                next.policy_set_display_name
+                    .clone_from(&use_set_item.display_name);
+                next.policy_set_scope.clone_from(&use_set_item.scope);
+                next.policy_set_user_public_id = use_set_item
+                    .user_public_id
+                    .map(|value| value.to_string())
+                    .unwrap_or_default();
+                draft.set(next);
+            })
+        };
+        let on_use_first_rule = {
+            let draft = props.draft.clone();
+            Callback::from(move |_| {
+                let Some(rule) = use_rule_item.rules.first() else {
+                    return;
+                };
+                let mut next = (*draft).clone();
+                next.policy_set_public_id = use_rule_item.policy_set_public_id.to_string();
+                next.policy_rule_type.clone_from(&rule.rule_type);
+                next.policy_match_field.clone_from(&rule.match_field);
+                next.policy_match_operator.clone_from(&rule.match_operator);
+                next.policy_sort_order = rule.sort_order.to_string();
+                next.policy_match_value_text = rule.match_value_text.clone().unwrap_or_default();
+                next.policy_match_value_int = rule
+                    .match_value_int
+                    .map(|value| value.to_string())
+                    .unwrap_or_default();
+                next.policy_match_value_uuid = rule
+                    .match_value_uuid
+                    .map(|value| value.to_string())
+                    .unwrap_or_default();
+                next.policy_action.clone_from(&rule.action);
+                next.policy_severity.clone_from(&rule.severity);
+                next.policy_is_case_insensitive = rule.is_case_insensitive;
+                next.policy_rationale = rule.rationale.clone().unwrap_or_default();
+                draft.set(next);
+            })
+        };
+        render_policy_set_inventory_item(item, on_use_set, on_use_first_rule)
+    });
     card(
         "Search profiles and policies",
         html! {
             <div class="grid gap-4 xl:grid-cols-2">
                 <div class="space-y-4 rounded-box border border-base-300 p-4">
                     <h3 class="font-semibold">{"Search profiles"}</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <Button onclick={props.on_fetch_search_profiles.clone()} disabled={props.busy}>{"Fetch search profiles"}</Button>
+                    </div>
                     {field("Display name", "Create or rename a profile.", html! {
                         <Input value={props.draft.search_profile_display_name.clone()} oninput={on_profile_name} disabled={props.busy} class={classes!("w-full")} />
                     })}
@@ -4433,9 +4850,22 @@ fn profiles_policies_section(props: &ProfilesPoliciesSectionProps) -> Html {
                         <Button onclick={props.on_block_tags.clone()} disabled={props.busy}>{"Block tags"}</Button>
                         <Button onclick={props.on_prefer_tags.clone()} disabled={props.busy}>{"Prefer tags"}</Button>
                     </div>
+                    <div class="space-y-3 border-t border-base-300 pt-3">
+                        <h4 class="text-sm font-semibold">{"Search-profile inventory"}</h4>
+                        {
+                            if props.search_profiles.items.is_empty() {
+                                html! { <p class="text-sm text-base-content/60">{"Fetch search profiles to reuse existing filters, tags, and indexer bindings without pasting remembered UUIDs."}</p> }
+                            } else {
+                                html! { <div class="grid gap-3">{for search_profile_inventory}</div> }
+                            }
+                        }
+                    </div>
                 </div>
                 <div class="space-y-4 rounded-box border border-base-300 p-4">
                     <h3 class="font-semibold">{"Policy sets and rules"}</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <Button onclick={props.on_fetch_policy_sets.clone()} disabled={props.busy}>{"Fetch policy sets"}</Button>
+                    </div>
                     {field("Policy-set display name", "Name for the policy set.", html! {
                         <Input value={props.draft.policy_set_display_name.clone()} oninput={on_policy_set_name} disabled={props.busy} class={classes!("w-full")} />
                     })}
@@ -4500,6 +4930,16 @@ fn profiles_policies_section(props: &ProfilesPoliciesSectionProps) -> Html {
                     <div class="flex flex-wrap gap-2">
                         <Button onclick={props.on_create_policy_set.clone()} disabled={props.busy}>{"Create policy set"}</Button>
                         <Button onclick={props.on_create_policy_rule.clone()} disabled={props.busy}>{"Create policy rule"}</Button>
+                    </div>
+                    <div class="space-y-3 border-t border-base-300 pt-3">
+                        <h4 class="text-sm font-semibold">{"Policy-set inventory"}</h4>
+                        {
+                            if props.policy_sets.items.is_empty() {
+                                html! { <p class="text-sm text-base-content/60">{"Fetch policy sets to inspect current scopes and rules, then prefill the editor from an existing set."}</p> }
+                            } else {
+                                html! { <div class="grid gap-3">{for policy_set_inventory}</div> }
+                            }
+                        }
                     </div>
                 </div>
             </div>
@@ -4583,6 +5023,57 @@ fn import_torznab_section(props: &ImportTorznabSectionProps) -> Html {
     });
     let on_torznab_enabled = bool_callback(props.draft.clone(), |draft, value| {
         draft.torznab_is_enabled = value;
+    });
+    let torznab_instance_inventory = props.torznab_instances.items.iter().map(|item| {
+        let use_instance_item = item.clone();
+        let use_profile_item = item.clone();
+        let use_mapping_item = item.clone();
+        let on_use_instance = {
+            let draft = props.draft.clone();
+            Callback::from(move |_| {
+                let mut next = (*draft).clone();
+                next.torznab_instance_public_id =
+                    use_instance_item.torznab_instance_public_id.to_string();
+                next.torznab_display_name
+                    .clone_from(&use_instance_item.display_name);
+                next.torznab_search_profile_public_id =
+                    use_instance_item.search_profile_public_id.to_string();
+                next.torznab_is_enabled = use_instance_item.is_enabled;
+                draft.set(next);
+            })
+        };
+        let on_use_profile = {
+            let draft = props.draft.clone();
+            Callback::from(move |_| {
+                let mut next = (*draft).clone();
+                next.search_profile_public_id =
+                    use_profile_item.search_profile_public_id.to_string();
+                next.search_profile_display_name
+                    .clone_from(&use_profile_item.search_profile_display_name);
+                next.torznab_search_profile_public_id =
+                    use_profile_item.search_profile_public_id.to_string();
+                draft.set(next);
+            })
+        };
+        let on_use_category_mapping = {
+            let draft = props.draft.clone();
+            Callback::from(move |_| {
+                let mut next = (*draft).clone();
+                next.torznab_instance_public_id =
+                    use_mapping_item.torznab_instance_public_id.to_string();
+                next.category_mapping_torznab_instance_public_id =
+                    use_mapping_item.torznab_instance_public_id.to_string();
+                next.search_profile_public_id =
+                    use_mapping_item.search_profile_public_id.to_string();
+                draft.set(next);
+            })
+        };
+        render_torznab_instance_inventory_item(
+            item,
+            on_use_instance,
+            on_use_profile,
+            on_use_category_mapping,
+        )
     });
     card(
         "Import jobs and Torznab",
@@ -4808,6 +5299,9 @@ fn import_torznab_section(props: &ImportTorznabSectionProps) -> Html {
                 </div>
                 <div class="space-y-4 rounded-box border border-base-300 p-4 xl:col-span-2">
                     <h3 class="font-semibold">{"Torznab instances"}</h3>
+                    <div class="flex flex-wrap gap-2">
+                        <Button onclick={props.on_fetch_torznab_instances.clone()} disabled={props.busy}>{"Fetch Torznab instances"}</Button>
+                    </div>
                     {field("Search-profile public ID", "Required for Torznab instance creation.", html! {
                         <Input value={props.draft.torznab_search_profile_public_id.clone()} oninput={on_torznab_profile} disabled={props.busy} class={classes!("w-full")} />
                     })}
@@ -4832,6 +5326,20 @@ fn import_torznab_section(props: &ImportTorznabSectionProps) -> Html {
                         <Button onclick={props.on_rotate_torznab.clone()} disabled={props.busy}>{"Rotate API key"}</Button>
                         <Button onclick={props.on_set_torznab_state.clone()} disabled={props.busy}>{"Set state"}</Button>
                         <Button onclick={props.on_delete_torznab.clone()} disabled={props.busy}>{"Delete Torznab instance"}</Button>
+                    </div>
+                    <div class="space-y-3 border-t border-base-300 pt-3">
+                        <h4 class="text-sm font-semibold">{"Torznab inventory"}</h4>
+                        {
+                            if props.torznab_instances.items.is_empty() {
+                                html! {
+                                    <p class="text-sm text-base-content/60">
+                                        {"Fetch Torznab instances to reuse an existing endpoint, preload its search profile, or drive category-mapping edits without manually copying UUIDs."}
+                                    </p>
+                                }
+                            } else {
+                                html! { <div class="grid gap-3">{for torznab_instance_inventory}</div> }
+                            }
+                        }
                     </div>
                 </div>
             </div>

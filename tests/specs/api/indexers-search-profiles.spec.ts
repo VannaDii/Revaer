@@ -30,6 +30,16 @@ test.describe('Indexer search profiles', () => {
     });
     expect(updated.response.ok).toBeTruthy();
 
+    const listed = await api.GET('/v1/indexers/search-profiles');
+    expect(listed.response.status).toBe(200);
+    expect(
+      listed.data?.search_profiles.some(
+        (profile) =>
+          profile.search_profile_public_id === profileId &&
+          profile.display_name === `${displayName} Updated`
+      )
+    ).toBeTruthy();
+
     const setDefault = await api.POST(
       '/v1/indexers/search-profiles/{search_profile_public_id}/default',
       {
@@ -108,6 +118,15 @@ test.describe('Indexer search profiles', () => {
       }
     );
     expect(tagPrefer.response.status).toBe(204);
+
+    const listedAfterTags = await api.GET('/v1/indexers/search-profiles');
+    expect(listedAfterTags.response.status).toBe(200);
+    const listedProfile = listedAfterTags.data?.search_profiles.find(
+      (profile) => profile.search_profile_public_id === profileId
+    );
+    expect(listedProfile?.allow_tag_keys).toContain(`e2e-tag-a-${suffix}`);
+    expect(listedProfile?.block_tag_keys).toContain(`e2e-tag-b-${suffix}`);
+    expect(listedProfile?.prefer_tag_keys).toContain(`e2e-tag-c-${suffix}`);
 
     const policySetAdd = await api.POST(
       '/v1/indexers/search-profiles/{search_profile_public_id}/policy-sets',

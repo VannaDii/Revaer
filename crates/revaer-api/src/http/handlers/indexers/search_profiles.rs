@@ -20,11 +20,12 @@ use crate::http::handlers::indexers::SYSTEM_ACTOR_PUBLIC_ID;
 use crate::http::handlers::indexers::allocation::{checked_vec_capacity, ensure_allocation_safe};
 use crate::models::{
     SearchProfileCreateRequest, SearchProfileDefaultDomainRequest, SearchProfileDefaultRequest,
-    SearchProfileDomainAllowlistRequest, SearchProfileIndexerSetRequest,
+    SearchProfileDomainAllowlistRequest, SearchProfileIndexerSetRequest, SearchProfileListResponse,
     SearchProfilePolicySetRequest, SearchProfileResponse, SearchProfileTagSetRequest,
     SearchProfileUpdateRequest,
 };
 
+const SEARCH_PROFILE_LIST_FAILED: &str = "failed to list search profiles";
 const SEARCH_PROFILE_CREATE_FAILED: &str = "failed to create search profile";
 const SEARCH_PROFILE_UPDATE_FAILED: &str = "failed to update search profile";
 const SEARCH_PROFILE_SET_DEFAULT_FAILED: &str = "failed to set search profile default";
@@ -47,6 +48,20 @@ const SEARCH_PROFILE_DOMAIN_KEYS_MAX_LEN: usize = 2048;
 const SEARCH_PROFILE_DOMAIN_KEY_MAX_BYTES: usize = 4096;
 const SEARCH_PROFILE_TAG_KEYS_MAX_LEN: usize = 1024;
 const SEARCH_PROFILE_TAG_KEY_MAX_BYTES: usize = 1024;
+
+pub(crate) async fn list_search_profiles(
+    State(state): State<Arc<ApiState>>,
+) -> Result<Json<SearchProfileListResponse>, ApiError> {
+    let search_profiles = state
+        .indexers
+        .search_profile_list(SYSTEM_ACTOR_PUBLIC_ID)
+        .await
+        .map_err(|err| {
+            map_search_profile_error("search_profile_list", SEARCH_PROFILE_LIST_FAILED, &err)
+        })?;
+
+    Ok(Json(SearchProfileListResponse { search_profiles }))
+}
 
 pub(crate) async fn create_search_profile(
     State(state): State<Arc<ApiState>>,

@@ -23,10 +23,11 @@ use crate::http::handlers::indexers::SYSTEM_ACTOR_PUBLIC_ID;
 use crate::http::handlers::indexers::allocation::{checked_vec_capacity, ensure_allocation_safe};
 use crate::models::{
     PolicyRuleCreateRequest, PolicyRuleReorderRequest, PolicyRuleResponse,
-    PolicyRuleValueItemRequest, PolicySetCreateRequest, PolicySetReorderRequest, PolicySetResponse,
-    PolicySetUpdateRequest,
+    PolicyRuleValueItemRequest, PolicySetCreateRequest, PolicySetListResponse,
+    PolicySetReorderRequest, PolicySetResponse, PolicySetUpdateRequest,
 };
 
+const POLICY_SET_LIST_FAILED: &str = "failed to list policy sets";
 const POLICY_SET_CREATE_FAILED: &str = "failed to create policy set";
 const POLICY_SET_UPDATE_FAILED: &str = "failed to update policy set";
 const POLICY_SET_ENABLE_FAILED: &str = "failed to enable policy set";
@@ -43,6 +44,18 @@ const POLICY_RULE_VALUE_TEXT_TOO_LARGE: &str = "policy rule value text exceeds m
 const POLICY_RULE_VALUE_SET_MAX_LEN: usize = 1024;
 const POLICY_RULE_TEXT_MAX_BYTES: usize = 4096;
 const POLICY_RULE_VALUE_TEXT_MAX_BYTES: usize = 4096;
+
+pub(crate) async fn list_policy_sets(
+    State(state): State<Arc<ApiState>>,
+) -> Result<Json<PolicySetListResponse>, ApiError> {
+    let policy_sets = state
+        .indexers
+        .policy_set_list(SYSTEM_ACTOR_PUBLIC_ID)
+        .await
+        .map_err(|err| map_policy_error("policy_set_list", POLICY_SET_LIST_FAILED, &err))?;
+
+    Ok(Json(PolicySetListResponse { policy_sets }))
+}
 
 pub(crate) async fn create_policy_set(
     State(state): State<Arc<ApiState>>,

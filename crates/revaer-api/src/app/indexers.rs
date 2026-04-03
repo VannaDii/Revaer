@@ -20,9 +20,10 @@ use crate::models::{
     IndexerInstanceTestFinalizeResponse, IndexerInstanceTestPrepareResponse,
     IndexerRssSeenItemResponse, IndexerRssSeenMarkResponse, IndexerRssSubscriptionResponse,
     IndexerSourceMetadataConflictResponse, IndexerSourceReputationResponse,
-    RateLimitPolicyListItemResponse, RoutingPolicyDetailResponse, RoutingPolicyListItemResponse,
-    SearchPageListResponse, SearchPageResponse, SearchRequestCreateResponse,
-    SecretMetadataResponse, TagListItemResponse,
+    PolicySetListItemResponse, RateLimitPolicyListItemResponse, RoutingPolicyDetailResponse,
+    RoutingPolicyListItemResponse, SearchPageListResponse, SearchPageResponse,
+    SearchProfileListItemResponse, SearchRequestCreateResponse, SecretMetadataResponse,
+    TagListItemResponse, TorznabInstanceListItemResponse,
 };
 
 /// Parameters for updating an indexer instance.
@@ -659,6 +660,15 @@ pub trait IndexerFacade: Send + Sync {
         tag_public_ids: Option<&[Uuid]>,
         tag_keys: Option<&[String]>,
     ) -> Result<(), SearchProfileServiceError>;
+    /// List search profiles for operator inventory flows.
+    async fn search_profile_list(
+        &self,
+        _actor_user_public_id: Uuid,
+    ) -> Result<Vec<SearchProfileListItemResponse>, SearchProfileServiceError> {
+        Err(SearchProfileServiceError::new(
+            SearchProfileServiceErrorKind::Storage,
+        ))
+    }
     /// Create an import job and return its public identifier.
     async fn import_job_create(
         &self,
@@ -876,6 +886,13 @@ pub trait IndexerFacade: Send + Sync {
         );
         Err(PolicyServiceError::new(PolicyServiceErrorKind::Storage))
     }
+    /// List policy sets with nested rules for operator inventory flows.
+    async fn policy_set_list(
+        &self,
+        _actor_user_public_id: Uuid,
+    ) -> Result<Vec<PolicySetListItemResponse>, PolicyServiceError> {
+        Err(PolicyServiceError::new(PolicyServiceErrorKind::Storage))
+    }
     /// Upsert a tracker category mapping.
     async fn tracker_category_mapping_upsert(
         &self,
@@ -927,6 +944,15 @@ pub trait IndexerFacade: Send + Sync {
         actor_user_public_id: Uuid,
         torznab_instance_public_id: Uuid,
     ) -> Result<(), TorznabInstanceServiceError>;
+    /// List Torznab instances for operator inventory flows.
+    async fn torznab_instance_list(
+        &self,
+        _actor_user_public_id: Uuid,
+    ) -> Result<Vec<TorznabInstanceListItemResponse>, TorznabInstanceServiceError> {
+        Err(TorznabInstanceServiceError::new(
+            TorznabInstanceServiceErrorKind::Storage,
+        ))
+    }
     /// Authenticate a Torznab API key and return instance metadata.
     async fn torznab_instance_authenticate(
         &self,

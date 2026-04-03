@@ -299,3 +299,4 @@
     -   [267: Indexer maintenance runtime](adr/267-indexer-maintenance-runtime.md)
     -   [268: Indexer tag and secret inventory](adr/268-indexer-tag-secret-inventory.md)
     -   [269: Indexer operator inventory read surfaces](adr/269-indexer-operator-inventory-read-surfaces.md)
+    -   [270: Indexer profile, policy, and Torznab inventory](adr/270-indexer-profile-policy-torznab-inventory.md)
