@@ -13,11 +13,13 @@ use crate::http::errors::ApiError;
 use crate::http::handlers::indexers::SYSTEM_ACTOR_PUBLIC_ID;
 use crate::http::handlers::indexers::normalization::normalize_required_str_field;
 use crate::models::{
-    SecretCreateRequest, SecretResponse, SecretRevokeRequest, SecretRotateRequest,
+    SecretCreateRequest, SecretMetadataListResponse, SecretResponse, SecretRevokeRequest,
+    SecretRotateRequest,
 };
 use axum::{Json, extract::State, http::StatusCode};
 
 const SECRET_CREATE_FAILED: &str = "failed to create secret";
+const SECRET_LIST_FAILED: &str = "failed to list secret metadata";
 const SECRET_ROTATE_FAILED: &str = "failed to rotate secret";
 const SECRET_REVOKE_FAILED: &str = "failed to revoke secret";
 const SECRET_TYPE_REQUIRED: &str = "secret_type is required";
@@ -37,6 +39,18 @@ pub(crate) async fn create_secret(
         StatusCode::CREATED,
         Json(SecretResponse { secret_public_id }),
     ))
+}
+
+pub(crate) async fn list_secret_metadata(
+    State(state): State<Arc<ApiState>>,
+) -> Result<Json<SecretMetadataListResponse>, ApiError> {
+    let secrets = state
+        .indexers
+        .secret_metadata_list(SYSTEM_ACTOR_PUBLIC_ID)
+        .await
+        .map_err(|err| map_secret_error("secret_metadata_list", SECRET_LIST_FAILED, &err))?;
+
+    Ok(Json(SecretMetadataListResponse { secrets }))
 }
 
 pub(crate) async fn rotate_secret(
@@ -98,9 +112,51 @@ mod tests {
     use crate::http::handlers::indexers::test_support::{
         RecordingIndexers, indexer_test_state, parse_problem,
     };
+    use crate::models::SecretMetadataResponse;
     use axum::response::IntoResponse;
+    use chrono::Utc;
     use std::sync::Arc;
     use uuid::Uuid;
+
+    #[tokio::test]
+    async fn list_secret_metadata_returns_payload() -> Result<(), ApiError> {
+        let indexers = RecordingIndexers::default();
+        indexers
+            .secret_metadata
+            .lock()
+            .expect("lock poisoned")
+            .push(SecretMetadataResponse {
+                secret_public_id: Uuid::new_v4(),
+                secret_type: "api_key".to_string(),
+                is_revoked: false,
+                created_at: Utc::now(),
+                rotated_at: None,
+                binding_count: 2,
+            });
+        let state = indexer_test_state(Arc::new(indexers))?;
+
+        let Json(response) = list_secret_metadata(State(state)).await?;
+        assert_eq!(response.secrets.len(), 1);
+        assert_eq!(response.secrets[0].secret_type, "api_key");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn list_secret_metadata_maps_storage_errors() {
+        let indexers = RecordingIndexers::default();
+        indexers
+            .secret_error
+            .lock()
+            .expect("lock poisoned")
+            .replace(SecretServiceError::new(SecretServiceErrorKind::Storage));
+        let state = indexer_test_state(Arc::new(indexers)).expect("api state");
+
+        let err = list_secret_metadata(State(state))
+            .await
+            .expect_err("storage error should fail");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
 
     #[tokio::test]
     async fn create_secret_trims_secret_type_and_returns_payload() -> Result<(), ApiError> {

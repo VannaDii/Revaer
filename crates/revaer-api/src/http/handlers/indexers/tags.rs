@@ -14,7 +14,9 @@ use crate::http::handlers::indexers::SYSTEM_ACTOR_PUBLIC_ID;
 use crate::http::handlers::indexers::normalization::{
     normalize_required_str_field, trim_and_filter_empty,
 };
-use crate::models::{TagCreateRequest, TagDeleteRequest, TagResponse, TagUpdateRequest};
+use crate::models::{
+    TagCreateRequest, TagDeleteRequest, TagListResponse, TagResponse, TagUpdateRequest,
+};
 use axum::{
     Json,
     extract::{Path, State},
@@ -22,6 +24,7 @@ use axum::{
 };
 
 const TAG_CREATE_FAILED: &str = "failed to create tag";
+const TAG_LIST_FAILED: &str = "failed to list tags";
 const TAG_UPDATE_FAILED: &str = "failed to update tag";
 const TAG_DELETE_FAILED: &str = "failed to delete tag";
 const TAG_REFERENCE_REQUIRED: &str = "tag identifier is required";
@@ -49,6 +52,18 @@ pub(crate) async fn create_tag(
             display_name: display_name.to_string(),
         }),
     ))
+}
+
+pub(crate) async fn list_tags(
+    State(state): State<Arc<ApiState>>,
+) -> Result<Json<TagListResponse>, ApiError> {
+    let tags = state
+        .indexers
+        .tag_list(SYSTEM_ACTOR_PUBLIC_ID)
+        .await
+        .map_err(|err| map_tag_error("tag_list", TAG_LIST_FAILED, &err))?;
+
+    Ok(Json(TagListResponse { tags }))
 }
 
 pub(crate) async fn update_tag(
@@ -137,9 +152,52 @@ mod tests {
     use crate::http::handlers::indexers::test_support::{
         RecordingIndexers, indexer_test_state, parse_problem,
     };
+    use crate::models::TagListItemResponse;
     use axum::{extract::Path, response::IntoResponse};
+    use chrono::Utc;
     use std::sync::Arc;
     use uuid::Uuid;
+
+    #[tokio::test]
+    async fn list_tags_returns_payload() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        indexers
+            .tag_list_items
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(TagListItemResponse {
+                tag_public_id: Uuid::new_v4(),
+                tag_key: "favorites".to_string(),
+                display_name: "Favorites".to_string(),
+                updated_at: Utc::now(),
+            });
+        let state = indexer_test_state(indexers)?;
+
+        let Json(response) = list_tags(State(state)).await?;
+        assert_eq!(response.tags.len(), 1);
+        assert_eq!(response.tags[0].tag_key, "favorites");
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn list_tags_maps_storage_errors() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        indexers
+            .tag_error
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .replace(TagServiceError::new(TagServiceErrorKind::Storage));
+        let state = indexer_test_state(indexers)?;
+
+        let err = list_tags(State(state))
+            .await
+            .expect_err("storage error should fail");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        let problem = parse_problem(response).await;
+        assert_eq!(problem.detail.as_deref(), Some(TAG_LIST_FAILED));
+        Ok(())
+    }
 
     #[tokio::test]
     async fn create_tag_trims_values_and_returns_payload() -> Result<(), ApiError> {

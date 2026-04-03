@@ -6,7 +6,8 @@
 //! - Uses constant operation labels for error mapping.
 
 use crate::error::{Result, try_op};
-use sqlx::{PgPool, Row};
+use chrono::{DateTime, Utc};
+use sqlx::{FromRow, PgPool, Row};
 use uuid::Uuid;
 
 const SECRET_CREATE_CALL: &str = r"
@@ -43,6 +44,19 @@ const SECRET_READ_CALL: &str = r"
     )
 ";
 
+const SECRET_METADATA_LIST_CALL: &str = r"
+    SELECT
+        secret_public_id,
+        secret_type::text AS secret_type,
+        is_revoked,
+        created_at,
+        rotated_at,
+        binding_count
+    FROM secret_metadata_list(
+        actor_user_public_id => $1
+    )
+";
+
 /// Encrypted secret payload returned by the database.
 #[derive(Debug, Clone)]
 pub struct SecretCipherRow {
@@ -52,6 +66,23 @@ pub struct SecretCipherRow {
     pub cipher_text: Vec<u8>,
     /// Key identifier associated with the cipher.
     pub key_id: String,
+}
+
+/// Operator-visible secret metadata.
+#[derive(Debug, Clone, FromRow)]
+pub struct SecretMetadataRow {
+    /// Stable public identifier for the secret.
+    pub secret_public_id: Uuid,
+    /// Secret type label.
+    pub secret_type: String,
+    /// Whether the secret has been revoked.
+    pub is_revoked: bool,
+    /// When the secret was created.
+    pub created_at: DateTime<Utc>,
+    /// When the secret was last rotated.
+    pub rotated_at: Option<DateTime<Utc>>,
+    /// Count of active bindings that reference the secret.
+    pub binding_count: i64,
 }
 
 /// Create a new encrypted secret.
@@ -111,6 +142,22 @@ pub async fn secret_revoke(
         .await
         .map_err(try_op("secret revoke"))?;
     Ok(())
+}
+
+/// List operator-visible secret metadata without decrypting values.
+///
+/// # Errors
+///
+/// Returns an error if the stored procedure rejects the input.
+pub async fn secret_metadata_list(
+    pool: &PgPool,
+    actor_user_public_id: Uuid,
+) -> Result<Vec<SecretMetadataRow>> {
+    sqlx::query_as(SECRET_METADATA_LIST_CALL)
+        .bind(actor_user_public_id)
+        .fetch_all(pool)
+        .await
+        .map_err(try_op("secret metadata list"))
 }
 
 /// Read encrypted secret payload data.
@@ -178,6 +225,28 @@ mod tests {
         assert_eq!(err.database_detail(), Some("secret_revoked"));
         Ok(())
     }
+
+    #[tokio::test]
+    async fn secret_metadata_list_reports_revocation_state() -> anyhow::Result<()> {
+        let Ok(test_db) = setup_db().await else {
+            return Ok(());
+        };
+
+        let pool = test_db.pool();
+        let actor = Uuid::parse_str(SYSTEM_USER_PUBLIC_ID)?;
+        let secret_id = secret_create(pool, actor, "api_key", "value").await?;
+        secret_revoke(pool, actor, secret_id).await?;
+
+        let secrets = secret_metadata_list(pool, actor).await?;
+        let row = secrets
+            .into_iter()
+            .find(|item| item.secret_public_id == secret_id)
+            .ok_or_else(|| anyhow::anyhow!("missing secret metadata"))?;
+        assert!(row.is_revoked);
+        assert_eq!(row.secret_type, "api_key");
+        Ok(())
+    }
+
     #[tokio::test]
     async fn secret_read_allows_system_actor_none() -> anyhow::Result<()> {
         let Ok(test_db) = setup_db().await else {

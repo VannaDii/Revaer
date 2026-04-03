@@ -17,6 +17,12 @@ test.describe('Indexer secrets', () => {
     expect(created.response.status).toBe(201);
     expect(created.data?.secret_public_id).toBeTruthy();
 
+    const listed = await api.GET('/v1/indexers/secrets');
+    expect(listed.response.ok).toBeTruthy();
+    expect(
+      listed.data?.secrets.some((secret) => secret.secret_public_id === created.data?.secret_public_id),
+    ).toBeTruthy();
+
     const secretPublicId = created.data?.secret_public_id;
     if (!secretPublicId) {
       throw new Error('Missing secret_public_id');

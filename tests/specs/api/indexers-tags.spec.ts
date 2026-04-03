@@ -20,6 +20,10 @@ test.describe('Indexer tags', () => {
     expect(created.data?.tag_public_id).toBeTruthy();
     expect(created.data?.display_name).toBe(displayName);
 
+    const listed = await api.GET('/v1/indexers/tags');
+    expect(listed.response.ok).toBeTruthy();
+    expect(listed.data?.tags.some((tag) => tag.tag_key === tagKey)).toBeTruthy();
+
     const tagPublicId = created.data?.tag_public_id;
     if (!tagPublicId) {
       throw new Error('Missing tag_public_id');

@@ -18,9 +18,9 @@ use crate::features::indexers::api::{
     fetch_cf_state, fetch_definitions, fetch_health_notification_hooks, fetch_import_job_results,
     fetch_import_job_status, fetch_indexer_connectivity_profile, fetch_indexer_health_events,
     fetch_indexer_rss_items, fetch_indexer_rss_subscription, fetch_indexer_source_reputation,
-    fetch_routing_policy, fetch_source_metadata_conflicts, finalize_indexer_test,
-    import_cardigann_definition, mark_indexer_rss_item_seen, prepare_indexer_test,
-    provision_app_sync, reopen_source_metadata_conflict, reset_cf_state,
+    fetch_routing_policy, fetch_secret_metadata, fetch_source_metadata_conflicts, fetch_tags,
+    finalize_indexer_test, import_cardigann_definition, mark_indexer_rss_item_seen,
+    prepare_indexer_test, provision_app_sync, reopen_source_metadata_conflict, reset_cf_state,
     resolve_source_metadata_conflict, restore_backup_snapshot, revoke_secret, rotate_secret,
     rotate_torznab_key, run_import_job_api, run_import_job_backup, set_indexer_field_value,
     set_indexer_media_domains, set_indexer_tags, set_routing_param,
@@ -30,20 +30,22 @@ use crate::features::indexers::api::{
     update_rate_limit_policy, update_search_profile, update_tag, upsert_tracker_category_mapping,
 };
 use crate::features::indexers::logic::{
-    connectivity_status_badge_class, filtered_definitions, format_optional_percent,
+    append_csv_unique, connectivity_status_badge_class, filtered_definitions,
+    format_optional_percent,
 };
 use crate::features::indexers::state::{
     AppSyncProvisionSummary, AppSyncState, BackupState, CardigannImportState,
     ConnectivityInsightsState, DefinitionsState, HealthEventsState, HealthNotificationHooksState,
-    ImportJobState, IndexersDraft, OperationRecord, RoutingPolicyState,
-    SourceMetadataConflictsState,
+    ImportJobState, IndexersDraft, OperationRecord, RoutingPolicyState, SecretInventoryState,
+    SourceMetadataConflictsState, TagInventoryState,
 };
 use crate::models::{
     CardigannDefinitionImportResponse, ImportJobResultResponse, ImportJobStatusResponse,
     IndexerBackupSnapshot, IndexerBackupUnresolvedSecretBinding,
     IndexerConnectivityProfileResponse, IndexerDefinitionResponse, IndexerHealthEventResponse,
     IndexerHealthNotificationHookResponse, IndexerSourceMetadataConflictResponse,
-    IndexerSourceReputationResponse, RoutingPolicyDetailResponse,
+    IndexerSourceReputationResponse, RoutingPolicyDetailResponse, SecretMetadataResponse,
+    TagListItemResponse,
 };
 use serde::Serialize;
 use std::future::Future;
@@ -69,9 +71,22 @@ struct DefinitionsSectionProps {
 }
 
 #[derive(Properties, PartialEq)]
-struct AdminSectionProps {
+struct TagSectionProps {
     draft: UseStateHandle<IndexersDraft>,
+    tags: TagInventoryState,
     busy: bool,
+    on_fetch_tags: Callback<MouseEvent>,
+    on_primary: Callback<MouseEvent>,
+    on_secondary: Callback<MouseEvent>,
+    on_tertiary: Callback<MouseEvent>,
+}
+
+#[derive(Properties, PartialEq)]
+struct SecretSectionProps {
+    draft: UseStateHandle<IndexersDraft>,
+    secrets: SecretInventoryState,
+    busy: bool,
+    on_fetch_secrets: Callback<MouseEvent>,
     on_primary: Callback<MouseEvent>,
     on_secondary: Callback<MouseEvent>,
     on_tertiary: Callback<MouseEvent>,
@@ -764,6 +779,8 @@ pub(crate) fn indexers_page(props: &IndexersPageProps) -> Html {
     let connectivity = use_state(ConnectivityInsightsState::default);
     let health_events = use_state(HealthEventsState::default);
     let health_notification_hooks = use_state(HealthNotificationHooksState::default);
+    let tag_inventory = use_state(TagInventoryState::default);
+    let secret_inventory = use_state(SecretInventoryState::default);
     let app_sync = use_state(AppSyncState::default);
     let import_job = use_state(ImportJobState::default);
     let source_conflicts = use_state(SourceMetadataConflictsState::default);
@@ -952,6 +969,88 @@ pub(crate) fn indexers_page(props: &IndexersPageProps) -> Html {
                 async move { delete_tag(&client, &draft_snapshot).await }
             },
         )
+    };
+    let on_fetch_tags = {
+        let api = api.clone();
+        let busy = busy.clone();
+        let records = records.clone();
+        let tag_inventory = tag_inventory.clone();
+        let on_success_toast = props.on_success_toast.clone();
+        let on_error_toast = props.on_error_toast.clone();
+        Callback::from(move |_| {
+            let Some(api) = api.clone() else {
+                append_record(&records, "Tag inventory", "API context is unavailable");
+                on_error_toast.emit("Tag inventory: API context is unavailable".to_string());
+                return;
+            };
+            if *busy {
+                return;
+            }
+            busy.set(true);
+            let client = api.client.clone();
+            let busy = busy.clone();
+            let records = records.clone();
+            let tag_inventory = tag_inventory.clone();
+            let on_success_toast = on_success_toast.clone();
+            let on_error_toast = on_error_toast.clone();
+            spawn_local(async move {
+                match fetch_tags(&client).await {
+                    Ok(response) => {
+                        append_json_record(&records, "Tag inventory", &response.tags);
+                        tag_inventory.set(TagInventoryState {
+                            items: response.tags,
+                        });
+                        on_success_toast.emit("Tag inventory loaded".to_string());
+                    }
+                    Err(error) => {
+                        append_record(&records, "Tag inventory", error.clone());
+                        on_error_toast.emit(format!("Tag inventory: {error}"));
+                    }
+                }
+                busy.set(false);
+            });
+        })
+    };
+    let on_fetch_secret_metadata = {
+        let api = api.clone();
+        let busy = busy.clone();
+        let records = records.clone();
+        let secret_inventory = secret_inventory.clone();
+        let on_success_toast = props.on_success_toast.clone();
+        let on_error_toast = props.on_error_toast.clone();
+        Callback::from(move |_| {
+            let Some(api) = api.clone() else {
+                append_record(&records, "Secret inventory", "API context is unavailable");
+                on_error_toast.emit("Secret inventory: API context is unavailable".to_string());
+                return;
+            };
+            if *busy {
+                return;
+            }
+            busy.set(true);
+            let client = api.client.clone();
+            let busy = busy.clone();
+            let records = records.clone();
+            let secret_inventory = secret_inventory.clone();
+            let on_success_toast = on_success_toast.clone();
+            let on_error_toast = on_error_toast.clone();
+            spawn_local(async move {
+                match fetch_secret_metadata(&client).await {
+                    Ok(response) => {
+                        append_json_record(&records, "Secret inventory", &response.secrets);
+                        secret_inventory.set(SecretInventoryState {
+                            items: response.secrets,
+                        });
+                        on_success_toast.emit("Secret inventory loaded".to_string());
+                    }
+                    Err(error) => {
+                        append_record(&records, "Secret inventory", error.clone());
+                        on_error_toast.emit(format!("Secret inventory: {error}"));
+                    }
+                }
+                busy.set(false);
+            });
+        })
     };
     let on_fetch_health_notification_hooks = {
         let api = api.clone();
@@ -2627,7 +2726,9 @@ pub(crate) fn indexers_page(props: &IndexersPageProps) -> Html {
             />
             <TagSecretSection
                 draft={draft.clone()}
+                tags={(*tag_inventory).clone()}
                 busy={*busy}
+                on_fetch_tags={on_fetch_tags}
                 on_primary={on_create_tag}
                 on_secondary={on_update_tag}
                 on_tertiary={on_delete_tag}
@@ -2643,7 +2744,9 @@ pub(crate) fn indexers_page(props: &IndexersPageProps) -> Html {
             />
             <SecretSection
                 draft={draft.clone()}
+                secrets={(*secret_inventory).clone()}
                 busy={*busy}
+                on_fetch_secrets={on_fetch_secret_metadata}
                 on_primary={on_create_secret}
                 on_secondary={on_rotate_secret}
                 on_tertiary={on_revoke_secret}
@@ -2866,8 +2969,74 @@ fn render_cardigann_import_summary(summary: &CardigannDefinitionImportResponse) 
     }
 }
 
+fn render_tag_inventory_item(
+    item: &TagListItemResponse,
+    on_use_tag: Callback<MouseEvent>,
+    on_append_indexer_tag: Callback<MouseEvent>,
+    on_append_allow_tag: Callback<MouseEvent>,
+) -> Html {
+    html! {
+        <div class="rounded-box border border-base-300 bg-base-200/40 p-3">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                    <div class="font-semibold">{item.display_name.clone()}</div>
+                    <div class="text-sm text-base-content/70">{item.tag_key.clone()}</div>
+                </div>
+                <div class="text-xs font-mono break-all text-base-content/60">
+                    {item.tag_public_id.to_string()}
+                </div>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+                <Button onclick={on_use_tag}>{"Use for CRUD"}</Button>
+                <Button onclick={on_append_indexer_tag}>{"Add to indexer tags"}</Button>
+                <Button onclick={on_append_allow_tag}>{"Add to allow tags"}</Button>
+            </div>
+        </div>
+    }
+}
+
+fn render_secret_inventory_item(
+    item: &SecretMetadataResponse,
+    on_use_secret: Callback<MouseEvent>,
+    on_use_routing_secret: Callback<MouseEvent>,
+    on_use_field_secret: Callback<MouseEvent>,
+    on_use_prowlarr_secret: Callback<MouseEvent>,
+) -> Html {
+    let rotated_at = item
+        .rotated_at
+        .map_or_else(|| "never".to_string(), |value| value.to_rfc3339());
+    let state_badge = if item.is_revoked {
+        "badge badge-error badge-outline"
+    } else {
+        "badge badge-success badge-outline"
+    };
+
+    html! {
+        <div class="rounded-box border border-base-300 bg-base-200/40 p-3">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                    <div class="font-semibold">{item.secret_type.clone()}</div>
+                    <div class="text-sm text-base-content/70">
+                        {format!("bindings: {} | rotated: {}", item.binding_count, rotated_at)}
+                    </div>
+                </div>
+                <span class={state_badge}>{if item.is_revoked { "revoked" } else { "active" }}</span>
+            </div>
+            <div class="mt-2 text-xs font-mono break-all text-base-content/60">
+                {item.secret_public_id.to_string()}
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+                <Button onclick={on_use_secret}>{"Use for rotate/revoke"}</Button>
+                <Button onclick={on_use_routing_secret}>{"Use for routing bind"}</Button>
+                <Button onclick={on_use_field_secret}>{"Use for field bind"}</Button>
+                <Button onclick={on_use_prowlarr_secret}>{"Use for Prowlarr"}</Button>
+            </div>
+        </div>
+    }
+}
+
 #[function_component(TagSecretSection)]
-fn tag_section(props: &AdminSectionProps) -> Html {
+fn tag_section(props: &TagSectionProps) -> Html {
     let on_tag_key = text_callback(props.draft.clone(), |draft, value| draft.tag_key = value);
     let on_tag_name = text_callback(props.draft.clone(), |draft, value| {
         draft.tag_display_name = value;
@@ -2875,31 +3044,77 @@ fn tag_section(props: &AdminSectionProps) -> Html {
     let on_tag_id = text_callback(props.draft.clone(), |draft, value| {
         draft.tag_public_id = value;
     });
+    let tag_inventory = props.tags.items.iter().map(|item| {
+        let draft = props.draft.clone();
+        let item_for_use = item.clone();
+        let on_use_tag = Callback::from(move |_| {
+            let mut next = (*draft).clone();
+            next.tag_public_id = item_for_use.tag_public_id.to_string();
+            next.tag_key = item_for_use.tag_key.clone();
+            next.tag_display_name = item_for_use.display_name.clone();
+            draft.set(next);
+        });
+        let draft = props.draft.clone();
+        let item_for_indexer = item.clone();
+        let on_append_indexer_tag = Callback::from(move |_| {
+            let mut next = (*draft).clone();
+            next.indexer_tag_keys =
+                append_csv_unique(&next.indexer_tag_keys, &item_for_indexer.tag_key);
+            draft.set(next);
+        });
+        let draft = props.draft.clone();
+        let item_for_allow = item.clone();
+        let on_append_allow_tag = Callback::from(move |_| {
+            let mut next = (*draft).clone();
+            next.search_profile_tag_keys_allow =
+                append_csv_unique(&next.search_profile_tag_keys_allow, &item_for_allow.tag_key);
+            draft.set(next);
+        });
+        render_tag_inventory_item(item, on_use_tag, on_append_indexer_tag, on_append_allow_tag)
+    });
     card(
         "Tags",
         html! {
-            <div class="grid gap-4 lg:grid-cols-3">
-                {field("Tag key", "Lowercase key for search profile and instance bindings.", html! {
-                    <Input value={props.draft.tag_key.clone()} oninput={on_tag_key} disabled={props.busy} class={classes!("w-full")} />
-                })}
-                {field("Display name", "Human-friendly label shown in operators surfaces.", html! {
-                    <Input value={props.draft.tag_display_name.clone()} oninput={on_tag_name} disabled={props.busy} class={classes!("w-full")} />
-                })}
-                {field("Tag public ID", "Required for update/delete when the key is ambiguous.", html! {
-                    <Input value={props.draft.tag_public_id.clone()} oninput={on_tag_id} disabled={props.busy} class={classes!("w-full")} />
-                })}
-                <div class="lg:col-span-3 flex flex-wrap gap-2">
-                    <Button onclick={props.on_primary.clone()} disabled={props.busy}>{"Create tag"}</Button>
-                    <Button onclick={props.on_secondary.clone()} disabled={props.busy}>{"Update tag"}</Button>
-                    <Button onclick={props.on_tertiary.clone()} disabled={props.busy}>{"Delete tag"}</Button>
+            <div class="space-y-4">
+                <div class="grid gap-4 lg:grid-cols-3">
+                    {field("Tag key", "Lowercase key for search profile and instance bindings.", html! {
+                        <Input value={props.draft.tag_key.clone()} oninput={on_tag_key} disabled={props.busy} class={classes!("w-full")} />
+                    })}
+                    {field("Display name", "Human-friendly label shown in operators surfaces.", html! {
+                        <Input value={props.draft.tag_display_name.clone()} oninput={on_tag_name} disabled={props.busy} class={classes!("w-full")} />
+                    })}
+                    {field("Tag public ID", "Required for update/delete when the key is ambiguous.", html! {
+                        <Input value={props.draft.tag_public_id.clone()} oninput={on_tag_id} disabled={props.busy} class={classes!("w-full")} />
+                    })}
+                    <div class="lg:col-span-3 flex flex-wrap gap-2">
+                        <Button onclick={props.on_fetch_tags.clone()} disabled={props.busy}>{"Fetch tags"}</Button>
+                        <Button onclick={props.on_primary.clone()} disabled={props.busy}>{"Create tag"}</Button>
+                        <Button onclick={props.on_secondary.clone()} disabled={props.busy}>{"Update tag"}</Button>
+                        <Button onclick={props.on_tertiary.clone()} disabled={props.busy}>{"Delete tag"}</Button>
+                    </div>
                 </div>
+                {
+                    if props.tags.items.is_empty() {
+                        html! {
+                            <p class="text-sm text-base-content/60">
+                                {"Fetch tags to populate CRUD forms and append tag keys into search-profile or indexer bindings."}
+                            </p>
+                        }
+                    } else {
+                        html! {
+                            <div class="space-y-3">
+                                {for tag_inventory}
+                            </div>
+                        }
+                    }
+                }
             </div>
         },
     )
 }
 
 #[function_component(SecretSection)]
-fn secret_section(props: &AdminSectionProps) -> Html {
+fn secret_section(props: &SecretSectionProps) -> Html {
     let on_secret_type = text_callback(props.draft.clone(), |draft, value| {
         draft.secret_type = value
     });
@@ -2915,30 +3130,86 @@ fn secret_section(props: &AdminSectionProps) -> Html {
     let on_secret_new_value = text_callback(props.draft.clone(), |draft, value| {
         draft.secret_new_value = value;
     });
+    let secret_inventory = props.secrets.items.iter().map(|item| {
+        let draft = props.draft.clone();
+        let item_for_secret = item.clone();
+        let on_use_secret = Callback::from(move |_| {
+            let mut next = (*draft).clone();
+            next.secret_public_id = item_for_secret.secret_public_id.to_string();
+            next.secret_type = item_for_secret.secret_type.clone();
+            draft.set(next);
+        });
+        let draft = props.draft.clone();
+        let item_for_routing = item.clone();
+        let on_use_routing_secret = Callback::from(move |_| {
+            let mut next = (*draft).clone();
+            next.routing_secret_public_id = item_for_routing.secret_public_id.to_string();
+            draft.set(next);
+        });
+        let draft = props.draft.clone();
+        let item_for_field = item.clone();
+        let on_use_field_secret = Callback::from(move |_| {
+            let mut next = (*draft).clone();
+            next.indexer_field_secret_public_id = item_for_field.secret_public_id.to_string();
+            draft.set(next);
+        });
+        let draft = props.draft.clone();
+        let item_for_prowlarr = item.clone();
+        let on_use_prowlarr_secret = Callback::from(move |_| {
+            let mut next = (*draft).clone();
+            next.prowlarr_api_key = item_for_prowlarr.secret_public_id.to_string();
+            draft.set(next);
+        });
+        render_secret_inventory_item(
+            item,
+            on_use_secret,
+            on_use_routing_secret,
+            on_use_field_secret,
+            on_use_prowlarr_secret,
+        )
+    });
     card(
         "Secrets",
         html! {
-            <div class="grid gap-4 lg:grid-cols-3">
-                {field("Secret type", "api_key, password, cookie, token, or header_value.", html! {
-                    <Input value={props.draft.secret_type.clone()} oninput={on_secret_type} disabled={props.busy} class={classes!("w-full")} />
-                })}
-                {field("Display name", "Operator-facing label used in audit output.", html! {
-                    <Input value={props.draft.secret_display_name.clone()} oninput={on_secret_name} disabled={props.busy} class={classes!("w-full")} />
-                })}
-                {field("Secret public ID", "Used for rotation and revocation.", html! {
-                    <Input value={props.draft.secret_public_id.clone()} oninput={on_secret_id} disabled={props.busy} class={classes!("w-full")} />
-                })}
-                {field("Secret value", "Plaintext secret for initial create.", html! {
-                    <Textarea value={props.draft.secret_value.clone()} rows={3} oninput={on_secret_value} disabled={props.busy} class={classes!("w-full")} />
-                })}
-                {field("Rotated value", "Plaintext secret used when rotating an existing secret.", html! {
-                    <Textarea value={props.draft.secret_new_value.clone()} rows={3} oninput={on_secret_new_value} disabled={props.busy} class={classes!("w-full")} />
-                })}
-                <div class="lg:col-span-3 flex flex-wrap gap-2">
-                    <Button onclick={props.on_primary.clone()} disabled={props.busy}>{"Create secret"}</Button>
-                    <Button onclick={props.on_secondary.clone()} disabled={props.busy}>{"Rotate secret"}</Button>
-                    <Button onclick={props.on_tertiary.clone()} disabled={props.busy}>{"Revoke secret"}</Button>
+            <div class="space-y-4">
+                <div class="grid gap-4 lg:grid-cols-3">
+                    {field("Secret type", "api_key, password, cookie, token, or header_value.", html! {
+                        <Input value={props.draft.secret_type.clone()} oninput={on_secret_type} disabled={props.busy} class={classes!("w-full")} />
+                    })}
+                    {field("Display name", "Operator-facing label used in audit output.", html! {
+                        <Input value={props.draft.secret_display_name.clone()} oninput={on_secret_name} disabled={props.busy} class={classes!("w-full")} />
+                    })}
+                    {field("Secret public ID", "Used for rotation and revocation.", html! {
+                        <Input value={props.draft.secret_public_id.clone()} oninput={on_secret_id} disabled={props.busy} class={classes!("w-full")} />
+                    })}
+                    {field("Secret value", "Plaintext secret for initial create.", html! {
+                        <Textarea value={props.draft.secret_value.clone()} rows={3} oninput={on_secret_value} disabled={props.busy} class={classes!("w-full")} />
+                    })}
+                    {field("Rotated value", "Plaintext secret used when rotating an existing secret.", html! {
+                        <Textarea value={props.draft.secret_new_value.clone()} rows={3} oninput={on_secret_new_value} disabled={props.busy} class={classes!("w-full")} />
+                    })}
+                    <div class="lg:col-span-3 flex flex-wrap gap-2">
+                        <Button onclick={props.on_fetch_secrets.clone()} disabled={props.busy}>{"Fetch secrets"}</Button>
+                        <Button onclick={props.on_primary.clone()} disabled={props.busy}>{"Create secret"}</Button>
+                        <Button onclick={props.on_secondary.clone()} disabled={props.busy}>{"Rotate secret"}</Button>
+                        <Button onclick={props.on_tertiary.clone()} disabled={props.busy}>{"Revoke secret"}</Button>
+                    </div>
                 </div>
+                {
+                    if props.secrets.items.is_empty() {
+                        html! {
+                            <p class="text-sm text-base-content/60">
+                                {"Fetch secret metadata to populate rotation, binding, and Prowlarr API-key flows without manual UUID entry."}
+                            </p>
+                        }
+                    } else {
+                        html! {
+                            <div class="space-y-3">
+                                {for secret_inventory}
+                            </div>
+                        }
+                    }
+                }
             </div>
         },
     )

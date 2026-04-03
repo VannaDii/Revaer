@@ -25,7 +25,8 @@ use crate::models::{
     IndexerInstanceTestFinalizeResponse, IndexerInstanceTestPrepareResponse,
     IndexerRssSeenItemResponse, IndexerRssSeenMarkResponse, IndexerRssSubscriptionResponse,
     IndexerSourceReputationResponse, ProblemDetails, SearchPageListResponse, SearchPageResponse,
-    SearchRequestCreateResponse, SearchRequestExplainabilityResponse,
+    SearchRequestCreateResponse, SearchRequestExplainabilityResponse, SecretMetadataResponse,
+    TagListItemResponse,
 };
 use async_trait::async_trait;
 use axum::response::Response;
@@ -183,8 +184,10 @@ pub(super) struct RecordingIndexers {
     pub(super) backup_restore_error: Arc<Mutex<Option<IndexerBackupServiceError>>>,
     pub(super) health_notification_hooks: Arc<Mutex<Vec<IndexerHealthNotificationHookResponse>>>,
     pub(super) health_notification_error: Arc<Mutex<Option<HealthNotificationServiceError>>>,
+    pub(super) secret_metadata: Arc<Mutex<Vec<SecretMetadataResponse>>>,
     pub(super) secret_error: Arc<Mutex<Option<SecretServiceError>>>,
     pub(super) tag_calls: Arc<Mutex<Vec<(Uuid, String, String)>>>,
+    pub(super) tag_list_items: Arc<Mutex<Vec<TagListItemResponse>>>,
     pub(super) tag_result: Arc<Mutex<Option<Result<Uuid, TagServiceError>>>>,
     pub(super) tag_error: Arc<Mutex<Option<TagServiceError>>>,
     pub(super) source_metadata_conflict_resolve_calls:
@@ -624,6 +627,17 @@ impl IndexerFacade for RecordingIndexers {
         Ok(DEFAULT_TAG_PUBLIC_ID)
     }
 
+    async fn tag_list(
+        &self,
+        _actor_user_public_id: Uuid,
+    ) -> Result<Vec<TagListItemResponse>, TagServiceError> {
+        let tag_error = self.tag_error.lock().expect("lock poisoned").take();
+        if let Some(error) = tag_error {
+            return Err(error);
+        }
+        Ok(self.tag_list_items.lock().expect("lock poisoned").clone())
+    }
+
     async fn tag_update(
         &self,
         _actor_user_public_id: Uuid,
@@ -946,6 +960,17 @@ impl IndexerFacade for RecordingIndexers {
             .expect("lock poisoned")
             .push((secret_type.to_string(), secret_value.to_string()));
         Ok(DEFAULT_SECRET_PUBLIC_ID)
+    }
+
+    async fn secret_metadata_list(
+        &self,
+        _actor_user_public_id: Uuid,
+    ) -> Result<Vec<SecretMetadataResponse>, SecretServiceError> {
+        let secret_error = self.secret_error.lock().expect("lock poisoned").take();
+        if let Some(error) = secret_error {
+            return Err(error);
+        }
+        Ok(self.secret_metadata.lock().expect("lock poisoned").clone())
     }
 
     async fn secret_rotate(

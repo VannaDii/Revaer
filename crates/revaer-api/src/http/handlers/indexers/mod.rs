@@ -95,8 +95,8 @@ pub(crate) use search_profiles::{
     set_search_profile_tag_prefer, update_search_profile,
 };
 pub(crate) use search_requests::{cancel_search_request, create_search_request};
-pub(crate) use secrets::{create_secret, revoke_secret, rotate_secret};
-pub(crate) use tags::{create_tag, delete_tag, delete_tag_by_key, update_tag};
+pub(crate) use secrets::{create_secret, list_secret_metadata, revoke_secret, rotate_secret};
+pub(crate) use tags::{create_tag, delete_tag, delete_tag_by_key, list_tags, update_tag};
 pub(crate) use torznab_instances::{
     create_torznab_instance, delete_torznab_instance, rotate_torznab_instance_key,
     set_torznab_instance_state,

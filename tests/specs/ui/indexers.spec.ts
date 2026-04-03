@@ -41,6 +41,8 @@ test.describe('Indexers', () => {
     await expect(
       page.getByRole('button', { name: 'Fetch notification hooks' }),
     ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Fetch tags' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Fetch secrets' })).toBeVisible();
     await expect(page.getByRole('heading', { name: 'App sync', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Provision app sync' })).toBeVisible();
     await expect(

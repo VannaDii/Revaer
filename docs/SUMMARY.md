@@ -297,3 +297,4 @@
     -   [265: PR feedback boundary validation closeout](adr/265-pr-feedback-boundary-validation-closeout.md)
     -   [266: PR CodeQL follow-up on instance tag bounds](adr/266-pr-codeql-followup-on-instance-tag-bounds.md)
     -   [267: Indexer maintenance runtime](adr/267-indexer-maintenance-runtime.md)
+    -   [268: Indexer tag and secret inventory](adr/268-indexer-tag-secret-inventory.md)

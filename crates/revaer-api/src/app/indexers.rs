@@ -20,7 +20,7 @@ use crate::models::{
     IndexerInstanceTestPrepareResponse, IndexerRssSeenItemResponse, IndexerRssSeenMarkResponse,
     IndexerRssSubscriptionResponse, IndexerSourceMetadataConflictResponse,
     IndexerSourceReputationResponse, RoutingPolicyDetailResponse, SearchPageListResponse,
-    SearchPageResponse, SearchRequestCreateResponse,
+    SearchPageResponse, SearchRequestCreateResponse, SecretMetadataResponse, TagListItemResponse,
 };
 
 /// Parameters for updating an indexer instance.
@@ -353,6 +353,13 @@ pub trait IndexerFacade: Send + Sync {
         tag_key: &str,
         display_name: &str,
     ) -> Result<Uuid, TagServiceError>;
+    /// List active tags for operator workflows.
+    async fn tag_list(
+        &self,
+        _actor_user_public_id: Uuid,
+    ) -> Result<Vec<TagListItemResponse>, TagServiceError> {
+        Err(TagServiceError::new(TagServiceErrorKind::Storage))
+    }
     /// Update a tag display name and return its public identifier.
     async fn tag_update(
         &self,
@@ -368,6 +375,13 @@ pub trait IndexerFacade: Send + Sync {
         tag_public_id: Option<Uuid>,
         tag_key: Option<&str>,
     ) -> Result<(), TagServiceError>;
+    /// List operator-visible secret metadata.
+    async fn secret_metadata_list(
+        &self,
+        _actor_user_public_id: Uuid,
+    ) -> Result<Vec<SecretMetadataResponse>, SecretServiceError> {
+        Err(SecretServiceError::new(SecretServiceErrorKind::Storage))
+    }
     /// List configured health notification hooks.
     async fn indexer_health_notification_hook_list(
         &self,

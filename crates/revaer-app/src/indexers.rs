@@ -50,7 +50,8 @@ use revaer_api::models::{
     IndexerSourceMetadataConflictResponse, IndexerSourceReputationResponse,
     RoutingPolicyDetailResponse, RoutingPolicyParameterResponse, SearchPageItemResponse,
     SearchPageListResponse, SearchPageResponse, SearchPageSummaryResponse,
-    SearchRequestCreateResponse, SearchRequestExplainabilityResponse,
+    SearchRequestCreateResponse, SearchRequestExplainabilityResponse, SecretMetadataResponse,
+    TagListItemResponse,
 };
 use revaer_config::ConfigService;
 use revaer_data::DataError;
@@ -125,8 +126,10 @@ use revaer_data::indexers::search_profiles::{
 use revaer_data::indexers::search_requests::{
     SearchRequestCreateInput, search_request_cancel, search_request_create,
 };
-use revaer_data::indexers::secrets::{secret_create, secret_revoke, secret_rotate};
-use revaer_data::indexers::tags::{tag_create, tag_soft_delete, tag_update};
+use revaer_data::indexers::secrets::{
+    secret_create, secret_metadata_list, secret_revoke, secret_rotate,
+};
+use revaer_data::indexers::tags::{tag_create, tag_list, tag_soft_delete, tag_update};
 use revaer_data::indexers::torznab::{
     torznab_category_list, torznab_download_prepare, torznab_instance_authenticate,
     torznab_instance_create, torznab_instance_enable_disable, torznab_instance_rotate_key,
@@ -696,6 +699,33 @@ impl IndexerFacade for IndexerService {
             |error| map_tag_error("tag_create", error),
         )
         .await
+    }
+
+    async fn tag_list(
+        &self,
+        actor_user_public_id: Uuid,
+    ) -> Result<Vec<TagListItemResponse>, TagServiceError> {
+        let span = info_span!(
+            "indexer.tag_list",
+            actor_user_public_id = %actor_user_public_id
+        );
+        let rows = self
+            .run_operation(
+                "indexer.tag_list",
+                tag_list(self.config.pool(), actor_user_public_id).instrument(span),
+                |error| map_tag_error("tag_list", error),
+            )
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| TagListItemResponse {
+                tag_public_id: row.tag_public_id,
+                tag_key: row.tag_key,
+                display_name: row.display_name,
+                updated_at: row.updated_at,
+            })
+            .collect())
     }
 
     async fn tag_update(
@@ -3041,6 +3071,35 @@ impl IndexerFacade for IndexerService {
             |error| map_secret_error("secret_create", error),
         )
         .await
+    }
+
+    async fn secret_metadata_list(
+        &self,
+        actor_user_public_id: Uuid,
+    ) -> Result<Vec<SecretMetadataResponse>, SecretServiceError> {
+        let span = info_span!(
+            "secret.metadata_list",
+            actor_user_public_id = %actor_user_public_id
+        );
+        let rows = self
+            .run_operation(
+                "indexer.secret_metadata_list",
+                secret_metadata_list(self.config.pool(), actor_user_public_id).instrument(span),
+                |error| map_secret_error("secret_metadata_list", error),
+            )
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| SecretMetadataResponse {
+                secret_public_id: row.secret_public_id,
+                secret_type: row.secret_type,
+                is_revoked: row.is_revoked,
+                created_at: row.created_at,
+                rotated_at: row.rotated_at,
+                binding_count: row.binding_count,
+            })
+            .collect())
     }
 
     async fn secret_rotate(

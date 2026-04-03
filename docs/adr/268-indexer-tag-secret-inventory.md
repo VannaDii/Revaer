@@ -1,0 +1,22 @@
+# Indexer Tag And Secret Inventory
+
+- Status: Accepted
+- Date: 2026-04-03
+- Context:
+  - The reopened ERD checklist still called out missing read/list management surfaces for operator workflows.
+  - The `/indexers` console already had write actions for tags and secrets, but it still depended on manual UUID and key copy-paste for common follow-up actions.
+  - We needed a small step that improved real operator usability without pretending the broader search-profile, policy, Torznab, routing, and instance inventory work was already complete.
+- Decision:
+  - Added stored-procedure-backed tag and secret metadata list reads so runtime code still uses stored procedures rather than inline SQL.
+  - Exposed those reads through `GET /v1/indexers/tags` and `GET /v1/indexers/secrets`.
+  - Updated the `/indexers` UI so operators can fetch tag and secret inventories, inspect the current metadata, and populate existing CRUD or binding forms directly from the returned rows.
+  - Alternatives considered:
+  - Reusing backup export payloads alone was rejected because several exported entities do not carry the public identifiers needed for edit flows.
+  - Jumping straight to the full read/list surface for every remaining resource was deferred because it is materially larger and independent of the tag/secret usability gap.
+- Consequences:
+  - Operators can now reuse live tag keys/public IDs and secret public IDs without manual transcription for several high-frequency actions.
+  - The broader ERD follow-up item remains open because search profiles, policy sets/rules, Torznab instances, routing policies, rate-limit policies, and indexer instances still need equivalent discovery surfaces.
+  - The API surface grows slightly, so OpenAPI export and handler coverage need to stay in sync.
+- Follow-up:
+  - Extend the same pattern to the remaining read/list inventory gaps called out in `ERD_INDEXERS_CHECKLIST.md`.
+  - Keep the operator console focused on live identifiers rather than backup-only names when wiring future inventory views.

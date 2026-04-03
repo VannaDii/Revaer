@@ -10,7 +10,8 @@ use crate::models::{
     IndexerBackupSnapshot, IndexerBackupUnresolvedSecretBinding,
     IndexerConnectivityProfileResponse, IndexerDefinitionResponse, IndexerHealthEventResponse,
     IndexerHealthNotificationHookResponse, IndexerSourceMetadataConflictResponse,
-    IndexerSourceReputationResponse, RoutingPolicyDetailResponse,
+    IndexerSourceReputationResponse, RoutingPolicyDetailResponse, SecretMetadataResponse,
+    TagListItemResponse,
 };
 use serde::Serialize;
 use uuid::Uuid;
@@ -280,6 +281,16 @@ pub(crate) struct RoutingPolicyState {
 #[derive(Clone, PartialEq, Eq, Default)]
 pub(crate) struct HealthNotificationHooksState {
     pub hooks: Vec<IndexerHealthNotificationHookResponse>,
+}
+
+#[derive(Clone, PartialEq, Eq, Default)]
+pub(crate) struct TagInventoryState {
+    pub items: Vec<TagListItemResponse>,
+}
+
+#[derive(Clone, PartialEq, Eq, Default)]
+pub(crate) struct SecretInventoryState {
+    pub items: Vec<SecretMetadataResponse>,
 }
 
 #[derive(Clone, PartialEq, Eq, Default)]

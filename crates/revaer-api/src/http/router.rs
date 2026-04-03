@@ -373,7 +373,8 @@ impl ApiServer {
         Router::new()
             .route(
                 "/v1/indexers/tags",
-                post(indexer_handlers::create_tag)
+                get(indexer_handlers::list_tags)
+                    .post(indexer_handlers::create_tag)
                     .patch(indexer_handlers::update_tag)
                     .delete(indexer_handlers::delete_tag),
             )
@@ -420,7 +421,8 @@ impl ApiServer {
         Router::new()
             .route(
                 "/v1/indexers/secrets",
-                post(indexer_handlers::create_secret)
+                get(indexer_handlers::list_secret_metadata)
+                    .post(indexer_handlers::create_secret)
                     .patch(indexer_handlers::rotate_secret)
                     .delete(indexer_handlers::revoke_secret),
             )

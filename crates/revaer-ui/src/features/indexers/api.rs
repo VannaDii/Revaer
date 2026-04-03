@@ -35,10 +35,10 @@ use crate::models::{
     SearchProfileCreateRequest, SearchProfileDefaultDomainRequest,
     SearchProfileDomainAllowlistRequest, SearchProfileIndexerSetRequest,
     SearchProfilePolicySetRequest, SearchProfileResponse, SearchProfileTagSetRequest,
-    SearchProfileUpdateRequest, SecretCreateRequest, SecretResponse, TagCreateRequest,
-    TagDeleteRequest, TagResponse, TagUpdateRequest, TorznabInstanceCreateRequest,
-    TorznabInstanceResponse, TorznabInstanceStateRequest, TrackerCategoryMappingDeleteRequest,
-    TrackerCategoryMappingUpsertRequest,
+    SearchProfileUpdateRequest, SecretCreateRequest, SecretMetadataListResponse, SecretResponse,
+    TagCreateRequest, TagDeleteRequest, TagListResponse, TagResponse, TagUpdateRequest,
+    TorznabInstanceCreateRequest, TorznabInstanceResponse, TorznabInstanceStateRequest,
+    TrackerCategoryMappingDeleteRequest, TrackerCategoryMappingUpsertRequest,
 };
 use crate::services::api::{ApiClient, ApiError};
 
@@ -95,6 +95,13 @@ pub(crate) async fn create_tag(
     };
     client
         .post_api("/v1/indexers/tags", &request)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+pub(crate) async fn fetch_tags(client: &ApiClient) -> Result<TagListResponse, String> {
+    client
+        .get_api("/v1/indexers/tags")
         .await
         .map_err(|err| err.to_string())
 }
@@ -208,6 +215,15 @@ pub(crate) async fn create_secret(
     };
     client
         .post_api("/v1/indexers/secrets", &request)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+pub(crate) async fn fetch_secret_metadata(
+    client: &ApiClient,
+) -> Result<SecretMetadataListResponse, String> {
+    client
+        .get_api("/v1/indexers/secrets")
         .await
         .map_err(|err| err.to_string())
 }

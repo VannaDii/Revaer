@@ -257,6 +257,26 @@ pub struct TagResponse {
     pub display_name: String,
 }
 
+/// Operator-visible tag summary.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TagListItemResponse {
+    /// Tag public identifier.
+    pub tag_public_id: Uuid,
+    /// Stable tag key.
+    pub tag_key: String,
+    /// Human-readable display name.
+    pub display_name: String,
+    /// Last update timestamp.
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Tag list response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TagListResponse {
+    /// Collection of active tags.
+    pub tags: Vec<TagListItemResponse>,
+}
+
 /// Health notification hook creation request payload.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct IndexerHealthNotificationHookCreateRequest {
@@ -1193,6 +1213,31 @@ pub struct SecretRevokeRequest {
 pub struct SecretResponse {
     /// Secret public identifier.
     pub secret_public_id: Uuid,
+}
+
+/// Operator-visible secret metadata response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SecretMetadataResponse {
+    /// Secret public identifier.
+    pub secret_public_id: Uuid,
+    /// Secret type label.
+    pub secret_type: String,
+    /// Whether the secret has been revoked.
+    pub is_revoked: bool,
+    /// When the secret was created.
+    pub created_at: DateTime<Utc>,
+    /// When the secret was last rotated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rotated_at: Option<DateTime<Utc>>,
+    /// Count of current bindings.
+    pub binding_count: i64,
+}
+
+/// Secret metadata list response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SecretMetadataListResponse {
+    /// Collection of secret metadata rows.
+    pub secrets: Vec<SecretMetadataResponse>,
 }
 
 /// Indexer definition summary payload.

@@ -92,6 +92,19 @@ pub(crate) fn string_list(value: &str) -> Vec<String> {
 }
 
 #[must_use]
+pub(crate) fn append_csv_unique(existing: &str, next_value: &str) -> String {
+    let mut values = split_csv(existing);
+    let trimmed = next_value.trim();
+    if trimmed.is_empty() {
+        return values.join(", ");
+    }
+    if values.iter().all(|entry| entry != trimmed) {
+        values.push(trimmed.to_string());
+    }
+    values.join(", ")
+}
+
+#[must_use]
 pub(crate) fn filtered_definitions<'a>(
     definitions: &'a [crate::models::IndexerDefinitionResponse],
     filter: &str,
@@ -136,8 +149,8 @@ pub(crate) fn format_optional_percent(value: Option<f64>) -> String {
 #[cfg(test)]
 mod tests {
     use super::{
-        connectivity_status_badge_class, filtered_definitions, format_optional_percent,
-        optional_bool, split_csv, uuid_list,
+        append_csv_unique, connectivity_status_badge_class, filtered_definitions,
+        format_optional_percent, optional_bool, split_csv, uuid_list,
     };
     use crate::models::IndexerDefinitionResponse;
 
@@ -152,6 +165,15 @@ mod tests {
     #[test]
     fn uuid_list_rejects_invalid_values() {
         assert!(uuid_list("not-a-uuid").is_err());
+    }
+
+    #[test]
+    fn append_csv_unique_appends_once() {
+        assert_eq!(
+            append_csv_unique("alpha, beta", "gamma"),
+            "alpha, beta, gamma"
+        );
+        assert_eq!(append_csv_unique("alpha, beta", "beta"), "alpha, beta");
     }
 
     #[test]
