@@ -130,6 +130,13 @@ async fn dispatch_indexer(
         IndexerCommand::Import(import_command) => {
             dispatch_indexer_import(import_command, deps, output).await
         }
+        IndexerCommand::Tag(tag_command) => dispatch_indexer_tag(*tag_command, deps, output).await,
+        IndexerCommand::Secret(secret_command) => {
+            dispatch_indexer_secret(*secret_command, deps, output).await
+        }
+        IndexerCommand::CategoryMapping(mapping_command) => {
+            dispatch_indexer_category_mapping(*mapping_command, deps).await
+        }
         IndexerCommand::Torznab(torznab_command) => {
             dispatch_indexer_torznab(torznab_command, deps, output).await
         }
@@ -165,6 +172,50 @@ async fn dispatch_indexer_import(
         }
         IndexerImportCommand::Results(args) => {
             indexers::handle_import_job_results(deps, args, output).await
+        }
+    }
+}
+
+async fn dispatch_indexer_tag(
+    command: TagCommand,
+    deps: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    match command {
+        TagCommand::Create(args) => indexers::handle_tag_create(deps, args, output).await,
+        TagCommand::Update(args) => indexers::handle_tag_update(deps, args, output).await,
+        TagCommand::Delete(args) => indexers::handle_tag_delete(deps, args).await,
+    }
+}
+
+async fn dispatch_indexer_secret(
+    command: SecretCommand,
+    deps: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    match command {
+        SecretCommand::Create(args) => indexers::handle_secret_create(deps, args, output).await,
+        SecretCommand::Rotate(args) => indexers::handle_secret_rotate(deps, args, output).await,
+        SecretCommand::Revoke(args) => indexers::handle_secret_revoke(deps, args).await,
+    }
+}
+
+async fn dispatch_indexer_category_mapping(
+    command: CategoryMappingCommand,
+    deps: &AppContext,
+) -> CliResult<()> {
+    match command {
+        CategoryMappingCommand::TrackerUpsert(args) => {
+            indexers::handle_tracker_category_mapping_upsert(deps, args).await
+        }
+        CategoryMappingCommand::TrackerDelete(args) => {
+            indexers::handle_tracker_category_mapping_delete(deps, args).await
+        }
+        CategoryMappingCommand::MediaDomainUpsert(args) => {
+            indexers::handle_media_domain_mapping_upsert(deps, args).await
+        }
+        CategoryMappingCommand::MediaDomainDelete(args) => {
+            indexers::handle_media_domain_mapping_delete(deps, args).await
         }
     }
 }
@@ -290,67 +341,99 @@ fn command_label(command: &Command) -> &'static str {
             ActionType::Move => "action_move",
         },
         Command::Tail(_) => "tail",
-        Command::Indexer(IndexerCommand::Import(IndexerImportCommand::Create(_))) => {
-            "indexer_import_create"
-        }
-        Command::Indexer(IndexerCommand::Import(IndexerImportCommand::RunProwlarrApi(_))) => {
-            "indexer_import_run_prowlarr_api"
-        }
-        Command::Indexer(IndexerCommand::Import(IndexerImportCommand::RunProwlarrBackup(_))) => {
-            "indexer_import_run_prowlarr_backup"
-        }
-        Command::Indexer(IndexerCommand::Import(IndexerImportCommand::Status(_))) => {
-            "indexer_import_status"
-        }
-        Command::Indexer(IndexerCommand::Import(IndexerImportCommand::Results(_))) => {
-            "indexer_import_results"
-        }
-        Command::Indexer(IndexerCommand::Torznab(TorznabCommand::Create(_))) => {
-            "indexer_torznab_create"
-        }
-        Command::Indexer(IndexerCommand::Torznab(TorznabCommand::Rotate(_))) => {
-            "indexer_torznab_rotate"
-        }
-        Command::Indexer(IndexerCommand::Torznab(TorznabCommand::SetState(_))) => {
-            "indexer_torznab_set_state"
-        }
-        Command::Indexer(IndexerCommand::Torznab(TorznabCommand::Delete(_))) => {
-            "indexer_torznab_delete"
-        }
-        Command::Indexer(IndexerCommand::Policy(policy_command)) => match policy_command.as_ref() {
-            PolicyCommand::SetCreate(_) => "indexer_policy_set_create",
-            PolicyCommand::SetUpdate(_) => "indexer_policy_set_update",
-            PolicyCommand::SetEnable(_) => "indexer_policy_set_enable",
-            PolicyCommand::SetDisable(_) => "indexer_policy_set_disable",
-            PolicyCommand::SetReorder(_) => "indexer_policy_set_reorder",
-            PolicyCommand::RuleCreate(_) => "indexer_policy_rule_create",
-            PolicyCommand::RuleEnable(_) => "indexer_policy_rule_enable",
-            PolicyCommand::RuleDisable(_) => "indexer_policy_rule_disable",
-            PolicyCommand::RuleReorder(_) => "indexer_policy_rule_reorder",
+        Command::Indexer(indexer_command) => command_label_indexer(indexer_command),
+    }
+}
+
+fn command_label_indexer(command: &IndexerCommand) -> &'static str {
+    match command {
+        IndexerCommand::Import(import_command) => match import_command {
+            IndexerImportCommand::Create(_) => "indexer_import_create",
+            IndexerImportCommand::RunProwlarrApi(_) => "indexer_import_run_prowlarr_api",
+            IndexerImportCommand::RunProwlarrBackup(_) => "indexer_import_run_prowlarr_backup",
+            IndexerImportCommand::Status(_) => "indexer_import_status",
+            IndexerImportCommand::Results(_) => "indexer_import_results",
         },
-        Command::Indexer(IndexerCommand::Instance(instance_command)) => {
-            match instance_command.as_ref() {
-                IndexerInstanceCommand::TestPrepare(_) => "indexer_instance_test_prepare",
-                IndexerInstanceCommand::TestFinalize(_) => "indexer_instance_test_finalize",
-            }
+        IndexerCommand::Tag(tag_command) => command_label_tag(tag_command),
+        IndexerCommand::Secret(secret_command) => command_label_secret(secret_command),
+        IndexerCommand::CategoryMapping(mapping_command) => {
+            command_label_category_mapping(mapping_command)
         }
-        Command::Indexer(IndexerCommand::Read(read_command)) => match read_command.as_ref() {
-            IndexerReadCommand::Tags => "indexer_read_tags",
-            IndexerReadCommand::Secrets => "indexer_read_secrets",
-            IndexerReadCommand::SearchProfiles => "indexer_read_search_profiles",
-            IndexerReadCommand::PolicySets => "indexer_read_policy_sets",
-            IndexerReadCommand::RoutingPolicies => "indexer_read_routing_policies",
-            IndexerReadCommand::RoutingPolicy(_) => "indexer_read_routing_policy",
-            IndexerReadCommand::RateLimits => "indexer_read_rate_limits",
-            IndexerReadCommand::Instances => "indexer_read_instances",
-            IndexerReadCommand::TorznabInstances => "indexer_read_torznab_instances",
-            IndexerReadCommand::BackupExport => "indexer_read_backup_export",
-            IndexerReadCommand::Connectivity(_) => "indexer_read_connectivity",
-            IndexerReadCommand::Reputation(_) => "indexer_read_reputation",
-            IndexerReadCommand::HealthEvents(_) => "indexer_read_health_events",
-            IndexerReadCommand::Rss(_) => "indexer_read_rss",
-            IndexerReadCommand::RssItems(_) => "indexer_read_rss_items",
+        IndexerCommand::Torznab(torznab_command) => match torznab_command {
+            TorznabCommand::Create(_) => "indexer_torznab_create",
+            TorznabCommand::Rotate(_) => "indexer_torznab_rotate",
+            TorznabCommand::SetState(_) => "indexer_torznab_set_state",
+            TorznabCommand::Delete(_) => "indexer_torznab_delete",
         },
+        IndexerCommand::Policy(policy_command) => command_label_policy(policy_command),
+        IndexerCommand::Instance(instance_command) => match instance_command.as_ref() {
+            IndexerInstanceCommand::TestPrepare(_) => "indexer_instance_test_prepare",
+            IndexerInstanceCommand::TestFinalize(_) => "indexer_instance_test_finalize",
+        },
+        IndexerCommand::Read(read_command) => command_label_indexer_read(read_command),
+    }
+}
+
+const fn command_label_tag(command: &TagCommand) -> &'static str {
+    match command {
+        TagCommand::Create(_) => "indexer_tag_create",
+        TagCommand::Update(_) => "indexer_tag_update",
+        TagCommand::Delete(_) => "indexer_tag_delete",
+    }
+}
+
+const fn command_label_secret(command: &SecretCommand) -> &'static str {
+    match command {
+        SecretCommand::Create(_) => "indexer_secret_create",
+        SecretCommand::Rotate(_) => "indexer_secret_rotate",
+        SecretCommand::Revoke(_) => "indexer_secret_revoke",
+    }
+}
+
+const fn command_label_category_mapping(command: &CategoryMappingCommand) -> &'static str {
+    match command {
+        CategoryMappingCommand::TrackerUpsert(_) => "indexer_category_mapping_tracker_upsert",
+        CategoryMappingCommand::TrackerDelete(_) => "indexer_category_mapping_tracker_delete",
+        CategoryMappingCommand::MediaDomainUpsert(_) => {
+            "indexer_category_mapping_media_domain_upsert"
+        }
+        CategoryMappingCommand::MediaDomainDelete(_) => {
+            "indexer_category_mapping_media_domain_delete"
+        }
+    }
+}
+
+const fn command_label_policy(command: &PolicyCommand) -> &'static str {
+    match command {
+        PolicyCommand::SetCreate(_) => "indexer_policy_set_create",
+        PolicyCommand::SetUpdate(_) => "indexer_policy_set_update",
+        PolicyCommand::SetEnable(_) => "indexer_policy_set_enable",
+        PolicyCommand::SetDisable(_) => "indexer_policy_set_disable",
+        PolicyCommand::SetReorder(_) => "indexer_policy_set_reorder",
+        PolicyCommand::RuleCreate(_) => "indexer_policy_rule_create",
+        PolicyCommand::RuleEnable(_) => "indexer_policy_rule_enable",
+        PolicyCommand::RuleDisable(_) => "indexer_policy_rule_disable",
+        PolicyCommand::RuleReorder(_) => "indexer_policy_rule_reorder",
+    }
+}
+
+const fn command_label_indexer_read(command: &IndexerReadCommand) -> &'static str {
+    match command {
+        IndexerReadCommand::Tags => "indexer_read_tags",
+        IndexerReadCommand::Secrets => "indexer_read_secrets",
+        IndexerReadCommand::SearchProfiles => "indexer_read_search_profiles",
+        IndexerReadCommand::PolicySets => "indexer_read_policy_sets",
+        IndexerReadCommand::RoutingPolicies => "indexer_read_routing_policies",
+        IndexerReadCommand::RoutingPolicy(_) => "indexer_read_routing_policy",
+        IndexerReadCommand::RateLimits => "indexer_read_rate_limits",
+        IndexerReadCommand::Instances => "indexer_read_instances",
+        IndexerReadCommand::TorznabInstances => "indexer_read_torznab_instances",
+        IndexerReadCommand::BackupExport => "indexer_read_backup_export",
+        IndexerReadCommand::Connectivity(_) => "indexer_read_connectivity",
+        IndexerReadCommand::Reputation(_) => "indexer_read_reputation",
+        IndexerReadCommand::HealthEvents(_) => "indexer_read_health_events",
+        IndexerReadCommand::Rss(_) => "indexer_read_rss",
+        IndexerReadCommand::RssItems(_) => "indexer_read_rss_items",
     }
 }
 
@@ -434,6 +517,12 @@ pub(crate) enum IndexerCommand {
     #[command(subcommand)]
     Import(IndexerImportCommand),
     #[command(subcommand)]
+    Tag(Box<TagCommand>),
+    #[command(subcommand)]
+    Secret(Box<SecretCommand>),
+    #[command(subcommand)]
+    CategoryMapping(Box<CategoryMappingCommand>),
+    #[command(subcommand)]
     Torznab(TorznabCommand),
     #[command(subcommand)]
     Policy(Box<PolicyCommand>),
@@ -458,6 +547,28 @@ pub(crate) enum TorznabCommand {
     Rotate(TorznabRotateArgs),
     SetState(TorznabSetStateArgs),
     Delete(TorznabDeleteArgs),
+}
+
+#[derive(Subcommand)]
+pub(crate) enum TagCommand {
+    Create(TagCreateArgs),
+    Update(TagUpdateArgs),
+    Delete(TagDeleteArgs),
+}
+
+#[derive(Subcommand)]
+pub(crate) enum SecretCommand {
+    Create(SecretCreateArgs),
+    Rotate(SecretRotateArgs),
+    Revoke(SecretRevokeArgs),
+}
+
+#[derive(Subcommand)]
+pub(crate) enum CategoryMappingCommand {
+    TrackerUpsert(TrackerCategoryMappingUpsertArgs),
+    TrackerDelete(TrackerCategoryMappingDeleteArgs),
+    MediaDomainUpsert(MediaDomainMappingUpsertArgs),
+    MediaDomainDelete(MediaDomainMappingDeleteArgs),
 }
 
 #[derive(Subcommand)]
@@ -681,6 +792,110 @@ pub(crate) struct TorznabSetStateArgs {
 pub(crate) struct TorznabDeleteArgs {
     #[arg(value_parser = parse_torznab_instance_id, help = "Torznab instance public id")]
     pub torznab_instance_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct TagCreateArgs {
+    #[arg(long, help = "Unique lowercase tag key")]
+    pub tag_key: String,
+    #[arg(long, help = "Operator-facing display name")]
+    pub display_name: String,
+}
+
+#[derive(Args)]
+pub(crate) struct TagUpdateArgs {
+    #[arg(long, help = "Tag public id (optional when tag-key is provided)")]
+    pub tag_public_id: Option<Uuid>,
+    #[arg(long, help = "Tag key (optional when tag-public-id is provided)")]
+    pub tag_key: Option<String>,
+    #[arg(long, help = "Updated display name")]
+    pub display_name: String,
+}
+
+#[derive(Args)]
+pub(crate) struct TagDeleteArgs {
+    #[arg(long, help = "Tag public id (optional when tag-key is provided)")]
+    pub tag_public_id: Option<Uuid>,
+    #[arg(long, help = "Tag key (optional when tag-public-id is provided)")]
+    pub tag_key: Option<String>,
+}
+
+#[derive(Args)]
+pub(crate) struct SecretCreateArgs {
+    #[arg(long, help = "Secret type label")]
+    pub secret_type: String,
+    #[arg(long, help = "Plaintext secret value")]
+    pub secret_value: String,
+}
+
+#[derive(Args)]
+pub(crate) struct SecretRotateArgs {
+    #[arg(long, help = "Secret public id")]
+    pub secret_public_id: Uuid,
+    #[arg(long, help = "New plaintext secret value")]
+    pub secret_value: String,
+}
+
+#[derive(Args)]
+pub(crate) struct SecretRevokeArgs {
+    #[arg(long, help = "Secret public id")]
+    pub secret_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct TrackerCategoryMappingUpsertArgs {
+    #[arg(
+        long,
+        help = "Optional Torznab instance public id for app-scoped overrides"
+    )]
+    pub torznab_instance_public_id: Option<Uuid>,
+    #[arg(long, help = "Optional definition upstream slug")]
+    pub indexer_definition_upstream_slug: Option<String>,
+    #[arg(long, help = "Optional indexer instance public id")]
+    pub indexer_instance_public_id: Option<Uuid>,
+    #[arg(long, help = "Tracker category id")]
+    pub tracker_category: i32,
+    #[arg(long, help = "Optional tracker subcategory id")]
+    pub tracker_subcategory: Option<i32>,
+    #[arg(long, help = "Torznab category id")]
+    pub torznab_cat_id: i32,
+    #[arg(long, help = "Optional media domain key")]
+    pub media_domain_key: Option<String>,
+}
+
+#[derive(Args)]
+pub(crate) struct TrackerCategoryMappingDeleteArgs {
+    #[arg(
+        long,
+        help = "Optional Torznab instance public id for app-scoped overrides"
+    )]
+    pub torznab_instance_public_id: Option<Uuid>,
+    #[arg(long, help = "Optional definition upstream slug")]
+    pub indexer_definition_upstream_slug: Option<String>,
+    #[arg(long, help = "Optional indexer instance public id")]
+    pub indexer_instance_public_id: Option<Uuid>,
+    #[arg(long, help = "Tracker category id")]
+    pub tracker_category: i32,
+    #[arg(long, help = "Optional tracker subcategory id")]
+    pub tracker_subcategory: Option<i32>,
+}
+
+#[derive(Args)]
+pub(crate) struct MediaDomainMappingUpsertArgs {
+    #[arg(long, help = "Media domain key")]
+    pub media_domain_key: String,
+    #[arg(long, help = "Torznab category id")]
+    pub torznab_cat_id: i32,
+    #[arg(long, help = "Optional primary flag value (true or false)")]
+    pub is_primary: Option<bool>,
+}
+
+#[derive(Args)]
+pub(crate) struct MediaDomainMappingDeleteArgs {
+    #[arg(long, help = "Media domain key")]
+    pub media_domain_key: String,
+    #[arg(long, help = "Torznab category id")]
+    pub torznab_cat_id: i32,
 }
 
 #[derive(Args)]
@@ -964,19 +1179,23 @@ mod tests {
         Ok(())
     }
 
+    fn assert_command_label(command: &Command, expected: &str) {
+        assert_eq!(command_label(command), expected);
+    }
+
     #[test]
-    fn command_label_matches_variants() {
-        assert_eq!(
-            command_label(&Command::Torrent(TorrentCommand::Add(TorrentAddArgs {
+    fn command_label_matches_core_variants() {
+        assert_command_label(
+            &Command::Torrent(TorrentCommand::Add(TorrentAddArgs {
                 source: "magnet:?xt=urn:btih:demo".to_string(),
                 name: None,
                 id: None,
                 storage_mode: None,
-            }))),
-            "torrent_add"
+            })),
+            "torrent_add",
         );
-        assert_eq!(
-            command_label(&Command::Action(TorrentActionArgs {
+        assert_command_label(
+            &Command::Action(TorrentActionArgs {
                 id: Uuid::nil(),
                 action: ActionType::Pause,
                 enable: None,
@@ -984,59 +1203,97 @@ mod tests {
                 download: None,
                 upload: None,
                 download_dir: None,
-            })),
-            "action_pause"
+            }),
+            "action_pause",
         );
-        assert_eq!(
-            command_label(&Command::Indexer(IndexerCommand::Import(
-                IndexerImportCommand::Create(ImportJobCreateArgs {
+        assert_command_label(
+            &Command::Indexer(IndexerCommand::Import(IndexerImportCommand::Create(
+                ImportJobCreateArgs {
                     source: ImportSourceArg::ProwlarrApi,
                     dry_run: false,
                     target_search_profile: None,
                     target_torznab_instance: None,
-                })
+                },
             ))),
-            "indexer_import_create"
+            "indexer_import_create",
         );
-        assert_eq!(
-            command_label(&Command::Indexer(IndexerCommand::Torznab(
-                TorznabCommand::Rotate(TorznabRotateArgs {
+        assert_command_label(
+            &Command::Indexer(IndexerCommand::Torznab(TorznabCommand::Rotate(
+                TorznabRotateArgs {
                     torznab_instance_public_id: Uuid::nil(),
-                })
+                },
             ))),
-            "indexer_torznab_rotate"
+            "indexer_torznab_rotate",
         );
-        assert_eq!(
-            command_label(&Command::Indexer(IndexerCommand::Policy(Box::new(
-                PolicyCommand::SetCreate(PolicySetCreateArgs {
+        assert_command_label(
+            &Command::Indexer(IndexerCommand::Policy(Box::new(PolicyCommand::SetCreate(
+                PolicySetCreateArgs {
                     display_name: "Demo".to_string(),
                     scope: "global".to_string(),
                     enabled: true,
-                })
+                },
             )))),
-            "indexer_policy_set_create"
+            "indexer_policy_set_create",
         );
-        assert_eq!(
-            command_label(&Command::Indexer(IndexerCommand::Instance(Box::new(
+        assert_command_label(
+            &Command::Indexer(IndexerCommand::Instance(Box::new(
                 IndexerInstanceCommand::TestPrepare(IndexerInstanceTestPrepareArgs {
                     indexer_instance_public_id: Uuid::nil(),
-                })
-            )))),
-            "indexer_instance_test_prepare"
+                }),
+            ))),
+            "indexer_instance_test_prepare",
         );
-        assert_eq!(
-            command_label(&Command::Indexer(IndexerCommand::Read(Box::new(
-                IndexerReadCommand::Tags
-            )))),
-            "indexer_read_tags"
+    }
+
+    #[test]
+    fn command_label_matches_indexer_read_variants() {
+        assert_command_label(
+            &Command::Indexer(IndexerCommand::Read(Box::new(IndexerReadCommand::Tags))),
+            "indexer_read_tags",
         );
-        assert_eq!(
-            command_label(&Command::Indexer(IndexerCommand::Read(Box::new(
+        assert_command_label(
+            &Command::Indexer(IndexerCommand::Read(Box::new(
                 IndexerReadCommand::RoutingPolicy(IndexerRoutingPolicyReadArgs {
                     routing_policy_public_id: Uuid::nil(),
-                })
+                }),
+            ))),
+            "indexer_read_routing_policy",
+        );
+    }
+
+    #[test]
+    fn command_label_matches_indexer_write_variants() {
+        assert_command_label(
+            &Command::Indexer(IndexerCommand::Tag(Box::new(TagCommand::Create(
+                TagCreateArgs {
+                    tag_key: "anime".to_string(),
+                    display_name: "Anime".to_string(),
+                },
             )))),
-            "indexer_read_routing_policy"
+            "indexer_tag_create",
+        );
+        assert_command_label(
+            &Command::Indexer(IndexerCommand::Secret(Box::new(SecretCommand::Rotate(
+                SecretRotateArgs {
+                    secret_public_id: Uuid::nil(),
+                    secret_value: "secret".to_string(),
+                },
+            )))),
+            "indexer_secret_rotate",
+        );
+        assert_command_label(
+            &Command::Indexer(IndexerCommand::CategoryMapping(Box::new(
+                CategoryMappingCommand::TrackerUpsert(TrackerCategoryMappingUpsertArgs {
+                    torznab_instance_public_id: None,
+                    indexer_definition_upstream_slug: Some("demo".to_string()),
+                    indexer_instance_public_id: None,
+                    tracker_category: 2000,
+                    tracker_subcategory: Some(10),
+                    torznab_cat_id: 2010,
+                    media_domain_key: Some("movies".to_string()),
+                }),
+            ))),
+            "indexer_category_mapping_tracker_upsert",
         );
     }
 
@@ -1279,6 +1536,132 @@ mod tests {
 
         let exit_code = run_with_cli(cli).await;
         rss_mock.assert();
+        assert_eq!(exit_code, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_indexer_tag_create() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let tag_public_id = Uuid::new_v4();
+        let tag_mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/v1/indexers/tags")
+                .header(HEADER_API_KEY, "key:secret")
+                .json_body(serde_json::json!({
+                    "tag_key": "anime",
+                    "display_name": "Anime"
+                }));
+            then.status(201).json_body(serde_json::json!({
+                "tag_public_id": tag_public_id,
+                "tag_key": "anime",
+                "display_name": "Anime"
+            }));
+        });
+
+        let cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "indexer",
+            "tag",
+            "create",
+            "--tag-key",
+            " anime ",
+            "--display-name",
+            " Anime ",
+        ]);
+
+        let exit_code = run_with_cli(cli).await;
+        tag_mock.assert();
+        assert_eq!(exit_code, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_indexer_secret_rotate() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let secret_public_id = Uuid::new_v4();
+        let secret_mock = server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v1/indexers/secrets")
+                .header(HEADER_API_KEY, "key:secret")
+                .json_body(serde_json::json!({
+                    "secret_public_id": secret_public_id,
+                    "secret_value": "next-secret"
+                }));
+            then.status(200).json_body(serde_json::json!({
+                "secret_public_id": secret_public_id
+            }));
+        });
+
+        let cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "indexer",
+            "secret",
+            "rotate",
+            "--secret-public-id",
+            &secret_public_id.to_string(),
+            "--secret-value",
+            "next-secret",
+        ]);
+
+        let exit_code = run_with_cli(cli).await;
+        secret_mock.assert();
+        assert_eq!(exit_code, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_tracker_category_mapping_upsert() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let torznab_instance_public_id = Uuid::new_v4();
+        let mapping_mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/v1/indexers/category-mappings/tracker")
+                .header(HEADER_API_KEY, "key:secret")
+                .json_body(serde_json::json!({
+                    "torznab_instance_public_id": torznab_instance_public_id,
+                    "indexer_definition_upstream_slug": "demo",
+                    "tracker_category": 2000,
+                    "tracker_subcategory": 10,
+                    "torznab_cat_id": 2010,
+                    "media_domain_key": "movies"
+                }));
+            then.status(204);
+        });
+
+        let cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "indexer",
+            "category-mapping",
+            "tracker-upsert",
+            "--torznab-instance-public-id",
+            &torznab_instance_public_id.to_string(),
+            "--indexer-definition-upstream-slug",
+            " demo ",
+            "--tracker-category",
+            "2000",
+            "--tracker-subcategory",
+            "10",
+            "--torznab-cat-id",
+            "2010",
+            "--media-domain-key",
+            " movies ",
+        ]);
+
+        let exit_code = run_with_cli(cli).await;
+        mapping_mock.assert();
         assert_eq!(exit_code, 0);
         Ok(())
     }

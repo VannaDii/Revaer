@@ -428,35 +428,39 @@ docs:
 db-start:
     db_url="${DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"; \
     echo "Using database URL: ${db_url}"; \
-    container_name="${PG_CONTAINER:-revaer-db}"; \
-    existing_container="$(docker ps -aq -f name=^${container_name}$)"; \
-    if [ -n "$existing_container" ]; then \
-        if [ -z "$(docker ps -q -f name=^${container_name}$)" ]; then \
-            echo "Starting existing Postgres container (${container_name})"; \
-            docker start "${container_name}" >/dev/null; \
-        fi; \
-    else \
-        echo "Starting new Postgres container (${container_name})"; \
-        docker run -d \
-            --name "${container_name}" \
-            -e POSTGRES_USER=revaer \
-            -e POSTGRES_PASSWORD=revaer \
-            -e POSTGRES_DB=revaer \
-            -p 5432:5432 \
-            -v revaer-pgdata:/var/lib/postgresql/data \
-            postgres:16-alpine >/dev/null; \
-    fi; \
-    echo "Waiting for Postgres to become ready..."; \
-    for _ in $(seq 1 30); do \
-        if docker exec "${container_name}" pg_isready -U revaer -d revaer >/dev/null 2>&1; then \
-            break; \
-        fi; \
-        sleep 1; \
-    done; \
     db_host="$(printf "%s" "${db_url}" | sed -E 's#^[^:]+://[^@]+@([^:/]+).*#\1#')"; \
     db_port="$(printf "%s" "${db_url}" | sed -En 's#^[^:]+://[^@]+@[^:/]+:([0-9]+).*#\1#p')"; \
     if [ -z "${db_port}" ]; then \
         db_port="5432"; \
+    fi; \
+    container_name="${PG_CONTAINER:-revaer-db}"; \
+    if python3 -c 'import socket, sys; probe = socket.create_connection((sys.argv[1], int(sys.argv[2])), 1); probe.close()' "${db_host}" "${db_port}" >/dev/null 2>&1; then \
+        echo "Using existing Postgres endpoint ${db_host}:${db_port}"; \
+    else \
+        existing_container="$(docker ps -aq -f name=^${container_name}$)"; \
+        if [ -n "$existing_container" ]; then \
+            if [ -z "$(docker ps -q -f name=^${container_name}$)" ]; then \
+                echo "Starting existing Postgres container (${container_name})"; \
+                docker start "${container_name}" >/dev/null; \
+            fi; \
+        else \
+            echo "Starting new Postgres container (${container_name})"; \
+            docker run -d \
+                --name "${container_name}" \
+                -e POSTGRES_USER=revaer \
+                -e POSTGRES_PASSWORD=revaer \
+                -e POSTGRES_DB=revaer \
+                -p 5432:5432 \
+                -v revaer-pgdata:/var/lib/postgresql/data \
+                postgres:16-alpine >/dev/null; \
+        fi; \
+        echo "Waiting for Postgres to become ready..."; \
+        for _ in $(seq 1 30); do \
+            if docker exec "${container_name}" pg_isready -U revaer -d revaer >/dev/null 2>&1; then \
+                break; \
+            fi; \
+            sleep 1; \
+        done; \
     fi; \
     echo "Waiting for external Postgres endpoint ${db_host}:${db_port}..."; \
     external_ready="0"; \

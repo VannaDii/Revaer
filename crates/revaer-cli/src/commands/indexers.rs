@@ -1,6 +1,7 @@
 use std::fmt::Write as _;
 
 use anyhow::anyhow;
+use reqwest::Method;
 use revaer_api::models::{
     ImportJobCreateRequest, ImportJobResponse, ImportJobResultsResponse,
     ImportJobRunProwlarrApiRequest, ImportJobRunProwlarrBackupRequest, ImportJobStatusResponse,
@@ -8,25 +9,32 @@ use revaer_api::models::{
     IndexerHealthEventListResponse, IndexerInstanceListResponse,
     IndexerInstanceTestFinalizeRequest, IndexerInstanceTestFinalizeResponse,
     IndexerInstanceTestPrepareResponse, IndexerRssSeenItemsResponse,
-    IndexerRssSubscriptionResponse, IndexerSourceReputationListResponse, PolicyRuleCreateRequest,
+    IndexerRssSubscriptionResponse, IndexerSourceReputationListResponse,
+    MediaDomainMappingDeleteRequest, MediaDomainMappingUpsertRequest, PolicyRuleCreateRequest,
     PolicyRuleReorderRequest, PolicyRuleResponse, PolicyRuleValueItemRequest,
     PolicySetCreateRequest, PolicySetListResponse, PolicySetReorderRequest, PolicySetResponse,
     PolicySetUpdateRequest, RateLimitPolicyListResponse, RoutingPolicyDetailResponse,
-    RoutingPolicyListResponse, SearchProfileListResponse, SecretMetadataListResponse,
-    TagListResponse, TorznabInstanceCreateRequest, TorznabInstanceListResponse,
-    TorznabInstanceResponse, TorznabInstanceStateRequest,
+    RoutingPolicyListResponse, SearchProfileListResponse, SecretCreateRequest,
+    SecretMetadataListResponse, SecretResponse, SecretRevokeRequest, SecretRotateRequest,
+    TagCreateRequest, TagDeleteRequest, TagListResponse, TagResponse, TagUpdateRequest,
+    TorznabInstanceCreateRequest, TorznabInstanceListResponse, TorznabInstanceResponse,
+    TorznabInstanceStateRequest, TrackerCategoryMappingDeleteRequest,
+    TrackerCategoryMappingUpsertRequest,
 };
-use serde::de::DeserializeOwned;
+use serde::{Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
 use crate::cli::{
     ImportJobCreateArgs, ImportJobResultsArgs, ImportJobRunProwlarrApiArgs,
     ImportJobRunProwlarrBackupArgs, ImportJobStatusArgs, IndexerInstanceReadArgs,
     IndexerInstanceRssItemsArgs, IndexerInstanceTestFinalizeArgs, IndexerInstanceTestPrepareArgs,
-    IndexerRoutingPolicyReadArgs, OutputFormat, PolicyRuleCreateArgs, PolicyRuleDisableArgs,
-    PolicyRuleEnableArgs, PolicyRuleReorderArgs, PolicySetCreateArgs, PolicySetDisableArgs,
-    PolicySetEnableArgs, PolicySetReorderArgs, PolicySetUpdateArgs, TorznabCreateArgs,
-    TorznabDeleteArgs, TorznabRotateArgs, TorznabSetStateArgs,
+    IndexerRoutingPolicyReadArgs, MediaDomainMappingDeleteArgs, MediaDomainMappingUpsertArgs,
+    OutputFormat, PolicyRuleCreateArgs, PolicyRuleDisableArgs, PolicyRuleEnableArgs,
+    PolicyRuleReorderArgs, PolicySetCreateArgs, PolicySetDisableArgs, PolicySetEnableArgs,
+    PolicySetReorderArgs, PolicySetUpdateArgs, SecretCreateArgs, SecretRevokeArgs,
+    SecretRotateArgs, TagCreateArgs, TagDeleteArgs, TagUpdateArgs, TorznabCreateArgs,
+    TorznabDeleteArgs, TorznabRotateArgs, TorznabSetStateArgs, TrackerCategoryMappingDeleteArgs,
+    TrackerCategoryMappingUpsertArgs,
 };
 use crate::client::{AppContext, CliError, CliResult, HEADER_API_KEY, classify_problem};
 use crate::output::{
@@ -38,8 +46,248 @@ use crate::output::{
     render_indexer_source_reputation_list, render_policy_rule_response, render_policy_set_list,
     render_policy_set_response, render_rate_limit_policy_list, render_routing_policy_detail,
     render_routing_policy_list, render_search_profile_list, render_secret_metadata_list,
-    render_tag_list, render_torznab_instance, render_torznab_instance_list,
+    render_secret_response, render_tag_list, render_tag_response, render_torznab_instance,
+    render_torznab_instance_list,
 };
+
+pub(crate) async fn handle_tag_create(
+    ctx: &AppContext,
+    args: TagCreateArgs,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let tag_key = args.tag_key.trim();
+    if tag_key.is_empty() {
+        return Err(CliError::validation("tag key must not be empty"));
+    }
+    let display_name = args.display_name.trim();
+    if display_name.is_empty() {
+        return Err(CliError::validation("display name must not be empty"));
+    }
+
+    let request = TagCreateRequest {
+        tag_key: tag_key.to_string(),
+        display_name: display_name.to_string(),
+    };
+    let response: TagResponse = send_indexer_json(
+        ctx,
+        Method::POST,
+        "/v1/indexers/tags",
+        "/v1/indexers/tags",
+        &request,
+    )
+    .await?;
+    render_tag_response(&response, output)
+}
+
+pub(crate) async fn handle_tag_update(
+    ctx: &AppContext,
+    args: TagUpdateArgs,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let display_name = args.display_name.trim();
+    if display_name.is_empty() {
+        return Err(CliError::validation("display name must not be empty"));
+    }
+
+    let request = TagUpdateRequest {
+        tag_public_id: args.tag_public_id,
+        tag_key: trim_optional_text(args.tag_key.as_deref()),
+        display_name: display_name.to_string(),
+    };
+    let response: TagResponse = send_indexer_json(
+        ctx,
+        Method::PATCH,
+        "/v1/indexers/tags",
+        "/v1/indexers/tags",
+        &request,
+    )
+    .await?;
+    render_tag_response(&response, output)
+}
+
+pub(crate) async fn handle_tag_delete(ctx: &AppContext, args: TagDeleteArgs) -> CliResult<()> {
+    let request = TagDeleteRequest {
+        tag_public_id: args.tag_public_id,
+        tag_key: trim_optional_text(args.tag_key.as_deref()),
+    };
+    send_indexer_no_content(
+        ctx,
+        Method::DELETE,
+        "/v1/indexers/tags",
+        "/v1/indexers/tags",
+        &request,
+    )
+    .await?;
+    println!("Tag deleted");
+    Ok(())
+}
+
+pub(crate) async fn handle_secret_create(
+    ctx: &AppContext,
+    args: SecretCreateArgs,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let secret_type = args.secret_type.trim();
+    if secret_type.is_empty() {
+        return Err(CliError::validation("secret type must not be empty"));
+    }
+
+    let request = SecretCreateRequest {
+        secret_type: secret_type.to_string(),
+        secret_value: args.secret_value,
+    };
+    let response: SecretResponse = send_indexer_json(
+        ctx,
+        Method::POST,
+        "/v1/indexers/secrets",
+        "/v1/indexers/secrets",
+        &request,
+    )
+    .await?;
+    render_secret_response(&response, output)
+}
+
+pub(crate) async fn handle_secret_rotate(
+    ctx: &AppContext,
+    args: SecretRotateArgs,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let request = SecretRotateRequest {
+        secret_public_id: args.secret_public_id,
+        secret_value: args.secret_value,
+    };
+    let response: SecretResponse = send_indexer_json(
+        ctx,
+        Method::PATCH,
+        "/v1/indexers/secrets",
+        "/v1/indexers/secrets",
+        &request,
+    )
+    .await?;
+    render_secret_response(&response, output)
+}
+
+pub(crate) async fn handle_secret_revoke(
+    ctx: &AppContext,
+    args: SecretRevokeArgs,
+) -> CliResult<()> {
+    let request = SecretRevokeRequest {
+        secret_public_id: args.secret_public_id,
+    };
+    send_indexer_no_content(
+        ctx,
+        Method::DELETE,
+        "/v1/indexers/secrets",
+        "/v1/indexers/secrets",
+        &request,
+    )
+    .await?;
+    println!("Secret revoked");
+    Ok(())
+}
+
+pub(crate) async fn handle_tracker_category_mapping_upsert(
+    ctx: &AppContext,
+    args: TrackerCategoryMappingUpsertArgs,
+) -> CliResult<()> {
+    let request = TrackerCategoryMappingUpsertRequest {
+        torznab_instance_public_id: args.torznab_instance_public_id,
+        indexer_definition_upstream_slug: trim_optional_text(
+            args.indexer_definition_upstream_slug.as_deref(),
+        ),
+        indexer_instance_public_id: args.indexer_instance_public_id,
+        tracker_category: args.tracker_category,
+        tracker_subcategory: args.tracker_subcategory,
+        torznab_cat_id: args.torznab_cat_id,
+        media_domain_key: trim_optional_text(args.media_domain_key.as_deref()),
+    };
+    send_indexer_no_content(
+        ctx,
+        Method::POST,
+        "/v1/indexers/category-mappings/tracker",
+        "/v1/indexers/category-mappings/tracker",
+        &request,
+    )
+    .await?;
+    println!("Tracker category mapping updated");
+    Ok(())
+}
+
+pub(crate) async fn handle_tracker_category_mapping_delete(
+    ctx: &AppContext,
+    args: TrackerCategoryMappingDeleteArgs,
+) -> CliResult<()> {
+    let request = TrackerCategoryMappingDeleteRequest {
+        torznab_instance_public_id: args.torznab_instance_public_id,
+        indexer_definition_upstream_slug: trim_optional_text(
+            args.indexer_definition_upstream_slug.as_deref(),
+        ),
+        indexer_instance_public_id: args.indexer_instance_public_id,
+        tracker_category: args.tracker_category,
+        tracker_subcategory: args.tracker_subcategory,
+    };
+    send_indexer_no_content(
+        ctx,
+        Method::DELETE,
+        "/v1/indexers/category-mappings/tracker",
+        "/v1/indexers/category-mappings/tracker",
+        &request,
+    )
+    .await?;
+    println!("Tracker category mapping deleted");
+    Ok(())
+}
+
+pub(crate) async fn handle_media_domain_mapping_upsert(
+    ctx: &AppContext,
+    args: MediaDomainMappingUpsertArgs,
+) -> CliResult<()> {
+    let media_domain_key = args.media_domain_key.trim();
+    if media_domain_key.is_empty() {
+        return Err(CliError::validation("media domain key must not be empty"));
+    }
+
+    let request = MediaDomainMappingUpsertRequest {
+        media_domain_key: media_domain_key.to_string(),
+        torznab_cat_id: args.torznab_cat_id,
+        is_primary: args.is_primary,
+    };
+    send_indexer_no_content(
+        ctx,
+        Method::POST,
+        "/v1/indexers/category-mappings/media-domains",
+        "/v1/indexers/category-mappings/media-domains",
+        &request,
+    )
+    .await?;
+    println!("Media-domain mapping updated");
+    Ok(())
+}
+
+pub(crate) async fn handle_media_domain_mapping_delete(
+    ctx: &AppContext,
+    args: MediaDomainMappingDeleteArgs,
+) -> CliResult<()> {
+    let media_domain_key = args.media_domain_key.trim();
+    if media_domain_key.is_empty() {
+        return Err(CliError::validation("media domain key must not be empty"));
+    }
+
+    let request = MediaDomainMappingDeleteRequest {
+        media_domain_key: media_domain_key.to_string(),
+        torznab_cat_id: args.torznab_cat_id,
+    };
+    send_indexer_no_content(
+        ctx,
+        Method::DELETE,
+        "/v1/indexers/category-mappings/media-domains",
+        "/v1/indexers/category-mappings/media-domains",
+        &request,
+    )
+    .await?;
+    println!("Media-domain mapping deleted");
+    Ok(())
+}
 
 pub(crate) async fn handle_import_job_create(
     ctx: &AppContext,
@@ -278,6 +526,79 @@ where
         response.json().await.map_err(|err| {
             CliError::failure(anyhow!("failed to parse {request_name} response: {err}"))
         })
+    } else {
+        Err(classify_problem(response).await)
+    }
+}
+
+async fn send_indexer_json<TRequest, TResponse>(
+    ctx: &AppContext,
+    method: Method,
+    path: &str,
+    request_name: &'static str,
+    body: &TRequest,
+) -> CliResult<TResponse>
+where
+    TRequest: Serialize + Sync + ?Sized,
+    TResponse: DeserializeOwned,
+{
+    let creds = ctx.api_key.as_ref().ok_or_else(|| {
+        CliError::validation("API key is required (pass --api-key or set REVAER_API_KEY)")
+    })?;
+
+    let url = ctx
+        .base_url
+        .join(path)
+        .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
+
+    let response = ctx
+        .client
+        .request(method, url)
+        .header(HEADER_API_KEY, creds.header_value())
+        .json(body)
+        .send()
+        .await
+        .map_err(|err| CliError::failure(anyhow!("request to {request_name} failed: {err}")))?;
+
+    if response.status().is_success() {
+        response.json().await.map_err(|err| {
+            CliError::failure(anyhow!("failed to parse {request_name} response: {err}"))
+        })
+    } else {
+        Err(classify_problem(response).await)
+    }
+}
+
+async fn send_indexer_no_content<TRequest>(
+    ctx: &AppContext,
+    method: Method,
+    path: &str,
+    request_name: &'static str,
+    body: &TRequest,
+) -> CliResult<()>
+where
+    TRequest: Serialize + Sync + ?Sized,
+{
+    let creds = ctx.api_key.as_ref().ok_or_else(|| {
+        CliError::validation("API key is required (pass --api-key or set REVAER_API_KEY)")
+    })?;
+
+    let url = ctx
+        .base_url
+        .join(path)
+        .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
+
+    let response = ctx
+        .client
+        .request(method, url)
+        .header(HEADER_API_KEY, creds.header_value())
+        .json(body)
+        .send()
+        .await
+        .map_err(|err| CliError::failure(anyhow!("request to {request_name} failed: {err}")))?;
+
+    if response.status().is_success() {
+        Ok(())
     } else {
         Err(classify_problem(response).await)
     }

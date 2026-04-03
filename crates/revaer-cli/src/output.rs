@@ -10,8 +10,8 @@ use revaer_api::models::{
     IndexerSourceReputationListResponse, PolicyRuleResponse, PolicySetListResponse,
     PolicySetResponse, RateLimitPolicyListResponse, RoutingPolicyDetailResponse,
     RoutingPolicyListResponse, SearchProfileListResponse, SecretMetadataListResponse,
-    TagListResponse, TorrentDetail, TorrentListResponse, TorrentStateKind,
-    TorznabInstanceListResponse, TorznabInstanceResponse,
+    SecretResponse, TagListResponse, TagResponse, TorrentDetail, TorrentListResponse,
+    TorrentStateKind, TorznabInstanceListResponse, TorznabInstanceResponse,
 };
 use revaer_config::ConfigSnapshot;
 use revaer_torrent_core::FilePriority;
@@ -338,6 +338,20 @@ pub(crate) fn render_torznab_instance(
     Ok(())
 }
 
+pub(crate) fn render_tag_response(response: &TagResponse, format: OutputFormat) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Table => {
+            println!("tag_public_id: {}", response.tag_public_id);
+            if let Some(tag_key) = &response.tag_key {
+                println!("tag_key: {tag_key}");
+            }
+            println!("display_name: {}", response.display_name);
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn render_tag_list(list: &TagListResponse, format: OutputFormat) -> CliResult<()> {
     match format {
         OutputFormat::Json => print_json(list)?,
@@ -349,6 +363,19 @@ pub(crate) fn render_tag_list(list: &TagListResponse, format: OutputFormat) -> C
                     tag.tag_public_id, tag.tag_key, tag.display_name
                 );
             }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_secret_response(
+    response: &SecretResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Table => {
+            println!("secret_public_id: {}", response.secret_public_id);
         }
     }
     Ok(())

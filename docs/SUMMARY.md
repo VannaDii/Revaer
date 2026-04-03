@@ -301,3 +301,4 @@
     -   [269: Indexer operator inventory read surfaces](adr/269-indexer-operator-inventory-read-surfaces.md)
     -   [270: Indexer profile, policy, and Torznab inventory](adr/270-indexer-profile-policy-torznab-inventory.md)
     -   [271: Indexer CLI read parity](adr/271-indexer-cli-read-parity.md)
+    -   [272: Indexer CLI operator write parity](adr/272-indexer-cli-operator-write-parity.md)
