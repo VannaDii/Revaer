@@ -1,0 +1,58 @@
+---
+applyTo:
+  - "Cargo.toml"
+  - "rust-toolchain.toml"
+  - ".clippy.toml"
+  - "deny.toml"
+  - "justfile"
+  - "crates/**/*.rs"
+  - "crates/**/Cargo.toml"
+  - "tests/**/*.rs"
+  - "scripts/**/*.rs"
+---
+
+`AGENTS.md` is the root contract. This file only tightens or specializes Rust-related guidance.
+
+# Rust Quality Rules
+
+- Production and bootstrap Rust must be deterministic and panic-free.
+- `panic!`, `unwrap()`, `expect()`, and `unreachable!()` are forbidden in authored production and bootstrap code.
+- Tests should prefer `Result`-returning flows and explicit assertions over `unwrap()` and `expect()`. Use panic-based helpers only when the behavior under test is itself a panic boundary.
+- `Option<T>` is valid only for expected absence or partial-function semantics. Do not use it to hide I/O, validation, persistence, network, or parsing failure.
+- `Result<T, E>` is required for recoverable failure, including `Result<(), E>` for side-effecting operations that can fail.
+- `catch_unwind` is forbidden outside the FFI boundary shims covered by `ffi.instructions.md`.
+- Silent suppression is forbidden. `let _ = fallible_operation();` is not acceptable unless the returned value is provably infallible and intentionally discarded.
+- Errors are logged once at the origin point, then propagated as data.
+
+# Lint And Cfg Hygiene
+
+- Keep workspace lint posture aligned with `AGENTS.md`, the active `just` recipes, and crate-root attributes.
+- `#[allow(...)]` and `#[expect(...)]` are not permitted in authored code. Split or redesign the code instead.
+- If custom cfgs are introduced, register them with `cargo::rustc-check-cfg` in `build.rs` or the manifest lint configuration. Do not silence `unexpected_cfgs`.
+- Prefer `#[must_use]` for important return values and `pub(crate)` for internal APIs.
+- FFI crates may omit a crate-wide `forbid(unsafe_code)` if necessary, but unsafe code must stay isolated to the documented boundary modules and shims. Do not use lint suppressions to permit unsafe.
+
+# Documentation
+
+- Public crates need crate-level rustdoc that explains purpose, invariants, and a realistic usage example.
+- Externally consumed public items should document:
+  - behavior
+  - invariants and assumptions
+  - error cases
+  - panic behavior, if any exists
+  - copy-pasteable examples when the item is meant to be used directly
+- Prefer examples that use `?` and explicit error handling over `unwrap()`/`expect()`.
+
+# Maintainability And Layout
+
+- Keep files single-purpose and cohesive.
+- Target roughly 300-400 non-test LOC per production file. Split large files instead of silencing `too_many_lines`.
+- `lib.rs` should stay limited to crate docs, module declarations, light re-exports, and tiny crate-boundary glue.
+- `main.rs` must remain a thin bootstrap entry point.
+- Name modules for what they own. No grab-bag files mixing domain logic, transport DTOs, adapters, and orchestration.
+
+# Performance
+
+- Measure before optimizing. Do not land “performance” refactors based on taste or folklore.
+- For performance-driven changes, record the command, benchmark, trace, or timing report that justified the change in the task record or ADR.
+- Prefer simpler, more explicit code unless measurement shows a real hotspot.

@@ -2,41 +2,41 @@
 applyTo: "**/*"
 ---
 
-These are some guidelines when using the SonarQube MCP server.
+These are the repo-specific guidelines for using the SonarQube MCP server with Revaer.
 
-# Important Tool Guidelines
+# Project Defaults
 
-## Basic usage
-- **IMPORTANT**: After you finish generating or modifying any code files at the very end of the task, you MUST call the `analyze_file_list` tool (if it exists) to analyze the files you created or modified.
-- **IMPORTANT**: When starting a new task, you MUST disable automatic analysis with the `toggle_automatic_analysis` tool if it exists.
-- **IMPORTANT**: When you are done generating code at the very end of the task, you MUST re-enable automatic analysis with the `toggle_automatic_analysis` tool if it exists.
+- Default Sonar project key for this repository: `VannaDii_Revaer`
+- If a user does not provide a project key, use `VannaDii_Revaer`.
+- If a user provides a project key or seems unsure, confirm it with `search_my_sonarqube_projects` before acting.
 
-## Project Keys
-- When a user mentions a project key, use `search_my_sonarqube_projects` first to find the exact project key
-- Don't guess project keys - always look them up
+# Tools To Use Here
 
-## Code Language Detection
-- When analyzing code snippets, try to detect the programming language from the code syntax
-- If unclear, ask the user or make an educated guess based on syntax
+- Use `get_project_quality_gate_status` to inspect overall, branch, or pull-request quality-gate status.
+- Use `get_component_measures` for high-level metrics such as coverage, duplications, code smells, or hotspots.
+- Use `search_sonar_issues_in_projects` to inspect open issues.
+- Use `search_security_hotspots` and `show_security_hotspot` to review hotspot backlog or touched-code hotspots.
+- Use `list_pull_requests` when you need Sonar pull-request identifiers for this project.
+- Use `analyze_code_snippet` for local, file-scoped guidance when you have the full file content available.
 
-## Branch and Pull Request Context
-- Many operations support branch-specific analysis
-- If user mentions working on a feature branch, include the branch parameter
+# Revaer Sonar Workflow
 
-## Code Issues and Violations
-- After fixing issues, do not attempt to verify them using `search_sonar_issues_in_projects`, as the server will not yet reflect the updates
+- Revaer versions Sonar analysis scope in `sonar-project.properties`. Treat that file as the source of truth for authored-vs-generated scope, coverage exclusions, and duplication exclusions.
+- Revaer uses Sonar as a strict merge-control signal on pull requests. Prefer PR quality-gate status and decoration over scanner-side waiting in PR workflows.
+- Use pull-request-specific quality-gate checks when the user asks whether a PR is blocked.
+- New Security Hotspots on touched code must be reviewed before merge. Backlog hotspots outside touched code are tracked separately and do not automatically block unrelated work.
 
-# Common Troubleshooting
+# Noise And Scope
 
-## Authentication Issues
-- SonarQube requires USER tokens (not project tokens)
-- When the error `SonarQube answered with Not authorized` occurs, verify the token type
+- Generated or vendored paths excluded by `sonar-project.properties` are not first-party maintainability targets unless the user explicitly asks about them.
+- If Sonar noise appears to come from generated or vendored files, verify whether the scope or exclusion rules need to be updated in `sonar-project.properties`.
 
-## Project Not Found
-- Use `search_my_sonarqube_projects` to find available projects
-- Verify project key spelling and format
+# Expectations After Fixes
 
-## Code Analysis Issues
-- Ensure programming language is correctly specified
-- Remind users that snippet analysis doesn't replace full project scans
-- Provide full file content for better analysis results
+- After local fixes, do not immediately assume server-side issue search has refreshed. Sonar ingestion is asynchronous.
+- Use `analyze_code_snippet` for immediate local feedback, but do not treat snippet analysis as a substitute for the repository scan.
+
+# Troubleshooting
+
+- SonarQube requires a user token for MCP access. If you see `Not authorized`, verify token type and server permissions.
+- If project discovery fails, use `search_my_sonarqube_projects` before assuming a configuration bug.

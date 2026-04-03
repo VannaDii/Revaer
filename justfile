@@ -136,9 +136,9 @@ cov:
                 continue; \
             fi; \
             if command -v rg >/dev/null 2>&1; then \
-                name="$(rg -m1 '^name = \"' "${manifest}" | sed -E 's/^name = \"([^\"]+)\".*/\\1/')"; \
+                name="$(rg -m1 '^name = "' "${manifest}" | sed -E 's/^name = "([^"]+)".*/\1/')"; \
             else \
-                name="$(grep -m1 '^name = \"' "${manifest}" | sed -E 's/^name = \"([^\"]+)\".*/\\1/')"; \
+                name="$(grep -m1 '^name = "' "${manifest}" | sed -E 's/^name = "([^"]+)".*/\1/')"; \
             fi; \
             if [ -z "${name}" ]; then \
                 continue; \
@@ -147,7 +147,11 @@ cov:
             if ! cargo llvm-cov --package "${name}" --fail-under-lines 90; then \
                 fail_list="${fail_list} ${name}"; \
             fi; \
-        done < <(awk '/^members = \\[/{in_members=1;next} in_members && /^]/{in_members=0} in_members { if (match($0, /\"[^\"]+\"/)) print substr($0, RSTART + 1, RLENGTH - 2) }' Cargo.toml); \
+        done < <(awk ' \
+            /^members = \[/ { in_members=1; next } \
+            in_members && /^]/ { in_members=0; next } \
+            in_members && match($0, /"[^"]+"/) { print substr($0, RSTART + 1, RLENGTH - 2) } \
+        ' Cargo.toml); \
         if [ -n "${fail_list}" ]; then \
             echo "Coverage below 90% for:${fail_list}"; \
             exit 1; \
