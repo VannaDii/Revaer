@@ -58,6 +58,7 @@
   - Remove the CLI crate's `#![allow(clippy::redundant_pub_crate)]` by making the internal module declarations private.
   - Move `clippy::cargo` and `clippy::nursery` enforcement out of crate attributes and into `just lint` so the `multiple_crate_versions` and `redundant_pub_crate` exceptions remain centralized in the Justfile instead of source code.
   - Add `scripts/instruction-drift-check.sh`, `just instruction-drift`, and dedicated `pr.yml` / `ci.yml` jobs that compare against the real base revision so workflow, Justfile, and Sonar configuration changes cannot land without touching the corresponding instruction files.
+  - Extend `scripts/policy-guardrails.sh` to reject authored `todo!()` and `unimplemented!()` stubs, and add a second production-target `cargo clippy` pass in `just lint` that forbids `panic!`, `unwrap()`, `expect()`, `unreachable!()`, `todo!()`, and `unimplemented!()` in workspace libs, bins, and examples without applying those restrictions to test targets.
   - Alternatives considered:
     - Keep the existing monolithic `AGENTS.md`: rejected because stale copied facts and contradictions were already undermining maintainability.
     - Move all rules into scoped files: rejected because root invariants need a single canonical contract.
@@ -78,6 +79,7 @@
     - The longer local HTTP wait budget makes `just ui-e2e` less eager to fail, but increases the time to surface genuine startup failures during a cold build.
     - The new policy guardrail adds another early failure mode to `just lint`, but that is deliberate because it prevents source-level suppressions and out-of-scope unsafe code from quietly returning.
     - The instruction-drift guard is only as good as its path-to-instruction mapping, so the script must evolve when new operational source-of-truth files are introduced.
+    - The production-only Clippy pass makes `just lint` slower, but it turns a previously documentary panic-free rule into a mechanical gate without forcing panic-free test code.
 - Follow-up:
   - Design notes:
     - Root policy stays intentionally short so it can remain accurate.
@@ -90,6 +92,7 @@
     - `just lint` now validates both Clippy and the repo-specific policy guardrail script.
     - `just instruction-drift` now validates that Justfile/workflow/Sonar changes are paired with matching instruction-file updates.
     - `pr.yml` passes `github.event.pull_request.base.sha` and `github.event.pull_request.head.sha` into the drift check, while `ci.yml` passes `github.event.before` and `github.sha` for `main` pushes.
+    - `just lint` now includes a production-only Clippy pass that rejects panic/stub patterns in libs, bins, and examples while leaving test targets out of scope.
   - Observability updates:
     - No runtime telemetry changed.
     - Workflow visibility improves by centralizing Sonar scope and keeping scanner configuration versioned.
@@ -127,6 +130,7 @@
       - CLI `redundant_pub_crate` suppression that was covering a simple module-visibility cleanup
       - `pub(crate)`-by-default style colliding with Clippy's `redundant_pub_crate` heuristic, which is now handled centrally in `just lint` instead of per-crate source attributes
       - a purely documentary instruction-drift rule with no mechanical enforcement
+      - a purely documentary panic-free/stub-free production policy with no dedicated lint enforcement
     - Contradictions removed:
       - blanket `Option` ban versus legitimate absence semantics
       - blanket `catch_unwind` ban versus FFI boundary containment requirements

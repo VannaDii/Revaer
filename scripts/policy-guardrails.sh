@@ -41,6 +41,14 @@ matches="$(
 report_matches "source-level lint suppressions are forbidden in authored Rust" "${matches}"
 
 matches="$(
+  rg -n --glob '*.rs' 'todo!|unimplemented!' \
+    "${rust_paths[@]}" \
+    "${exclude_globs[@]}" \
+    || true
+)"
+report_matches "todo!/unimplemented! stubs are forbidden in authored Rust" "${matches}"
+
+matches="$(
   rg -n --glob '*.rs' '\bcatch_unwind\b' \
     "${rust_paths[@]}" \
     "${exclude_globs[@]}" \

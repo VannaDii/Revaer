@@ -11,16 +11,22 @@ export async function dismissBlockingOverlays(page: Page): Promise<void> {
     return;
   }
 
-  const dismiss = authOverlay.locator('button.btn-circle[aria-label="Dismiss"]');
-  if (await dismiss.isVisible()) {
-    await dismiss.click();
-    await expect(authOverlay).toBeHidden();
-    return;
+  const actionDismiss = authOverlay.getByRole('button', { name: 'Dismiss' }).last();
+  if (await actionDismiss.isVisible()) {
+    await actionDismiss.click();
+    if (!(await authOverlay.isVisible())) {
+      return;
+    }
   }
 
-  const fallback = authOverlay.locator('button.btn-ghost.btn-sm', { hasText: 'Dismiss' });
-  if (await fallback.isVisible()) {
-    await fallback.click();
-    await expect(authOverlay).toBeHidden();
+  const iconDismiss = authOverlay.locator('button.btn-circle[aria-label="Dismiss"]');
+  if (await iconDismiss.isVisible()) {
+    await iconDismiss.click();
   }
+
+  if (await authOverlay.isVisible() && (await actionDismiss.isVisible())) {
+    await actionDismiss.click();
+  }
+
+  await expect(authOverlay).toBeHidden();
 }

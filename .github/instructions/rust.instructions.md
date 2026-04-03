@@ -17,6 +17,7 @@ applyTo:
 
 - Production and bootstrap Rust must be deterministic and panic-free.
 - `panic!`, `unwrap()`, `expect()`, and `unreachable!()` are forbidden in authored production and bootstrap code.
+- `todo!()` and `unimplemented!()` are forbidden in authored Rust. Split the work or delete the dead path instead of leaving stubs behind.
 - Tests should prefer `Result`-returning flows and explicit assertions over `unwrap()` and `expect()`. Use panic-based helpers only when the behavior under test is itself a panic boundary.
 - `Option<T>` is valid only for expected absence or partial-function semantics. Do not use it to hide I/O, validation, persistence, network, or parsing failure.
 - `Result<T, E>` is required for recoverable failure, including `Result<(), E>` for side-effecting operations that can fail.
@@ -28,6 +29,7 @@ applyTo:
 
 - Keep workspace lint posture aligned with `AGENTS.md`, the active `just` recipes, and crate-root attributes.
 - `just lint` includes `scripts/policy-guardrails.sh`. Keep that guardrail aligned with the root policy when the lint posture changes.
+- `just lint` also runs a production-target Clippy pass on workspace libs, bins, and examples that forbids `panic!`, `unwrap()`, `expect()`, `unreachable!()`, `todo!()`, and `unimplemented!()` without applying those restrictions to test targets.
 - Keep repo-level Clippy exceptions in `just lint`, not in crate source. Today that includes the ADR-backed `clippy::multiple_crate_versions` exception and the workspace `pub(crate)` style exception for `clippy::redundant_pub_crate`. The owning `clippy::cargo` and `clippy::nursery` groups are enforced from the Justfile for the same reason.
 - `#[allow(...)]` and `#[expect(...)]` are not permitted in authored code. Split or redesign the code instead.
 - If custom cfgs are introduced, register them with `cargo::rustc-check-cfg` in `build.rs` or the manifest lint configuration. Do not silence `unexpected_cfgs`.

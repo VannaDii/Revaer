@@ -14,6 +14,14 @@ instruction-drift:
 
 lint: policy
     cargo clippy --workspace --all-targets --all-features -- -D warnings -W clippy::cargo -W clippy::nursery -A clippy::multiple_crate_versions -A clippy::redundant_pub_crate
+    cargo clippy --workspace --lib --bins --examples --all-features -- \
+        -D warnings \
+        -W clippy::expect_used \
+        -W clippy::panic \
+        -W clippy::todo \
+        -W clippy::unimplemented \
+        -W clippy::unreachable \
+        -W clippy::unwrap_used
 
 check:
     cargo --config 'build.rustflags=["-Dwarnings"]' check --workspace --all-targets --all-features
