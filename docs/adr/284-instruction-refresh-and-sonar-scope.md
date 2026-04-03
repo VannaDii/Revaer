@@ -52,6 +52,7 @@
     - parses workspace members correctly
     - extracts actual package names instead of the literal `\1`
     - reports the real coverage baseline instead of silently skipping per-crate enforcement
+  - Increase `tests/.env` `E2E_HTTP_WAIT_SECONDS` from `180` to `600` so the required `just ui-e2e` gate can tolerate cold local `trunk serve` compile time instead of timing out before the UI is reachable
   - Alternatives considered:
     - Keep the existing monolithic `AGENTS.md`: rejected because stale copied facts and contradictions were already undermining maintainability.
     - Move all rules into scoped files: rejected because root invariants need a single canonical contract.
@@ -69,6 +70,7 @@
     - Full-SHA action pinning requires periodic maintenance when upstream action versions are refreshed.
     - Sonar exclusions require deliberate review if new generated or vendored paths are introduced.
     - The repaired coverage gate currently blocks `just ci` because multiple existing crates remain below the documented 90% line-coverage threshold.
+    - The longer local HTTP wait budget makes `just ui-e2e` less eager to fail, but increases the time to surface genuine startup failures during a cold build.
 - Follow-up:
   - Design notes:
     - Root policy stays intentionally short so it can remain accurate.
@@ -77,6 +79,7 @@
     - Validate formatting and YAML integrity with `just fmt` and `just lint`.
     - Validate repository gates with `just ci`.
     - Validate the required UI regression gate with `just ui-e2e`.
+    - `just ui-e2e` now passes locally after increasing `E2E_HTTP_WAIT_SECONDS` to cover the initial `trunk serve` compile on a cold workspace.
   - Observability updates:
     - No runtime telemetry changed.
     - Workflow visibility improves by centralizing Sonar scope and keeping scanner configuration versioned.
@@ -97,6 +100,7 @@
       - `.github/workflows/docs.yml`
       - `.github/workflows/build-images.yml`
       - `justfile`
+      - `tests/.env`
       - `sonar-project.properties`
     - Drift found:
       - stale copied command inventories and repository-shape snapshots in `AGENTS.md`
@@ -105,6 +109,7 @@
       - unpinned third-party GitHub actions
       - direct `${{ inputs.* }}` shell interpolation in the setup composite action
       - broken `just cov` workspace-member parsing and package-name extraction
+      - local UI E2E startup timeout budget that was shorter than a cold `trunk serve` compile
     - Contradictions removed:
       - blanket `Option` ban versus legitimate absence semantics
       - blanket `catch_unwind` ban versus FFI boundary containment requirements
