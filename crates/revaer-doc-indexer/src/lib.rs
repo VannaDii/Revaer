@@ -8,13 +8,10 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
-    clippy::cargo,
-    clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
     missing_docs
 )]
-#![allow(clippy::multiple_crate_versions)]
 
 //! Documentation indexer core: parses markdown under `docs/` and emits machine-readable
 //! manifests consumed by LLM tooling.

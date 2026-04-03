@@ -6,8 +6,11 @@ fmt:
 fmt-fix:
     cargo fmt --all
 
-lint:
-    cargo clippy --workspace --all-targets --all-features -- -D warnings -A clippy::multiple_crate_versions
+policy:
+    bash scripts/policy-guardrails.sh
+
+lint: policy
+    cargo clippy --workspace --all-targets --all-features -- -D warnings -W clippy::cargo -W clippy::nursery -A clippy::multiple_crate_versions -A clippy::redundant_pub_crate
 
 check:
     cargo --config 'build.rustflags=["-Dwarnings"]' check --workspace --all-targets --all-features

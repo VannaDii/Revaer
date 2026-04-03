@@ -8,6 +8,7 @@ applyTo:
 # FFI Boundary Rules
 
 - Unsafe code is confined to the FFI boundary modules, build scripts, and native shims only.
+- `just lint` mechanically enforces that authored `unsafe` stays inside `crates/revaer-torrent-libt/src/ffi.rs` and `crates/revaer-torrent-libt/src/ffi/**`.
 - The public surface exposed to the rest of the workspace must be safe Rust wrappers and translated domain types.
 - Document safety invariants and failure translation at the boundary.
 

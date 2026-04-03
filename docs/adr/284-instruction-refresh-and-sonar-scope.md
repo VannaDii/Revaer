@@ -53,6 +53,10 @@
     - extracts actual package names instead of the literal `\1`
     - reports the real coverage baseline instead of silently skipping per-crate enforcement
   - Increase `tests/.env` `E2E_HTTP_WAIT_SECONDS` from `180` to `600` so the required `just ui-e2e` gate can tolerate cold local `trunk serve` compile time instead of timing out before the UI is reachable
+  - Remove redundant crate-level `#![allow(clippy::multiple_crate_versions)]` attributes now that the temporary duplicate-crate exception already lives in `just lint` and ADR-backed repo policy instead of authored source.
+  - Remove the remaining FFI `#[allow(unsafe_code)]` attributes and replace them with a repo-level policy guardrail in `scripts/policy-guardrails.sh` that runs as part of `just lint`.
+  - Remove the CLI crate's `#![allow(clippy::redundant_pub_crate)]` by making the internal module declarations private.
+  - Move `clippy::cargo` and `clippy::nursery` enforcement out of crate attributes and into `just lint` so the `multiple_crate_versions` and `redundant_pub_crate` exceptions remain centralized in the Justfile instead of source code.
   - Alternatives considered:
     - Keep the existing monolithic `AGENTS.md`: rejected because stale copied facts and contradictions were already undermining maintainability.
     - Move all rules into scoped files: rejected because root invariants need a single canonical contract.
@@ -71,6 +75,7 @@
     - Sonar exclusions require deliberate review if new generated or vendored paths are introduced.
     - The repaired coverage gate currently blocks `just ci` because multiple existing crates remain below the documented 90% line-coverage threshold.
     - The longer local HTTP wait budget makes `just ui-e2e` less eager to fail, but increases the time to surface genuine startup failures during a cold build.
+    - The new policy guardrail adds another early failure mode to `just lint`, but that is deliberate because it prevents source-level suppressions and out-of-scope unsafe code from quietly returning.
 - Follow-up:
   - Design notes:
     - Root policy stays intentionally short so it can remain accurate.
@@ -80,6 +85,7 @@
     - Validate repository gates with `just ci`.
     - Validate the required UI regression gate with `just ui-e2e`.
     - `just ui-e2e` now passes locally after increasing `E2E_HTTP_WAIT_SECONDS` to cover the initial `trunk serve` compile on a cold workspace.
+    - `just lint` now validates both Clippy and the repo-specific policy guardrail script.
   - Observability updates:
     - No runtime telemetry changed.
     - Workflow visibility improves by centralizing Sonar scope and keeping scanner configuration versioned.
@@ -100,6 +106,7 @@
       - `.github/workflows/docs.yml`
       - `.github/workflows/build-images.yml`
       - `justfile`
+      - `scripts/policy-guardrails.sh`
       - `tests/.env`
       - `sonar-project.properties`
     - Drift found:
@@ -110,6 +117,10 @@
       - direct `${{ inputs.* }}` shell interpolation in the setup composite action
       - broken `just cov` workspace-member parsing and package-name extraction
       - local UI E2E startup timeout budget that was shorter than a cold `trunk serve` compile
+      - redundant source-level `clippy::multiple_crate_versions` suppressions that duplicated the existing Justfile exception
+      - FFI `#[allow(unsafe_code)]` attributes that contradicted the new root policy
+      - CLI `redundant_pub_crate` suppression that was covering a simple module-visibility cleanup
+      - `pub(crate)`-by-default style colliding with Clippy's `redundant_pub_crate` heuristic, which is now handled centrally in `just lint` instead of per-crate source attributes
     - Contradictions removed:
       - blanket `Option` ban versus legitimate absence semantics
       - blanket `catch_unwind` ban versus FFI boundary containment requirements

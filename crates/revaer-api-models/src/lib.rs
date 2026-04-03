@@ -8,13 +8,10 @@
     unreachable_pub,
     clippy::all,
     clippy::pedantic,
-    clippy::cargo,
-    clippy::nursery,
     rustdoc::broken_intra_doc_links,
     rustdoc::bare_urls,
     missing_docs
 )]
-#![allow(clippy::multiple_crate_versions)]
 //! Shared HTTP DTOs for the Revaer public API.
 //!
 //! These types are re-used by the CLI for request/response encoding to keep the
