@@ -348,6 +348,15 @@ Cross-checking the current implementation against `ERD_INDEXERS.md` and parity t
 - [x] Connectivity profile & reputation views: expose indexer_connectivity_profile and source_reputation data in UI, with remediation actions.
 - [x] Backup/restore of indexer settings: user-facing flows to export/import indexer configuration (definitions, instances, secrets bindings, routing policies).
 
+## Branch analysis follow-up (2026-04-03)
+Deep branch review against `ERD_INDEXERS.md` re-opened the following end-to-end gaps. These stay unchecked until the runtime path, operator surfaces, and acceptance coverage exist together.
+- [ ] Implement a real search execution coordinator for manual search and Torznab requests: select runnable indexers, perform outbound requests through routing/rate-limit/CF mitigation, persist `outbound_request_log`, drive `search_indexer_run_mark_*`, and call `search_result_ingest` so `/v1/indexers/search-requests` and `/torznab/{instance}/api` return live results instead of request rows with no executor behind them.
+- [ ] Implement runtime import executors for `prowlarr_api` and `prowlarr_backup`: fetch/parse remote payloads or backup blobs, resolve definitions/categories/tags/secrets, and populate `import_indexer_result`/`import_job` state beyond the current proc-triggered status markers.
+- [ ] Implement the in-process indexer job scheduler/worker required by the ERD: claim due work from `job_schedule`, run retention/connectivity/reputation/best-source/policy GC/rate-limit purge jobs, and execute RSS polling/backfill on cadence inside the Revaer server process.
+- [ ] Add read/list management surfaces for existing indexer resources across API and UI so operators can inspect and manage instances, routing policies, search profiles, policy sets/rules, Torznab instances, rate-limit policies, tags, and secret metadata without manually pasting known public IDs into action forms.
+- [ ] Extend CLI parity beyond the currently landed import/Torznab/policy/test commands to cover list/read and CRUD flows for tags, secrets, routing policies, rate limits, search profiles, backup/restore, RSS state, health/connectivity, and category mappings.
+- [ ] Replace smoke-level acceptance coverage with live end-to-end parity coverage for import, search, Torznab, RSS polling, backup/restore, category overrides, and download audit trails; the current UI indexer spec is render-only and the final acceptance API spec mostly checks route presence and status codes.
+
 ## Phase 5 - Stored procedures and validation rules
 Source: `ERD_INDEXERS.md` §14 Stored procedures (v1) and validation rules, §Versioning and error style, and all procedure sections.
  - [x] Add stable wrapper procs for each versioned proc (no version suffix).
@@ -534,7 +543,7 @@ Source: `ERD_INDEXERS.md` §Roles and permissions (v1), §Torznab procedures, §
 - [x] Implement REST endpoints for search request create/cancel (v1).
 - [x] Expose search streaming and page sealing behavior via API/SSE as specified.
 - [x] Update OpenAPI export and docs for all new endpoints and schemas.
-- [x] Update CLI commands for indexers (import, indexer test, policy management, torznab keys).
+- [x] Update CLI commands for the currently landed indexer paths (import, indexer test, policy management, torznab keys).
   - [x] Import job commands.
   - [x] Torznab instance keys and lifecycle commands.
   - [x] Policy set and rule management commands.
@@ -595,5 +604,5 @@ Source: `ERD_INDEXERS.md` §19 Revaer <- Prowlarr Migration Acceptance Checklist
 - [x] Canonicalization safety rules and conflict logging are enforced.
 - [x] Health and reputation stats match outbound_request_log semantics.
 - [x] Revaer runs alongside Prowlarr and rollback is URL-only.
-- [x] Final acceptance criteria (all hard blockers) pass.
-  2026-03-21: acceptance closeout now maps the existing import, Torznab, download, explainability, and rollback coverage to the ERD's hard-blocker migration bar; remaining unchecked items are non-hard-blocker parity follow-ups.
+- [ ] Final acceptance criteria (all hard blockers) pass.
+  2026-04-03: branch analysis re-opened this item because runtime search execution, runtime import execution, scheduled job workers, operator read/list surfaces, and live parity coverage are still incomplete.
