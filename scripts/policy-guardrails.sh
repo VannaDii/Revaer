@@ -49,6 +49,23 @@ matches="$(
 report_matches "todo!/unimplemented! stubs are forbidden in authored Rust" "${matches}"
 
 matches="$(
+  rg -n --glob '*.rs' '\bsqlx::query(_as|_scalar)?\b|\bquery!\b|\bquery_as!\b|\bquery_scalar!\b' \
+    "${rust_paths[@]}" \
+    "${exclude_globs[@]}" \
+    --glob '!crates/revaer-data/src/**' \
+    || true
+)"
+report_matches "sqlx runtime queries are confined to crates/revaer-data/src" "${matches}"
+
+matches="$(
+  rg -n --glob '*.rs' 'INSERT INTO|UPDATE [[:alpha:]_]|DELETE FROM|CREATE TABLE|ALTER TABLE|DROP TABLE|TRUNCATE ' \
+    "${rust_paths[@]}" \
+    "${exclude_globs[@]}" \
+    || true
+)"
+report_matches "inline DDL/DML is forbidden in Rust; use migrations or stored procedures" "${matches}"
+
+matches="$(
   rg -n --glob '*.rs' '\bcatch_unwind\b' \
     "${rust_paths[@]}" \
     "${exclude_globs[@]}" \

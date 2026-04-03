@@ -10,6 +10,7 @@ applyTo:
 # Database Rules
 
 - Runtime application code must call stored procedures for database behavior. Do not embed inline business SQL in Rust.
+- `just lint` mechanically enforces that `sqlx::query*` usage stays confined to `crates/revaer-data/src`, and that inline DDL/DML text does not appear in authored Rust.
 - Raw DDL, DML, stored procedure bodies, and seed SQL belong in migrations or tightly scoped operational bootstrap scripts only.
 - `JSONB` and related conglomerate persistence formats are banned for application state.
 - Shared behavior lives in shared stored procedures. Do not duplicate the same database behavior across multiple crates.
