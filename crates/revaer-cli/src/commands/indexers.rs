@@ -1,19 +1,29 @@
+use std::fmt::Write as _;
+
 use anyhow::anyhow;
 use revaer_api::models::{
     ImportJobCreateRequest, ImportJobResponse, ImportJobResultsResponse,
     ImportJobRunProwlarrApiRequest, ImportJobRunProwlarrBackupRequest, ImportJobStatusResponse,
+    IndexerBackupExportResponse, IndexerConnectivityProfileResponse,
+    IndexerHealthEventListResponse, IndexerInstanceListResponse,
     IndexerInstanceTestFinalizeRequest, IndexerInstanceTestFinalizeResponse,
-    IndexerInstanceTestPrepareResponse, PolicyRuleCreateRequest, PolicyRuleReorderRequest,
-    PolicyRuleResponse, PolicyRuleValueItemRequest, PolicySetCreateRequest,
-    PolicySetReorderRequest, PolicySetResponse, PolicySetUpdateRequest,
-    TorznabInstanceCreateRequest, TorznabInstanceResponse, TorznabInstanceStateRequest,
+    IndexerInstanceTestPrepareResponse, IndexerRssSeenItemsResponse,
+    IndexerRssSubscriptionResponse, IndexerSourceReputationListResponse, PolicyRuleCreateRequest,
+    PolicyRuleReorderRequest, PolicyRuleResponse, PolicyRuleValueItemRequest,
+    PolicySetCreateRequest, PolicySetListResponse, PolicySetReorderRequest, PolicySetResponse,
+    PolicySetUpdateRequest, RateLimitPolicyListResponse, RoutingPolicyDetailResponse,
+    RoutingPolicyListResponse, SearchProfileListResponse, SecretMetadataListResponse,
+    TagListResponse, TorznabInstanceCreateRequest, TorznabInstanceListResponse,
+    TorznabInstanceResponse, TorznabInstanceStateRequest,
 };
+use serde::de::DeserializeOwned;
 use uuid::Uuid;
 
 use crate::cli::{
     ImportJobCreateArgs, ImportJobResultsArgs, ImportJobRunProwlarrApiArgs,
-    ImportJobRunProwlarrBackupArgs, ImportJobStatusArgs, IndexerInstanceTestFinalizeArgs,
-    IndexerInstanceTestPrepareArgs, OutputFormat, PolicyRuleCreateArgs, PolicyRuleDisableArgs,
+    ImportJobRunProwlarrBackupArgs, ImportJobStatusArgs, IndexerInstanceReadArgs,
+    IndexerInstanceRssItemsArgs, IndexerInstanceTestFinalizeArgs, IndexerInstanceTestPrepareArgs,
+    IndexerRoutingPolicyReadArgs, OutputFormat, PolicyRuleCreateArgs, PolicyRuleDisableArgs,
     PolicyRuleEnableArgs, PolicyRuleReorderArgs, PolicySetCreateArgs, PolicySetDisableArgs,
     PolicySetEnableArgs, PolicySetReorderArgs, PolicySetUpdateArgs, TorznabCreateArgs,
     TorznabDeleteArgs, TorznabRotateArgs, TorznabSetStateArgs,
@@ -21,8 +31,14 @@ use crate::cli::{
 use crate::client::{AppContext, CliError, CliResult, HEADER_API_KEY, classify_problem};
 use crate::output::{
     render_import_job_results, render_import_job_status, render_import_job_summary,
+    render_indexer_backup_export, render_indexer_connectivity_profile,
+    render_indexer_health_events, render_indexer_instance_list,
     render_indexer_instance_test_finalize, render_indexer_instance_test_prepare,
-    render_policy_rule_response, render_policy_set_response, render_torznab_instance,
+    render_indexer_rss_seen_items, render_indexer_rss_subscription,
+    render_indexer_source_reputation_list, render_policy_rule_response, render_policy_set_list,
+    render_policy_set_response, render_rate_limit_policy_list, render_routing_policy_detail,
+    render_routing_policy_list, render_search_profile_list, render_secret_metadata_list,
+    render_tag_list, render_torznab_instance, render_torznab_instance_list,
 };
 
 pub(crate) async fn handle_import_job_create(
@@ -231,6 +247,234 @@ pub(crate) async fn handle_import_job_results(
     } else {
         Err(classify_problem(response).await)
     }
+}
+
+async fn get_indexer_resource<T>(
+    ctx: &AppContext,
+    path: &str,
+    request_name: &'static str,
+) -> CliResult<T>
+where
+    T: DeserializeOwned,
+{
+    let creds = ctx.api_key.as_ref().ok_or_else(|| {
+        CliError::validation("API key is required (pass --api-key or set REVAER_API_KEY)")
+    })?;
+
+    let url = ctx
+        .base_url
+        .join(path)
+        .map_err(|err| CliError::failure(anyhow!("invalid base URL: {err}")))?;
+
+    let response = ctx
+        .client
+        .get(url)
+        .header(HEADER_API_KEY, creds.header_value())
+        .send()
+        .await
+        .map_err(|err| CliError::failure(anyhow!("request to {request_name} failed: {err}")))?;
+
+    if response.status().is_success() {
+        response.json().await.map_err(|err| {
+            CliError::failure(anyhow!("failed to parse {request_name} response: {err}"))
+        })
+    } else {
+        Err(classify_problem(response).await)
+    }
+}
+
+pub(crate) async fn handle_tag_list(ctx: &AppContext, output: OutputFormat) -> CliResult<()> {
+    let response: TagListResponse =
+        get_indexer_resource(ctx, "/v1/indexers/tags", "/v1/indexers/tags").await?;
+    render_tag_list(&response, output)
+}
+
+pub(crate) async fn handle_secret_list(ctx: &AppContext, output: OutputFormat) -> CliResult<()> {
+    let response: SecretMetadataListResponse =
+        get_indexer_resource(ctx, "/v1/indexers/secrets", "/v1/indexers/secrets").await?;
+    render_secret_metadata_list(&response, output)
+}
+
+pub(crate) async fn handle_search_profile_list(
+    ctx: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let response: SearchProfileListResponse = get_indexer_resource(
+        ctx,
+        "/v1/indexers/search-profiles",
+        "/v1/indexers/search-profiles",
+    )
+    .await?;
+    render_search_profile_list(&response, output)
+}
+
+pub(crate) async fn handle_policy_set_list(
+    ctx: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let response: PolicySetListResponse =
+        get_indexer_resource(ctx, "/v1/indexers/policies", "/v1/indexers/policies").await?;
+    render_policy_set_list(&response, output)
+}
+
+pub(crate) async fn handle_routing_policy_list(
+    ctx: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let response: RoutingPolicyListResponse = get_indexer_resource(
+        ctx,
+        "/v1/indexers/routing-policies",
+        "/v1/indexers/routing-policies",
+    )
+    .await?;
+    render_routing_policy_list(&response, output)
+}
+
+pub(crate) async fn handle_routing_policy_read(
+    ctx: &AppContext,
+    args: IndexerRoutingPolicyReadArgs,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let response: RoutingPolicyDetailResponse = get_indexer_resource(
+        ctx,
+        &format!(
+            "/v1/indexers/routing-policies/{}",
+            args.routing_policy_public_id
+        ),
+        "/v1/indexers/routing-policies/{id}",
+    )
+    .await?;
+    render_routing_policy_detail(&response, output)
+}
+
+pub(crate) async fn handle_rate_limit_policy_list(
+    ctx: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let response: RateLimitPolicyListResponse =
+        get_indexer_resource(ctx, "/v1/indexers/rate-limits", "/v1/indexers/rate-limits").await?;
+    render_rate_limit_policy_list(&response, output)
+}
+
+pub(crate) async fn handle_indexer_instance_list(
+    ctx: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let response: IndexerInstanceListResponse =
+        get_indexer_resource(ctx, "/v1/indexers/instances", "/v1/indexers/instances").await?;
+    render_indexer_instance_list(&response, output)
+}
+
+pub(crate) async fn handle_torznab_instance_list(
+    ctx: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let response: TorznabInstanceListResponse = get_indexer_resource(
+        ctx,
+        "/v1/indexers/torznab-instances",
+        "/v1/indexers/torznab-instances",
+    )
+    .await?;
+    render_torznab_instance_list(&response, output)
+}
+
+pub(crate) async fn handle_indexer_backup_export(
+    ctx: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let response: IndexerBackupExportResponse = get_indexer_resource(
+        ctx,
+        "/v1/indexers/backup/export",
+        "/v1/indexers/backup/export",
+    )
+    .await?;
+    render_indexer_backup_export(&response, output)
+}
+
+pub(crate) async fn handle_indexer_connectivity_read(
+    ctx: &AppContext,
+    args: IndexerInstanceReadArgs,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let response: IndexerConnectivityProfileResponse = get_indexer_resource(
+        ctx,
+        &format!(
+            "/v1/indexers/instances/{}/connectivity-profile",
+            args.indexer_instance_public_id
+        ),
+        "/v1/indexers/instances/{id}/connectivity-profile",
+    )
+    .await?;
+    render_indexer_connectivity_profile(&response, output)
+}
+
+pub(crate) async fn handle_indexer_reputation_read(
+    ctx: &AppContext,
+    args: IndexerInstanceReadArgs,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let response: IndexerSourceReputationListResponse = get_indexer_resource(
+        ctx,
+        &format!(
+            "/v1/indexers/instances/{}/reputation",
+            args.indexer_instance_public_id
+        ),
+        "/v1/indexers/instances/{id}/reputation",
+    )
+    .await?;
+    render_indexer_source_reputation_list(&response, output)
+}
+
+pub(crate) async fn handle_indexer_health_events_read(
+    ctx: &AppContext,
+    args: IndexerInstanceReadArgs,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let response: IndexerHealthEventListResponse = get_indexer_resource(
+        ctx,
+        &format!(
+            "/v1/indexers/instances/{}/health-events",
+            args.indexer_instance_public_id
+        ),
+        "/v1/indexers/instances/{id}/health-events",
+    )
+    .await?;
+    render_indexer_health_events(&response, output)
+}
+
+pub(crate) async fn handle_indexer_rss_read(
+    ctx: &AppContext,
+    args: IndexerInstanceReadArgs,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let response: IndexerRssSubscriptionResponse = get_indexer_resource(
+        ctx,
+        &format!(
+            "/v1/indexers/instances/{}/rss",
+            args.indexer_instance_public_id
+        ),
+        "/v1/indexers/instances/{id}/rss",
+    )
+    .await?;
+    render_indexer_rss_subscription(&response, output)
+}
+
+pub(crate) async fn handle_indexer_rss_items_read(
+    ctx: &AppContext,
+    args: IndexerInstanceRssItemsArgs,
+    output: OutputFormat,
+) -> CliResult<()> {
+    let mut path = format!(
+        "/v1/indexers/instances/{}/rss/items",
+        args.indexer_instance_public_id
+    );
+    if let Some(limit) = args.limit {
+        let _ = write!(&mut path, "?limit={limit}");
+    }
+
+    let response: IndexerRssSeenItemsResponse =
+        get_indexer_resource(ctx, &path, "/v1/indexers/instances/{id}/rss/items").await?;
+    render_indexer_rss_seen_items(&response, output)
 }
 
 pub(crate) fn parse_import_job_id(input: &str) -> Result<Uuid, String> {
@@ -966,4 +1210,10 @@ pub(crate) fn parse_policy_rule_id(input: &str) -> Result<Uuid, String> {
     input
         .parse()
         .map_err(|err| format!("invalid policy rule id '{input}': {err}"))
+}
+
+pub(crate) fn parse_routing_policy_id(input: &str) -> Result<Uuid, String> {
+    input
+        .parse()
+        .map_err(|err| format!("invalid routing policy id '{input}': {err}"))
 }

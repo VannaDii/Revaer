@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::client::{AppContext, CliDependencies, CliResult, parse_api_key, parse_url};
 use crate::commands::indexers::{
     parse_import_job_id, parse_indexer_instance_id, parse_policy_rule_id, parse_policy_set_id,
-    parse_torznab_instance_id,
+    parse_routing_policy_id, parse_torznab_instance_id,
 };
 use crate::commands::torrents::{FilePriorityOverrideArg, StorageModeArg};
 use crate::commands::{config, indexers, setup, tail, torrents};
@@ -139,6 +139,9 @@ async fn dispatch_indexer(
         IndexerCommand::Instance(instance_command) => {
             dispatch_indexer_instance(*instance_command, deps, output).await
         }
+        IndexerCommand::Read(read_command) => {
+            dispatch_indexer_read(*read_command, deps, output).await
+        }
     }
 }
 
@@ -218,6 +221,52 @@ async fn dispatch_indexer_instance(
     }
 }
 
+async fn dispatch_indexer_read(
+    command: IndexerReadCommand,
+    deps: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    match command {
+        IndexerReadCommand::Tags => indexers::handle_tag_list(deps, output).await,
+        IndexerReadCommand::Secrets => indexers::handle_secret_list(deps, output).await,
+        IndexerReadCommand::SearchProfiles => {
+            indexers::handle_search_profile_list(deps, output).await
+        }
+        IndexerReadCommand::PolicySets => indexers::handle_policy_set_list(deps, output).await,
+        IndexerReadCommand::RoutingPolicies => {
+            indexers::handle_routing_policy_list(deps, output).await
+        }
+        IndexerReadCommand::RoutingPolicy(args) => {
+            indexers::handle_routing_policy_read(deps, args, output).await
+        }
+        IndexerReadCommand::RateLimits => {
+            indexers::handle_rate_limit_policy_list(deps, output).await
+        }
+        IndexerReadCommand::Instances => indexers::handle_indexer_instance_list(deps, output).await,
+        IndexerReadCommand::TorznabInstances => {
+            indexers::handle_torznab_instance_list(deps, output).await
+        }
+        IndexerReadCommand::BackupExport => {
+            indexers::handle_indexer_backup_export(deps, output).await
+        }
+        IndexerReadCommand::Connectivity(args) => {
+            indexers::handle_indexer_connectivity_read(deps, args, output).await
+        }
+        IndexerReadCommand::Reputation(args) => {
+            indexers::handle_indexer_reputation_read(deps, args, output).await
+        }
+        IndexerReadCommand::HealthEvents(args) => {
+            indexers::handle_indexer_health_events_read(deps, args, output).await
+        }
+        IndexerReadCommand::Rss(args) => {
+            indexers::handle_indexer_rss_read(deps, args, output).await
+        }
+        IndexerReadCommand::RssItems(args) => {
+            indexers::handle_indexer_rss_items_read(deps, args, output).await
+        }
+    }
+}
+
 fn command_label(command: &Command) -> &'static str {
     match command {
         Command::Setup(SetupCommand::Start(_)) => "setup_start",
@@ -285,6 +334,23 @@ fn command_label(command: &Command) -> &'static str {
                 IndexerInstanceCommand::TestFinalize(_) => "indexer_instance_test_finalize",
             }
         }
+        Command::Indexer(IndexerCommand::Read(read_command)) => match read_command.as_ref() {
+            IndexerReadCommand::Tags => "indexer_read_tags",
+            IndexerReadCommand::Secrets => "indexer_read_secrets",
+            IndexerReadCommand::SearchProfiles => "indexer_read_search_profiles",
+            IndexerReadCommand::PolicySets => "indexer_read_policy_sets",
+            IndexerReadCommand::RoutingPolicies => "indexer_read_routing_policies",
+            IndexerReadCommand::RoutingPolicy(_) => "indexer_read_routing_policy",
+            IndexerReadCommand::RateLimits => "indexer_read_rate_limits",
+            IndexerReadCommand::Instances => "indexer_read_instances",
+            IndexerReadCommand::TorznabInstances => "indexer_read_torznab_instances",
+            IndexerReadCommand::BackupExport => "indexer_read_backup_export",
+            IndexerReadCommand::Connectivity(_) => "indexer_read_connectivity",
+            IndexerReadCommand::Reputation(_) => "indexer_read_reputation",
+            IndexerReadCommand::HealthEvents(_) => "indexer_read_health_events",
+            IndexerReadCommand::Rss(_) => "indexer_read_rss",
+            IndexerReadCommand::RssItems(_) => "indexer_read_rss_items",
+        },
     }
 }
 
@@ -373,6 +439,8 @@ pub(crate) enum IndexerCommand {
     Policy(Box<PolicyCommand>),
     #[command(subcommand)]
     Instance(Box<IndexerInstanceCommand>),
+    #[command(subcommand)]
+    Read(Box<IndexerReadCommand>),
 }
 
 #[derive(Subcommand)]
@@ -396,6 +464,25 @@ pub(crate) enum TorznabCommand {
 pub(crate) enum IndexerInstanceCommand {
     TestPrepare(IndexerInstanceTestPrepareArgs),
     TestFinalize(IndexerInstanceTestFinalizeArgs),
+}
+
+#[derive(Subcommand)]
+pub(crate) enum IndexerReadCommand {
+    Tags,
+    Secrets,
+    SearchProfiles,
+    PolicySets,
+    RoutingPolicies,
+    RoutingPolicy(IndexerRoutingPolicyReadArgs),
+    RateLimits,
+    Instances,
+    TorznabInstances,
+    BackupExport,
+    Connectivity(IndexerInstanceReadArgs),
+    Reputation(IndexerInstanceReadArgs),
+    HealthEvents(IndexerInstanceReadArgs),
+    Rss(IndexerInstanceReadArgs),
+    RssItems(IndexerInstanceRssItemsArgs),
 }
 
 #[derive(Subcommand)]
@@ -616,6 +703,26 @@ pub(crate) struct IndexerInstanceTestFinalizeArgs {
     pub detail: Option<String>,
     #[arg(long, help = "Result count (optional)")]
     pub result_count: Option<i32>,
+}
+
+#[derive(Args)]
+pub(crate) struct IndexerRoutingPolicyReadArgs {
+    #[arg(value_parser = parse_routing_policy_id, help = "Routing policy public id")]
+    pub routing_policy_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct IndexerInstanceReadArgs {
+    #[arg(value_parser = parse_indexer_instance_id, help = "Indexer instance public id")]
+    pub indexer_instance_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct IndexerInstanceRssItemsArgs {
+    #[arg(value_parser = parse_indexer_instance_id, help = "Indexer instance public id")]
+    pub indexer_instance_public_id: Uuid,
+    #[arg(long, help = "Optional result limit")]
+    pub limit: Option<i32>,
 }
 
 #[derive(Args)]
@@ -917,6 +1024,20 @@ mod tests {
             )))),
             "indexer_instance_test_prepare"
         );
+        assert_eq!(
+            command_label(&Command::Indexer(IndexerCommand::Read(Box::new(
+                IndexerReadCommand::Tags
+            )))),
+            "indexer_read_tags"
+        );
+        assert_eq!(
+            command_label(&Command::Indexer(IndexerCommand::Read(Box::new(
+                IndexerReadCommand::RoutingPolicy(IndexerRoutingPolicyReadArgs {
+                    routing_policy_public_id: Uuid::nil(),
+                })
+            )))),
+            "indexer_read_routing_policy"
+        );
     }
 
     #[test]
@@ -1083,6 +1204,82 @@ mod tests {
         let cli = Cli::parse_from(["revaer", "--api-url", &server.base_url(), "config", "get"]);
         let exit_code = run_with_cli(cli).await;
         assert_eq!(exit_code, 2);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_indexer_read_tags() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let payload = serde_json::json!({
+            "tags": [{
+                "tag_public_id": Uuid::new_v4(),
+                "tag_key": "anime",
+                "display_name": "Anime",
+                "updated_at": "2026-04-03T00:00:00Z"
+            }]
+        });
+        let tags_mock = server.mock(|when, then| {
+            when.method(GET)
+                .path("/v1/indexers/tags")
+                .header(HEADER_API_KEY, "key:secret");
+            then.status(200).json_body(payload);
+        });
+
+        let cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "indexer",
+            "read",
+            "tags",
+        ]);
+
+        let exit_code = run_with_cli(cli).await;
+        tags_mock.assert();
+        assert_eq!(exit_code, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_indexer_read_rss_items_with_limit() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let instance_id = Uuid::new_v4();
+        let payload = serde_json::json!({
+            "items": [{
+                "item_guid": "guid-1",
+                "infohash_v1": null,
+                "infohash_v2": null,
+                "magnet_hash": null,
+                "first_seen_at": "2026-04-03T00:00:00Z"
+            }]
+        });
+        let rss_mock = server.mock(|when, then| {
+            when.method(GET)
+                .path(format!("/v1/indexers/instances/{instance_id}/rss/items"))
+                .query_param("limit", "5")
+                .header(HEADER_API_KEY, "key:secret");
+            then.status(200).json_body(payload);
+        });
+
+        let cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "indexer",
+            "read",
+            "rss-items",
+            &instance_id.to_string(),
+            "--limit",
+            "5",
+        ]);
+
+        let exit_code = run_with_cli(cli).await;
+        rss_mock.assert();
+        assert_eq!(exit_code, 0);
         Ok(())
     }
 }

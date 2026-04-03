@@ -3,9 +3,15 @@
 use anyhow::anyhow;
 use revaer_api::models::{
     ImportJobResponse, ImportJobResultsResponse, ImportJobStatusResponse,
-    IndexerInstanceTestFinalizeResponse, IndexerInstanceTestPrepareResponse, PolicyRuleResponse,
-    PolicySetResponse, TorrentDetail, TorrentListResponse, TorrentStateKind,
-    TorznabInstanceResponse,
+    IndexerBackupExportResponse, IndexerConnectivityProfileResponse,
+    IndexerHealthEventListResponse, IndexerInstanceListResponse,
+    IndexerInstanceTestFinalizeResponse, IndexerInstanceTestPrepareResponse,
+    IndexerRssSeenItemsResponse, IndexerRssSubscriptionResponse,
+    IndexerSourceReputationListResponse, PolicyRuleResponse, PolicySetListResponse,
+    PolicySetResponse, RateLimitPolicyListResponse, RoutingPolicyDetailResponse,
+    RoutingPolicyListResponse, SearchProfileListResponse, SecretMetadataListResponse,
+    TagListResponse, TorrentDetail, TorrentListResponse, TorrentStateKind,
+    TorznabInstanceListResponse, TorznabInstanceResponse,
 };
 use revaer_config::ConfigSnapshot;
 use revaer_torrent_core::FilePriority;
@@ -327,6 +333,409 @@ pub(crate) fn render_torznab_instance(
                 instance.torznab_instance_public_id
             );
             println!("api_key: {REDACTED_VALUE}");
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_tag_list(list: &TagListResponse, format: OutputFormat) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Table => {
+            println!("{:<36} {:<24} DISPLAY NAME", "TAG ID", "KEY");
+            for tag in &list.tags {
+                println!(
+                    "{:<36} {:<24} {}",
+                    tag.tag_public_id, tag.tag_key, tag.display_name
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_secret_metadata_list(
+    list: &SecretMetadataListResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Table => {
+            println!(
+                "{:<36} {:<14} {:<8} {:<8} ROTATED AT",
+                "SECRET ID", "TYPE", "REVOKED", "BINDS"
+            );
+            for secret in &list.secrets {
+                let rotated_at = secret
+                    .rotated_at
+                    .map_or_else(|| "-".to_string(), |value| value.to_rfc3339());
+                println!(
+                    "{:<36} {:<14} {:<8} {:<8} {}",
+                    secret.secret_public_id,
+                    secret.secret_type,
+                    secret.is_revoked,
+                    secret.binding_count,
+                    rotated_at
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_search_profile_list(
+    list: &SearchProfileListResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Table => {
+            println!(
+                "{:<36} {:<24} {:<8} {:<8} DEFAULT DOMAIN",
+                "PROFILE ID", "NAME", "DEFAULT", "PAGE"
+            );
+            for profile in &list.search_profiles {
+                let page_size = profile
+                    .page_size
+                    .map_or_else(|| "-".to_string(), |value| value.to_string());
+                let default_domain = profile.default_media_domain_key.as_deref().unwrap_or("-");
+                println!(
+                    "{:<36} {:<24} {:<8} {:<8} {}",
+                    profile.search_profile_public_id,
+                    profile.display_name,
+                    profile.is_default,
+                    page_size,
+                    default_domain
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_policy_set_list(
+    list: &PolicySetListResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Table => {
+            println!(
+                "{:<36} {:<24} {:<10} {:<8} RULES",
+                "POLICY SET ID", "NAME", "SCOPE", "ENABLED"
+            );
+            for policy_set in &list.policy_sets {
+                println!(
+                    "{:<36} {:<24} {:<10} {:<8} {}",
+                    policy_set.policy_set_public_id,
+                    policy_set.display_name,
+                    policy_set.scope,
+                    policy_set.is_enabled,
+                    policy_set.rules.len()
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_routing_policy_list(
+    list: &RoutingPolicyListResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Table => {
+            println!(
+                "{:<36} {:<24} {:<14} {:<8} {:<8}",
+                "ROUTING ID", "NAME", "MODE", "PARAMS", "SECRETS"
+            );
+            for policy in &list.routing_policies {
+                println!(
+                    "{:<36} {:<24} {:<14} {:<8} {:<8}",
+                    policy.routing_policy_public_id,
+                    policy.display_name,
+                    policy.mode,
+                    policy.parameter_count,
+                    policy.secret_binding_count
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_routing_policy_detail(
+    detail: &RoutingPolicyDetailResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(detail)?,
+        OutputFormat::Table => {
+            println!(
+                "routing_policy_public_id: {}",
+                detail.routing_policy_public_id
+            );
+            println!("display_name: {}", detail.display_name);
+            println!("mode: {}", detail.mode);
+            if let Some(rate_limit_id) = detail.rate_limit_policy_public_id {
+                println!("rate_limit_policy_public_id: {rate_limit_id}");
+            }
+            if let Some(rate_limit_name) = &detail.rate_limit_display_name {
+                println!("rate_limit_display_name: {rate_limit_name}");
+            }
+            println!("parameters:");
+            println!(
+                "  {:<24} {:<18} {:<10} {:<8} binding",
+                "KEY", "VALUE", "INT", "BOOL"
+            );
+            for parameter in &detail.parameters {
+                let value_plain = parameter.value_plain.as_deref().unwrap_or("-");
+                let value_int = parameter
+                    .value_int
+                    .map_or_else(|| "-".to_string(), |value| value.to_string());
+                let value_bool = parameter
+                    .value_bool
+                    .map_or_else(|| "-".to_string(), |value| value.to_string());
+                let binding = parameter.secret_binding_name.as_deref().unwrap_or("-");
+                println!(
+                    "  {:<24} {:<18} {:<10} {:<8} {}",
+                    parameter.param_key, value_plain, value_int, value_bool, binding
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_rate_limit_policy_list(
+    list: &RateLimitPolicyListResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Table => {
+            println!(
+                "{:<36} {:<24} {:<6} {:<6} {:<10} SYSTEM",
+                "RATE LIMIT ID", "NAME", "RPM", "BURST", "CONCURRENT"
+            );
+            for policy in &list.rate_limit_policies {
+                println!(
+                    "{:<36} {:<24} {:<6} {:<6} {:<10} {}",
+                    policy.rate_limit_policy_public_id,
+                    policy.display_name,
+                    policy.requests_per_minute,
+                    policy.burst,
+                    policy.concurrent_requests,
+                    policy.is_system
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_indexer_instance_list(
+    list: &IndexerInstanceListResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Table => {
+            println!(
+                "{:<36} {:<24} {:<16} {:<8} {:<8} TAGS",
+                "INSTANCE ID", "NAME", "UPSTREAM", "STATE", "RSS"
+            );
+            for instance in &list.indexer_instances {
+                println!(
+                    "{:<36} {:<24} {:<16} {:<8} {:<8} {}",
+                    instance.indexer_instance_public_id,
+                    instance.display_name,
+                    instance.upstream_slug,
+                    instance.instance_status,
+                    instance.rss_status,
+                    instance.tag_keys.join(",")
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_torznab_instance_list(
+    list: &TorznabInstanceListResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Table => {
+            println!(
+                "{:<36} {:<24} {:<8} PROFILE",
+                "TORZNAB ID", "NAME", "ENABLED"
+            );
+            for instance in &list.torznab_instances {
+                println!(
+                    "{:<36} {:<24} {:<8} {}",
+                    instance.torznab_instance_public_id,
+                    instance.display_name,
+                    instance.is_enabled,
+                    instance.search_profile_display_name
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_indexer_backup_export(
+    response: &IndexerBackupExportResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Table => {
+            println!("tags: {}", response.snapshot.tags.len());
+            println!(
+                "rate_limit_policies: {}",
+                response.snapshot.rate_limit_policies.len()
+            );
+            println!(
+                "routing_policies: {}",
+                response.snapshot.routing_policies.len()
+            );
+            println!(
+                "indexer_instances: {}",
+                response.snapshot.indexer_instances.len()
+            );
+            println!("secret_refs: {}", response.snapshot.secrets.len());
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_indexer_connectivity_profile(
+    response: &IndexerConnectivityProfileResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Table => {
+            println!("profile_exists: {}", response.profile_exists);
+            if let Some(status) = &response.status {
+                println!("status: {status}");
+            }
+            if let Some(error_class) = &response.error_class {
+                println!("error_class: {error_class}");
+            }
+            if let Some(latency_p50_ms) = response.latency_p50_ms {
+                println!("latency_p50_ms: {latency_p50_ms}");
+            }
+            if let Some(latency_p95_ms) = response.latency_p95_ms {
+                println!("latency_p95_ms: {latency_p95_ms}");
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_indexer_source_reputation_list(
+    response: &IndexerSourceReputationListResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Table => {
+            println!(
+                "{:<6} {:<12} {:<12} {:<10} REQUESTS",
+                "WIN", "REQ OK", "ACQ OK", "FAKE"
+            );
+            for item in &response.items {
+                println!(
+                    "{:<6} {:<12.3} {:<12.3} {:<10.3} {}",
+                    item.window_key,
+                    item.request_success_rate,
+                    item.acquisition_success_rate,
+                    item.fake_rate,
+                    item.request_count
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_indexer_health_events(
+    response: &IndexerHealthEventListResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Table => {
+            println!(
+                "{:<26} {:<20} {:<10} DETAIL",
+                "OCCURRED AT", "TYPE", "ERROR"
+            );
+            for item in &response.items {
+                let error_class = item.error_class.as_deref().unwrap_or("-");
+                let detail = item.detail.as_deref().unwrap_or("");
+                println!(
+                    "{:<26} {:<20} {:<10} {}",
+                    item.occurred_at, item.event_type, error_class, detail
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_indexer_rss_subscription(
+    response: &IndexerRssSubscriptionResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Table => {
+            println!(
+                "indexer_instance_public_id: {}",
+                response.indexer_instance_public_id
+            );
+            println!("instance_status: {}", response.instance_status);
+            println!("rss_setting_status: {}", response.rss_setting_status);
+            println!("subscription_status: {}", response.subscription_status);
+            println!("interval_seconds: {}", response.interval_seconds);
+            if let Some(last_polled_at) = response.last_polled_at {
+                println!("last_polled_at: {last_polled_at}");
+            }
+            if let Some(next_poll_at) = response.next_poll_at {
+                println!("next_poll_at: {next_poll_at}");
+            }
+            if let Some(backoff_seconds) = response.backoff_seconds {
+                println!("backoff_seconds: {backoff_seconds}");
+            }
+            if let Some(last_error_class) = &response.last_error_class {
+                println!("last_error_class: {last_error_class}");
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_indexer_rss_seen_items(
+    response: &IndexerRssSeenItemsResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Table => {
+            println!("{:<26} {:<32} INFOHASH V1", "FIRST SEEN", "ITEM GUID");
+            for item in &response.items {
+                let item_guid = item.item_guid.as_deref().unwrap_or("-");
+                let infohash_v1 = item.infohash_v1.as_deref().unwrap_or("-");
+                println!(
+                    "{:<26} {:<32} {}",
+                    item.first_seen_at, item_guid, infohash_v1
+                );
+            }
         }
     }
     Ok(())
