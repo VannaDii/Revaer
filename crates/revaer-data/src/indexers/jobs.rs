@@ -24,6 +24,8 @@ const JOB_RUN_REPUTATION_ROLLUP_CALL: &str = r"
 ";
 const JOB_RUN_CANONICAL_BACKFILL_CALL: &str =
     "SELECT * FROM job_run_canonical_backfill_best_source_v2()";
+const JOB_RUN_CANONICAL_PRUNE_CALL: &str =
+    "SELECT * FROM job_run_canonical_prune_low_confidence_v2()";
 const JOB_RUN_BASE_SCORE_REFRESH_CALL: &str =
     "SELECT * FROM job_run_base_score_refresh_recent_v2()";
 const JOB_RUN_RSS_BACKFILL_CALL: &str = "SELECT * FROM job_run_rss_subscription_backfill_v2()";
@@ -131,6 +133,22 @@ pub async fn job_run_canonical_backfill_best_source(pool: &PgPool) -> Result<()>
     result.into_result(
         "job run canonical backfill best source",
         "canonical_backfill_best_source",
+    )
+}
+
+/// Run canonical prune for low-confidence entries.
+///
+/// # Errors
+///
+/// Returns an error if the stored procedure rejects the input.
+pub async fn job_run_canonical_prune_low_confidence(pool: &PgPool) -> Result<()> {
+    let result: JobRunResult = sqlx::query_as(JOB_RUN_CANONICAL_PRUNE_CALL)
+        .fetch_one(pool)
+        .await
+        .map_err(try_op("job run canonical prune low confidence"))?;
+    result.into_result(
+        "job run canonical prune low confidence",
+        "canonical_prune_low_confidence",
     )
 }
 

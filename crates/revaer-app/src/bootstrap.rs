@@ -6,14 +6,13 @@ use std::time::Duration;
 use std::time::Instant;
 
 use crate::error::{AppError, AppResult};
+use crate::indexer_runtime::IndexerRuntime;
 use crate::indexers::IndexerService;
 use revaer_api::TorrentHandles;
 use revaer_config::{AppMode, ConfigService, ConfigSnapshot, DbSessionConfig};
 use revaer_events::EventBus;
 use revaer_telemetry::{GlobalContextGuard, LoggingConfig, Metrics, OpenTelemetryConfig};
-#[cfg(feature = "libtorrent")]
-use tracing::warn;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use revaer_runtime::RuntimeStore;
 
@@ -287,6 +286,8 @@ pub(crate) async fn run_app_with(dependencies: BootstrapDependencies) -> AppResu
     };
 
     let api = build_api_server(&config, &events, torrent_handles, telemetry.clone())?;
+    let indexer_runtime_task =
+        IndexerRuntime::new(Arc::new(config.clone()), telemetry.clone()).spawn();
 
     enforce_loopback_guard(
         &snapshot.app_profile.mode,
@@ -313,6 +314,13 @@ pub(crate) async fn run_app_with(dependencies: BootstrapDependencies) -> AppResu
     info!(addr = %addr, "Launching API listener");
 
     let serve_result = api.serve(addr).await;
+
+    if !indexer_runtime_task.is_finished() {
+        indexer_runtime_task.abort();
+    }
+    if let Err(err) = indexer_runtime_task.await {
+        warn!(error = %err, "indexer runtime task join failed");
+    }
 
     #[cfg(feature = "libtorrent")]
     {
@@ -740,6 +748,7 @@ mod tests {
             "EventBus::new()",
             "RuntimeStore::new(",
             "IndexerService::new(",
+            "IndexerRuntime::new(",
         ] {
             assert!(
                 source.contains(required),

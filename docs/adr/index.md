@@ -278,3 +278,4 @@
 -   [264](264-pr-unresolved-feedback-closeout.md) – PR unresolved feedback closeout
 -   [265](265-pr-feedback-boundary-validation-closeout.md) – PR feedback boundary validation closeout
 -   [266](266-pr-codeql-followup-on-instance-tag-bounds.md) – PR CodeQL follow-up on instance tag bounds
+-   [267](267-indexer-maintenance-runtime.md) – Indexer maintenance runtime
