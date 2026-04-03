@@ -16,6 +16,25 @@ env:
   IMAGE_NAME: revaer
 
 jobs:
+  instruction-drift:
+    name: Check Instruction Drift
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - uses: ./.github/actions/setup-revaer
+        with:
+          toolchain: ${{ vars.RUST_TOOLCHAIN_VERSION }}
+
+      - name: Instruction drift
+        env:
+          REVAER_INSTRUCTION_DIFF_BASE: ${{ github.event.pull_request.base.sha }}
+          REVAER_INSTRUCTION_DIFF_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: just instruction-drift
+
   # Quick formatting check that can run in parallel
   fmt:
     name: Check Formatting

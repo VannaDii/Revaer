@@ -9,6 +9,9 @@ fmt-fix:
 policy:
     bash scripts/policy-guardrails.sh
 
+instruction-drift:
+    bash scripts/instruction-drift-check.sh
+
 lint: policy
     cargo clippy --workspace --all-targets --all-features -- -D warnings -W clippy::cargo -W clippy::nursery -A clippy::multiple_crate_versions -A clippy::redundant_pub_crate
 
@@ -204,7 +207,7 @@ validate:
     DATABASE_URL="${DATABASE_URL:-$REVAER_TEST_DATABASE_URL}"
     export REVAER_TEST_DATABASE_URL DATABASE_URL
     just db-start
-    just fmt lint check-assets udeps audit deny ui-build test test-features-min cov
+    just fmt lint instruction-drift check-assets udeps audit deny ui-build test test-features-min cov
 
 ci: validate
     just build-release
