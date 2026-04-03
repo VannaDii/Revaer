@@ -453,6 +453,24 @@ db-start:
         fi; \
         sleep 1; \
     done; \
+    db_host="$(printf "%s" "${db_url}" | sed -E 's#^[^:]+://[^@]+@([^:/]+).*#\1#')"; \
+    db_port="$(printf "%s" "${db_url}" | sed -En 's#^[^:]+://[^@]+@[^:/]+:([0-9]+).*#\1#p')"; \
+    if [ -z "${db_port}" ]; then \
+        db_port="5432"; \
+    fi; \
+    echo "Waiting for external Postgres endpoint ${db_host}:${db_port}..."; \
+    external_ready="0"; \
+    for _ in $(seq 1 30); do \
+        if python3 -c 'import socket, sys; probe = socket.create_connection((sys.argv[1], int(sys.argv[2])), 1); probe.close()' "${db_host}" "${db_port}" >/dev/null 2>&1; then \
+            external_ready="1"; \
+            break; \
+        fi; \
+        sleep 1; \
+    done; \
+    if [ "${external_ready}" != "1" ]; then \
+        echo "Postgres endpoint ${db_host}:${db_port} did not become reachable."; \
+        exit 1; \
+    fi; \
     just sqlx-install; \
     DATABASE_URL="${db_url}" sqlx database create --database-url "${db_url}" 2>/dev/null || true; \
     reset_db="${REVAER_DB_RESET:-0}"; \

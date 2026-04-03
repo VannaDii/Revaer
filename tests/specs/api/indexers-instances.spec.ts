@@ -7,11 +7,18 @@ test.describe('Indexer instances', () => {
     const definitionUpstreamSlug = 'missing-definition';
 
     if (session.authMode === 'api_key') {
+      const unauthorizedList = await publicApi.GET('/v1/indexers/instances');
+      expect(unauthorizedList.response.status).toBe(401);
+
       const unauthorized = await publicApi.POST('/v1/indexers/instances', {
         body: { indexer_definition_upstream_slug: definitionUpstreamSlug, display_name: displayName },
       });
       expect(unauthorized.response.status).toBe(401);
     }
+
+    const listed = await api.GET('/v1/indexers/instances');
+    expect(listed.response.status).toBe(200);
+    expect(Array.isArray(listed.data?.indexer_instances)).toBe(true);
 
     const create = await api.POST('/v1/indexers/instances', {
       body: { indexer_definition_upstream_slug: definitionUpstreamSlug, display_name: displayName },

@@ -298,3 +298,4 @@
     -   [266: PR CodeQL follow-up on instance tag bounds](adr/266-pr-codeql-followup-on-instance-tag-bounds.md)
     -   [267: Indexer maintenance runtime](adr/267-indexer-maintenance-runtime.md)
     -   [268: Indexer tag and secret inventory](adr/268-indexer-tag-secret-inventory.md)
+    -   [269: Indexer operator inventory read surfaces](adr/269-indexer-operator-inventory-read-surfaces.md)

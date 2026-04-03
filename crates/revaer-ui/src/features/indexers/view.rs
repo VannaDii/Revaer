@@ -17,7 +17,8 @@ use crate::features::indexers::api::{
     delete_tag, delete_torznab_instance, delete_tracker_category_mapping, export_backup_snapshot,
     fetch_cf_state, fetch_definitions, fetch_health_notification_hooks, fetch_import_job_results,
     fetch_import_job_status, fetch_indexer_connectivity_profile, fetch_indexer_health_events,
-    fetch_indexer_rss_items, fetch_indexer_rss_subscription, fetch_indexer_source_reputation,
+    fetch_indexer_instances, fetch_indexer_rss_items, fetch_indexer_rss_subscription,
+    fetch_indexer_source_reputation, fetch_rate_limit_policies, fetch_routing_policies,
     fetch_routing_policy, fetch_secret_metadata, fetch_source_metadata_conflicts, fetch_tags,
     finalize_indexer_test, import_cardigann_definition, mark_indexer_rss_item_seen,
     prepare_indexer_test, provision_app_sync, reopen_source_metadata_conflict, reset_cf_state,
@@ -36,16 +37,18 @@ use crate::features::indexers::logic::{
 use crate::features::indexers::state::{
     AppSyncProvisionSummary, AppSyncState, BackupState, CardigannImportState,
     ConnectivityInsightsState, DefinitionsState, HealthEventsState, HealthNotificationHooksState,
-    ImportJobState, IndexersDraft, OperationRecord, RoutingPolicyState, SecretInventoryState,
+    ImportJobState, IndexerInstanceInventoryState, IndexersDraft, OperationRecord,
+    RateLimitInventoryState, RoutingPolicyInventoryState, RoutingPolicyState, SecretInventoryState,
     SourceMetadataConflictsState, TagInventoryState,
 };
 use crate::models::{
     CardigannDefinitionImportResponse, ImportJobResultResponse, ImportJobStatusResponse,
     IndexerBackupSnapshot, IndexerBackupUnresolvedSecretBinding,
     IndexerConnectivityProfileResponse, IndexerDefinitionResponse, IndexerHealthEventResponse,
-    IndexerHealthNotificationHookResponse, IndexerSourceMetadataConflictResponse,
-    IndexerSourceReputationResponse, RoutingPolicyDetailResponse, SecretMetadataResponse,
-    TagListItemResponse,
+    IndexerHealthNotificationHookResponse, IndexerInstanceListItemResponse,
+    IndexerSourceMetadataConflictResponse, IndexerSourceReputationResponse,
+    RateLimitPolicyListItemResponse, RoutingPolicyDetailResponse, RoutingPolicyListItemResponse,
+    SecretMetadataResponse, TagListItemResponse,
 };
 use serde::Serialize;
 use std::future::Future;
@@ -781,6 +784,9 @@ pub(crate) fn indexers_page(props: &IndexersPageProps) -> Html {
     let health_notification_hooks = use_state(HealthNotificationHooksState::default);
     let tag_inventory = use_state(TagInventoryState::default);
     let secret_inventory = use_state(SecretInventoryState::default);
+    let routing_inventory = use_state(RoutingPolicyInventoryState::default);
+    let rate_limit_inventory = use_state(RateLimitInventoryState::default);
+    let indexer_instance_inventory = use_state(IndexerInstanceInventoryState::default);
     let app_sync = use_state(AppSyncState::default);
     let import_job = use_state(ImportJobState::default);
     let source_conflicts = use_state(SourceMetadataConflictsState::default);
@@ -1046,6 +1052,150 @@ pub(crate) fn indexers_page(props: &IndexersPageProps) -> Html {
                     Err(error) => {
                         append_record(&records, "Secret inventory", error.clone());
                         on_error_toast.emit(format!("Secret inventory: {error}"));
+                    }
+                }
+                busy.set(false);
+            });
+        })
+    };
+    let on_fetch_routing_inventory = {
+        let api = api.clone();
+        let busy = busy.clone();
+        let records = records.clone();
+        let routing_inventory = routing_inventory.clone();
+        let on_success_toast = props.on_success_toast.clone();
+        let on_error_toast = props.on_error_toast.clone();
+        Callback::from(move |_| {
+            let Some(api) = api.clone() else {
+                append_record(&records, "Routing inventory", "API context is unavailable");
+                on_error_toast.emit("Routing inventory: API context is unavailable".to_string());
+                return;
+            };
+            if *busy {
+                return;
+            }
+            busy.set(true);
+            let client = api.client.clone();
+            let busy = busy.clone();
+            let records = records.clone();
+            let routing_inventory = routing_inventory.clone();
+            let on_success_toast = on_success_toast.clone();
+            let on_error_toast = on_error_toast.clone();
+            spawn_local(async move {
+                match fetch_routing_policies(&client).await {
+                    Ok(response) => {
+                        append_json_record(
+                            &records,
+                            "Routing inventory",
+                            &response.routing_policies,
+                        );
+                        routing_inventory.set(RoutingPolicyInventoryState {
+                            items: response.routing_policies,
+                        });
+                        on_success_toast.emit("Routing inventory loaded".to_string());
+                    }
+                    Err(error) => {
+                        append_record(&records, "Routing inventory", error.clone());
+                        on_error_toast.emit(format!("Routing inventory: {error}"));
+                    }
+                }
+                busy.set(false);
+            });
+        })
+    };
+    let on_fetch_rate_limit_inventory = {
+        let api = api.clone();
+        let busy = busy.clone();
+        let records = records.clone();
+        let rate_limit_inventory = rate_limit_inventory.clone();
+        let on_success_toast = props.on_success_toast.clone();
+        let on_error_toast = props.on_error_toast.clone();
+        Callback::from(move |_| {
+            let Some(api) = api.clone() else {
+                append_record(
+                    &records,
+                    "Rate-limit inventory",
+                    "API context is unavailable",
+                );
+                on_error_toast.emit("Rate-limit inventory: API context is unavailable".to_string());
+                return;
+            };
+            if *busy {
+                return;
+            }
+            busy.set(true);
+            let client = api.client.clone();
+            let busy = busy.clone();
+            let records = records.clone();
+            let rate_limit_inventory = rate_limit_inventory.clone();
+            let on_success_toast = on_success_toast.clone();
+            let on_error_toast = on_error_toast.clone();
+            spawn_local(async move {
+                match fetch_rate_limit_policies(&client).await {
+                    Ok(response) => {
+                        append_json_record(
+                            &records,
+                            "Rate-limit inventory",
+                            &response.rate_limit_policies,
+                        );
+                        rate_limit_inventory.set(RateLimitInventoryState {
+                            items: response.rate_limit_policies,
+                        });
+                        on_success_toast.emit("Rate-limit inventory loaded".to_string());
+                    }
+                    Err(error) => {
+                        append_record(&records, "Rate-limit inventory", error.clone());
+                        on_error_toast.emit(format!("Rate-limit inventory: {error}"));
+                    }
+                }
+                busy.set(false);
+            });
+        })
+    };
+    let on_fetch_indexer_instances = {
+        let api = api.clone();
+        let busy = busy.clone();
+        let records = records.clone();
+        let indexer_instance_inventory = indexer_instance_inventory.clone();
+        let on_success_toast = props.on_success_toast.clone();
+        let on_error_toast = props.on_error_toast.clone();
+        Callback::from(move |_| {
+            let Some(api) = api.clone() else {
+                append_record(
+                    &records,
+                    "Indexer instance inventory",
+                    "API context is unavailable",
+                );
+                on_error_toast
+                    .emit("Indexer instance inventory: API context is unavailable".to_string());
+                return;
+            };
+            if *busy {
+                return;
+            }
+            busy.set(true);
+            let client = api.client.clone();
+            let busy = busy.clone();
+            let records = records.clone();
+            let indexer_instance_inventory = indexer_instance_inventory.clone();
+            let on_success_toast = on_success_toast.clone();
+            let on_error_toast = on_error_toast.clone();
+            spawn_local(async move {
+                match fetch_indexer_instances(&client).await {
+                    Ok(response) => {
+                        append_json_record(
+                            &records,
+                            "Indexer instance inventory",
+                            &response.indexer_instances,
+                        );
+                        indexer_instance_inventory.set(IndexerInstanceInventoryState {
+                            items: response.indexer_instances,
+                        });
+                        on_success_toast.emit("Indexer instance inventory loaded".to_string());
+                    }
+                    Err(error) => {
+                        append_record(&records, "Indexer instance inventory", error.clone());
+                        on_error_toast.emit(format!("Indexer instance inventory: {error}"));
                     }
                 }
                 busy.set(false);
@@ -2751,14 +2901,18 @@ pub(crate) fn indexers_page(props: &IndexersPageProps) -> Html {
                 on_secondary={on_rotate_secret}
                 on_tertiary={on_revoke_secret}
             />
-                <RoutingRateLimitSection
-                    draft={draft.clone()}
-                    routing_policy={(*routing_policy).clone()}
-                    busy={*busy}
-                    on_fetch_routing={on_fetch_routing}
-                    on_create_routing={on_create_routing}
-                    on_set_routing_param={on_set_routing_param}
-                    on_bind_routing_secret={on_bind_routing_secret}
+            <RoutingRateLimitSection
+                draft={draft.clone()}
+                routing_policy={(*routing_policy).clone()}
+                routing_inventory={(*routing_inventory).clone()}
+                rate_limit_inventory={(*rate_limit_inventory).clone()}
+                busy={*busy}
+                on_fetch_routing_inventory={on_fetch_routing_inventory}
+                on_fetch_routing={on_fetch_routing}
+                on_create_routing={on_create_routing}
+                on_set_routing_param={on_set_routing_param}
+                on_bind_routing_secret={on_bind_routing_secret}
+                on_fetch_rate_limits={on_fetch_rate_limit_inventory}
                 on_create_rate_limit={on_create_rate_limit}
                 on_update_rate_limit={on_update_rate_limit}
                 on_delete_rate_limit={on_delete_rate_limit}
@@ -2767,9 +2921,11 @@ pub(crate) fn indexers_page(props: &IndexersPageProps) -> Html {
             />
             <InstancesSection
                 draft={draft.clone()}
+                instances={(*indexer_instance_inventory).clone()}
                 connectivity={(*connectivity).clone()}
                 health_events={(*health_events).clone()}
                 busy={*busy}
+                on_fetch_instances={on_fetch_indexer_instances}
                 on_create_instance={on_create_instance}
                 on_update_instance={on_update_instance}
                 on_fetch_rss_subscription={on_fetch_rss_subscription}
@@ -2990,6 +3146,120 @@ fn render_tag_inventory_item(
                 <Button onclick={on_use_tag}>{"Use for CRUD"}</Button>
                 <Button onclick={on_append_indexer_tag}>{"Add to indexer tags"}</Button>
                 <Button onclick={on_append_allow_tag}>{"Add to allow tags"}</Button>
+            </div>
+        </div>
+    }
+}
+
+fn render_routing_inventory_item(
+    item: &RoutingPolicyListItemResponse,
+    on_use_policy: Callback<MouseEvent>,
+    on_assign_rate_limit: Callback<MouseEvent>,
+) -> Html {
+    html! {
+        <div class="rounded-box border border-base-300 bg-base-200/40 p-3">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                    <div class="font-semibold">{item.display_name.clone()}</div>
+                    <div class="text-sm text-base-content/70">
+                        {format!(
+                            "{} | params: {} | secret binds: {}",
+                            item.mode, item.parameter_count, item.secret_binding_count
+                        )}
+                    </div>
+                </div>
+                <div class="text-xs font-mono break-all text-base-content/60">
+                    {item.routing_policy_public_id.to_string()}
+                </div>
+            </div>
+            {
+                item.rate_limit_display_name.as_ref().map(|name| html! {
+                    <div class="mt-2 text-sm text-base-content/70">
+                        {format!("Rate limit: {name}")}
+                    </div>
+                }).unwrap_or_default()
+            }
+            <div class="mt-3 flex flex-wrap gap-2">
+                <Button onclick={on_use_policy}>{"Use for params/binds"}</Button>
+                <Button onclick={on_assign_rate_limit}>{"Use for rate-limit assign"}</Button>
+            </div>
+        </div>
+    }
+}
+
+fn render_rate_limit_inventory_item(
+    item: &RateLimitPolicyListItemResponse,
+    on_use_policy: Callback<MouseEvent>,
+    on_assign_indexer: Callback<MouseEvent>,
+    on_assign_routing: Callback<MouseEvent>,
+) -> Html {
+    let system_badge = if item.is_system {
+        html! { <span class="badge badge-outline">{"system"}</span> }
+    } else {
+        Html::default()
+    };
+
+    html! {
+        <div class="rounded-box border border-base-300 bg-base-200/40 p-3">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                    <div class="font-semibold">{item.display_name.clone()}</div>
+                    <div class="text-sm text-base-content/70">
+                        {format!(
+                            "rpm {} | burst {} | concurrent {}",
+                            item.requests_per_minute, item.burst, item.concurrent_requests
+                        )}
+                    </div>
+                </div>
+                {system_badge}
+            </div>
+            <div class="mt-2 text-xs font-mono break-all text-base-content/60">
+                {item.rate_limit_policy_public_id.to_string()}
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+                <Button onclick={on_use_policy}>{"Use for update/delete"}</Button>
+                <Button onclick={on_assign_indexer}>{"Assign to indexer"}</Button>
+                <Button onclick={on_assign_routing}>{"Assign to routing"}</Button>
+            </div>
+        </div>
+    }
+}
+
+fn render_indexer_instance_inventory_item(
+    item: &IndexerInstanceListItemResponse,
+    on_use_instance: Callback<MouseEvent>,
+    on_use_rss: Callback<MouseEvent>,
+    on_use_assignment: Callback<MouseEvent>,
+) -> Html {
+    html! {
+        <div class="rounded-box border border-base-300 bg-base-200/40 p-3">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+                <div>
+                    <div class="font-semibold">{item.display_name.clone()}</div>
+                    <div class="text-sm text-base-content/70">
+                        {format!(
+                            "{} | rss {} | auto {} | interactive {}",
+                            item.upstream_slug,
+                            item.rss_status,
+                            item.automatic_search_status,
+                            item.interactive_search_status
+                        )}
+                    </div>
+                </div>
+                <div class="text-xs font-mono break-all text-base-content/60">
+                    {item.indexer_instance_public_id.to_string()}
+                </div>
+            </div>
+            <div class="mt-2 grid gap-2 text-sm text-base-content/70 md:grid-cols-2">
+                <div>{format!("status: {} | priority {}", item.instance_status, item.priority)}</div>
+                <div>{format!("trust: {}", item.trust_tier_key.clone().unwrap_or_else(|| "none".to_string()))}</div>
+                <div>{format!("domains: {}", item.media_domain_keys.join(", "))}</div>
+                <div>{format!("tags: {}", item.tag_keys.join(", "))}</div>
+            </div>
+            <div class="mt-3 flex flex-wrap gap-2">
+                <Button onclick={on_use_instance}>{"Use for update/fields"}</Button>
+                <Button onclick={on_use_rss}>{"Use for RSS/test"}</Button>
+                <Button onclick={on_use_assignment}>{"Use for rate-limit assign"}</Button>
             </div>
         </div>
     }
@@ -3302,11 +3572,15 @@ fn health_notifications_section(props: &HealthNotificationsSectionProps) -> Html
 struct RoutingRateLimitSectionProps {
     draft: UseStateHandle<IndexersDraft>,
     routing_policy: RoutingPolicyState,
+    routing_inventory: RoutingPolicyInventoryState,
+    rate_limit_inventory: RateLimitInventoryState,
     busy: bool,
+    on_fetch_routing_inventory: Callback<MouseEvent>,
     on_fetch_routing: Callback<MouseEvent>,
     on_create_routing: Callback<MouseEvent>,
     on_set_routing_param: Callback<MouseEvent>,
     on_bind_routing_secret: Callback<MouseEvent>,
+    on_fetch_rate_limits: Callback<MouseEvent>,
     on_create_rate_limit: Callback<MouseEvent>,
     on_update_rate_limit: Callback<MouseEvent>,
     on_delete_rate_limit: Callback<MouseEvent>,
@@ -3361,6 +3635,65 @@ fn routing_rate_limit_section(props: &RoutingRateLimitSectionProps) -> Html {
     let on_rl_routing = text_callback(props.draft.clone(), |draft, value| {
         draft.rate_limit_routing_public_id = value;
     });
+    let routing_inventory = props.routing_inventory.items.iter().map(|item| {
+        let draft = props.draft.clone();
+        let routing_policy_public_id = item.routing_policy_public_id;
+        let display_name = item.display_name.clone();
+        let mode = item.mode.clone();
+        let on_use_policy = Callback::from(move |_| {
+            let mut next = (*draft).clone();
+            next.routing_policy_public_id = routing_policy_public_id.to_string();
+            next.routing_display_name = display_name.clone();
+            next.routing_mode = mode.clone();
+            draft.set(next);
+        });
+
+        let draft = props.draft.clone();
+        let routing_policy_public_id = item.routing_policy_public_id;
+        let on_assign_rate_limit = Callback::from(move |_| {
+            let mut next = (*draft).clone();
+            next.routing_policy_public_id = routing_policy_public_id.to_string();
+            next.rate_limit_routing_public_id = routing_policy_public_id.to_string();
+            draft.set(next);
+        });
+
+        render_routing_inventory_item(item, on_use_policy, on_assign_rate_limit)
+    });
+    let rate_limit_inventory = props.rate_limit_inventory.items.iter().map(|item| {
+        let draft = props.draft.clone();
+        let policy_public_id = item.rate_limit_policy_public_id;
+        let display_name = item.display_name.clone();
+        let rpm = item.requests_per_minute.to_string();
+        let burst = item.burst.to_string();
+        let concurrent = item.concurrent_requests.to_string();
+        let on_use_policy = Callback::from(move |_| {
+            let mut next = (*draft).clone();
+            next.rate_limit_public_id = policy_public_id.to_string();
+            next.rate_limit_display_name = display_name.clone();
+            next.rate_limit_rpm = rpm.clone();
+            next.rate_limit_burst = burst.clone();
+            next.rate_limit_concurrent = concurrent.clone();
+            draft.set(next);
+        });
+
+        let draft = props.draft.clone();
+        let policy_public_id = item.rate_limit_policy_public_id;
+        let on_assign_indexer = Callback::from(move |_| {
+            let mut next = (*draft).clone();
+            next.rate_limit_public_id = policy_public_id.to_string();
+            draft.set(next);
+        });
+
+        let draft = props.draft.clone();
+        let policy_public_id = item.rate_limit_policy_public_id;
+        let on_assign_routing = Callback::from(move |_| {
+            let mut next = (*draft).clone();
+            next.rate_limit_public_id = policy_public_id.to_string();
+            draft.set(next);
+        });
+
+        render_rate_limit_inventory_item(item, on_use_policy, on_assign_indexer, on_assign_routing)
+    });
     card(
         "Routing and rate limits",
         html! {
@@ -3394,11 +3727,19 @@ fn routing_rate_limit_section(props: &RoutingRateLimitSectionProps) -> Html {
                         <Input value={props.draft.routing_secret_public_id.clone()} oninput={on_routing_secret} disabled={props.busy} class={classes!("w-full")} />
                     })}
                     <div class="flex flex-wrap gap-2">
+                        <Button onclick={props.on_fetch_routing_inventory.clone()} disabled={props.busy}>{"Fetch routing inventory"}</Button>
                         <Button onclick={props.on_fetch_routing.clone()} disabled={props.busy}>{"Fetch routing policy"}</Button>
                         <Button onclick={props.on_create_routing.clone()} disabled={props.busy}>{"Create routing policy"}</Button>
                         <Button onclick={props.on_set_routing_param.clone()} disabled={props.busy}>{"Set parameter"}</Button>
                         <Button onclick={props.on_bind_routing_secret.clone()} disabled={props.busy}>{"Bind secret"}</Button>
                     </div>
+                    {
+                        if props.routing_inventory.items.is_empty() {
+                            Html::default()
+                        } else {
+                            html! { <div class="grid gap-3">{for routing_inventory}</div> }
+                        }
+                    }
                     {
                         if let Some(detail) = props.routing_policy.detail.as_ref() {
                             render_routing_policy_detail(detail)
@@ -3439,12 +3780,20 @@ fn routing_rate_limit_section(props: &RoutingRateLimitSectionProps) -> Html {
                         })}
                     </div>
                     <div class="flex flex-wrap gap-2">
+                        <Button onclick={props.on_fetch_rate_limits.clone()} disabled={props.busy}>{"Fetch rate limits"}</Button>
                         <Button onclick={props.on_create_rate_limit.clone()} disabled={props.busy}>{"Create rate limit"}</Button>
                         <Button onclick={props.on_update_rate_limit.clone()} disabled={props.busy}>{"Update rate limit"}</Button>
                         <Button onclick={props.on_delete_rate_limit.clone()} disabled={props.busy}>{"Delete rate limit"}</Button>
                         <Button onclick={props.on_assign_indexer.clone()} disabled={props.busy}>{"Assign to indexer"}</Button>
                         <Button onclick={props.on_assign_routing.clone()} disabled={props.busy}>{"Assign to routing"}</Button>
                     </div>
+                    {
+                        if props.rate_limit_inventory.items.is_empty() {
+                            Html::default()
+                        } else {
+                            html! { <div class="grid gap-3">{for rate_limit_inventory}</div> }
+                        }
+                    }
                 </div>
             </div>
         },
@@ -3454,9 +3803,11 @@ fn routing_rate_limit_section(props: &RoutingRateLimitSectionProps) -> Html {
 #[derive(Properties, PartialEq)]
 struct InstancesSectionProps {
     draft: UseStateHandle<IndexersDraft>,
+    instances: IndexerInstanceInventoryState,
     connectivity: ConnectivityInsightsState,
     health_events: HealthEventsState,
     busy: bool,
+    on_fetch_instances: Callback<MouseEvent>,
     on_create_instance: Callback<MouseEvent>,
     on_update_instance: Callback<MouseEvent>,
     on_fetch_rss_subscription: Callback<MouseEvent>,
@@ -3599,10 +3950,67 @@ fn instances_section(props: &InstancesSectionProps) -> Html {
     let on_test_count = text_callback(props.draft.clone(), |draft, value| {
         draft.test_result_count = value;
     });
+    let instance_inventory = props.instances.items.iter().map(|item| {
+        let draft = props.draft.clone();
+        let item_clone = item.clone();
+        let on_use_instance = Callback::from(move |_| {
+            let mut next = (*draft).clone();
+            next.indexer_instance_public_id = item_clone.indexer_instance_public_id.to_string();
+            next.indexer_definition_upstream_slug = item_clone.upstream_slug.clone();
+            next.indexer_display_name = item_clone.display_name.clone();
+            next.indexer_priority = item_clone.priority.to_string();
+            next.indexer_trust_tier_key = item_clone.trust_tier_key.clone().unwrap_or_default();
+            next.indexer_routing_policy_public_id = item_clone
+                .routing_policy_public_id
+                .map(|value| value.to_string())
+                .unwrap_or_default();
+            next.indexer_is_enabled = item_clone.instance_status == "enabled";
+            next.indexer_enable_rss = item_clone.rss_status == "enabled";
+            next.indexer_enable_automatic_search = item_clone.automatic_search_status == "enabled";
+            next.indexer_enable_interactive_search =
+                item_clone.interactive_search_status == "enabled";
+            next.indexer_media_domain_keys = item_clone.media_domain_keys.join(", ");
+            next.indexer_tag_keys = item_clone.tag_keys.join(", ");
+            draft.set(next);
+        });
+
+        let draft = props.draft.clone();
+        let item_clone = item.clone();
+        let on_use_rss = Callback::from(move |_| {
+            let mut next = (*draft).clone();
+            next.indexer_instance_public_id = item_clone.indexer_instance_public_id.to_string();
+            next.indexer_rss_interval_seconds = item_clone
+                .rss_interval_seconds
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "900".to_string());
+            draft.set(next);
+        });
+
+        let draft = props.draft.clone();
+        let item_clone = item.clone();
+        let on_use_assignment = Callback::from(move |_| {
+            let mut next = (*draft).clone();
+            next.indexer_instance_public_id = item_clone.indexer_instance_public_id.to_string();
+            next.rate_limit_indexer_public_id = item_clone.indexer_instance_public_id.to_string();
+            draft.set(next);
+        });
+
+        render_indexer_instance_inventory_item(item, on_use_instance, on_use_rss, on_use_assignment)
+    });
     card(
         "Indexer instances",
         html! {
             <div class="space-y-4">
+                <div class="flex flex-wrap gap-2">
+                    <Button onclick={props.on_fetch_instances.clone()} disabled={props.busy}>{"Fetch instances"}</Button>
+                </div>
+                {
+                    if props.instances.items.is_empty() {
+                        Html::default()
+                    } else {
+                        html! { <div class="grid gap-3">{for instance_inventory}</div> }
+                    }
+                }
                 <div class="grid gap-4 xl:grid-cols-3">
                     {field("Definition upstream slug", "Use a catalog slug from the catalog section above.", html! {
                         <Input value={props.draft.indexer_definition_upstream_slug.clone()} oninput={on_definition} disabled={props.busy} class={classes!("w-full")} />

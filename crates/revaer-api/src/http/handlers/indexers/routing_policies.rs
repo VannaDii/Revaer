@@ -15,12 +15,13 @@ use crate::app::state::ApiState;
 use crate::http::errors::ApiError;
 use crate::http::handlers::indexers::SYSTEM_ACTOR_PUBLIC_ID;
 use crate::models::{
-    RoutingPolicyCreateRequest, RoutingPolicyDetailResponse, RoutingPolicyParamSetRequest,
-    RoutingPolicyResponse, RoutingPolicySecretBindRequest,
+    RoutingPolicyCreateRequest, RoutingPolicyDetailResponse, RoutingPolicyListResponse,
+    RoutingPolicyParamSetRequest, RoutingPolicyResponse, RoutingPolicySecretBindRequest,
 };
 
 const ROUTING_POLICY_CREATE_FAILED: &str = "failed to create routing policy";
 const ROUTING_POLICY_GET_FAILED: &str = "failed to fetch routing policy";
+const ROUTING_POLICY_LIST_FAILED: &str = "failed to fetch routing policies";
 const ROUTING_POLICY_PARAM_SET_FAILED: &str = "failed to set routing policy parameter";
 const ROUTING_POLICY_BIND_SECRET_FAILED: &str = "failed to bind routing policy secret";
 
@@ -61,6 +62,20 @@ pub(crate) async fn get_routing_policy(
         })?;
 
     Ok(Json(response))
+}
+
+pub(crate) async fn list_routing_policies(
+    State(state): State<Arc<ApiState>>,
+) -> Result<Json<RoutingPolicyListResponse>, ApiError> {
+    let routing_policies = state
+        .indexers
+        .routing_policy_list(SYSTEM_ACTOR_PUBLIC_ID)
+        .await
+        .map_err(|err| {
+            map_routing_policy_error("routing_policy_list", ROUTING_POLICY_LIST_FAILED, &err)
+        })?;
+
+    Ok(Json(RoutingPolicyListResponse { routing_policies }))
 }
 
 pub(crate) async fn set_routing_policy_param(

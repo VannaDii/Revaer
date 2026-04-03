@@ -24,11 +24,13 @@ use crate::http::handlers::indexers::normalization::{
 use crate::models::{
     IndexerCfStateResetRequest, IndexerCfStateResponse, IndexerInstanceCreateRequest,
     IndexerInstanceFieldSecretBindRequest, IndexerInstanceFieldValueRequest,
-    IndexerInstanceMediaDomainsRequest, IndexerInstanceResponse, IndexerInstanceTagsRequest,
-    IndexerInstanceTestFinalizeRequest, IndexerInstanceTestFinalizeResponse,
-    IndexerInstanceTestPrepareResponse, IndexerInstanceUpdateRequest,
+    IndexerInstanceListResponse, IndexerInstanceMediaDomainsRequest, IndexerInstanceResponse,
+    IndexerInstanceTagsRequest, IndexerInstanceTestFinalizeRequest,
+    IndexerInstanceTestFinalizeResponse, IndexerInstanceTestPrepareResponse,
+    IndexerInstanceUpdateRequest,
 };
 
+const INSTANCE_LIST_FAILED: &str = "failed to fetch indexer instances";
 const INSTANCE_CREATE_FAILED: &str = "failed to create indexer instance";
 const INSTANCE_UPDATE_FAILED: &str = "failed to update indexer instance";
 const INSTANCE_MEDIA_DOMAINS_FAILED: &str = "failed to set media domains";
@@ -74,6 +76,18 @@ pub(crate) async fn create_indexer_instance(
             indexer_instance_public_id,
         }),
     ))
+}
+
+pub(crate) async fn list_indexer_instances(
+    State(state): State<Arc<ApiState>>,
+) -> Result<Json<IndexerInstanceListResponse>, ApiError> {
+    let indexer_instances = state
+        .indexers
+        .indexer_instance_list(SYSTEM_ACTOR_PUBLIC_ID)
+        .await
+        .map_err(|err| map_instance_error("indexer_instance_list", INSTANCE_LIST_FAILED, &err))?;
+
+    Ok(Json(IndexerInstanceListResponse { indexer_instances }))
 }
 
 pub(crate) async fn update_indexer_instance(

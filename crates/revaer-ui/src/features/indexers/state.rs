@@ -9,9 +9,10 @@ use crate::models::{
     CardigannDefinitionImportResponse, ImportJobResultResponse, ImportJobStatusResponse,
     IndexerBackupSnapshot, IndexerBackupUnresolvedSecretBinding,
     IndexerConnectivityProfileResponse, IndexerDefinitionResponse, IndexerHealthEventResponse,
-    IndexerHealthNotificationHookResponse, IndexerSourceMetadataConflictResponse,
-    IndexerSourceReputationResponse, RoutingPolicyDetailResponse, SecretMetadataResponse,
-    TagListItemResponse,
+    IndexerHealthNotificationHookResponse, IndexerInstanceListItemResponse,
+    IndexerSourceMetadataConflictResponse, IndexerSourceReputationResponse,
+    RateLimitPolicyListItemResponse, RoutingPolicyDetailResponse, RoutingPolicyListItemResponse,
+    SecretMetadataResponse, TagListItemResponse,
 };
 use serde::Serialize;
 use uuid::Uuid;
@@ -276,6 +277,21 @@ pub(crate) struct DefinitionsState {
 #[derive(Clone, PartialEq, Eq, Default)]
 pub(crate) struct RoutingPolicyState {
     pub detail: Option<RoutingPolicyDetailResponse>,
+}
+
+#[derive(Clone, PartialEq, Eq, Default)]
+pub(crate) struct RoutingPolicyInventoryState {
+    pub items: Vec<RoutingPolicyListItemResponse>,
+}
+
+#[derive(Clone, PartialEq, Eq, Default)]
+pub(crate) struct RateLimitInventoryState {
+    pub items: Vec<RateLimitPolicyListItemResponse>,
+}
+
+#[derive(Clone, PartialEq, Eq, Default)]
+pub(crate) struct IndexerInstanceInventoryState {
+    pub items: Vec<IndexerInstanceListItemResponse>,
 }
 
 #[derive(Clone, PartialEq, Eq, Default)]

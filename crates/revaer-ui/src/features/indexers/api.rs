@@ -21,24 +21,26 @@ use crate::models::{
     IndexerHealthNotificationHookListResponse, IndexerHealthNotificationHookResponse,
     IndexerHealthNotificationHookUpdateRequest, IndexerInstanceCreateRequest,
     IndexerInstanceFieldSecretBindRequest, IndexerInstanceFieldValueRequest,
-    IndexerInstanceMediaDomainsRequest, IndexerInstanceResponse, IndexerInstanceTagsRequest,
-    IndexerInstanceTestFinalizeRequest, IndexerInstanceTestFinalizeResponse,
-    IndexerInstanceTestPrepareResponse, IndexerInstanceUpdateRequest, IndexerRssSeenItemsResponse,
-    IndexerRssSeenMarkRequest, IndexerRssSeenMarkResponse, IndexerRssSubscriptionResponse,
+    IndexerInstanceListResponse, IndexerInstanceMediaDomainsRequest, IndexerInstanceResponse,
+    IndexerInstanceTagsRequest, IndexerInstanceTestFinalizeRequest,
+    IndexerInstanceTestFinalizeResponse, IndexerInstanceTestPrepareResponse,
+    IndexerInstanceUpdateRequest, IndexerRssSeenItemsResponse, IndexerRssSeenMarkRequest,
+    IndexerRssSeenMarkResponse, IndexerRssSubscriptionResponse,
     IndexerRssSubscriptionUpdateRequest, IndexerSourceMetadataConflictListResponse,
     IndexerSourceMetadataConflictReopenRequest, IndexerSourceMetadataConflictResolveRequest,
     IndexerSourceReputationListResponse, PolicyRuleCreateRequest, PolicyRuleResponse,
     PolicyRuleValueItemRequest, PolicySetCreateRequest, PolicySetResponse,
-    RateLimitPolicyAssignmentRequest, RateLimitPolicyCreateRequest, RateLimitPolicyResponse,
-    RateLimitPolicyUpdateRequest, RoutingPolicyCreateRequest, RoutingPolicyDetailResponse,
-    RoutingPolicyParamSetRequest, RoutingPolicyResponse, RoutingPolicySecretBindRequest,
-    SearchProfileCreateRequest, SearchProfileDefaultDomainRequest,
-    SearchProfileDomainAllowlistRequest, SearchProfileIndexerSetRequest,
-    SearchProfilePolicySetRequest, SearchProfileResponse, SearchProfileTagSetRequest,
-    SearchProfileUpdateRequest, SecretCreateRequest, SecretMetadataListResponse, SecretResponse,
-    TagCreateRequest, TagDeleteRequest, TagListResponse, TagResponse, TagUpdateRequest,
-    TorznabInstanceCreateRequest, TorznabInstanceResponse, TorznabInstanceStateRequest,
-    TrackerCategoryMappingDeleteRequest, TrackerCategoryMappingUpsertRequest,
+    RateLimitPolicyAssignmentRequest, RateLimitPolicyCreateRequest, RateLimitPolicyListResponse,
+    RateLimitPolicyResponse, RateLimitPolicyUpdateRequest, RoutingPolicyCreateRequest,
+    RoutingPolicyDetailResponse, RoutingPolicyListResponse, RoutingPolicyParamSetRequest,
+    RoutingPolicyResponse, RoutingPolicySecretBindRequest, SearchProfileCreateRequest,
+    SearchProfileDefaultDomainRequest, SearchProfileDomainAllowlistRequest,
+    SearchProfileIndexerSetRequest, SearchProfilePolicySetRequest, SearchProfileResponse,
+    SearchProfileTagSetRequest, SearchProfileUpdateRequest, SecretCreateRequest,
+    SecretMetadataListResponse, SecretResponse, TagCreateRequest, TagDeleteRequest,
+    TagListResponse, TagResponse, TagUpdateRequest, TorznabInstanceCreateRequest,
+    TorznabInstanceResponse, TorznabInstanceStateRequest, TrackerCategoryMappingDeleteRequest,
+    TrackerCategoryMappingUpsertRequest,
 };
 use crate::services::api::{ApiClient, ApiError};
 
@@ -267,6 +269,15 @@ pub(crate) async fn create_routing_policy(
         .map_err(|err| err.to_string())
 }
 
+pub(crate) async fn fetch_routing_policies(
+    client: &ApiClient,
+) -> Result<RoutingPolicyListResponse, String> {
+    client
+        .get_api("/v1/indexers/routing-policies")
+        .await
+        .map_err(|err| err.to_string())
+}
+
 pub(crate) async fn fetch_routing_policy(
     client: &ApiClient,
     draft: &IndexersDraft,
@@ -330,6 +341,15 @@ pub(crate) async fn create_rate_limit_policy(
     };
     client
         .post_api("/v1/indexers/rate-limits", &request)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+pub(crate) async fn fetch_rate_limit_policies(
+    client: &ApiClient,
+) -> Result<RateLimitPolicyListResponse, String> {
+    client
+        .get_api("/v1/indexers/rate-limits")
         .await
         .map_err(|err| err.to_string())
 }
@@ -465,6 +485,15 @@ pub(crate) async fn create_indexer_instance(
     };
     client
         .post_api("/v1/indexers/instances", &request)
+        .await
+        .map_err(|err| err.to_string())
+}
+
+pub(crate) async fn fetch_indexer_instances(
+    client: &ApiClient,
+) -> Result<IndexerInstanceListResponse, String> {
+    client
+        .get_api("/v1/indexers/instances")
         .await
         .map_err(|err| err.to_string())
 }

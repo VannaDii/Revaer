@@ -19,10 +19,11 @@ use crate::http::errors::ApiError;
 use crate::http::handlers::indexers::SYSTEM_ACTOR_PUBLIC_ID;
 use crate::http::handlers::indexers::normalization::trim_and_filter_empty;
 use crate::models::{
-    RateLimitPolicyAssignmentRequest, RateLimitPolicyCreateRequest, RateLimitPolicyResponse,
-    RateLimitPolicyUpdateRequest,
+    RateLimitPolicyAssignmentRequest, RateLimitPolicyCreateRequest, RateLimitPolicyListResponse,
+    RateLimitPolicyResponse, RateLimitPolicyUpdateRequest,
 };
 
+const RATE_LIMIT_LIST_FAILED: &str = "failed to fetch rate limit policies";
 const RATE_LIMIT_CREATE_FAILED: &str = "failed to create rate limit policy";
 const RATE_LIMIT_UPDATE_FAILED: &str = "failed to update rate limit policy";
 const RATE_LIMIT_DELETE_FAILED: &str = "failed to delete rate limit policy";
@@ -53,6 +54,22 @@ pub(crate) async fn create_rate_limit_policy(
             rate_limit_policy_public_id,
         }),
     ))
+}
+
+pub(crate) async fn list_rate_limit_policies(
+    State(state): State<Arc<ApiState>>,
+) -> Result<Json<RateLimitPolicyListResponse>, ApiError> {
+    let rate_limit_policies = state
+        .indexers
+        .rate_limit_policy_list(SYSTEM_ACTOR_PUBLIC_ID)
+        .await
+        .map_err(|err| {
+            map_rate_limit_error("rate_limit_policy_list", RATE_LIMIT_LIST_FAILED, &err)
+        })?;
+
+    Ok(Json(RateLimitPolicyListResponse {
+        rate_limit_policies,
+    }))
 }
 
 pub(crate) async fn update_rate_limit_policy(

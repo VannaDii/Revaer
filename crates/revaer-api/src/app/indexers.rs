@@ -16,11 +16,13 @@ use crate::models::{
     CardigannDefinitionImportResponse, ImportJobResultResponse, ImportJobStatusResponse,
     IndexerBackupExportResponse, IndexerBackupRestoreResponse, IndexerCfStateResponse,
     IndexerConnectivityProfileResponse, IndexerDefinitionResponse, IndexerHealthEventResponse,
-    IndexerHealthNotificationHookResponse, IndexerInstanceTestFinalizeResponse,
-    IndexerInstanceTestPrepareResponse, IndexerRssSeenItemResponse, IndexerRssSeenMarkResponse,
-    IndexerRssSubscriptionResponse, IndexerSourceMetadataConflictResponse,
-    IndexerSourceReputationResponse, RoutingPolicyDetailResponse, SearchPageListResponse,
-    SearchPageResponse, SearchRequestCreateResponse, SecretMetadataResponse, TagListItemResponse,
+    IndexerHealthNotificationHookResponse, IndexerInstanceListItemResponse,
+    IndexerInstanceTestFinalizeResponse, IndexerInstanceTestPrepareResponse,
+    IndexerRssSeenItemResponse, IndexerRssSeenMarkResponse, IndexerRssSubscriptionResponse,
+    IndexerSourceMetadataConflictResponse, IndexerSourceReputationResponse,
+    RateLimitPolicyListItemResponse, RoutingPolicyDetailResponse, RoutingPolicyListItemResponse,
+    SearchPageListResponse, SearchPageResponse, SearchRequestCreateResponse,
+    SecretMetadataResponse, TagListItemResponse,
 };
 
 /// Parameters for updating an indexer instance.
@@ -509,6 +511,15 @@ pub trait IndexerFacade: Send + Sync {
             RoutingPolicyServiceErrorKind::Storage,
         ))
     }
+    /// List routing policies for operator inventory flows.
+    async fn routing_policy_list(
+        &self,
+        _actor_user_public_id: Uuid,
+    ) -> Result<Vec<RoutingPolicyListItemResponse>, RoutingPolicyServiceError> {
+        Err(RoutingPolicyServiceError::new(
+            RoutingPolicyServiceErrorKind::Storage,
+        ))
+    }
     /// Create a new rate limit policy and return its public identifier.
     async fn rate_limit_policy_create(
         &self,
@@ -548,6 +559,15 @@ pub trait IndexerFacade: Send + Sync {
         routing_policy_public_id: Uuid,
         rate_limit_policy_public_id: Option<Uuid>,
     ) -> Result<(), RateLimitPolicyServiceError>;
+    /// List rate-limit policies for operator inventory flows.
+    async fn rate_limit_policy_list(
+        &self,
+        _actor_user_public_id: Uuid,
+    ) -> Result<Vec<RateLimitPolicyListItemResponse>, RateLimitPolicyServiceError> {
+        Err(RateLimitPolicyServiceError::new(
+            RateLimitPolicyServiceErrorKind::Storage,
+        ))
+    }
     /// Create a search profile and return its public identifier.
     async fn search_profile_create(
         &self,
@@ -963,6 +983,15 @@ pub trait IndexerFacade: Send + Sync {
         &self,
         params: IndexerInstanceUpdateParams<'_>,
     ) -> Result<Uuid, IndexerInstanceServiceError>;
+    /// List indexer instances for operator inventory flows.
+    async fn indexer_instance_list(
+        &self,
+        _actor_user_public_id: Uuid,
+    ) -> Result<Vec<IndexerInstanceListItemResponse>, IndexerInstanceServiceError> {
+        Err(IndexerInstanceServiceError::new(
+            IndexerInstanceServiceErrorKind::Storage,
+        ))
+    }
     /// Replace media domain assignments for an indexer instance.
     async fn indexer_instance_set_media_domains(
         &self,

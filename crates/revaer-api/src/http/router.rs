@@ -635,7 +635,8 @@ impl ApiServer {
         Router::new()
             .route(
                 "/v1/indexers/routing-policies",
-                post(indexer_handlers::create_routing_policy),
+                get(indexer_handlers::list_routing_policies)
+                    .post(indexer_handlers::create_routing_policy),
             )
             .route(
                 "/v1/indexers/routing-policies/{routing_policy_public_id}",
@@ -662,7 +663,8 @@ impl ApiServer {
         Router::new()
             .route(
                 "/v1/indexers/rate-limits",
-                post(indexer_handlers::create_rate_limit_policy),
+                get(indexer_handlers::list_rate_limit_policies)
+                    .post(indexer_handlers::create_rate_limit_policy),
             )
             .route(
                 "/v1/indexers/rate-limits/{rate_limit_policy_public_id}",
@@ -682,7 +684,8 @@ impl ApiServer {
         Router::new()
             .route(
                 "/v1/indexers/instances",
-                post(indexer_handlers::create_indexer_instance),
+                get(indexer_handlers::list_indexer_instances)
+                    .post(indexer_handlers::create_indexer_instance),
             )
             .route(
                 "/v1/indexers/instances/{indexer_instance_public_id}",

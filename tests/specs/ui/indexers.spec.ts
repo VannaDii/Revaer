@@ -33,6 +33,15 @@ test.describe('Indexers', () => {
       page.getByRole('button', { name: 'Fetch routing policy' }),
     ).toBeVisible();
     await expect(
+      page.getByRole('button', { name: 'Fetch routing inventory' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Fetch rate limits' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Fetch instances' }),
+    ).toBeVisible();
+    await expect(
       page.getByRole('button', { name: 'Fetch source reputation' }),
     ).toBeVisible();
     await expect(

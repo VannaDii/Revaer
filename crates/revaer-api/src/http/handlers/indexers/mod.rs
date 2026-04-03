@@ -62,9 +62,9 @@ pub(crate) use import_jobs::{
 };
 pub(crate) use instances::{
     bind_indexer_instance_field_secret, create_indexer_instance, finalize_indexer_instance_test,
-    get_indexer_instance_cf_state, prepare_indexer_instance_test, reset_indexer_instance_cf_state,
-    set_indexer_instance_field_value, set_indexer_instance_media_domains,
-    set_indexer_instance_tags, update_indexer_instance,
+    get_indexer_instance_cf_state, list_indexer_instances, prepare_indexer_instance_test,
+    reset_indexer_instance_cf_state, set_indexer_instance_field_value,
+    set_indexer_instance_media_domains, set_indexer_instance_tags, update_indexer_instance,
 };
 pub(crate) use notifications::{
     create_health_notification_hook, delete_health_notification_hook,
@@ -76,11 +76,12 @@ pub(crate) use policies::{
     update_policy_set,
 };
 pub(crate) use rate_limits::{
-    create_rate_limit_policy, delete_rate_limit_policy, set_indexer_instance_rate_limit,
-    set_routing_policy_rate_limit, update_rate_limit_policy,
+    create_rate_limit_policy, delete_rate_limit_policy, list_rate_limit_policies,
+    set_indexer_instance_rate_limit, set_routing_policy_rate_limit, update_rate_limit_policy,
 };
 pub(crate) use routing_policies::{
-    bind_routing_policy_secret, create_routing_policy, get_routing_policy, set_routing_policy_param,
+    bind_routing_policy_secret, create_routing_policy, get_routing_policy, list_routing_policies,
+    set_routing_policy_param,
 };
 pub(crate) use rss::{
     get_indexer_rss_items, get_indexer_rss_subscription, mark_indexer_rss_item_seen,

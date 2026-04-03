@@ -390,6 +390,30 @@ pub struct RateLimitPolicyResponse {
     pub rate_limit_policy_public_id: Uuid,
 }
 
+/// Rate-limit policy inventory item for operator read/list surfaces.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RateLimitPolicyListItemResponse {
+    /// Rate-limit policy public identifier.
+    pub rate_limit_policy_public_id: Uuid,
+    /// Operator-facing display name.
+    pub display_name: String,
+    /// Requests-per-minute budget.
+    pub requests_per_minute: i32,
+    /// Burst budget.
+    pub burst: i32,
+    /// Concurrent request budget.
+    pub concurrent_requests: i32,
+    /// Whether the policy is system-seeded.
+    pub is_system: bool,
+}
+
+/// Rate-limit policy list response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RateLimitPolicyListResponse {
+    /// Collection of rate-limit policies.
+    pub rate_limit_policies: Vec<RateLimitPolicyListItemResponse>,
+}
+
 /// Rate limit policy assignment request payload.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RateLimitPolicyAssignmentRequest {
@@ -1313,6 +1337,34 @@ pub struct RoutingPolicyResponse {
     pub mode: String,
 }
 
+/// Routing policy inventory item for operator read/list surfaces.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RoutingPolicyListItemResponse {
+    /// Routing policy public identifier.
+    pub routing_policy_public_id: Uuid,
+    /// Routing policy display name.
+    pub display_name: String,
+    /// Routing policy mode.
+    pub mode: String,
+    /// Optional assigned rate-limit policy public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_policy_public_id: Option<Uuid>,
+    /// Optional assigned rate-limit policy display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_display_name: Option<String>,
+    /// Count of visible parameters on the policy.
+    pub parameter_count: usize,
+    /// Count of secret-backed parameters on the policy.
+    pub secret_binding_count: usize,
+}
+
+/// Routing policy list response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RoutingPolicyListResponse {
+    /// Collection of routing policies.
+    pub routing_policies: Vec<RoutingPolicyListItemResponse>,
+}
+
 /// Routing policy parameter detail returned by the operator read endpoint.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RoutingPolicyParameterResponse {
@@ -1440,6 +1492,91 @@ pub struct IndexerInstanceUpdateRequest {
 pub struct IndexerInstanceResponse {
     /// Indexer instance public identifier.
     pub indexer_instance_public_id: Uuid,
+}
+
+/// Indexer field inventory item surfaced on operator read/list views.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerInstanceFieldInventoryResponse {
+    /// Field name.
+    pub field_name: String,
+    /// Field type label.
+    pub field_type: String,
+    /// Optional plain-text field value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_plain: Option<String>,
+    /// Optional integer field value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_int: Option<i32>,
+    /// Optional decimal field value represented as text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_decimal: Option<String>,
+    /// Optional boolean field value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_bool: Option<bool>,
+    /// Optional bound secret public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret_public_id: Option<Uuid>,
+}
+
+/// Indexer instance inventory item for operator read/list surfaces.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerInstanceListItemResponse {
+    /// Indexer instance public identifier.
+    pub indexer_instance_public_id: Uuid,
+    /// Definition upstream slug.
+    pub upstream_slug: String,
+    /// Human-readable display name.
+    pub display_name: String,
+    /// Instance status (`enabled` or `disabled`).
+    pub instance_status: String,
+    /// RSS setting status (`enabled` or `disabled`).
+    pub rss_status: String,
+    /// Automatic search status (`enabled` or `disabled`).
+    pub automatic_search_status: String,
+    /// Interactive search status (`enabled` or `disabled`).
+    pub interactive_search_status: String,
+    /// Priority override.
+    pub priority: i32,
+    /// Optional trust tier key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trust_tier_key: Option<String>,
+    /// Optional routing policy public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_policy_public_id: Option<Uuid>,
+    /// Optional routing policy display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_policy_display_name: Option<String>,
+    /// Connection timeout in milliseconds.
+    pub connect_timeout_ms: i32,
+    /// Read timeout in milliseconds.
+    pub read_timeout_ms: i32,
+    /// Maximum parallel requests.
+    pub max_parallel_requests: i32,
+    /// Optional directly assigned rate-limit policy public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_policy_public_id: Option<Uuid>,
+    /// Optional directly assigned rate-limit policy display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_display_name: Option<String>,
+    /// Optional RSS subscription enabled state.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rss_subscription_enabled: Option<bool>,
+    /// Optional RSS subscription interval in seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rss_interval_seconds: Option<i32>,
+    /// Assigned media-domain keys.
+    pub media_domain_keys: Vec<String>,
+    /// Assigned tag keys.
+    pub tag_keys: Vec<String>,
+    /// Configured field values and bound secret references.
+    pub fields: Vec<IndexerInstanceFieldInventoryResponse>,
+}
+
+/// Indexer instance list response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerInstanceListResponse {
+    /// Collection of indexer instances.
+    pub indexer_instances: Vec<IndexerInstanceListItemResponse>,
 }
 
 /// RSS subscription update request payload.

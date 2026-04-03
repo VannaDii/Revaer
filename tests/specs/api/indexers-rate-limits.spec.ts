@@ -24,6 +24,16 @@ test.describe('Indexer rate limits', () => {
       throw new Error('Missing rate_limit_policy_public_id');
     }
 
+    const listed = await api.GET('/v1/indexers/rate-limits');
+    expect(listed.response.status).toBe(200);
+    expect(
+      listed.data?.rate_limit_policies.some(
+        (item) =>
+          item.rate_limit_policy_public_id === policyId &&
+          item.display_name === displayName
+      )
+    ).toBe(true);
+
     const update = await api.PATCH('/v1/indexers/rate-limits/{rate_limit_policy_public_id}', {
       params: { path: { rate_limit_policy_public_id: policyId } },
       body: { display_name: `${displayName} Updated`, rpm: 240 },

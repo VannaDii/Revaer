@@ -24,6 +24,16 @@ test.describe('Indexer routing policies', () => {
       throw new Error('Missing routing_policy_public_id');
     }
 
+    const listed = await api.GET('/v1/indexers/routing-policies');
+    expect(listed.response.status).toBe(200);
+    expect(
+      listed.data?.routing_policies.some(
+        (item) =>
+          item.routing_policy_public_id === routingPolicyId &&
+          item.display_name === displayName
+      )
+    ).toBe(true);
+
     const setParam = await api.POST('/v1/indexers/routing-policies/{routing_policy_public_id}/params', {
       params: { path: { routing_policy_public_id: routingPolicyId } },
       body: { param_key: 'proxy_host', value_plain: 'localhost' },

@@ -45,13 +45,14 @@ use revaer_api::models::{
     IndexerBackupSnapshot, IndexerBackupTagItem, IndexerBackupUnresolvedSecretBinding,
     IndexerCfStateResponse, IndexerConnectivityProfileResponse, IndexerDefinitionResponse,
     IndexerHealthEventResponse, IndexerHealthNotificationHookResponse,
+    IndexerInstanceFieldInventoryResponse, IndexerInstanceListItemResponse,
     IndexerInstanceTestFinalizeResponse, IndexerInstanceTestPrepareResponse,
     IndexerRssSeenItemResponse, IndexerRssSeenMarkResponse, IndexerRssSubscriptionResponse,
     IndexerSourceMetadataConflictResponse, IndexerSourceReputationResponse,
-    RoutingPolicyDetailResponse, RoutingPolicyParameterResponse, SearchPageItemResponse,
-    SearchPageListResponse, SearchPageResponse, SearchPageSummaryResponse,
-    SearchRequestCreateResponse, SearchRequestExplainabilityResponse, SecretMetadataResponse,
-    TagListItemResponse,
+    RateLimitPolicyListItemResponse, RoutingPolicyDetailResponse, RoutingPolicyListItemResponse,
+    RoutingPolicyParameterResponse, SearchPageItemResponse, SearchPageListResponse,
+    SearchPageResponse, SearchPageSummaryResponse, SearchRequestCreateResponse,
+    SearchRequestExplainabilityResponse, SecretMetadataResponse, TagListItemResponse,
 };
 use revaer_config::ConfigService;
 use revaer_data::DataError;
@@ -1196,6 +1197,28 @@ impl IndexerFacade for IndexerService {
         })
     }
 
+    async fn routing_policy_list(
+        &self,
+        actor_user_public_id: Uuid,
+    ) -> Result<Vec<RoutingPolicyListItemResponse>, RoutingPolicyServiceError> {
+        let span = info_span!(
+            "indexer.routing_policy_list",
+            actor_user_public_id = %actor_user_public_id
+        );
+        let rows = self
+            .run_operation(
+                "indexer.routing_policy_list",
+                indexer_backup_export_routing_policy_list(self.config.pool(), actor_user_public_id)
+                    .instrument(span),
+                |error| {
+                    map_routing_policy_error("indexer_backup_export_routing_policy_list", error)
+                },
+            )
+            .await?;
+
+        Ok(build_routing_policy_inventory(&rows))
+    }
+
     async fn rate_limit_policy_create(
         &self,
         actor_user_public_id: Uuid,
@@ -1328,6 +1351,44 @@ impl IndexerFacade for IndexerService {
             |error| map_rate_limit_policy_error("routing_policy_set_rate_limit_policy", error),
         )
         .await
+    }
+
+    async fn rate_limit_policy_list(
+        &self,
+        actor_user_public_id: Uuid,
+    ) -> Result<Vec<RateLimitPolicyListItemResponse>, RateLimitPolicyServiceError> {
+        let span = info_span!(
+            "indexer.rate_limit_policy_list",
+            actor_user_public_id = %actor_user_public_id
+        );
+        let rows = self
+            .run_operation(
+                "indexer.rate_limit_policy_list",
+                indexer_backup_export_rate_limit_policy_list(
+                    self.config.pool(),
+                    actor_user_public_id,
+                )
+                .instrument(span),
+                |error| {
+                    map_rate_limit_policy_error(
+                        "indexer_backup_export_rate_limit_policy_list",
+                        error,
+                    )
+                },
+            )
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| RateLimitPolicyListItemResponse {
+                rate_limit_policy_public_id: row.rate_limit_policy_public_id,
+                display_name: row.display_name,
+                requests_per_minute: row.requests_per_minute,
+                burst: row.burst,
+                concurrent_requests: row.concurrent_requests,
+                is_system: row.is_system,
+            })
+            .collect())
     }
 
     async fn search_profile_create(
@@ -2540,6 +2601,31 @@ impl IndexerFacade for IndexerService {
             |error| map_indexer_instance_error("indexer_instance_update", error),
         )
         .await
+    }
+
+    async fn indexer_instance_list(
+        &self,
+        actor_user_public_id: Uuid,
+    ) -> Result<Vec<IndexerInstanceListItemResponse>, IndexerInstanceServiceError> {
+        let span = info_span!(
+            "indexer.instance_list",
+            actor_user_public_id = %actor_user_public_id
+        );
+        let rows = self
+            .run_operation(
+                "indexer.instance_list",
+                indexer_backup_export_indexer_instance_list(
+                    self.config.pool(),
+                    actor_user_public_id,
+                )
+                .instrument(span),
+                |error| {
+                    map_indexer_instance_error("indexer_backup_export_indexer_instance_list", error)
+                },
+            )
+            .await?;
+
+        Ok(build_indexer_instance_inventory(&rows))
     }
 
     async fn indexer_instance_set_media_domains(
@@ -3982,6 +4068,185 @@ fn build_backup_snapshot(
         indexer_instances,
         secrets: secret_refs.into_values().collect(),
     }
+}
+
+fn build_routing_policy_inventory(
+    rows: &[BackupRoutingPolicyRow],
+) -> Vec<RoutingPolicyListItemResponse> {
+    let mut policies = BTreeMap::<Uuid, RoutingPolicyListItemResponse>::new();
+
+    for row in rows {
+        let entry = policies
+            .entry(row.routing_policy_public_id)
+            .or_insert_with(|| RoutingPolicyListItemResponse {
+                routing_policy_public_id: row.routing_policy_public_id,
+                display_name: row.display_name.clone(),
+                mode: row.mode.clone(),
+                rate_limit_policy_public_id: row.rate_limit_policy_public_id,
+                rate_limit_display_name: row.rate_limit_display_name.clone(),
+                parameter_count: 0,
+                secret_binding_count: 0,
+            });
+
+        if row.param_key.is_some() {
+            entry.parameter_count = entry.parameter_count.saturating_add(1);
+        }
+        if row.secret_public_id.is_some() {
+            entry.secret_binding_count = entry.secret_binding_count.saturating_add(1);
+        }
+        if entry.rate_limit_policy_public_id.is_none() {
+            entry.rate_limit_policy_public_id = row.rate_limit_policy_public_id;
+        }
+        if entry.rate_limit_display_name.is_none() {
+            entry
+                .rate_limit_display_name
+                .clone_from(&row.rate_limit_display_name);
+        }
+    }
+
+    let mut items = policies.into_values().collect::<Vec<_>>();
+    items.sort_by(|left, right| left.display_name.cmp(&right.display_name));
+    items
+}
+
+fn build_indexer_instance_inventory(
+    rows: &[BackupIndexerInstanceRow],
+) -> Vec<IndexerInstanceListItemResponse> {
+    let mut instances = BTreeMap::<Uuid, IndexerInstanceListItemResponse>::new();
+    let mut media_domain_keys = BTreeMap::<Uuid, BTreeSet<String>>::new();
+    let mut tag_keys = BTreeMap::<Uuid, BTreeSet<String>>::new();
+    let mut fields =
+        BTreeMap::<Uuid, BTreeMap<String, IndexerInstanceFieldInventoryResponse>>::new();
+
+    for row in rows {
+        update_indexer_instance_inventory_entry(&mut instances, row);
+        insert_indexer_instance_inventory_media_domain(&mut media_domain_keys, row);
+        insert_indexer_instance_inventory_tag(&mut tag_keys, row);
+        insert_indexer_instance_inventory_field(&mut fields, row);
+    }
+
+    for (indexer_instance_public_id, media_domain_set) in media_domain_keys {
+        if let Some(instance) = instances.get_mut(&indexer_instance_public_id) {
+            instance.media_domain_keys = media_domain_set.into_iter().collect();
+        }
+    }
+    for (indexer_instance_public_id, tag_set) in tag_keys {
+        if let Some(instance) = instances.get_mut(&indexer_instance_public_id) {
+            instance.tag_keys = tag_set.into_iter().collect();
+        }
+    }
+    for (indexer_instance_public_id, field_map) in fields {
+        if let Some(instance) = instances.get_mut(&indexer_instance_public_id) {
+            instance.fields = field_map.into_values().collect();
+        }
+    }
+
+    let mut items = instances.into_values().collect::<Vec<_>>();
+    items.sort_by(|left, right| left.display_name.cmp(&right.display_name));
+    items
+}
+
+fn update_indexer_instance_inventory_entry(
+    instances: &mut BTreeMap<Uuid, IndexerInstanceListItemResponse>,
+    row: &BackupIndexerInstanceRow,
+) {
+    let entry = instances
+        .entry(row.indexer_instance_public_id)
+        .or_insert_with(|| IndexerInstanceListItemResponse {
+            indexer_instance_public_id: row.indexer_instance_public_id,
+            upstream_slug: row.upstream_slug.clone(),
+            display_name: row.display_name.clone(),
+            instance_status: row.instance_status.clone(),
+            rss_status: row.rss_status.clone(),
+            automatic_search_status: row.automatic_search_status.clone(),
+            interactive_search_status: row.interactive_search_status.clone(),
+            priority: row.priority,
+            trust_tier_key: row.trust_tier_key.clone(),
+            routing_policy_public_id: row.routing_policy_public_id,
+            routing_policy_display_name: row.routing_policy_display_name.clone(),
+            connect_timeout_ms: row.connect_timeout_ms,
+            read_timeout_ms: row.read_timeout_ms,
+            max_parallel_requests: row.max_parallel_requests,
+            rate_limit_policy_public_id: row.rate_limit_policy_public_id,
+            rate_limit_display_name: row.rate_limit_display_name.clone(),
+            rss_subscription_enabled: row.rss_subscription_enabled,
+            rss_interval_seconds: row.rss_interval_seconds,
+            media_domain_keys: Vec::new(),
+            tag_keys: Vec::new(),
+            fields: Vec::new(),
+        });
+
+    if entry.routing_policy_public_id.is_none() {
+        entry.routing_policy_public_id = row.routing_policy_public_id;
+    }
+    if entry.routing_policy_display_name.is_none() {
+        entry
+            .routing_policy_display_name
+            .clone_from(&row.routing_policy_display_name);
+    }
+    if entry.rate_limit_policy_public_id.is_none() {
+        entry.rate_limit_policy_public_id = row.rate_limit_policy_public_id;
+    }
+    if entry.rate_limit_display_name.is_none() {
+        entry
+            .rate_limit_display_name
+            .clone_from(&row.rate_limit_display_name);
+    }
+    if entry.rss_subscription_enabled.is_none() {
+        entry.rss_subscription_enabled = row.rss_subscription_enabled;
+    }
+    if entry.rss_interval_seconds.is_none() {
+        entry.rss_interval_seconds = row.rss_interval_seconds;
+    }
+}
+
+fn insert_indexer_instance_inventory_media_domain(
+    media_domain_keys: &mut BTreeMap<Uuid, BTreeSet<String>>,
+    row: &BackupIndexerInstanceRow,
+) {
+    if let Some(media_domain_key) = row.media_domain_key.clone() {
+        media_domain_keys
+            .entry(row.indexer_instance_public_id)
+            .or_default()
+            .insert(media_domain_key);
+    }
+}
+
+fn insert_indexer_instance_inventory_tag(
+    tag_keys: &mut BTreeMap<Uuid, BTreeSet<String>>,
+    row: &BackupIndexerInstanceRow,
+) {
+    if let Some(tag_key) = row.tag_key.clone() {
+        tag_keys
+            .entry(row.indexer_instance_public_id)
+            .or_default()
+            .insert(tag_key);
+    }
+}
+
+fn insert_indexer_instance_inventory_field(
+    fields: &mut BTreeMap<Uuid, BTreeMap<String, IndexerInstanceFieldInventoryResponse>>,
+    row: &BackupIndexerInstanceRow,
+) {
+    let Some(field_name) = row.field_name.clone() else {
+        return;
+    };
+
+    fields
+        .entry(row.indexer_instance_public_id)
+        .or_default()
+        .insert(
+            field_name.clone(),
+            IndexerInstanceFieldInventoryResponse {
+                field_name,
+                field_type: row.field_type.clone().unwrap_or_default(),
+                value_plain: row.value_plain.clone(),
+                value_int: row.value_int,
+                value_decimal: row.value_decimal.clone(),
+                value_bool: row.value_bool,
+                secret_public_id: row.secret_public_id,
+            },
+        );
 }
 
 fn build_backup_routing_policies(
