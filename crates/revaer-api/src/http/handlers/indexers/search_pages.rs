@@ -59,7 +59,7 @@ pub(crate) async fn list_search_pages(
     skip(state),
     fields(
         search_request_public_id = %search_request_public_id,
-        page_number = page_number
+        page_number = %page_number
     )
 )]
 pub(crate) async fn get_search_page(

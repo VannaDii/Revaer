@@ -3,8 +3,8 @@
 //! # Design
 //! - Delegate search request orchestration to the injected indexer facade.
 //! - Keep messages constant and attach diagnostic context fields.
-//! - REST search requests require API key authentication, enforced by the router/layer before
-//!   these handlers run.
+//! - Request auth already arrives normalized via `AuthContext`; API key and Torznab flows are
+//!   distinguished here without re-reading transport details.
 
 use std::sync::Arc;
 

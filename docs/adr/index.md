@@ -286,3 +286,4 @@
 -   [272](272-indexer-cli-operator-write-parity.md) – Indexer CLI operator write parity
 -   [273](273-indexer-cli-mutation-parity-followup.md) – Indexer CLI mutation parity follow-up
 -   [274](274-indexer-cli-health-notification-parity.md) – Indexer CLI health-notification parity
+-   [275](275-pr-output-redaction-and-review-followup.md) – PR output redaction and review follow-up

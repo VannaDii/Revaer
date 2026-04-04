@@ -17,7 +17,9 @@ use crate::app::indexers::{RateLimitPolicyServiceError, RateLimitPolicyServiceEr
 use crate::app::state::ApiState;
 use crate::http::errors::ApiError;
 use crate::http::handlers::indexers::SYSTEM_ACTOR_PUBLIC_ID;
-use crate::http::handlers::indexers::normalization::trim_and_filter_empty;
+use crate::http::handlers::indexers::normalization::{
+    normalize_required_str_field, trim_and_filter_empty,
+};
 use crate::models::{
     RateLimitPolicyAssignmentRequest, RateLimitPolicyCreateRequest, RateLimitPolicyListResponse,
     RateLimitPolicyResponse, RateLimitPolicyUpdateRequest,
@@ -28,12 +30,14 @@ const RATE_LIMIT_CREATE_FAILED: &str = "failed to create rate limit policy";
 const RATE_LIMIT_UPDATE_FAILED: &str = "failed to update rate limit policy";
 const RATE_LIMIT_DELETE_FAILED: &str = "failed to delete rate limit policy";
 const RATE_LIMIT_ASSIGN_FAILED: &str = "failed to assign rate limit policy";
+const RATE_LIMIT_DISPLAY_NAME_REQUIRED: &str = "display_name is required";
 
 pub(crate) async fn create_rate_limit_policy(
     State(state): State<Arc<ApiState>>,
     Json(request): Json<RateLimitPolicyCreateRequest>,
 ) -> Result<(StatusCode, Json<RateLimitPolicyResponse>), ApiError> {
-    let display_name = request.display_name.trim();
+    let display_name =
+        normalize_required_str_field(&request.display_name, RATE_LIMIT_DISPLAY_NAME_REQUIRED)?;
     let rate_limit_policy_public_id = state
         .indexers
         .rate_limit_policy_create(
@@ -207,7 +211,7 @@ mod tests {
         IndexerInstanceTestPrepareResponse, ProblemDetails,
     };
     use async_trait::async_trait;
-    use axum::{Router, body::Body, http::Request};
+    use axum::{Router, body::Body, http::Request, response::IntoResponse};
     use revaer_config::{
         ApiKeyAuth, AppMode, AppProfile, AppliedChanges, ConfigError, ConfigResult, ConfigSnapshot,
         SettingsChangeset, SetupToken, TelemetryConfig, validate::default_local_networks,
@@ -1341,6 +1345,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn create_rate_limit_policy_rejects_blank_display_name() {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = build_state(indexers);
+        let payload = json!({
+            "display_name": "   ",
+            "rpm": 60,
+            "burst": 10,
+            "concurrent": 2
+        });
+        let response = create_rate_limit_policy(
+            State(state),
+            Json(serde_json::from_value(payload).expect("request")),
+        )
+        .await
+        .expect_err("blank display name should fail")
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let body = axum::body::to_bytes(response.into_body(), usize::MAX)
+            .await
+            .expect("body");
+        let details: ProblemDetails = serde_json::from_slice(&body).expect("problem");
+        assert_eq!(
+            details.detail.as_deref(),
+            Some(RATE_LIMIT_DISPLAY_NAME_REQUIRED)
+        );
+    }
+
+    #[tokio::test]
     async fn update_rate_limit_policy_records_updates() {
         let indexers = Arc::new(RecordingIndexers::default());
         let state = build_state(indexers.clone());
@@ -1451,6 +1484,9 @@ mod tests {
             .await
             .unwrap_or_default();
         let details: ProblemDetails = serde_json::from_slice(&body).unwrap();
-        assert_eq!(details.detail.as_deref(), Some(RATE_LIMIT_CREATE_FAILED));
+        assert_eq!(
+            details.detail.as_deref(),
+            Some(RATE_LIMIT_DISPLAY_NAME_REQUIRED)
+        );
     }
 }

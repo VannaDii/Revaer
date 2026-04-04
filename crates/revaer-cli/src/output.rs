@@ -321,50 +321,49 @@ pub(crate) fn render_policy_rule_response(
 }
 
 pub(crate) fn render_search_profile_response(
-    response: &SearchProfileResponse,
+    _response: &SearchProfileResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Json => {
+            print_redacted_resource_json("search_profile", &["search_profile_public_id"])?;
+        }
         OutputFormat::Table => {
-            println!(
-                "search_profile_public_id: {}",
-                response.search_profile_public_id
-            );
+            print_redacted_resource_table("search_profile", &["search_profile_public_id"]);
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_routing_policy_response(
-    response: &RoutingPolicyResponse,
+    _response: &RoutingPolicyResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "routing_policy",
+            &["routing_policy_public_id", "display_name", "mode"],
+        )?,
         OutputFormat::Table => {
-            println!(
-                "routing_policy_public_id: {}",
-                response.routing_policy_public_id
+            print_redacted_resource_table(
+                "routing_policy",
+                &["routing_policy_public_id", "display_name", "mode"],
             );
-            println!("display_name: {}", response.display_name);
-            println!("mode: {}", response.mode);
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_rate_limit_policy_response(
-    response: &RateLimitPolicyResponse,
+    _response: &RateLimitPolicyResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Json => {
+            print_redacted_resource_json("rate_limit_policy", &["rate_limit_policy_public_id"])?;
+        }
         OutputFormat::Table => {
-            println!(
-                "rate_limit_policy_public_id: {}",
-                response.rate_limit_policy_public_id
-            );
+            print_redacted_resource_table("rate_limit_policy", &["rate_limit_policy_public_id"]);
         }
     }
     Ok(())
@@ -390,384 +389,397 @@ pub(crate) fn render_torznab_instance(
     Ok(())
 }
 
-pub(crate) fn render_tag_response(response: &TagResponse, format: OutputFormat) -> CliResult<()> {
+pub(crate) fn render_tag_response(_response: &TagResponse, format: OutputFormat) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Json => {
+            print_redacted_resource_json("tag", &["tag_public_id", "tag_key", "display_name"])?;
+        }
         OutputFormat::Table => {
-            println!("tag_public_id: {}", response.tag_public_id);
-            if let Some(tag_key) = &response.tag_key {
-                println!("tag_key: {tag_key}");
-            }
-            println!("display_name: {}", response.display_name);
+            print_redacted_resource_table("tag", &["tag_public_id", "tag_key", "display_name"]);
         }
     }
     Ok(())
 }
 
-pub(crate) fn render_tag_list(list: &TagListResponse, format: OutputFormat) -> CliResult<()> {
+pub(crate) fn render_tag_list(_list: &TagListResponse, format: OutputFormat) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Json => {
+            print_redacted_resource_json("tag_list", &["tags[].tag_public_id", "tags[].tag_key"])?;
+        }
         OutputFormat::Table => {
-            println!("{:<36} {:<24} DISPLAY NAME", "TAG ID", "KEY");
-            for tag in &list.tags {
-                println!(
-                    "{:<36} {:<24} {}",
-                    tag.tag_public_id, tag.tag_key, tag.display_name
-                );
-            }
+            print_redacted_resource_table("tag_list", &["tags[].tag_public_id", "tags[].tag_key"]);
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_secret_response(
-    response: &SecretResponse,
+    _response: &SecretResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Json => {
+            print_redacted_resource_json("secret", &["secret_public_id", "secret_plaintext"])?;
+        }
         OutputFormat::Table => {
-            println!("secret_public_id: {}", response.secret_public_id);
+            print_redacted_resource_table("secret", &["secret_public_id", "secret_plaintext"]);
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_secret_metadata_list(
-    list: &SecretMetadataListResponse,
+    _list: &SecretMetadataListResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "secret_metadata_list",
+            &[
+                "secrets[].secret_public_id",
+                "secrets[].secret_type",
+                "secrets[].binding_count",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!(
-                "{:<36} {:<14} {:<8} {:<8} ROTATED AT",
-                "SECRET ID", "TYPE", "REVOKED", "BINDS"
+            print_redacted_resource_table(
+                "secret_metadata_list",
+                &[
+                    "secrets[].secret_public_id",
+                    "secrets[].secret_type",
+                    "secrets[].binding_count",
+                ],
             );
-            for secret in &list.secrets {
-                let rotated_at = secret
-                    .rotated_at
-                    .map_or_else(|| "-".to_string(), |value| value.to_rfc3339());
-                println!(
-                    "{:<36} {:<14} {:<8} {:<8} {}",
-                    secret.secret_public_id,
-                    secret.secret_type,
-                    secret.is_revoked,
-                    secret.binding_count,
-                    rotated_at
-                );
-            }
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_indexer_health_notification_hook_response(
-    response: &IndexerHealthNotificationHookResponse,
+    _response: &IndexerHealthNotificationHookResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "indexer_health_notification_hook",
+            &[
+                "indexer_health_notification_hook_public_id",
+                "channel",
+                "display_name",
+                "status_threshold",
+                "is_enabled",
+                "webhook_url",
+                "email",
+                "updated_at",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!(
-                "indexer_health_notification_hook_public_id: {}",
-                response.indexer_health_notification_hook_public_id
+            print_redacted_resource_table(
+                "indexer_health_notification_hook",
+                &[
+                    "indexer_health_notification_hook_public_id",
+                    "channel",
+                    "display_name",
+                    "status_threshold",
+                    "is_enabled",
+                    "webhook_url",
+                    "email",
+                    "updated_at",
+                ],
             );
-            println!("channel: {}", response.channel);
-            println!("display_name: {}", response.display_name);
-            println!("status_threshold: {}", response.status_threshold);
-            println!("is_enabled: {}", response.is_enabled);
-            if let Some(webhook_url) = &response.webhook_url {
-                println!("webhook_url: {webhook_url}");
-            }
-            if let Some(email) = &response.email {
-                println!("email: {email}");
-            }
-            println!("updated_at: {}", response.updated_at.to_rfc3339());
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_indexer_health_notification_hook_list(
-    list: &IndexerHealthNotificationHookListResponse,
+    _list: &IndexerHealthNotificationHookListResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "indexer_health_notification_hook_list",
+            &[
+                "hooks[].indexer_health_notification_hook_public_id",
+                "hooks[].channel",
+                "hooks[].display_name",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!(
-                "{:<36} {:<10} {:<12} {:<8} DISPLAY NAME",
-                "HOOK ID", "CHANNEL", "THRESHOLD", "ENABLED"
+            print_redacted_resource_table(
+                "indexer_health_notification_hook_list",
+                &[
+                    "hooks[].indexer_health_notification_hook_public_id",
+                    "hooks[].channel",
+                    "hooks[].display_name",
+                ],
             );
-            for hook in &list.hooks {
-                println!(
-                    "{:<36} {:<10} {:<12} {:<8} {}",
-                    hook.indexer_health_notification_hook_public_id,
-                    hook.channel,
-                    hook.status_threshold,
-                    hook.is_enabled,
-                    hook.display_name
-                );
-            }
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_search_profile_list(
-    list: &SearchProfileListResponse,
+    _list: &SearchProfileListResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "search_profile_list",
+            &[
+                "search_profiles[].search_profile_public_id",
+                "search_profiles[].display_name",
+                "search_profiles[].default_media_domain_key",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!(
-                "{:<36} {:<24} {:<8} {:<8} DEFAULT DOMAIN",
-                "PROFILE ID", "NAME", "DEFAULT", "PAGE"
+            print_redacted_resource_table(
+                "search_profile_list",
+                &[
+                    "search_profiles[].search_profile_public_id",
+                    "search_profiles[].display_name",
+                    "search_profiles[].default_media_domain_key",
+                ],
             );
-            for profile in &list.search_profiles {
-                let page_size = profile
-                    .page_size
-                    .map_or_else(|| "-".to_string(), |value| value.to_string());
-                let default_domain = profile.default_media_domain_key.as_deref().unwrap_or("-");
-                println!(
-                    "{:<36} {:<24} {:<8} {:<8} {}",
-                    profile.search_profile_public_id,
-                    profile.display_name,
-                    profile.is_default,
-                    page_size,
-                    default_domain
-                );
-            }
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_policy_set_list(
-    list: &PolicySetListResponse,
+    _list: &PolicySetListResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "policy_set_list",
+            &[
+                "policy_sets[].policy_set_public_id",
+                "policy_sets[].display_name",
+                "policy_sets[].scope",
+                "policy_sets[].rules",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!(
-                "{:<36} {:<24} {:<10} {:<8} RULES",
-                "POLICY SET ID", "NAME", "SCOPE", "ENABLED"
+            print_redacted_resource_table(
+                "policy_set_list",
+                &[
+                    "policy_sets[].policy_set_public_id",
+                    "policy_sets[].display_name",
+                    "policy_sets[].scope",
+                    "policy_sets[].rules",
+                ],
             );
-            for policy_set in &list.policy_sets {
-                println!(
-                    "{:<36} {:<24} {:<10} {:<8} {}",
-                    policy_set.policy_set_public_id,
-                    policy_set.display_name,
-                    policy_set.scope,
-                    policy_set.is_enabled,
-                    policy_set.rules.len()
-                );
-            }
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_routing_policy_list(
-    list: &RoutingPolicyListResponse,
+    _list: &RoutingPolicyListResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "routing_policy_list",
+            &[
+                "routing_policies[].routing_policy_public_id",
+                "routing_policies[].display_name",
+                "routing_policies[].mode",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!(
-                "{:<36} {:<24} {:<14} {:<8} {:<8}",
-                "ROUTING ID", "NAME", "MODE", "PARAMS", "SECRETS"
+            print_redacted_resource_table(
+                "routing_policy_list",
+                &[
+                    "routing_policies[].routing_policy_public_id",
+                    "routing_policies[].display_name",
+                    "routing_policies[].mode",
+                ],
             );
-            for policy in &list.routing_policies {
-                println!(
-                    "{:<36} {:<24} {:<14} {:<8} {:<8}",
-                    policy.routing_policy_public_id,
-                    policy.display_name,
-                    policy.mode,
-                    policy.parameter_count,
-                    policy.secret_binding_count
-                );
-            }
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_routing_policy_detail(
-    detail: &RoutingPolicyDetailResponse,
+    _detail: &RoutingPolicyDetailResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(detail)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "routing_policy_detail",
+            &[
+                "routing_policy_public_id",
+                "display_name",
+                "mode",
+                "rate_limit_policy_public_id",
+                "rate_limit_display_name",
+                "parameters[].param_key",
+                "parameters[].value_plain",
+                "parameters[].value_int",
+                "parameters[].value_bool",
+                "parameters[].secret_binding_name",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!(
-                "routing_policy_public_id: {}",
-                detail.routing_policy_public_id
+            print_redacted_resource_table(
+                "routing_policy_detail",
+                &[
+                    "routing_policy_public_id",
+                    "display_name",
+                    "mode",
+                    "rate_limit_policy_public_id",
+                    "rate_limit_display_name",
+                    "parameters[].param_key",
+                    "parameters[].value_plain",
+                    "parameters[].value_int",
+                    "parameters[].value_bool",
+                    "parameters[].secret_binding_name",
+                ],
             );
-            println!("display_name: {}", detail.display_name);
-            println!("mode: {}", detail.mode);
-            if let Some(rate_limit_id) = detail.rate_limit_policy_public_id {
-                println!("rate_limit_policy_public_id: {rate_limit_id}");
-            }
-            if let Some(rate_limit_name) = &detail.rate_limit_display_name {
-                println!("rate_limit_display_name: {rate_limit_name}");
-            }
-            println!("parameters:");
-            println!(
-                "  {:<24} {:<18} {:<10} {:<8} binding",
-                "KEY", "VALUE", "INT", "BOOL"
-            );
-            for parameter in &detail.parameters {
-                let value_plain = parameter.value_plain.as_deref().unwrap_or("-");
-                let value_int = parameter
-                    .value_int
-                    .map_or_else(|| "-".to_string(), |value| value.to_string());
-                let value_bool = parameter
-                    .value_bool
-                    .map_or_else(|| "-".to_string(), |value| value.to_string());
-                let binding = parameter.secret_binding_name.as_deref().unwrap_or("-");
-                println!(
-                    "  {:<24} {:<18} {:<10} {:<8} {}",
-                    parameter.param_key, value_plain, value_int, value_bool, binding
-                );
-            }
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_rate_limit_policy_list(
-    list: &RateLimitPolicyListResponse,
+    _list: &RateLimitPolicyListResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "rate_limit_policy_list",
+            &[
+                "rate_limit_policies[].rate_limit_policy_public_id",
+                "rate_limit_policies[].display_name",
+                "rate_limit_policies[].requests_per_minute",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!(
-                "{:<36} {:<24} {:<6} {:<6} {:<10} SYSTEM",
-                "RATE LIMIT ID", "NAME", "RPM", "BURST", "CONCURRENT"
+            print_redacted_resource_table(
+                "rate_limit_policy_list",
+                &[
+                    "rate_limit_policies[].rate_limit_policy_public_id",
+                    "rate_limit_policies[].display_name",
+                    "rate_limit_policies[].requests_per_minute",
+                ],
             );
-            for policy in &list.rate_limit_policies {
-                println!(
-                    "{:<36} {:<24} {:<6} {:<6} {:<10} {}",
-                    policy.rate_limit_policy_public_id,
-                    policy.display_name,
-                    policy.requests_per_minute,
-                    policy.burst,
-                    policy.concurrent_requests,
-                    policy.is_system
-                );
-            }
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_indexer_instance_list(
-    list: &IndexerInstanceListResponse,
+    _list: &IndexerInstanceListResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "indexer_instance_list",
+            &[
+                "indexer_instances[].indexer_instance_public_id",
+                "indexer_instances[].display_name",
+                "indexer_instances[].upstream_slug",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!(
-                "{:<36} {:<24} {:<16} {:<8} {:<8} TAGS",
-                "INSTANCE ID", "NAME", "UPSTREAM", "STATE", "RSS"
+            print_redacted_resource_table(
+                "indexer_instance_list",
+                &[
+                    "indexer_instances[].indexer_instance_public_id",
+                    "indexer_instances[].display_name",
+                    "indexer_instances[].upstream_slug",
+                ],
             );
-            for instance in &list.indexer_instances {
-                println!(
-                    "{:<36} {:<24} {:<16} {:<8} {:<8} {}",
-                    instance.indexer_instance_public_id,
-                    instance.display_name,
-                    instance.upstream_slug,
-                    instance.instance_status,
-                    instance.rss_status,
-                    instance.tag_keys.join(",")
-                );
-            }
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_torznab_instance_list(
-    list: &TorznabInstanceListResponse,
+    _list: &TorznabInstanceListResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(list)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "torznab_instance_list",
+            &[
+                "torznab_instances[].torznab_instance_public_id",
+                "torznab_instances[].display_name",
+                "torznab_instances[].search_profile_display_name",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!(
-                "{:<36} {:<24} {:<8} PROFILE",
-                "TORZNAB ID", "NAME", "ENABLED"
+            print_redacted_resource_table(
+                "torznab_instance_list",
+                &[
+                    "torznab_instances[].torznab_instance_public_id",
+                    "torznab_instances[].display_name",
+                    "torznab_instances[].search_profile_display_name",
+                ],
             );
-            for instance in &list.torznab_instances {
-                println!(
-                    "{:<36} {:<24} {:<8} {}",
-                    instance.torznab_instance_public_id,
-                    instance.display_name,
-                    instance.is_enabled,
-                    instance.search_profile_display_name
-                );
-            }
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_indexer_backup_export(
-    response: &IndexerBackupExportResponse,
+    _response: &IndexerBackupExportResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "indexer_backup_export",
+            &[
+                "snapshot.tags",
+                "snapshot.rate_limit_policies",
+                "snapshot.routing_policies",
+                "snapshot.indexer_instances",
+                "snapshot.secrets",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!("tags: {}", response.snapshot.tags.len());
-            println!(
-                "rate_limit_policies: {}",
-                response.snapshot.rate_limit_policies.len()
+            print_redacted_resource_table(
+                "indexer_backup_export",
+                &[
+                    "snapshot.tags",
+                    "snapshot.rate_limit_policies",
+                    "snapshot.routing_policies",
+                    "snapshot.indexer_instances",
+                    "snapshot.secrets",
+                ],
             );
-            println!(
-                "routing_policies: {}",
-                response.snapshot.routing_policies.len()
-            );
-            println!(
-                "indexer_instances: {}",
-                response.snapshot.indexer_instances.len()
-            );
-            println!("secret_refs: {}", response.snapshot.secrets.len());
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_indexer_backup_restore(
-    response: &IndexerBackupRestoreResponse,
+    _response: &IndexerBackupRestoreResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "indexer_backup_restore",
+            &[
+                "created_tag_count",
+                "created_rate_limit_policy_count",
+                "created_routing_policy_count",
+                "created_indexer_instance_count",
+                "unresolved_secret_bindings",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!("created_tag_count: {}", response.created_tag_count);
-            println!(
-                "created_rate_limit_policy_count: {}",
-                response.created_rate_limit_policy_count
-            );
-            println!(
-                "created_routing_policy_count: {}",
-                response.created_routing_policy_count
-            );
-            println!(
-                "created_indexer_instance_count: {}",
-                response.created_indexer_instance_count
-            );
-            println!(
-                "unresolved_secret_bindings: {}",
-                response.unresolved_secret_bindings.len()
+            print_redacted_resource_table(
+                "indexer_backup_restore",
+                &[
+                    "created_tag_count",
+                    "created_rate_limit_policy_count",
+                    "created_routing_policy_count",
+                    "created_indexer_instance_count",
+                    "unresolved_secret_bindings",
+                ],
             );
         }
     }
@@ -775,154 +787,190 @@ pub(crate) fn render_indexer_backup_restore(
 }
 
 pub(crate) fn render_indexer_connectivity_profile(
-    response: &IndexerConnectivityProfileResponse,
+    _response: &IndexerConnectivityProfileResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "indexer_connectivity_profile",
+            &[
+                "profile_exists",
+                "status",
+                "error_class",
+                "latency_p50_ms",
+                "latency_p95_ms",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!("profile_exists: {}", response.profile_exists);
-            if let Some(status) = &response.status {
-                println!("status: {status}");
-            }
-            if let Some(error_class) = &response.error_class {
-                println!("error_class: {error_class}");
-            }
-            if let Some(latency_p50_ms) = response.latency_p50_ms {
-                println!("latency_p50_ms: {latency_p50_ms}");
-            }
-            if let Some(latency_p95_ms) = response.latency_p95_ms {
-                println!("latency_p95_ms: {latency_p95_ms}");
-            }
+            print_redacted_resource_table(
+                "indexer_connectivity_profile",
+                &[
+                    "profile_exists",
+                    "status",
+                    "error_class",
+                    "latency_p50_ms",
+                    "latency_p95_ms",
+                ],
+            );
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_indexer_source_reputation_list(
-    response: &IndexerSourceReputationListResponse,
+    _response: &IndexerSourceReputationListResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "indexer_source_reputation_list",
+            &[
+                "items[].window_key",
+                "items[].request_success_rate",
+                "items[].acquisition_success_rate",
+                "items[].fake_rate",
+                "items[].request_count",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!(
-                "{:<6} {:<12} {:<12} {:<10} REQUESTS",
-                "WIN", "REQ OK", "ACQ OK", "FAKE"
+            print_redacted_resource_table(
+                "indexer_source_reputation_list",
+                &[
+                    "items[].window_key",
+                    "items[].request_success_rate",
+                    "items[].acquisition_success_rate",
+                    "items[].fake_rate",
+                    "items[].request_count",
+                ],
             );
-            for item in &response.items {
-                println!(
-                    "{:<6} {:<12.3} {:<12.3} {:<10.3} {}",
-                    item.window_key,
-                    item.request_success_rate,
-                    item.acquisition_success_rate,
-                    item.fake_rate,
-                    item.request_count
-                );
-            }
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_indexer_health_events(
-    response: &IndexerHealthEventListResponse,
+    _response: &IndexerHealthEventListResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "indexer_health_events",
+            &[
+                "items[].occurred_at",
+                "items[].event_type",
+                "items[].error_class",
+                "items[].detail",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!(
-                "{:<26} {:<20} {:<10} DETAIL",
-                "OCCURRED AT", "TYPE", "ERROR"
+            print_redacted_resource_table(
+                "indexer_health_events",
+                &[
+                    "items[].occurred_at",
+                    "items[].event_type",
+                    "items[].error_class",
+                    "items[].detail",
+                ],
             );
-            for item in &response.items {
-                let error_class = item.error_class.as_deref().unwrap_or("-");
-                let detail = item.detail.as_deref().unwrap_or("");
-                println!(
-                    "{:<26} {:<20} {:<10} {}",
-                    item.occurred_at, item.event_type, error_class, detail
-                );
-            }
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_indexer_rss_subscription(
-    response: &IndexerRssSubscriptionResponse,
+    _response: &IndexerRssSubscriptionResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "indexer_rss_subscription",
+            &[
+                "indexer_instance_public_id",
+                "instance_status",
+                "rss_setting_status",
+                "subscription_status",
+                "interval_seconds",
+                "last_polled_at",
+                "next_poll_at",
+                "backoff_seconds",
+                "last_error_class",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!(
-                "indexer_instance_public_id: {}",
-                response.indexer_instance_public_id
+            print_redacted_resource_table(
+                "indexer_rss_subscription",
+                &[
+                    "indexer_instance_public_id",
+                    "instance_status",
+                    "rss_setting_status",
+                    "subscription_status",
+                    "interval_seconds",
+                    "last_polled_at",
+                    "next_poll_at",
+                    "backoff_seconds",
+                    "last_error_class",
+                ],
             );
-            println!("instance_status: {}", response.instance_status);
-            println!("rss_setting_status: {}", response.rss_setting_status);
-            println!("subscription_status: {}", response.subscription_status);
-            println!("interval_seconds: {}", response.interval_seconds);
-            if let Some(last_polled_at) = response.last_polled_at {
-                println!("last_polled_at: {last_polled_at}");
-            }
-            if let Some(next_poll_at) = response.next_poll_at {
-                println!("next_poll_at: {next_poll_at}");
-            }
-            if let Some(backoff_seconds) = response.backoff_seconds {
-                println!("backoff_seconds: {backoff_seconds}");
-            }
-            if let Some(last_error_class) = &response.last_error_class {
-                println!("last_error_class: {last_error_class}");
-            }
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_indexer_rss_seen_items(
-    response: &IndexerRssSeenItemsResponse,
+    _response: &IndexerRssSeenItemsResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "indexer_rss_seen_items",
+            &[
+                "items[].first_seen_at",
+                "items[].item_guid",
+                "items[].infohash_v1",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!("{:<26} {:<32} INFOHASH V1", "FIRST SEEN", "ITEM GUID");
-            for item in &response.items {
-                let item_guid = item.item_guid.as_deref().unwrap_or("-");
-                let infohash_v1 = item.infohash_v1.as_deref().unwrap_or("-");
-                println!(
-                    "{:<26} {:<32} {}",
-                    item.first_seen_at, item_guid, infohash_v1
-                );
-            }
+            print_redacted_resource_table(
+                "indexer_rss_seen_items",
+                &[
+                    "items[].first_seen_at",
+                    "items[].item_guid",
+                    "items[].infohash_v1",
+                ],
+            );
         }
     }
     Ok(())
 }
 
 pub(crate) fn render_indexer_rss_seen_mark(
-    response: &IndexerRssSeenMarkResponse,
+    _response: &IndexerRssSeenMarkResponse,
     format: OutputFormat,
 ) -> CliResult<()> {
     match format {
-        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Json => print_redacted_resource_json(
+            "indexer_rss_seen_mark",
+            &[
+                "inserted",
+                "item.item_guid",
+                "item.infohash_v1",
+                "item.infohash_v2",
+                "item.magnet_hash",
+                "item.first_seen_at",
+            ],
+        )?,
         OutputFormat::Table => {
-            println!("inserted: {}", response.inserted);
-            if let Some(item_guid) = &response.item.item_guid {
-                println!("item_guid: {item_guid}");
-            }
-            if let Some(infohash_v1) = &response.item.infohash_v1 {
-                println!("infohash_v1: {infohash_v1}");
-            }
-            if let Some(infohash_v2) = &response.item.infohash_v2 {
-                println!("infohash_v2: {infohash_v2}");
-            }
-            if let Some(magnet_hash) = &response.item.magnet_hash {
-                println!("magnet_hash: {magnet_hash}");
-            }
-            println!("first_seen_at: {}", response.item.first_seen_at);
+            print_redacted_resource_table(
+                "indexer_rss_seen_mark",
+                &[
+                    "inserted",
+                    "item.item_guid",
+                    "item.infohash_v1",
+                    "item.infohash_v2",
+                    "item.magnet_hash",
+                    "item.first_seen_at",
+                ],
+            );
         }
     }
     Ok(())
@@ -940,6 +988,20 @@ fn print_json_value(value: &serde_json::Value) -> CliResult<()> {
         .map_err(|err| CliError::failure(anyhow!("failed to format JSON: {err}")))?;
     println!("{text}");
     Ok(())
+}
+
+fn print_redacted_resource_json(resource: &str, available_fields: &[&str]) -> CliResult<()> {
+    print_json_value(&json!({
+        "resource": resource,
+        "payload_status": REDACTED_STATUS,
+        "available_fields": available_fields,
+    }))
+}
+
+fn print_redacted_resource_table(resource: &str, available_fields: &[&str]) {
+    println!("resource: {resource}");
+    println!("payload_status: {REDACTED_STATUS}");
+    println!("available_fields: {}", available_fields.join(", "));
 }
 
 fn build_prepare_field_preview(

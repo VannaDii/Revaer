@@ -74,7 +74,8 @@ pub(crate) async fn update_tag(
     if request.tag_public_id.is_none() && tag_key.is_none() {
         return Err(ApiError::bad_request(TAG_REFERENCE_REQUIRED));
     }
-    let display_name = request.display_name.trim();
+    let display_name =
+        normalize_required_str_field(&request.display_name, TAG_DISPLAY_NAME_REQUIRED)?;
     let tag_public_id = state
         .indexers
         .tag_update(
@@ -257,6 +258,27 @@ mod tests {
         assert_eq!(problem.detail.as_deref(), Some(TAG_CREATE_FAILED));
         let context = problem.context.unwrap_or_default();
         assert!(context.iter().any(|field| field.name == "error_code"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_tag_rejects_blank_display_name() -> Result<(), ApiError> {
+        let state = indexer_test_state(Arc::new(RecordingIndexers::default()))?;
+        let response = update_tag(
+            State(state),
+            Json(TagUpdateRequest {
+                tag_public_id: Some(Uuid::new_v4()),
+                tag_key: None,
+                display_name: "   ".to_string(),
+            }),
+        )
+        .await
+        .expect_err("blank display name should fail")
+        .into_response();
+
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let problem = parse_problem(response).await;
+        assert_eq!(problem.detail.as_deref(), Some(TAG_DISPLAY_NAME_REQUIRED));
         Ok(())
     }
 
