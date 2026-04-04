@@ -18,7 +18,9 @@ use crate::app::indexers::{
 use crate::app::state::ApiState;
 use crate::http::errors::ApiError;
 use crate::http::handlers::indexers::SYSTEM_ACTOR_PUBLIC_ID;
-use crate::http::handlers::indexers::normalization::trim_and_filter_empty;
+use crate::http::handlers::indexers::normalization::{
+    normalize_required_str_field, trim_and_filter_empty,
+};
 use crate::models::{
     MediaDomainMappingDeleteRequest, MediaDomainMappingUpsertRequest,
     TrackerCategoryMappingDeleteRequest, TrackerCategoryMappingUpsertRequest,
@@ -28,6 +30,7 @@ const TRACKER_MAPPING_UPSERT_FAILED: &str = "failed to upsert tracker category m
 const TRACKER_MAPPING_DELETE_FAILED: &str = "failed to delete tracker category mapping";
 const MEDIA_DOMAIN_MAPPING_UPSERT_FAILED: &str = "failed to upsert media domain mapping";
 const MEDIA_DOMAIN_MAPPING_DELETE_FAILED: &str = "failed to delete media domain mapping";
+const MEDIA_DOMAIN_KEY_REQUIRED: &str = "media_domain_key is required";
 
 pub(crate) async fn upsert_tracker_category_mapping(
     State(state): State<Arc<ApiState>>,
@@ -94,7 +97,8 @@ pub(crate) async fn upsert_media_domain_mapping(
     State(state): State<Arc<ApiState>>,
     Json(request): Json<MediaDomainMappingUpsertRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let media_domain_key = request.media_domain_key.trim();
+    let media_domain_key =
+        normalize_required_str_field(&request.media_domain_key, MEDIA_DOMAIN_KEY_REQUIRED)?;
     state
         .indexers
         .media_domain_mapping_upsert(
@@ -119,7 +123,8 @@ pub(crate) async fn delete_media_domain_mapping(
     State(state): State<Arc<ApiState>>,
     Json(request): Json<MediaDomainMappingDeleteRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let media_domain_key = request.media_domain_key.trim();
+    let media_domain_key =
+        normalize_required_str_field(&request.media_domain_key, MEDIA_DOMAIN_KEY_REQUIRED)?;
     state
         .indexers
         .media_domain_mapping_delete(
@@ -159,4 +164,51 @@ fn map_category_mapping_error(
         api_error = api_error.with_context_field("sqlstate", sqlstate);
     }
     api_error
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::http::handlers::indexers::test_support::{
+        RecordingIndexers, indexer_test_state, parse_problem,
+    };
+    use axum::response::IntoResponse;
+    use std::sync::Arc;
+
+    #[tokio::test]
+    async fn upsert_media_domain_mapping_rejects_blank_key() -> Result<(), ApiError> {
+        let state = indexer_test_state(Arc::new(RecordingIndexers::default()))?;
+        let request = MediaDomainMappingUpsertRequest {
+            media_domain_key: "   ".into(),
+            torznab_cat_id: 2000,
+            is_primary: Some(true),
+        };
+
+        let err = upsert_media_domain_mapping(State(state), Json(request))
+            .await
+            .expect_err("blank media_domain_key should fail");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let problem = parse_problem(response).await;
+        assert_eq!(problem.detail.as_deref(), Some(MEDIA_DOMAIN_KEY_REQUIRED));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn delete_media_domain_mapping_rejects_blank_key() -> Result<(), ApiError> {
+        let state = indexer_test_state(Arc::new(RecordingIndexers::default()))?;
+        let request = MediaDomainMappingDeleteRequest {
+            media_domain_key: "\n".into(),
+            torznab_cat_id: 2000,
+        };
+
+        let err = delete_media_domain_mapping(State(state), Json(request))
+            .await
+            .expect_err("blank media_domain_key should fail");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let problem = parse_problem(response).await;
+        assert_eq!(problem.detail.as_deref(), Some(MEDIA_DOMAIN_KEY_REQUIRED));
+        Ok(())
+    }
 }

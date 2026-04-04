@@ -43,6 +43,9 @@ const INSTANCE_TEST_PREPARE_FAILED: &str = "failed to prepare instance test";
 const INSTANCE_TEST_FINALIZE_FAILED: &str = "failed to finalize instance test";
 const INSTANCE_TAG_KEYS_TOO_LARGE: &str = "tag_keys exceeds maximum size";
 const INSTANCE_TAG_KEY_TOO_LARGE: &str = "tag_key exceeds maximum size";
+const INSTANCE_DISPLAY_NAME_REQUIRED: &str = "display_name is required";
+const INSTANCE_DEFINITION_SLUG_REQUIRED: &str = "indexer_definition_upstream_slug is required";
+const INSTANCE_FIELD_NAME_REQUIRED: &str = "field_name is required";
 const INSTANCE_TAG_KEYS_MAX_LEN: usize = 1024;
 const INSTANCE_TAG_KEY_MAX_BYTES: usize = 1024;
 
@@ -50,8 +53,12 @@ pub(crate) async fn create_indexer_instance(
     State(state): State<Arc<ApiState>>,
     Json(request): Json<IndexerInstanceCreateRequest>,
 ) -> Result<(StatusCode, Json<IndexerInstanceResponse>), ApiError> {
-    let display_name = request.display_name.trim();
-    let indexer_definition_upstream_slug = request.indexer_definition_upstream_slug.trim();
+    let display_name =
+        normalize_required_str_field(&request.display_name, INSTANCE_DISPLAY_NAME_REQUIRED)?;
+    let indexer_definition_upstream_slug = normalize_required_str_field(
+        &request.indexer_definition_upstream_slug,
+        INSTANCE_DEFINITION_SLUG_REQUIRED,
+    )?;
     let trust_tier_key = trim_and_filter_empty(request.trust_tier_key.as_deref());
     let routing_policy_public_id = request.routing_policy_public_id;
 
@@ -208,7 +215,8 @@ pub(crate) async fn set_indexer_instance_field_value(
     Path(indexer_instance_public_id): Path<Uuid>,
     Json(request): Json<IndexerInstanceFieldValueRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let field_name = request.field_name.trim();
+    let field_name =
+        normalize_required_str_field(&request.field_name, INSTANCE_FIELD_NAME_REQUIRED)?;
     let value_plain = trim_and_filter_empty(request.value_plain.as_deref());
     let value_decimal = trim_and_filter_empty(request.value_decimal.as_deref());
 
@@ -242,7 +250,8 @@ pub(crate) async fn bind_indexer_instance_field_secret(
     Path(indexer_instance_public_id): Path<Uuid>,
     Json(request): Json<IndexerInstanceFieldSecretBindRequest>,
 ) -> Result<StatusCode, ApiError> {
-    let field_name = request.field_name.trim();
+    let field_name =
+        normalize_required_str_field(&request.field_name, INSTANCE_FIELD_NAME_REQUIRED)?;
 
     state
         .indexers
@@ -977,6 +986,31 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn create_instance_rejects_blank_required_fields() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers)?;
+        let request = IndexerInstanceCreateRequest {
+            indexer_definition_upstream_slug: "   ".into(),
+            display_name: " ".into(),
+            priority: Some(10),
+            trust_tier_key: Some("public".into()),
+            routing_policy_public_id: None,
+        };
+
+        let err = create_indexer_instance(State(state), Json(request))
+            .await
+            .expect_err("blank required fields should fail");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let problem = parse_problem(response).await;
+        assert_eq!(
+            problem.detail.as_deref(),
+            Some(INSTANCE_DISPLAY_NAME_REQUIRED)
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn set_indexer_instance_tags_rejects_excessive_key_count() -> Result<(), ApiError> {
         let indexers = Arc::new(RecordingIndexers::default());
         let state = indexer_test_state(indexers)?;
@@ -1021,6 +1055,55 @@ mod tests {
             .with_sqlstate("P0001");
         let result = map_instance_field_error("test", INSTANCE_FIELD_SECRET_FAILED, &err);
         assert_eq!(result.status(), StatusCode::CONFLICT);
+    }
+
+    #[tokio::test]
+    async fn set_field_value_rejects_blank_field_name() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers)?;
+        let request = IndexerInstanceFieldValueRequest {
+            field_name: "  ".into(),
+            value_plain: Some("demo".into()),
+            value_int: None,
+            value_decimal: None,
+            value_bool: None,
+        };
+
+        let err =
+            set_indexer_instance_field_value(State(state), Path(Uuid::new_v4()), Json(request))
+                .await
+                .expect_err("blank field_name should fail");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let problem = parse_problem(response).await;
+        assert_eq!(
+            problem.detail.as_deref(),
+            Some(INSTANCE_FIELD_NAME_REQUIRED)
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn bind_field_secret_rejects_blank_field_name() -> Result<(), ApiError> {
+        let indexers = Arc::new(RecordingIndexers::default());
+        let state = indexer_test_state(indexers)?;
+        let request = IndexerInstanceFieldSecretBindRequest {
+            field_name: " \t ".into(),
+            secret_public_id: Uuid::new_v4(),
+        };
+
+        let err =
+            bind_indexer_instance_field_secret(State(state), Path(Uuid::new_v4()), Json(request))
+                .await
+                .expect_err("blank field_name should fail");
+        let response = err.into_response();
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        let problem = parse_problem(response).await;
+        assert_eq!(
+            problem.detail.as_deref(),
+            Some(INSTANCE_FIELD_NAME_REQUIRED)
+        );
+        Ok(())
     }
 
     #[tokio::test]

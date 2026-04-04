@@ -26,10 +26,7 @@ pub(crate) async fn setup_start(
 ) -> Result<Json<SetupStartResponse>, ApiError> {
     let payload = match payload {
         Some(Json(payload)) => payload,
-        None => SetupStartRequest {
-            issued_by: None,
-            ttl_seconds: None,
-        },
+        None => SetupStartRequest::default(),
     };
 
     let app = state.config.get_app_profile().await.map_err(|err| {

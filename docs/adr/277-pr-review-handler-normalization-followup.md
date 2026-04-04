@@ -1,0 +1,26 @@
+# PR review handler normalization follow-up
+
+- Status: Accepted
+- Date: 2026-04-03
+- Context:
+  - PR #6 still had unresolved review threads covering blank required-field handling in a few API handlers, plus a setup handler comment about manually reconstructing a request default.
+  - The affected paths already trimmed values, but some still relied on downstream service validation instead of returning stable field-level `400` responses at the HTTP boundary.
+- Decision:
+  - Restore `SetupStartRequest::default()` in the setup handler instead of manually recreating the default payload shape.
+  - Normalize required string fields at the HTTP boundary for indexer instance creation, instance field value/secret binding, and media-domain mapping upsert/delete handlers.
+  - Add focused handler tests for the new bad-request behavior so the review feedback stays covered by unit tests.
+- Consequences:
+  - Positive outcomes:
+    - Clients now get deterministic RFC9457 `400` responses for whitespace-only required fields before any service call.
+    - The setup handler now stays aligned with future `SetupStartRequest` default changes automatically.
+    - The review threads have direct code/test evidence tied to them instead of relying on service-layer rejection.
+  - Risks or trade-offs:
+    - Request validation is slightly stricter at the HTTP boundary for blank values, which may reject inputs that previously fell through to the service layer.
+- Follow-up:
+  - Implementation tasks:
+    - Re-run `just ci`.
+    - Re-run `just ui-e2e`.
+    - Reply on the addressed review threads with the specific handler/test change and resolve them.
+  - Review checkpoints:
+    - `just ci`
+    - `just ui-e2e`
