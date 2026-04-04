@@ -1,0 +1,26 @@
+# PR unresolved feedback closeout
+
+- Status: Accepted
+- Date: 2026-03-29
+- Context:
+  - PR `#6` still had unresolved review threads after the rebase and SonarCloud cleanup work landed on `feat/indexers`.
+  - The remaining current feedback focused on request normalization consistency for source metadata conflict notes and clearer operation context for tag deletion by key.
+  - The repository hand-off rules require the cleanup to be validated through `just ci` and `just ui-e2e`, with a task record captured alongside the code change.
+- Decision:
+  - Normalize `resolution_note` in the source metadata conflict resolve and reopen handlers with the shared `trim_and_filter_empty` helper so whitespace-only notes are treated as absent values.
+  - Use the distinct `tag_delete_by_key` operation label when path-based tag deletion maps service errors into API problem details.
+  - Extend the indexer handler test support with explicit source metadata conflict call recording and add focused handler tests covering both feedback items.
+  - Dependency rationale: no new dependencies were added; the cleanup reuses existing handler normalization code and test support patterns.
+  - Alternatives considered: leaving whitespace-only notes trimmed-but-present would keep inconsistent semantics between handlers, and reusing the generic `tag_delete` operation label would preserve ambiguous error context in the PR feedback path.
+- Consequences:
+  - Positive outcomes:
+    - Source metadata conflict handlers now treat empty operator notes consistently with the rest of the indexer API surface.
+    - Problem details emitted from path-based tag deletion now identify the exact failing handler operation.
+    - Focused regression tests make the addressed PR feedback explicit and durable.
+    - Validation completed with `just ci` and `just ui-e2e`.
+  - Risks or trade-offs:
+    - The E2E run required local test database repair because the long-lived `revaer-db` container had a missing `revaer` database subdirectory; this was repaired by recreating the local `revaer` database before rerunning the gate.
+    - Rollback is low risk: revert the handler/test changes and restore the prior operation label if downstream behavior needs to match the old payload shape exactly.
+- Follow-up:
+  - Push the validated branch updates to `origin/feat/indexers`.
+  - Resolve the addressed GitHub review threads on PR `#6`, including stale outdated threads whose feedback is already integrated on the current branch.

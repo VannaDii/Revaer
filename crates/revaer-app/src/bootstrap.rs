@@ -1,19 +1,18 @@
 use std::borrow::Cow;
 use std::net::{IpAddr, SocketAddr};
-#[cfg(feature = "libtorrent")]
 use std::sync::Arc;
 use std::time::Duration;
 #[cfg(feature = "libtorrent")]
 use std::time::Instant;
 
 use crate::error::{AppError, AppResult};
+use crate::indexer_runtime::IndexerRuntime;
+use crate::indexers::IndexerService;
 use revaer_api::TorrentHandles;
-use revaer_config::{AppMode, ConfigService, ConfigSnapshot};
+use revaer_config::{AppMode, ConfigService, ConfigSnapshot, DbSessionConfig};
 use revaer_events::EventBus;
 use revaer_telemetry::{GlobalContextGuard, LoggingConfig, Metrics, OpenTelemetryConfig};
-#[cfg(feature = "libtorrent")]
-use tracing::warn;
-use tracing::{error, info};
+use tracing::{error, info, warn};
 
 use revaer_runtime::RuntimeStore;
 
@@ -48,7 +47,8 @@ impl BootstrapDependencies {
         let logging = LoggingConfig::default();
         let otel_config = load_otel_config_from_env();
 
-        let config = ConfigService::new(database_url)
+        let secret_encryption_config = secret_session_from_env()?;
+        let config = ConfigService::new_with_session(database_url, secret_encryption_config)
             .await
             .map_err(|err| AppError::config("config_service.new", err))?;
 
@@ -93,6 +93,120 @@ fn database_url_from_env() -> AppResult<String> {
     std::env::var("DATABASE_URL").map_err(|_| AppError::MissingEnv {
         name: "DATABASE_URL",
     })
+}
+
+/// Load the optional database session encryption configuration from the environment.
+///
+/// This function reads `REVAER_SECRET_KEY_ID` and `REVAER_SECRET_KEY` from the
+/// process environment and, when both are present and valid, constructs a
+/// [`DbSessionConfig`] used for envelope encryption of session data.
+///
+/// # When to set these variables
+///
+/// - Set both `REVAER_SECRET_KEY_ID` and `REVAER_SECRET_KEY` in deployments
+///   where database session data must be encrypted at rest using envelope
+///   encryption.
+/// - Leave both unset if you do not want to enable this encryption mechanism;
+///   in that case this function returns `Ok(None)` and no envelope encryption
+///   key is configured.
+///
+/// The `REVAER_SECRET_KEY_ID` value is an opaque identifier that allows the
+/// application to distinguish between different encryption keys (for example,
+/// when performing key rotation). The `REVAER_SECRET_KEY` value is the actual
+/// secret material used to encrypt and decrypt the encrypted payload.
+///
+/// # Consequences of misconfiguration
+///
+/// - If only one of `REVAER_SECRET_KEY_ID` or `REVAER_SECRET_KEY` is set, this
+///   function returns an [`AppError::MissingEnv`] for the missing variable and
+///   the application startup will fail.
+/// - If either value is present but empty or only whitespace, this function
+///   returns an [`AppError::InvalidConfig`] and the application startup will
+///   fail.
+/// - If these values are changed in a running deployment without migrating
+///   existing data, previously encrypted sessions may become unreadable,
+///   causing failures when attempting to decrypt stored data.
+///
+/// Callers should treat both variables as security-sensitive secrets and
+/// manage them via a secure secret management system. Changes to either value
+/// should be coordinated with any envelope encryption key-rotation or
+/// data-migration process in order to avoid data loss.
+fn secret_session_from_env() -> AppResult<Option<DbSessionConfig>> {
+    let key_id = optional_env_var("REVAER_SECRET_KEY_ID")?;
+    let secret_value = optional_env_var("REVAER_SECRET_KEY")?;
+
+    secret_session_from_values(key_id.as_deref(), secret_value.as_deref())
+}
+
+fn optional_env_var(name: &'static str) -> AppResult<Option<String>> {
+    optional_env_var_with(name, std::env::var)
+}
+
+fn optional_env_var_with(
+    name: &'static str,
+    getter: impl FnOnce(&'static str) -> Result<String, std::env::VarError>,
+) -> AppResult<Option<String>> {
+    match getter(name) {
+        Ok(value) => Ok(Some(value)),
+        Err(std::env::VarError::NotPresent) => Ok(None),
+        Err(std::env::VarError::NotUnicode(_)) => Err(AppError::InvalidConfig {
+            field: name,
+            reason: "env_not_unicode",
+            value: None,
+        }),
+    }
+}
+
+fn secret_session_from_values(
+    key_id: Option<&str>,
+    secret_value: Option<&str>,
+) -> AppResult<Option<DbSessionConfig>> {
+    match (key_id, secret_value) {
+        (None, None) => Ok(None),
+        (Some(key_id), Some(secret_value)) => {
+            // Maximum length: 128 bytes (as defined in `DbSessionConfig::SECRET_KEY_ID_MAX_LEN`).
+            let trimmed_key_id = validate_trimmed_field(
+                key_id,
+                "REVAER_SECRET_KEY_ID",
+                DbSessionConfig::SECRET_KEY_ID_MAX_LEN,
+            )?;
+            let trimmed_secret = validate_trimmed_field(
+                secret_value,
+                "REVAER_SECRET_KEY",
+                DbSessionConfig::SECRET_KEY_MAX_LEN,
+            )?;
+            Ok(Some(DbSessionConfig::new(trimmed_key_id, trimmed_secret)))
+        }
+        (Some(_), None) => Err(AppError::MissingEnv {
+            name: "REVAER_SECRET_KEY",
+        }),
+        (None, Some(_)) => Err(AppError::MissingEnv {
+            name: "REVAER_SECRET_KEY_ID",
+        }),
+    }
+}
+
+fn validate_trimmed_field<'a>(
+    value: &'a str,
+    field: &'static str,
+    max_len: usize,
+) -> AppResult<&'a str> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::InvalidConfig {
+            field,
+            reason: "empty",
+            value: None,
+        });
+    }
+    if trimmed.len() > max_len {
+        return Err(AppError::InvalidConfig {
+            field,
+            reason: "too_long",
+            value: None,
+        });
+    }
+    Ok(trimmed)
 }
 
 /// Entry point for the Revaer application boot sequence.
@@ -171,13 +285,9 @@ pub(crate) async fn run_app_with(dependencies: BootstrapDependencies) -> AppResu
         None
     };
 
-    let api = revaer_api::ApiServer::new(
-        config.clone(),
-        events.clone(),
-        torrent_handles,
-        telemetry.clone(),
-    )
-    .map_err(|err| AppError::api_server("api_server.new", err))?;
+    let api = build_api_server(&config, &events, torrent_handles, telemetry.clone())?;
+    let indexer_runtime_task =
+        IndexerRuntime::new(Arc::new(config.clone()), telemetry.clone()).spawn();
 
     enforce_loopback_guard(
         &snapshot.app_profile.mode,
@@ -205,6 +315,13 @@ pub(crate) async fn run_app_with(dependencies: BootstrapDependencies) -> AppResu
 
     let serve_result = api.serve(addr).await;
 
+    if !indexer_runtime_task.is_finished() {
+        indexer_runtime_task.abort();
+    }
+    if let Err(err) = indexer_runtime_task.await {
+        warn!(error = %err, "indexer runtime task join failed");
+    }
+
     #[cfg(feature = "libtorrent")]
     {
         if !fsops_worker.is_finished() {
@@ -225,6 +342,26 @@ pub(crate) async fn run_app_with(dependencies: BootstrapDependencies) -> AppResu
     serve_result.map_err(|err| AppError::api_server("api_server.serve", err))?;
     info!("API server shutdown complete");
     Ok(())
+}
+
+fn build_api_server(
+    config: &ConfigService,
+    events: &EventBus,
+    torrent_handles: Option<TorrentHandles>,
+    telemetry: Metrics,
+) -> AppResult<revaer_api::ApiServer> {
+    let indexers = Arc::new(IndexerService::new(
+        Arc::new(config.clone()),
+        telemetry.clone(),
+    ));
+    revaer_api::ApiServer::new(
+        config.clone(),
+        indexers,
+        events.clone(),
+        torrent_handles,
+        telemetry,
+    )
+    .map_err(|err| AppError::api_server("api_server.new", err))
 }
 
 fn load_otel_config_from_env() -> Option<OpenTelemetryConfig<'static>> {
@@ -439,6 +576,120 @@ mod tests {
     use tokio_stream::StreamExt;
 
     #[test]
+    fn secret_session_none_returns_none() {
+        let result = secret_session_from_values(None, None);
+
+        assert!(matches!(result, Ok(None)));
+    }
+
+    #[test]
+    fn secret_session_both_present_returns_some() {
+        let result = secret_session_from_values(Some("key-id"), Some("secret-value"));
+
+        assert!(matches!(result, Ok(Some(_))));
+    }
+
+    #[test]
+    fn secret_session_missing_key_errors() {
+        let result = secret_session_from_values(None, Some("secret-value"));
+
+        assert!(matches!(
+            result,
+            Err(AppError::MissingEnv {
+                name: "REVAER_SECRET_KEY_ID"
+            })
+        ));
+    }
+
+    #[test]
+    fn secret_session_missing_secret_errors() {
+        let result = secret_session_from_values(Some("key-id"), None);
+
+        assert!(matches!(
+            result,
+            Err(AppError::MissingEnv {
+                name: "REVAER_SECRET_KEY"
+            })
+        ));
+    }
+
+    #[test]
+    fn secret_session_empty_key_errors() {
+        let result = secret_session_from_values(Some("   "), Some("secret-value"));
+
+        assert!(matches!(
+            result,
+            Err(AppError::InvalidConfig {
+                field: "REVAER_SECRET_KEY_ID",
+                reason: "empty",
+                value: None
+            })
+        ));
+    }
+
+    #[test]
+    fn secret_session_empty_secret_errors() {
+        let result = secret_session_from_values(Some("key-id"), Some(" "));
+
+        assert!(matches!(
+            result,
+            Err(AppError::InvalidConfig {
+                field: "REVAER_SECRET_KEY",
+                reason: "empty",
+                value: None
+            })
+        ));
+    }
+
+    #[test]
+    fn secret_session_key_too_long_errors() {
+        let too_long = "k".repeat(DbSessionConfig::SECRET_KEY_ID_MAX_LEN + 1);
+        let result = secret_session_from_values(Some(&too_long), Some("secret-value"));
+
+        assert!(matches!(
+            result,
+            Err(AppError::InvalidConfig {
+                field: "REVAER_SECRET_KEY_ID",
+                reason: "too_long",
+                value: None
+            })
+        ));
+    }
+
+    #[test]
+    fn secret_session_secret_too_long_errors() {
+        let too_long = "s".repeat(DbSessionConfig::SECRET_KEY_MAX_LEN + 1);
+        let result = secret_session_from_values(Some("key-id"), Some(&too_long));
+
+        assert!(matches!(
+            result,
+            Err(AppError::InvalidConfig {
+                field: "REVAER_SECRET_KEY",
+                reason: "too_long",
+                value: None
+            })
+        ));
+    }
+
+    #[test]
+    fn optional_env_var_rejects_non_unicode_values() {
+        let result = optional_env_var_with("REVAER_SECRET_KEY_ID", |_| {
+            Err(std::env::VarError::NotUnicode(std::ffi::OsString::from(
+                "invalid",
+            )))
+        });
+
+        assert!(matches!(
+            result,
+            Err(AppError::InvalidConfig {
+                field: "REVAER_SECRET_KEY_ID",
+                reason: "env_not_unicode",
+                value: None,
+            })
+        ));
+    }
+
+    #[test]
     fn env_flag_handles_truthy_and_falsey() {
         assert!(env_flag_value(Some("TrUe")));
         assert!(!env_flag_value(Some("no")));
@@ -456,6 +707,54 @@ mod tests {
         assert_eq!(cfg.endpoint.as_deref(), Some("http://collector"));
         assert!(otel_config_from_values(false, "svc".into(), None).is_none());
         Ok(())
+    }
+
+    #[test]
+    fn indexer_runtime_module_stays_dependency_injected() {
+        let source = include_str!("indexers.rs");
+        let production_source = source.split("#[cfg(test)]").next().unwrap_or(source);
+
+        for forbidden in [
+            "std::env::",
+            "Metrics::new(",
+            "ConfigService::new(",
+            "EventBus::new(",
+            "RuntimeStore::new(",
+            "ApiServer::new(",
+        ] {
+            assert!(
+                !production_source.contains(forbidden),
+                "indexer runtime module must not construct or read '{forbidden}' directly"
+            );
+        }
+
+        assert!(
+            production_source.contains(
+                "pub(crate) const fn new(config: Arc<ConfigService>, telemetry: Metrics) -> Self"
+            ),
+            "indexer service must receive infrastructure collaborators from bootstrap"
+        );
+    }
+
+    #[test]
+    fn bootstrap_owns_indexer_wiring_and_environment_reads() {
+        let source = include_str!("bootstrap.rs");
+
+        for required in [
+            "std::env::var(\"DATABASE_URL\")",
+            "optional_env_var(\"REVAER_SECRET_KEY_ID\")",
+            "optional_env_var(\"REVAER_SECRET_KEY\")",
+            "Metrics::new()",
+            "EventBus::new()",
+            "RuntimeStore::new(",
+            "IndexerService::new(",
+            "IndexerRuntime::new(",
+        ] {
+            assert!(
+                source.contains(required),
+                "bootstrap must remain the wiring boundary for '{required}'"
+            );
+        }
     }
 
     #[test]

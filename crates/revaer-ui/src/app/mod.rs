@@ -21,7 +21,9 @@ use crate::core::theme::ThemeMode;
 use crate::core::ui::{Density, UiMode};
 use crate::features::dashboard::DashboardPage;
 use crate::features::health::view::HealthPage;
+use crate::features::indexers::view::IndexersPage;
 use crate::features::logs::view::LogsPage;
+use crate::features::search::view::SearchPage;
 use crate::features::settings::state::SettingsTab;
 use crate::features::settings::view::SettingsPage;
 use crate::features::torrents::actions::{TorrentAction, success_message};
@@ -112,7 +114,9 @@ pub fn revaer_app() -> Html {
     let nav_labels = {
         let bundle = (*bundle).clone();
         NavLabels {
-            dashboard: bundle.text("nav.dashboard"),
+            dashboard: text_or(&bundle, "nav.dashboard", "Dashboard"),
+            indexers: text_or(&bundle, "nav.indexers", "Indexers"),
+            search: text_or(&bundle, "nav.search", "Search"),
             torrents: bundle.text("nav.torrents"),
             logs: bundle.text("nav.logs"),
             categories: bundle.text("nav.categories"),
@@ -239,6 +243,8 @@ pub fn revaer_app() -> Html {
         let path = location.path();
         match path {
             "/" => Route::Dashboard,
+            "/indexers" => Route::Indexers,
+            "/search" => Route::Search,
             "/torrents" => Route::Torrents,
             "/settings" => Route::Settings,
             "/logs" => Route::Logs,
@@ -340,7 +346,6 @@ pub fn revaer_app() -> Html {
         let allow_anon = allow_anon.clone();
         let app_auth_mode = *app_auth_mode;
         let dispatch = dispatch.clone();
-        let auth_prompt_dismissed = auth_prompt_dismissed.clone();
         use_effect_with(app_auth_mode, move |app_auth_mode| {
             let allow = match *app_auth_mode {
                 Some(AppAuthMode::NoAuth) => true,
@@ -366,11 +371,6 @@ pub fn revaer_app() -> Html {
                         dispatch.reduce_mut(|store| {
                             store.auth.state = None;
                         });
-                    }
-                    if current.auth.state.is_none()
-                        || matches!(current.auth.state, Some(AuthState::Anonymous))
-                    {
-                        auth_prompt_dismissed.set(false);
                     }
                 }
                 None => {}
@@ -1858,6 +1858,13 @@ pub fn revaer_app() -> Html {
             push_toast(&dispatch, &toast_id, ToastKind::Error, message);
         })
     };
+    let on_success_toast = {
+        let dispatch = dispatch.clone();
+        let toast_id = toast_id.clone();
+        Callback::from(move |message: String| {
+            push_toast(&dispatch, &toast_id, ToastKind::Success, message);
+        })
+    };
     let on_add_torrent = {
         let dispatch = dispatch.clone();
         let api_ctx = (*api_ctx).clone();
@@ -2202,6 +2209,18 @@ pub fn revaer_app() -> Html {
                                     system_rates={system_rates_value}
                                 />
                             },
+                            Route::Indexers => html! {
+                                <IndexersPage
+                                    on_success_toast={on_success_toast.clone()}
+                                    on_error_toast={on_error_toast.clone()}
+                                />
+                            },
+                            Route::Search => html! {
+                                <SearchPage
+                                    on_success_toast={on_success_toast.clone()}
+                                    on_error_toast={on_error_toast.clone()}
+                                />
+                            },
                             Route::Logs => html! {
                                 <LogsPage
                                     base_url={settings_base_url.clone()}
@@ -2367,6 +2386,15 @@ pub fn revaer_app() -> Html {
                 } else { html!{} }}
             </ContextProvider<TranslationBundle>>
         </ContextProvider<ApiCtx>>
+    }
+}
+
+fn text_or(bundle: &TranslationBundle, key: &str, fallback: &str) -> String {
+    let value = bundle.text(key);
+    if value.starts_with("missing:") {
+        fallback.to_string()
+    } else {
+        value
     }
 }
 

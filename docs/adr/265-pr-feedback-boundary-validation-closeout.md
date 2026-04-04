@@ -1,0 +1,26 @@
+# PR feedback boundary validation closeout
+
+- Status: Accepted
+- Date: 2026-03-29
+- Context:
+  - PR `#6` received another round of unresolved review feedback after the earlier thread closeout work landed on `feat/indexers`.
+  - The remaining actionable comments focused on HTTP-boundary validation for required string fields and on removing an unnecessary checked allocation path for a small bounded tag-key normalization helper.
+  - The repository completion rules require a task record for the follow-up, plus successful `just ci` and `just ui-e2e` validation before hand-off.
+- Decision:
+  - Validate required create-request fields at the HTTP boundary with `normalize_required_str_field` in the tag, secret, and health notification hook handlers so blank strings fail fast with stable client-facing messages.
+  - Replace `checked_vec_capacity` in `normalize_tag_keys` with `Vec::with_capacity(keys.len())` because the helper only sizes a bounded in-memory vector from already-materialized request input.
+  - Add focused regression tests covering the new required-field failures for tag creation, secret creation, and health notification hook creation.
+  - Dependency rationale: no new dependencies were added; the cleanup reuses existing normalization helpers and handler test scaffolding.
+  - Alternatives considered: keeping trim-only behavior would defer required-field validation deeper into service calls, and keeping the checked allocation helper would preserve an unnecessary failure mode for a small local vector.
+- Consequences:
+  - Positive outcomes:
+    - Required string fields now fail consistently and earlier across the affected indexer HTTP handlers.
+    - The tag-key normalization helper no longer depends on live allocator probing for a request-bounded vector allocation.
+    - The new tests document the intended boundary behavior and protect the PR feedback fixes against regression.
+  - Risks or trade-offs:
+    - The handlers now reject blank required strings before the service layer sees them, which can slightly change which error code path a client observes for malformed requests.
+    - Rollback remains low risk: revert the handler validation changes and focused tests if downstream callers require the previous service-layer validation path.
+- Follow-up:
+  - Push the validated branch updates to `origin/feat/indexers`.
+  - Resolve the newly addressed PR review threads on PR `#6`.
+  - Wait for the refreshed CI and code analysis runs, then address any newly surfaced failures before closing the loop.

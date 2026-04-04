@@ -1,0 +1,33 @@
+# Rate-limit defaults and scope enforcement coverage
+
+- Status: Accepted
+- Date: 2026-02-25
+- Context:
+  - Motivation: ERD acceptance item 583 requires proof that default rate-limit policies exist and rate limiting is enforced for both indexer and routing scopes.
+  - Constraints:
+    - Validation must happen through stored-proc level behavior in `revaer-data`.
+    - No new dependencies; keep test coverage deterministic and local.
+  - Dependency rationale:
+    - No dependency changes.
+    - Alternative considered: validate defaults only through migration SQL review. Rejected because acceptance requires executable verification.
+- Decision:
+  - Added two stored-proc tests in `crates/revaer-data/src/indexers/rate_limits.rs`:
+    - `rate_limit_seed_defaults_match_expected_system_policies`
+    - `rate_limit_try_consume_enforces_bucket_capacity_for_routing_scope`
+  - Existing indexer-scope enforcement test remains in place, so both required scopes are now explicitly covered.
+  - Updated `ERD_INDEXERS_CHECKLIST.md` item 583 to complete.
+- Consequences:
+  - Positive outcomes:
+    - Regression-safe verification that `default_indexer` and `default_routing` seed policies match expected limits.
+    - Explicit runtime enforcement coverage for both `indexer_instance` and `routing_policy` scope types.
+  - Risks or trade-offs:
+    - Tests validate token-bucket behavior and seed invariants, but not every higher-level call path that consumes these policies.
+- Follow-up:
+  - Test coverage summary:
+    - New tests run under `just test`/`just ci` and exercise stored procedures directly.
+  - Observability updates:
+    - No telemetry changes needed.
+  - Risk and rollback:
+    - Rollback is limited to test/docs/checklist files and can be reverted safely if requirements change.
+  - Review checkpoints:
+    - Continue with next unchecked ERD acceptance items (retry behavior, Cloudflare transitions, streaming behavior).

@@ -22,7 +22,7 @@
 - Replace blocking SSE overlays with a navigation-safe connectivity indicator.
 
 ## Design notes
-- App shell and dashboard markup map directly to `ui_vendor/nexus-html@3.1.0` partials and the ecommerce dashboard page.
+- App shell and dashboard markup preserve the Nexus layout/class structure while the repo keeps only the vendor asset kit; executable Nexus reference HTML is not retained in-tree.
 - Dashboard sections are split into Nexus-faithful organisms while preserving class names and nesting.
 - SSE status is stored in `system.sse_status`; indicator consumes a summary slice, modal consumes full details.
 

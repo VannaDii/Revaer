@@ -1,19 +1,20 @@
 {
-  "name": "revaer-playwright-tests",
-  "private": true,
-  "version": "0.1.0",
-  "description": "Playwright E2E tests for Revaer UI",
-  "scripts": {
-    "gen:api-client": "openapi-typescript ../docs/api/openapi.json -o ./support/api/schema.ts",
-    "test": "playwright test",
-    "test:headed": "playwright test --headed",
-    "test:ui": "playwright test --ui",
-    "codegen": "playwright codegen $E2E_BASE_URL"
-  },
-  "devDependencies": {
-    "@playwright/test": "^1.50.0",
-    "dotenv": "^16.4.7",
-    "openapi-fetch": "^0.12.2",
-    "openapi-typescript": "^6.7.3"
-  }
+    "name": "revaer-playwright-tests",
+    "private": true,
+    "version": "0.1.0",
+    "description": "Playwright E2E tests for Revaer UI",
+    "scripts": {
+        "gen:api-client": "openapi-typescript ../docs/api/openapi.json -o ./support/api/schema.ts",
+        "test": "playwright test",
+        "test:headed": "playwright test --headed",
+        "test:ui": "playwright test --ui",
+        "codegen": "playwright codegen $E2E_BASE_URL",
+        "playwright:install": "sudo ./node_modules/.bin/playwright install-deps && sudo ./node_modules/.bin/playwright install"
+    },
+    "devDependencies": {
+        "@playwright/test": "1.58",
+        "dotenv": "17.3",
+        "openapi-fetch": "0.17",
+        "openapi-typescript": "7.13"
+    }
 }

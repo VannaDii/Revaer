@@ -3,1984 +3,8530 @@
  * Do not make direct changes to the file.
  */
 
-
 export interface paths {
-  "/.well-known/revaer.json": {
-    /** Retrieve the configuration snapshot exposed to clients */
-    get: {
-      responses: {
-        /** @description Configuration document */
-        200: {
-          content: {
-            "application/json": components["schemas"]["ConfigSnapshot"];
-          };
+    "/.well-known/revaer.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
+        /** Retrieve the configuration snapshot exposed to clients */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Configuration document */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ConfigSnapshot"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/admin/factory-reset": {
-    /** Reset configuration to defaults */
-    post: {
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["FactoryResetRequest"];
+    "/admin/factory-reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Factory reset complete */
-        204: {
-          content: never;
+        get?: never;
+        put?: never;
+        /** Reset configuration to defaults */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["FactoryResetRequest"];
+                };
+            };
+            responses: {
+                /** @description Factory reset complete */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid confirmation */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Invalid confirmation */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/admin/settings": {
-    /** Apply configuration mutations */
-    patch: {
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["SettingsChangeset"];
+    "/admin/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Updated configuration snapshot */
-        200: {
-          content: {
-            "application/json": components["schemas"]["ConfigSnapshot"];
-          };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Apply configuration mutations */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SettingsChangeset"];
+                };
+            };
+            responses: {
+                /** @description Updated configuration snapshot */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ConfigSnapshot"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Validation error */
-        422: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        trace?: never;
     };
-  };
-  "/admin/setup/complete": {
-    /** Complete initial setup and persist configuration */
-    post: {
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["SettingsChangeset"];
+    "/admin/setup/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Snapshot after setup */
-        200: {
-          content: {
-            "application/json": components["schemas"]["SetupCompleteResponse"];
-          };
+        get?: never;
+        put?: never;
+        /** Complete initial setup and persist configuration */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SettingsChangeset"];
+                };
+            };
+            responses: {
+                /** @description Snapshot after setup */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SetupCompleteResponse"];
+                    };
+                };
+                /** @description Invalid setup token */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Invalid setup token */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/admin/setup/start": {
-    /** Issue a one-time setup token */
-    post: {
-      requestBody?: {
-        content: {
-          "application/json": components["schemas"]["SetupStartRequest"];
+    "/admin/setup/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Setup token issued */
-        200: {
-          content: {
-            "application/json": components["schemas"]["SetupStartResponse"];
-          };
+        get?: never;
+        put?: never;
+        /** Issue a one-time setup token */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SetupStartRequest"];
+                };
+            };
+            responses: {
+                /** @description Setup token issued */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SetupStartResponse"];
+                    };
+                };
+                /** @description System already configured */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description System already configured */
-        409: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/admin/torrents": {
-    /** List torrents (admin) */
-    get: {
-      parameters: {
-        query?: {
-          limit?: number;
-          cursor?: string;
-          state?: "queued" | "fetching_metadata" | "downloading" | "seeding" | "completed" | "failed" | "stopped";
-          tracker?: string;
-          extension?: string;
-          /** @description Comma separated list of tags */
-          tags?: string;
-          name?: string;
+    "/admin/torrents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Torrent collection */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentListResponse"];
-          };
+        /** List torrents (admin) */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    cursor?: string;
+                    state?: "queued" | "fetching_metadata" | "downloading" | "seeding" | "completed" | "failed" | "stopped";
+                    tracker?: string;
+                    extension?: string;
+                    /** @description Comma separated list of tags */
+                    tags?: string;
+                    name?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Torrent collection */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentListResponse"];
+                    };
+                };
+                /** @description Invalid filters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Invalid filters */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
+        put?: never;
+        /** Submit a torrent descriptor (admin) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TorrentCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Torrent accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid submission */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** Submit a torrent descriptor (admin) */
-    post: {
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["TorrentCreateRequest"];
+    "/admin/torrents/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Torrent accepted */
-        202: {
-          content: never;
+        /** List torrent categories (admin) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Category list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentLabelEntry"][];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Invalid submission */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/admin/torrents/categories": {
-    /** List torrent categories (admin) */
-    get: {
-      responses: {
-        /** @description Category list */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentLabelEntry"][];
-          };
+    "/admin/torrents/categories/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
+        get?: never;
+        /** Upsert torrent category (admin) */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TorrentLabelPolicy"];
+                };
+            };
+            responses: {
+                /** @description Category updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentLabelEntry"];
+                    };
+                };
+                /** @description Invalid category payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/admin/torrents/categories/{name}": {
-    /** Upsert torrent category (admin) */
-    put: {
-      parameters: {
-        path: {
-          name: string;
+    "/admin/torrents/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["TorrentLabelPolicy"];
+        get?: never;
+        put?: never;
+        /** Author a torrent from filesystem (admin) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TorrentAuthorRequest"];
+                };
+            };
+            responses: {
+                /** @description Torrent authored */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentAuthorResponse"];
+                    };
+                };
+                /** @description Invalid authoring request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-      };
-      responses: {
-        /** @description Category updated */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentLabelEntry"];
-          };
-        };
-        /** @description Invalid category payload */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/admin/torrents/create": {
-    /** Author a torrent from filesystem (admin) */
-    post: {
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["TorrentAuthorRequest"];
+    "/admin/torrents/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Torrent authored */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentAuthorResponse"];
-          };
+        /** List torrent tags (admin) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Tag list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentLabelEntry"][];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Invalid authoring request */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/admin/torrents/tags": {
-    /** List torrent tags (admin) */
-    get: {
-      responses: {
-        /** @description Tag list */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentLabelEntry"][];
-          };
+    "/admin/torrents/tags/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
+        get?: never;
+        /** Upsert torrent tag (admin) */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TorrentLabelPolicy"];
+                };
+            };
+            responses: {
+                /** @description Tag updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentLabelEntry"];
+                    };
+                };
+                /** @description Invalid tag payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/admin/torrents/tags/{name}": {
-    /** Upsert torrent tag (admin) */
-    put: {
-      parameters: {
-        path: {
-          name: string;
+    "/admin/torrents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["TorrentLabelPolicy"];
+        /** Fetch torrent detail (admin) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Torrent detail */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentDetail"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-      };
-      responses: {
-        /** @description Tag updated */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentLabelEntry"];
-          };
+        put?: never;
+        post?: never;
+        /** Remove torrent (admin) */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Torrent removed */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Invalid tag payload */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/admin/torrents/{id}": {
-    /** Fetch torrent detail (admin) */
-    get: {
-      parameters: {
-        path: {
-          id: string;
+    "/admin/torrents/{id}/peers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Torrent detail */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentDetail"];
-          };
+        /** List torrent peers (admin) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Peer list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentPeer"][];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent not found */
-        404: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** Remove torrent (admin) */
-    delete: {
-      parameters: {
-        path: {
-          id: string;
+    "/docs/openapi.json": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Torrent removed */
-        204: {
-          content: never;
+        /** Serve the generated OpenAPI specification */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OpenAPI document */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/admin/torrents/{id}/peers": {
-    /** List torrent peers (admin) */
-    get: {
-      parameters: {
-        path: {
-          id: string;
+    "/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Peer list */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentPeer"][];
-          };
+        /** Read the lightweight health probe */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Health snapshot */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["HealthResponse"];
+                    };
+                };
+                /** @description Service unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/docs/openapi.json": {
-    /** Serve the generated OpenAPI specification */
-    get: {
-      responses: {
-        /** @description OpenAPI document */
-        200: {
-          content: {
-            "application/json": Record<string, never>;
-          };
+    "/health/full": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
+        /** Read the extended health probe */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Detailed health snapshot */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FullHealthResponse"];
+                    };
+                };
+                /** @description Service unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/health": {
-    /** Read the lightweight health probe */
-    get: {
-      responses: {
-        /** @description Health snapshot */
-        200: {
-          content: {
-            "application/json": components["schemas"]["HealthResponse"];
-          };
+    "/metrics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        /** @description Service unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
+        /** Expose Prometheus metrics */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Prometheus metrics */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/plain": string;
+                    };
+                };
+            };
         };
-      };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/health/full": {
-    /** Read the extended health probe */
-    get: {
-      responses: {
-        /** @description Detailed health snapshot */
-        200: {
-          content: {
-            "application/json": components["schemas"]["FullHealthResponse"];
-          };
+    "/torznab/{torznab_instance_public_id}/api": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        /** @description Service unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
+        /**
+         * Torznab API endpoint
+         * @description Torznab v1 API endpoint for caps and search requests.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Torznab command (caps, search, tvsearch, movie). */
+                    t?: string;
+                    /** @description Torznab API key. */
+                    apikey: string;
+                };
+                header?: never;
+                path: {
+                    torznab_instance_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Torznab XML response. */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/xml": string;
+                    };
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
         };
-      };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/metrics": {
-    /** Expose Prometheus metrics */
-    get: {
-      responses: {
-        /** @description Prometheus metrics */
-        200: {
-          content: {
-            "text/plain": string;
-          };
+    "/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
+        /**
+         * Torznab download redirect
+         * @description Torznab download endpoint that records acquisition attempts and redirects to magnet or download URL.
+         */
+        get: {
+            parameters: {
+                query: {
+                    /** @description Torznab API key. */
+                    apikey: string;
+                };
+                header?: never;
+                path: {
+                    torznab_instance_public_id: string;
+                    canonical_torrent_source_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Redirect to magnet or download URL. */
+                302: {
+                    headers: {
+                        Location?: string;
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Unauthorized */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/auth/refresh": {
-    /** Refresh the active API key expiration */
-    post: {
-      responses: {
-        /** @description Updated API key expiry */
-        200: {
-          content: {
-            "application/json": components["schemas"]["ApiKeyRefreshResponse"];
-          };
+    "/v1/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
+        get?: never;
+        put?: never;
+        /** Refresh the active API key expiration */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Updated API key expiry */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ApiKeyRefreshResponse"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Configuration invalid */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Configuration invalid */
-        422: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/config": {
-    /** Retrieve the authenticated configuration snapshot */
-    get: {
-      responses: {
-        /** @description Configuration snapshot */
-        200: {
-          content: {
-            "application/json": components["schemas"]["ConfigSnapshot"];
-          };
+    "/v1/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
+        /** Retrieve the authenticated configuration snapshot */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Configuration snapshot */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ConfigSnapshot"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Apply configuration mutations */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SettingsChangeset"];
+                };
+            };
+            responses: {
+                /** @description Updated configuration snapshot */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ConfigSnapshot"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Validation error */
+                422: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-      };
+        trace?: never;
     };
-    /** Apply configuration mutations */
-    patch: {
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["SettingsChangeset"];
+    "/v1/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Updated configuration snapshot */
-        200: {
-          content: {
-            "application/json": components["schemas"]["ConfigSnapshot"];
-          };
+        /** Retrieve dashboard snapshot */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Dashboard snapshot */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["DashboardResponse"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Validation error */
-        422: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/dashboard": {
-    /** Retrieve dashboard snapshot */
-    get: {
-      responses: {
-        /** @description Dashboard snapshot */
-        200: {
-          content: {
-            "application/json": components["schemas"]["DashboardResponse"];
-          };
+    "/v1/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
+        /** Subscribe to events via SSE */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Comma separated torrent identifiers */
+                    torrent?: string;
+                    /** @description Comma separated event kinds */
+                    event?: string;
+                    /** @description Filter state change events by new state */
+                    state?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description SSE stream */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": string;
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Event stream unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/events": {
-    /** Subscribe to events via SSE */
-    get: {
-      parameters: {
-        query?: {
-          /** @description Comma separated torrent identifiers */
-          torrent?: string;
-          /** @description Comma separated event kinds */
-          event?: string;
-          /** @description Filter state change events by new state */
-          state?: string;
+    "/v1/events/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description SSE stream */
-        200: {
-          content: {
-            "text/event-stream": string;
-          };
+        /** Subscribe to events via SSE */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Comma separated torrent identifiers */
+                    torrent?: string;
+                    /** @description Comma separated event kinds */
+                    event?: string;
+                    /** @description Filter state change events by new state */
+                    state?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description SSE stream */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": string;
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Event stream unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Event stream unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/events/stream": {
-    /** Subscribe to events via SSE */
-    get: {
-      parameters: {
-        query?: {
-          /** @description Comma separated torrent identifiers */
-          torrent?: string;
-          /** @description Comma separated event kinds */
-          event?: string;
-          /** @description Filter state change events by new state */
-          state?: string;
+    "/v1/fs/browse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description SSE stream */
-        200: {
-          content: {
-            "text/event-stream": string;
-          };
+        /** Browse filesystem entries */
+        get: {
+            parameters: {
+                query?: {
+                    path?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Filesystem entries */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["FsBrowseResponse"];
+                    };
+                };
+                /** @description Invalid filesystem path */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Event stream unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/fs/browse": {
-    /** Browse filesystem entries */
-    get: {
-      parameters: {
-        query?: {
-          path?: string;
+    "/v1/indexers/category-mappings/media-domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Filesystem entries */
-        200: {
-          content: {
-            "application/json": components["schemas"]["FsBrowseResponse"];
-          };
+        get?: never;
+        put?: never;
+        /** Upsert a media domain mapping */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MediaDomainMappingUpsertRequest"];
+                };
+            };
+            responses: {
+                /** @description Media domain mapping upserted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid media domain mapping payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Media domain mapping not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Invalid filesystem path */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
+        /** Delete a media domain mapping */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["MediaDomainMappingDeleteRequest"];
+                };
+            };
+            responses: {
+                /** @description Media domain mapping deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid media domain mapping reference */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Media domain mapping not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/logs/stream": {
-    /** Subscribe to log stream via SSE */
-    get: {
-      responses: {
-        /** @description SSE stream */
-        200: {
-          content: {
-            "text/event-stream": string;
-          };
+    "/v1/indexers/category-mappings/tracker": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
+        get?: never;
+        put?: never;
+        /** Upsert a tracker category mapping */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TrackerCategoryMappingUpsertRequest"];
+                };
+            };
+            responses: {
+                /** @description Tracker category mapping upserted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid tracker category mapping payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Tracker category mapping not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
+        /** Delete a tracker category mapping */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TrackerCategoryMappingDeleteRequest"];
+                };
+            };
+            responses: {
+                /** @description Tracker category mapping deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid tracker category mapping reference */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Tracker category mapping not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Log stream unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/torrents": {
-    /** List torrents with pagination and filters */
-    get: {
-      parameters: {
-        query?: {
-          limit?: number;
-          cursor?: string;
-          state?: "queued" | "fetching_metadata" | "downloading" | "seeding" | "completed" | "failed" | "stopped";
-          tracker?: string;
-          extension?: string;
-          /** @description Comma separated list of tags */
-          tags?: string;
-          name?: string;
+    "/v1/indexers/definitions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Torrent collection */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentListResponse"];
-          };
+        /** List indexer definitions */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Indexer definition list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IndexerDefinitionListResponse"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Invalid filters */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** Submit a torrent descriptor to the engine */
-    post: {
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["TorrentCreateRequest"];
+    "/v1/indexers/import-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Torrent accepted */
-        202: {
-          content: never;
+        get?: never;
+        put?: never;
+        /** Create an import job */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ImportJobCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Import job created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ImportJobResponse"];
+                    };
+                };
+                /** @description Invalid import job request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Target not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Import job conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Invalid submission */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/torrents/categories": {
-    /** List torrent categories */
-    get: {
-      responses: {
-        /** @description Category list */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentLabelEntry"][];
-          };
+    "/v1/indexers/import-jobs/{import_job_public_id}/results": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
+        /** List import job results */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    import_job_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Import job results */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ImportJobResultsResponse"];
+                    };
+                };
+                /** @description Invalid import job request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Import job not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Import job conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/torrents/categories/{name}": {
-    /** Create or update a torrent category */
-    put: {
-      parameters: {
-        path: {
-          name: string;
+    "/v1/indexers/import-jobs/{import_job_public_id}/run/prowlarr-api": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["TorrentLabelPolicy"];
+        get?: never;
+        put?: never;
+        /** Run import job using Prowlarr API */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    import_job_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ImportJobRunProwlarrApiRequest"];
+                };
+            };
+            responses: {
+                /** @description Import job started */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid import job request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Import job not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Import job conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-      };
-      responses: {
-        /** @description Category updated */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentLabelEntry"];
-          };
-        };
-        /** @description Invalid category payload */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/torrents/create": {
-    /** Author a new torrent from local files */
-    post: {
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["TorrentAuthorRequest"];
+    "/v1/indexers/import-jobs/{import_job_public_id}/run/prowlarr-backup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Torrent authored */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentAuthorResponse"];
-          };
+        get?: never;
+        put?: never;
+        /** Run import job using Prowlarr backup */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    import_job_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["ImportJobRunProwlarrBackupRequest"];
+                };
+            };
+            responses: {
+                /** @description Import job started */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid import job request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Import job not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Import job conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Invalid authoring request */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/torrents/events": {
-    /** Subscribe to torrent events via SSE */
-    get: {
-      parameters: {
-        query?: {
-          /** @description Comma separated torrent identifiers */
-          torrent?: string;
-          /** @description Comma separated event kinds */
-          event?: string;
-          /** @description Filter state change events by new state */
-          state?: string;
+    "/v1/indexers/import-jobs/{import_job_public_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description SSE stream */
-        200: {
-          content: {
-            "text/event-stream": string;
-          };
+        /** Get import job status */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    import_job_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Import job status */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ImportJobStatusResponse"];
+                    };
+                };
+                /** @description Invalid import job request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Import job not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Import job conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Event stream unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/torrents/tags": {
-    /** List torrent tags */
-    get: {
-      responses: {
-        /** @description Tag list */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentLabelEntry"][];
-          };
+    "/v1/indexers/instances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        get?: never;
+        put?: never;
+        /** Create indexer instance */
+        post: operations["createIndexerInstance"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/torrents/tags/{name}": {
-    /** Create or update a torrent tag */
-    put: {
-      parameters: {
-        path: {
-          name: string;
+    "/v1/indexers/instances/{indexer_instance_public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["TorrentLabelPolicy"];
-        };
-      };
-      responses: {
-        /** @description Tag updated */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentLabelEntry"];
-          };
-        };
-        /** @description Invalid tag payload */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update indexer instance */
+        patch: operations["updateIndexerInstance"];
+        trace?: never;
     };
-  };
-  "/v1/torrents/{id}": {
-    /** Fetch torrent detail by identifier */
-    get: {
-      parameters: {
-        path: {
-          id: string;
+    "/v1/indexers/instances/{indexer_instance_public_id}/fields/secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Torrent detail */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentDetail"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent not found */
-        404: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Bind indexer field secret */
+        patch: operations["bindIndexerInstanceFieldSecret"];
+        trace?: never;
     };
-  };
-  "/v1/torrents/{id}/action": {
-    /** Trigger a torrent control action */
-    post: {
-      parameters: {
-        path: {
-          id: string;
+    "/v1/indexers/instances/{indexer_instance_public_id}/fields/value": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["TorrentAction"];
-        };
-      };
-      responses: {
-        /** @description Action accepted */
-        202: {
-          content: never;
-        };
-        /** @description Invalid action payload */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Set indexer field value */
+        patch: operations["setIndexerInstanceFieldValue"];
+        trace?: never;
     };
-  };
-  "/v1/torrents/{id}/options": {
-    /** Update per-torrent options */
-    patch: {
-      parameters: {
-        path: {
-          id: string;
+    "/v1/indexers/instances/{indexer_instance_public_id}/media-domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["TorrentOptionsRequest"];
-        };
-      };
-      responses: {
-        /** @description Options update accepted */
-        202: {
-          content: never;
-        };
-        /** @description Invalid option payload */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        get?: never;
+        /** Set indexer media domains */
+        put: operations["setIndexerInstanceMediaDomains"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/torrents/{id}/peers": {
-    /** List torrent peers */
-    get: {
-      parameters: {
-        path: {
-          id: string;
+    "/v1/indexers/instances/{indexer_instance_public_id}/rate-limit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Peer list */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentPeer"][];
-          };
+        get?: never;
+        /** Set indexer instance rate limit */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    indexer_instance_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RateLimitPolicyAssignmentRequest"];
+                };
+            };
+            responses: {
+                /** @description Indexer instance rate limit updated */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
         };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/torrents/{id}/select": {
-    /** Update a torrent's file selection */
-    post: {
-      parameters: {
-        path: {
-          id: string;
+    "/v1/indexers/instances/{indexer_instance_public_id}/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["TorrentSelectionRequest"];
-        };
-      };
-      responses: {
-        /** @description Selection update accepted */
-        202: {
-          content: never;
-        };
-        /** @description Invalid selection payload */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        get?: never;
+        /** Set indexer tags */
+        put: operations["setIndexerInstanceTags"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/torrents/{id}/trackers": {
-    /** List torrent trackers */
-    get: {
-      parameters: {
-        path: {
-          id: string;
+    "/v1/indexers/policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      responses: {
-        /** @description Tracker list */
-        200: {
-          content: {
-            "application/json": components["schemas"]["TorrentTrackersResponse"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        get?: never;
+        put?: never;
+        /** Create a policy set */
+        post: operations["createPolicySet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** Remove torrent trackers */
-    delete: {
-      parameters: {
-        path: {
-          id: string;
+    "/v1/indexers/policies/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["TorrentTrackersRemoveRequest"];
-        };
-      };
-      responses: {
-        /** @description Trackers removed */
-        202: {
-          content: never;
-        };
-        /** @description Invalid tracker removal */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        get?: never;
+        put?: never;
+        /** Reorder policy sets */
+        post: operations["reorderPolicySets"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-    /** Update torrent trackers */
-    patch: {
-      parameters: {
-        path: {
-          id: string;
+    "/v1/indexers/policies/rules/{policy_rule_public_id}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["TorrentTrackersRequest"];
-        };
-      };
-      responses: {
-        /** @description Trackers updated */
-        202: {
-          content: never;
-        };
-        /** @description Invalid tracker update */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        get?: never;
+        put?: never;
+        /** Disable a policy rule */
+        post: operations["disablePolicyRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
-  "/v1/torrents/{id}/web_seeds": {
-    /** Update torrent web seeds */
-    patch: {
-      parameters: {
-        path: {
-          id: string;
+    "/v1/indexers/policies/rules/{policy_rule_public_id}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
         };
-      };
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["TorrentWebSeedsRequest"];
-        };
-      };
-      responses: {
-        /** @description Web seeds updated */
-        202: {
-          content: never;
-        };
-        /** @description Invalid web seed update */
-        400: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Authentication failed */
-        401: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Rate limit exceeded */
-        429: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-        /** @description Torrent workflow unavailable */
-        503: {
-          content: {
-            "application/json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
+        get?: never;
+        put?: never;
+        /** Enable a policy rule */
+        post: operations["enablePolicyRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
     };
-  };
+    "/v1/indexers/policies/{policy_set_public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update a policy set */
+        patch: operations["updatePolicySet"];
+        trace?: never;
+    };
+    "/v1/indexers/policies/{policy_set_public_id}/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable a policy set */
+        post: operations["disablePolicySet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/policies/{policy_set_public_id}/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enable a policy set */
+        post: operations["enablePolicySet"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/policies/{policy_set_public_id}/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a policy rule */
+        post: operations["createPolicyRule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/policies/{policy_set_public_id}/rules/reorder": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reorder policy rules */
+        post: operations["reorderPolicyRules"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/rate-limits": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a rate limit policy */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RateLimitPolicyCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Rate limit policy created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RateLimitPolicyResponse"];
+                    };
+                };
+                /** @description Invalid rate limit policy payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit policy conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/rate-limits/{rate_limit_policy_public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a rate limit policy */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    rate_limit_policy_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Rate limit policy deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit policy not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit policy conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Update a rate limit policy */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    rate_limit_policy_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RateLimitPolicyUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description Rate limit policy updated */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid rate limit policy payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit policy not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit policy conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/v1/indexers/routing-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a routing policy */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RoutingPolicyCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Routing policy created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["RoutingPolicyResponse"];
+                    };
+                };
+                /** @description Invalid routing policy payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Routing policy conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/routing-policies/{routing_policy_public_id}/params": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set a routing policy parameter */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    routing_policy_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RoutingPolicyParamSetRequest"];
+                };
+            };
+            responses: {
+                /** @description Routing policy parameter set */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid routing policy parameter */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Routing policy not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Routing policy conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/routing-policies/{routing_policy_public_id}/rate-limit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set routing policy rate limit */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    routing_policy_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RateLimitPolicyAssignmentRequest"];
+                };
+            };
+            responses: {
+                /** @description Routing policy rate limit updated */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid rate limit assignment */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Routing policy not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit policy conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/routing-policies/{routing_policy_public_id}/secrets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bind a routing policy secret */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    routing_policy_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["RoutingPolicySecretBindRequest"];
+                };
+            };
+            responses: {
+                /** @description Routing policy secret bound */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid routing policy secret binding */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Routing policy or secret not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Routing policy conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/search-profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a search profile */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SearchProfileCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Search profile created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SearchProfileResponse"];
+                    };
+                };
+                /** @description Invalid search profile payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile or user not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/search-profiles/{search_profile_public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update a search profile */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    search_profile_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SearchProfileUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description Search profile updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SearchProfileResponse"];
+                    };
+                };
+                /** @description Invalid search profile payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/v1/indexers/search-profiles/{search_profile_public_id}/default": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set default search profile */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    search_profile_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SearchProfileDefaultRequest"];
+                };
+            };
+            responses: {
+                /** @description Search profile default updated */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid search profile default */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/search-profiles/{search_profile_public_id}/default-domain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set search profile default media domain */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    search_profile_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SearchProfileDefaultDomainRequest"];
+                };
+            };
+            responses: {
+                /** @description Search profile default domain updated */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid search profile default domain */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/search-profiles/{search_profile_public_id}/indexers/allow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Allow indexers for a search profile */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    search_profile_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SearchProfileIndexerSetRequest"];
+                };
+            };
+            responses: {
+                /** @description Search profile indexer allowlist updated */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid search profile indexer allowlist */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile or indexer not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/search-profiles/{search_profile_public_id}/indexers/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Block indexers for a search profile */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    search_profile_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SearchProfileIndexerSetRequest"];
+                };
+            };
+            responses: {
+                /** @description Search profile indexer blocklist updated */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid search profile indexer blocklist */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile or indexer not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/search-profiles/{search_profile_public_id}/media-domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set search profile media domain allowlist */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    search_profile_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SearchProfileDomainAllowlistRequest"];
+                };
+            };
+            responses: {
+                /** @description Search profile allowlist updated */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid search profile allowlist */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/search-profiles/{search_profile_public_id}/policy-sets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a search profile policy set */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    search_profile_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SearchProfilePolicySetRequest"];
+                };
+            };
+            responses: {
+                /** @description Search profile policy set added */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid search profile policy set */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile or policy set not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        /** Remove a search profile policy set */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    search_profile_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SearchProfilePolicySetRequest"];
+                };
+            };
+            responses: {
+                /** @description Search profile policy set removed */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid search profile policy set */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile or policy set not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/search-profiles/{search_profile_public_id}/tags/allow": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Allow tags for a search profile */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    search_profile_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SearchProfileTagSetRequest"];
+                };
+            };
+            responses: {
+                /** @description Search profile tag allowlist updated */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid search profile tag allowlist */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile or tag not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/search-profiles/{search_profile_public_id}/tags/block": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Block tags for a search profile */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    search_profile_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SearchProfileTagSetRequest"];
+                };
+            };
+            responses: {
+                /** @description Search profile tag blocklist updated */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid search profile tag blocklist */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile or tag not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/search-profiles/{search_profile_public_id}/tags/prefer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Prefer tags for a search profile */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    search_profile_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SearchProfileTagSetRequest"];
+                };
+            };
+            responses: {
+                /** @description Search profile tag preference updated */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid search profile tag preference */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile or tag not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/search-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create search request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SearchRequestCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Search request created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SearchRequestCreateResponse"];
+                    };
+                };
+                /** @description Invalid search request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile or media domain not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/search-requests/{search_request_public_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel search request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    search_request_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Search request canceled */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid search request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search request not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/search-requests/{search_request_public_id}/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List search pages */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    search_request_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Search page list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SearchPageListResponse"];
+                    };
+                };
+                /** @description Invalid search request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search request not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/search-requests/{search_request_public_id}/pages/{page_number}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch search page */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    search_request_public_id: string;
+                    page_number: number;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Search page items */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SearchPageResponse"];
+                    };
+                };
+                /** @description Invalid search page request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search request or page not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/secrets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a secret */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SecretCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Secret created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SecretResponse"];
+                    };
+                };
+                /** @description Invalid secret payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        /** Revoke a secret */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SecretRevokeRequest"];
+                };
+            };
+            responses: {
+                /** @description Secret revoked */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid secret payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Secret not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Rotate a secret */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["SecretRotateRequest"];
+                };
+            };
+            responses: {
+                /** @description Secret rotated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SecretResponse"];
+                    };
+                };
+                /** @description Invalid secret payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Secret not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/v1/indexers/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an indexer tag */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TagCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Tag created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TagResponse"];
+                    };
+                };
+                /** @description Invalid tag payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Tag conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        /** Delete an indexer tag */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TagDeleteRequest"];
+                };
+            };
+            responses: {
+                /** @description Tag deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid tag reference */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Tag not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Tag conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Update an indexer tag */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TagUpdateRequest"];
+                };
+            };
+            responses: {
+                /** @description Tag updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TagResponse"];
+                    };
+                };
+                /** @description Invalid tag payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Tag not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Tag conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/v1/indexers/torznab-instances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a torznab instance */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TorznabInstanceCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Torznab instance created */
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorznabInstanceResponse"];
+                    };
+                };
+                /** @description Invalid torznab instance payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Search profile not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torznab instance conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/torznab-instances/{torznab_instance_public_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete a torznab instance */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    torznab_instance_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Torznab instance deleted */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid torznab instance reference */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torznab instance not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torznab instance conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/indexers/torznab-instances/{torznab_instance_public_id}/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Rotate torznab API key */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    torznab_instance_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Torznab API key rotated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorznabInstanceResponse"];
+                    };
+                };
+                /** @description Invalid torznab instance reference */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torznab instance not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torznab instance conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/v1/indexers/torznab-instances/{torznab_instance_public_id}/state": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set torznab instance state */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    torznab_instance_public_id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TorznabInstanceStateRequest"];
+                };
+            };
+            responses: {
+                /** @description Torznab instance state updated */
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid torznab instance state payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torznab instance not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torznab instance conflict */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Server error */
+                500: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/logs/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Subscribe to log stream via SSE */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description SSE stream */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": string;
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Log stream unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/torrents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List torrents with pagination and filters */
+        get: {
+            parameters: {
+                query?: {
+                    limit?: number;
+                    cursor?: string;
+                    state?: "queued" | "fetching_metadata" | "downloading" | "seeding" | "completed" | "failed" | "stopped";
+                    tracker?: string;
+                    extension?: string;
+                    /** @description Comma separated list of tags */
+                    tags?: string;
+                    name?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Torrent collection */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentListResponse"];
+                    };
+                };
+                /** @description Invalid filters */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Submit a torrent descriptor to the engine */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TorrentCreateRequest"];
+                };
+            };
+            responses: {
+                /** @description Torrent accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid submission */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/torrents/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List torrent categories */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Category list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentLabelEntry"][];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/torrents/categories/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Create or update a torrent category */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TorrentLabelPolicy"];
+                };
+            };
+            responses: {
+                /** @description Category updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentLabelEntry"];
+                    };
+                };
+                /** @description Invalid category payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/torrents/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Author a new torrent from local files */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TorrentAuthorRequest"];
+                };
+            };
+            responses: {
+                /** @description Torrent authored */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentAuthorResponse"];
+                    };
+                };
+                /** @description Invalid authoring request */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/torrents/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Subscribe to torrent events via SSE */
+        get: {
+            parameters: {
+                query?: {
+                    /** @description Comma separated torrent identifiers */
+                    torrent?: string;
+                    /** @description Comma separated event kinds */
+                    event?: string;
+                    /** @description Filter state change events by new state */
+                    state?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description SSE stream */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "text/event-stream": string;
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Event stream unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/torrents/tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List torrent tags */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Tag list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentLabelEntry"][];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/torrents/tags/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Create or update a torrent tag */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    name: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TorrentLabelPolicy"];
+                };
+            };
+            responses: {
+                /** @description Tag updated */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentLabelEntry"];
+                    };
+                };
+                /** @description Invalid tag payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/torrents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch torrent detail by identifier */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Torrent detail */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentDetail"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent not found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/torrents/{id}/action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Trigger a torrent control action */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TorrentAction"];
+                };
+            };
+            responses: {
+                /** @description Action accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid action payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/torrents/{id}/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update per-torrent options */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TorrentOptionsRequest"];
+                };
+            };
+            responses: {
+                /** @description Options update accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid option payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/v1/torrents/{id}/peers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List torrent peers */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Peer list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentPeer"][];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/torrents/{id}/select": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Update a torrent's file selection */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TorrentSelectionRequest"];
+                };
+            };
+            responses: {
+                /** @description Selection update accepted */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid selection payload */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/torrents/{id}/trackers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List torrent trackers */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Tracker list */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["TorrentTrackersResponse"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        /** Remove torrent trackers */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TorrentTrackersRemoveRequest"];
+                };
+            };
+            responses: {
+                /** @description Trackers removed */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid tracker removal */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        /** Update torrent trackers */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TorrentTrackersRequest"];
+                };
+            };
+            responses: {
+                /** @description Trackers updated */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid tracker update */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
+    "/v1/torrents/{id}/web_seeds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update torrent web seeds */
+        patch: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["TorrentWebSeedsRequest"];
+                };
+            };
+            responses: {
+                /** @description Web seeds updated */
+                202: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Invalid web seed update */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Authentication failed */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Rate limit exceeded */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+                /** @description Torrent workflow unavailable */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ProblemDetails"];
+                    };
+                };
+            };
+        };
+        trace?: never;
+    };
 }
-
 export type webhooks = Record<string, never>;
-
 export interface components {
-  schemas: {
-    ApiKeyRefreshResponse: {
-      api_key_expires_at: string;
+    schemas: {
+        ApiKeyRefreshResponse: {
+            api_key_expires_at: string;
+        };
+        ConfigSnapshot: {
+            app_profile: Record<string, never>;
+            engine_profile: Record<string, never>;
+            engine_profile_effective: Record<string, never>;
+            fs_policy: Record<string, never>;
+            /** Format: int64 */
+            revision: number;
+        };
+        DashboardResponse: {
+            /** Format: int32 */
+            active: number;
+            /** Format: int32 */
+            completed: number;
+            /** Format: int32 */
+            disk_total_gb: number;
+            /** Format: int32 */
+            disk_used_gb: number;
+            /** Format: int64 */
+            download_bps: number;
+            /** Format: int32 */
+            paused: number;
+            /** Format: int64 */
+            upload_bps: number;
+        };
+        FactoryResetRequest: {
+            confirm: string;
+        };
+        FilePriorityOverride: {
+            /** Format: int32 */
+            index: number;
+            /** @enum {string} */
+            priority: "skip" | "low" | "normal" | "high";
+        };
+        FsBrowseResponse: {
+            entries: components["schemas"]["FsEntry"][];
+            parent?: string;
+            path: string;
+        };
+        FsEntry: {
+            kind: components["schemas"]["FsEntryKind"];
+            name: string;
+            path: string;
+        };
+        /** @enum {string} */
+        FsEntryKind: "directory" | "file" | "symlink" | "other";
+        FullHealthResponse: {
+            build: string;
+            degraded: string[];
+            metrics: components["schemas"]["HealthMetricsResponse"];
+            mode: string;
+            /** Format: int64 */
+            revision: number;
+            status: string;
+            torrent: components["schemas"]["TorrentHealthSnapshot"];
+        };
+        HealthComponent: {
+            /** Format: int64 */
+            revision?: number;
+            status: string;
+        };
+        HealthMetricsResponse: {
+            /** Format: int64 */
+            config_apply_latency_ms: number;
+            /** Format: int64 */
+            config_update_failures_total: number;
+            /** Format: int64 */
+            config_watch_latency_ms: number;
+            /** Format: int64 */
+            config_watch_slow_total: number;
+            /** Format: int64 */
+            guardrail_violations_total: number;
+            /** Format: int64 */
+            rate_limit_throttled_total: number;
+        };
+        HealthResponse: {
+            database: components["schemas"]["HealthComponent"];
+            mode: string;
+            status: string;
+        };
+        ImportJobCreateRequest: {
+            is_dry_run?: boolean;
+            source: string;
+            /** Format: uuid */
+            target_search_profile_public_id?: string;
+            /** Format: uuid */
+            target_torznab_instance_public_id?: string;
+        };
+        ImportJobResponse: {
+            /** Format: uuid */
+            import_job_public_id: string;
+        };
+        ImportJobResultResponse: {
+            /** Format: date-time */
+            created_at: string;
+            detail?: string;
+            /** Format: uuid */
+            indexer_instance_public_id?: string;
+            prowlarr_identifier: string;
+            status: string;
+            upstream_slug?: string;
+        };
+        ImportJobResultsResponse: {
+            results: components["schemas"]["ImportJobResultResponse"][];
+        };
+        ImportJobRunProwlarrApiRequest: {
+            /** Format: uuid */
+            prowlarr_api_key_secret_public_id: string;
+            prowlarr_url: string;
+        };
+        ImportJobRunProwlarrBackupRequest: {
+            backup_blob_ref: string;
+        };
+        ImportJobStatusResponse: {
+            /** Format: int32 */
+            result_imported_needs_secret: number;
+            /** Format: int32 */
+            result_imported_ready: number;
+            /** Format: int32 */
+            result_imported_test_failed: number;
+            /** Format: int32 */
+            result_skipped_duplicate: number;
+            /** Format: int32 */
+            result_total: number;
+            /** Format: int32 */
+            result_unmapped_definition: number;
+            status: string;
+        };
+        IndexerDefinitionListResponse: {
+            definitions: components["schemas"]["IndexerDefinitionResponse"][];
+        };
+        IndexerDefinitionResponse: {
+            /** Format: date-time */
+            created_at: string;
+            definition_hash: string;
+            display_name: string;
+            engine: string;
+            is_deprecated: boolean;
+            protocol: string;
+            /** Format: int32 */
+            schema_version: number;
+            /** Format: date-time */
+            updated_at: string;
+            upstream_slug: string;
+            upstream_source: string;
+        };
+        IndexerInstanceCreateRequest: {
+            display_name: string;
+            /** Format: int64 */
+            indexer_definition_id: number;
+            /** Format: int32 */
+            priority?: number;
+            /** Format: uuid */
+            routing_policy_public_id?: string;
+            trust_tier_key?: string;
+        };
+        IndexerInstanceFieldSecretBindRequest: {
+            field_name: string;
+            /** Format: uuid */
+            secret_public_id: string;
+        };
+        IndexerInstanceFieldValueRequest: {
+            field_name: string;
+            value_bool?: boolean;
+            value_decimal?: string;
+            /** Format: int32 */
+            value_int?: number;
+            value_plain?: string;
+        };
+        IndexerInstanceMediaDomainsRequest: {
+            media_domain_keys?: string[];
+        };
+        IndexerInstanceResponse: {
+            /** Format: uuid */
+            indexer_instance_public_id?: string;
+        };
+        IndexerInstanceTagsRequest: {
+            tag_keys?: string[];
+            tag_public_ids?: string[];
+        };
+        IndexerInstanceUpdateRequest: {
+            display_name?: string;
+            enable_automatic_search?: boolean;
+            enable_interactive_search?: boolean;
+            enable_rss?: boolean;
+            /** Format: uuid */
+            indexer_instance_public_id: string;
+            is_enabled?: boolean;
+            /** Format: int32 */
+            priority?: number;
+            /** Format: uuid */
+            routing_policy_public_id?: string;
+            trust_tier_key?: string;
+        };
+        MediaDomainMappingDeleteRequest: {
+            media_domain_key: string;
+            /** Format: int32 */
+            torznab_cat_id: number;
+        };
+        MediaDomainMappingUpsertRequest: {
+            is_primary?: boolean;
+            media_domain_key: string;
+            /** Format: int32 */
+            torznab_cat_id: number;
+        };
+        PeerChoke: {
+            local: boolean;
+            remote: boolean;
+        };
+        PeerInterest: {
+            local: boolean;
+            remote: boolean;
+        };
+        PolicyRuleCreateRequest: {
+            action: string;
+            /** Format: date-time */
+            expires_at?: string;
+            is_case_insensitive?: boolean;
+            match_field: string;
+            match_operator: string;
+            /** Format: int32 */
+            match_value_int?: number;
+            match_value_text?: string;
+            /** Format: uuid */
+            match_value_uuid?: string;
+            rationale?: string;
+            rule_type: string;
+            severity: string;
+            /** Format: int32 */
+            sort_order: number;
+            value_set_items?: components["schemas"]["PolicyRuleValueItemRequest"][];
+        };
+        PolicyRuleReorderRequest: {
+            ordered_policy_rule_public_ids: string[];
+        };
+        PolicyRuleResponse: {
+            /** Format: uuid */
+            policy_rule_public_id: string;
+        };
+        PolicyRuleValueItemRequest: {
+            /** Format: int64 */
+            value_bigint?: number;
+            /** Format: int32 */
+            value_int?: number;
+            value_text?: string;
+            /** Format: uuid */
+            value_uuid?: string;
+        };
+        PolicySetCreateRequest: {
+            display_name: string;
+            enabled?: boolean;
+            scope: string;
+        };
+        PolicySetReorderRequest: {
+            ordered_policy_set_public_ids: string[];
+        };
+        PolicySetResponse: {
+            /** Format: uuid */
+            policy_set_public_id: string;
+        };
+        PolicySetUpdateRequest: {
+            display_name?: string;
+        };
+        ProblemDetails: {
+            detail?: string;
+            status: number;
+            title: string;
+            type: string;
+        };
+        RateLimitPolicyAssignmentRequest: {
+            /** Format: uuid */
+            rate_limit_policy_public_id?: string;
+        };
+        RateLimitPolicyCreateRequest: {
+            /** Format: int32 */
+            burst: number;
+            /** Format: int32 */
+            concurrent: number;
+            display_name: string;
+            /** Format: int32 */
+            rpm: number;
+        };
+        RateLimitPolicyResponse: {
+            /** Format: uuid */
+            rate_limit_policy_public_id: string;
+        };
+        RateLimitPolicyUpdateRequest: {
+            /** Format: int32 */
+            burst?: number;
+            /** Format: int32 */
+            concurrent?: number;
+            display_name?: string;
+            /** Format: int32 */
+            rpm?: number;
+        };
+        RoutingPolicyCreateRequest: {
+            display_name: string;
+            mode: string;
+        };
+        RoutingPolicyParamSetRequest: {
+            param_key: string;
+            value_bool?: boolean;
+            /** Format: int32 */
+            value_int?: number;
+            value_plain?: string;
+        };
+        RoutingPolicyResponse: {
+            display_name: string;
+            mode: string;
+            /** Format: uuid */
+            routing_policy_public_id: string;
+        };
+        RoutingPolicySecretBindRequest: {
+            param_key: string;
+            /** Format: uuid */
+            secret_public_id: string;
+        };
+        SearchPageItemResponse: {
+            /** Format: uuid */
+            canonical_torrent_public_id: string;
+            /** Format: uuid */
+            canonical_torrent_source_public_id?: string;
+            details_url?: string;
+            download_url?: string;
+            indexer_display_name?: string;
+            /** Format: uuid */
+            indexer_instance_public_id?: string;
+            infohash_v1?: string;
+            infohash_v2?: string;
+            /** Format: int32 */
+            leechers?: number;
+            magnet_hash?: string;
+            magnet_uri?: string;
+            /** Format: int32 */
+            position: number;
+            /** Format: date-time */
+            published_at?: string;
+            /** Format: int32 */
+            seeders?: number;
+            /** Format: int64 */
+            size_bytes?: number;
+            title_display: string;
+            /** Format: int32 */
+            tracker_category?: number;
+            tracker_name?: string;
+            /** Format: int32 */
+            tracker_subcategory?: number;
+        };
+        SearchPageListResponse: {
+            pages: components["schemas"]["SearchPageSummaryResponse"][];
+        };
+        SearchPageResponse: {
+            /** Format: int32 */
+            item_count: number;
+            items: components["schemas"]["SearchPageItemResponse"][];
+            /** Format: int32 */
+            page_number: number;
+            /** Format: date-time */
+            sealed_at?: string;
+        };
+        SearchPageSummaryResponse: {
+            /** Format: int32 */
+            item_count: number;
+            /** Format: int32 */
+            page_number: number;
+            /** Format: date-time */
+            sealed_at?: string;
+        };
+        SearchProfileCreateRequest: {
+            default_media_domain_key?: string;
+            display_name: string;
+            is_default?: boolean;
+            /** Format: int32 */
+            page_size?: number;
+            /** Format: uuid */
+            user_public_id?: string;
+        };
+        SearchProfileDefaultDomainRequest: {
+            default_media_domain_key?: string;
+        };
+        SearchProfileDefaultRequest: {
+            /** Format: int32 */
+            page_size?: number;
+        };
+        SearchProfileDomainAllowlistRequest: {
+            media_domain_keys: string[];
+        };
+        SearchProfileIndexerSetRequest: {
+            indexer_instance_public_ids: string[];
+        };
+        SearchProfilePolicySetRequest: {
+            /** Format: uuid */
+            policy_set_public_id: string;
+        };
+        SearchProfileResponse: {
+            /** Format: uuid */
+            search_profile_public_id: string;
+        };
+        SearchProfileTagSetRequest: {
+            tag_keys?: string[];
+            tag_public_ids?: string[];
+        };
+        SearchProfileUpdateRequest: {
+            display_name?: string;
+            /** Format: int32 */
+            page_size?: number;
+        };
+        SearchRequestCreateRequest: {
+            /** Format: int32 */
+            episode_number?: number;
+            identifier_types?: string[];
+            identifier_values?: string[];
+            /** Format: int32 */
+            page_size?: number;
+            query_text: string;
+            query_type: string;
+            /** Format: uuid */
+            request_policy_set_public_id?: string;
+            requested_media_domain_key?: string;
+            /** Format: uuid */
+            search_profile_public_id?: string;
+            /** Format: int32 */
+            season_number?: number;
+            torznab_cat_ids?: number[];
+            torznab_mode?: string;
+        };
+        SearchRequestCreateResponse: {
+            /** Format: uuid */
+            request_policy_set_public_id: string;
+            /** Format: uuid */
+            search_request_public_id: string;
+        };
+        SecretCreateRequest: {
+            secret_type: string;
+            secret_value: string;
+        };
+        SecretResponse: {
+            /** Format: uuid */
+            secret_public_id: string;
+        };
+        SecretRevokeRequest: {
+            /** Format: uuid */
+            secret_public_id: string;
+        };
+        SecretRotateRequest: {
+            /** Format: uuid */
+            secret_public_id: string;
+            secret_value: string;
+        };
+        SettingsChangeset: {
+            api_keys?: Record<string, never>[];
+            app_profile?: Record<string, never> | null;
+            engine_profile?: Record<string, never> | null;
+            fs_policy?: Record<string, never> | null;
+            secrets?: Record<string, never>[];
+        };
+        SetupCompleteResponse: {
+            api_key?: string;
+            /** Format: date-time */
+            api_key_expires_at?: string;
+            snapshot: components["schemas"]["ConfigSnapshot"];
+        };
+        SetupStartRequest: {
+            issued_by?: string;
+            /** Format: int64 */
+            ttl_seconds?: number;
+        };
+        SetupStartResponse: {
+            /** Format: date-time */
+            expires_at: string;
+            token: string;
+        };
+        /** @enum {string} */
+        StorageMode: "sparse" | "allocate";
+        TagCreateRequest: {
+            display_name: string;
+            tag_key: string;
+        };
+        TagDeleteRequest: {
+            tag_key?: string;
+            /** Format: uuid */
+            tag_public_id?: string;
+        };
+        TagResponse: {
+            display_name: string;
+            tag_key?: string;
+            /** Format: uuid */
+            tag_public_id: string;
+        };
+        TagUpdateRequest: {
+            display_name: string;
+            tag_key?: string;
+            /** Format: uuid */
+            tag_public_id?: string;
+        };
+        TorrentAction: {
+            delete_data?: boolean | null;
+            /** Format: int64 */
+            download_bps?: number | null;
+            enable?: boolean | null;
+            /** @enum {string} */
+            type: "pause" | "resume" | "remove" | "reannounce" | "recheck" | "sequential" | "rate";
+            /** Format: int64 */
+            upload_bps?: number | null;
+        };
+        TorrentAuthorFileView: {
+            path: string;
+            /** Format: int64 */
+            size_bytes: number;
+        };
+        TorrentAuthorRequest: {
+            comment?: string | null;
+            exclude?: string[];
+            include?: string[];
+            /** Format: int32 */
+            piece_length?: number | null;
+            private?: boolean;
+            root_path: string;
+            skip_fluff?: boolean;
+            source?: string | null;
+            trackers?: string[];
+            web_seeds?: string[];
+        };
+        TorrentAuthorResponse: {
+            comment?: string | null;
+            files: components["schemas"]["TorrentAuthorFileView"][];
+            info_hash: string;
+            magnet_uri: string;
+            /** Format: byte */
+            metainfo: string;
+            /** Format: int32 */
+            piece_length: number;
+            private: boolean;
+            source?: string | null;
+            /** Format: int64 */
+            total_size: number;
+            trackers: string[];
+            warnings: string[];
+            web_seeds: string[];
+        };
+        TorrentCleanupPolicy: {
+            remove_data: boolean;
+            /** Format: float */
+            seed_ratio_limit?: number | null;
+            /** Format: int64 */
+            seed_time_limit?: number | null;
+        };
+        TorrentCreateRequest: {
+            auto_managed?: boolean | null;
+            category?: string | null;
+            comment?: string | null;
+            download_dir?: string | null;
+            exclude?: string[];
+            /** Format: int32 */
+            hash_check_sample_pct?: number | null;
+            /** Format: uuid */
+            id: string;
+            include?: string[];
+            magnet?: string | null;
+            /** Format: int32 */
+            max_connections?: number | null;
+            /** Format: int64 */
+            max_download_bps?: number | null;
+            /** Format: int64 */
+            max_upload_bps?: number | null;
+            /** Format: byte */
+            metainfo?: string | null;
+            name?: string | null;
+            pex_enabled?: boolean | null;
+            private?: boolean | null;
+            /** Format: int32 */
+            queue_position?: number | null;
+            replace_trackers?: boolean;
+            replace_web_seeds?: boolean;
+            seed_mode?: boolean | null;
+            /** Format: float */
+            seed_ratio_limit?: number | null;
+            /** Format: int64 */
+            seed_time_limit?: number | null;
+            sequential?: boolean | null;
+            skip_fluff?: boolean;
+            source?: string | null;
+            start_paused?: boolean | null;
+            storage_mode?: components["schemas"]["StorageMode"] | null;
+            super_seeding?: boolean | null;
+            tags?: string[];
+            trackers?: string[];
+            web_seeds?: string[];
+        };
+        TorrentDetail: {
+            files?: components["schemas"]["TorrentFileView"][] | null;
+            settings?: components["schemas"]["TorrentSettingsView"] | null;
+            summary: components["schemas"]["TorrentSummary"];
+        };
+        TorrentFileView: {
+            /** Format: int64 */
+            bytes_completed: number;
+            /** Format: int32 */
+            index: number;
+            path: string;
+            /** @enum {string} */
+            priority: "skip" | "low" | "normal" | "high";
+            selected: boolean;
+            /** Format: int64 */
+            size_bytes: number;
+        };
+        TorrentHealthSnapshot: {
+            /** Format: int64 */
+            active: number;
+            /** Format: int64 */
+            queue_depth: number;
+        };
+        TorrentLabelEntry: {
+            name: string;
+            policy: components["schemas"]["TorrentLabelPolicy"];
+        };
+        TorrentLabelPolicy: {
+            auto_managed?: boolean | null;
+            cleanup?: components["schemas"]["TorrentCleanupPolicy"] | null;
+            download_dir?: string | null;
+            /** Format: int32 */
+            queue_position?: number | null;
+            rate_limit?: components["schemas"]["TorrentRateLimit"] | null;
+            /** Format: float */
+            seed_ratio_limit?: number | null;
+            /** Format: int64 */
+            seed_time_limit?: number | null;
+        };
+        TorrentListResponse: {
+            next?: string | null;
+            torrents: components["schemas"]["TorrentSummary"][];
+        };
+        TorrentOptionsRequest: {
+            auto_managed?: boolean | null;
+            comment?: string | null;
+            /** Format: int32 */
+            connections_limit?: number | null;
+            paused?: boolean | null;
+            pex_enabled?: boolean | null;
+            private?: boolean | null;
+            /** Format: int32 */
+            queue_position?: number | null;
+            /** Format: float */
+            seed_ratio_limit?: number | null;
+            /** Format: int64 */
+            seed_time_limit?: number | null;
+            source?: string | null;
+            super_seeding?: boolean | null;
+        };
+        TorrentPeer: {
+            choke: components["schemas"]["PeerChoke"];
+            client?: string;
+            /** Format: int64 */
+            download_bps: number;
+            endpoint: string;
+            interest: components["schemas"]["PeerInterest"];
+            progress: number;
+            /** Format: int64 */
+            upload_bps: number;
+        };
+        TorrentProgressView: {
+            /** Format: int64 */
+            bytes_downloaded: number;
+            /** Format: int64 */
+            bytes_total: number;
+            /** Format: int64 */
+            eta_seconds?: number | null;
+            /** Format: float */
+            percent_complete: number;
+        };
+        TorrentRateLimit: {
+            /** Format: int64 */
+            download_bps?: number | null;
+            /** Format: int64 */
+            upload_bps?: number | null;
+        };
+        TorrentRatesView: {
+            /** Format: int64 */
+            download_bps: number;
+            /** Format: float */
+            ratio: number;
+            /** Format: int64 */
+            upload_bps: number;
+        };
+        TorrentSelectionRequest: {
+            exclude?: string[];
+            include?: string[];
+            priorities?: components["schemas"]["FilePriorityOverride"][];
+            skip_fluff?: boolean;
+        };
+        TorrentSelectionView: {
+            exclude: string[];
+            include: string[];
+            priorities?: components["schemas"]["FilePriorityOverride"][];
+            skip_fluff: boolean;
+        };
+        TorrentSettingsView: {
+            auto_managed?: boolean | null;
+            category?: string | null;
+            cleanup?: components["schemas"]["TorrentCleanupPolicy"] | null;
+            comment?: string | null;
+            /** Format: int32 */
+            connections_limit?: number | null;
+            download_dir?: string | null;
+            pex_enabled?: boolean | null;
+            private?: boolean | null;
+            /** Format: int32 */
+            queue_position?: number | null;
+            rate_limit?: components["schemas"]["TorrentRateLimit"] | null;
+            seed_mode?: boolean | null;
+            /** Format: float */
+            seed_ratio_limit?: number | null;
+            /** Format: int64 */
+            seed_time_limit?: number | null;
+            selection?: components["schemas"]["TorrentSelectionView"] | null;
+            sequential: boolean;
+            source?: string | null;
+            storage_mode?: components["schemas"]["StorageMode"] | null;
+            super_seeding?: boolean | null;
+            tags: string[];
+            tracker_messages?: {
+                [key: string]: string;
+            };
+            trackers: string[];
+            use_partfile?: boolean | null;
+            web_seeds?: string[];
+        };
+        TorrentStateView: {
+            failure_message?: string | null;
+            /** @enum {string} */
+            kind: "queued" | "fetching_metadata" | "downloading" | "seeding" | "completed" | "failed" | "stopped";
+        };
+        TorrentSummary: {
+            /** Format: date-time */
+            added_at: string;
+            category?: string | null;
+            /** Format: date-time */
+            completed_at?: string | null;
+            /** Format: int32 */
+            connections_limit?: number | null;
+            download_dir?: string | null;
+            /** Format: uuid */
+            id: string;
+            /** Format: date-time */
+            last_updated: string;
+            library_path?: string | null;
+            name?: string | null;
+            progress: components["schemas"]["TorrentProgressView"];
+            rate_limit?: components["schemas"]["TorrentRateLimit"] | null;
+            rates: components["schemas"]["TorrentRatesView"];
+            sequential: boolean;
+            state: components["schemas"]["TorrentStateView"];
+            tags: string[];
+            trackers: string[];
+        };
+        TorrentTrackersRemoveRequest: {
+            trackers?: string[];
+        };
+        TorrentTrackersRequest: {
+            replace?: boolean;
+            trackers?: string[];
+        };
+        TorrentTrackersResponse: {
+            trackers: components["schemas"]["TrackerView"][];
+        };
+        TorrentWebSeedsRequest: {
+            replace?: boolean;
+            web_seeds?: string[];
+        };
+        TorznabInstanceCreateRequest: {
+            display_name: string;
+            /** Format: uuid */
+            search_profile_public_id: string;
+        };
+        TorznabInstanceResponse: {
+            api_key_plaintext: string;
+            /** Format: uuid */
+            torznab_instance_public_id: string;
+        };
+        TorznabInstanceStateRequest: {
+            is_enabled: boolean;
+        };
+        TrackerCategoryMappingDeleteRequest: {
+            indexer_definition_upstream_slug?: string;
+            /** Format: int32 */
+            tracker_category: number;
+            /** Format: int32 */
+            tracker_subcategory?: number;
+        };
+        TrackerCategoryMappingUpsertRequest: {
+            indexer_definition_upstream_slug?: string;
+            media_domain_key?: string;
+            /** Format: int32 */
+            torznab_cat_id: number;
+            /** Format: int32 */
+            tracker_category: number;
+            /** Format: int32 */
+            tracker_subcategory?: number;
+        };
+        TrackerView: {
+            message?: string;
+            status?: string;
+            url: string;
+        };
     };
-    ConfigSnapshot: {
-      app_profile: Record<string, never>;
-      engine_profile: Record<string, never>;
-      engine_profile_effective: Record<string, never>;
-      fs_policy: Record<string, never>;
-      /** Format: int64 */
-      revision: number;
-    };
-    DashboardResponse: {
-      /** Format: int32 */
-      active: number;
-      /** Format: int32 */
-      completed: number;
-      /** Format: int32 */
-      disk_total_gb: number;
-      /** Format: int32 */
-      disk_used_gb: number;
-      /** Format: int64 */
-      download_bps: number;
-      /** Format: int32 */
-      paused: number;
-      /** Format: int64 */
-      upload_bps: number;
-    };
-    FactoryResetRequest: {
-      confirm: string;
-    };
-    FilePriorityOverride: {
-      /** Format: int32 */
-      index: number;
-      /** @enum {string} */
-      priority: "skip" | "low" | "normal" | "high";
-    };
-    FsBrowseResponse: {
-      entries: components["schemas"]["FsEntry"][];
-      parent?: string;
-      path: string;
-    };
-    FsEntry: {
-      kind: components["schemas"]["FsEntryKind"];
-      name: string;
-      path: string;
-    };
-    /** @enum {string} */
-    FsEntryKind: "directory" | "file" | "symlink" | "other";
-    FullHealthResponse: {
-      build: string;
-      degraded: string[];
-      metrics: components["schemas"]["HealthMetricsResponse"];
-      mode: string;
-      /** Format: int64 */
-      revision: number;
-      status: string;
-      torrent: components["schemas"]["TorrentHealthSnapshot"];
-    };
-    HealthComponent: {
-      /** Format: int64 */
-      revision?: number;
-      status: string;
-    };
-    HealthMetricsResponse: {
-      /** Format: int64 */
-      config_apply_latency_ms: number;
-      /** Format: int64 */
-      config_update_failures_total: number;
-      /** Format: int64 */
-      config_watch_latency_ms: number;
-      /** Format: int64 */
-      config_watch_slow_total: number;
-      /** Format: int64 */
-      guardrail_violations_total: number;
-      /** Format: int64 */
-      rate_limit_throttled_total: number;
-    };
-    HealthResponse: {
-      database: components["schemas"]["HealthComponent"];
-      mode: string;
-      status: string;
-    };
-    PeerChoke: {
-      local: boolean;
-      remote: boolean;
-    };
-    PeerInterest: {
-      local: boolean;
-      remote: boolean;
-    };
-    ProblemDetails: {
-      detail?: string;
-      status: number;
-      title: string;
-      type: string;
-    };
-    SettingsChangeset: {
-      api_keys?: Record<string, never>[];
-      app_profile?: Record<string, never> | null;
-      engine_profile?: Record<string, never> | null;
-      fs_policy?: Record<string, never> | null;
-      secrets?: Record<string, never>[];
-    };
-    SetupCompleteResponse: {
-      api_key?: string;
-      /** Format: date-time */
-      api_key_expires_at?: string;
-      snapshot: components["schemas"]["ConfigSnapshot"];
-    };
-    SetupStartRequest: {
-      issued_by?: string;
-      /** Format: int64 */
-      ttl_seconds?: number;
-    };
-    SetupStartResponse: {
-      /** Format: date-time */
-      expires_at: string;
-      token: string;
-    };
-    /** @enum {string} */
-    StorageMode: "sparse" | "allocate";
-    TorrentAction: {
-      delete_data?: boolean | null;
-      /** Format: int64 */
-      download_bps?: number | null;
-      enable?: boolean | null;
-      /** @enum {string} */
-      type: "pause" | "resume" | "remove" | "reannounce" | "recheck" | "sequential" | "rate";
-      /** Format: int64 */
-      upload_bps?: number | null;
-    };
-    TorrentAuthorFileView: {
-      path: string;
-      /** Format: int64 */
-      size_bytes: number;
-    };
-    TorrentAuthorRequest: {
-      comment?: string | null;
-      exclude?: string[];
-      include?: string[];
-      /** Format: int32 */
-      piece_length?: number | null;
-      private?: boolean;
-      root_path: string;
-      skip_fluff?: boolean;
-      source?: string | null;
-      trackers?: string[];
-      web_seeds?: string[];
-    };
-    TorrentAuthorResponse: {
-      comment?: string | null;
-      files: components["schemas"]["TorrentAuthorFileView"][];
-      info_hash: string;
-      magnet_uri: string;
-      /** Format: byte */
-      metainfo: string;
-      /** Format: int32 */
-      piece_length: number;
-      private: boolean;
-      source?: string | null;
-      /** Format: int64 */
-      total_size: number;
-      trackers: string[];
-      warnings: string[];
-      web_seeds: string[];
-    };
-    TorrentCleanupPolicy: {
-      remove_data: boolean;
-      /** Format: float */
-      seed_ratio_limit?: number | null;
-      /** Format: int64 */
-      seed_time_limit?: number | null;
-    };
-    TorrentCreateRequest: {
-      auto_managed?: boolean | null;
-      category?: string | null;
-      comment?: string | null;
-      download_dir?: string | null;
-      exclude?: string[];
-      /** Format: int32 */
-      hash_check_sample_pct?: number | null;
-      /** Format: uuid */
-      id: string;
-      include?: string[];
-      magnet?: string | null;
-      /** Format: int32 */
-      max_connections?: number | null;
-      /** Format: int64 */
-      max_download_bps?: number | null;
-      /** Format: int64 */
-      max_upload_bps?: number | null;
-      /** Format: byte */
-      metainfo?: string | null;
-      name?: string | null;
-      pex_enabled?: boolean | null;
-      private?: boolean | null;
-      /** Format: int32 */
-      queue_position?: number | null;
-      replace_trackers?: boolean;
-      replace_web_seeds?: boolean;
-      seed_mode?: boolean | null;
-      /** Format: float */
-      seed_ratio_limit?: number | null;
-      /** Format: int64 */
-      seed_time_limit?: number | null;
-      sequential?: boolean | null;
-      skip_fluff?: boolean;
-      source?: string | null;
-      start_paused?: boolean | null;
-      storage_mode?: components["schemas"]["StorageMode"] | null;
-      super_seeding?: boolean | null;
-      tags?: string[];
-      trackers?: string[];
-      web_seeds?: string[];
-    };
-    TorrentDetail: {
-      files?: components["schemas"]["TorrentFileView"][] | null;
-      settings?: components["schemas"]["TorrentSettingsView"] | null;
-      summary: components["schemas"]["TorrentSummary"];
-    };
-    TorrentFileView: {
-      /** Format: int64 */
-      bytes_completed: number;
-      /** Format: int32 */
-      index: number;
-      path: string;
-      /** @enum {string} */
-      priority: "skip" | "low" | "normal" | "high";
-      selected: boolean;
-      /** Format: int64 */
-      size_bytes: number;
-    };
-    TorrentHealthSnapshot: {
-      /** Format: int64 */
-      active: number;
-      /** Format: int64 */
-      queue_depth: number;
-    };
-    TorrentLabelEntry: {
-      name: string;
-      policy: components["schemas"]["TorrentLabelPolicy"];
-    };
-    TorrentLabelPolicy: {
-      auto_managed?: boolean | null;
-      cleanup?: components["schemas"]["TorrentCleanupPolicy"] | null;
-      download_dir?: string | null;
-      /** Format: int32 */
-      queue_position?: number | null;
-      rate_limit?: components["schemas"]["TorrentRateLimit"] | null;
-      /** Format: float */
-      seed_ratio_limit?: number | null;
-      /** Format: int64 */
-      seed_time_limit?: number | null;
-    };
-    TorrentListResponse: {
-      next?: string | null;
-      torrents: components["schemas"]["TorrentSummary"][];
-    };
-    TorrentOptionsRequest: {
-      auto_managed?: boolean | null;
-      comment?: string | null;
-      /** Format: int32 */
-      connections_limit?: number | null;
-      paused?: boolean | null;
-      pex_enabled?: boolean | null;
-      private?: boolean | null;
-      /** Format: int32 */
-      queue_position?: number | null;
-      /** Format: float */
-      seed_ratio_limit?: number | null;
-      /** Format: int64 */
-      seed_time_limit?: number | null;
-      source?: string | null;
-      super_seeding?: boolean | null;
-    };
-    TorrentPeer: {
-      choke: components["schemas"]["PeerChoke"];
-      client?: string;
-      /** Format: int64 */
-      download_bps: number;
-      endpoint: string;
-      interest: components["schemas"]["PeerInterest"];
-      progress: number;
-      /** Format: int64 */
-      upload_bps: number;
-    };
-    TorrentProgressView: {
-      /** Format: int64 */
-      bytes_downloaded: number;
-      /** Format: int64 */
-      bytes_total: number;
-      /** Format: int64 */
-      eta_seconds?: number | null;
-      /** Format: float */
-      percent_complete: number;
-    };
-    TorrentRateLimit: {
-      /** Format: int64 */
-      download_bps?: number | null;
-      /** Format: int64 */
-      upload_bps?: number | null;
-    };
-    TorrentRatesView: {
-      /** Format: int64 */
-      download_bps: number;
-      /** Format: float */
-      ratio: number;
-      /** Format: int64 */
-      upload_bps: number;
-    };
-    TorrentSelectionRequest: {
-      exclude?: string[];
-      include?: string[];
-      priorities?: components["schemas"]["FilePriorityOverride"][];
-      skip_fluff?: boolean;
-    };
-    TorrentSelectionView: {
-      exclude: string[];
-      include: string[];
-      priorities?: components["schemas"]["FilePriorityOverride"][];
-      skip_fluff: boolean;
-    };
-    TorrentSettingsView: {
-      auto_managed?: boolean | null;
-      category?: string | null;
-      cleanup?: components["schemas"]["TorrentCleanupPolicy"] | null;
-      comment?: string | null;
-      /** Format: int32 */
-      connections_limit?: number | null;
-      download_dir?: string | null;
-      pex_enabled?: boolean | null;
-      private?: boolean | null;
-      /** Format: int32 */
-      queue_position?: number | null;
-      rate_limit?: components["schemas"]["TorrentRateLimit"] | null;
-      seed_mode?: boolean | null;
-      /** Format: float */
-      seed_ratio_limit?: number | null;
-      /** Format: int64 */
-      seed_time_limit?: number | null;
-      selection?: components["schemas"]["TorrentSelectionView"] | null;
-      sequential: boolean;
-      source?: string | null;
-      storage_mode?: components["schemas"]["StorageMode"] | null;
-      super_seeding?: boolean | null;
-      tags: string[];
-      tracker_messages?: {
-        [key: string]: string;
-      };
-      trackers: string[];
-      use_partfile?: boolean | null;
-      web_seeds?: string[];
-    };
-    TorrentStateView: {
-      failure_message?: string | null;
-      /** @enum {string} */
-      kind: "queued" | "fetching_metadata" | "downloading" | "seeding" | "completed" | "failed" | "stopped";
-    };
-    TorrentSummary: {
-      /** Format: date-time */
-      added_at: string;
-      category?: string | null;
-      /** Format: date-time */
-      completed_at?: string | null;
-      /** Format: int32 */
-      connections_limit?: number | null;
-      download_dir?: string | null;
-      /** Format: uuid */
-      id: string;
-      /** Format: date-time */
-      last_updated: string;
-      library_path?: string | null;
-      name?: string | null;
-      progress: components["schemas"]["TorrentProgressView"];
-      rate_limit?: components["schemas"]["TorrentRateLimit"] | null;
-      rates: components["schemas"]["TorrentRatesView"];
-      sequential: boolean;
-      state: components["schemas"]["TorrentStateView"];
-      tags: string[];
-      trackers: string[];
-    };
-    TorrentTrackersRemoveRequest: {
-      trackers?: string[];
-    };
-    TorrentTrackersRequest: {
-      replace?: boolean;
-      trackers?: string[];
-    };
-    TorrentTrackersResponse: {
-      trackers: components["schemas"]["TrackerView"][];
-    };
-    TorrentWebSeedsRequest: {
-      replace?: boolean;
-      web_seeds?: string[];
-    };
-    TrackerView: {
-      message?: string;
-      status?: string;
-      url: string;
-    };
-  };
-  responses: never;
-  parameters: never;
-  requestBodies: never;
-  headers: never;
-  pathItems: never;
+    responses: never;
+    parameters: never;
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
 }
-
 export type $defs = Record<string, never>;
-
-export type external = Record<string, never>;
-
-export type operations = Record<string, never>;
+export interface operations {
+    createIndexerInstance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexerInstanceCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Instance created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexerInstanceResponse"];
+                };
+            };
+        };
+    };
+    updateIndexerInstance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                indexer_instance_public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexerInstanceUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Instance updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IndexerInstanceResponse"];
+                };
+            };
+        };
+    };
+    bindIndexerInstanceFieldSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                indexer_instance_public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexerInstanceFieldSecretBindRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    setIndexerInstanceFieldValue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                indexer_instance_public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexerInstanceFieldValueRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    setIndexerInstanceMediaDomains: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                indexer_instance_public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexerInstanceMediaDomainsRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    setIndexerInstanceTags: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                indexer_instance_public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexerInstanceTagsRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    createPolicySet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicySetCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Policy set created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicySetResponse"];
+                };
+            };
+            /** @description Invalid policy set payload */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Authentication failed */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy set conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    reorderPolicySets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicySetReorderRequest"];
+            };
+        };
+        responses: {
+            /** @description Policy sets reordered */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid policy set reorder payload */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Authentication failed */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy set not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy set conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    disablePolicyRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_rule_public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Policy rule disabled */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication failed */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy rule not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy rule conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    enablePolicyRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_rule_public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Policy rule enabled */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication failed */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy rule not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy rule conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    updatePolicySet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_set_public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicySetUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Policy set updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicySetResponse"];
+                };
+            };
+            /** @description Invalid policy set payload */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Authentication failed */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy set not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy set conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    disablePolicySet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_set_public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Policy set disabled */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication failed */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy set not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy set conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    enablePolicySet: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_set_public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Policy set enabled */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Authentication failed */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy set not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy set conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    createPolicyRule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_set_public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyRuleCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Policy rule created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PolicyRuleResponse"];
+                };
+            };
+            /** @description Invalid policy rule payload */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Authentication failed */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy set not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy rule conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    reorderPolicyRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                policy_set_public_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PolicyRuleReorderRequest"];
+            };
+        };
+        responses: {
+            /** @description Policy rules reordered */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid policy rule reorder payload */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Authentication failed */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy set not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Policy rule conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Rate limit exceeded */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Server error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+}

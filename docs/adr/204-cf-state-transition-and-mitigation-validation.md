@@ -1,0 +1,29 @@
+# Cloudflare state transition and mitigation validation
+
+- Status: Accepted
+- Date: 2026-02-21
+- Context:
+  - `ERD_INDEXERS.md` requires explicit Cloudflare transition behavior around RSS polling failures, including challenged/cooldown progression and retryability semantics tied to FlareSolverr availability.
+  - Existing tests did not verify the `cf_challenge` transition paths in `rss_poll_apply_v1` from the Rust data boundary.
+  - Phase 7 still had Cloudflare transition/mitigation behavior unchecked.
+- Decision:
+  - Extend `revaer-data` RSS executor tests to validate:
+    - non-retryable `cf_challenge` creates/updates `indexer_cf_state` to `challenged` with incremented failures;
+    - repeated non-retryable `cf_challenge` transitions to `cooldown` at five consecutive failures with backoff;
+    - retryable `cf_challenge` (`cf_retryable=true`) follows retry semantics without applying CF state transition updates.
+  - Keep implementation dependency-free (no new crates).
+  - Alternatives considered:
+    - Rely only on procedure inspection: rejected because transition regressions are easy to miss without executable checks.
+    - Cover only via API/E2E: rejected because proc-level transition logic is most directly validated in data-layer tests.
+- Consequences:
+  - Positive outcomes:
+    - Core Cloudflare transition behavior in RSS polling now has regression coverage.
+    - Checklist item for Cloudflare state transitions/mitigation can be marked complete.
+  - Risks or trade-offs:
+    - This validates data/procedure behavior; route-selection policy wiring remains a separate verification axis.
+- Follow-up:
+  - Implementation tasks:
+    - Continue with the next unchecked ERD item after Cloudflare/rate-limit/RSS rule coverage.
+  - Review checkpoints:
+    - `just ci`
+    - `just ui-e2e`

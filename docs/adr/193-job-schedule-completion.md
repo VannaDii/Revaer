@@ -1,0 +1,25 @@
+# 192 Job schedule completion updates
+
+- Status: Accepted
+- Date: 2026-02-07
+- Context:
+  - Motivation: enforce ERD job_schedule completion semantics (next_run_at + lock cleanup) for indexer jobs.
+  - Constraints: stored-procedure-only runtime access, constant error messages, versioned procs with stable wrappers.
+- Decision:
+  - Add job_schedule_mark_completed_v1 and job_run_*_v2 wrappers to update last_run_at, next_run_at, and clear locks on both success and failure.
+  - Keep job_run_reputation_rollup signature stable by mapping window_key to job_key in-proc.
+  - Alternatives considered: update next_run_at in job_claim_next (rejected; ERD mandates update on completion) and update schedule in app runner (rejected; DB is SSOT).
+- Consequences:
+  - Positive outcomes: job_schedule rows now reflect completion cadence with jitter and lock cleanup per ERD.
+  - Risks or trade-offs: if job_schedule_mark_completed_v1 fails, job errors are surfaced as schedule update failures.
+- Follow-up:
+  - Verify any future job runner wiring calls job_run_* wrappers (not versioned functions directly).
+  - Review checkpoint: confirm Phase 9 checklist remains aligned with ERD job cadence rules.
+- Test coverage summary:
+  - Added a stored-proc test asserting job_run_retention_purge updates schedule timestamps and clears locks.
+- Observability updates:
+  - None (database-only change).
+- Risk & rollback plan:
+  - Roll back by reverting migration 0084 and restoring job_run_* wrappers to v1.
+- Dependency rationale:
+  - No new dependencies. Alternatives considered: not applicable.

@@ -38,7 +38,7 @@ pub use engine_profile::{
 };
 pub use error::{ConfigError, ConfigResult};
 #[cfg(not(target_arch = "wasm32"))]
-pub use loader::{ConfigService, ConfigWatcher, SettingsFacade, SettingsStream};
+pub use loader::{ConfigService, ConfigWatcher, DbSessionConfig, SettingsFacade, SettingsStream};
 pub use model::{
     ApiKeyAuth, ApiKeyPatch, ApiKeyRateLimit, AppAuthMode, AppMode, AppProfile, AppliedChanges,
     ConfigSnapshot, EngineProfile, FsPolicy, LabelKind, LabelPolicy, SecretPatch, SettingsChange,

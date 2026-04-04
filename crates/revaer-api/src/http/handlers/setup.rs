@@ -24,7 +24,10 @@ pub(crate) async fn setup_start(
     State(state): State<Arc<ApiState>>,
     payload: Option<Json<SetupStartRequest>>,
 ) -> Result<Json<SetupStartResponse>, ApiError> {
-    let payload = payload.map(|Json(p)| p).unwrap_or_default();
+    let payload = match payload {
+        Some(Json(payload)) => payload,
+        None => SetupStartRequest::default(),
+    };
 
     let app = state.config.get_app_profile().await.map_err(|err| {
         error!(error = %err, "failed to load app profile");
@@ -193,6 +196,7 @@ async fn apply_setup_changes(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::indexers::test_indexers;
     use crate::config::ConfigFacade;
     use crate::http::auth::AuthContext;
     use anyhow::Result;
@@ -451,6 +455,7 @@ mod tests {
     fn test_state(config: StubConfig) -> Result<Arc<ApiState>> {
         Ok(Arc::new(ApiState::new(
             Arc::new(config),
+            test_indexers(),
             Metrics::new()?,
             Arc::new(json!({})),
             EventBus::with_capacity(4),

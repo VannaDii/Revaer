@@ -428,36 +428,58 @@ docs:
 db-start:
     db_url="${DATABASE_URL:-postgres://revaer:revaer@localhost:5432/revaer}"; \
     echo "Using database URL: ${db_url}"; \
-    container_name="${PG_CONTAINER:-revaer-db}"; \
-    existing_container="$(docker ps -aq -f name=^${container_name}$)"; \
-    if [ -n "$existing_container" ]; then \
-        if [ -z "$(docker ps -q -f name=^${container_name}$)" ]; then \
-            echo "Starting existing Postgres container (${container_name})"; \
-            docker start "${container_name}" >/dev/null; \
-        fi; \
-    else \
-        echo "Starting new Postgres container (${container_name})"; \
-        docker run -d \
-            --name "${container_name}" \
-            -e POSTGRES_USER=revaer \
-            -e POSTGRES_PASSWORD=revaer \
-            -e POSTGRES_DB=revaer \
-            -p 5432:5432 \
-            -v revaer-pgdata:/var/lib/postgresql/data \
-            postgres:16-alpine >/dev/null; \
+    db_host="$(printf "%s" "${db_url}" | sed -E 's#^[^:]+://[^@]+@([^:/]+).*#\1#')"; \
+    db_port="$(printf "%s" "${db_url}" | sed -En 's#^[^:]+://[^@]+@[^:/]+:([0-9]+).*#\1#p')"; \
+    if [ -z "${db_port}" ]; then \
+        db_port="5432"; \
     fi; \
-    echo "Waiting for Postgres to become ready..."; \
+    container_name="${PG_CONTAINER:-revaer-db}"; \
+    if python3 -c 'import socket, sys; probe = socket.create_connection((sys.argv[1], int(sys.argv[2])), 1); probe.close()' "${db_host}" "${db_port}" >/dev/null 2>&1; then \
+        echo "Using existing Postgres endpoint ${db_host}:${db_port}"; \
+    else \
+        existing_container="$(docker ps -aq -f name=^${container_name}$)"; \
+        if [ -n "$existing_container" ]; then \
+            if [ -z "$(docker ps -q -f name=^${container_name}$)" ]; then \
+                echo "Starting existing Postgres container (${container_name})"; \
+                docker start "${container_name}" >/dev/null; \
+            fi; \
+        else \
+            echo "Starting new Postgres container (${container_name})"; \
+            docker run -d \
+                --name "${container_name}" \
+                -e POSTGRES_USER=revaer \
+                -e POSTGRES_PASSWORD=revaer \
+                -e POSTGRES_DB=revaer \
+                -p 5432:5432 \
+                -v revaer-pgdata:/var/lib/postgresql/data \
+                postgres:16-alpine >/dev/null; \
+        fi; \
+        echo "Waiting for Postgres to become ready..."; \
+        for _ in $(seq 1 30); do \
+            if docker exec "${container_name}" pg_isready -U revaer -d revaer >/dev/null 2>&1; then \
+                break; \
+            fi; \
+            sleep 1; \
+        done; \
+    fi; \
+    echo "Waiting for external Postgres endpoint ${db_host}:${db_port}..."; \
+    external_ready="0"; \
     for _ in $(seq 1 30); do \
-        if docker exec "${container_name}" pg_isready -U revaer -d revaer >/dev/null 2>&1; then \
+        if python3 -c 'import socket, sys; probe = socket.create_connection((sys.argv[1], int(sys.argv[2])), 1); probe.close()' "${db_host}" "${db_port}" >/dev/null 2>&1; then \
+            external_ready="1"; \
             break; \
         fi; \
         sleep 1; \
     done; \
+    if [ "${external_ready}" != "1" ]; then \
+        echo "Postgres endpoint ${db_host}:${db_port} did not become reachable."; \
+        exit 1; \
+    fi; \
     just sqlx-install; \
     DATABASE_URL="${db_url}" sqlx database create --database-url "${db_url}" 2>/dev/null || true; \
     reset_db="${REVAER_DB_RESET:-0}"; \
     if [ "${reset_db}" = "1" ]; then \
-        if echo "${db_url}" | grep -Eq '@(localhost|127\\.0\\.0\\.1)(:|/)'; then \
+        if echo "${db_url}" | grep -Eq '@(localhost|127\.0\.0\.1|host\.docker\.internal)(:|/)'; then \
             echo "Resetting local database..."; \
             DATABASE_URL="${db_url}" sqlx database reset -y --database-url "${db_url}" --source crates/revaer-data/migrations; \
         else \
@@ -466,7 +488,7 @@ db-start:
         fi; \
     else \
         if ! DATABASE_URL="${db_url}" sqlx migrate run --database-url "${db_url}" --source crates/revaer-data/migrations; then \
-            if echo "${db_url}" | grep -Eq '@(localhost|127\\.0\\.0\\.1)(:|/)'; then \
+            if echo "${db_url}" | grep -Eq '@(localhost|127\.0\.0\.1|host\.docker\.internal)(:|/)'; then \
                 echo "Migration history mismatch; resetting local database..."; \
                 DATABASE_URL="${db_url}" sqlx database reset -y --database-url "${db_url}" --source crates/revaer-data/migrations; \
             else \

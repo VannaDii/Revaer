@@ -48,6 +48,31 @@ use crate::validate::{
 
 type Result<T> = ConfigResult<T>;
 
+/// Database session settings applied to each connection.
+#[derive(Debug, Clone)]
+pub struct DbSessionConfig {
+    secret_key_id: String,
+    secret_key: String,
+}
+
+impl DbSessionConfig {
+    /// Build session configuration for secret encryption.
+    #[must_use]
+    pub fn new(secret_key_id: &str, secret_key: &str) -> Self {
+        Self {
+            secret_key_id: secret_key_id.to_string(),
+            secret_key: secret_key.to_string(),
+        }
+    }
+
+    /// Maximum length for a secret session key ID.
+    pub const SECRET_KEY_ID_MAX_LEN: usize = 128;
+    /// Maximum length for a secret session key.
+    pub const SECRET_KEY_MAX_LEN: usize = 1024;
+}
+
+const SYSTEM_ACTOR_PUBLIC_ID: Uuid = Uuid::nil();
+
 #[async_trait]
 /// Abstraction over configuration backends used by the application service.
 pub trait SettingsFacade: Send + Sync {
@@ -121,15 +146,60 @@ impl ConfigService {
     /// migrations fail to run.
     #[instrument(name = "config_service.new", skip(database_url))]
     pub async fn new(database_url: impl Into<String>) -> ConfigResult<Self> {
+        Self::new_with_session(database_url, None).await
+    }
+
+    /// Establish a connection pool and ensure migrations are applied with session settings.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the `PostgreSQL` connection cannot be established or
+    /// migrations fail to run.
+    #[instrument(
+        name = "config_service.new_with_session",
+        skip(database_url, session_config)
+    )]
+    pub async fn new_with_session(
+        database_url: impl Into<String>,
+        session_config: Option<DbSessionConfig>,
+    ) -> ConfigResult<Self> {
         let database_url = database_url.into();
-        let pool = PgPoolOptions::new()
-            .max_connections(8)
+        let session_config = match session_config {
+            Some(config) => {
+                validate_db_session_config(&config)?;
+                Some(config)
+            }
+            None => None,
+        };
+        let migrator_pool = PgPoolOptions::new()
+            .max_connections(1)
             .acquire_timeout(Duration::from_secs(10))
             .connect(&database_url)
             .await
-            .map_err(map_sqlx_err("config.connect"))?;
+            .map_err(map_sqlx_err("config.connect.migrations"))?;
 
-        apply_migrations(&pool).await?;
+        apply_migrations(&migrator_pool).await?;
+
+        let pool = PgPoolOptions::new()
+            .max_connections(8)
+            .acquire_timeout(Duration::from_secs(10))
+            .after_connect(move |conn, _meta| {
+                let session_config = session_config.clone();
+                Box::pin(async move {
+                    if let Some(config) = session_config {
+                        sqlx::query("SELECT secret_session_configure($1, $2, $3)")
+                            .bind(SYSTEM_ACTOR_PUBLIC_ID)
+                            .bind(config.secret_key_id)
+                            .bind(config.secret_key)
+                            .execute(conn)
+                            .await?;
+                    }
+                    Ok(())
+                })
+            })
+            .connect(&database_url)
+            .await
+            .map_err(map_sqlx_err("config.connect"))?;
 
         Ok(Self { pool, database_url })
     }
@@ -311,6 +381,64 @@ impl ConfigService {
             rate_limit,
         }))
     }
+}
+
+fn validate_db_session_config(config: &DbSessionConfig) -> ConfigResult<()> {
+    let key_id = config.secret_key_id.as_str();
+    let trimmed_key_id = key_id.trim();
+    if trimmed_key_id.is_empty() {
+        return Err(ConfigError::InvalidField {
+            section: "secret_session".to_string(),
+            field: "secret_key_id".to_string(),
+            value: None,
+            reason: "empty",
+        });
+    }
+    if trimmed_key_id.len() > DbSessionConfig::SECRET_KEY_ID_MAX_LEN {
+        return Err(ConfigError::InvalidField {
+            section: "secret_session".to_string(),
+            field: "secret_key_id".to_string(),
+            value: None,
+            reason: "too_long",
+        });
+    }
+    if trimmed_key_id.len() != key_id.len() {
+        return Err(ConfigError::InvalidField {
+            section: "secret_session".to_string(),
+            field: "secret_key_id".to_string(),
+            value: None,
+            reason: "whitespace",
+        });
+    }
+
+    let secret_key = config.secret_key.as_str();
+    let trimmed_secret = secret_key.trim();
+    if trimmed_secret.is_empty() {
+        return Err(ConfigError::InvalidField {
+            section: "secret_session".to_string(),
+            field: "secret_key".to_string(),
+            value: None,
+            reason: "empty",
+        });
+    }
+    if trimmed_secret.len() > DbSessionConfig::SECRET_KEY_MAX_LEN {
+        return Err(ConfigError::InvalidField {
+            section: "secret_session".to_string(),
+            field: "secret_key".to_string(),
+            value: None,
+            reason: "too_long",
+        });
+    }
+    if trimmed_secret.len() != secret_key.len() {
+        return Err(ConfigError::InvalidField {
+            section: "secret_session".to_string(),
+            field: "secret_key".to_string(),
+            value: None,
+            reason: "whitespace",
+        });
+    }
+
+    Ok(())
 }
 
 /// Watches configuration changes, automatically falling back to polling if

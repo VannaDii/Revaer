@@ -89,7 +89,10 @@ export default async function globalSetup(): Promise<void> {
       cwd: root,
       env: { ...process.env, DATABASE_URL: activeDbUrl },
     });
-    writeState({ apiPid: apiProcess.pid, dbUrl: activeDbUrl });
+    writeState({
+      apiPid: apiProcess.pid,
+      dbUrl: activeDbUrl,
+    });
 
     assertApiDb(apiProcess.pid, activeDbUrl);
     const httpWait = httpWaitConfig();
@@ -122,7 +125,11 @@ export default async function globalSetup(): Promise<void> {
 
     await waitForHttp(baseUrl, httpWait, uiProcess, 'UI');
 
-    writeState({ apiPid: apiProcess.pid, uiPid: uiProcess.pid, dbUrl: activeDbUrl });
+    writeState({
+      apiPid: apiProcess.pid,
+      dbUrl: activeDbUrl,
+      uiPid: uiProcess.pid,
+    });
   } catch (error) {
     await cleanupE2EState();
     throw error;
@@ -194,6 +201,7 @@ async function resolveAdminUrl(initial: string): Promise<string> {
     return initial;
   }
   const fallbackUrls = [
+    ...localHostVariants(initial),
     process.env.REVAER_TEST_DATABASE_URL,
     process.env.DATABASE_URL,
   ].filter(Boolean) as string[];
@@ -203,6 +211,27 @@ async function resolveAdminUrl(initial: string): Promise<string> {
     }
   }
   return initial;
+}
+
+function isLocalHost(host: string): boolean {
+  return LOCAL_HOSTS.has(host);
+}
+
+function localHostVariants(initial: string): string[] {
+  const host = urlParts(initial).host;
+  if (!isLocalHost(host)) {
+    return [];
+  }
+  const variants = ['localhost', '127.0.0.1', 'host.docker.internal']
+    .filter((candidate) => candidate !== host)
+    .map((candidate) => withHost(initial, candidate));
+  return variants;
+}
+
+function withHost(input: string, host: string): string {
+  const parsed = new URL(input);
+  parsed.hostname = host;
+  return parsed.toString();
 }
 
 async function dbUrlReachable(url: string): Promise<boolean> {

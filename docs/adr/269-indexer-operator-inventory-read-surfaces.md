@@ -1,0 +1,22 @@
+# Indexer Operator Inventory Read Surfaces
+
+- Status: Accepted
+- Date: 2026-04-03
+- Context:
+  - The reopened ERD checklist still called out missing operator read/list management surfaces for existing indexer resources.
+  - The prior inventory slice covered only tags and secret metadata, so operators still had to paste known public IDs to update routing policies, assign rate limits, or manage indexer instances.
+  - The data layer already exposed normalized backup-export reads for routing policies, rate-limit policies, and indexer instances, but those rows were not available through dedicated operator list endpoints.
+- Decision:
+  - Reused the existing stored-procedure-backed backup export reads as the app-layer source for routing policy, rate-limit policy, and indexer instance inventories.
+  - Added dedicated operator list endpoints at `GET /v1/indexers/routing-policies`, `GET /v1/indexers/rate-limits`, and `GET /v1/indexers/instances` with response DTOs that keep public identifiers instead of backup-only names.
+  - Updated the `/indexers` console to fetch those inventories and use the returned rows to prefill existing routing, rate-limit, and instance management forms.
+  - Alternatives considered:
+  - Using the backup snapshot export directly for operator discovery was rejected because the exported backup payload omits some public identifiers needed for follow-up edit and assignment actions.
+  - Jumping straight to full search-profile, policy-set/rule, and Torznab inventory coverage was deferred because it is a larger independent slice and would have delayed shipping the high-frequency routing/rate-limit/instance usability win.
+- Consequences:
+  - Operators can now discover and reuse routing policy IDs, rate-limit policy IDs, and indexer instance IDs from live API-backed inventory cards rather than external notes or prior responses.
+  - The broader read/list checklist item remains open because search profiles, policy sets/rules, and Torznab instances still need equivalent inventory surfaces.
+  - The OpenAPI surface grows again, so handler coverage and exported docs must remain synchronized.
+- Follow-up:
+  - Extend the same operator inventory pattern to search profiles, policy sets/rules, and Torznab instances.
+  - Keep inventory responses focused on live management identifiers and summaries rather than backup-only restore shapes.

@@ -11,7 +11,7 @@ use axum::{
         header::{AUTHORIZATION, CONTENT_TYPE},
     },
     middleware,
-    routing::{get, patch, post, put},
+    routing::{delete, get, patch, post, put},
 };
 use revaer_config::ConfigService;
 use revaer_events::EventBus;
@@ -25,6 +25,7 @@ use tower_http::{
 use tracing::Span;
 
 use crate::TorrentHandles;
+use crate::app::indexers::IndexerFacade;
 use crate::app::state::ApiState;
 use crate::config::SharedConfig;
 use crate::error::{ApiServerError, ApiServerResult};
@@ -37,6 +38,7 @@ use crate::http::constants::{
 };
 use crate::http::filesystem::browse_filesystem;
 use crate::http::health::{dashboard, health, health_full, metrics};
+use crate::http::indexers as indexer_handlers;
 use crate::http::logs::stream_logs;
 use crate::http::settings::{factory_reset, get_config_snapshot, settings_patch, well_known};
 use crate::http::setup::{setup_complete, setup_start};
@@ -49,6 +51,7 @@ use crate::http::torrents::handlers::{
     list_torrents, remove_torrent_trackers, select_torrent, update_torrent_options,
     update_torrent_trackers, update_torrent_web_seeds, upsert_torrent_category, upsert_torrent_tag,
 };
+use crate::http::torznab::{torznab_api, torznab_download};
 use crate::openapi::OpenApiDependencies;
 
 /// Axum router wrapper that hosts the Revaer API services.
@@ -65,37 +68,48 @@ impl ApiServer {
     /// fails.
     pub fn new(
         config: ConfigService,
+        indexers: Arc<dyn IndexerFacade>,
         events: EventBus,
         torrent: Option<TorrentHandles>,
         telemetry: Metrics,
     ) -> ApiServerResult<Self> {
         let openapi_path = crate::openapi_output_path();
         let openapi = OpenApiDependencies::embedded_at(&openapi_path);
-        Self::with_config(Arc::new(config), events, torrent, telemetry, &openapi)
+        Self::with_config(
+            Arc::new(config),
+            indexers,
+            events,
+            torrent,
+            telemetry,
+            &openapi,
+        )
     }
 
     fn with_config(
         config: SharedConfig,
+        indexers: Arc<dyn IndexerFacade>,
         events: EventBus,
         torrent: Option<TorrentHandles>,
         telemetry: Metrics,
         openapi: &OpenApiDependencies,
     ) -> ApiServerResult<Self> {
-        Self::with_config_at(config, events, torrent, telemetry, openapi)
+        Self::with_config_at(config, indexers, events, torrent, telemetry, openapi)
     }
 
     pub(crate) fn with_config_at(
         config: SharedConfig,
+        indexers: Arc<dyn IndexerFacade>,
         events: EventBus,
         torrent: Option<TorrentHandles>,
         telemetry: Metrics,
         openapi: &OpenApiDependencies,
     ) -> ApiServerResult<Self> {
-        Self::with_dependencies(config, events, torrent, telemetry, openapi)
+        Self::with_dependencies(config, indexers, events, torrent, telemetry, openapi)
     }
 
     fn with_dependencies(
         config: SharedConfig,
+        indexers: Arc<dyn IndexerFacade>,
         events: EventBus,
         torrent: Option<TorrentHandles>,
         telemetry: Metrics,
@@ -109,6 +123,7 @@ impl ApiServer {
         })?;
         let state = Self::build_state(
             config,
+            indexers,
             telemetry.clone(),
             Arc::clone(&openapi.document),
             events,
@@ -182,6 +197,7 @@ impl ApiServer {
 
     pub(crate) fn build_state(
         config: SharedConfig,
+        indexers: Arc<dyn IndexerFacade>,
         telemetry: Metrics,
         openapi_document: Arc<serde_json::Value>,
         events: EventBus,
@@ -189,6 +205,7 @@ impl ApiServer {
     ) -> Arc<ApiState> {
         Arc::new(ApiState::new(
             config,
+            indexers,
             telemetry,
             openapi_document,
             events,
@@ -199,6 +216,7 @@ impl ApiServer {
     fn build_router(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
         Self::public_routes()
             .merge(Self::admin_routes(state))
+            .merge(Self::torznab_routes(state))
             .merge(Self::v1_routes(state))
     }
 
@@ -211,6 +229,18 @@ impl ApiServer {
             .route(
                 "/docs/openapi.json",
                 get(crate::http::docs::openapi_document_handler),
+            )
+    }
+
+    fn torznab_routes(_state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        Router::new()
+            .route(
+                "/torznab/{torznab_instance_public_id}/api",
+                get(torznab_api),
+            )
+            .route(
+                "/torznab/{torznab_instance_public_id}/download/{canonical_torrent_source_public_id}",
+                get(torznab_download),
             )
     }
 
@@ -273,6 +303,12 @@ impl ApiServer {
     }
 
     fn v1_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        Self::v1_core_routes(state)
+            .merge(Self::v1_indexer_routes(state))
+            .merge(Self::v1_torrent_routes(state))
+    }
+
+    fn v1_core_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
         let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
 
         Router::new()
@@ -294,10 +330,430 @@ impl ApiServer {
                 "/v1/fs/browse",
                 get(browse_filesystem).route_layer(require_api.clone()),
             )
+            .route("/v1/logs/stream", get(stream_logs).route_layer(require_api))
+    }
+
+    fn v1_indexer_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        Router::new()
+            .merge(Self::v1_indexer_definition_routes(state))
+            .merge(Self::v1_indexer_tag_routes(state))
+            .merge(Self::v1_indexer_health_notification_routes(state))
+            .merge(Self::v1_indexer_secret_routes(state))
+            .merge(Self::v1_indexer_backup_routes(state))
+            .merge(Self::v1_indexer_category_mapping_routes(state))
+            .merge(Self::v1_indexer_conflict_routes(state))
+            .merge(Self::v1_indexer_torznab_instance_routes(state))
+            .merge(Self::v1_indexer_import_job_routes(state))
+            .merge(Self::v1_indexer_search_request_routes(state))
+            .merge(Self::v1_indexer_search_profile_routes(state))
+            .merge(Self::v1_indexer_policy_routes(state))
+            .merge(Self::v1_indexer_routing_policy_routes(state))
+            .merge(Self::v1_indexer_rate_limit_routes(state))
+            .merge(Self::v1_indexer_instance_routes(state))
+    }
+
+    fn v1_indexer_definition_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
             .route(
-                "/v1/logs/stream",
-                get(stream_logs).route_layer(require_api.clone()),
+                "/v1/indexers/definitions",
+                get(indexer_handlers::list_indexer_definitions),
             )
+            .route(
+                "/v1/indexers/definitions/import/cardigann",
+                post(indexer_handlers::import_cardigann_definition),
+            )
+            .route_layer(require_api)
+    }
+
+    fn v1_indexer_tag_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
+            .route(
+                "/v1/indexers/tags",
+                get(indexer_handlers::list_tags)
+                    .post(indexer_handlers::create_tag)
+                    .patch(indexer_handlers::update_tag)
+                    .delete(indexer_handlers::delete_tag),
+            )
+            .route(
+                "/v1/indexers/tags/{tag_key}",
+                delete(indexer_handlers::delete_tag_by_key),
+            )
+            .route_layer(require_api)
+    }
+
+    fn v1_indexer_conflict_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
+            .route(
+                "/v1/indexers/conflicts",
+                get(indexer_handlers::list_source_metadata_conflicts)
+                    .patch(indexer_handlers::resolve_source_metadata_conflict),
+            )
+            .route(
+                "/v1/indexers/conflicts/reopen",
+                post(indexer_handlers::reopen_source_metadata_conflict),
+            )
+            .route_layer(require_api)
+    }
+
+    fn v1_indexer_health_notification_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
+            .route(
+                "/v1/indexers/health-notifications",
+                get(indexer_handlers::list_health_notification_hooks)
+                    .post(indexer_handlers::create_health_notification_hook)
+                    .patch(indexer_handlers::update_health_notification_hook)
+                    .delete(indexer_handlers::delete_health_notification_hook),
+            )
+            .route_layer(require_api)
+    }
+
+    fn v1_indexer_secret_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
+            .route(
+                "/v1/indexers/secrets",
+                get(indexer_handlers::list_secret_metadata)
+                    .post(indexer_handlers::create_secret)
+                    .patch(indexer_handlers::rotate_secret)
+                    .delete(indexer_handlers::revoke_secret),
+            )
+            .route_layer(require_api)
+    }
+
+    fn v1_indexer_backup_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
+            .route(
+                "/v1/indexers/backup/export",
+                get(indexer_handlers::export_indexer_backup),
+            )
+            .route(
+                "/v1/indexers/backup/restore",
+                post(indexer_handlers::restore_indexer_backup),
+            )
+            .route_layer(require_api)
+    }
+
+    fn v1_indexer_category_mapping_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
+            .route(
+                "/v1/indexers/category-mappings/tracker",
+                post(indexer_handlers::upsert_tracker_category_mapping)
+                    .delete(indexer_handlers::delete_tracker_category_mapping),
+            )
+            .route(
+                "/v1/indexers/category-mappings/media-domains",
+                post(indexer_handlers::upsert_media_domain_mapping)
+                    .delete(indexer_handlers::delete_media_domain_mapping),
+            )
+            .route_layer(require_api)
+    }
+
+    fn v1_indexer_torznab_instance_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
+            .route(
+                "/v1/indexers/torznab-instances",
+                get(indexer_handlers::list_torznab_instances)
+                    .post(indexer_handlers::create_torznab_instance),
+            )
+            .route(
+                "/v1/indexers/torznab-instances/{torznab_instance_public_id}/rotate",
+                patch(indexer_handlers::rotate_torznab_instance_key),
+            )
+            .route(
+                "/v1/indexers/torznab-instances/{torznab_instance_public_id}/state",
+                put(indexer_handlers::set_torznab_instance_state),
+            )
+            .route(
+                "/v1/indexers/torznab-instances/{torznab_instance_public_id}",
+                delete(indexer_handlers::delete_torznab_instance),
+            )
+            .route_layer(require_api)
+    }
+
+    fn v1_indexer_import_job_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
+            .route(
+                "/v1/indexers/import-jobs",
+                post(indexer_handlers::create_import_job),
+            )
+            .route(
+                "/v1/indexers/import-jobs/{import_job_public_id}/run/prowlarr-api",
+                post(indexer_handlers::run_import_job_prowlarr_api),
+            )
+            .route(
+                "/v1/indexers/import-jobs/{import_job_public_id}/run/prowlarr-backup",
+                post(indexer_handlers::run_import_job_prowlarr_backup),
+            )
+            .route(
+                "/v1/indexers/import-jobs/{import_job_public_id}/status",
+                get(indexer_handlers::get_import_job_status),
+            )
+            .route(
+                "/v1/indexers/import-jobs/{import_job_public_id}/results",
+                get(indexer_handlers::list_import_job_results),
+            )
+            .route_layer(require_api)
+    }
+
+    fn v1_indexer_search_request_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
+            .route(
+                "/v1/indexers/search-requests",
+                post(indexer_handlers::create_search_request),
+            )
+            .route(
+                "/v1/indexers/search-requests/{search_request_public_id}/cancel",
+                post(indexer_handlers::cancel_search_request),
+            )
+            .route(
+                "/v1/indexers/search-requests/{search_request_public_id}/pages",
+                get(indexer_handlers::list_search_pages),
+            )
+            .route(
+                "/v1/indexers/search-requests/{search_request_public_id}/pages/{page_number}",
+                get(indexer_handlers::get_search_page),
+            )
+            .route_layer(require_api)
+    }
+
+    fn v1_indexer_search_profile_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
+            .route(
+                "/v1/indexers/search-profiles",
+                get(indexer_handlers::list_search_profiles)
+                    .post(indexer_handlers::create_search_profile),
+            )
+            .route(
+                "/v1/indexers/search-profiles/{search_profile_public_id}",
+                patch(indexer_handlers::update_search_profile),
+            )
+            .route(
+                "/v1/indexers/search-profiles/{search_profile_public_id}/default",
+                post(indexer_handlers::set_search_profile_default),
+            )
+            .route(
+                "/v1/indexers/search-profiles/{search_profile_public_id}/default-domain",
+                put(indexer_handlers::set_search_profile_default_domain),
+            )
+            .route(
+                "/v1/indexers/search-profiles/{search_profile_public_id}/media-domains",
+                put(indexer_handlers::set_search_profile_domain_allowlist),
+            )
+            .route(
+                "/v1/indexers/search-profiles/{search_profile_public_id}/policy-sets",
+                post(indexer_handlers::add_search_profile_policy_set)
+                    .delete(indexer_handlers::remove_search_profile_policy_set),
+            )
+            .route(
+                "/v1/indexers/search-profiles/{search_profile_public_id}/indexers/allow",
+                put(indexer_handlers::set_search_profile_indexer_allow),
+            )
+            .route(
+                "/v1/indexers/search-profiles/{search_profile_public_id}/indexers/block",
+                put(indexer_handlers::set_search_profile_indexer_block),
+            )
+            .route(
+                "/v1/indexers/search-profiles/{search_profile_public_id}/tags/allow",
+                put(indexer_handlers::set_search_profile_tag_allow),
+            )
+            .route(
+                "/v1/indexers/search-profiles/{search_profile_public_id}/tags/block",
+                put(indexer_handlers::set_search_profile_tag_block),
+            )
+            .route(
+                "/v1/indexers/search-profiles/{search_profile_public_id}/tags/prefer",
+                put(indexer_handlers::set_search_profile_tag_prefer),
+            )
+            .route_layer(require_api)
+    }
+
+    fn v1_indexer_policy_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
+            .route(
+                "/v1/indexers/policies",
+                get(indexer_handlers::list_policy_sets).post(indexer_handlers::create_policy_set),
+            )
+            .route(
+                "/v1/indexers/policies/{policy_set_public_id}",
+                patch(indexer_handlers::update_policy_set),
+            )
+            .route(
+                "/v1/indexers/policies/{policy_set_public_id}/enable",
+                post(indexer_handlers::enable_policy_set),
+            )
+            .route(
+                "/v1/indexers/policies/{policy_set_public_id}/disable",
+                post(indexer_handlers::disable_policy_set),
+            )
+            .route(
+                "/v1/indexers/policies/reorder",
+                post(indexer_handlers::reorder_policy_sets),
+            )
+            .route(
+                "/v1/indexers/policies/{policy_set_public_id}/rules",
+                post(indexer_handlers::create_policy_rule),
+            )
+            .route(
+                "/v1/indexers/policies/{policy_set_public_id}/rules/reorder",
+                post(indexer_handlers::reorder_policy_rules),
+            )
+            .route(
+                "/v1/indexers/policies/rules/{policy_rule_public_id}/enable",
+                post(indexer_handlers::enable_policy_rule),
+            )
+            .route(
+                "/v1/indexers/policies/rules/{policy_rule_public_id}/disable",
+                post(indexer_handlers::disable_policy_rule),
+            )
+            .route_layer(require_api)
+    }
+
+    fn v1_indexer_routing_policy_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
+            .route(
+                "/v1/indexers/routing-policies",
+                get(indexer_handlers::list_routing_policies)
+                    .post(indexer_handlers::create_routing_policy),
+            )
+            .route(
+                "/v1/indexers/routing-policies/{routing_policy_public_id}",
+                get(indexer_handlers::get_routing_policy),
+            )
+            .route(
+                "/v1/indexers/routing-policies/{routing_policy_public_id}/params",
+                post(indexer_handlers::set_routing_policy_param),
+            )
+            .route(
+                "/v1/indexers/routing-policies/{routing_policy_public_id}/secrets",
+                post(indexer_handlers::bind_routing_policy_secret),
+            )
+            .route(
+                "/v1/indexers/routing-policies/{routing_policy_public_id}/rate-limit",
+                put(indexer_handlers::set_routing_policy_rate_limit),
+            )
+            .route_layer(require_api)
+    }
+
+    fn v1_indexer_rate_limit_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
+            .route(
+                "/v1/indexers/rate-limits",
+                get(indexer_handlers::list_rate_limit_policies)
+                    .post(indexer_handlers::create_rate_limit_policy),
+            )
+            .route(
+                "/v1/indexers/rate-limits/{rate_limit_policy_public_id}",
+                patch(indexer_handlers::update_rate_limit_policy)
+                    .delete(indexer_handlers::delete_rate_limit_policy),
+            )
+            .route(
+                "/v1/indexers/instances/{indexer_instance_public_id}/rate-limit",
+                put(indexer_handlers::set_indexer_instance_rate_limit),
+            )
+            .route_layer(require_api)
+    }
+
+    fn v1_indexer_instance_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
+            .route(
+                "/v1/indexers/instances",
+                get(indexer_handlers::list_indexer_instances)
+                    .post(indexer_handlers::create_indexer_instance),
+            )
+            .route(
+                "/v1/indexers/instances/{indexer_instance_public_id}",
+                patch(indexer_handlers::update_indexer_instance),
+            )
+            .route(
+                "/v1/indexers/instances/{indexer_instance_public_id}/media-domains",
+                put(indexer_handlers::set_indexer_instance_media_domains),
+            )
+            .route(
+                "/v1/indexers/instances/{indexer_instance_public_id}/tags",
+                put(indexer_handlers::set_indexer_instance_tags),
+            )
+            .route(
+                "/v1/indexers/instances/{indexer_instance_public_id}/fields/value",
+                patch(indexer_handlers::set_indexer_instance_field_value),
+            )
+            .route(
+                "/v1/indexers/instances/{indexer_instance_public_id}/fields/secret",
+                patch(indexer_handlers::bind_indexer_instance_field_secret),
+            )
+            .route(
+                "/v1/indexers/instances/{indexer_instance_public_id}/cf-state",
+                get(indexer_handlers::get_indexer_instance_cf_state),
+            )
+            .route(
+                "/v1/indexers/instances/{indexer_instance_public_id}/connectivity-profile",
+                get(indexer_handlers::get_indexer_connectivity_profile),
+            )
+            .route(
+                "/v1/indexers/instances/{indexer_instance_public_id}/reputation",
+                get(indexer_handlers::get_indexer_source_reputation),
+            )
+            .route(
+                "/v1/indexers/instances/{indexer_instance_public_id}/health-events",
+                get(indexer_handlers::get_indexer_health_events),
+            )
+            .route(
+                "/v1/indexers/instances/{indexer_instance_public_id}/rss",
+                get(indexer_handlers::get_indexer_rss_subscription)
+                    .put(indexer_handlers::put_indexer_rss_subscription),
+            )
+            .route(
+                "/v1/indexers/instances/{indexer_instance_public_id}/rss/items",
+                get(indexer_handlers::get_indexer_rss_items)
+                    .post(indexer_handlers::mark_indexer_rss_item_seen),
+            )
+            .route(
+                "/v1/indexers/instances/{indexer_instance_public_id}/cf-state/reset",
+                post(indexer_handlers::reset_indexer_instance_cf_state),
+            )
+            .route(
+                "/v1/indexers/instances/{indexer_instance_public_id}/test/prepare",
+                post(indexer_handlers::prepare_indexer_instance_test),
+            )
+            .route(
+                "/v1/indexers/instances/{indexer_instance_public_id}/test/finalize",
+                post(indexer_handlers::finalize_indexer_instance_test),
+            )
+            .route_layer(require_api)
+    }
+
+    fn v1_torrent_routes(state: &Arc<ApiState>) -> Router<Arc<ApiState>> {
+        let require_api = middleware::from_fn_with_state(state.clone(), require_api_key);
+
+        Router::new()
             .route(
                 "/v1/torrents",
                 get(list_torrents)

@@ -26,6 +26,8 @@ pub use handlers::docs;
 pub use handlers::filesystem;
 /// Health and diagnostics handlers.
 pub use handlers::health;
+/// Indexer management handlers.
+pub use handlers::indexers;
 /// Log streaming handlers.
 pub use handlers::logs;
 /// Settings/configuration handlers.
@@ -38,3 +40,5 @@ pub use handlers::sse;
 pub use handlers::tokens;
 /// Torrent-facing HTTP handlers and helpers.
 pub use handlers::torrents;
+/// Torznab XML handlers.
+pub use handlers::torznab;

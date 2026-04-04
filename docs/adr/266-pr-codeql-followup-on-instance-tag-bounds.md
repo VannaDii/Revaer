@@ -1,0 +1,26 @@
+# PR CodeQL follow-up on instance tag bounds
+
+- Status: Accepted
+- Date: 2026-03-29
+- Context:
+  - After `b0faf9c` landed, PR `#6` picked up a fresh CodeQL failure on `instances.rs` for `rust/uncontrolled-allocation-size`.
+  - The offending path was the new `Vec::with_capacity(keys.len())` allocation for instance tag normalization, which had removed the previous live-memory guard to address review feedback about false-closed allocation probes.
+  - The branch still needs a fully green post-push cycle before the review closeout can be considered complete.
+- Decision:
+  - Add explicit HTTP-boundary limits for instance tag normalization: bound the total `tag_keys` length and each trimmed key’s byte length before allocating.
+  - Keep the allocation itself as `Vec::with_capacity(normalized_len)` once the input has been reduced to a bounded, validated size.
+  - Add focused handler tests covering excessive tag-key counts and oversized tag-key entries.
+  - Dependency rationale: no new dependencies were added; the fix uses existing handler validation and test patterns.
+  - Alternatives considered: reverting to the live-memory allocation probe would reintroduce the reviewer concern about small bounded allocations failing closed, while leaving the plain unbounded capacity call in place keeps the CodeQL finding open.
+- Consequences:
+  - Positive outcomes:
+    - The PR head now has an explicit, deterministic bound that should satisfy CodeQL’s allocation-size analysis.
+    - Instance tag normalization keeps the simpler bounded-capacity allocation path without depending on live system-memory probes.
+    - Regression tests make the allocation guard behavior part of the handler contract.
+  - Risks or trade-offs:
+    - Requests with unusually large tag-key lists or very large individual keys now fail earlier at the HTTP boundary.
+    - Rollback is straightforward: revert the new bounds and tests, but that would likely restore the CodeQL failure.
+- Follow-up:
+  - Rerun `just ci` and `just ui-e2e`.
+  - Push the follow-up commit to `origin/feat/indexers`.
+  - Wait for refreshed PR checks and confirm the CodeQL failure clears.

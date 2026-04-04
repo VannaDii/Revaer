@@ -1032,6 +1032,7 @@ fn ok_plain() -> Response {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::indexers::test_indexers;
     use crate::config::ConfigFacade;
     use anyhow::{Result, anyhow};
     use async_trait::async_trait;
@@ -1317,6 +1318,7 @@ mod tests {
         let config: Arc<dyn ConfigFacade> = Arc::new(TestConfig::default());
         Ok(Arc::new(ApiState::new(
             config,
+            test_indexers(),
             Metrics::new().map_err(|_| anyhow!("metrics init"))?,
             Arc::new(Value::Null),
             EventBus::with_capacity(4),
@@ -1333,6 +1335,7 @@ mod tests {
             TorrentHandles::new(Arc::new(StubWorkflow), Arc::new(StubInspector { statuses }));
         let state = Arc::new(ApiState::new(
             config,
+            test_indexers(),
             Metrics::new().map_err(|_| anyhow!("metrics init"))?,
             Arc::new(Value::Null),
             EventBus::with_capacity(4),

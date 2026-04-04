@@ -14,6 +14,7 @@ pub(crate) async fn openapi_document_handler(State(state): State<Arc<ApiState>>)
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::indexers::test_indexers;
     use crate::config::ConfigFacade;
     use anyhow::{Result, anyhow};
     use async_trait::async_trait;
@@ -196,6 +197,7 @@ mod tests {
         let document = Arc::new(serde_json::json!({"hello": "world"}));
         let state = Arc::new(ApiState::new(
             config,
+            test_indexers(),
             telemetry,
             Arc::clone(&document),
             EventBus::new(),

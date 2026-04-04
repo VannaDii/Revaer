@@ -5,6 +5,10 @@ use yew_router::prelude::*;
 pub(crate) enum Route {
     #[at("/")]
     Dashboard,
+    #[at("/indexers")]
+    Indexers,
+    #[at("/search")]
+    Search,
     #[at("/torrents")]
     Torrents,
     #[at("/torrents/:id")]

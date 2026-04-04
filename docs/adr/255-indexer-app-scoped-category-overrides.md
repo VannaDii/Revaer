@@ -1,0 +1,26 @@
+# Indexer app-scoped category overrides
+
+- Status: Accepted
+- Date: 2026-03-21
+- Motivation:
+  - `ERD_INDEXERS_CHECKLIST.md` still had category override support open after instance-scoped overrides shipped because Torznab feed emission was still using raw tracker category ids.
+  - Downstream app sync needed per-app category remapping so one Torznab app could receive different category ids than another without breaking shared indexer configuration.
+- Design notes:
+  - Extend `tracker_category_mapping` with an optional `torznab_instance_id` scope and rebuild the upsert/delete procedures so overrides can be stored per downstream Torznab app.
+  - Add a feed-resolution procedure that applies precedence in this order: app+instance, app+definition, app global, instance, definition, global, then `8000` fallback.
+  - Route Torznab feed emission through the injected indexer facade so emitted `<category>` values use resolved Torznab ids instead of raw tracker ids, and expand child ids to include their parent category ids for Torznab compatibility.
+  - Keep the existing `/indexers` admin console as the operator surface by adding an app-scoped Torznab instance field to the category override form instead of introducing a separate page.
+- Test coverage summary:
+  - Extended data-layer and schema coverage for the new stored procedure signature and feed-resolution procedure catalog entry.
+  - Updated Torznab handler unit tests to cover parent-category expansion and `Other` fallback behavior.
+  - Extended the category-mapping API Playwright spec to round-trip app-scoped override create/delete requests.
+  - Verified the full regression gates with `just ci` and `just ui-e2e`.
+- Observability updates:
+  - No new telemetry surface was added; the feature reuses existing traced indexer and Torznab service operations.
+  - Error classification now treats missing Torznab app scope as a mapped not-found category-mapping failure instead of an opaque storage error.
+- Risk & rollback plan:
+  - The main risk is procedure-precedence drift causing downstream apps to receive unexpected category ids.
+  - Rollback is a revert of migration `0111_torznab_instance_category_overrides.sql` together with the Torznab feed-resolution call path and `/indexers` form field.
+- Dependency rationale:
+  - No new dependencies were added.
+  - Alternatives considered: keep app-specific remapping in UI state only, or add a new dedicated override table. Both were rejected because the ERD already centers category mapping in stored procedures and a separate table would duplicate precedence logic.

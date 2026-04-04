@@ -1,0 +1,22 @@
+# Indexer Cardigann Definition Import
+
+- Status: Accepted
+- Date: 2026-03-21
+- Context:
+  - `ERD_INDEXERS.md` defines the global indexer catalog as being sourced from both Prowlarr Indexers and Cardigann, but the shipped schema and operator UX still only supported Prowlarr-backed import paths.
+  - The last unchecked ERD parity item was the broader import pipeline UX gap: Cardigann/YAML definition import needed to round-trip through the app, API, and `/indexers` UI alongside the already-landed import status and conflict tooling.
+  - Runtime database access still had to stay stored-proc-only, and the implementation needed to preserve the normalized `indexer_definition*` tables rather than storing YAML blobs as durable catalog state.
+- Decision:
+  - Added a Cardigann definition import flow that parses YAML in the app layer, canonicalizes the imported definition shape, and writes the normalized catalog rows through new stored procedures for definition begin/field import/finalize.
+  - Extended the `upstream_source` enum with `cardigann`, added API and UI support for `POST /v1/indexers/definitions/import/cardigann`, and surfaced the import summary in the catalog section of `/indexers`.
+  - Added `serde_yaml` to `revaer-app` for YAML parsing.
+    - Why this, why now: the remaining ERD scope explicitly required Cardigann YAML import, and a maintained YAML parser was the smallest reliable way to accept real Cardigann documents without inventing an ad hoc parser.
+    - Alternatives considered: manual line-based parsing was rejected as too fragile for nested Cardigann documents; routing YAML through JSON text or opaque blob storage was rejected because the ERD requires normalized catalog tables and stored-proc-backed persistence.
+- Consequences:
+  - Operators can now import Cardigann YAML definitions directly into the catalog, inspect the imported slug/hash/field counts, and immediately reuse those definitions in the existing indexer instance flows.
+  - The catalog schema now matches the ERD’s declared upstream sources instead of being Prowlarr-only.
+  - The parser currently normalizes fields, defaults, and select options from Cardigann settings; richer Cardigann-specific semantics still depend on the upstream YAML shape, so malformed or unsupported setting types fail fast with stable validation codes.
+- Follow-up:
+  - Test coverage: added stored-proc data tests, app-layer parser tests, API handler tests, a Playwright API spec for Cardigann import, and updated the UI route smoke test.
+  - Observability: the import runs through the existing `indexer.definition_import_cardigann` operation metrics and activity-log plumbing.
+  - Risk and rollback: the new migration is additive and the operator flow is isolated to catalog imports; rollback is to stop using the endpoint/UI and revert the migration plus app/API/UI wiring if needed.

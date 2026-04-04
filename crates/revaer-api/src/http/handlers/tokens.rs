@@ -56,6 +56,7 @@ pub(crate) async fn refresh_api_key(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::indexers::test_indexers;
     use crate::http::auth::AuthContext;
     use anyhow::Result;
     use async_trait::async_trait;
@@ -173,6 +174,7 @@ mod tests {
         let metrics = Metrics::new()?;
         Ok(Arc::new(ApiState::new(
             Arc::new(config),
+            test_indexers(),
             metrics,
             Arc::new(json!({})),
             EventBus::with_capacity(2),

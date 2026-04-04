@@ -23,6 +23,7 @@ use crate::http::settings::invalid_params_for_config_error;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::indexers::test_indexers;
     use anyhow::{Result, anyhow};
     use async_trait::async_trait;
     use axum::{
@@ -197,6 +198,7 @@ mod tests {
                 has_api_keys_error,
                 local_networks,
             }),
+            test_indexers(),
             metrics,
             Arc::new(json!({})),
             EventBus::with_capacity(4),

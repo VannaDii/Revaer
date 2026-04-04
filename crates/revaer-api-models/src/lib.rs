@@ -212,6 +212,1839 @@ pub struct FactoryResetRequest {
     pub confirm: String,
 }
 
+/// Tag creation request payload for indexer tags.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TagCreateRequest {
+    /// Unique lowercase tag key.
+    pub tag_key: String,
+    /// Human-readable tag name.
+    pub display_name: String,
+}
+
+/// Tag update request payload for indexer tags.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TagUpdateRequest {
+    /// Tag public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag_public_id: Option<Uuid>,
+    /// Tag key (lowercase).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag_key: Option<String>,
+    /// Updated display name for the tag.
+    pub display_name: String,
+}
+
+/// Tag delete request payload for indexer tags.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TagDeleteRequest {
+    /// Tag public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag_public_id: Option<Uuid>,
+    /// Tag key (lowercase).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag_key: Option<String>,
+}
+
+/// Tag response payload returned by indexer tag endpoints.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TagResponse {
+    /// Tag public identifier.
+    pub tag_public_id: Uuid,
+    /// Tag key (lowercase) when provided by the caller.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag_key: Option<String>,
+    /// Display name associated with the tag.
+    pub display_name: String,
+}
+
+/// Operator-visible tag summary.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TagListItemResponse {
+    /// Tag public identifier.
+    pub tag_public_id: Uuid,
+    /// Stable tag key.
+    pub tag_key: String,
+    /// Human-readable display name.
+    pub display_name: String,
+    /// Last update timestamp.
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Tag list response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TagListResponse {
+    /// Collection of active tags.
+    pub tags: Vec<TagListItemResponse>,
+}
+
+/// Health notification hook creation request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerHealthNotificationHookCreateRequest {
+    /// Channel type (`email` or `webhook`).
+    pub channel: String,
+    /// Operator-facing label for the hook.
+    pub display_name: String,
+    /// Lowest connectivity status that should trigger the hook.
+    pub status_threshold: String,
+    /// Webhook URL when `channel=webhook`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub webhook_url: Option<String>,
+    /// Email address when `channel=email`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+}
+
+/// Health notification hook update request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerHealthNotificationHookUpdateRequest {
+    /// Public identifier of the hook to update.
+    pub indexer_health_notification_hook_public_id: Uuid,
+    /// Updated display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    /// Updated status threshold.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status_threshold: Option<String>,
+    /// Updated webhook URL for webhook hooks.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub webhook_url: Option<String>,
+    /// Updated email address for email hooks.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    /// Updated enabled state.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_enabled: Option<bool>,
+}
+
+/// Health notification hook delete request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerHealthNotificationHookDeleteRequest {
+    /// Public identifier of the hook to delete.
+    pub indexer_health_notification_hook_public_id: Uuid,
+}
+
+/// Health notification hook response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerHealthNotificationHookResponse {
+    /// Public identifier of the hook.
+    pub indexer_health_notification_hook_public_id: Uuid,
+    /// Channel type (`email` or `webhook`).
+    pub channel: String,
+    /// Operator-facing label.
+    pub display_name: String,
+    /// Lowest status that should trigger delivery.
+    pub status_threshold: String,
+    /// Webhook URL when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub webhook_url: Option<String>,
+    /// Email address when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub email: Option<String>,
+    /// Whether the hook is active.
+    pub is_enabled: bool,
+    /// Last update timestamp.
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Health notification hook list response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerHealthNotificationHookListResponse {
+    /// Configured hooks in display order.
+    pub hooks: Vec<IndexerHealthNotificationHookResponse>,
+}
+
+/// Rate limit policy creation request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RateLimitPolicyCreateRequest {
+    /// Human-readable policy name.
+    pub display_name: String,
+    /// Allowed requests per minute.
+    pub rpm: i32,
+    /// Allowed burst tokens.
+    pub burst: i32,
+    /// Maximum concurrent requests.
+    pub concurrent: i32,
+}
+
+/// Rate limit policy update request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RateLimitPolicyUpdateRequest {
+    /// Updated display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    /// Updated requests per minute.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rpm: Option<i32>,
+    /// Updated burst size.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub burst: Option<i32>,
+    /// Updated concurrent request limit.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub concurrent: Option<i32>,
+}
+
+/// Rate limit policy response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RateLimitPolicyResponse {
+    /// Rate limit policy public identifier.
+    pub rate_limit_policy_public_id: Uuid,
+}
+
+/// Rate-limit policy inventory item for operator read/list surfaces.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RateLimitPolicyListItemResponse {
+    /// Rate-limit policy public identifier.
+    pub rate_limit_policy_public_id: Uuid,
+    /// Operator-facing display name.
+    pub display_name: String,
+    /// Requests-per-minute budget.
+    pub requests_per_minute: i32,
+    /// Burst budget.
+    pub burst: i32,
+    /// Concurrent request budget.
+    pub concurrent_requests: i32,
+    /// Whether the policy is system-seeded.
+    pub is_system: bool,
+}
+
+/// Rate-limit policy list response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RateLimitPolicyListResponse {
+    /// Collection of rate-limit policies.
+    pub rate_limit_policies: Vec<RateLimitPolicyListItemResponse>,
+}
+
+/// Rate limit policy assignment request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RateLimitPolicyAssignmentRequest {
+    /// Rate limit policy public identifier to assign, or `null` to clear.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_policy_public_id: Option<Uuid>,
+}
+
+/// Tracker category mapping upsert request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TrackerCategoryMappingUpsertRequest {
+    /// Optional Torznab instance public identifier for app-scoped overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub torznab_instance_public_id: Option<Uuid>,
+    /// Optional indexer definition upstream slug for definition-specific overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indexer_definition_upstream_slug: Option<String>,
+    /// Optional indexer instance public identifier for instance-specific overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indexer_instance_public_id: Option<Uuid>,
+    /// Tracker category id.
+    pub tracker_category: i32,
+    /// Tracker subcategory id (defaults to 0 when omitted).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tracker_subcategory: Option<i32>,
+    /// Torznab category id.
+    pub torznab_cat_id: i32,
+    /// Optional media domain key to constrain the mapping.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub media_domain_key: Option<String>,
+}
+
+/// Tracker category mapping delete request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TrackerCategoryMappingDeleteRequest {
+    /// Optional Torznab instance public identifier for app-scoped overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub torznab_instance_public_id: Option<Uuid>,
+    /// Optional indexer definition upstream slug for definition-specific overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indexer_definition_upstream_slug: Option<String>,
+    /// Optional indexer instance public identifier for instance-specific overrides.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indexer_instance_public_id: Option<Uuid>,
+    /// Tracker category id.
+    pub tracker_category: i32,
+    /// Tracker subcategory id (defaults to 0 when omitted).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tracker_subcategory: Option<i32>,
+}
+
+/// Media domain to Torznab category mapping upsert request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MediaDomainMappingUpsertRequest {
+    /// Media domain key.
+    pub media_domain_key: String,
+    /// Torznab category id.
+    pub torznab_cat_id: i32,
+    /// Whether this mapping is the primary category for the domain.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_primary: Option<bool>,
+}
+
+/// Media domain to Torznab category mapping delete request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MediaDomainMappingDeleteRequest {
+    /// Media domain key.
+    pub media_domain_key: String,
+    /// Torznab category id.
+    pub torznab_cat_id: i32,
+}
+
+/// Torznab instance creation request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TorznabInstanceCreateRequest {
+    /// Search profile public identifier to bind.
+    pub search_profile_public_id: Uuid,
+    /// Display name for the instance.
+    pub display_name: String,
+}
+
+/// Torznab instance enable/disable request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TorznabInstanceStateRequest {
+    /// Whether the instance is enabled.
+    pub is_enabled: bool,
+}
+
+/// Torznab instance response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TorznabInstanceResponse {
+    /// Torznab instance public identifier.
+    pub torznab_instance_public_id: Uuid,
+    /// Plaintext API key for the instance.
+    pub api_key_plaintext: String,
+}
+
+/// Torznab-instance inventory item for operator read/list surfaces.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TorznabInstanceListItemResponse {
+    /// Torznab-instance public identifier.
+    pub torznab_instance_public_id: Uuid,
+    /// Operator-facing display name.
+    pub display_name: String,
+    /// Whether the Torznab endpoint is enabled.
+    pub is_enabled: bool,
+    /// Linked search-profile public identifier.
+    pub search_profile_public_id: Uuid,
+    /// Linked search-profile display name.
+    pub search_profile_display_name: String,
+}
+
+/// Torznab-instance inventory response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TorznabInstanceListResponse {
+    /// Operator-visible Torznab instances.
+    pub torznab_instances: Vec<TorznabInstanceListItemResponse>,
+}
+
+/// Search profile creation request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchProfileCreateRequest {
+    /// Display name for the search profile.
+    pub display_name: String,
+    /// Whether this profile should become the default.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_default: Option<bool>,
+    /// Optional page size override.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_size: Option<i32>,
+    /// Optional default media domain key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_media_domain_key: Option<String>,
+    /// Optional user public identifier to scope this profile.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_public_id: Option<Uuid>,
+}
+
+/// Search profile update request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchProfileUpdateRequest {
+    /// Updated display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    /// Updated page size.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_size: Option<i32>,
+}
+
+/// Search profile set default request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchProfileDefaultRequest {
+    /// Optional page size override for the default profile.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_size: Option<i32>,
+}
+
+/// Search profile default media domain request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchProfileDefaultDomainRequest {
+    /// Optional default media domain key (omit to clear).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_media_domain_key: Option<String>,
+}
+
+/// Search profile domain allowlist request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchProfileDomainAllowlistRequest {
+    /// Ordered list of media domain keys to allow.
+    pub media_domain_keys: Vec<String>,
+}
+
+/// Search profile policy set request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchProfilePolicySetRequest {
+    /// Policy set public identifier.
+    pub policy_set_public_id: Uuid,
+}
+
+/// Search profile indexer allow/block request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchProfileIndexerSetRequest {
+    /// Indexer instance public identifiers.
+    pub indexer_instance_public_ids: Vec<Uuid>,
+}
+
+/// Search profile tag allow/block/prefer request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchProfileTagSetRequest {
+    /// Optional tag public identifiers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag_public_ids: Option<Vec<Uuid>>,
+    /// Optional tag keys.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag_keys: Option<Vec<String>>,
+}
+
+/// Search profile response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchProfileResponse {
+    /// Search profile public identifier.
+    pub search_profile_public_id: Uuid,
+}
+
+/// Search-profile inventory item for operator read/list surfaces.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchProfileListItemResponse {
+    /// Search-profile public identifier.
+    pub search_profile_public_id: Uuid,
+    /// Operator-facing display name.
+    pub display_name: String,
+    /// Whether the profile is marked as default.
+    pub is_default: bool,
+    /// Optional page-size override.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_size: Option<i32>,
+    /// Optional default media-domain key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub default_media_domain_key: Option<String>,
+    /// Allowed media-domain keys.
+    pub media_domain_keys: Vec<String>,
+    /// Attached policy-set public identifiers.
+    pub policy_set_public_ids: Vec<Uuid>,
+    /// Attached policy-set display names.
+    pub policy_set_display_names: Vec<String>,
+    /// Explicitly allowed indexer-instance public identifiers.
+    pub allow_indexer_public_ids: Vec<Uuid>,
+    /// Explicitly blocked indexer-instance public identifiers.
+    pub block_indexer_public_ids: Vec<Uuid>,
+    /// Allowed tag keys.
+    pub allow_tag_keys: Vec<String>,
+    /// Blocked tag keys.
+    pub block_tag_keys: Vec<String>,
+    /// Preferred tag keys.
+    pub prefer_tag_keys: Vec<String>,
+}
+
+/// Search-profile inventory response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchProfileListResponse {
+    /// Operator-visible search profiles.
+    pub search_profiles: Vec<SearchProfileListItemResponse>,
+}
+
+/// Search request creation request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchRequestCreateRequest {
+    /// Raw query text (may be empty for identifier-only searches).
+    pub query_text: String,
+    /// Query type key (`free_text`, `imdb`, `tmdb`, `tvdb`, `season_episode`).
+    pub query_type: String,
+    /// Optional Torznab mode (`generic`, `tv`, `movie`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub torznab_mode: Option<String>,
+    /// Optional requested media domain key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub requested_media_domain_key: Option<String>,
+    /// Optional page size override.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub page_size: Option<i32>,
+    /// Optional search profile public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub search_profile_public_id: Option<Uuid>,
+    /// Optional policy set public identifier for this request.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub request_policy_set_public_id: Option<Uuid>,
+    /// Optional season number for TV queries.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub season_number: Option<i32>,
+    /// Optional episode number for TV queries.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub episode_number: Option<i32>,
+    /// Optional identifier types (`imdb`, `tmdb`, `tvdb`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub identifier_types: Option<Vec<String>>,
+    /// Optional identifier values matching `identifier_types`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub identifier_values: Option<Vec<String>>,
+    /// Optional Torznab category ids.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub torznab_cat_ids: Option<Vec<i32>>,
+}
+
+/// Search request creation response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchRequestCreateResponse {
+    /// Search request public identifier.
+    pub search_request_public_id: Uuid,
+    /// Policy set public identifier applied to this request.
+    pub request_policy_set_public_id: Uuid,
+}
+
+/// Search page summary payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchPageSummaryResponse {
+    /// Page number for the search request.
+    pub page_number: i32,
+    /// Timestamp when the page was sealed, if sealed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sealed_at: Option<DateTime<Utc>>,
+    /// Item count for the page.
+    pub item_count: i32,
+}
+
+/// Search page list response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchPageListResponse {
+    /// Pages available for the search request.
+    pub pages: Vec<SearchPageSummaryResponse>,
+    /// Explainability details when no or few results are returned.
+    pub explainability: SearchRequestExplainabilityResponse,
+}
+
+/// Explainability details for a search request.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchRequestExplainabilityResponse {
+    /// Whether the request had zero runnable indexers.
+    pub zero_runnable_indexers: bool,
+    /// Number of indexer runs skipped by cancellation.
+    pub skipped_canceled_indexers: i32,
+    /// Number of indexer runs skipped by terminal failures.
+    pub skipped_failed_indexers: i32,
+    /// Number of blocked decision rows recorded for this request.
+    pub blocked_results: i32,
+    /// Policy rules that blocked results.
+    pub blocked_rule_public_ids: Vec<Uuid>,
+    /// Number of indexer runs currently rate-limited.
+    pub rate_limited_indexers: i32,
+    /// Number of indexer runs currently retrying.
+    pub retrying_indexers: i32,
+}
+
+/// Search page item payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchPageItemResponse {
+    /// Position within the page.
+    pub position: i32,
+    /// Canonical torrent public identifier.
+    pub canonical_torrent_public_id: Uuid,
+    /// Canonical torrent display title.
+    pub title_display: String,
+    /// Optional canonical size in bytes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub size_bytes: Option<i64>,
+    /// Optional infohash v1 value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub infohash_v1: Option<String>,
+    /// Optional infohash v2 value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub infohash_v2: Option<String>,
+    /// Optional magnet hash value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub magnet_hash: Option<String>,
+    /// Optional canonical torrent source public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub canonical_torrent_source_public_id: Option<Uuid>,
+    /// Optional indexer instance public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indexer_instance_public_id: Option<Uuid>,
+    /// Optional indexer instance display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indexer_display_name: Option<String>,
+    /// Optional last seen seeders count.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seeders: Option<i32>,
+    /// Optional last seen leechers count.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub leechers: Option<i32>,
+    /// Optional last seen published timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub published_at: Option<DateTime<Utc>>,
+    /// Optional last seen download URL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub download_url: Option<String>,
+    /// Optional last seen magnet URI.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub magnet_uri: Option<String>,
+    /// Optional last seen details URL.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub details_url: Option<String>,
+    /// Optional tracker name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tracker_name: Option<String>,
+    /// Optional tracker category.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tracker_category: Option<i32>,
+    /// Optional tracker subcategory.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tracker_subcategory: Option<i32>,
+}
+
+/// Search page response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SearchPageResponse {
+    /// Page number for the search request.
+    pub page_number: i32,
+    /// Timestamp when the page was sealed, if sealed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sealed_at: Option<DateTime<Utc>>,
+    /// Item count for the page.
+    pub item_count: i32,
+    /// Page items in stable order.
+    pub items: Vec<SearchPageItemResponse>,
+}
+
+/// Policy set creation request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PolicySetCreateRequest {
+    /// Display name for the policy set.
+    pub display_name: String,
+    /// Policy scope key (`global`, `user`, `profile`, `request`).
+    pub scope: String,
+    /// Optional enablement flag.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enabled: Option<bool>,
+}
+
+/// Policy set update request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PolicySetUpdateRequest {
+    /// Updated display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+}
+
+/// Policy set reorder request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PolicySetReorderRequest {
+    /// Ordered list of policy set public identifiers.
+    pub ordered_policy_set_public_ids: Vec<Uuid>,
+}
+
+/// Policy set response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PolicySetResponse {
+    /// Policy set public identifier.
+    pub policy_set_public_id: Uuid,
+}
+
+/// Policy-rule inventory item nested under a policy set.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PolicyRuleListItemResponse {
+    /// Policy-rule public identifier.
+    pub policy_rule_public_id: Uuid,
+    /// Rule type key.
+    pub rule_type: String,
+    /// Match field key.
+    pub match_field: String,
+    /// Match operator key.
+    pub match_operator: String,
+    /// Sort order for evaluation.
+    pub sort_order: i32,
+    /// Optional text match value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub match_value_text: Option<String>,
+    /// Optional integer match value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub match_value_int: Option<i32>,
+    /// Optional UUID match value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub match_value_uuid: Option<Uuid>,
+    /// Action key.
+    pub action: String,
+    /// Severity key.
+    pub severity: String,
+    /// Whether matching is case-insensitive.
+    pub is_case_insensitive: bool,
+    /// Optional rationale text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rationale: Option<String>,
+    /// Optional expiry timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<DateTime<Utc>>,
+    /// Whether the rule is disabled.
+    pub is_disabled: bool,
+}
+
+/// Policy-set inventory item for operator read/list surfaces.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PolicySetListItemResponse {
+    /// Policy-set public identifier.
+    pub policy_set_public_id: Uuid,
+    /// Operator-facing display name.
+    pub display_name: String,
+    /// Scope key.
+    pub scope: String,
+    /// Whether the set is enabled.
+    pub is_enabled: bool,
+    /// Optional user public identifier for user-scoped sets.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_public_id: Option<Uuid>,
+    /// Ordered policy rules attached to the set.
+    pub rules: Vec<PolicyRuleListItemResponse>,
+}
+
+/// Policy-set inventory response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PolicySetListResponse {
+    /// Operator-visible policy sets.
+    pub policy_sets: Vec<PolicySetListItemResponse>,
+}
+
+/// Value-set item for policy rule creation.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PolicyRuleValueItemRequest {
+    /// Optional text value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_text: Option<String>,
+    /// Optional integer value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_int: Option<i32>,
+    /// Optional bigint value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_bigint: Option<i64>,
+    /// Optional UUID value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_uuid: Option<Uuid>,
+}
+
+/// Policy rule creation request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PolicyRuleCreateRequest {
+    /// Rule type key.
+    pub rule_type: String,
+    /// Match field key.
+    pub match_field: String,
+    /// Match operator key.
+    pub match_operator: String,
+    /// Sort order for rule evaluation.
+    pub sort_order: i32,
+    /// Optional match text value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub match_value_text: Option<String>,
+    /// Optional match integer value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub match_value_int: Option<i32>,
+    /// Optional match UUID value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub match_value_uuid: Option<Uuid>,
+    /// Optional value-set items for `in_set` matching.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_set_items: Option<Vec<PolicyRuleValueItemRequest>>,
+    /// Policy action key.
+    pub action: String,
+    /// Policy severity key.
+    pub severity: String,
+    /// Optional case-insensitive match flag.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_case_insensitive: Option<bool>,
+    /// Optional rule rationale.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rationale: Option<String>,
+    /// Optional expiry timestamp (RFC3339).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<String>,
+}
+
+/// Policy rule reorder request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PolicyRuleReorderRequest {
+    /// Ordered list of policy rule public identifiers.
+    pub ordered_policy_rule_public_ids: Vec<Uuid>,
+}
+
+/// Policy rule response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PolicyRuleResponse {
+    /// Policy rule public identifier.
+    pub policy_rule_public_id: Uuid,
+}
+
+/// Import job creation request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ImportJobCreateRequest {
+    /// Import source key (`prowlarr_api`, `prowlarr_backup`).
+    pub source: String,
+    /// Optional dry run flag.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_dry_run: Option<bool>,
+    /// Optional target search profile public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_search_profile_public_id: Option<Uuid>,
+    /// Optional target Torznab instance public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub target_torznab_instance_public_id: Option<Uuid>,
+}
+
+/// Import job response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ImportJobResponse {
+    /// Import job public identifier.
+    pub import_job_public_id: Uuid,
+}
+
+/// Import job run request payload for Prowlarr API.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ImportJobRunProwlarrApiRequest {
+    /// Prowlarr base URL.
+    pub prowlarr_url: String,
+    /// Secret public identifier for the Prowlarr API key.
+    pub prowlarr_api_key_secret_public_id: Uuid,
+}
+
+/// Import job run request payload for Prowlarr backup.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ImportJobRunProwlarrBackupRequest {
+    /// Reference to the backup blob.
+    pub backup_blob_ref: String,
+}
+
+/// Import job status response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ImportJobStatusResponse {
+    /// Job status label.
+    pub status: String,
+    /// Total result count.
+    pub result_total: i32,
+    /// Imported ready count.
+    pub result_imported_ready: i32,
+    /// Imported needs secret count.
+    pub result_imported_needs_secret: i32,
+    /// Imported test failed count.
+    pub result_imported_test_failed: i32,
+    /// Unmapped definition count.
+    pub result_unmapped_definition: i32,
+    /// Skipped duplicate count.
+    pub result_skipped_duplicate: i32,
+}
+
+/// Import job result response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ImportJobResultResponse {
+    /// Prowlarr identifier string.
+    pub prowlarr_identifier: String,
+    /// Upstream slug for the indexer definition.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub upstream_slug: Option<String>,
+    /// Public identifier for the created indexer instance.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub indexer_instance_public_id: Option<Uuid>,
+    /// Result status label.
+    pub status: String,
+    /// Optional detail message.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    /// Preserved enabled state from the imported source.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_is_enabled: Option<bool>,
+    /// Preserved priority from the imported source.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_priority: Option<i32>,
+    /// Count of missing required secret fields detected during import.
+    pub missing_secret_fields: i32,
+    /// Preserved media domain keys derived from imported categories.
+    pub media_domain_keys: Vec<String>,
+    /// Preserved tag keys derived from imported source tags.
+    pub tag_keys: Vec<String>,
+    /// Created timestamp.
+    pub created_at: DateTime<Utc>,
+}
+
+/// Import job results response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ImportJobResultsResponse {
+    /// Import job results.
+    pub results: Vec<ImportJobResultResponse>,
+}
+
+/// Source metadata conflict row returned for operator review.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerSourceMetadataConflictResponse {
+    /// Numeric conflict identifier defined by the ERD resolve/reopen proc contract.
+    pub conflict_id: i64,
+    /// Conflict type label.
+    pub conflict_type: String,
+    /// Existing durable value.
+    pub existing_value: String,
+    /// Incoming conflicting value.
+    pub incoming_value: String,
+    /// Timestamp when the conflict was observed.
+    pub observed_at: DateTime<Utc>,
+    /// Timestamp when the conflict was resolved, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolved_at: Option<DateTime<Utc>>,
+    /// Resolution label, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolution: Option<String>,
+    /// Optional resolution note.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolution_note: Option<String>,
+}
+
+/// Source metadata conflict list response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerSourceMetadataConflictListResponse {
+    /// Ordered conflict rows for operator review.
+    pub conflicts: Vec<IndexerSourceMetadataConflictResponse>,
+}
+
+/// Request payload to resolve a source metadata conflict.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerSourceMetadataConflictResolveRequest {
+    /// Numeric conflict identifier to resolve.
+    pub conflict_id: i64,
+    /// Resolution key (`accepted_incoming`, `kept_existing`, `merged`, `ignored`).
+    pub resolution: String,
+    /// Optional operator note persisted to the audit log.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolution_note: Option<String>,
+}
+
+/// Request payload to reopen a resolved source metadata conflict.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerSourceMetadataConflictReopenRequest {
+    /// Numeric conflict identifier to reopen.
+    pub conflict_id: i64,
+    /// Optional operator note recorded during reopen.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolution_note: Option<String>,
+}
+
+/// Secret reference preserved in a backup snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerBackupSecretRef {
+    /// Secret public identifier referenced by exported bindings.
+    pub secret_public_id: Uuid,
+    /// Secret type label.
+    pub secret_type: String,
+}
+
+/// Tag item included in an indexer backup snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerBackupTagItem {
+    /// Tag key.
+    pub tag_key: String,
+    /// Human-readable display name.
+    pub display_name: String,
+}
+
+/// Rate-limit policy item included in an indexer backup snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerBackupRateLimitPolicyItem {
+    /// Display name used to re-create or resolve the policy.
+    pub display_name: String,
+    /// Requests-per-minute budget.
+    pub requests_per_minute: i32,
+    /// Burst budget.
+    pub burst: i32,
+    /// Concurrent request budget.
+    pub concurrent_requests: i32,
+    /// Whether the policy is system-seeded.
+    pub is_system: bool,
+}
+
+/// Routing-policy parameter item included in an indexer backup snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerBackupRoutingParameterItem {
+    /// Parameter key.
+    pub param_key: String,
+    /// Optional plain-text parameter value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_plain: Option<String>,
+    /// Optional integer parameter value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_int: Option<i32>,
+    /// Optional boolean parameter value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_bool: Option<bool>,
+    /// Optional bound secret public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret_public_id: Option<Uuid>,
+}
+
+/// Routing policy item included in an indexer backup snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerBackupRoutingPolicyItem {
+    /// Display name used to re-create the policy.
+    pub display_name: String,
+    /// Routing mode key.
+    pub mode: String,
+    /// Optional assigned rate-limit policy display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_display_name: Option<String>,
+    /// Exported parameters and secret references.
+    pub parameters: Vec<IndexerBackupRoutingParameterItem>,
+}
+
+/// Field item included in an indexer-instance backup snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerBackupFieldItem {
+    /// Field name.
+    pub field_name: String,
+    /// Field type label.
+    pub field_type: String,
+    /// Optional plain-text field value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_plain: Option<String>,
+    /// Optional integer field value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_int: Option<i32>,
+    /// Optional decimal field value represented as text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_decimal: Option<String>,
+    /// Optional boolean field value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_bool: Option<bool>,
+    /// Optional bound secret public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret_public_id: Option<Uuid>,
+}
+
+/// Indexer instance item included in an indexer backup snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerBackupIndexerInstanceItem {
+    /// Definition upstream slug to instantiate.
+    pub upstream_slug: String,
+    /// Human-readable display name.
+    pub display_name: String,
+    /// Instance status (`enabled` or `disabled`).
+    pub instance_status: String,
+    /// RSS setting status (`enabled` or `disabled`).
+    pub rss_status: String,
+    /// Automatic search status (`enabled` or `disabled`).
+    pub automatic_search_status: String,
+    /// Interactive search status (`enabled` or `disabled`).
+    pub interactive_search_status: String,
+    /// Priority override.
+    pub priority: i32,
+    /// Optional trust tier key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trust_tier_key: Option<String>,
+    /// Optional routing policy display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_policy_display_name: Option<String>,
+    /// Connection timeout in milliseconds.
+    pub connect_timeout_ms: i32,
+    /// Read timeout in milliseconds.
+    pub read_timeout_ms: i32,
+    /// Maximum parallel requests.
+    pub max_parallel_requests: i32,
+    /// Optional directly assigned rate-limit policy display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_display_name: Option<String>,
+    /// Optional RSS subscription enabled state.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rss_subscription_enabled: Option<bool>,
+    /// Optional RSS subscription interval.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rss_interval_seconds: Option<i32>,
+    /// Assigned media-domain keys.
+    pub media_domain_keys: Vec<String>,
+    /// Assigned tag keys.
+    pub tag_keys: Vec<String>,
+    /// Exported field values and secret references.
+    pub fields: Vec<IndexerBackupFieldItem>,
+}
+
+/// Full indexer backup snapshot payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerBackupSnapshot {
+    /// Backup format version.
+    pub version: String,
+    /// When the snapshot was exported.
+    pub exported_at: DateTime<Utc>,
+    /// Exported tag definitions.
+    pub tags: Vec<IndexerBackupTagItem>,
+    /// Exported rate-limit policies.
+    pub rate_limit_policies: Vec<IndexerBackupRateLimitPolicyItem>,
+    /// Exported routing policies.
+    pub routing_policies: Vec<IndexerBackupRoutingPolicyItem>,
+    /// Exported indexer instances.
+    pub indexer_instances: Vec<IndexerBackupIndexerInstanceItem>,
+    /// Distinct referenced secrets.
+    pub secrets: Vec<IndexerBackupSecretRef>,
+}
+
+/// Response payload returned when exporting an indexer backup snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerBackupExportResponse {
+    /// Exported snapshot document.
+    pub snapshot: IndexerBackupSnapshot,
+}
+
+/// Request payload for restoring an indexer backup snapshot.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerBackupRestoreRequest {
+    /// Snapshot to restore.
+    pub snapshot: IndexerBackupSnapshot,
+}
+
+/// Unresolved secret binding surfaced during restore.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerBackupUnresolvedSecretBinding {
+    /// Entity type (`routing_policy` or `indexer_instance`).
+    pub entity_type: String,
+    /// Entity display name.
+    pub entity_display_name: String,
+    /// Field or parameter key requiring a secret.
+    pub binding_key: String,
+    /// Missing secret public identifier.
+    pub secret_public_id: Uuid,
+}
+
+/// Restore summary payload for indexer backup import.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerBackupRestoreResponse {
+    /// Number of tags created.
+    pub created_tag_count: i32,
+    /// Number of rate-limit policies created.
+    pub created_rate_limit_policy_count: i32,
+    /// Number of routing policies created.
+    pub created_routing_policy_count: i32,
+    /// Number of indexer instances created.
+    pub created_indexer_instance_count: i32,
+    /// Secret bindings skipped because the referenced secret was unavailable.
+    pub unresolved_secret_bindings: Vec<IndexerBackupUnresolvedSecretBinding>,
+}
+
+/// Secret creation request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SecretCreateRequest {
+    /// Secret type label (`api_key`, `password`, `cookie`, `token`, `header_value`).
+    pub secret_type: String,
+    /// Plaintext secret value.
+    pub secret_value: String,
+}
+
+/// Secret rotation request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SecretRotateRequest {
+    /// Secret public identifier to rotate.
+    pub secret_public_id: Uuid,
+    /// New plaintext secret value.
+    pub secret_value: String,
+}
+
+/// Secret revocation request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SecretRevokeRequest {
+    /// Secret public identifier to revoke.
+    pub secret_public_id: Uuid,
+}
+
+/// Secret response payload returned by secret endpoints.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SecretResponse {
+    /// Secret public identifier.
+    pub secret_public_id: Uuid,
+}
+
+/// Operator-visible secret metadata response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SecretMetadataResponse {
+    /// Secret public identifier.
+    pub secret_public_id: Uuid,
+    /// Secret type label.
+    pub secret_type: String,
+    /// Whether the secret has been revoked.
+    pub is_revoked: bool,
+    /// When the secret was created.
+    pub created_at: DateTime<Utc>,
+    /// When the secret was last rotated.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rotated_at: Option<DateTime<Utc>>,
+    /// Count of current bindings.
+    pub binding_count: i64,
+}
+
+/// Secret metadata list response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SecretMetadataListResponse {
+    /// Collection of secret metadata rows.
+    pub secrets: Vec<SecretMetadataResponse>,
+}
+
+/// Indexer definition summary payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerDefinitionResponse {
+    /// Upstream catalog source identifier.
+    pub upstream_source: String,
+    /// Upstream slug for the definition.
+    pub upstream_slug: String,
+    /// Human-readable name of the definition.
+    pub display_name: String,
+    /// Protocol label (`torrent`, `usenet`).
+    pub protocol: String,
+    /// Engine label (`torznab`, `cardigann`).
+    pub engine: String,
+    /// Schema version for the definition metadata.
+    pub schema_version: i32,
+    /// Canonical definition hash (sha256 hex).
+    pub definition_hash: String,
+    /// Whether the definition is deprecated.
+    pub is_deprecated: bool,
+    /// Timestamp when the definition was created.
+    pub created_at: DateTime<Utc>,
+    /// Timestamp when the definition was last updated.
+    pub updated_at: DateTime<Utc>,
+}
+
+/// Indexer definition list response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerDefinitionListResponse {
+    /// Collection of indexer definitions.
+    pub definitions: Vec<IndexerDefinitionResponse>,
+}
+
+/// Cardigann definition import request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CardigannDefinitionImportRequest {
+    /// Raw Cardigann YAML payload to normalize into the definition catalog.
+    pub yaml_payload: String,
+    /// Optional deprecated flag override.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_deprecated: Option<bool>,
+}
+
+/// Cardigann definition import response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CardigannDefinitionImportResponse {
+    /// Imported or updated definition summary.
+    pub definition: IndexerDefinitionResponse,
+    /// Imported field count.
+    pub field_count: i32,
+    /// Imported option count.
+    pub option_count: i32,
+}
+
+/// Routing policy creation request payload for indexer routing policies.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RoutingPolicyCreateRequest {
+    /// Human-readable routing policy name.
+    pub display_name: String,
+    /// Routing policy mode (`direct`, `http_proxy`, `socks_proxy`, `flaresolverr`).
+    pub mode: String,
+}
+
+/// Routing policy response payload returned by routing policy endpoints.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RoutingPolicyResponse {
+    /// Routing policy public identifier.
+    pub routing_policy_public_id: Uuid,
+    /// Routing policy display name.
+    pub display_name: String,
+    /// Routing policy mode.
+    pub mode: String,
+}
+
+/// Routing policy inventory item for operator read/list surfaces.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RoutingPolicyListItemResponse {
+    /// Routing policy public identifier.
+    pub routing_policy_public_id: Uuid,
+    /// Routing policy display name.
+    pub display_name: String,
+    /// Routing policy mode.
+    pub mode: String,
+    /// Optional assigned rate-limit policy public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_policy_public_id: Option<Uuid>,
+    /// Optional assigned rate-limit policy display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_display_name: Option<String>,
+    /// Count of visible parameters on the policy.
+    pub parameter_count: usize,
+    /// Count of secret-backed parameters on the policy.
+    pub secret_binding_count: usize,
+}
+
+/// Routing policy list response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RoutingPolicyListResponse {
+    /// Collection of routing policies.
+    pub routing_policies: Vec<RoutingPolicyListItemResponse>,
+}
+
+/// Routing policy parameter detail returned by the operator read endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RoutingPolicyParameterResponse {
+    /// Routing policy parameter key.
+    pub param_key: String,
+    /// Optional plain-text parameter value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_plain: Option<String>,
+    /// Optional integer parameter value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_int: Option<i32>,
+    /// Optional boolean parameter value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_bool: Option<bool>,
+    /// Optional bound secret public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret_public_id: Option<Uuid>,
+    /// Optional operator-facing binding name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret_binding_name: Option<String>,
+}
+
+/// Routing policy detail payload returned by the operator read endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RoutingPolicyDetailResponse {
+    /// Routing policy public identifier.
+    pub routing_policy_public_id: Uuid,
+    /// Routing policy display name.
+    pub display_name: String,
+    /// Routing policy mode.
+    pub mode: String,
+    /// Optional assigned rate-limit policy public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_policy_public_id: Option<Uuid>,
+    /// Optional assigned rate-limit policy display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_display_name: Option<String>,
+    /// Optional requests-per-minute budget.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_requests_per_minute: Option<i32>,
+    /// Optional burst budget.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_burst: Option<i32>,
+    /// Optional concurrent request budget.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_concurrent_requests: Option<i32>,
+    /// Parameter rows associated with the policy.
+    pub parameters: Vec<RoutingPolicyParameterResponse>,
+}
+
+/// Routing policy parameter set request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RoutingPolicyParamSetRequest {
+    /// Routing policy parameter key.
+    pub param_key: String,
+    /// Optional text value for the parameter.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_plain: Option<String>,
+    /// Optional integer value for the parameter.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_int: Option<i32>,
+    /// Optional boolean value for the parameter.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_bool: Option<bool>,
+}
+
+/// Routing policy secret binding request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RoutingPolicySecretBindRequest {
+    /// Routing policy parameter key.
+    pub param_key: String,
+    /// Secret public identifier to bind.
+    pub secret_public_id: Uuid,
+}
+
+/// Indexer instance creation request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerInstanceCreateRequest {
+    /// Upstream slug key for the indexer definition to instantiate.
+    pub indexer_definition_upstream_slug: String,
+    /// Human-readable display name.
+    pub display_name: String,
+    /// Optional priority (0-100, default 50).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub priority: Option<i32>,
+    /// Optional trust tier key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trust_tier_key: Option<String>,
+    /// Optional routing policy public identifier to bind.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_policy_public_id: Option<Uuid>,
+}
+
+/// Indexer instance update request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct IndexerInstanceUpdateRequest {
+    /// Updated display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub display_name: Option<String>,
+    /// Updated priority.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub priority: Option<i32>,
+    /// Updated trust tier key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trust_tier_key: Option<String>,
+    /// Updated routing policy public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_policy_public_id: Option<Uuid>,
+    /// Enable or disable the instance.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_enabled: Option<bool>,
+    /// Enable or disable RSS polling.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_rss: Option<bool>,
+    /// Enable automatic search for the instance.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_automatic_search: Option<bool>,
+    /// Enable interactive search for the instance.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub enable_interactive_search: Option<bool>,
+}
+
+/// Indexer instance response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerInstanceResponse {
+    /// Indexer instance public identifier.
+    pub indexer_instance_public_id: Uuid,
+}
+
+/// Indexer field inventory item surfaced on operator read/list views.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerInstanceFieldInventoryResponse {
+    /// Field name.
+    pub field_name: String,
+    /// Field type label.
+    pub field_type: String,
+    /// Optional plain-text field value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_plain: Option<String>,
+    /// Optional integer field value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_int: Option<i32>,
+    /// Optional decimal field value represented as text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_decimal: Option<String>,
+    /// Optional boolean field value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_bool: Option<bool>,
+    /// Optional bound secret public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret_public_id: Option<Uuid>,
+}
+
+/// Indexer instance inventory item for operator read/list surfaces.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerInstanceListItemResponse {
+    /// Indexer instance public identifier.
+    pub indexer_instance_public_id: Uuid,
+    /// Definition upstream slug.
+    pub upstream_slug: String,
+    /// Human-readable display name.
+    pub display_name: String,
+    /// Instance status (`enabled` or `disabled`).
+    pub instance_status: String,
+    /// RSS setting status (`enabled` or `disabled`).
+    pub rss_status: String,
+    /// Automatic search status (`enabled` or `disabled`).
+    pub automatic_search_status: String,
+    /// Interactive search status (`enabled` or `disabled`).
+    pub interactive_search_status: String,
+    /// Priority override.
+    pub priority: i32,
+    /// Optional trust tier key.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trust_tier_key: Option<String>,
+    /// Optional routing policy public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_policy_public_id: Option<Uuid>,
+    /// Optional routing policy display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_policy_display_name: Option<String>,
+    /// Connection timeout in milliseconds.
+    pub connect_timeout_ms: i32,
+    /// Read timeout in milliseconds.
+    pub read_timeout_ms: i32,
+    /// Maximum parallel requests.
+    pub max_parallel_requests: i32,
+    /// Optional directly assigned rate-limit policy public identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_policy_public_id: Option<Uuid>,
+    /// Optional directly assigned rate-limit policy display name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rate_limit_display_name: Option<String>,
+    /// Optional RSS subscription enabled state.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rss_subscription_enabled: Option<bool>,
+    /// Optional RSS subscription interval in seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rss_interval_seconds: Option<i32>,
+    /// Assigned media-domain keys.
+    pub media_domain_keys: Vec<String>,
+    /// Assigned tag keys.
+    pub tag_keys: Vec<String>,
+    /// Configured field values and bound secret references.
+    pub fields: Vec<IndexerInstanceFieldInventoryResponse>,
+}
+
+/// Indexer instance list response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerInstanceListResponse {
+    /// Collection of indexer instances.
+    pub indexer_instances: Vec<IndexerInstanceListItemResponse>,
+}
+
+/// RSS subscription update request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct IndexerRssSubscriptionUpdateRequest {
+    /// Enable or disable the subscription row.
+    pub is_enabled: bool,
+    /// Optional interval override in seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub interval_seconds: Option<i32>,
+}
+
+/// RSS subscription snapshot payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerRssSubscriptionResponse {
+    /// Indexer instance public identifier.
+    pub indexer_instance_public_id: Uuid,
+    /// Instance enablement status: `enabled` or `disabled`.
+    pub instance_status: String,
+    /// Instance RSS setting status: `enabled` or `disabled`.
+    pub rss_setting_status: String,
+    /// Subscription status: `missing`, `enabled`, or `disabled`.
+    pub subscription_status: String,
+    /// Poll interval in seconds.
+    pub interval_seconds: i32,
+    /// Last successful poll timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_polled_at: Option<DateTime<Utc>>,
+    /// Next scheduled poll timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_poll_at: Option<DateTime<Utc>>,
+    /// Current backoff in seconds after retryable failures.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backoff_seconds: Option<i32>,
+    /// Last RSS failure class, if any.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_error_class: Option<String>,
+}
+
+/// RSS seen-item snapshot payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerRssSeenItemResponse {
+    /// Normalized feed GUID or stable item identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub item_guid: Option<String>,
+    /// Infohash v1 identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub infohash_v1: Option<String>,
+    /// Infohash v2 identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub infohash_v2: Option<String>,
+    /// Magnet hash identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub magnet_hash: Option<String>,
+    /// When the item was first recorded for this indexer.
+    pub first_seen_at: DateTime<Utc>,
+}
+
+/// RSS seen-item list payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerRssSeenItemsResponse {
+    /// Ordered recent seen items for the target indexer.
+    pub items: Vec<IndexerRssSeenItemResponse>,
+}
+
+/// Manual RSS seen-item mark request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct IndexerRssSeenMarkRequest {
+    /// Optional feed GUID or stable item identifier.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub item_guid: Option<String>,
+    /// Optional v1 infohash.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub infohash_v1: Option<String>,
+    /// Optional v2 infohash.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub infohash_v2: Option<String>,
+    /// Optional magnet hash.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub magnet_hash: Option<String>,
+}
+
+/// Manual RSS seen-item mark response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerRssSeenMarkResponse {
+    /// Marked or matched item snapshot.
+    pub item: IndexerRssSeenItemResponse,
+    /// Whether a new row was inserted.
+    pub inserted: bool,
+}
+
+/// Indexer instance test prepare response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerInstanceTestPrepareResponse {
+    /// Whether executor can run the test.
+    pub can_execute: bool,
+    /// Error classification (when preparation fails).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_class: Option<String>,
+    /// Error code (when preparation fails).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_code: Option<String>,
+    /// Detail string for UI display.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    /// Indexer engine label.
+    pub engine: String,
+    /// Routing policy public identifier, if configured.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub routing_policy_public_id: Option<Uuid>,
+    /// Connection timeout in milliseconds.
+    pub connect_timeout_ms: i32,
+    /// Read timeout in milliseconds.
+    pub read_timeout_ms: i32,
+    /// Field names aligned with config arrays.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field_names: Option<Vec<String>>,
+    /// Field types aligned with config arrays.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub field_types: Option<Vec<String>>,
+    /// Plain string values aligned with config arrays.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_plain: Option<Vec<Option<String>>>,
+    /// Integer values aligned with config arrays.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_int: Option<Vec<Option<i32>>>,
+    /// Decimal values aligned with config arrays.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_decimal: Option<Vec<Option<String>>>,
+    /// Boolean values aligned with config arrays.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_bool: Option<Vec<Option<bool>>>,
+    /// Secret public ids aligned with config arrays.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secret_public_ids: Option<Vec<Option<Uuid>>>,
+}
+
+/// Indexer instance test finalize request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerInstanceTestFinalizeRequest {
+    /// Whether the test succeeded.
+    pub ok: bool,
+    /// Error class label when test failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_class: Option<String>,
+    /// Error code when test failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_code: Option<String>,
+    /// Detail string for UI display.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    /// Optional result count for diagnostics.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result_count: Option<i32>,
+}
+
+/// Indexer instance test finalize response payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerInstanceTestFinalizeResponse {
+    /// Whether the test succeeded.
+    pub ok: bool,
+    /// Error class label when test failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_class: Option<String>,
+    /// Error code when test failed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_code: Option<String>,
+    /// Detail string for UI display.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+    /// Optional result count for diagnostics.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub result_count: Option<i32>,
+}
+
+/// Media domain assignment request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct IndexerInstanceMediaDomainsRequest {
+    /// Media domain keys to assign.
+    pub media_domain_keys: Vec<String>,
+}
+
+/// Tag assignment request payload.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct IndexerInstanceTagsRequest {
+    /// Tag public identifiers.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag_public_ids: Option<Vec<Uuid>>,
+    /// Tag keys.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tag_keys: Option<Vec<String>>,
+}
+
+/// Indexer instance field value set request.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct IndexerInstanceFieldValueRequest {
+    /// Field name to update.
+    pub field_name: String,
+    /// Optional plain text value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_plain: Option<String>,
+    /// Optional integer value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_int: Option<i32>,
+    /// Optional decimal value represented as text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_decimal: Option<String>,
+    /// Optional boolean value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value_bool: Option<bool>,
+}
+
+/// Indexer instance field secret bind request.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerInstanceFieldSecretBindRequest {
+    /// Field name to bind.
+    pub field_name: String,
+    /// Secret public identifier to attach.
+    pub secret_public_id: Uuid,
+}
+
+/// Cloudflare state reset request.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerCfStateResetRequest {
+    /// Reason for the manual reset (logged and audited).
+    pub reason: String,
+}
+
+/// Cloudflare state response.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerCfStateResponse {
+    /// Current state (clear, challenged, solved, banned, cooldown).
+    pub state: String,
+    /// Timestamp of last state change.
+    pub last_changed_at: chrono::DateTime<chrono::Utc>,
+    /// Optional CF session expiration.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cf_session_expires_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Optional cooldown end.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cooldown_until: Option<chrono::DateTime<chrono::Utc>>,
+    /// Optional backoff seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub backoff_seconds: Option<i32>,
+    /// Consecutive failures counter.
+    pub consecutive_failures: i32,
+    /// Last error class if present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_error_class: Option<String>,
+}
+
+/// Connectivity profile response for an indexer instance.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct IndexerConnectivityProfileResponse {
+    /// Whether a derived profile snapshot exists yet.
+    pub profile_exists: bool,
+    /// Connectivity status when a snapshot exists.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<String>,
+    /// Dominant error class when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_class: Option<String>,
+    /// p50 latency in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latency_p50_ms: Option<i32>,
+    /// p95 latency in milliseconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latency_p95_ms: Option<i32>,
+    /// One-hour success rate.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub success_rate_1h: Option<f64>,
+    /// Twenty-four-hour success rate.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub success_rate_24h: Option<f64>,
+    /// Last profile refresh timestamp.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_checked_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// Source reputation snapshot for one window bucket.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct IndexerSourceReputationResponse {
+    /// Window identifier (`1h`, `24h`, `7d`).
+    pub window_key: String,
+    /// Window start timestamp.
+    pub window_start: chrono::DateTime<chrono::Utc>,
+    /// Request success rate.
+    pub request_success_rate: f64,
+    /// Acquisition success rate.
+    pub acquisition_success_rate: f64,
+    /// Fake-result rate.
+    pub fake_rate: f64,
+    /// DMCA/removal rate.
+    pub dmca_rate: f64,
+    /// Total requests observed.
+    pub request_count: i32,
+    /// Successful requests observed.
+    pub request_success_count: i32,
+    /// Total acquisitions observed.
+    pub acquisition_count: i32,
+    /// Successful acquisitions observed.
+    pub acquisition_success_count: i32,
+    /// Minimum sample threshold used for the rollup.
+    pub min_samples: i32,
+    /// Timestamp when this row was computed.
+    pub computed_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Reputation list payload for an indexer instance.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct IndexerSourceReputationListResponse {
+    /// Recent reputation rows for the selected window.
+    pub items: Vec<IndexerSourceReputationResponse>,
+}
+
+/// Health-event row for an indexer instance.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerHealthEventResponse {
+    /// When the event occurred.
+    pub occurred_at: chrono::DateTime<chrono::Utc>,
+    /// Event type key.
+    pub event_type: String,
+    /// Request latency in milliseconds when known.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub latency_ms: Option<i32>,
+    /// HTTP status code when available.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub http_status: Option<i32>,
+    /// Error class when present.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error_class: Option<String>,
+    /// Optional diagnostic detail text.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub detail: Option<String>,
+}
+
+/// Health-event list payload for an indexer instance.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct IndexerHealthEventListResponse {
+    /// Recent health events for the selected indexer instance.
+    pub items: Vec<IndexerHealthEventResponse>,
+}
+
 /// Directory entry returned by the filesystem browser.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct FsEntry {

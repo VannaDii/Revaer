@@ -1,0 +1,56 @@
+-- Resolve PL/pgSQL column/variable ambiguity inside search result ingest procedures.
+ALTER FUNCTION search_result_ingest_v1(
+    UUID,
+    UUID,
+    VARCHAR,
+    VARCHAR,
+    VARCHAR,
+    VARCHAR,
+    VARCHAR,
+    BIGINT,
+    CHAR(40),
+    CHAR(64),
+    CHAR(64),
+    INTEGER,
+    INTEGER,
+    TIMESTAMPTZ,
+    VARCHAR,
+    TIMESTAMPTZ,
+    observation_attr_key[],
+    attr_value_type[],
+    VARCHAR[],
+    INTEGER[],
+    BIGINT[],
+    NUMERIC(12, 4)[],
+    BOOLEAN[],
+    UUID[]
+)
+SET plpgsql.variable_conflict = use_column;
+
+ALTER FUNCTION search_result_ingest(
+    UUID,
+    UUID,
+    VARCHAR,
+    VARCHAR,
+    VARCHAR,
+    VARCHAR,
+    VARCHAR,
+    BIGINT,
+    CHAR(40),
+    CHAR(64),
+    CHAR(64),
+    INTEGER,
+    INTEGER,
+    TIMESTAMPTZ,
+    VARCHAR,
+    TIMESTAMPTZ,
+    observation_attr_key[],
+    attr_value_type[],
+    VARCHAR[],
+    INTEGER[],
+    BIGINT[],
+    NUMERIC(12, 4)[],
+    BOOLEAN[],
+    UUID[]
+)
+SET plpgsql.variable_conflict = use_column;

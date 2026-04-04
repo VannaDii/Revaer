@@ -2,7 +2,7 @@ use crate::app::Route;
 use crate::components::atoms::IconButton;
 use crate::components::atoms::icons::{
     IconDownload, IconHome, IconLogOut, IconMenu, IconMoon, IconPanelLeftClose,
-    IconPanelLeftDashed, IconSettings, IconSun,
+    IconPanelLeftDashed, IconSearch, IconServer, IconSettings, IconSun,
 };
 use crate::components::connectivity::{ConnectivityIndicator, ConnectivityModal};
 use crate::components::daisy::DaisySize;
@@ -35,6 +35,8 @@ pub(crate) struct ShellProps {
 #[function_component(AppShell)]
 pub(crate) fn app_shell(props: &ShellProps) -> Html {
     let home_active = matches!(props.active, Route::Dashboard);
+    let indexers_active = matches!(props.active, Route::Indexers);
+    let search_active = matches!(props.active, Route::Search);
     let torrents_active = matches!(props.active, Route::Torrents | Route::TorrentDetail { .. });
     let settings_active = matches!(props.active, Route::Settings);
     let logs_active = matches!(props.active, Route::Logs);
@@ -127,6 +129,22 @@ pub(crate) fn app_shell(props: &ShellProps) -> Html {
                                     <IconHome size={Some(AttrValue::from("4"))} />
                                     <span class="sidebar-nav__label grow">
                                         {props.nav.dashboard.clone()}
+                                    </span>
+                                </Link<Route>>
+                                <Link<Route>
+                                    to={Route::Indexers}
+                                    classes={classes!("menu-item", menu_item_state_class(indexers_active))}>
+                                    <IconServer size={Some(AttrValue::from("4"))} />
+                                    <span class="sidebar-nav__label grow">
+                                        {props.nav.indexers.clone()}
+                                    </span>
+                                </Link<Route>>
+                                <Link<Route>
+                                    to={Route::Search}
+                                    classes={classes!("menu-item", menu_item_state_class(search_active))}>
+                                    <IconSearch size={Some(AttrValue::from("4"))} />
+                                    <span class="sidebar-nav__label grow">
+                                        {props.nav.search.clone()}
                                     </span>
                                 </Link<Route>>
                                 <Link<Route>

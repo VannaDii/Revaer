@@ -1,0 +1,28 @@
+# Policy snapshot reuse and refcount validation
+
+- Status: Accepted
+- Date: 2026-02-21
+- Context:
+  - `ERD_INDEXERS.md` requires policy snapshots to be reusable by hash and to track `ref_count` transactionally.
+  - Search-request creation and retention purge logic depend on this behavior for correctness and GC safety.
+  - Existing tests covered purge ordering and repair jobs, but did not directly verify snapshot reuse on create plus ref-count decrement on purge from the data boundary.
+- Decision:
+  - Add `revaer-data` search-request tests to validate:
+    - repeated `search_request_create` calls with identical effective policy inputs reuse the same `policy_snapshot` row and increment `ref_count`;
+    - `job_run_retention_purge` decrements snapshot `ref_count` when an old finished search request is purged.
+  - Keep implementation dependency-free (no new crates).
+  - Alternatives considered:
+    - rely on SQL review only: rejected because snapshot reuse/refcount regressions are subtle and need executable checks;
+    - cover only through API integration tests: rejected because direct data-layer tests are faster and isolate proc behavior.
+- Consequences:
+  - Positive outcomes:
+    - snapshot reuse and ref-count tracking now have direct regression coverage;
+    - Phase 7 checklist item for snapshot reuse/ref_count can be marked complete.
+  - Risks or trade-offs:
+    - tests manipulate finished timestamps to exercise retention windows and should be kept aligned with retention defaults.
+- Follow-up:
+  - Implementation tasks:
+    - Continue with the next unchecked Phase 7 behavioral rule.
+  - Review checkpoints:
+    - `just ci`
+    - `just ui-e2e`

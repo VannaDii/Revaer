@@ -59,7 +59,9 @@ mod tests {
 
     #[test]
     fn docker_available_accepts_existing_unix_socket() -> Result<(), Box<dyn std::error::Error>> {
-        let socket_path = std::env::temp_dir().join("revaer-docker.sock");
+        let socket_dir = std::path::PathBuf::from(".server_root/test-support");
+        fs::create_dir_all(&socket_dir)?;
+        let socket_path = socket_dir.join("revaer-docker.sock");
         fs::write(&socket_path, "")?;
         let host = format!("unix://{}", socket_path.display());
         assert!(docker_available_with_host(Some(host)));

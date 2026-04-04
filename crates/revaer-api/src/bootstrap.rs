@@ -6,6 +6,7 @@ use revaer_config::{AppMode, ConfigService};
 use revaer_events::EventBus;
 use revaer_telemetry::Metrics;
 
+use crate::app::indexers::IndexerFacade;
 use crate::error::{ApiServerError, ApiServerResult};
 use crate::{ApiServer, TorrentHandles};
 
@@ -16,11 +17,12 @@ use crate::{ApiServer, TorrentHandles};
 /// Returns an error if API server initialization fails.
 pub fn build_api(
     config: ConfigService,
+    indexers: std::sync::Arc<dyn IndexerFacade>,
     events: EventBus,
     torrent_handles: Option<TorrentHandles>,
     metrics: Metrics,
 ) -> ApiServerResult<ApiServer> {
-    ApiServer::new(config, events, torrent_handles, metrics)
+    ApiServer::new(config, indexers, events, torrent_handles, metrics)
 }
 
 /// Validate bind addr and mode before serving.

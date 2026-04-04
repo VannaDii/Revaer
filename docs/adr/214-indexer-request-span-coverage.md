@@ -1,0 +1,40 @@
+# Indexer Request Span Coverage for Torznab, Search, and Import Jobs
+
+- Status: Accepted
+- Date: 2026-02-25
+- Context:
+  - Motivation:
+    - `ERD_INDEXERS_CHECKLIST.md` still had the observability tracing-span item unchecked for indexer/Torznab/search/job flows.
+    - Existing service-level spans covered many indexer operations, but API request-boundary spans for Torznab and indexer search/import endpoints were not explicit and consistent.
+  - Constraints:
+    - Avoid logging secrets from request payloads and query parameters.
+    - Keep constant error messaging and existing API behavior unchanged.
+    - Preserve dependency minimalism (no new crates).
+- Decision:
+  - Added explicit `#[tracing::instrument]` spans on API request handlers for:
+    - Torznab request and download endpoints.
+    - Indexer search request create/cancel and page list/fetch endpoints.
+    - Import-job create/run/status/results endpoints.
+  - Used `skip(...)` on payload/query-bearing args to avoid accidental secret logging.
+  - Added stable span names and key IDs in structured fields (public UUIDs/page number).
+  - Marked Phase 10 tracing-span checklist item complete.
+  - Alternatives considered:
+    - Relying only on middleware `http.request` span was insufficient for indexer-domain operation-level observability.
+    - Adding manual `info_span!` blocks in every handler was more verbose than `#[instrument]` and easier to regress.
+- Consequences:
+  - Positive outcomes:
+    - Request-level traces now include deterministic span names for Torznab/search/job operations.
+    - Improves correlation across API middleware spans and indexer service spans.
+  - Risks and trade-offs:
+    - Span naming and fields must remain stable to avoid dashboard churn.
+    - Future handlers must follow `skip(request/query)` for secret-bearing data.
+- Follow-up:
+  - Test coverage summary:
+    - Existing handler tests validated behavior compatibility after instrumentation.
+    - Full gate set (`just ci`, `just ui-e2e`) was rerun and passed.
+  - Observability updates:
+    - New trace spans available immediately; no metrics/schema migration required.
+  - Risk and rollback plan:
+    - Rollback by removing instrumentation attributes if trace overhead becomes an issue.
+  - Dependency rationale:
+    - No new dependencies; used existing `tracing` crate already in workspace.

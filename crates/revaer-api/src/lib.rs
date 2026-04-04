@@ -37,6 +37,7 @@ pub use openapi::{openapi_document, openapi_output_path};
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::indexers::test_indexers;
     use crate::app::state::ApiState;
     use crate::config::{ConfigFacade, SharedConfig};
     use crate::http::auth::{AuthContext, ClientIp, map_config_error};
@@ -188,6 +189,7 @@ mod tests {
         let telemetry = Metrics::new().map_err(|_| anyhow!("metrics init"))?;
         let state = ApiState::new(
             config.shared(),
+            test_indexers(),
             telemetry.clone(),
             Arc::new(Value::Null),
             EventBus::with_capacity(4),
@@ -674,6 +676,7 @@ mod tests {
         let metrics = Metrics::new()?;
         let state = Arc::new(ApiState::new(
             config.shared(),
+            test_indexers(),
             metrics,
             Arc::new(openapi_document()),
             events.clone(),
@@ -746,6 +749,7 @@ mod tests {
         let metrics = Metrics::new()?;
         let state = Arc::new(ApiState::new(
             config.shared(),
+            test_indexers(),
             metrics,
             Arc::new(openapi_document()),
             events,
@@ -786,6 +790,7 @@ mod tests {
         let metrics = Metrics::new()?;
         let state = Arc::new(ApiState::new(
             config.shared(),
+            test_indexers(),
             metrics,
             Arc::new(openapi_document()),
             events,
@@ -836,6 +841,7 @@ mod tests {
             let handles = TorrentHandles::new(workflow, inspector);
             let state = Arc::new(ApiState::new(
                 config.shared(),
+                test_indexers(),
                 metrics,
                 Arc::new(openapi_document()),
                 events,
@@ -971,6 +977,7 @@ mod tests {
         let telemetry = Metrics::new()?;
         let state = Arc::new(ApiState::new(
             config.shared(),
+            test_indexers(),
             telemetry,
             Arc::new(openapi_document()),
             events.clone(),
@@ -1194,6 +1201,7 @@ mod tests {
         let telemetry = Metrics::new().map_err(|_| anyhow!("metrics init"))?;
         let state = ApiServer::build_state(
             config,
+            test_indexers(),
             telemetry,
             Arc::new(json!({ "openapi": "stub" })),
             EventBus::with_capacity(8),
@@ -1237,7 +1245,8 @@ mod tests {
                 }),
             )
         };
-        let server = ApiServer::with_config_at(config, events, None, telemetry, &openapi)?;
+        let server =
+            ApiServer::with_config_at(config, test_indexers(), events, None, telemetry, &openapi)?;
 
         let request = Request::builder()
             .uri("/health")
@@ -1620,6 +1629,7 @@ mod tests {
         let config = MockConfig::new()?;
         let state = ApiState::new(
             config.shared(),
+            test_indexers(),
             Metrics::new().map_err(|_| anyhow!("metrics init"))?,
             Arc::new(json!({})),
             EventBus::with_capacity(4),
@@ -1654,6 +1664,7 @@ mod tests {
         let config = MockConfig::new()?;
         let state = ApiState::new(
             config.shared(),
+            test_indexers(),
             Metrics::new().map_err(|_| anyhow!("metrics init"))?,
             Arc::new(json!({})),
             EventBus::with_capacity(4),
@@ -1853,6 +1864,7 @@ mod tests {
         let handles = TorrentHandles::new(stub.clone(), stub.clone());
         let state = Arc::new(ApiState::new(
             config.shared(),
+            test_indexers(),
             metrics,
             Arc::new(openapi_document()),
             events,
@@ -1905,6 +1917,7 @@ mod tests {
         let handles = TorrentHandles::new(stub.clone(), stub.clone());
         let state = Arc::new(ApiState::new(
             config.shared(),
+            test_indexers(),
             metrics,
             Arc::new(openapi_document()),
             events.clone(),
@@ -1994,6 +2007,7 @@ mod tests {
         let handles = TorrentHandles::new(stub.clone(), stub.clone());
         let state = Arc::new(ApiState::new(
             config.shared(),
+            test_indexers(),
             metrics,
             Arc::new(openapi_document()),
             events,
@@ -2052,6 +2066,7 @@ mod tests {
         let handles = TorrentHandles::new(stub.clone(), stub.clone());
         let state = Arc::new(ApiState::new(
             config.shared(),
+            test_indexers(),
             metrics,
             Arc::new(openapi_document()),
             events,
@@ -2089,6 +2104,7 @@ mod tests {
         let handles = TorrentHandles::new(stub.clone(), stub.clone());
         let state = Arc::new(ApiState::new(
             config.shared(),
+            test_indexers(),
             metrics,
             Arc::new(openapi_document()),
             events,
@@ -2120,6 +2136,7 @@ mod tests {
         let handles = TorrentHandles::new(stub.clone(), stub.clone());
         let state = Arc::new(ApiState::new(
             config.shared(),
+            test_indexers(),
             metrics,
             Arc::new(openapi_document()),
             events,

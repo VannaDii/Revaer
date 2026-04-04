@@ -10,15 +10,18 @@ use crate::features::torrents::actions::TorrentAction as UiTorrentAction;
 use crate::features::torrents::state::{TorrentsPaging, TorrentsQueryModel};
 use crate::models::{
     AddTorrentInput, ApiKeyRefreshResponse, DashboardResponse, DashboardSnapshot, FsBrowseResponse,
-    FullHealthResponse, HealthResponse, ProblemDetails, QueueStatus, SetupCompleteResponse,
-    SetupStartResponse, TorrentAction as ApiTorrentAction, TorrentAuthorRequest,
-    TorrentAuthorResponse, TorrentCreateRequest, TorrentDetail, TorrentLabelEntry,
-    TorrentListResponse, TorrentOptionsRequest, TorrentSelectionRequest, TrackerHealth, VpnState,
+    FullHealthResponse, HealthResponse, ProblemDetails, QueueStatus, SearchPageListResponse,
+    SearchPageResponse, SearchRequestCreateRequest, SearchRequestCreateResponse,
+    SetupCompleteResponse, SetupStartResponse, TorrentAction as ApiTorrentAction,
+    TorrentAuthorRequest, TorrentAuthorResponse, TorrentCreateRequest, TorrentDetail,
+    TorrentLabelEntry, TorrentListResponse, TorrentOptionsRequest, TorrentSelectionRequest,
+    TrackerHealth, VpnState,
 };
 use base64::{Engine as _, engine::general_purpose};
 use gloo::file::futures::read_as_bytes;
 use gloo_net::http::{Request, RequestBuilder, Response};
 use serde::Deserialize;
+use serde::Serialize;
 use serde_json::{Value, json};
 use urlencoding::encode;
 use uuid::Uuid;
@@ -270,12 +273,140 @@ impl ApiClient {
         self.send_json(req).await
     }
 
+    pub(crate) async fn get_api<T: for<'de> Deserialize<'de>>(
+        &self,
+        path: &str,
+    ) -> Result<T, ApiError> {
+        self.get_json(path).await
+    }
+
+    pub(crate) async fn post_api<B: Serialize, T: for<'de> Deserialize<'de>>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<T, ApiError> {
+        let req = Request::post(&format!("{}{}", self.base_url.trim_end_matches('/'), path));
+        let req = self.apply_auth(req)?;
+        let req = req
+            .json(body)
+            .map_err(|err| ApiError::client(format!("encode request payload: {err}")))?;
+        self.send_json(req).await
+    }
+
+    pub(crate) async fn post_api_empty<B: Serialize>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<(), ApiError> {
+        let req = Request::post(&format!("{}{}", self.base_url.trim_end_matches('/'), path));
+        let req = self.apply_auth(req)?;
+        let req = req
+            .json(body)
+            .map_err(|err| ApiError::client(format!("encode request payload: {err}")))?;
+        self.send_empty(req).await
+    }
+
+    pub(crate) async fn patch_api<B: Serialize, T: for<'de> Deserialize<'de>>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<T, ApiError> {
+        let req = Request::patch(&format!("{}{}", self.base_url.trim_end_matches('/'), path));
+        let req = self.apply_auth(req)?;
+        let req = req
+            .json(body)
+            .map_err(|err| ApiError::client(format!("encode request payload: {err}")))?;
+        self.send_json(req).await
+    }
+
+    pub(crate) async fn put_api<B: Serialize, T: for<'de> Deserialize<'de>>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<T, ApiError> {
+        let req = Request::put(&format!("{}{}", self.base_url.trim_end_matches('/'), path));
+        let req = self.apply_auth(req)?;
+        let req = req
+            .json(body)
+            .map_err(|err| ApiError::client(format!("encode request payload: {err}")))?;
+        self.send_json(req).await
+    }
+
+    pub(crate) async fn delete_api<B: Serialize, T: for<'de> Deserialize<'de>>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<T, ApiError> {
+        let req = Request::delete(&format!("{}{}", self.base_url.trim_end_matches('/'), path));
+        let req = self.apply_auth(req)?;
+        let req = req
+            .json(body)
+            .map_err(|err| ApiError::client(format!("encode request payload: {err}")))?;
+        self.send_json(req).await
+    }
+
+    pub(crate) async fn delete_api_empty<B: Serialize>(
+        &self,
+        path: &str,
+        body: &B,
+    ) -> Result<(), ApiError> {
+        let req = Request::delete(&format!("{}{}", self.base_url.trim_end_matches('/'), path));
+        let req = self.apply_auth(req)?;
+        let req = req
+            .json(body)
+            .map_err(|err| ApiError::client(format!("encode request payload: {err}")))?;
+        self.send_empty(req).await
+    }
+
+    pub(crate) async fn delete_path(&self, path: &str) -> Result<(), ApiError> {
+        let req = Request::delete(&format!("{}{}", self.base_url.trim_end_matches('/'), path));
+        let req = self.apply_auth(req)?;
+        let req = Self::build_request(req)?;
+        self.send_empty(req).await
+    }
+
     pub(crate) async fn fetch_categories(&self) -> Result<Vec<TorrentLabelEntry>, ApiError> {
         self.get_json("/v1/torrents/categories").await
     }
 
     pub(crate) async fn fetch_tags(&self) -> Result<Vec<TorrentLabelEntry>, ApiError> {
         self.get_json("/v1/torrents/tags").await
+    }
+
+    pub(crate) async fn create_search_request(
+        &self,
+        request: &SearchRequestCreateRequest,
+    ) -> Result<SearchRequestCreateResponse, ApiError> {
+        let req = Request::post(&format!(
+            "{}/v1/indexers/search-requests",
+            self.base_url.trim_end_matches('/')
+        ));
+        let req = self.apply_auth(req)?;
+        let req = req
+            .json(request)
+            .map_err(|err| ApiError::client(format!("encode search payload: {err}")))?;
+        self.send_json(req).await
+    }
+
+    pub(crate) async fn fetch_search_pages(
+        &self,
+        search_request_public_id: Uuid,
+    ) -> Result<SearchPageListResponse, ApiError> {
+        self.get_json(&format!(
+            "/v1/indexers/search-requests/{search_request_public_id}/pages"
+        ))
+        .await
+    }
+
+    pub(crate) async fn fetch_search_page(
+        &self,
+        search_request_public_id: Uuid,
+        page_number: i32,
+    ) -> Result<SearchPageResponse, ApiError> {
+        self.get_json(&format!(
+            "/v1/indexers/search-requests/{search_request_public_id}/pages/{page_number}"
+        ))
+        .await
     }
 
     pub(crate) async fn perform_action(

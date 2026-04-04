@@ -1,5 +1,5 @@
 import { test, expect } from '../../fixtures/api';
-import { randomUUID } from 'crypto';
+import { randomUUID } from 'node:crypto';
 import fs from 'fs';
 import path from 'path';
 import { resolveFsRoot } from '../../support/paths';

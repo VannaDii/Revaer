@@ -13,6 +13,7 @@ use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::TorrentHandles;
+use crate::app::indexers::IndexerFacade;
 use crate::config::ConfigFacade;
 use crate::http::rate_limit::{RateLimitError, RateLimitSnapshot, RateLimiter};
 use crate::http::torrents::TorrentMetadata;
@@ -20,6 +21,7 @@ use crate::http::torrents::TorrentMetadata;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::app::indexers::test_indexers;
     use anyhow::Result;
     use async_trait::async_trait;
     use revaer_config::{
@@ -238,6 +240,7 @@ mod tests {
         let metrics = Metrics::new()?;
         let state = ApiState::new(
             Arc::new(NoopConfig),
+            test_indexers(),
             metrics,
             Arc::new(json!({})),
             events.clone(),
@@ -280,6 +283,7 @@ mod tests {
         let handles = TorrentHandles::new(workflow.clone(), workflow);
         let state = ApiState::new(
             Arc::new(NoopConfig),
+            test_indexers(),
             Metrics::new()?,
             Arc::new(json!({})),
             EventBus::with_capacity(4),
@@ -295,6 +299,7 @@ mod tests {
         let id = Uuid::new_v4();
         let state = ApiState::new(
             Arc::new(NoopConfig),
+            test_indexers(),
             Metrics::new()?,
             Arc::new(json!({})),
             EventBus::with_capacity(4),
@@ -311,6 +316,7 @@ mod tests {
 
 pub(crate) struct ApiState {
     pub(crate) config: Arc<dyn ConfigFacade>,
+    pub(crate) indexers: Arc<dyn IndexerFacade>,
     pub(crate) setup_token_ttl: Duration,
     pub(crate) telemetry: Metrics,
     pub(crate) openapi_document: Arc<Value>,
@@ -335,6 +341,7 @@ pub(crate) const COMPAT_SESSION_TTL: Duration = Duration::from_secs(30 * 60);
 impl ApiState {
     pub(crate) fn new(
         config: Arc<dyn ConfigFacade>,
+        indexers: Arc<dyn IndexerFacade>,
         telemetry: Metrics,
         openapi_document: Arc<Value>,
         events: EventBus,
@@ -342,6 +349,7 @@ impl ApiState {
     ) -> Self {
         Self {
             config,
+            indexers,
             setup_token_ttl: Duration::from_secs(900),
             telemetry,
             openapi_document,

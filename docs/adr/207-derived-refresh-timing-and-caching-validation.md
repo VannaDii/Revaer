@@ -1,0 +1,26 @@
+# Derived refresh timing and caching validation
+
+- Status: Accepted
+- Date: 2026-02-21
+- Context:
+  - `ERD_INDEXERS.md` defines job cadence expectations for derived-table refresh workflows and expects deterministic refresh timing.
+  - Existing tests validated specific refresh behavior (connectivity/reputation/base-score/canonical backfill), but did not explicitly validate seeded `job_schedule.cadence_seconds` against ERD timings.
+  - Phase 9 still had `Ensure derived tables refresh according to ERD timing and caching rules` unchecked.
+- Decision:
+  - Add a data-layer test in `revaer-data` to assert `job_schedule` cadence values for all indexer jobs that drive derived refresh and related maintenance windows.
+  - Keep coverage dependency-free and proc-centric:
+    - `job_schedule_cadence_matches_erd_refresh_timing` validates configured cadence seconds for refresh, rollup, GC, purge, and RSS schedules.
+  - Alternatives considered:
+    - infer timing correctness from runtime behavior only: rejected because explicit cadence drift can pass behavioral tests but violate ERD schedule requirements.
+- Consequences:
+  - Positive outcomes:
+    - ERD timing expectations are now executable and regression-safe;
+    - derived refresh cadence drift will fail tests early.
+  - Risks or trade-offs:
+    - if ERD cadence values change, this test and migration seeds must be updated in the same change.
+- Follow-up:
+  - Implementation tasks:
+    - Continue with the next unchecked acceptance/hard-blocker item.
+  - Review checkpoints:
+    - `just ci`
+    - `just ui-e2e`
