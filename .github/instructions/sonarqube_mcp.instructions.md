@@ -22,6 +22,7 @@ These are the repo-specific guidelines for using the SonarQube MCP server with R
 # Revaer Sonar Workflow
 
 - Revaer versions Sonar analysis scope in `sonar-project.properties`. Treat that file as the source of truth for authored-vs-generated scope, coverage exclusions, and duplication exclusions.
+- `.github/workflows/sonar.yml` must keep its external actions pinned by full SHA and should track the latest stable release line unless Revaer records a specific rollback or compatibility reason.
 - Revaer uses Sonar as a strict merge-control signal on pull requests. Prefer PR quality-gate status and decoration over scanner-side waiting in PR workflows.
 - Use pull-request-specific quality-gate checks when the user asks whether a PR is blocked.
 - New Security Hotspots on touched code must be reviewed before merge. Backlog hotspots outside touched code are tracked separately and do not automatically block unrelated work.
