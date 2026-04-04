@@ -14,7 +14,7 @@
 )]
 
 //! Runtime persistence facade for torrent and filesystem job tracking.
-//! Layout: `runtime.rs` (re-exports of the data-layer runtime store).
+//! Layout: `runtime.rs` (facade wrapper over the data-layer runtime store).
 
 pub mod runtime;
 

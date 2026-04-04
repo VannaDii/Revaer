@@ -704,6 +704,26 @@ mod tests {
     #[test]
     fn interpret_shortcuts_cover_keys() {
         assert_eq!(
+            interpret_shortcut("/", false),
+            Some(ShortcutOutcome::FocusSearch)
+        );
+        assert_eq!(
+            interpret_shortcut("j", false),
+            Some(ShortcutOutcome::SelectNext)
+        );
+        assert_eq!(
+            interpret_shortcut("K", false),
+            Some(ShortcutOutcome::SelectPrev)
+        );
+        assert_eq!(
+            interpret_shortcut(" ", false),
+            Some(ShortcutOutcome::TogglePauseResume)
+        );
+        assert_eq!(
+            interpret_shortcut("Escape", false),
+            Some(ShortcutOutcome::ClearSearch)
+        );
+        assert_eq!(
             interpret_shortcut("Delete", true),
             Some(ShortcutOutcome::ConfirmDeleteData)
         );
@@ -757,6 +777,30 @@ mod tests {
             build_add_payload("magnet:?xt=urn:btih:abc", "", "", "", "oops", "", false),
             Err(AddInputError::RateInvalid)
         );
+    }
+
+    #[test]
+    fn build_add_payload_with_file_ignores_source_and_trims_fields() -> Result<()> {
+        let payload = build_add_payload(
+            "https://example.invalid/demo.torrent",
+            "  movies  ",
+            "  hdr , hevc ",
+            "  /data/downloads  ",
+            "2048",
+            "1024",
+            true,
+        )
+        .map_err(|_| test_error("file-backed add payload failed"))?;
+        assert!(payload.value.is_none());
+        assert_eq!(payload.category.as_deref(), Some("movies"));
+        assert_eq!(
+            payload.tags,
+            Some(vec!["hdr".to_string(), "hevc".to_string()])
+        );
+        assert_eq!(payload.save_path.as_deref(), Some("/data/downloads"));
+        assert_eq!(payload.max_download_bps, Some(2048));
+        assert_eq!(payload.max_upload_bps, Some(1024));
+        Ok(())
     }
 
     #[test]
@@ -865,6 +909,46 @@ mod tests {
     }
 
     #[test]
+    fn torrent_filter_query_ignores_invalid_sort_and_empty_values() {
+        let parsed = parse_torrent_filter_query(
+            "?name=alpha+beta&state=++&tags=one,,two&tracker=%20%20&extension=.mkv&sort=bogus",
+        );
+        assert_eq!(parsed.name, "alpha beta");
+        assert!(parsed.state.is_none());
+        assert_eq!(parsed.tags, vec!["one".to_string(), "two".to_string()]);
+        assert!(parsed.tracker.is_none());
+        assert_eq!(parsed.extension.as_deref(), Some("mkv"));
+        assert!(parsed.sort.is_none());
+    }
+
+    #[test]
+    fn sse_query_and_url_cover_detail_filters_and_caps() {
+        let visible_ids = (0..130).map(Uuid::from_u128).collect::<Vec<_>>();
+        let capped = build_sse_query(
+            &visible_ids,
+            None,
+            Some("queued".to_string()),
+            SseView::List,
+        );
+        assert!(capped.torrent.is_none());
+        assert_eq!(capped.state.as_deref(), Some("queued"));
+        let capped_events = capped.event.unwrap_or_default();
+        assert!(capped_events.contains("progress"));
+        assert!(!capped_events.contains("fsops_started"));
+
+        let selected = Uuid::from_u128(777);
+        let detail = build_sse_query(&visible_ids, Some(selected), None, SseView::Detail);
+        let expected = selected.to_string();
+        assert_eq!(detail.torrent.as_deref(), Some(expected.as_str()));
+        let detail_events = detail.event.clone().unwrap_or_default();
+        assert!(detail_events.contains("files_discovered"));
+        let url = build_sse_url("http://api/", SseEndpoint::Primary, Some(&detail));
+        assert!(url.starts_with("http://api/v1/torrents/events?"));
+        assert!(url.contains("torrent="));
+        assert!(url.contains("event="));
+    }
+
+    #[test]
     fn sse_url_respects_endpoints() {
         assert_eq!(
             build_sse_url("http://x", SseEndpoint::Primary, None),
@@ -886,6 +970,15 @@ mod tests {
     }
 
     #[test]
+    fn window_calc_handles_zero_height_and_scroll_offset() {
+        let (start, end, offset, total) = compute_window(99, 250, 0, 10, 1);
+        assert_eq!(start, 250);
+        assert_eq!(end, 10);
+        assert_eq!(offset, 250);
+        assert_eq!(total, 10);
+    }
+
+    #[test]
     fn plan_columns_collapses_optionals() -> Result<()> {
         let xs_max = crate::breakpoints::XS
             .max_width
@@ -896,6 +989,12 @@ mod tests {
         let (lg_visible, lg_overflow) = plan_columns(crate::breakpoints::LG.min_width);
         assert!(lg_visible.contains(&"size"));
         assert!(lg_overflow.is_empty());
+
+        let md_width = crate::breakpoints::MD.min_width;
+        let (md_visible, md_overflow) = plan_columns(md_width);
+        assert!(md_visible.contains(&"eta"));
+        assert!(md_visible.contains(&"size"));
+        assert!(md_overflow.contains(&"tags"));
         Ok(())
     }
 }

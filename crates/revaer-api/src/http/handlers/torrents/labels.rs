@@ -320,3 +320,395 @@ fn ensure_ratio_limit(value: f64, field: &str) -> Result<(), ApiError> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app::state::ApiState;
+    use crate::config::ConfigFacade;
+    use anyhow::{Result, anyhow};
+    use async_trait::async_trait;
+    use revaer_config::{
+        ApiKeyAuth, AppAuthMode, AppMode, AppProfile, AppliedChanges, ConfigError, ConfigResult,
+        ConfigSnapshot, SetupToken, TelemetryConfig,
+    };
+    use revaer_events::EventBus;
+    use revaer_telemetry::Metrics;
+    use serde_json::json;
+    use std::net::{IpAddr, Ipv4Addr};
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::sync::Mutex as AsyncMutex;
+    use tokio::time::timeout;
+    use tokio_stream::StreamExt;
+    use uuid::Uuid;
+
+    #[derive(Clone, Default)]
+    struct LabelConfig {
+        label_policies: Arc<AsyncMutex<Vec<LabelPolicy>>>,
+        fail_profile: bool,
+        fail_apply: bool,
+    }
+
+    #[async_trait]
+    impl ConfigFacade for LabelConfig {
+        async fn get_app_profile(&self) -> ConfigResult<AppProfile> {
+            if self.fail_profile {
+                return Err(ConfigError::Io {
+                    operation: "config.get_app_profile",
+                    source: std::io::Error::other("profile failure"),
+                });
+            }
+            Ok(AppProfile {
+                id: Uuid::new_v4(),
+                instance_name: "labels".to_string(),
+                mode: AppMode::Active,
+                auth_mode: AppAuthMode::ApiKey,
+                version: 1,
+                http_port: 8080,
+                bind_addr: IpAddr::V4(Ipv4Addr::LOCALHOST),
+                local_networks: vec!["127.0.0.0/8".to_string()],
+                telemetry: TelemetryConfig::default(),
+                label_policies: self.label_policies.lock().await.clone(),
+                immutable_keys: Vec::new(),
+            })
+        }
+
+        async fn issue_setup_token(&self, _: Duration, _: &str) -> ConfigResult<SetupToken> {
+            Err(ConfigError::InvalidField {
+                section: "labels".to_string(),
+                field: "setup_token".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
+        }
+
+        async fn validate_setup_token(&self, _: &str) -> ConfigResult<()> {
+            Err(ConfigError::SetupTokenInvalid)
+        }
+
+        async fn consume_setup_token(&self, _: &str) -> ConfigResult<()> {
+            Err(ConfigError::SetupTokenInvalid)
+        }
+
+        async fn apply_changeset(
+            &self,
+            _: &str,
+            _: &str,
+            changeset: SettingsChangeset,
+        ) -> ConfigResult<AppliedChanges> {
+            if self.fail_apply {
+                return Err(ConfigError::InvalidField {
+                    section: "labels".to_string(),
+                    field: "changeset".to_string(),
+                    value: None,
+                    reason: "apply failed",
+                });
+            }
+            if let Some(app_profile) = changeset.app_profile.as_ref() {
+                *self.label_policies.lock().await = app_profile.label_policies.clone();
+            }
+            Ok(AppliedChanges {
+                revision: 1,
+                app_profile: Some(self.get_app_profile().await?),
+                engine_profile: None,
+                fs_policy: None,
+            })
+        }
+
+        async fn snapshot(&self) -> ConfigResult<ConfigSnapshot> {
+            Err(ConfigError::InvalidField {
+                section: "labels".to_string(),
+                field: "snapshot".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
+        }
+
+        async fn authenticate_api_key(&self, _: &str, _: &str) -> ConfigResult<Option<ApiKeyAuth>> {
+            Ok(None)
+        }
+
+        async fn has_api_keys(&self) -> ConfigResult<bool> {
+            Ok(true)
+        }
+
+        async fn factory_reset(&self) -> ConfigResult<()> {
+            Err(ConfigError::InvalidField {
+                section: "labels".to_string(),
+                field: "factory_reset".to_string(),
+                value: None,
+                reason: "not implemented",
+            })
+        }
+    }
+
+    fn api_state(config: Arc<dyn ConfigFacade>) -> Result<Arc<ApiState>> {
+        Ok(Arc::new(ApiState::new(
+            config,
+            Metrics::new().map_err(|err| anyhow!(err))?,
+            Arc::new(json!({})),
+            EventBus::with_capacity(8),
+            None,
+        )))
+    }
+
+    fn sample_policy() -> TorrentLabelPolicy {
+        TorrentLabelPolicy {
+            download_dir: Some(".server_root/downloads/movies".to_string()),
+            rate_limit: Some(TorrentRateLimit {
+                download_bps: Some(1_000),
+                upload_bps: Some(2_000),
+            }),
+            queue_position: Some(3),
+            auto_managed: Some(false),
+            seed_ratio_limit: Some(1.5),
+            seed_time_limit: Some(7_200),
+            cleanup: Some(TorrentCleanupPolicy {
+                seed_ratio_limit: Some(2.0),
+                seed_time_limit: Some(3_600),
+                remove_data: true,
+            }),
+        }
+    }
+
+    #[test]
+    fn catalog_round_trips_label_policies() -> Result<()> {
+        let policies = vec![
+            LabelPolicy {
+                kind: LabelKind::Category,
+                name: " movies ".to_string(),
+                download_dir: Some(".server_root/downloads/movies".to_string()),
+                rate_limit_download_bps: Some(1_000),
+                rate_limit_upload_bps: Some(2_000),
+                queue_position: Some(3),
+                auto_managed: Some(false),
+                seed_ratio_limit: Some(1.5),
+                seed_time_limit: Some(7_200),
+                cleanup_seed_ratio_limit: Some(2.0),
+                cleanup_seed_time_limit: Some(3_600),
+                cleanup_remove_data: Some(true),
+            },
+            LabelPolicy {
+                kind: LabelKind::Tag,
+                name: " featured ".to_string(),
+                download_dir: None,
+                rate_limit_download_bps: Some(500),
+                rate_limit_upload_bps: None,
+                queue_position: None,
+                auto_managed: Some(true),
+                seed_ratio_limit: None,
+                seed_time_limit: None,
+                cleanup_seed_ratio_limit: None,
+                cleanup_seed_time_limit: None,
+                cleanup_remove_data: None,
+            },
+        ];
+
+        let catalog = TorrentLabelCatalog::from_label_policies(&policies)?;
+        assert!(catalog.categories.contains_key("movies"));
+        assert!(catalog.tags.contains_key("featured"));
+
+        let round_trip = catalog.to_label_policies();
+        assert_eq!(round_trip.len(), 2);
+
+        let category = round_trip
+            .iter()
+            .find(|policy| policy.kind == LabelKind::Category)
+            .ok_or_else(|| anyhow!("missing category policy"))?;
+        assert_eq!(category.name, "movies");
+        assert_eq!(category.rate_limit_download_bps, Some(1_000));
+        assert_eq!(category.cleanup_seed_time_limit, Some(3_600));
+        assert_eq!(category.cleanup_remove_data, Some(true));
+
+        let tag = round_trip
+            .iter()
+            .find(|policy| policy.kind == LabelKind::Tag)
+            .ok_or_else(|| anyhow!("missing tag policy"))?;
+        assert_eq!(tag.name, "featured");
+        assert_eq!(tag.rate_limit_download_bps, Some(500));
+        assert_eq!(tag.auto_managed, Some(true));
+        Ok(())
+    }
+
+    #[test]
+    fn normalize_and_validate_label_policy_rejects_invalid_values() {
+        let blank = normalize_label_name("category", "   ").expect_err("blank names must fail");
+        assert_eq!(blank.status(), axum::http::StatusCode::BAD_REQUEST);
+        assert_eq!(blank.detail(), Some("label name must not be empty"));
+
+        let empty_dir = TorrentLabelPolicy {
+            download_dir: Some("   ".to_string()),
+            ..TorrentLabelPolicy::default()
+        };
+        assert_eq!(
+            validate_label_policy(&empty_dir)
+                .expect_err("blank download dir must fail")
+                .detail(),
+            Some("download_dir must not be empty")
+        );
+
+        let bad_queue = TorrentLabelPolicy {
+            queue_position: Some(-1),
+            ..TorrentLabelPolicy::default()
+        };
+        assert_eq!(
+            validate_label_policy(&bad_queue)
+                .expect_err("negative queue must fail")
+                .detail(),
+            Some("queue_position must be zero or a positive integer")
+        );
+
+        let bad_ratio = TorrentLabelPolicy {
+            seed_ratio_limit: Some(f64::NAN),
+            ..TorrentLabelPolicy::default()
+        };
+        assert_eq!(
+            validate_label_policy(&bad_ratio)
+                .expect_err("nan ratio must fail")
+                .detail(),
+            Some("ratio limit must be a non-negative number")
+        );
+
+        let cleanup_missing_threshold = TorrentLabelPolicy {
+            cleanup: Some(TorrentCleanupPolicy {
+                seed_ratio_limit: None,
+                seed_time_limit: None,
+                remove_data: true,
+            }),
+            ..TorrentLabelPolicy::default()
+        };
+        assert_eq!(
+            validate_label_policy(&cleanup_missing_threshold)
+                .expect_err("cleanup without thresholds must fail")
+                .detail(),
+            Some("cleanup policy requires seed_ratio_limit or seed_time_limit")
+        );
+    }
+
+    #[test]
+    fn apply_label_policies_only_fills_missing_values() {
+        let mut catalog = TorrentLabelCatalog::default();
+        catalog.categories.insert(
+            "movies".to_string(),
+            TorrentLabelPolicy {
+                queue_position: Some(7),
+                auto_managed: Some(false),
+                download_dir: Some(".server_root/downloads/category".to_string()),
+                ..TorrentLabelPolicy::default()
+            },
+        );
+        catalog.tags.insert(
+            "featured".to_string(),
+            TorrentLabelPolicy {
+                rate_limit: Some(TorrentRateLimit {
+                    download_bps: Some(100),
+                    upload_bps: Some(200),
+                }),
+                cleanup: Some(TorrentCleanupPolicy {
+                    seed_ratio_limit: Some(1.2),
+                    seed_time_limit: Some(3_600),
+                    remove_data: false,
+                }),
+                ..TorrentLabelPolicy::default()
+            },
+        );
+
+        let mut options = AddTorrentOptions {
+            category: Some(" movies ".to_string()),
+            tags: vec![
+                "featured".to_string(),
+                " featured ".to_string(),
+                String::new(),
+            ],
+            download_dir: Some(".server_root/downloads/explicit".to_string()),
+            rate_limit: TorrentRateLimit {
+                download_bps: None,
+                upload_bps: Some(999),
+            },
+            ..AddTorrentOptions::default()
+        };
+
+        apply_label_policies(&catalog, &mut options);
+
+        assert_eq!(
+            options.download_dir.as_deref(),
+            Some(".server_root/downloads/explicit")
+        );
+        assert_eq!(options.queue_position, Some(7));
+        assert_eq!(options.auto_managed, Some(false));
+        assert_eq!(options.rate_limit.download_bps, Some(100));
+        assert_eq!(options.rate_limit.upload_bps, Some(999));
+        assert_eq!(
+            options.cleanup,
+            Some(TorrentCleanupPolicy {
+                seed_ratio_limit: Some(1.2),
+                seed_time_limit: Some(3_600),
+                remove_data: false,
+            })
+        );
+    }
+
+    #[tokio::test]
+    async fn load_label_catalog_returns_internal_error_when_profile_fails() -> Result<()> {
+        let state = api_state(Arc::new(LabelConfig {
+            fail_profile: true,
+            ..LabelConfig::default()
+        }))?;
+
+        let err = load_label_catalog(&state)
+            .await
+            .expect_err("profile failure should surface");
+        assert_eq!(err.status(), axum::http::StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(err.detail(), Some("failed to load app profile"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_label_catalog_persists_changes_and_emits_event() -> Result<()> {
+        let config = Arc::new(LabelConfig::default());
+        let state = api_state(config.clone())?;
+        let mut stream = state.events.subscribe(None);
+
+        let catalog = update_label_catalog(&state, "alice", "update labels", |catalog| {
+            catalog.upsert_category(" movies ", sample_policy())
+        })
+        .await?;
+
+        assert!(catalog.categories.contains_key("movies"));
+
+        let stored = config.label_policies.lock().await.clone();
+        assert_eq!(stored.len(), 1);
+        assert_eq!(stored[0].kind, LabelKind::Category);
+        assert_eq!(stored[0].name, "movies");
+        assert_eq!(stored[0].rate_limit_download_bps, Some(1_000));
+
+        let envelope = timeout(Duration::from_secs(1), stream.next())
+            .await?
+            .ok_or_else(|| anyhow!("expected event payload"))?
+            .map_err(|err| anyhow!(err))?;
+        assert!(matches!(
+            envelope.event,
+            CoreEvent::SettingsChanged { ref description }
+                if description == "torrent labels updated by alice"
+        ));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_label_catalog_maps_apply_errors() -> Result<()> {
+        let state = api_state(Arc::new(LabelConfig {
+            fail_apply: true,
+            ..LabelConfig::default()
+        }))?;
+
+        let err = update_label_catalog(&state, "alice", "update labels", |catalog| {
+            catalog.upsert_tag("featured", TorrentLabelPolicy::default())
+        })
+        .await
+        .expect_err("apply failure should be mapped");
+        assert_eq!(err.status(), axum::http::StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(err.kind(), crate::http::constants::PROBLEM_CONFIG_INVALID);
+        Ok(())
+    }
+}

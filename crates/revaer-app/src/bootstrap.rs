@@ -712,6 +712,19 @@ mod tests {
     }
 
     #[test]
+    fn otel_config_from_values_preserves_missing_endpoint() -> AppResult<()> {
+        let cfg = otel_config_from_values(true, "svc".into(), None).ok_or_else(|| {
+            AppError::MissingState {
+                field: "otel_config",
+                value: None,
+            }
+        })?;
+        assert_eq!(cfg.service_name.as_ref(), "svc");
+        assert!(cfg.endpoint.is_none());
+        Ok(())
+    }
+
+    #[test]
     fn indexer_runtime_module_stays_dependency_injected() {
         let source = include_str!("indexers.rs");
         let production_source = source.split("#[cfg(test)]").next().unwrap_or(source);

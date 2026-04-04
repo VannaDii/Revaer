@@ -294,6 +294,24 @@ mod tests {
     }
 
     #[test]
+    fn build_sse_filter_trims_and_dedupes_values() -> Result<()> {
+        let torrent_id = Uuid::new_v4();
+        let query = SseQuery {
+            torrent: Some(format!(" {torrent_id} , {torrent_id} ")),
+            event: Some(" progress , progress , unknown ".to_string()),
+            state: Some(" completed , completed ".to_string()),
+        };
+
+        let filter = build_sse_filter(&query)?;
+        assert_eq!(filter.torrent_ids.len(), 1);
+        assert_eq!(filter.event_kinds.len(), 1);
+        assert!(filter.event_kinds.contains("progress"));
+        assert_eq!(filter.states.len(), 1);
+        assert!(filter.states.contains(&TorrentStateKind::Completed));
+        Ok(())
+    }
+
+    #[test]
     fn matches_sse_filter_rejects_settings_events_with_torrent_filter() {
         let filter = SseFilter {
             torrent_ids: std::iter::once(Uuid::new_v4()).collect(),
@@ -308,6 +326,60 @@ mod tests {
             timestamp: chrono::Utc::now(),
         };
         assert!(!matches_sse_filter(&envelope, &filter));
+    }
+
+    #[tokio::test]
+    async fn event_replay_stream_replays_only_events_after_last_id() -> Result<()> {
+        let bus = EventBus::with_capacity(8);
+        let first = bus.publish(CoreEvent::SettingsChanged {
+            description: "first".to_string(),
+        })?;
+        let second = bus.publish(CoreEvent::HealthChanged {
+            degraded: vec!["config".to_string()],
+        })?;
+
+        let stream = event_replay_stream(bus.clone(), Some(first));
+        futures_util::pin_mut!(stream);
+        let envelope = tokio::time::timeout(Duration::from_millis(200), stream.next())
+            .await?
+            .ok_or_else(|| anyhow!("expected replay event"))?;
+        assert_eq!(envelope.id, second);
+        assert!(matches!(envelope.event, CoreEvent::HealthChanged { .. }));
+        Ok(())
+    }
+
+    #[test]
+    fn matches_sse_filter_rejects_unmatched_event_kind_and_state() {
+        let torrent_id = Uuid::new_v4();
+        let filter = SseFilter {
+            torrent_ids: std::iter::once(torrent_id).collect(),
+            event_kinds: std::iter::once("completed".to_string()).collect(),
+            states: std::iter::once(TorrentStateKind::Queued).collect(),
+        };
+        let progress = EventEnvelope {
+            id: 3,
+            event: CoreEvent::Progress {
+                torrent_id,
+                bytes_downloaded: 1,
+                bytes_total: 10,
+                eta_seconds: Some(9),
+                download_bps: 42,
+                upload_bps: 21,
+                ratio: 0.1,
+            },
+            timestamp: chrono::Utc::now(),
+        };
+        let completed = EventEnvelope {
+            id: 4,
+            event: CoreEvent::Completed {
+                torrent_id,
+                library_path: ".server_root/library/demo".to_string(),
+            },
+            timestamp: chrono::Utc::now(),
+        };
+
+        assert!(!matches_sse_filter(&progress, &filter));
+        assert!(!matches_sse_filter(&completed, &filter));
     }
 
     #[tokio::test]

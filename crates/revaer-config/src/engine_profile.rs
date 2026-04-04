@@ -1597,6 +1597,37 @@ pub fn canonicalize_ip_filter_entry(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
+    use uuid::Uuid;
+
+    fn sample_profile() -> EngineProfile {
+        serde_json::from_value(json!({
+            "id": Uuid::nil(),
+            "implementation": "stub",
+            "listen_port": 6881,
+            "listen_interfaces": ["0.0.0.0:6881"],
+            "dht": true,
+            "encryption": "prefer",
+            "sequential_default": false,
+            "resume_dir": "/tmp/resume",
+            "download_root": "/tmp/downloads",
+            "enable_lsd": true,
+            "enable_upnp": false,
+            "enable_natpmp": true,
+            "enable_pex": true,
+            "tracker": {
+                "default": ["udp://tracker.example"]
+            },
+            "ip_filter": {
+                "cidrs": ["10.0.0.0/8"]
+            },
+            "peer_classes": {
+                "classes": [],
+                "default": []
+            }
+        }))
+        .expect("sample engine profile")
+    }
 
     #[test]
     fn canonicalizes_ipv6_modes() {
@@ -1844,6 +1875,194 @@ mod tests {
             warnings
                 .iter()
                 .any(|warning| warning.contains("unknown seed_choking_algorithm"))
+        );
+    }
+
+    #[test]
+    fn helper_string_representations_and_defaults_are_stable() {
+        assert_eq!(EngineEncryptionPolicy::Require.as_str(), "require");
+        assert_eq!(EngineEncryptionPolicy::Prefer.as_str(), "prefer");
+        assert_eq!(EngineEncryptionPolicy::Disable.as_str(), "disable");
+        assert_eq!(ChokingAlgorithm::FixedSlots.as_str(), "fixed_slots");
+        assert_eq!(ChokingAlgorithm::RateBased.as_str(), "rate_based");
+        assert_eq!(SeedChokingAlgorithm::RoundRobin.as_str(), "round_robin");
+        assert_eq!(SeedChokingAlgorithm::FastestUpload.as_str(), "fastest_upload");
+        assert_eq!(SeedChokingAlgorithm::AntiLeech.as_str(), "anti_leech");
+        assert_eq!(StorageMode::Sparse.as_str(), "sparse");
+        assert_eq!(StorageMode::Allocate.as_str(), "allocate");
+        assert_eq!(DiskIoMode::EnableOsCache.as_str(), "enable_os_cache");
+        assert_eq!(DiskIoMode::DisableOsCache.as_str(), "disable_os_cache");
+        assert_eq!(DiskIoMode::WriteThrough.as_str(), "write_through");
+        assert_eq!(TrackerProxyType::Http.as_str(), "http");
+        assert_eq!(TrackerProxyType::Https.as_str(), "https");
+        assert_eq!(TrackerProxyType::Socks5.as_str(), "socks5");
+
+        let tracker = TrackerConfig::default();
+        assert!(tracker.ssl_tracker_verify);
+        assert!(tracker.proxy.is_none());
+        assert!(tracker.auth.is_none());
+
+        let peer_class = PeerClassConfig::default();
+        assert_eq!(peer_class.label, "class_0");
+        assert_eq!(peer_class.download_priority, 1);
+        assert_eq!(peer_class.upload_priority, 1);
+        assert_eq!(peer_class.connection_limit_factor, 100);
+    }
+
+    #[test]
+    fn ip_filter_rules_expand_cidr_ranges() -> Result<(), ConfigError> {
+        let config = IpFilterConfig {
+            cidrs: vec!["10.0.0.0/24".to_string(), "2001:db8::/64".to_string()],
+            blocklist_url: None,
+            etag: None,
+            last_updated_at: None,
+            last_error: None,
+        };
+        let rules = config.rules()?;
+        assert_eq!(rules.len(), 2);
+        assert!(rules[0].start <= rules[0].end);
+        assert!(rules[1].start <= rules[1].end);
+        assert!(matches!(config.rules(), Ok(_)));
+        Ok(())
+    }
+
+    #[test]
+    fn normalize_engine_profile_sanitizes_tracker_storage_and_peer_classes() {
+        let mut profile = sample_profile();
+        profile.listen_port = Some(70_000);
+        profile.listen_interfaces = vec![
+            " ".to_string(),
+            "HOST:6881".to_string(),
+            "bad host:6881".to_string(),
+        ];
+        profile.ipv6_mode = "invalid".to_string();
+        profile.anonymous_mode = Toggle(true);
+        profile.force_proxy = Toggle(false);
+        profile.outgoing_port_min = Some(6000);
+        profile.outgoing_port_max = Some(5000);
+        profile.peer_dscp = Some(100);
+        profile.download_root = "   ".to_string();
+        profile.resume_dir = " ".to_string();
+        profile.storage_mode = "unknown".to_string();
+        profile.disk_read_mode = Some("invalid".to_string());
+        profile.disk_write_mode = Some("write_through".to_string());
+        profile.tracker = TrackerConfig {
+            default: vec![
+                " udp://tracker.example ".to_string(),
+                "UDP://TRACKER.EXAMPLE".to_string(),
+                "x".repeat(600),
+            ],
+            extra: vec![" ".to_string(), "https://extra.example".to_string()],
+            replace: true,
+            user_agent: Some(" ".to_string()),
+            announce_ip: Some("198.51.100.5".to_string()),
+            listen_interface: Some(" eth0 ".to_string()),
+            request_timeout_ms: Some(999_999),
+            announce_to_all: true,
+            ssl_cert: Some(" ".to_string()),
+            ssl_private_key: Some("k".repeat(600)),
+            ssl_ca_cert: Some("ca.pem".to_string()),
+            ssl_tracker_verify: true,
+            proxy: Some(TrackerProxyConfig {
+                host: "proxy.example".to_string(),
+                port: 8443,
+                username_secret: Some("proxy-user".to_string()),
+                password_secret: Some("proxy-pass".to_string()),
+                kind: TrackerProxyType::Https,
+                proxy_peers: true,
+            }),
+            auth: Some(TrackerAuthConfig {
+                username_secret: Some(" ".to_string()),
+                password_secret: None,
+                cookie_secret: None,
+            }),
+        };
+        profile.ip_filter = IpFilterConfig {
+            cidrs: vec![
+                "10.0.0.1/24".to_string(),
+                "bad-cidr".to_string(),
+                "10.0.0.0/24".to_string(),
+            ],
+            blocklist_url: Some(" ".to_string()),
+            etag: Some("etag".to_string()),
+            last_updated_at: None,
+            last_error: Some("old".to_string()),
+        };
+        profile.peer_classes = PeerClassesConfig {
+            classes: vec![
+                PeerClassConfig {
+                    id: 40,
+                    label: "too-high".to_string(),
+                    download_priority: 5,
+                    upload_priority: 5,
+                    connection_limit_factor: 100,
+                    ignore_unchoke_slots: false,
+                },
+                PeerClassConfig {
+                    id: 1,
+                    label: " ".to_string(),
+                    download_priority: 0,
+                    upload_priority: 0,
+                    connection_limit_factor: 0,
+                    ignore_unchoke_slots: true,
+                },
+                PeerClassConfig {
+                    id: 1,
+                    label: "duplicate".to_string(),
+                    download_priority: 7,
+                    upload_priority: 6,
+                    connection_limit_factor: 120,
+                    ignore_unchoke_slots: false,
+                },
+            ],
+            default: vec![1, 2, 1],
+        };
+
+        let effective = normalize_engine_profile(&profile);
+
+        assert_eq!(effective.storage.download_root, ".server_root/downloads");
+        assert_eq!(effective.storage.resume_dir, ".server_root/resume");
+        assert_eq!(effective.storage.storage_mode, StorageMode::Sparse);
+        assert_eq!(effective.storage.disk_read_mode, None);
+        assert_eq!(effective.storage.disk_write_mode, Some(DiskIoMode::WriteThrough));
+        assert_eq!(effective.network.ipv6_mode, EngineIpv6Mode::Disabled);
+        assert!(effective.network.force_proxy.is_enabled());
+        assert_eq!(
+            effective.network.listen_interfaces,
+            vec!["HOST:6881".to_string()]
+        );
+        assert_eq!(effective.tracker.default, vec!["udp://tracker.example".to_string()]);
+        assert_eq!(effective.tracker.extra, vec!["https://extra.example".to_string()]);
+        assert!(effective.tracker.user_agent.is_none());
+        assert_eq!(effective.tracker.listen_interface.as_deref(), Some("eth0"));
+        assert_eq!(effective.tracker.request_timeout_ms, None);
+        assert!(effective.tracker.proxy.is_some());
+        assert!(effective.tracker.auth.is_none());
+        assert_eq!(effective.network.ip_filter.cidrs, vec!["10.0.0.0/24".to_string()]);
+        assert!(effective.network.ip_filter.blocklist_url.is_none());
+        assert_eq!(effective.peer_classes.classes.len(), 1);
+        assert_eq!(effective.peer_classes.classes[0].label, "class_1");
+        assert_eq!(effective.peer_classes.classes[0].download_priority, 1);
+        assert_eq!(effective.peer_classes.classes[0].upload_priority, 1);
+        assert_eq!(effective.peer_classes.classes[0].connection_limit_factor, 100);
+        assert_eq!(effective.peer_classes.default, vec![1]);
+        assert!(
+            effective
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("forcing peer proxy"))
+        );
+        assert!(
+            effective
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("tracker.request_timeout_ms"))
+        );
+        assert!(
+            effective
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("peer_classes.default contains undefined id"))
         );
     }
 }

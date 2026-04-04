@@ -1649,12 +1649,21 @@ fn parse_existing_directory(path: &str) -> Result<PathBuf, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::client::{CliError, HEADER_API_KEY, parse_api_key, parse_url, timestamp_now_ms};
+    use crate::client::{
+        CliError, HEADER_API_KEY, HEADER_SETUP_TOKEN, parse_api_key, parse_url, timestamp_now_ms,
+    };
     use anyhow::{Result, anyhow};
+    use chrono::Utc;
     use httpmock::MockServer;
     use httpmock::prelude::*;
+    use revaer_api::models::{
+        TorrentDetail, TorrentFileView, TorrentProgressView, TorrentRatesView, TorrentStateKind,
+        TorrentStateView, TorrentSummary,
+    };
     use revaer_config::validate::default_local_networks;
+    use revaer_events::{Event, EventEnvelope};
     use std::{fs, path::PathBuf};
+    use tokio::time::{Duration, timeout};
 
     fn repo_root() -> PathBuf {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -1670,6 +1679,10 @@ mod tests {
         let root = repo_root().join(".server_root");
         fs::create_dir_all(&root)?;
         Ok(root)
+    }
+
+    fn temp_path(prefix: &str, extension: &str) -> Result<PathBuf> {
+        Ok(server_root()?.join(format!("{prefix}-{}.{}", Uuid::new_v4(), extension)))
     }
 
     #[test]
@@ -2005,6 +2018,54 @@ mod tests {
                 allow_paths: Vec::new(),
             },
         })
+    }
+
+    fn sample_summary(id: Uuid, now: chrono::DateTime<Utc>) -> TorrentSummary {
+        TorrentSummary {
+            id,
+            name: Some("Example".into()),
+            state: TorrentStateView {
+                kind: TorrentStateKind::Downloading,
+                failure_message: None,
+            },
+            progress: TorrentProgressView {
+                bytes_downloaded: 1_024,
+                bytes_total: 2_048,
+                percent_complete: 50.0,
+                eta_seconds: None,
+            },
+            rates: TorrentRatesView {
+                download_bps: 1_024,
+                upload_bps: 256,
+                ratio: 0.5,
+            },
+            library_path: Some(".server_root/library/example".into()),
+            download_dir: Some(".server_root/downloads/example".into()),
+            sequential: false,
+            tags: vec!["tag1".into()],
+            category: None,
+            trackers: vec!["https://tracker.example/announce".into()],
+            rate_limit: None,
+            connections_limit: None,
+            added_at: now,
+            completed_at: None,
+            last_updated: now,
+        }
+    }
+
+    fn sample_detail(id: Uuid, now: chrono::DateTime<Utc>) -> TorrentDetail {
+        TorrentDetail {
+            summary: sample_summary(id, now),
+            settings: None,
+            files: Some(vec![TorrentFileView {
+                index: 0,
+                path: "example.mkv".into(),
+                size_bytes: 2_048,
+                bytes_completed: 1_024,
+                priority: revaer_torrent_core::FilePriority::High,
+                selected: true,
+            }]),
+        }
     }
 
     #[tokio::test]
@@ -2508,6 +2569,307 @@ mod tests {
         let exit_code = run_with_cli(cli).await;
         rss_mock.assert();
         assert_eq!(exit_code, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_settings_patch_alias() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let mock = server.mock(|when, then| {
+            when.method(PATCH)
+                .path("/v1/config")
+                .header(HEADER_API_KEY, "key:secret");
+            then.status(200);
+        });
+
+        let file_path = temp_path("revaer-cli-settings-patch", "json")?;
+        let snapshot = sample_snapshot()?;
+        fs::write(
+            &file_path,
+            serde_json::to_string(&serde_json::json!({
+                "app_profile": snapshot.app_profile,
+                "engine_profile": null,
+                "fs_policy": null,
+                "api_keys": [],
+                "secrets": []
+            }))?,
+        )?;
+
+        let cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "settings",
+            "patch",
+            "--file",
+            file_path.to_str().ok_or_else(|| anyhow!("patch path utf8"))?,
+        ]);
+
+        let exit_code = run_with_cli(cli).await;
+        mock.assert();
+        fs::remove_file(&file_path)?;
+        assert_eq!(exit_code, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_setup_start() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let mock = server.mock(|when, then| {
+            when.method(POST).path("/admin/setup/start");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!({
+                    "token": "token-1",
+                    "expires_at": Utc::now().to_rfc3339()
+                }));
+        });
+
+        let cli = Cli::parse_from(["revaer", "--api-url", &server.base_url(), "setup", "start"]);
+        let exit_code = run_with_cli(cli).await;
+        mock.assert();
+        assert_eq!(exit_code, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_setup_complete() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let snapshot = sample_snapshot()?;
+        let completion_snapshot = snapshot.clone();
+        server.mock(move |when, then| {
+            when.method(GET).path("/.well-known/revaer.json");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!(snapshot));
+        });
+        let mock = server.mock(move |when, then| {
+            when.method(POST)
+                .path("/admin/setup/complete")
+                .header(HEADER_SETUP_TOKEN, "token-1");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!({
+                    "snapshot": completion_snapshot,
+                    "api_key": "admin:secret",
+                    "api_key_expires_at": "2025-01-01T00:00:00Z"
+                }));
+        });
+
+        let resume_dir = temp_path("revaer-cli-resume-dir", "d")?;
+        let download_root = temp_path("revaer-cli-download-root", "d")?;
+        let library_root = temp_path("revaer-cli-library-root", "d")?;
+        fs::create_dir_all(&resume_dir)?;
+        fs::create_dir_all(&download_root)?;
+        fs::create_dir_all(&library_root)?;
+
+        let cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "setup",
+            "complete",
+            "--token",
+            "token-1",
+            "--instance",
+            "demo",
+            "--bind",
+            "127.0.0.1",
+            "--port",
+            "7070",
+            "--resume-dir",
+            resume_dir.to_str().ok_or_else(|| anyhow!("resume dir utf8"))?,
+            "--download-root",
+            download_root
+                .to_str()
+                .ok_or_else(|| anyhow!("download dir utf8"))?,
+            "--library-root",
+            library_root
+                .to_str()
+                .ok_or_else(|| anyhow!("library dir utf8"))?,
+            "--api-key-label",
+            "label",
+            "--api-key-id",
+            "admin",
+            "--passphrase",
+            "secret",
+        ]);
+
+        let exit_code = run_with_cli(cli).await;
+        mock.assert();
+        fs::remove_dir_all(&resume_dir)?;
+        fs::remove_dir_all(&download_root)?;
+        fs::remove_dir_all(&library_root)?;
+        assert_eq!(exit_code, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_torrent_add_and_remove() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let torrent_id = Uuid::new_v4();
+        let add_mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/v1/torrents")
+                .header(HEADER_API_KEY, "key:secret");
+            then.status(202);
+        });
+        let remove_mock = server.mock(move |when, then| {
+            when.method(POST)
+                .path(format!("/v1/torrents/{torrent_id}/action").as_str())
+                .header(HEADER_API_KEY, "key:secret");
+            then.status(202);
+        });
+
+        let add_cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "torrent",
+            "add",
+            "--source",
+            "magnet:?xt=urn:btih:demo",
+        ]);
+        let add_exit_code = run_with_cli(add_cli).await;
+        add_mock.assert();
+        assert_eq!(add_exit_code, 0);
+
+        let remove_cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "torrent",
+            "remove",
+            &torrent_id.to_string(),
+        ]);
+        let remove_exit_code = run_with_cli(remove_cli).await;
+        remove_mock.assert();
+        assert_eq!(remove_exit_code, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_list_and_status_commands() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let torrent_id = Uuid::new_v4();
+        let now = Utc::now();
+        let list_mock = server.mock(move |when, then| {
+            when.method(GET).path("/v1/torrents");
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!({
+                    "torrents": [sample_summary(torrent_id, now)],
+                    "next": "cursor-1"
+                }));
+        });
+        let detail_mock = server.mock(move |when, then| {
+            when.method(GET)
+                .path(format!("/v1/torrents/{torrent_id}").as_str());
+            then.status(200)
+                .header("content-type", "application/json")
+                .json_body(serde_json::json!(sample_detail(torrent_id, now)));
+        });
+
+        let list_cli = Cli::parse_from(["revaer", "--api-url", &server.base_url(), "ls"]);
+        assert_eq!(run_with_cli(list_cli).await, 0);
+        list_mock.assert();
+
+        let status_cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "status",
+            &torrent_id.to_string(),
+        ]);
+        assert_eq!(run_with_cli(status_cli).await, 0);
+        detail_mock.assert();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_select_action_and_tail() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let torrent_id = Uuid::new_v4();
+        let select_mock = server.mock(move |when, then| {
+            when.method(POST)
+                .path(format!("/v1/torrents/{torrent_id}/select").as_str())
+                .header(HEADER_API_KEY, "key:secret");
+            then.status(200);
+        });
+        let action_mock = server.mock(move |when, then| {
+            when.method(POST)
+                .path(format!("/v1/torrents/{torrent_id}/action").as_str())
+                .header(HEADER_API_KEY, "key:secret");
+            then.status(202);
+        });
+        let event = EventEnvelope {
+            id: 3,
+            timestamp: Utc::now(),
+            event: Event::TorrentRemoved { torrent_id },
+        };
+        let payload = serde_json::to_string(&event)?;
+        server.mock(move |when, then| {
+            when.method(GET).path("/v1/torrents/events");
+            then.status(200)
+                .header("content-type", "text/event-stream")
+                .body(format!("id:3\ndata:{payload}\n\n"));
+        });
+
+        let select_cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "select",
+            &torrent_id.to_string(),
+            "--include",
+            "**/*.mkv",
+        ]);
+        assert_eq!(run_with_cli(select_cli).await, 0);
+        select_mock.assert();
+
+        let action_cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "action",
+            &torrent_id.to_string(),
+            "sequential",
+            "--enable",
+            "true",
+        ]);
+        assert_eq!(run_with_cli(action_cli).await, 0);
+        action_mock.assert();
+
+        let resume_path = temp_path("revaer-cli-tail-resume", "txt")?;
+        let tail_cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "tail",
+            "--resume-file",
+            resume_path
+                .to_str()
+                .ok_or_else(|| anyhow!("resume path utf8"))?,
+            "--retry-secs",
+            "0",
+        ]);
+        let tail_result = timeout(Duration::from_millis(200), run_with_cli(tail_cli)).await;
+        assert!(tail_result.is_err(), "tail should be cancelled by timeout");
+        let saved = fs::read_to_string(&resume_path)?;
+        assert_eq!(saved.trim(), "3");
+        fs::remove_file(&resume_path)?;
         Ok(())
     }
 }

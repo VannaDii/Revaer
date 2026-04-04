@@ -378,6 +378,43 @@ mod tests {
         assert_eq!(root_error_message(&err), "inner failure");
     }
 
+    #[test]
+    fn root_error_message_returns_original_when_no_source() {
+        let err = std::io::Error::other("root failure");
+        assert_eq!(root_error_message(&err), "root failure");
+    }
+
+    #[test]
+    fn ensure_local_networks_include_client_accepts_matching_network() -> Result<()> {
+        ensure_local_networks_include_client(
+            ClientIp(IpAddr::V4(Ipv4Addr::LOCALHOST)),
+            &default_local_networks(),
+        )?;
+        Ok(())
+    }
+
+    #[test]
+    fn ensure_local_networks_include_client_rejects_missing_address() {
+        let err = ensure_local_networks_include_client(
+            ClientIp(IpAddr::V4(Ipv4Addr::new(10, 0, 0, 5))),
+            &["192.168.0.0/24".to_string()],
+        )
+        .expect_err("client outside local networks should be rejected");
+        assert_eq!(err.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(err.detail(), Some("configuration invalid"));
+    }
+
+    #[test]
+    fn ensure_local_networks_include_client_rejects_invalid_cidr() {
+        let err = ensure_local_networks_include_client(
+            ClientIp(IpAddr::V4(Ipv4Addr::LOCALHOST)),
+            &["not-a-cidr".to_string()],
+        )
+        .expect_err("invalid cidr should fail validation");
+        assert_eq!(err.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(err.detail(), Some("configuration invalid"));
+    }
+
     #[tokio::test]
     async fn settings_patch_rejects_setup_token_context() -> Result<()> {
         let state = Arc::new(ApiState::new(
@@ -425,6 +462,79 @@ mod tests {
         assert_eq!(
             body.engine_profile_effective.network.listen_port,
             snapshot.engine_profile_effective.network.listen_port
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn get_config_snapshot_returns_snapshot() -> Result<()> {
+        let snapshot = sample_snapshot()?;
+        let state = Arc::new(ApiState::new(
+            Arc::new(StubConfig {
+                snapshot: snapshot.clone(),
+            }),
+            Metrics::new()?,
+            Arc::new(serde_json::json!({})),
+            EventBus::new(),
+            None,
+        ));
+
+        let Json(body) = get_config_snapshot(State(state)).await?;
+        assert_eq!(body.revision, snapshot.revision);
+        assert_eq!(body.app_profile.http_port, snapshot.app_profile.http_port);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn factory_reset_rejects_setup_token_context() -> Result<()> {
+        let state = Arc::new(ApiState::new(
+            Arc::new(StubConfig {
+                snapshot: sample_snapshot()?,
+            }),
+            Metrics::new()?,
+            Arc::new(serde_json::json!({})),
+            EventBus::new(),
+            None,
+        ));
+
+        let err = factory_reset(
+            State(state),
+            Extension(AuthContext::SetupToken("setup-token".into())),
+            Json(FactoryResetRequest {
+                confirm: "factory reset".to_string(),
+            }),
+        )
+        .await
+        .expect_err("setup token should not factory reset");
+        assert_eq!(err.status(), StatusCode::UNAUTHORIZED);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn factory_reset_rejects_invalid_confirmation() -> Result<()> {
+        let state = Arc::new(ApiState::new(
+            Arc::new(StubConfig {
+                snapshot: sample_snapshot()?,
+            }),
+            Metrics::new()?,
+            Arc::new(serde_json::json!({})),
+            EventBus::new(),
+            None,
+        ));
+
+        let err = factory_reset(
+            State(state),
+            Extension(AuthContext::Anonymous),
+            Json(FactoryResetRequest {
+                confirm: "nope".to_string(),
+            }),
+        )
+        .await
+        .expect_err("invalid confirmation should fail");
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(
+            err.detail(),
+            Some("confirmation phrase must be 'factory reset'")
         );
         Ok(())
     }

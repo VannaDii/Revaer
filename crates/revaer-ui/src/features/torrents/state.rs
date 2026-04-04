@@ -1075,6 +1075,27 @@ mod tests {
     }
 
     #[test]
+    fn format_state_view_and_clamp_handle_edge_cases() {
+        assert!(clamp_f64(f64::NAN).abs() < f64::EPSILON);
+        assert!(clamp_f64(-1.0).abs() < f64::EPSILON);
+        assert!((clamp_f64(1.5) - 1.5).abs() < f64::EPSILON);
+        assert_eq!(
+            format_state_view(&TorrentStateView {
+                kind: TorrentStateKind::Failed,
+                failure_message: Some("disk full".to_string()),
+            }),
+            "failed: disk full"
+        );
+        assert_eq!(
+            format_state_view(&TorrentStateView {
+                kind: TorrentStateKind::Queued,
+                failure_message: None,
+            }),
+            "queued"
+        );
+    }
+
+    #[test]
     fn append_rows_dedupes_and_updates() -> Result<()> {
         let id_one = Uuid::from_u128(1);
         let id_two = Uuid::from_u128(2);
@@ -1115,6 +1136,30 @@ mod tests {
         assert_eq!(progress.download_bps, 0);
 
         assert!(select_is_selected(&state, &id));
+        Ok(())
+    }
+
+    #[test]
+    fn select_visible_rows_and_selected_detail_follow_state() -> Result<()> {
+        let id_one = Uuid::from_u128(41);
+        let id_two = Uuid::from_u128(42);
+        let mut state = TorrentsState::default();
+        set_rows(&mut state, vec![base_row(id_one), base_row(id_two)]);
+        state.selected = HashSet::from_iter([id_two]);
+        set_selected_id(&mut state, Some(id_two));
+        upsert_detail(&mut state, id_two, base_detail(id_two)?);
+
+        let visible_ids = select_visible_ids(&state);
+        assert_eq!(visible_ids, vec![id_one, id_two]);
+        let visible_rows = select_visible_rows(&state);
+        assert_eq!(visible_rows.len(), 2);
+        assert_eq!(
+            select_selected_detail(&state)
+                .ok_or_else(|| test_error("selected detail missing"))?
+                .summary
+                .id,
+            id_two
+        );
         Ok(())
     }
 
@@ -1199,6 +1244,34 @@ mod tests {
         assert_eq!(settings.connections_limit, Some(150));
         assert_eq!(settings.pex_enabled, Some(true));
         assert_eq!(settings.queue_position, Some(3));
+        Ok(())
+    }
+
+    #[test]
+    fn fsops_status_updates_drive_badge_selection() -> Result<()> {
+        let id = Uuid::from_u128(77);
+        let mut state = TorrentsState::default();
+        set_rows(&mut state, vec![base_row(id)]);
+
+        update_fsops_started(&mut state, id);
+        let badge = select_fsops_badge(&state, &id).ok_or_else(|| test_error("badge missing"))?;
+        assert_eq!(badge.status, FsopsStatus::InProgress);
+        assert!(badge.detail.is_none());
+
+        update_fsops_progress(&mut state, id, "moving".to_string());
+        let badge = select_fsops_badge(&state, &id).ok_or_else(|| test_error("badge missing"))?;
+        assert_eq!(badge.status, FsopsStatus::InProgress);
+        assert_eq!(badge.detail.as_deref(), Some("moving"));
+
+        update_fsops_failed(&mut state, id, "disk full".to_string());
+        let badge = select_fsops_badge(&state, &id).ok_or_else(|| test_error("badge missing"))?;
+        assert_eq!(badge.status, FsopsStatus::Failed);
+        assert_eq!(badge.detail.as_deref(), Some("disk full"));
+
+        update_fsops_completed(&mut state, id);
+        let badge = select_fsops_badge(&state, &id).ok_or_else(|| test_error("badge missing"))?;
+        assert_eq!(badge.status, FsopsStatus::Completed);
+        assert!(badge.detail.is_none());
         Ok(())
     }
 }

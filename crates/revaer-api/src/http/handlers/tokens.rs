@@ -77,6 +77,7 @@ mod tests {
     #[derive(Clone)]
     struct RecordingConfig {
         calls: Arc<Mutex<Vec<SettingsChangeset>>>,
+        fail_apply: bool,
     }
 
     #[async_trait]
@@ -134,6 +135,12 @@ mod tests {
             _: &str,
             changeset: SettingsChangeset,
         ) -> ConfigResult<AppliedChanges> {
+            if self.fail_apply {
+                return Err(ConfigError::Io {
+                    operation: "tokens.apply_changeset",
+                    source: std::io::Error::other("refresh failed"),
+                });
+            }
             self.calls.lock().await.push(changeset);
             Ok(AppliedChanges {
                 revision: 1,
@@ -187,6 +194,7 @@ mod tests {
         let calls = Arc::new(Mutex::new(Vec::new()));
         let state = api_state(RecordingConfig {
             calls: calls.clone(),
+            fail_apply: false,
         })?;
         let Json(response) = refresh_api_key(
             State(state),
@@ -228,11 +236,47 @@ mod tests {
     async fn refresh_api_key_rejects_anonymous() -> Result<()> {
         let state = api_state(RecordingConfig {
             calls: Arc::new(Mutex::new(Vec::new())),
+            fail_apply: false,
         })?;
         let err = refresh_api_key(State(state), Extension(AuthContext::Anonymous))
             .await
             .unwrap_err();
         assert_eq!(err.status(), StatusCode::UNAUTHORIZED);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn refresh_api_key_rejects_setup_tokens() -> Result<()> {
+        let state = api_state(RecordingConfig {
+            calls: Arc::new(Mutex::new(Vec::new())),
+            fail_apply: false,
+        })?;
+        let err = refresh_api_key(
+            State(state),
+            Extension(AuthContext::SetupToken("setup".to_string())),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.status(), StatusCode::UNAUTHORIZED);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn refresh_api_key_maps_apply_failures() -> Result<()> {
+        let state = api_state(RecordingConfig {
+            calls: Arc::new(Mutex::new(Vec::new())),
+            fail_apply: true,
+        })?;
+        let err = refresh_api_key(
+            State(state),
+            Extension(AuthContext::ApiKey {
+                key_id: "demo".to_string(),
+            }),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(err.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(err.detail(), Some("configuration invalid"));
         Ok(())
     }
 }

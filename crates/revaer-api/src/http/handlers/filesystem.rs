@@ -261,6 +261,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn browse_filesystem_uses_root_when_path_missing() -> Result<()> {
+        let response =
+            browse_filesystem(State(test_state()?), Query(FsBrowseQuery { path: None })).await?;
+        let Json(payload) = response;
+        assert_eq!(payload.path, "/");
+        assert!(payload.entries.iter().all(|entry| !entry.name.is_empty()));
+        Ok(())
+    }
+
+    #[test]
+    fn kind_rank_orders_filesystem_kinds() {
+        assert!(kind_rank(&FsEntryKind::Directory) < kind_rank(&FsEntryKind::File));
+        assert!(kind_rank(&FsEntryKind::File) < kind_rank(&FsEntryKind::Symlink));
+        assert!(kind_rank(&FsEntryKind::Symlink) < kind_rank(&FsEntryKind::Other));
+    }
+
+    #[test]
+    fn path_to_string_preserves_lossy_paths() {
+        let path = PathBuf::from("/tmp/revaer path");
+        assert_eq!(path_to_string(&path), "/tmp/revaer path");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn list_directory_classifies_symlink_entries() -> Result<()> {
+        let root = server_root()?.join(format!("revaer-fs-symlink-{}", Uuid::new_v4()));
+        std::fs::create_dir_all(&root)?;
+        let file_path = root.join("target.txt");
+        let symlink_path = root.join("link.txt");
+        std::fs::write(&file_path, "data")?;
+        std::os::unix::fs::symlink(&file_path, &symlink_path)?;
+
+        let entries = list_directory(&root).await?;
+        assert!(
+            entries
+                .iter()
+                .any(|entry| entry.kind == FsEntryKind::Symlink)
+        );
+
+        std::fs::remove_dir_all(&root)?;
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn browse_filesystem_rejects_file_path() -> Result<()> {
         let root = server_root()?.join(format!("revaer-fs-file-{}", Uuid::new_v4()));
         std::fs::create_dir_all(&root)?;

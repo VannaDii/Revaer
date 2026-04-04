@@ -1166,6 +1166,127 @@ fn bytes_to_f64(value: u64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::{DateTime, Utc};
+    use revaer_api::models::{
+        TorrentFileView, TorrentProgressView, TorrentRateLimit, TorrentRatesView,
+        TorrentSelectionView, TorrentSettingsView, TorrentStateView, TorrentSummary,
+    };
+    use std::error::Error;
+    use std::io;
+    use uuid::Uuid;
+
+    type Result<T> = std::result::Result<T, Box<dyn Error>>;
+
+    fn test_error(message: &'static str) -> Box<dyn Error> {
+        Box::new(io::Error::other(message))
+    }
+
+    fn sample_timestamp() -> Result<DateTime<Utc>> {
+        DateTime::<Utc>::from_timestamp(1_700_000_000, 0)
+            .ok_or_else(|| test_error("timestamp invalid"))
+    }
+
+    fn sample_summary() -> Result<TorrentSummary> {
+        let timestamp = sample_timestamp()?;
+        Ok(TorrentSummary {
+            id: Uuid::nil(),
+            name: Some("demo".to_string()),
+            state: TorrentStateView {
+                kind: TorrentStateKind::Downloading,
+                failure_message: None,
+            },
+            progress: TorrentProgressView {
+                bytes_downloaded: 512,
+                bytes_total: 1_024,
+                percent_complete: 50.0,
+                eta_seconds: Some(60),
+            },
+            rates: TorrentRatesView {
+                download_bps: 2_048,
+                upload_bps: 1_024,
+                ratio: 1.5,
+            },
+            library_path: Some(".server_root/library".to_string()),
+            download_dir: Some(".server_root/downloads".to_string()),
+            sequential: true,
+            tags: vec!["movies".to_string()],
+            category: Some("movies".to_string()),
+            trackers: vec!["udp://tracker.example".to_string()],
+            rate_limit: Some(TorrentRateLimit {
+                download_bps: Some(2_048),
+                upload_bps: Some(1_024),
+            }),
+            connections_limit: Some(64),
+            added_at: timestamp,
+            completed_at: None,
+            last_updated: timestamp,
+        })
+    }
+
+    #[test]
+    fn render_torrent_list_supports_table_and_json() -> Result<()> {
+        let list = TorrentListResponse {
+            torrents: vec![sample_summary()?],
+            next: Some("cursor-1".to_string()),
+        };
+
+        render_torrent_list(&list, OutputFormat::Table)?;
+        render_torrent_list(&list, OutputFormat::Json)?;
+        Ok(())
+    }
+
+    #[test]
+    fn render_torrent_detail_supports_table_and_json() -> Result<()> {
+        let detail = TorrentDetail {
+            summary: sample_summary()?,
+            settings: Some(TorrentSettingsView {
+                tags: vec!["movies".to_string()],
+                category: Some("movies".to_string()),
+                trackers: vec!["udp://tracker.example".to_string()],
+                tracker_messages: std::collections::HashMap::new(),
+                rate_limit: None,
+                connections_limit: Some(32),
+                download_dir: Some(".server_root/downloads".to_string()),
+                comment: Some("comment".to_string()),
+                source: Some("magnet".to_string()),
+                private: Some(false),
+                super_seeding: Some(false),
+                seed_mode: Some(false),
+                auto_managed: Some(true),
+                queue_position: Some(1),
+                seed_ratio_limit: Some(2.0),
+                seed_time_limit: Some(3_600),
+                selection: Some(TorrentSelectionView::default()),
+                sequential: true,
+                pex_enabled: Some(true),
+                ..TorrentSettingsView::default()
+            }),
+            files: Some(vec![TorrentFileView {
+                index: 0,
+                path: "movie.mkv".to_string(),
+                size_bytes: 1_024,
+                bytes_completed: 512,
+                priority: FilePriority::High,
+                selected: true,
+            }]),
+        };
+
+        render_torrent_detail(&detail, OutputFormat::Table)?;
+        render_torrent_detail(&detail, OutputFormat::Json)?;
+        Ok(())
+    }
+
+    #[test]
+    fn format_helpers_cover_known_variants() {
+        assert_eq!(format_priority(FilePriority::Skip), "skip");
+        assert_eq!(format_priority(FilePriority::Normal), "normal");
+        assert_eq!(state_to_str(TorrentStateKind::Queued), "queued");
+        assert_eq!(state_to_str(TorrentStateKind::Seeding), "seeding");
+        assert_eq!(format_bytes(512), "512 B");
+        assert_eq!(format_bytes(2_048), "2.00 KiB");
+        assert_eq!(format_bytes(3 * 1024 * 1024), "3.00 MiB");
+        assert_eq!(format_bytes(5 * 1024 * 1024 * 1024), "5.00 GiB");
+    }
 
     #[test]
     fn redacted_prepare_json_marks_secret_presence_without_values() {

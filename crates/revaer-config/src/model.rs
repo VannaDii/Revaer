@@ -193,8 +193,15 @@ impl AppAuthMode {
 
 #[cfg(test)]
 mod tests {
-    use super::{AppAuthMode, AppMode, LabelKind, SettingsChangeset, Toggle};
+    use super::{
+        ApiKeyPatch, ApiKeyRateLimit, AppAuthMode, AppMode, EngineProfile, LabelKind, SecretPatch,
+        SettingsChangeset, Toggle,
+    };
+    use crate::engine_profile::{IpFilterConfig, PeerClassesConfig, TrackerConfig};
+    use chrono::{Duration as ChronoDuration, Utc};
+    use serde_json::json;
     use std::str::FromStr;
+    use std::time::Duration;
 
     #[test]
     fn app_auth_mode_defaults_to_no_auth() {
@@ -255,6 +262,116 @@ mod tests {
             name: "token".to_string(),
         });
         assert!(!non_empty.is_empty());
+    }
+
+    #[test]
+    fn engine_profile_defaults_are_applied_when_deserializing_minimal_payload() {
+        let profile: EngineProfile = serde_json::from_value(json!({
+            "id": uuid::Uuid::nil(),
+            "implementation": "stub",
+            "listen_port": null,
+            "dht": true,
+            "encryption": "prefer",
+            "sequential_default": false,
+            "resume_dir": ".server_root/resume",
+            "download_root": ".server_root/downloads",
+            "enable_lsd": true,
+            "enable_upnp": true,
+            "enable_natpmp": false,
+            "enable_pex": true
+        }))
+        .expect("minimal engine profile");
+
+        assert_eq!(profile.ipv6_mode, "disabled");
+        assert!(profile.auto_managed.is_enabled());
+        assert!(profile.dont_count_slow_torrents.is_enabled());
+        assert_eq!(profile.choking_algorithm, "fixed_slots");
+        assert_eq!(profile.seed_choking_algorithm, "round_robin");
+        assert_eq!(profile.storage_mode, "sparse");
+        assert!(profile.use_partfile.is_enabled());
+        assert!(profile.verify_piece_hashes.is_enabled());
+        assert!(profile.coalesce_reads.is_enabled());
+        assert!(profile.coalesce_writes.is_enabled());
+        assert!(profile.use_disk_cache_pool.is_enabled());
+        assert_eq!(profile.tracker, TrackerConfig::default());
+        assert_eq!(profile.ip_filter, IpFilterConfig::default());
+        assert_eq!(profile.peer_classes, PeerClassesConfig::default());
+    }
+
+    #[test]
+    fn engine_profile_default_helpers_match_expected_values() {
+        assert_eq!(EngineProfile::default_ipv6_mode(), "disabled");
+        assert!(EngineProfile::default_auto_managed().is_enabled());
+        assert!(EngineProfile::default_dont_count_slow_torrents().is_enabled());
+        assert_eq!(EngineProfile::default_choking_algorithm(), "fixed_slots");
+        assert_eq!(EngineProfile::default_seed_choking_algorithm(), "round_robin");
+        assert_eq!(EngineProfile::default_storage_mode(), "sparse");
+        assert!(EngineProfile::default_use_partfile().is_enabled());
+        assert!(EngineProfile::default_coalesce_reads().is_enabled());
+        assert!(EngineProfile::default_coalesce_writes().is_enabled());
+        assert!(EngineProfile::default_use_disk_cache_pool().is_enabled());
+        assert!(EngineProfile::default_verify_piece_hashes().is_enabled());
+    }
+
+    #[test]
+    fn api_key_and_secret_patches_round_trip_through_json() {
+        let expires_at = Utc::now() + ChronoDuration::minutes(5);
+        let patch = ApiKeyPatch::Upsert {
+            key_id: "ci".to_string(),
+            label: Some("ci".to_string()),
+            enabled: Some(true),
+            expires_at: Some(expires_at),
+            secret: Some("super-secret".to_string()),
+            rate_limit: Some(Some(ApiKeyRateLimit {
+                burst: 7,
+                replenish_period: Duration::from_secs(12),
+            })),
+        };
+        let payload = serde_json::to_value(&patch).expect("serialize api key patch");
+        assert_eq!(payload["op"], "upsert");
+        assert_eq!(payload["rate_limit"]["per_seconds"], 12);
+
+        let round_trip: ApiKeyPatch =
+            serde_json::from_value(payload).expect("deserialize api key patch");
+        match round_trip {
+            ApiKeyPatch::Upsert {
+                key_id,
+                label,
+                enabled,
+                expires_at: round_trip_expiry,
+                secret,
+                rate_limit,
+            } => {
+                assert_eq!(key_id, "ci");
+                assert_eq!(label.as_deref(), Some("ci"));
+                assert_eq!(enabled, Some(true));
+                assert_eq!(round_trip_expiry, Some(expires_at));
+                assert_eq!(secret.as_deref(), Some("super-secret"));
+                assert_eq!(
+                    rate_limit,
+                    Some(Some(ApiKeyRateLimit {
+                        burst: 7,
+                        replenish_period: Duration::from_secs(12),
+                    }))
+                );
+            }
+            ApiKeyPatch::Delete { .. } => panic!("unexpected delete patch"),
+        }
+
+        let secret_patch = SecretPatch::Set {
+            name: "token".to_string(),
+            value: "secret".to_string(),
+        };
+        let secret_payload = serde_json::to_value(&secret_patch).expect("serialize secret patch");
+        let secret_round_trip: SecretPatch =
+            serde_json::from_value(secret_payload).expect("deserialize secret patch");
+        match secret_round_trip {
+            SecretPatch::Set { name, value } => {
+                assert_eq!(name, "token");
+                assert_eq!(value, "secret");
+            }
+            SecretPatch::Delete { .. } => panic!("unexpected delete secret patch"),
+        }
     }
 }
 

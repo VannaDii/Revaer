@@ -34,69 +34,22 @@ fn map_query_err(operation: &'static str) -> impl FnOnce(sqlx::Error) -> DataErr
     move |source| DataError::QueryFailed { operation, source }
 }
 
-const UPSERT_TORRENT_CALL: &str = r"
-    SELECT revaer_runtime.upsert_torrent(
-        _torrent_id => $1,
-        _name => $2,
-        _state => $3,
-        _state_message => $4,
-        _progress_bytes_downloaded => $5,
-        _progress_bytes_total => $6,
-        _progress_eta_seconds => $7,
-        _download_bps => $8,
-        _upload_bps => $9,
-        _ratio => $10,
-        _sequential => $11,
-        _library_path => $12,
-        _download_dir => $13,
-        _comment => $14,
-        _source => $15,
-        _private => $16,
-        _file_indexes => $17,
-        _file_paths => $18,
-        _file_sizes => $19,
-        _file_bytes_completed => $20,
-        _file_priorities => $21,
-        _file_selected => $22,
-        _added_at => $23,
-        _completed_at => $24,
-        _updated_at => $25
-    )
-";
+const UPSERT_TORRENT_CALL: &str = "SELECT revaer_runtime.upsert_torrent(_torrent_id => $1, _name => $2, _state => $3, _state_message => $4, _progress_bytes_downloaded => $5, _progress_bytes_total => $6, _progress_eta_seconds => $7, _download_bps => $8, _upload_bps => $9, _ratio => $10, _sequential => $11, _library_path => $12, _download_dir => $13, _comment => $14, _source => $15, _private => $16, _file_indexes => $17, _file_paths => $18, _file_sizes => $19, _file_bytes_completed => $20, _file_priorities => $21, _file_selected => $22, _added_at => $23, _completed_at => $24, _updated_at => $25)";
 
-const DELETE_TORRENT_CALL: &str = r"
-    SELECT revaer_runtime.delete_torrent(_torrent_id => $1)
-";
+const DELETE_TORRENT_CALL: &str =
+    "SELECT revaer_runtime.delete_torrent(_torrent_id => $1)";
 
 const SELECT_TORRENTS_CALL: &str = r"SELECT * FROM revaer_runtime.list_torrents()";
 
-const FS_JOB_STARTED_CALL: &str = r"
-    SELECT revaer_runtime.mark_fs_job_started(_torrent_id => $1, _src_path => $2)
-";
+const FS_JOB_STARTED_CALL: &str =
+    "SELECT revaer_runtime.mark_fs_job_started(_torrent_id => $1, _src_path => $2)";
 
-const FS_JOB_COMPLETED_CALL: &str = r"
-    SELECT revaer_runtime.mark_fs_job_completed(
-        _torrent_id => $1,
-        _src_path => $2,
-        _dst_path => $3,
-        _transfer_mode => $4
-    )
-";
+const FS_JOB_COMPLETED_CALL: &str = "SELECT revaer_runtime.mark_fs_job_completed(_torrent_id => $1, _src_path => $2, _dst_path => $3, _transfer_mode => $4)";
 
-const FS_JOB_FAILED_CALL: &str = r"
-    SELECT revaer_runtime.mark_fs_job_failed(_torrent_id => $1, _error => $2)
-";
+const FS_JOB_FAILED_CALL: &str =
+    "SELECT revaer_runtime.mark_fs_job_failed(_torrent_id => $1, _error => $2)";
 
-const SELECT_FS_JOB_STATE_CALL: &str = r"
-    SELECT status,
-           attempt,
-           src_path,
-           dst_path,
-           transfer_mode,
-           last_error,
-           updated_at
-    FROM revaer_runtime.fs_job_state(_torrent_id => $1)
-";
+const SELECT_FS_JOB_STATE_CALL: &str = "SELECT status, attempt, src_path, dst_path, transfer_mode, last_error, updated_at FROM revaer_runtime.fs_job_state(_torrent_id => $1)";
 
 impl RuntimeStore {
     /// Initialise the runtime store, applying pending migrations.
@@ -457,6 +410,7 @@ fn clamp_i64(value: u64) -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use chrono::Utc;
 
     #[test]
     fn round_trip_state_serialisation() {
@@ -508,6 +462,39 @@ mod tests {
             assert_eq!(parsed, priority);
         }
         assert_eq!(parse_file_priority("unknown"), FilePriority::Normal);
+    }
+
+    #[test]
+    fn deserialize_state_defaults_failed_message_and_unknown_labels() {
+        assert_eq!(
+            deserialize_state("failed", None),
+            TorrentState::Failed {
+                message: "unknown failure".to_string(),
+            }
+        );
+        assert_eq!(deserialize_state("mystery", None), TorrentState::Stopped);
+    }
+
+    #[test]
+    fn fs_job_state_from_row_copies_runtime_fields() {
+        let updated_at = Utc::now();
+        let state = FsJobState::from(FsJobStateRow {
+            status: "moved".to_string(),
+            attempt: 2,
+            src_path: "src".to_string(),
+            dst_path: Some("dst".to_string()),
+            transfer_mode: Some("copy".to_string()),
+            last_error: Some("boom".to_string()),
+            updated_at,
+        });
+
+        assert_eq!(state.status, "moved");
+        assert_eq!(state.attempt, 2);
+        assert_eq!(state.src_path, "src");
+        assert_eq!(state.dst_path.as_deref(), Some("dst"));
+        assert_eq!(state.transfer_mode.as_deref(), Some("copy"));
+        assert_eq!(state.last_error.as_deref(), Some("boom"));
+        assert_eq!(state.updated_at, updated_at);
     }
 }
 /// Snapshot of filesystem processing state for a torrent.

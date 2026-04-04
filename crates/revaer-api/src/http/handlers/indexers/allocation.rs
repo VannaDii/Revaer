@@ -7,7 +7,9 @@
 //! - Fail closed when memory availability cannot be determined.
 
 use crate::http::errors::ApiError;
-use systemstat::{ByteSize, Memory, Platform, System};
+#[cfg(any(target_os = "linux", target_os = "android"))]
+use systemstat::ByteSize;
+use systemstat::{Memory, Platform, System};
 
 /// Maximum fraction of currently available memory that a single allocation may consume.
 ///
@@ -37,6 +39,7 @@ const MEMORY_USAGE_LIMIT_PERCENT: u64 = 80;
 const MEMORY_USAGE_LIMIT_DENOM: u64 = 100;
 const MIN_AVAILABLE_BYTES: u64 = 1024 * 1024;
 const ALLOCATION_TOO_LARGE: &str = "requested allocation exceeds safe memory limit";
+#[cfg(any(target_os = "linux", target_os = "android"))]
 const MEMINFO_AVAILABLE_KEY: &str = "MemAvailable";
 const MEMINFO_AVAILABLE_SOURCE: &str = "systemstat.mem_available";
 const MEMORY_AVAILABLE_UNAVAILABLE: &str = "available memory data unavailable";

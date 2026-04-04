@@ -30,7 +30,7 @@ mod tests {
         Router,
         body::Body,
         extract::ConnectInfo,
-        http::{HeaderValue, Request, StatusCode},
+        http::{HeaderMap, HeaderValue, Request, StatusCode},
         middleware,
         routing::{get, post},
     };
@@ -577,6 +577,215 @@ mod tests {
         assert_eq!(params.len(), 1);
         assert_eq!(params[0].pointer, "/app_profile/auth_mode");
         assert_eq!(params[0].message, "invalid auth mode");
+    }
+
+    #[test]
+    fn extract_setup_token_rejects_non_setup_context() {
+        let err = extract_setup_token(AuthContext::Anonymous)
+            .expect_err("non-setup context must be rejected");
+        assert_eq!(err.status(), StatusCode::INTERNAL_SERVER_ERROR);
+        assert_eq!(
+            err.detail(),
+            Some("setup token required for this operation")
+        );
+    }
+
+    #[tokio::test]
+    async fn require_setup_token_rejects_invalid_utf8_header() -> Result<()> {
+        let state = api_state(
+            AppMode::Setup,
+            AppAuthMode::ApiKey,
+            None,
+            true,
+            false,
+            local_loopback_ranges(),
+        )?;
+        let app = setup_router_with_state(&state);
+        let header = HeaderValue::from_bytes(b"\xFF")?;
+
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/")
+                    .header(crate::http::constants::HEADER_SETUP_TOKEN, header)
+                    .body(Body::empty())?,
+            )
+            .await?;
+        assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn require_api_key_rejects_malformed_header_value() -> Result<()> {
+        let state = api_state(
+            AppMode::Active,
+            AppAuthMode::ApiKey,
+            None,
+            true,
+            false,
+            local_loopback_ranges(),
+        )?;
+        let app = router_with_state(&state);
+
+        let mut request = request_with_ip("GET", local_ip())?;
+        request.headers_mut().insert(
+            crate::http::constants::HEADER_API_KEY,
+            HeaderValue::from_static("missing-secret"),
+        );
+        let response = app.oneshot(request).await?;
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn require_api_key_emits_rate_limit_headers() -> Result<()> {
+        let auth = ApiKeyAuth {
+            key_id: "demo".to_string(),
+            label: Some("label".to_string()),
+            rate_limit: Some(ApiKeyRateLimit {
+                burst: 5,
+                replenish_period: Duration::from_secs(60),
+            }),
+        };
+        let state = api_state(
+            AppMode::Active,
+            AppAuthMode::ApiKey,
+            Some(auth),
+            true,
+            false,
+            local_loopback_ranges(),
+        )?;
+        let app = router_with_state(&state);
+
+        let mut request = request_with_ip("GET", local_ip())?;
+        request.headers_mut().insert(
+            crate::http::constants::HEADER_API_KEY,
+            HeaderValue::from_static("demo:secret-token"),
+        );
+        let response = app.oneshot(request).await?;
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(
+            response
+                .headers()
+                .get(crate::http::constants::HEADER_RATE_LIMIT_LIMIT)
+                .and_then(|value| value.to_str().ok()),
+            Some("5")
+        );
+        assert_eq!(
+            response
+                .headers()
+                .get(crate::http::constants::HEADER_RATE_LIMIT_REMAINING)
+                .and_then(|value| value.to_str().ok()),
+            Some("4")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn local_network_entries_fall_back_for_invalid_or_empty_values() -> Result<()> {
+        let mut app = AppProfile {
+            id: Uuid::new_v4(),
+            instance_name: "demo".to_string(),
+            mode: AppMode::Active,
+            auth_mode: AppAuthMode::ApiKey,
+            version: 1,
+            http_port: 8080,
+            bind_addr: IpAddr::V4(Ipv4Addr::LOCALHOST),
+            local_networks: vec!["not-a-cidr".to_string()],
+            telemetry: TelemetryConfig::default(),
+            label_policies: Vec::new(),
+            immutable_keys: Vec::new(),
+        };
+
+        let invalid_entries = local_network_entries(&app);
+        assert!(!invalid_entries.is_empty());
+
+        app.local_networks.clear();
+        let empty_entries = local_network_entries(&app);
+        assert!(!empty_entries.is_empty());
+        Ok(())
+    }
+
+    #[test]
+    fn client_ip_does_not_trust_forwarded_headers_from_remote_peer() -> Result<()> {
+        let mut request = request_with_ip("GET", "203.0.113.10".parse::<IpAddr>()?)?;
+        request
+            .headers_mut()
+            .insert("x-forwarded-for", HeaderValue::from_static("10.1.2.3"));
+
+        let client = client_ip_from_request(&request, &default_local_network_entries())?;
+        assert_eq!(client.addr(), "203.0.113.10".parse::<IpAddr>()?);
+        Ok(())
+    }
+
+    #[test]
+    fn client_ip_prefers_forwarded_header_over_other_proxy_headers() -> Result<()> {
+        let mut request = request_with_ip("GET", local_ip())?;
+        request.headers_mut().insert(
+            "forwarded",
+            HeaderValue::from_static("for=203.0.113.11;proto=https"),
+        );
+        request
+            .headers_mut()
+            .insert("x-forwarded-for", HeaderValue::from_static("203.0.113.12"));
+        request
+            .headers_mut()
+            .insert("x-real-ip", HeaderValue::from_static("203.0.113.13"));
+
+        let client = client_ip_from_request(&request, &default_local_network_entries())?;
+        assert_eq!(client.addr(), "203.0.113.11".parse::<IpAddr>()?);
+        Ok(())
+    }
+
+    #[test]
+    fn parse_forwarded_for_ignores_unknown_and_returns_none() -> Result<()> {
+        assert!(parse_forwarded_for("for=unknown;proto=https")?.is_none());
+        assert!(parse_forwarded_for("proto=https;host=example.com")?.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn parse_ip_value_rejects_invalid_text() {
+        let err = parse_ip_value("invalid-ip", "bad ip").expect_err("invalid ip text must fail");
+        assert_eq!(err.status(), StatusCode::BAD_REQUEST);
+        assert_eq!(err.detail(), Some("bad ip"));
+    }
+
+    #[test]
+    fn forwarded_header_helpers_reject_invalid_utf8() -> Result<()> {
+        let mut headers = HeaderMap::new();
+        headers.insert("forwarded", HeaderValue::from_bytes(b"\xFF")?);
+        headers.insert("x-forwarded-for", HeaderValue::from_bytes(b"\xFF")?);
+        headers.insert("x-real-ip", HeaderValue::from_bytes(b"\xFF")?);
+
+        assert_eq!(
+            forwarded_for_ip(&headers)
+                .expect_err("forwarded header must fail")
+                .detail(),
+            Some("forwarded header must be valid UTF-8")
+        );
+        assert_eq!(
+            x_forwarded_for_ip(&headers)
+                .expect_err("x-forwarded-for header must fail")
+                .detail(),
+            Some("x-forwarded-for header must be valid UTF-8")
+        );
+        assert_eq!(
+            x_real_ip(&headers)
+                .expect_err("x-real-ip header must fail")
+                .detail(),
+            Some("x-real-ip header must be valid UTF-8")
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn peer_ip_requires_connect_info() -> Result<()> {
+        let request = Request::builder().uri("/").body(Body::empty())?;
+        let err = peer_ip(&request).expect_err("connect info should be required");
+        assert_eq!(err.status(), StatusCode::UNAUTHORIZED);
+        assert_eq!(err.detail(), Some("client address unavailable"));
+        Ok(())
     }
 }
 

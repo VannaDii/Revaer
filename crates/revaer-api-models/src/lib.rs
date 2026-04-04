@@ -3149,6 +3149,35 @@ mod tests {
     }
 
     #[test]
+    fn torrent_create_request_trims_category_and_tags() {
+        let request = TorrentCreateRequest {
+            category: Some("  movies  ".to_string()),
+            tags: vec![" action ".to_string(), String::new(), " drama".to_string()],
+            ..TorrentCreateRequest::default()
+        };
+
+        let options = request.to_options();
+        assert_eq!(options.category.as_deref(), Some("movies"));
+        assert_eq!(
+            options.tags,
+            vec!["action".to_string(), "drama".to_string()]
+        );
+    }
+
+    #[test]
+    fn torrent_create_request_to_source_returns_none_for_invalid_or_empty_payloads() {
+        let empty = TorrentCreateRequest::default();
+        assert!(empty.to_source().is_none());
+
+        let invalid = TorrentCreateRequest {
+            magnet: Some("   ".to_string()),
+            metainfo: Some("%%%".to_string()),
+            ..TorrentCreateRequest::default()
+        };
+        assert!(invalid.to_source().is_none());
+    }
+
+    #[test]
     fn torrent_create_request_ignores_non_positive_connection_limit() {
         let request = TorrentCreateRequest {
             max_connections: Some(0),
@@ -3268,6 +3297,149 @@ mod tests {
     }
 
     #[test]
+    fn torrent_selection_view_clones_selection_update() {
+        let update = FileSelectionUpdate {
+            include: vec!["**/*.mkv".to_string()],
+            exclude: vec!["**/*.txt".to_string()],
+            skip_fluff: true,
+            priorities: vec![FilePriorityOverride {
+                index: 2,
+                priority: FilePriority::High,
+            }],
+        };
+        let view = TorrentSelectionView::from(&update);
+        assert_eq!(view.include, update.include);
+        assert_eq!(view.exclude, update.exclude);
+        assert!(view.skip_fluff);
+        assert_eq!(view.priorities, update.priorities);
+    }
+
+    #[test]
+    fn problem_details_fields_round_trip_in_memory() {
+        let payload = ProblemDetails {
+            kind: "https://revaer.invalid/problem".to_string(),
+            title: "Invalid request".to_string(),
+            status: 400,
+            detail: Some("details".to_string()),
+            invalid_params: Some(vec![ProblemInvalidParam {
+                pointer: "/field".to_string(),
+                message: "required".to_string(),
+            }]),
+            context: Some(vec![ProblemContextField {
+                name: "actor".to_string(),
+                value: "cli".to_string(),
+            }]),
+        };
+        assert_eq!(payload.kind, "https://revaer.invalid/problem");
+        assert_eq!(payload.invalid_params.as_ref().map(Vec::len), Some(1));
+        assert_eq!(payload.context.as_ref().map(Vec::len), Some(1));
+    }
+
+    #[test]
+    fn torrent_state_kind_maps_all_core_variants() {
+        assert_eq!(
+            TorrentStateKind::from(TorrentState::Queued),
+            TorrentStateKind::Queued
+        );
+        assert_eq!(
+            TorrentStateKind::from(TorrentState::FetchingMetadata),
+            TorrentStateKind::FetchingMetadata
+        );
+        assert_eq!(
+            TorrentStateKind::from(TorrentState::Downloading),
+            TorrentStateKind::Downloading
+        );
+        assert_eq!(
+            TorrentStateKind::from(TorrentState::Seeding),
+            TorrentStateKind::Seeding
+        );
+        assert_eq!(
+            TorrentStateKind::from(TorrentState::Completed),
+            TorrentStateKind::Completed
+        );
+        assert_eq!(
+            TorrentStateKind::from(TorrentState::Failed {
+                message: "boom".to_string(),
+            }),
+            TorrentStateKind::Failed
+        );
+        assert_eq!(
+            TorrentStateKind::from(TorrentState::Stopped),
+            TorrentStateKind::Stopped
+        );
+    }
+
+    #[test]
+    fn torrent_state_view_preserves_failure_message() {
+        let state = TorrentStateView::from(TorrentState::Failed {
+            message: "tracker timeout".to_string(),
+        });
+        assert_eq!(state.kind, TorrentStateKind::Failed);
+        assert_eq!(state.failure_message.as_deref(), Some("tracker timeout"));
+    }
+
+    #[test]
+    fn torrent_progress_and_rate_views_copy_status_fields() {
+        let status = TorrentStatus {
+            progress: TorrentProgress {
+                bytes_downloaded: 50,
+                bytes_total: 100,
+                eta_seconds: Some(10),
+            },
+            rates: TorrentRates {
+                download_bps: 4_096,
+                upload_bps: 2_048,
+                ratio: 1.25,
+            },
+            ..TorrentStatus::default()
+        };
+
+        let progress = TorrentProgressView::from(&status);
+        assert!((progress.percent_complete - 50.0).abs() < f64::EPSILON);
+        assert_eq!(progress.eta_seconds, Some(10));
+
+        let rates = TorrentRatesView::from(&status);
+        assert_eq!(rates.download_bps, 4_096);
+        assert_eq!(rates.upload_bps, 2_048);
+        assert!((rates.ratio - 1.25).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn torrent_file_and_peer_views_copy_core_models() {
+        let file = TorrentFileView::from(TorrentFile {
+            index: 7,
+            path: "folder/file.mkv".to_string(),
+            size_bytes: 42,
+            bytes_completed: 21,
+            priority: FilePriority::High,
+            selected: false,
+        });
+        assert_eq!(file.index, 7);
+        assert_eq!(file.priority, FilePriority::High);
+        assert!(!file.selected);
+
+        let peer = TorrentPeer::from(PeerSnapshot {
+            endpoint: "127.0.0.1:51413".to_string(),
+            client: Some("qBittorrent".to_string()),
+            progress: 0.5,
+            download_bps: 2_000,
+            upload_bps: 1_000,
+            interest: PeerInterest {
+                local: true,
+                remote: false,
+            },
+            choke: PeerChoke {
+                local: false,
+                remote: true,
+            },
+        });
+        assert_eq!(peer.endpoint, "127.0.0.1:51413");
+        assert_eq!(peer.client.as_deref(), Some("qBittorrent"));
+        assert!(peer.interest.local);
+        assert!(peer.choke.remote);
+    }
+
+    #[test]
     fn torrent_options_request_to_update_filters_values() {
         let request = TorrentOptionsRequest {
             connections_limit: Some(0),
@@ -3293,6 +3465,86 @@ mod tests {
         assert_eq!(update.seed_ratio_limit, Some(2.0));
         assert_eq!(update.seed_time_limit, Some(3_600));
         assert!(!request.is_empty());
+    }
+
+    #[test]
+    fn torrent_options_request_reports_unsupported_fields_and_empty_state() {
+        let empty = TorrentOptionsRequest::default();
+        assert!(empty.is_empty());
+        assert!(empty.unsupported_metadata_message().is_none());
+        assert!(empty.unsupported_seed_limit_message().is_none());
+
+        let request = TorrentOptionsRequest {
+            comment: Some("comment".to_string()),
+            source: Some("source".to_string()),
+            private: Some(true),
+            connections_limit: None,
+            pex_enabled: None,
+            paused: None,
+            super_seeding: None,
+            auto_managed: None,
+            queue_position: None,
+            seed_ratio_limit: Some(2.5),
+            seed_time_limit: Some(3_600),
+        };
+        assert_eq!(
+            request.unsupported_metadata_message(),
+            Some("comment updates are not supported post-add")
+        );
+        assert_eq!(
+            request.unsupported_seed_limit_message(),
+            Some("seed_ratio_limit overrides are not supported per-torrent")
+        );
+    }
+
+    #[test]
+    fn torrent_author_request_and_response_bridge_core_types() {
+        let request = TorrentAuthorRequest {
+            root_path: "/data".to_string(),
+            trackers: vec!["udp://tracker.example".to_string()],
+            web_seeds: vec!["http://seed.example/file".to_string()],
+            include: vec!["**/*.mkv".to_string()],
+            exclude: vec!["**/*.txt".to_string()],
+            skip_fluff: true,
+            piece_length: Some(262_144),
+            private: true,
+            comment: Some("comment".to_string()),
+            source: Some("source".to_string()),
+        };
+        let core = request.to_core();
+        assert_eq!(core.root_path, "/data");
+        assert_eq!(core.trackers, request.trackers);
+        assert!(core.file_rules.skip_fluff);
+        assert_eq!(core.piece_length, Some(262_144));
+
+        let response = TorrentAuthorResponse::from_core(CoreTorrentAuthorResult {
+            metainfo: b"payload".to_vec(),
+            magnet_uri: "magnet:?xt=urn:btih:test".to_string(),
+            info_hash: "abcd".to_string(),
+            piece_length: 262_144,
+            total_size: 4_096,
+            files: vec![revaer_torrent_core::model::TorrentAuthorFile {
+                path: "movie.mkv".to_string(),
+                size_bytes: 4_096,
+            }],
+            warnings: vec!["warning".to_string()],
+            trackers: vec!["udp://tracker.example".to_string()],
+            web_seeds: vec!["http://seed.example/file".to_string()],
+            private: true,
+            comment: Some("comment".to_string()),
+            source: Some("source".to_string()),
+        });
+        assert_eq!(
+            response.metainfo,
+            general_purpose::STANDARD.encode(b"payload")
+        );
+        assert_eq!(response.files[0].path, "movie.mkv");
+        assert_eq!(response.trackers, vec!["udp://tracker.example".to_string()]);
+        assert_eq!(
+            response.web_seeds,
+            vec!["http://seed.example/file".to_string()]
+        );
+        assert!(response.private);
     }
 
     #[test]
@@ -3325,6 +3577,26 @@ mod tests {
         );
         assert!(!update.replace);
         assert!(!request.is_empty());
+    }
+
+    #[test]
+    fn empty_tracker_and_web_seed_requests_report_empty() {
+        assert!(TorrentTrackersRequest::default().is_empty());
+        assert!(TorrentWebSeedsRequest::default().is_empty());
+    }
+
+    #[test]
+    fn torrent_action_to_rate_limit_only_maps_rate_variants() {
+        let rate = TorrentAction::Rate {
+            download_bps: Some(7_000),
+            upload_bps: Some(3_000),
+        };
+        let limit = rate
+            .to_rate_limit()
+            .expect("rate action should map to rate limit");
+        assert_eq!(limit.download_bps, Some(7_000));
+        assert_eq!(limit.upload_bps, Some(3_000));
+        assert!(TorrentAction::Pause.to_rate_limit().is_none());
     }
 }
 

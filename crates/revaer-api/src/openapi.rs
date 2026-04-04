@@ -135,4 +135,18 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         Ok(())
     }
+
+    #[test]
+    fn embedded_at_uses_requested_path() {
+        let path = PathBuf::from("/tmp/openapi.json");
+        let deps = OpenApiDependencies::embedded_at(&path);
+        assert_eq!(deps.path, path);
+        assert!(deps.document.is_object());
+    }
+
+    #[test]
+    fn openapi_output_path_uses_embedded_filename() {
+        let path = openapi_output_path();
+        assert!(path.ends_with(OPENAPI_FILENAME));
+    }
 }

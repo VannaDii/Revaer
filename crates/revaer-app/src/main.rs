@@ -49,4 +49,32 @@ mod tests {
             })
         ));
     }
+
+    #[tokio::test]
+    async fn run_entrypoint_with_database_url_surfaces_bootstrap_error() {
+        let result = run_entrypoint_with(Some("not-a-url".to_string())).await;
+        assert!(
+            result.is_err(),
+            "invalid database url should fail bootstrap"
+        );
+        assert!(
+            !matches!(result, Err(AppError::MissingEnv { .. })),
+            "bootstrap path should be exercised once a URL is present"
+        );
+    }
+
+    #[tokio::test]
+    async fn run_entrypoint_requires_process_database_url_when_unset() {
+        if std::env::var("DATABASE_URL").is_ok() {
+            return;
+        }
+
+        let result = run_entrypoint().await;
+        assert!(matches!(
+            result,
+            Err(AppError::MissingEnv {
+                name: "DATABASE_URL"
+            })
+        ));
+    }
 }

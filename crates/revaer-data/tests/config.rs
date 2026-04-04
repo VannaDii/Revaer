@@ -5,7 +5,7 @@ use revaer_data::config::{
     NewSetupToken, PeerClassesUpdate, PrivacyToggleSet, QueuePolicySet, SeedingToggleSet,
     StorageToggleSet, TrackerAnnouncePolicy, TrackerConfigUpdate, TrackerProxyPolicy,
     TrackerTlsPolicy, bump_app_profile_version, bump_revision, cleanup_expired_setup_tokens,
-    delete_api_key, delete_secret, fetch_active_setup_token, fetch_api_key_auth,
+    delete_api_key, delete_secret, factory_reset, fetch_active_setup_token, fetch_api_key_auth,
     fetch_api_key_hash, fetch_api_keys, fetch_app_label_policies, fetch_app_profile_row,
     fetch_engine_profile_row, fetch_fs_policy_row, fetch_revision, fetch_secret_by_name,
     insert_api_key, insert_setup_token, invalidate_active_setup_tokens, mark_setup_token_consumed,
@@ -302,6 +302,328 @@ async fn config_wrappers_round_trip() -> anyhow::Result<()> {
     assert_eq!(hash.as_deref(), Some("hash2"));
     let deleted = delete_api_key(&pool, key_id).await?;
     assert_eq!(deleted, 1);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn config_factory_reset_clears_auth_material_and_restores_defaults() -> anyhow::Result<()> {
+    let postgres = match start_postgres() {
+        Ok(db) => db,
+        Err(err) => {
+            eprintln!("skipping config_factory_reset_clears_auth_material_and_restores_defaults: {err}");
+            return Ok(());
+        }
+    };
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(postgres.connection_string())
+        .await?;
+
+    let app_id = Uuid::parse_str(APP_PROFILE_ID)?;
+    let baseline_app = fetch_app_profile_row(&pool, app_id).await?;
+    let baseline_fs = fetch_fs_policy_row(&pool, Uuid::parse_str(FS_POLICY_ID)?).await?;
+
+    update_app_mode(&pool, app_id, "active").await?;
+    update_app_auth_mode(&pool, app_id, "api_key").await?;
+    upsert_secret(&pool, "reset-secret", b"payload", "tester").await?;
+    insert_api_key(
+        &pool,
+        &NewApiKey {
+            key_id: "reset-key",
+            hash: "hash",
+            label: Some("reset"),
+            enabled: true,
+            burst: Some(5),
+            per_seconds: Some(60),
+            expires_at: Some(Utc::now() + ChronoDuration::minutes(10)),
+        },
+    )
+    .await?;
+
+    factory_reset(&pool).await?;
+
+    let app_row = fetch_app_profile_row(&pool, app_id).await?;
+    let fs_row = fetch_fs_policy_row(&pool, Uuid::parse_str(FS_POLICY_ID)?).await?;
+    assert_eq!(app_row.mode, baseline_app.mode);
+    assert_eq!(app_row.auth_mode, baseline_app.auth_mode);
+    assert_eq!(app_row.http_port, baseline_app.http_port);
+    assert_eq!(fs_row.library_root, baseline_fs.library_root);
+    assert!(fetch_secret_by_name(&pool, "reset-secret").await?.is_none());
+    assert!(fetch_api_keys(&pool).await?.is_empty());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn config_setup_token_and_api_key_helpers_track_state_transitions() -> anyhow::Result<()> {
+    let postgres = match start_postgres() {
+        Ok(db) => db,
+        Err(err) => {
+            eprintln!(
+                "skipping config_setup_token_and_api_key_helpers_track_state_transitions: {err}"
+            );
+            return Ok(());
+        }
+    };
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(postgres.connection_string())
+        .await?;
+
+    insert_setup_token(
+        &pool,
+        &NewSetupToken {
+            token_hash: "expired-token",
+            expires_at: Utc::now() - ChronoDuration::minutes(1),
+            issued_by: "tester",
+        },
+    )
+    .await?;
+    insert_setup_token(
+        &pool,
+        &NewSetupToken {
+            token_hash: "active-token",
+            expires_at: Utc::now() + ChronoDuration::minutes(5),
+            issued_by: "tester",
+        },
+    )
+    .await?;
+
+    cleanup_expired_setup_tokens(&pool).await?;
+    let active = fetch_active_setup_token(&pool)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("expected active setup token"))?;
+    assert_eq!(active.token_hash, "active-token");
+
+    mark_setup_token_consumed(&pool, active.id).await?;
+    assert!(fetch_active_setup_token(&pool).await?.is_none());
+
+    insert_setup_token(
+        &pool,
+        &NewSetupToken {
+            token_hash: "active-token-2",
+            expires_at: Utc::now() + ChronoDuration::minutes(5),
+            issued_by: "tester",
+        },
+    )
+    .await?;
+    invalidate_active_setup_tokens(&pool).await?;
+    assert!(fetch_active_setup_token(&pool).await?.is_none());
+
+    insert_api_key(
+        &pool,
+        &NewApiKey {
+            key_id: "stateful-key",
+            hash: "hash-a",
+            label: Some("stateful"),
+            enabled: true,
+            burst: Some(8),
+            per_seconds: Some(30),
+            expires_at: Some(Utc::now() + ChronoDuration::minutes(10)),
+        },
+    )
+    .await?;
+    let auth = fetch_api_key_auth(&pool, "stateful-key")
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("expected api key auth row"))?;
+    assert_eq!(auth.label, Some("stateful".to_string()));
+    assert_eq!(auth.rate_limit_burst, Some(8));
+    assert_eq!(auth.rate_limit_per_seconds, Some(30));
+
+    update_api_key_label(&pool, "stateful-key", Some("renamed")).await?;
+    update_api_key_enabled(&pool, "stateful-key", false).await?;
+    update_api_key_rate_limit(&pool, "stateful-key", Some(3), Some(15)).await?;
+    update_api_key_expires_at(
+        &pool,
+        "stateful-key",
+        Some(Utc::now() + ChronoDuration::hours(1)),
+    )
+    .await?;
+    update_api_key_hash(&pool, "stateful-key", "hash-b").await?;
+
+    let auth = fetch_api_key_auth(&pool, "stateful-key")
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("expected updated api key auth row"))?;
+    assert_eq!(auth.label, Some("renamed".to_string()));
+    assert!(!auth.enabled);
+    assert_eq!(auth.rate_limit_burst, Some(3));
+    assert_eq!(auth.rate_limit_per_seconds, Some(15));
+    assert_eq!(fetch_api_key_hash(&pool, "stateful-key").await?, Some("hash-b".to_string()));
+    assert_eq!(delete_api_key(&pool, "stateful-key").await?, 1);
+    assert!(fetch_api_key_auth(&pool, "stateful-key").await?.is_none());
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn config_fs_and_tracker_helpers_round_trip_full_state() -> anyhow::Result<()> {
+    let postgres = match start_postgres() {
+        Ok(db) => db,
+        Err(err) => {
+            eprintln!("skipping config_fs_and_tracker_helpers_round_trip_full_state: {err}");
+            return Ok(());
+        }
+    };
+    let pool = PgPoolOptions::new()
+        .max_connections(5)
+        .connect(postgres.connection_string())
+        .await?;
+
+    let engine_id = Uuid::parse_str(ENGINE_PROFILE_ID)?;
+    let fs_id = Uuid::parse_str(FS_POLICY_ID)?;
+
+    update_fs_string_field(&pool, fs_id, FsStringField::LibraryRoot, "/srv/library").await?;
+    update_fs_string_field(&pool, fs_id, FsStringField::Par2, "verify").await?;
+    update_fs_string_field(&pool, fs_id, FsStringField::MoveMode, "hardlink").await?;
+    update_fs_boolean_field(&pool, fs_id, FsBooleanField::Extract, true).await?;
+    update_fs_boolean_field(&pool, fs_id, FsBooleanField::Flatten, true).await?;
+    update_fs_array_field(
+        &pool,
+        fs_id,
+        FsArrayField::CleanupKeep,
+        &["**/*.mkv".to_string(), "**/*.srt".to_string()],
+    )
+    .await?;
+    update_fs_array_field(
+        &pool,
+        fs_id,
+        FsArrayField::CleanupDrop,
+        &["**/sample/**".to_string(), "**/*.nfo".to_string()],
+    )
+    .await?;
+    update_fs_array_field(
+        &pool,
+        fs_id,
+        FsArrayField::AllowPaths,
+        &["/srv/library".to_string(), "/srv/downloads".to_string()],
+    )
+    .await?;
+    update_fs_optional_string_field(&pool, fs_id, FsOptionalStringField::ChmodFile, Some("640"))
+        .await?;
+    update_fs_optional_string_field(&pool, fs_id, FsOptionalStringField::ChmodDir, Some("750"))
+        .await?;
+    update_fs_optional_string_field(&pool, fs_id, FsOptionalStringField::Owner, Some("media"))
+        .await?;
+    update_fs_optional_string_field(&pool, fs_id, FsOptionalStringField::Group, Some("media"))
+        .await?;
+    update_fs_optional_string_field(&pool, fs_id, FsOptionalStringField::Umask, Some("027"))
+        .await?;
+
+    set_engine_list_values(
+        &pool,
+        engine_id,
+        "listen_interfaces",
+        &["0.0.0.0:6999".to_string(), "[::]:6999".to_string()],
+    )
+    .await?;
+    set_engine_list_values(
+        &pool,
+        engine_id,
+        "dht_router_nodes",
+        &["router.utorrent.com:6881".to_string()],
+    )
+    .await?;
+    set_engine_ip_filter(
+        &pool,
+        engine_id,
+        &IpFilterUpdate {
+            blocklist_url: Some("https://blocklist.example"),
+            etag: Some("etag-2"),
+            last_updated_at: Some(Utc::now()),
+            last_error: Some("timed out"),
+            cidrs: &["192.168.0.0/16".to_string(), "10.0.0.0/8".to_string()],
+        },
+    )
+    .await?;
+    set_engine_alt_speed(
+        &pool,
+        engine_id,
+        &AltSpeedUpdate {
+            download_bps: Some(1500),
+            upload_bps: Some(500),
+            schedule_start_minutes: Some(30),
+            schedule_end_minutes: Some(90),
+            days: &["mon".to_string(), "fri".to_string()],
+        },
+    )
+    .await?;
+    set_tracker_config(
+        &pool,
+        engine_id,
+        &TrackerConfigUpdate {
+            user_agent: Some("RevaerTest/2"),
+            announce_ip: Some("203.0.113.2"),
+            listen_interface: Some("eth0"),
+            request_timeout_ms: Some(5_000),
+            announce: TrackerAnnouncePolicy {
+                announce_to_all: true,
+                replace_trackers: true,
+            },
+            proxy_host: Some("proxy.example"),
+            proxy_port: Some(8443),
+            proxy_kind: Some("https"),
+            proxy_username_secret: Some("proxy-user"),
+            proxy_password_secret: Some("proxy-pass"),
+            proxy: TrackerProxyPolicy { proxy_peers: true },
+            ssl_cert: Some("cert.pem"),
+            ssl_private_key: Some("key.pem"),
+            ssl_ca_cert: Some("ca.pem"),
+            tls: TrackerTlsPolicy { verify: false },
+            auth_username_secret: Some("auth-user"),
+            auth_password_secret: Some("auth-pass"),
+            auth_cookie_secret: Some("auth-cookie"),
+            default_urls: &["https://tracker.example/announce".to_string()],
+            extra_urls: &["https://extra.example/announce".to_string()],
+        },
+    )
+    .await?;
+    set_peer_classes(
+        &pool,
+        engine_id,
+        &PeerClassesUpdate {
+            class_ids: &[1, 2],
+            labels: &["fast".to_string(), "slow".to_string()],
+            download_priorities: &[7, 2],
+            upload_priorities: &[6, 1],
+            connection_limit_factors: &[150, 75],
+            ignore_unchoke_slots: &[true, false],
+            default_class_ids: &[1, 2],
+        },
+    )
+    .await?;
+
+    let fs_row = fetch_fs_policy_row(&pool, fs_id).await?;
+    assert_eq!(fs_row.library_root, "/srv/library");
+    assert_eq!(fs_row.par2, "verify");
+    assert_eq!(fs_row.move_mode, "hardlink");
+    assert!(fs_row.extract);
+    assert!(fs_row.flatten);
+    assert_eq!(fs_row.cleanup_keep.len(), 2);
+    assert_eq!(fs_row.cleanup_drop.len(), 2);
+    assert_eq!(fs_row.allow_paths.len(), 2);
+    assert_eq!(fs_row.owner.as_deref(), Some("media"));
+    assert_eq!(fs_row.group.as_deref(), Some("media"));
+    assert_eq!(fs_row.umask.as_deref(), Some("027"));
+
+    let engine_row = fetch_engine_profile_row(&pool, engine_id).await?;
+    assert_eq!(engine_row.listen_interfaces.len(), 2);
+    assert_eq!(engine_row.dht_router_nodes, vec!["router.utorrent.com:6881".to_string()]);
+    assert_eq!(engine_row.ip_filter_cidrs.len(), 2);
+    assert_eq!(
+        engine_row.ip_filter_blocklist_url.as_deref(),
+        Some("https://blocklist.example")
+    );
+    assert_eq!(engine_row.alt_speed_days, vec!["mon".to_string(), "fri".to_string()]);
+    assert_eq!(engine_row.tracker_proxy_host.as_deref(), Some("proxy.example"));
+    assert_eq!(engine_row.tracker_proxy_port, Some(8443));
+    assert_eq!(engine_row.tracker_proxy_kind.as_deref(), Some("https"));
+    assert_eq!(
+        engine_row.tracker_auth_username_secret.as_deref(),
+        Some("auth-user")
+    );
+    assert_eq!(engine_row.peer_class_ids, vec![1, 2]);
+    assert_eq!(engine_row.peer_class_default_ids, vec![1, 2]);
 
     Ok(())
 }

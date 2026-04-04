@@ -459,6 +459,76 @@ mod tests {
     }
 
     #[test]
+    fn asset_sync_error_display_and_source_match_variant() {
+        let missing_variant = AssetSyncError::MissingPath {
+            path: PathBuf::from("static/nexus/missing.css"),
+        };
+        assert!(missing_variant.to_string().contains("required path is missing"));
+        assert!(missing_variant.source().is_none());
+
+        let expected_file_variant = AssetSyncError::ExpectedFile {
+            path: PathBuf::from("static/nexus/images"),
+        };
+        assert!(
+            expected_file_variant
+                .to_string()
+                .contains("expected file but found non-file")
+        );
+        assert!(expected_file_variant.source().is_none());
+
+        let expected_dir_variant = AssetSyncError::ExpectedDir {
+            path: PathBuf::from("static/nexus/assets/app.css"),
+        };
+        assert!(
+            expected_dir_variant
+                .to_string()
+                .contains("expected directory but found non-directory")
+        );
+        assert!(expected_dir_variant.source().is_none());
+
+        let io_error = std::io::Error::other("disk full");
+        let io_variant = AssetSyncError::Io {
+            path: PathBuf::from("static/nexus/app.css"),
+            source: io_error,
+        };
+        assert!(io_variant.to_string().contains("io error at"));
+        assert!(io_variant.source().is_some());
+
+        let copy_variant = AssetSyncError::CopyFailed {
+            from: PathBuf::from("ui_vendor/app.css"),
+            to: PathBuf::from("static/nexus/assets"),
+            message: "permission denied".to_string(),
+        };
+        assert!(copy_variant.to_string().contains("copy failed from"));
+        assert!(copy_variant.source().is_none());
+
+        let css_variant = AssetSyncError::CssInvalid {
+            path: PathBuf::from("static/nexus/app.css"),
+            reason: "missing marker".to_string(),
+        };
+        assert!(
+            css_variant
+                .to_string()
+                .contains("copied CSS failed validation")
+        );
+        assert!(css_variant.source().is_none());
+
+        let walk_variant = AssetSyncError::WalkFailed {
+            path: PathBuf::from("static/nexus/images"),
+            message: "not readable".to_string(),
+        };
+        assert!(walk_variant.to_string().contains("directory walk failed at"));
+        assert!(walk_variant.source().is_none());
+    }
+
+    #[test]
+    fn ui_root_dir_resolves_to_revaer_ui_crate() -> TestResult {
+        let ui_root = ui_root_dir()?;
+        assert!(ui_root.ends_with("crates/revaer-ui"));
+        Ok(())
+    }
+
+    #[test]
     fn ensure_file_errors_for_missing_and_non_file() {
         let temp_root = TempRoot::new().expect("temp root");
         let missing = temp_root.path.join("missing.css");
@@ -485,6 +555,31 @@ mod tests {
     }
 
     #[test]
+    fn copy_file_creates_parent_directories_and_preserves_contents() -> TestResult {
+        let temp_root = TempRoot::new()?;
+        let source = temp_root.path.join("vendor/app.css");
+        if let Some(parent) = source.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        fs::write(&source, css_fixture())?;
+
+        let destination = temp_root.path.join("out/assets/app.css");
+        copy_file(&source, &destination)?;
+
+        assert_eq!(fs::read_to_string(destination)?, css_fixture());
+        Ok(())
+    }
+
+    #[test]
+    fn copy_file_reports_missing_source() {
+        let temp_root = TempRoot::new().expect("temp root");
+        let missing = temp_root.path.join("missing.css");
+        let destination = temp_root.path.join("dest/app.css");
+        let err = copy_file(&missing, &destination).expect_err("expected copy failure");
+        assert!(matches!(err, AssetSyncError::CopyFailed { .. }));
+    }
+
+    #[test]
     fn copy_dir_replaces_existing_file_target() -> TestResult {
         let temp_root = TempRoot::new()?;
         let source = temp_root.path.join("source-dir");
@@ -500,6 +595,35 @@ mod tests {
 
         let copied_file = destination.join("asset.txt");
         assert!(copied_file.is_file());
+        Ok(())
+    }
+
+    #[test]
+    fn copy_dir_replaces_existing_directory_target() -> TestResult {
+        let temp_root = TempRoot::new()?;
+        let source = temp_root.path.join("source-dir");
+        fs::create_dir_all(&source)?;
+        fs::write(source.join("asset.txt"), "asset")?;
+
+        let destination_parent = temp_root.path.join("dest");
+        let destination = destination_parent.join("source-dir");
+        fs::create_dir_all(&destination)?;
+        fs::write(destination.join("stale.txt"), "stale")?;
+
+        copy_dir(&source, &destination)?;
+
+        assert!(!destination.join("stale.txt").exists());
+        assert_eq!(fs::read_to_string(destination.join("asset.txt"))?, "asset");
+        Ok(())
+    }
+
+    #[test]
+    fn copy_dir_reports_missing_source_directory() -> TestResult {
+        let temp_root = TempRoot::new()?;
+        let source = temp_root.path.join("missing-dir");
+        let destination = temp_root.path.join("dest/missing-dir");
+        let err = copy_dir(&source, &destination).expect_err("expected copy failure");
+        assert!(matches!(err, AssetSyncError::CopyFailed { .. }));
         Ok(())
     }
 
@@ -520,6 +644,22 @@ mod tests {
         let err = validate_css(&marker_missing).expect_err("expected missing marker error");
         assert!(matches!(err, AssetSyncError::CssInvalid { .. }));
         Ok(())
+    }
+
+    #[test]
+    fn validate_css_accepts_fixture_content() -> TestResult {
+        let temp_root = TempRoot::new()?;
+        let css_path = temp_root.path.join("valid.css");
+        fs::write(&css_path, css_fixture())?;
+        validate_css(&css_path)?;
+        Ok(())
+    }
+
+    #[test]
+    fn validate_css_reports_io_for_missing_file() {
+        let missing = PathBuf::from("missing.css");
+        let err = validate_css(&missing).expect_err("expected io error");
+        assert!(matches!(err, AssetSyncError::Io { .. }));
     }
 
     #[test]
@@ -560,6 +700,46 @@ mod tests {
             DirStats { files: 0, bytes: 0 },
         )
         .expect_err("expected io error");
+        assert!(matches!(err, AssetSyncError::Io { .. }));
+        Ok(())
+    }
+
+    #[test]
+    fn write_lock_records_hash_and_directory_stats() -> TestResult {
+        let temp_root = TempRoot::new()?;
+        let output_root = temp_root.path.join("output");
+        write_lock(
+            &output_root,
+            "abc123",
+            DirStats {
+                files: 2,
+                bytes: 20,
+            },
+            DirStats {
+                files: 1,
+                bytes: 10,
+            },
+        )?;
+        let contents = fs::read_to_string(output_root.join("ASSET_LOCK.txt"))?;
+        assert!(contents.contains("app.css sha256 abc123"));
+        assert!(contents.contains("images files 2 bytes 20"));
+        assert!(contents.contains("js files 1 bytes 10"));
+        Ok(())
+    }
+
+    #[test]
+    fn write_lock_reports_io_error_when_lock_path_is_directory() -> TestResult {
+        let temp_root = TempRoot::new()?;
+        let output_root = temp_root.path.join("output");
+        fs::create_dir_all(output_root.join("ASSET_LOCK.txt"))?;
+
+        let err = write_lock(
+            &output_root,
+            "hash",
+            DirStats { files: 1, bytes: 1 },
+            DirStats { files: 1, bytes: 1 },
+        )
+        .expect_err("expected lock write error");
         assert!(matches!(err, AssetSyncError::Io { .. }));
         Ok(())
     }
