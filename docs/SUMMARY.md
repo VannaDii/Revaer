@@ -302,3 +302,4 @@
     -   [270: Indexer profile, policy, and Torznab inventory](adr/270-indexer-profile-policy-torznab-inventory.md)
     -   [271: Indexer CLI read parity](adr/271-indexer-cli-read-parity.md)
     -   [272: Indexer CLI operator write parity](adr/272-indexer-cli-operator-write-parity.md)
+    -   [273: Indexer CLI mutation parity follow-up](adr/273-indexer-cli-mutation-parity-followup.md)

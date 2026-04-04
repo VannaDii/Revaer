@@ -10,7 +10,8 @@ use uuid::Uuid;
 use crate::client::{AppContext, CliDependencies, CliResult, parse_api_key, parse_url};
 use crate::commands::indexers::{
     parse_import_job_id, parse_indexer_instance_id, parse_policy_rule_id, parse_policy_set_id,
-    parse_routing_policy_id, parse_torznab_instance_id,
+    parse_rate_limit_policy_id, parse_routing_policy_id, parse_search_profile_id,
+    parse_torznab_instance_id,
 };
 use crate::commands::torrents::{FilePriorityOverrideArg, StorageModeArg};
 use crate::commands::{config, indexers, setup, tail, torrents};
@@ -134,6 +135,19 @@ async fn dispatch_indexer(
         IndexerCommand::Secret(secret_command) => {
             dispatch_indexer_secret(*secret_command, deps, output).await
         }
+        IndexerCommand::RoutingPolicy(routing_command) => {
+            dispatch_indexer_routing_policy(*routing_command, deps, output).await
+        }
+        IndexerCommand::RateLimit(rate_limit_command) => {
+            dispatch_indexer_rate_limit(*rate_limit_command, deps, output).await
+        }
+        IndexerCommand::SearchProfile(search_profile_command) => {
+            dispatch_indexer_search_profile(*search_profile_command, deps, output).await
+        }
+        IndexerCommand::Backup(backup_command) => {
+            dispatch_indexer_backup(*backup_command, deps, output).await
+        }
+        IndexerCommand::Rss(rss_command) => dispatch_indexer_rss(*rss_command, deps, output).await,
         IndexerCommand::CategoryMapping(mapping_command) => {
             dispatch_indexer_category_mapping(*mapping_command, deps).await
         }
@@ -216,6 +230,118 @@ async fn dispatch_indexer_category_mapping(
         }
         CategoryMappingCommand::MediaDomainDelete(args) => {
             indexers::handle_media_domain_mapping_delete(deps, args).await
+        }
+    }
+}
+
+async fn dispatch_indexer_routing_policy(
+    command: RoutingPolicyCommand,
+    deps: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    match command {
+        RoutingPolicyCommand::Create(args) => {
+            indexers::handle_routing_policy_create(deps, args, output).await
+        }
+        RoutingPolicyCommand::SetParam(args) => {
+            indexers::handle_routing_policy_set_param(deps, args).await
+        }
+        RoutingPolicyCommand::BindSecret(args) => {
+            indexers::handle_routing_policy_bind_secret(deps, args).await
+        }
+    }
+}
+
+async fn dispatch_indexer_rate_limit(
+    command: RateLimitCommand,
+    deps: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    match command {
+        RateLimitCommand::Create(args) => {
+            indexers::handle_rate_limit_policy_create(deps, args, output).await
+        }
+        RateLimitCommand::Update(args) => {
+            indexers::handle_rate_limit_policy_update(deps, args, output).await
+        }
+        RateLimitCommand::Delete(args) => {
+            indexers::handle_rate_limit_policy_delete(deps, args).await
+        }
+        RateLimitCommand::AssignInstance(args) => {
+            indexers::handle_rate_limit_assign_instance(deps, args).await
+        }
+        RateLimitCommand::AssignRouting(args) => {
+            indexers::handle_rate_limit_assign_routing(deps, args).await
+        }
+    }
+}
+
+async fn dispatch_indexer_search_profile(
+    command: SearchProfileCommand,
+    deps: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    match command {
+        SearchProfileCommand::Create(args) => {
+            indexers::handle_search_profile_create(deps, args, output).await
+        }
+        SearchProfileCommand::Update(args) => {
+            indexers::handle_search_profile_update(deps, args, output).await
+        }
+        SearchProfileCommand::SetDefault(args) => {
+            indexers::handle_search_profile_set_default(deps, args, output).await
+        }
+        SearchProfileCommand::SetDefaultDomain(args) => {
+            indexers::handle_search_profile_set_default_domain(deps, args, output).await
+        }
+        SearchProfileCommand::SetMediaDomains(args) => {
+            indexers::handle_search_profile_set_media_domains(deps, args).await
+        }
+        SearchProfileCommand::AddPolicySet(args) => {
+            indexers::handle_search_profile_add_policy_set(deps, args).await
+        }
+        SearchProfileCommand::RemovePolicySet(args) => {
+            indexers::handle_search_profile_remove_policy_set(deps, args).await
+        }
+        SearchProfileCommand::SetIndexerAllow(args) => {
+            indexers::handle_search_profile_set_indexer_allow(deps, args).await
+        }
+        SearchProfileCommand::SetIndexerBlock(args) => {
+            indexers::handle_search_profile_set_indexer_block(deps, args).await
+        }
+        SearchProfileCommand::SetTagAllow(args) => {
+            indexers::handle_search_profile_set_tag_allow(deps, args).await
+        }
+        SearchProfileCommand::SetTagBlock(args) => {
+            indexers::handle_search_profile_set_tag_block(deps, args).await
+        }
+        SearchProfileCommand::SetTagPrefer(args) => {
+            indexers::handle_search_profile_set_tag_prefer(deps, args).await
+        }
+    }
+}
+
+async fn dispatch_indexer_backup(
+    command: BackupCommand,
+    deps: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    match command {
+        BackupCommand::Restore(args) => {
+            indexers::handle_indexer_backup_restore(deps, args, output).await
+        }
+    }
+}
+
+async fn dispatch_indexer_rss(
+    command: RssCommand,
+    deps: &AppContext,
+    output: OutputFormat,
+) -> CliResult<()> {
+    match command {
+        RssCommand::Set(args) => indexers::handle_indexer_rss_set(deps, args, output).await,
+        RssCommand::MarkSeen(args) => {
+            indexers::handle_indexer_rss_mark_seen(deps, args, output).await
         }
     }
 }
@@ -356,6 +482,17 @@ fn command_label_indexer(command: &IndexerCommand) -> &'static str {
         },
         IndexerCommand::Tag(tag_command) => command_label_tag(tag_command),
         IndexerCommand::Secret(secret_command) => command_label_secret(secret_command),
+        IndexerCommand::RoutingPolicy(routing_command) => {
+            command_label_routing_policy(routing_command)
+        }
+        IndexerCommand::RateLimit(rate_limit_command) => {
+            command_label_rate_limit(rate_limit_command)
+        }
+        IndexerCommand::SearchProfile(search_profile_command) => {
+            command_label_search_profile(search_profile_command)
+        }
+        IndexerCommand::Backup(backup_command) => command_label_backup(backup_command),
+        IndexerCommand::Rss(rss_command) => command_label_rss(rss_command),
         IndexerCommand::CategoryMapping(mapping_command) => {
             command_label_category_mapping(mapping_command)
         }
@@ -371,6 +508,54 @@ fn command_label_indexer(command: &IndexerCommand) -> &'static str {
             IndexerInstanceCommand::TestFinalize(_) => "indexer_instance_test_finalize",
         },
         IndexerCommand::Read(read_command) => command_label_indexer_read(read_command),
+    }
+}
+
+const fn command_label_routing_policy(command: &RoutingPolicyCommand) -> &'static str {
+    match command {
+        RoutingPolicyCommand::Create(_) => "indexer_routing_policy_create",
+        RoutingPolicyCommand::SetParam(_) => "indexer_routing_policy_set_param",
+        RoutingPolicyCommand::BindSecret(_) => "indexer_routing_policy_bind_secret",
+    }
+}
+
+const fn command_label_rate_limit(command: &RateLimitCommand) -> &'static str {
+    match command {
+        RateLimitCommand::Create(_) => "indexer_rate_limit_create",
+        RateLimitCommand::Update(_) => "indexer_rate_limit_update",
+        RateLimitCommand::Delete(_) => "indexer_rate_limit_delete",
+        RateLimitCommand::AssignInstance(_) => "indexer_rate_limit_assign_instance",
+        RateLimitCommand::AssignRouting(_) => "indexer_rate_limit_assign_routing",
+    }
+}
+
+const fn command_label_search_profile(command: &SearchProfileCommand) -> &'static str {
+    match command {
+        SearchProfileCommand::Create(_) => "indexer_search_profile_create",
+        SearchProfileCommand::Update(_) => "indexer_search_profile_update",
+        SearchProfileCommand::SetDefault(_) => "indexer_search_profile_set_default",
+        SearchProfileCommand::SetDefaultDomain(_) => "indexer_search_profile_set_default_domain",
+        SearchProfileCommand::SetMediaDomains(_) => "indexer_search_profile_set_media_domains",
+        SearchProfileCommand::AddPolicySet(_) => "indexer_search_profile_add_policy_set",
+        SearchProfileCommand::RemovePolicySet(_) => "indexer_search_profile_remove_policy_set",
+        SearchProfileCommand::SetIndexerAllow(_) => "indexer_search_profile_set_indexer_allow",
+        SearchProfileCommand::SetIndexerBlock(_) => "indexer_search_profile_set_indexer_block",
+        SearchProfileCommand::SetTagAllow(_) => "indexer_search_profile_set_tag_allow",
+        SearchProfileCommand::SetTagBlock(_) => "indexer_search_profile_set_tag_block",
+        SearchProfileCommand::SetTagPrefer(_) => "indexer_search_profile_set_tag_prefer",
+    }
+}
+
+const fn command_label_backup(command: &BackupCommand) -> &'static str {
+    match command {
+        BackupCommand::Restore(_) => "indexer_backup_restore",
+    }
+}
+
+const fn command_label_rss(command: &RssCommand) -> &'static str {
+    match command {
+        RssCommand::Set(_) => "indexer_rss_set",
+        RssCommand::MarkSeen(_) => "indexer_rss_mark_seen",
     }
 }
 
@@ -521,6 +706,16 @@ pub(crate) enum IndexerCommand {
     #[command(subcommand)]
     Secret(Box<SecretCommand>),
     #[command(subcommand)]
+    RoutingPolicy(Box<RoutingPolicyCommand>),
+    #[command(subcommand)]
+    RateLimit(Box<RateLimitCommand>),
+    #[command(subcommand)]
+    SearchProfile(Box<SearchProfileCommand>),
+    #[command(subcommand)]
+    Backup(Box<BackupCommand>),
+    #[command(subcommand)]
+    Rss(Box<RssCommand>),
+    #[command(subcommand)]
     CategoryMapping(Box<CategoryMappingCommand>),
     #[command(subcommand)]
     Torznab(TorznabCommand),
@@ -569,6 +764,49 @@ pub(crate) enum CategoryMappingCommand {
     TrackerDelete(TrackerCategoryMappingDeleteArgs),
     MediaDomainUpsert(MediaDomainMappingUpsertArgs),
     MediaDomainDelete(MediaDomainMappingDeleteArgs),
+}
+
+#[derive(Subcommand)]
+pub(crate) enum RoutingPolicyCommand {
+    Create(RoutingPolicyCreateArgs),
+    SetParam(RoutingPolicySetParamArgs),
+    BindSecret(RoutingPolicyBindSecretArgs),
+}
+
+#[derive(Subcommand)]
+pub(crate) enum RateLimitCommand {
+    Create(RateLimitCreateArgs),
+    Update(RateLimitUpdateArgs),
+    Delete(RateLimitDeleteArgs),
+    AssignInstance(RateLimitAssignInstanceArgs),
+    AssignRouting(RateLimitAssignRoutingArgs),
+}
+
+#[derive(Subcommand)]
+pub(crate) enum SearchProfileCommand {
+    Create(SearchProfileCreateArgs),
+    Update(SearchProfileUpdateArgs),
+    SetDefault(SearchProfileSetDefaultArgs),
+    SetDefaultDomain(SearchProfileSetDefaultDomainArgs),
+    SetMediaDomains(SearchProfileSetMediaDomainsArgs),
+    AddPolicySet(SearchProfilePolicySetArgs),
+    RemovePolicySet(SearchProfilePolicySetArgs),
+    SetIndexerAllow(SearchProfileIndexerSetArgs),
+    SetIndexerBlock(SearchProfileIndexerSetArgs),
+    SetTagAllow(SearchProfileTagSetArgs),
+    SetTagBlock(SearchProfileTagSetArgs),
+    SetTagPrefer(SearchProfileTagSetArgs),
+}
+
+#[derive(Subcommand)]
+pub(crate) enum BackupCommand {
+    Restore(BackupRestoreArgs),
+}
+
+#[derive(Subcommand)]
+pub(crate) enum RssCommand {
+    Set(IndexerRssSetArgs),
+    MarkSeen(IndexerRssMarkSeenArgs),
 }
 
 #[derive(Subcommand)]
@@ -896,6 +1134,190 @@ pub(crate) struct MediaDomainMappingDeleteArgs {
     pub media_domain_key: String,
     #[arg(long, help = "Torznab category id")]
     pub torznab_cat_id: i32,
+}
+
+#[derive(Args)]
+pub(crate) struct RoutingPolicyCreateArgs {
+    #[arg(long, help = "Display name for the routing policy")]
+    pub display_name: String,
+    #[arg(long, help = "Routing mode key")]
+    pub mode: String,
+}
+
+#[derive(Args)]
+pub(crate) struct RoutingPolicySetParamArgs {
+    #[arg(value_parser = parse_routing_policy_id, help = "Routing policy public id")]
+    pub routing_policy_public_id: Uuid,
+    #[arg(long, help = "Parameter key")]
+    pub param_key: String,
+    #[arg(long, help = "Optional plain-text parameter value")]
+    pub value_plain: Option<String>,
+    #[arg(long, help = "Optional integer parameter value")]
+    pub value_int: Option<i32>,
+    #[arg(long, help = "Optional boolean parameter value")]
+    pub value_bool: Option<bool>,
+}
+
+#[derive(Args)]
+pub(crate) struct RoutingPolicyBindSecretArgs {
+    #[arg(value_parser = parse_routing_policy_id, help = "Routing policy public id")]
+    pub routing_policy_public_id: Uuid,
+    #[arg(long, help = "Parameter key")]
+    pub param_key: String,
+    #[arg(long, help = "Secret public id")]
+    pub secret_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct RateLimitCreateArgs {
+    #[arg(long, help = "Display name for the rate-limit policy")]
+    pub display_name: String,
+    #[arg(long, help = "Requests per minute")]
+    pub rpm: i32,
+    #[arg(long, help = "Burst token count")]
+    pub burst: i32,
+    #[arg(long, help = "Concurrent request limit")]
+    pub concurrent: i32,
+}
+
+#[derive(Args)]
+pub(crate) struct RateLimitUpdateArgs {
+    #[arg(value_parser = parse_rate_limit_policy_id, help = "Rate-limit policy public id")]
+    pub rate_limit_policy_public_id: Uuid,
+    #[arg(long, help = "Updated display name")]
+    pub display_name: Option<String>,
+    #[arg(long, help = "Updated requests per minute")]
+    pub rpm: Option<i32>,
+    #[arg(long, help = "Updated burst token count")]
+    pub burst: Option<i32>,
+    #[arg(long, help = "Updated concurrent request limit")]
+    pub concurrent: Option<i32>,
+}
+
+#[derive(Args)]
+pub(crate) struct RateLimitDeleteArgs {
+    #[arg(value_parser = parse_rate_limit_policy_id, help = "Rate-limit policy public id")]
+    pub rate_limit_policy_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct RateLimitAssignInstanceArgs {
+    #[arg(value_parser = parse_indexer_instance_id, help = "Indexer instance public id")]
+    pub indexer_instance_public_id: Uuid,
+    #[arg(long, help = "Rate-limit policy public id (omit to clear)")]
+    pub rate_limit_policy_public_id: Option<Uuid>,
+}
+
+#[derive(Args)]
+pub(crate) struct RateLimitAssignRoutingArgs {
+    #[arg(value_parser = parse_routing_policy_id, help = "Routing policy public id")]
+    pub routing_policy_public_id: Uuid,
+    #[arg(long, help = "Rate-limit policy public id (omit to clear)")]
+    pub rate_limit_policy_public_id: Option<Uuid>,
+}
+
+#[derive(Args)]
+pub(crate) struct SearchProfileCreateArgs {
+    #[arg(long, help = "Display name for the search profile")]
+    pub display_name: String,
+    #[arg(long, help = "Mark this profile as default")]
+    pub is_default: bool,
+    #[arg(long, help = "Optional page size override")]
+    pub page_size: Option<i32>,
+    #[arg(long, help = "Optional default media-domain key")]
+    pub default_media_domain_key: Option<String>,
+    #[arg(long, help = "Optional user public id for scoped profiles")]
+    pub user_public_id: Option<Uuid>,
+}
+
+#[derive(Args)]
+pub(crate) struct SearchProfileUpdateArgs {
+    #[arg(value_parser = parse_search_profile_id, help = "Search profile public id")]
+    pub search_profile_public_id: Uuid,
+    #[arg(long, help = "Updated display name")]
+    pub display_name: Option<String>,
+    #[arg(long, help = "Updated page size")]
+    pub page_size: Option<i32>,
+}
+
+#[derive(Args)]
+pub(crate) struct SearchProfileSetDefaultArgs {
+    #[arg(value_parser = parse_search_profile_id, help = "Search profile public id")]
+    pub search_profile_public_id: Uuid,
+    #[arg(long, help = "Optional page size override")]
+    pub page_size: Option<i32>,
+}
+
+#[derive(Args)]
+pub(crate) struct SearchProfileSetDefaultDomainArgs {
+    #[arg(value_parser = parse_search_profile_id, help = "Search profile public id")]
+    pub search_profile_public_id: Uuid,
+    #[arg(long, help = "Default media-domain key (omit to clear)")]
+    pub default_media_domain_key: Option<String>,
+}
+
+#[derive(Args)]
+pub(crate) struct SearchProfileSetMediaDomainsArgs {
+    #[arg(value_parser = parse_search_profile_id, help = "Search profile public id")]
+    pub search_profile_public_id: Uuid,
+    #[arg(long, value_delimiter = ',', help = "Allowed media-domain keys")]
+    pub media_domain_keys: Vec<String>,
+}
+
+#[derive(Args)]
+pub(crate) struct SearchProfilePolicySetArgs {
+    #[arg(value_parser = parse_search_profile_id, help = "Search profile public id")]
+    pub search_profile_public_id: Uuid,
+    #[arg(long, value_parser = parse_policy_set_id, help = "Policy set public id")]
+    pub policy_set_public_id: Uuid,
+}
+
+#[derive(Args)]
+pub(crate) struct SearchProfileIndexerSetArgs {
+    #[arg(value_parser = parse_search_profile_id, help = "Search profile public id")]
+    pub search_profile_public_id: Uuid,
+    #[arg(long, value_delimiter = ',', help = "Indexer instance public ids")]
+    pub indexer_instance_public_ids: Vec<Uuid>,
+}
+
+#[derive(Args)]
+pub(crate) struct SearchProfileTagSetArgs {
+    #[arg(value_parser = parse_search_profile_id, help = "Search profile public id")]
+    pub search_profile_public_id: Uuid,
+    #[arg(long, value_delimiter = ',', help = "Tag public ids")]
+    pub tag_public_ids: Vec<Uuid>,
+    #[arg(long, value_delimiter = ',', help = "Tag keys")]
+    pub tag_keys: Vec<String>,
+}
+
+#[derive(Args)]
+pub(crate) struct BackupRestoreArgs {
+    #[arg(long, value_parser = parse_existing_file, help = "Path to backup snapshot JSON")]
+    pub file: PathBuf,
+}
+
+#[derive(Args)]
+pub(crate) struct IndexerRssSetArgs {
+    #[arg(value_parser = parse_indexer_instance_id, help = "Indexer instance public id")]
+    pub indexer_instance_public_id: Uuid,
+    #[arg(long, help = "Enable or disable the RSS subscription")]
+    pub is_enabled: bool,
+    #[arg(long, help = "Optional poll interval override in seconds")]
+    pub interval_seconds: Option<i32>,
+}
+
+#[derive(Args)]
+pub(crate) struct IndexerRssMarkSeenArgs {
+    #[arg(value_parser = parse_indexer_instance_id, help = "Indexer instance public id")]
+    pub indexer_instance_public_id: Uuid,
+    #[arg(long, help = "Optional feed GUID")]
+    pub item_guid: Option<String>,
+    #[arg(long, help = "Optional v1 infohash")]
+    pub infohash_v1: Option<String>,
+    #[arg(long, help = "Optional v2 infohash")]
+    pub infohash_v2: Option<String>,
+    #[arg(long, help = "Optional magnet hash")]
+    pub magnet_hash: Option<String>,
 }
 
 #[derive(Args)]
@@ -1295,6 +1717,54 @@ mod tests {
             ))),
             "indexer_category_mapping_tracker_upsert",
         );
+        assert_command_label(
+            &Command::Indexer(IndexerCommand::RoutingPolicy(Box::new(
+                RoutingPolicyCommand::Create(RoutingPolicyCreateArgs {
+                    display_name: "Proxy".to_string(),
+                    mode: "http_proxy".to_string(),
+                }),
+            ))),
+            "indexer_routing_policy_create",
+        );
+        assert_command_label(
+            &Command::Indexer(IndexerCommand::RateLimit(Box::new(
+                RateLimitCommand::AssignInstance(RateLimitAssignInstanceArgs {
+                    indexer_instance_public_id: Uuid::nil(),
+                    rate_limit_policy_public_id: None,
+                }),
+            ))),
+            "indexer_rate_limit_assign_instance",
+        );
+        assert_command_label(
+            &Command::Indexer(IndexerCommand::SearchProfile(Box::new(
+                SearchProfileCommand::SetTagPrefer(SearchProfileTagSetArgs {
+                    search_profile_public_id: Uuid::nil(),
+                    tag_public_ids: Vec::new(),
+                    tag_keys: vec!["anime".to_string()],
+                }),
+            ))),
+            "indexer_search_profile_set_tag_prefer",
+        );
+        assert_command_label(
+            &Command::Indexer(IndexerCommand::Backup(Box::new(BackupCommand::Restore(
+                BackupRestoreArgs {
+                    file: PathBuf::from("/tmp/backup.json"),
+                },
+            )))),
+            "indexer_backup_restore",
+        );
+        assert_command_label(
+            &Command::Indexer(IndexerCommand::Rss(Box::new(RssCommand::MarkSeen(
+                IndexerRssMarkSeenArgs {
+                    indexer_instance_public_id: Uuid::nil(),
+                    item_guid: Some("guid".to_string()),
+                    infohash_v1: None,
+                    infohash_v2: None,
+                    magnet_hash: None,
+                },
+            )))),
+            "indexer_rss_mark_seen",
+        );
     }
 
     #[test]
@@ -1662,6 +2132,179 @@ mod tests {
 
         let exit_code = run_with_cli(cli).await;
         mapping_mock.assert();
+        assert_eq!(exit_code, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_routing_policy_create() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let routing_policy_public_id = Uuid::new_v4();
+        let routing_mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/v1/indexers/routing-policies")
+                .header(HEADER_API_KEY, "key:secret")
+                .json_body(serde_json::json!({
+                    "display_name": "Proxy Lane",
+                    "mode": "http_proxy"
+                }));
+            then.status(201).json_body(serde_json::json!({
+                "routing_policy_public_id": routing_policy_public_id,
+                "display_name": "Proxy Lane",
+                "mode": "http_proxy"
+            }));
+        });
+
+        let cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "indexer",
+            "routing-policy",
+            "create",
+            "--display-name",
+            " Proxy Lane ",
+            "--mode",
+            " http_proxy ",
+        ]);
+
+        let exit_code = run_with_cli(cli).await;
+        routing_mock.assert();
+        assert_eq!(exit_code, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_search_profile_set_default_domain() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let search_profile_public_id = Uuid::new_v4();
+        let profile_mock = server.mock(|when, then| {
+            when.method(PUT)
+                .path(format!(
+                    "/v1/indexers/search-profiles/{search_profile_public_id}/default-domain"
+                ))
+                .header(HEADER_API_KEY, "key:secret")
+                .json_body(serde_json::json!({
+                    "default_media_domain_key": "movies"
+                }));
+            then.status(200).json_body(serde_json::json!({
+                "search_profile_public_id": search_profile_public_id
+            }));
+        });
+
+        let cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "indexer",
+            "search-profile",
+            "set-default-domain",
+            &search_profile_public_id.to_string(),
+            "--default-media-domain-key",
+            " movies ",
+        ]);
+
+        let exit_code = run_with_cli(cli).await;
+        profile_mock.assert();
+        assert_eq!(exit_code, 0);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_backup_restore() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let backup_mock = server.mock(|when, then| {
+            when.method(POST)
+                .path("/v1/indexers/backup/restore")
+                .header(HEADER_API_KEY, "key:secret");
+            then.status(200).json_body(serde_json::json!({
+                "created_tag_count": 1,
+                "created_rate_limit_policy_count": 1,
+                "created_routing_policy_count": 1,
+                "created_indexer_instance_count": 1,
+                "unresolved_secret_bindings": []
+            }));
+        });
+
+        let snapshot_path =
+            server_root()?.join(format!("indexer-backup-{}.json", Uuid::new_v4().simple()));
+        fs::write(
+            &snapshot_path,
+            serde_json::to_vec(&serde_json::json!({
+                "version": "v1",
+                "exported_at": "2026-04-03T00:00:00Z",
+                "tags": [],
+                "rate_limit_policies": [],
+                "routing_policies": [],
+                "indexer_instances": [],
+                "secrets": []
+            }))?,
+        )?;
+
+        let cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "indexer",
+            "backup",
+            "restore",
+            "--file",
+            snapshot_path
+                .to_str()
+                .ok_or_else(|| anyhow!("invalid backup path"))?,
+        ]);
+
+        let exit_code = run_with_cli(cli).await;
+        backup_mock.assert();
+        assert_eq!(exit_code, 0);
+        fs::remove_file(snapshot_path)?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn run_with_cli_executes_rss_mark_seen() -> Result<()> {
+        let server = MockServer::start_async().await;
+        let indexer_instance_public_id = Uuid::new_v4();
+        let rss_mock = server.mock(|when, then| {
+            when.method(POST)
+                .path(format!(
+                    "/v1/indexers/instances/{indexer_instance_public_id}/rss/items"
+                ))
+                .header(HEADER_API_KEY, "key:secret")
+                .json_body(serde_json::json!({
+                    "item_guid": "guid-1"
+                }));
+            then.status(200).json_body(serde_json::json!({
+                "item": {
+                    "item_guid": "guid-1",
+                    "first_seen_at": "2026-04-03T00:00:00Z"
+                },
+                "inserted": true
+            }));
+        });
+
+        let cli = Cli::parse_from([
+            "revaer",
+            "--api-url",
+            &server.base_url(),
+            "--api-key",
+            "key:secret",
+            "indexer",
+            "rss",
+            "mark-seen",
+            &indexer_instance_public_id.to_string(),
+            "--item-guid",
+            " guid-1 ",
+        ]);
+
+        let exit_code = run_with_cli(cli).await;
+        rss_mock.assert();
         assert_eq!(exit_code, 0);
         Ok(())
     }

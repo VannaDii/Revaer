@@ -3,15 +3,16 @@
 use anyhow::anyhow;
 use revaer_api::models::{
     ImportJobResponse, ImportJobResultsResponse, ImportJobStatusResponse,
-    IndexerBackupExportResponse, IndexerConnectivityProfileResponse,
+    IndexerBackupExportResponse, IndexerBackupRestoreResponse, IndexerConnectivityProfileResponse,
     IndexerHealthEventListResponse, IndexerInstanceListResponse,
     IndexerInstanceTestFinalizeResponse, IndexerInstanceTestPrepareResponse,
-    IndexerRssSeenItemsResponse, IndexerRssSubscriptionResponse,
+    IndexerRssSeenItemsResponse, IndexerRssSeenMarkResponse, IndexerRssSubscriptionResponse,
     IndexerSourceReputationListResponse, PolicyRuleResponse, PolicySetListResponse,
-    PolicySetResponse, RateLimitPolicyListResponse, RoutingPolicyDetailResponse,
-    RoutingPolicyListResponse, SearchProfileListResponse, SecretMetadataListResponse,
-    SecretResponse, TagListResponse, TagResponse, TorrentDetail, TorrentListResponse,
-    TorrentStateKind, TorznabInstanceListResponse, TorznabInstanceResponse,
+    PolicySetResponse, RateLimitPolicyListResponse, RateLimitPolicyResponse,
+    RoutingPolicyDetailResponse, RoutingPolicyListResponse, RoutingPolicyResponse,
+    SearchProfileListResponse, SearchProfileResponse, SecretMetadataListResponse, SecretResponse,
+    TagListResponse, TagResponse, TorrentDetail, TorrentListResponse, TorrentStateKind,
+    TorznabInstanceListResponse, TorznabInstanceResponse,
 };
 use revaer_config::ConfigSnapshot;
 use revaer_torrent_core::FilePriority;
@@ -313,6 +314,56 @@ pub(crate) fn render_policy_rule_response(
         OutputFormat::Json => print_json(response)?,
         OutputFormat::Table => {
             println!("policy_rule_public_id: {}", response.policy_rule_public_id);
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_search_profile_response(
+    response: &SearchProfileResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Table => {
+            println!(
+                "search_profile_public_id: {}",
+                response.search_profile_public_id
+            );
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_routing_policy_response(
+    response: &RoutingPolicyResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Table => {
+            println!(
+                "routing_policy_public_id: {}",
+                response.routing_policy_public_id
+            );
+            println!("display_name: {}", response.display_name);
+            println!("mode: {}", response.mode);
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_rate_limit_policy_response(
+    response: &RateLimitPolicyResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Table => {
+            println!(
+                "rate_limit_policy_public_id: {}",
+                response.rate_limit_policy_public_id
+            );
         }
     }
     Ok(())
@@ -640,6 +691,35 @@ pub(crate) fn render_indexer_backup_export(
     Ok(())
 }
 
+pub(crate) fn render_indexer_backup_restore(
+    response: &IndexerBackupRestoreResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Table => {
+            println!("created_tag_count: {}", response.created_tag_count);
+            println!(
+                "created_rate_limit_policy_count: {}",
+                response.created_rate_limit_policy_count
+            );
+            println!(
+                "created_routing_policy_count: {}",
+                response.created_routing_policy_count
+            );
+            println!(
+                "created_indexer_instance_count: {}",
+                response.created_indexer_instance_count
+            );
+            println!(
+                "unresolved_secret_bindings: {}",
+                response.unresolved_secret_bindings.len()
+            );
+        }
+    }
+    Ok(())
+}
+
 pub(crate) fn render_indexer_connectivity_profile(
     response: &IndexerConnectivityProfileResponse,
     format: OutputFormat,
@@ -763,6 +843,32 @@ pub(crate) fn render_indexer_rss_seen_items(
                     item.first_seen_at, item_guid, infohash_v1
                 );
             }
+        }
+    }
+    Ok(())
+}
+
+pub(crate) fn render_indexer_rss_seen_mark(
+    response: &IndexerRssSeenMarkResponse,
+    format: OutputFormat,
+) -> CliResult<()> {
+    match format {
+        OutputFormat::Json => print_json(response)?,
+        OutputFormat::Table => {
+            println!("inserted: {}", response.inserted);
+            if let Some(item_guid) = &response.item.item_guid {
+                println!("item_guid: {item_guid}");
+            }
+            if let Some(infohash_v1) = &response.item.infohash_v1 {
+                println!("infohash_v1: {infohash_v1}");
+            }
+            if let Some(infohash_v2) = &response.item.infohash_v2 {
+                println!("infohash_v2: {infohash_v2}");
+            }
+            if let Some(magnet_hash) = &response.item.magnet_hash {
+                println!("magnet_hash: {magnet_hash}");
+            }
+            println!("first_seen_at: {}", response.item.first_seen_at);
         }
     }
     Ok(())
