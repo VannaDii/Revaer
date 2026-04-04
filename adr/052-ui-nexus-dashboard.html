@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-7e76d2bd.js";
+            window.path_to_searchindex_js = "../searchindex-02379307.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-bcd22581.js"></script>
+        <script src="../toc-5cc33c76.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -215,7 +215,7 @@
 </ul>
 <h2 id="design-notes"><a class="header" href="#design-notes">Design notes</a></h2>
 <ul>
-<li>App shell and dashboard markup map directly to <code>ui_vendor/nexus-html@3.1.0</code> partials and the ecommerce dashboard page.</li>
+<li>App shell and dashboard markup preserve the Nexus layout/class structure while the repo keeps only the vendor asset kit; executable Nexus reference HTML is not retained in-tree.</li>
 <li>Dashboard sections are split into Nexus-faithful organisms while preserving class names and nesting.</li>
 <li>SSE status is stored in <code>system.sse_status</code>; indicator consumes a summary slice, modal consumes full details.</li>
 </ul>

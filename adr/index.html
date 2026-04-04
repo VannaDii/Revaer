@@ -35,10 +35,10 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "coal";
-            window.path_to_searchindex_js = "../searchindex-7e76d2bd.js";
+            window.path_to_searchindex_js = "../searchindex-02379307.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="../toc-bcd22581.js"></script>
+        <script src="../toc-5cc33c76.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -290,13 +290,190 @@
 <li><a href="098-workflow-image-reuse.html">098</a> – Reusable image build workflow</li>
 <li><a href="099-indexer-erd-single-tenant.html">099</a> – Indexer ERD single-tenant and audit fields</li>
 <li><a href="100-sonar-scan-workflow-lcov.html">100</a> – SonarQube workflow with root coverage LCOV</li>
+<li><a href="101-indexer-erd-checklist.html">101</a> – Indexer ERD implementation checklist</li>
+<li><a href="102-indexer-core-schema.html">102</a> – Indexer core schema foundations</li>
+<li><a href="103-indexer-definition-schema.html">103</a> – Indexer definition schema</li>
+<li><a href="104-indexer-instance-schema.html">104</a> – Indexer instance schema and RSS</li>
+<li><a href="105-indexer-secret-schema.html">105</a> – Indexer secret schema</li>
+<li><a href="106-indexer-search-profile-torznab-schema.html">106</a> – Indexer search profiles and Torznab schema</li>
+<li><a href="107-indexer-import-schema.html">107</a> – Indexer import schema</li>
+<li><a href="108-indexer-rate-limit-cf-schema.html">108</a> – Indexer rate limit and Cloudflare schema</li>
+<li><a href="109-indexer-policy-schema.html">109</a> – Indexer policy schema</li>
+<li><a href="110-indexer-torznab-category-schema.html">110</a> – Indexer Torznab category schema</li>
+<li><a href="111-indexer-connectivity-audit-schema.html">111</a> – Indexer connectivity and audit schema</li>
+<li><a href="112-indexer-canonicalization-schema.html">112</a> – Indexer canonicalization schema</li>
+<li><a href="113-indexer-search-request-schema.html">113</a> – Indexer search request schema</li>
+<li><a href="114-indexer-scoring-schema.html">114</a> – Indexer scoring schema</li>
+<li><a href="115-indexer-conflict-decision-schema.html">115</a> – Indexer conflict and decision schema</li>
+<li><a href="116-indexer-user-action-schema.html">116</a> – Indexer user action and acquisition schema</li>
+<li><a href="117-indexer-telemetry-reputation-schema.html">117</a> – Indexer telemetry and reputation schema</li>
+<li><a href="118-indexer-job-schedule-schema.html">118</a> – Indexer job schedule schema</li>
+<li><a href="119-indexer-fk-on-delete-rules.html">119</a> – Indexer FK on-delete rules</li>
+<li><a href="120-indexer-seed-data.html">120</a> – Indexer seed data and defaults</li>
+<li><a href="121-indexer-query-indexes.html">121</a> – Indexer query indexes</li>
+<li><a href="122-indexer-deployment-init-proc.html">122</a> – Indexer deployment initialization procedure</li>
+<li><a href="123-indexer-app-user-procs.html">123</a> – Indexer app_user stored procedures</li>
+<li><a href="124-indexer-tag-procs.html">124</a> – Indexer tag stored procedures</li>
+<li><a href="125-indexer-routing-policy-procs.html">125</a> – Indexer routing policy stored procedures</li>
+<li><a href="126-indexer-cf-reset-proc.html">126</a> – Indexer Cloudflare reset procedure</li>
+<li><a href="127-indexer-rate-limit-procs.html">127</a> – Indexer rate limit stored procedures</li>
+<li><a href="128-indexer-instance-procs.html">128</a> – Indexer instance stored procedures</li>
+<li><a href="129-indexer-category-mapping-procs.html">129</a> – Indexer category mapping procedures</li>
+<li><a href="130-indexer-policy-set-procs.html">130</a> – Indexer policy set procedures</li>
+<li><a href="131-indexer-search-profile-procs.html">131</a> – Indexer search profile procedures</li>
+<li><a href="132-indexer-policy-rule-create-proc.html">132</a> – Indexer policy rule create procedure</li>
+<li><a href="133-indexer-outbound-request-log-proc.html">133</a> – Indexer outbound request log procedure</li>
+<li><a href="134-indexer-torznab-instance-state-procs.html">134</a> – Indexer Torznab instance state procedures</li>
+<li><a href="135-indexer-conflict-resolution-procs.html">135</a> – Indexer conflict resolution procedures</li>
+<li><a href="136-indexer-job-runner-procs.html">136</a> – Indexer job runner procedures</li>
+<li><a href="137-indexer-search-request-cancel-proc.html">137</a> – Indexer search request cancel procedure</li>
+<li><a href="138-indexer-search-run-procs.html">138</a> – Indexer search run procedures</li>
+<li><a href="139-indexer-canonical-disambiguation-rule-proc.html">139</a> – Indexer canonical disambiguation rule procedure</li>
+<li><a href="140-indexer-search-request-create-proc.html">140</a> – Indexer search request create procedure</li>
+<li><a href="141-indexer-job-runner-followups.html">141</a> – Indexer job runner follow-up procedures</li>
+<li><a href="142-indexer-executor-handoff-procs.html">142</a> – Indexer executor handoff stored procedures</li>
+<li><a href="143-indexer-tag-api.html">143</a> – Indexer tag API surface</li>
+<li><a href="144-task-indexer-proc-fixes.html">144</a> – Task: Indexer procedure fixes (RSS apply, base score refresh, normalization)</li>
+<li><a href="145-indexer-domain-mapping.html">145</a> – Indexer domain mapping and DI boundaries</li>
+<li><a href="146-indexer-test-harness.html">146</a> – Indexer stored-proc test harness</li>
+<li><a href="147-indexer-error-code-taxonomy.html">147</a> – Indexer error-code taxonomy</li>
+<li><a href="148-indexer-v1-scope-routing.html">148</a> – Indexer v1 scope enforcement</li>
+<li><a href="149-indexer-json-ban-verification.html">149</a> – Indexer schema JSON ban verification</li>
+<li><a href="150-indexer-public-id-identity.html">150</a> – Indexer public-id and bigint identity verification</li>
+<li><a href="151-indexer-soft-delete-verification.html">151</a> – Indexer soft-delete coverage verification</li>
+<li><a href="152-indexer-audit-timestamps-verification.html">152</a> – Indexer audit fields and timestamp defaults verification</li>
+<li><a href="153-indexer-api-boundary-public-ids.html">153</a> – Indexer API boundary public-id verification</li>
+<li><a href="154-indexer-external-reference-public-ids.html">154</a> – Indexer external reference public-id verification</li>
+<li><a href="155-indexer-system-sentinel-usage.html">155</a> – Indexer system sentinel usage verification</li>
+<li><a href="156-indexer-text-caps-lowercase.html">156</a> – Indexer text caps and lowercase key enforcement verification</li>
+<li><a href="157-indexer-normalized-columns.html">157</a> – Indexer normalized column verification</li>
+<li><a href="158-indexer-hash-identity-rules.html">158</a> – Indexer hash identity rules verification</li>
+<li><a href="159-indexer-secret-binding-only.html">159</a> – Indexer secret binding linkage verification</li>
+<li><a href="160-indexer-single-tenant-scope.html">160</a> – Indexer single-tenant scope verification</li>
+<li><a href="161-indexer-table-constraint-alignment.html">161</a> – Indexer table/constraint alignment verification</li>
+<li><a href="162-indexer-per-table-notes-verification.html">162</a> – Indexer per-table Notes verification</li>
+<li><a href="163-indexer-proc-error-codes.html">163</a> – Indexer proc error-code alignment for key lookups</li>
+<li><a href="164-indexer-errors-normalization.html">164</a> – Indexer error enums and normalization helpers verification</li>
+<li><a href="165-indexer-no-panics-result-only.html">165</a> – Indexer result-only returns and no-panics verification</li>
+<li><a href="166-indexer-tryop-wrappers.html">166</a> – Indexer tryOp wrappers for external operations</li>
+<li><a href="167-indexer-routing-policies.html">167</a> – Indexer routing policy service and endpoints</li>
+<li><a href="168-indexer-definition-list.html">168</a> – Indexer definition list endpoint</li>
+<li><a href="169-indexer-cf-state-get.html">169</a> – Indexer CF state read endpoint</li>
+<li><a href="170-indexer-cf-state-e2e-coverage.html">170</a> – Indexer CF state E2E coverage</li>
+<li><a href="171-indexer-category-mapping-api.html">171</a> – Indexer category mapping API endpoints</li>
+<li><a href="172-indexer-torznab-instance-api.html">172</a> – Indexer Torznab instance API endpoints</li>
+<li><a href="173-indexer-search-profile-api.html">173</a> – Indexer search profile API endpoints</li>
+<li><a href="174-indexer-import-jobs-api.html">174</a> – Indexer import jobs API endpoints</li>
+<li><a href="175-indexer-import-cli.html">175</a> – Indexer import jobs CLI commands</li>
+<li><a href="176-indexer-torznab-cli.html">176</a> – Indexer Torznab CLI management</li>
+<li><a href="177-indexer-policy-cli.html">177</a> – Indexer policy CLI management</li>
+<li><a href="178-indexer-instance-test-api.html">178</a> – Indexer instance test API and CLI</li>
+<li><a href="179-indexer-allocation-guard.html">179</a> – Indexer allocation safety guard</li>
+<li><a href="180-auth-prompt-dismissal.html">180</a> – Auth prompt dismissal stability</li>
+<li><a href="181-allocation-live-memory-probe.html">181</a> – Cross-platform allocation safety probe</li>
+<li><a href="182-indexer-pr-feedback.html">182</a> – Indexer PR feedback follow-through</li>
+<li><a href="183-indexer-pr-feedback-allocations.html">183</a> – Indexer PR feedback allocation follow-up</li>
+<li><a href="184-indexer-pr-feedback-more.html">184</a> – Indexer PR feedback allocation caps</li>
+<li><a href="185-indexer-torznab-caps-endpoint.html">185</a> – Indexer Torznab caps endpoint</li>
+<li><a href="186-indexer-torznab-download-and-allocation-guards.html">186</a> – Indexer Torznab download and allocation guards</li>
+<li><a href="187-indexer-search-requests-api.html">187</a> – Indexer search requests API and allocation guard refinements</li>
+<li><a href="188-indexer-search-request-auth-e2e.html">188</a> – Indexer search request auth E2E coverage</li>
+<li><a href="189-indexer-search-pages-api.html">189</a> – Indexer search pages API</li>
+<li><a href="190-search-request-validation-tests.html">190</a> – Search request validation tests</li>
+<li><a href="191-hash-identity-derivation-tests.html">191</a> – Hash identity derivation tests</li>
+<li><a href="192-rate-limit-state-purge-test.html">192</a> – Rate limit state purge test</li>
+<li><a href="193-job-schedule-completion.html">193</a> – Job schedule completion updates</li>
+<li><a href="194-job-claim-locking-and-leases.html">194</a> – Job claim locking and lease durations</li>
+<li><a href="195-policy-snapshot-gc-ordering.html">195</a> – Policy snapshot GC ordering</li>
+<li><a href="196-retention-purge-context-cleanup.html">196</a> – Retention purge context cleanup</li>
+<li><a href="197-indexer-connectivity-profile-refresh-rollups.html">197</a> – Indexer connectivity profile refresh rollups</li>
+<li><a href="198-reputation-rollup-sample-thresholds.html">198</a> – Reputation rollup sample thresholds</li>
+<li><a href="199-canonical-refresh-durable-source-cadence.html">199</a> – Canonical refresh durable source cadence</li>
+<li><a href="200-canonical-prune-source-link-policy.html">200</a> – Canonical prune source-link policy alignment</li>
+<li><a href="201-rss-poll-and-backfill-workflows.html">201</a> – RSS poll and subscription backfill workflows</li>
+<li><a href="202-rss-scheduling-backoff-dedupe-validation.html">202</a> – RSS scheduling, backoff, and dedupe validation</li>
+<li><a href="203-rate-limit-token-bucket-and-rss-rate-limited-semantics.html">203</a> – Rate limit token bucket and RSS rate-limited semantics</li>
+<li><a href="204-cf-state-transition-and-mitigation-validation.html">204</a> – Cloudflare state transition and mitigation validation</li>
+<li><a href="205-policy-snapshot-reuse-and-refcount-validation.html">205</a> – Policy snapshot reuse and refcount validation</li>
+<li><a href="206-policy-snapshot-gc-acceptance-coverage.html">206</a> – Policy snapshot GC acceptance coverage</li>
+<li><a href="207-derived-refresh-timing-and-caching-validation.html">207</a> – Derived refresh timing and caching validation</li>
+<li><a href="208-retention-and-rollup-job-window-validation.html">208</a> – Retention and rollup job window validation</li>
+<li><a href="209-retention-and-derived-refresh-strategy-coverage.html">209</a> – Retention and derived refresh strategy coverage</li>
+<li><a href="210-policy-rule-disable-enable-and-reorder-validation.html">210</a> – Policy rule disable/enable and reorder validation</li>
+<li><a href="211-search-result-observation-rules-validation.html">211</a> – Search-result observation rules validation</li>
+<li><a href="212-category-mapping-domain-filter-validation.html">212</a> – Category mapping and domain filter validation</li>
+<li><a href="213-indexer-observability-counters.html">213</a> – Indexer observability counters for Torznab, search, and import jobs</li>
+<li><a href="214-indexer-request-span-coverage.html">214</a> – Indexer request span coverage for Torznab, search, and import jobs</li>
+<li><a href="215-torznab-parity-integration-tests.html">215</a> – Torznab parity integration tests for endpoint format and auth semantics</li>
+<li><a href="216-torznab-search-query-mapping-and-pagination.html">216</a> – Torznab search query mapping and append-order pagination</li>
+<li><a href="217-torznab-download-redirect-acquisition-attempt-coverage.html">217</a> – Torznab download redirect and acquisition-attempt coverage</li>
+<li><a href="218-torznab-feed-category-emission-and-test-fixture-hardening.html">218</a> – Torznab feed category emission and test fixture hardening</li>
+<li><a href="219-torznab-multi-category-domain-and-other-coverage.html">219</a> – Torznab multi-category domain mapping and Other (8000) behavior coverage</li>
+<li><a href="220-rate-limit-defaults-and-scope-enforcement-coverage.html">220</a> – Rate-limit defaults and indexer/routing scope enforcement coverage</li>
+<li><a href="221-search-run-retry-behavior-coverage.html">221</a> – Search-run retry behavior coverage for rate-limited and transient errors</li>
+<li><a href="222-rss-cloudflare-state-transition-alignment.html">222</a> – RSS Cloudflare state transition alignment with ERD</li>
+<li><a href="223-search-streaming-pages-terminal-seal.html">223</a> – Search streaming pages terminal sealing and append-only ordering</li>
+<li><a href="224-search-dropped-source-audit-and-paging-exclusion.html">224</a> – Search dropped-source audit persistence and paging exclusion</li>
+<li><a href="225-canonicalization-conflict-coverage.html">225</a> – Canonicalization conflict coverage</li>
+<li><a href="226-indexer-unit-test-domain-coverage.html">226</a> – Indexer unit test domain coverage</li>
+<li><a href="227-health-reputation-rollup-semantics.html">227</a> – Health and reputation rollup semantics from outbound logs</li>
+<li><a href="228-search-zero-result-explainability.html">228</a> – Search zero-result explainability</li>
+<li><a href="229-prowlarr-import-source-parity-tests.html">229</a> – Prowlarr import source parity and dry-run coverage</li>
+<li><a href="230-import-result-mapping-unmapped-coverage.html">230</a> – Import result mapping and unmapped-definition coverage</li>
+<li><a href="231-migration-parity-e2e-flows.html">231</a> – Migration parity E2E flow coverage</li>
+<li><a href="232-indexer-schema-and-procedure-catalog-tests.html">232</a> – Indexer schema and procedure catalog verification tests</li>
+<li><a href="233-import-result-fidelity-snapshots.html">233</a> – Import result fidelity snapshots</li>
+<li><a href="234-secret-binding-and-test-error-class-coverage.html">234</a> – Secret binding and test error class coverage</li>
+<li><a href="235-indexer-instance-create-uses-definition-slug-key.html">235</a> – Indexer instance creation uses the public definition slug key</li>
+<li><a href="236-indexer-service-operation-metrics-and-spans.html">236</a> – Indexer service operation metrics and spans</li>
+<li><a href="237-indexer-di-boundary-enforcement.html">237</a> – Indexer dependency-injection boundary enforcement</li>
+<li><a href="238-manual-search-ui.html">238</a> – Manual search UI</li>
+<li><a href="239-indexer-admin-console-ui.html">239</a> – Indexer admin console UI</li>
+<li><a href="240-indexer-schedule-controls-ui.html">240</a> – Indexer schedule controls UI</li>
+<li><a href="241-indexer-rss-management-ui.html">241</a> – Indexer RSS management UI</li>
+<li><a href="242-indexer-connectivity-reputation-ui.html">242</a> – Indexer connectivity and reputation UI</li>
+<li><a href="243-indexer-routing-policy-visibility.html">243</a> – Indexer routing policy visibility</li>
+<li><a href="244-indexer-import-job-dashboard.html">244</a> – Indexer import job dashboard</li>
+<li><a href="245-indexer-health-event-drilldown.html">245</a> – Indexer health event drill-down</li>
+<li><a href="246-indexer-origin-only-error-logging.html">246</a> – Indexer origin-only error logging</li>
+<li><a href="247-indexer-health-summary-panels.html">247</a> – Indexer health summary panels</li>
+<li><a href="248-indexer-backup-restore.html">248</a> – Indexer backup and restore</li>
+<li><a href="249-indexer-coexistence-rollback-acceptance.html">249</a> – Indexer coexistence and rollback acceptance coverage</li>
+<li><a href="250-indexer-domain-service-closeout.html">250</a> – Indexer domain service closeout</li>
+<li><a href="251-indexer-instance-category-overrides.html">251</a> – Indexer instance category overrides</li>
+<li><a href="252-indexer-final-acceptance-closeout.html">252</a> – Indexer final acceptance closeout</li>
+<li><a href="253-indexer-health-notification-hooks.html">253</a> – Indexer health notification hooks</li>
+<li><a href="254-indexer-app-sync-provisioning-ui.html">254</a> – Indexer app sync provisioning UI</li>
+<li><a href="255-indexer-app-scoped-category-overrides.html">255</a> – Indexer app-scoped category overrides</li>
+<li><a href="256-indexer-source-conflict-operator-ui.html">256</a> – Indexer source conflict operator UI</li>
+<li><a href="257-indexer-cardigann-definition-import.html">257</a> – Indexer Cardigann definition import</li>
+<li><a href="258-pr-review-closeout.html">258</a> – PR review closeout</li>
+<li><a href="259-pr-review-and-security-followup.html">259</a> – PR review and security follow-up</li>
+<li><a href="260-pr-codeql-closeout.html">260</a> – PR CodeQL closeout</li>
+<li><a href="261-pr-security-and-thread-closeout.html">261</a> – PR security and thread closeout</li>
+<li><a href="262-pr-final-thread-closeout.html">262</a> – PR final thread closeout</li>
+<li><a href="263-sonarcloud-pr-issue-cleanup.html">263</a> – SonarCloud PR issue cleanup and scope alignment</li>
+<li><a href="264-pr-unresolved-feedback-closeout.html">264</a> – PR unresolved feedback closeout</li>
+<li><a href="265-pr-feedback-boundary-validation-closeout.html">265</a> – PR feedback boundary validation closeout</li>
+<li><a href="266-pr-codeql-followup-on-instance-tag-bounds.html">266</a> – PR CodeQL follow-up on instance tag bounds</li>
+<li><a href="267-indexer-maintenance-runtime.html">267</a> – Indexer maintenance runtime</li>
+<li><a href="268-indexer-tag-secret-inventory.html">268</a> – Indexer tag and secret inventory</li>
+<li><a href="269-indexer-operator-inventory-read-surfaces.html">269</a> – Indexer operator inventory read surfaces</li>
+<li><a href="270-indexer-profile-policy-torznab-inventory.html">270</a> – Indexer profile, policy, and Torznab inventory</li>
+<li><a href="271-indexer-cli-read-parity.html">271</a> – Indexer CLI read parity</li>
+<li><a href="272-indexer-cli-operator-write-parity.html">272</a> – Indexer CLI operator write parity</li>
+<li><a href="273-indexer-cli-mutation-parity-followup.html">273</a> – Indexer CLI mutation parity follow-up</li>
+<li><a href="274-indexer-cli-health-notification-parity.html">274</a> – Indexer CLI health-notification parity</li>
+<li><a href="275-pr-output-redaction-and-review-followup.html">275</a> – PR output redaction and review follow-up</li>
+<li><a href="276-ci-cache-trim-for-runner-disk.html">276</a> – CI cache trim for runner disk pressure</li>
+<li><a href="277-pr-review-handler-normalization-followup.html">277</a> – PR review handler normalization follow-up</li>
 </ul>
 
                     </main>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="../api/openapi-gaps.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="../api/guides/indexer-migration-rollback.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
@@ -310,7 +487,7 @@
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="../api/openapi-gaps.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="../api/guides/indexer-migration-rollback.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 

@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "generated": "2026-03-29T19:11:31.190657273+00:00",
+  "generated": "2026-04-04T15:20:14.686462348+00:00",
   "entries": [
     {
       "id": "adr/001-configuration-revisioning",
@@ -1062,6 +1062,1543 @@
       "href": "/adr/100-sonar-scan-workflow-lcov/"
     },
     {
+      "id": "adr/101-indexer-erd-checklist",
+      "title": "Indexer ERD checklist",
+      "summary": "Status: Accepted Date: 2026-01-25 Context: We need a complete, ordered, and trackable checklist for implementing ERD_INDEXERS.md. The checklist must reflect dependencies, support test-first execution, and avoid missed requirements. Decision: Add a dedicated ERD implementation checklist file that enumerates schema, procedures, services, behavior rules, and acceptance gates in dependency-first order. Alternatives considered: keep ad-hoc notes or split by subsystem; rejected due to risk of omissions and loss of a single, authoritative implementation plan. Consequences: Positive: a single source of truth for the ERD execution plan and validation steps. Trade-off: requires maintenance when ERD_INDEXERS.md changes. Follow-up: Keep ERD_INDEXERS_CHECKLIST.md synchronized with ERD_INDEXERS.md updates.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/101-indexer-erd-checklist/"
+    },
+    {
+      "id": "adr/102-indexer-core-schema",
+      "title": "Indexer core schema foundations",
+      "summary": "Status: Accepted Date: 2026-01-25 Context: We need to begin implementing the indexer ERD with core, dependency-first tables. The schema must follow ERD_INDEXERS.md and preserve SSOT for keys, IDs, and constraints. Decision: Add a new migration that introduces the initial enum types and core tables: app_user, deployment_config, deployment_maintenance_state, trust_tier, media_domain, and tag. Use bigint identity PKs, UUID public IDs, and explicit constraints per ERD. Consequences: Positive: establishes the foundation required for indexer configuration and tagging. Trade-off: further migrations are required to complete the full ERD. Follow-up: Add remaining enum types and schema tables from ERD_INDEXERS.md. Implement seed procedures and stored procedures",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/102-indexer-core-schema/"
+    },
+    {
+      "id": "adr/103-indexer-definition-schema",
+      "title": "Indexer definition schema",
+      "summary": "Status: Accepted Date: 2026-01-25 Context: The indexer ERD requires a catalog of indexer definitions and field metadata. These tables are prerequisites for indexer instance configuration and import flows. Decision: Add a migration that introduces indexer definition enums and tables, including validation rules and value sets. Encode ERD constraints as database checks and unique indexes where possible. Consequences: Positive: definition metadata can be stored and validated at the database layer. Trade-off: adds a new migration that must be extended by later ERD stages. Follow-up: Add indexer instance tables and import flows. Implement seed and stored-procedure logic for definition sync.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/103-indexer-definition-schema/"
+    },
+    {
+      "id": "adr/104-indexer-instance-schema",
+      "title": "Indexer instance schema and RSS",
+      "summary": "Status: Accepted Date: 2026-01-25 Context: Indexer instances, routing policies, and RSS schedules are required to configure real indexers and persist their operational state. Decision: Add a migration that introduces indexer instance tables, routing policy tables, RSS tracking tables, and related enums. Enforce ERD constraints (ranges, uniqueness, hash formats) via database checks. Consequences: Positive: provides the durable schema for indexer configuration, tags, domains, and RSS. Trade-off: requires additional migrations for imports, policies, and search flows. Follow-up: Add import_job tables once search profiles and torznab instances exist. Implement stored procedures and seed data for routing and instance management.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/104-indexer-instance-schema/"
+    },
+    {
+      "id": "adr/105-indexer-secret-schema",
+      "title": "Indexer secret schema",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: ERD requires secret storage and auditable bindings for indexer field values and routing policy parameters. Secret linkage must be centralized via secret_binding with revocation/rotation metadata. Decision: Add secret, secret_binding, and secret_audit_log tables plus supporting enums. Enforce binding_name allowlists per bound_table and key_id length checks. Consequences: Positive: schema supports secure secret storage with auditable bindings. Trade-off: follow-on migrations and procedures are required for lifecycle actions. Follow-up: Implement secret procedures and auditing per ERD. Add binding validation in indexer/routing procedures.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/105-indexer-secret-schema/"
+    },
+    {
+      "id": "adr/106-indexer-search-profile-torznab-schema",
+      "title": "Indexer search profiles and Torznab schema",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: ERD requires search profiles to capture user intent and Torznab instances to expose arr-compatible endpoints tied to profiles. Import jobs depend on search_profile and torznab_instance references. Decision: Add schema for search_profile and related allow/block/prefer tables plus torznab_instance. Enforce ERD constraints for page sizing, weight ranges, and uniqueness. Consequences: Positive: enables profile filtering and Torznab endpoint configuration in the schema. Trade-off: policy_set linking and import pipeline remain follow-up migrations. Follow-up: Add search_profile_policy_set once policy_set exists. Implement import_job tables and Torznab procedures after policy/schema dependencies.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/106-indexer-search-profile-torznab-schema/"
+    },
+    {
+      "id": "adr/107-indexer-import-schema",
+      "title": "Indexer import schema",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: ERD defines import_job and import_indexer_result for Prowlarr migration tracking. Import jobs depend on search profiles and Torznab instances. Decision: Add import_job and import_indexer_result tables with supporting enums. Preserve ERD constraints for identifiers, status, and optional error/detail fields. Consequences: Positive: schema supports import tracking and per-indexer outcomes. Trade-off: import procedures and validation remain a follow-up step. Follow-up: Implement import stored procedures and validation rules per ERD. Add indexer-instance linkage rules and dry-run handling in procedures.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/107-indexer-import-schema/"
+    },
+    {
+      "id": "adr/108-indexer-rate-limit-cf-schema",
+      "title": "Indexer rate limit and Cloudflare schema",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: ERD defines rate limiting policy/state and Cloudflare status tracking for indexers. These tables are prerequisites for routing enforcement and job-based cleanup. Decision: Add rate_limit_policy, indexer_instance_rate_limit, routing_policy_rate_limit, rate_limit_state, and indexer_cf_state tables plus required enums. Enforce ERD ranges, uniqueness, and cascade delete for instance/routing children. Consequences: Positive: schema supports rate limit configuration, token tracking, and CF state. Trade-off: stored procedures and scheduled jobs remain follow-up work. Follow-up: Implement rate_limit and cf_state procedures, including seed defaults and purge jobs. Add outbound_request_log integration and derived connectivity profile.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/108-indexer-rate-limit-cf-schema/"
+    },
+    {
+      "id": "adr/109-indexer-policy-schema",
+      "title": "Indexer policy schema",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: ERD defines policy sets, rules, and snapshots for search filtering and scoring. Search profiles need policy_set linkage for profile-scoped policies. Decision: Add policy_set, policy_rule, policy_rule_value_set, policy_rule_value_set_item, policy_snapshot, policy_snapshot_rule, and search_profile_policy_set tables. Introduce required policy enums and enforce ERD uniqueness and cascade rules. Consequences: Positive: schema supports policy configuration, snapshot reuse, and profile links. Trade-off: stored procedures and snapshot materialization remain follow-up work. Follow-up: Implement policy procedures, snapshot hashing, and retention jobs per ERD. Add search_request tables to wire policy snapshots into runtime queries.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/109-indexer-policy-schema/"
+    },
+    {
+      "id": "adr/110-indexer-torznab-category-schema",
+      "title": "Indexer Torznab category schema",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: ERD requires seeded Torznab categories and mappings to media domains and tracker categories for filtering and Torznab responses. Decision: Add torznab_category, media_domain_to_torznab_category, and tracker_category_mapping tables with ERD constraints and uniqueness rules. Enforce global uniqueness for tracker_category_mapping across null indexer_definition_id via a coalesced unique index. Consequences: Positive: schema supports Torznab category lookups and tracker mapping overrides. Trade-off: seeding and procedures remain follow-up work. Follow-up: Seed Torznab categories and domain mappings per ERD. Implement category mapping stored procedures and indexes.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/110-indexer-torznab-category-schema/"
+    },
+    {
+      "id": "adr/111-indexer-connectivity-audit-schema",
+      "title": "Indexer connectivity and audit schema",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: ERD defines connectivity snapshots, health events, and config audit logging. These tables are prerequisites for health reporting and policy/action auditing. Decision: Add indexer_connectivity_profile, indexer_health_event, and config_audit_log tables plus required enums for health events, connectivity status, and audit categories. Enforce ERD constraints for success-rate bounds and audit entity references. Consequences: Positive: schema supports connectivity rollups and durable audit trails. Trade-off: rollup jobs and audit-writing procedures remain follow-up work. Follow-up: Implement connectivity rollup job and health event emission per ERD. Wire audit log writes in stored procedures and domain services.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/111-indexer-connectivity-audit-schema/"
+    },
+    {
+      "id": "adr/112-indexer-canonicalization-schema",
+      "title": "Indexer canonicalization schema",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Implement ERD_INDEXERS.md canonicalization tables for deduped torrents and durable sources. Enforce hash identity and typed attribute invariants at the schema layer. Keep enums and tables aligned with existing migrations and single-tenant scope. Decision: Add migration 0022_indexer_canonicalization.sql to create canonical tables and enums. Apply ERD validation rules for hashes, IDs, typed attributes, and identity strategies. Consequences: Canonical torrent/source data is stored with enforced identity constraints. Downstream search and ingest tables can reference canonical entities safely. Follow-up: Implement search_request tables and ingestion stored procedures per ERD_INDEXERS.md. Add remaining canonical scoring, conflict, and decision tables.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/112-indexer-canonicalization-schema/"
+    },
+    {
+      "id": "adr/113-indexer-search-request-schema",
+      "title": "Indexer search request schema",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Implement ERD_INDEXERS.md search request tables, enums, and streaming page state. Enforce search/run state invariants and observation typing at the schema layer. Decision: Add migration 0023_indexer_search_requests.sql to create search request tables and enums. Apply ERD validation rules for status transitions, cursors, and observation attributes. Consequences: Search request storage is ready for ingestion and paging flows. Downstream procedures can rely on schema checks for state integrity. Follow-up: Add canonical scoring, conflict tracking, and job tables per ERD_INDEXERS.md. Implement stored procedures for search orchestration and ingestion.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/113-indexer-search-request-schema/"
+    },
+    {
+      "id": "adr/114-indexer-scoring-schema",
+      "title": "Indexer scoring schema",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Implement ERD_INDEXERS.md scoring and best-source materialization tables. Preserve context-specific ordering for search/profile/policy views. Decision: Add migration 0024_indexer_scoring.sql for scoring and best-source tables. Introduce context_key_type enum and enforce score range checks. Consequences: Canonical sources can be ranked globally and per context. Best-source tables are ready for refresh jobs and search paging. Follow-up: Add conflicts and decision tables plus outbound log and reputation tracking. Implement stored procedures that compute scores and refresh best-source rows.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/114-indexer-scoring-schema/"
+    },
+    {
+      "id": "adr/115-indexer-conflict-decision-schema",
+      "title": "Indexer conflict and decision schema",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Implement ERD_INDEXERS.md conflict tracking and filter decision tables. Preserve auditability of metadata conflicts and policy filtering outcomes. Decision: Add migration 0025_indexer_conflicts_decisions.sql for conflicts and decisions. Introduce enums for conflict and decision types with ERD-aligned values. Consequences: Conflict resolution workflows can be recorded with an audit trail. Search filter decisions can be persisted for transparency and debugging. Follow-up: Add outbound_request_log, user actions, acquisition, reputation, and job tables. Implement stored procedures for conflict resolution and filtering decisions.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/115-indexer-conflict-decision-schema/"
+    },
+    {
+      "id": "adr/116-indexer-user-action-schema",
+      "title": "Indexer user action and acquisition schema",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Implement ERD_INDEXERS.md feedback and acquisition tracking tables. Persist user actions and download attempts for ranking and reputation signals. Decision: Add migration 0026_indexer_user_actions.sql for user actions and acquisition attempts. Introduce enums for actions, reasons, acquisition status/origin/failure, and client names. Consequences: User feedback and acquisition events are stored with constrained identifiers. Future reputation rollups can rely on acquisition data. Follow-up: Add outbound_request_log, reputation, and job scheduling tables. Implement stored procedures and ingestion paths for acquisitions.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/116-indexer-user-action-schema/"
+    },
+    {
+      "id": "adr/117-indexer-telemetry-reputation-schema",
+      "title": "Indexer telemetry and reputation schema",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Implement ERD_INDEXERS.md telemetry logging and reputation rollups. Ensure outbound request invariants are enforced at the schema layer. Decision: Add migration 0027_indexer_telemetry_reputation.sql for outbound_request_log and source_reputation. Introduce enums for request types, outcomes, mitigations, and reputation windows. Consequences: Connectivity and reputation rollups can rely on consistent telemetry inputs. Rate-limited and success/failure invariants are enforced in the database. Follow-up: Add job scheduling tables and stored procedures for rollups and retention. Implement index coverage for telemetry and reputation queries.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/117-indexer-telemetry-reputation-schema/"
+    },
+    {
+      "id": "adr/118-indexer-job-schedule-schema",
+      "title": "Indexer job schedule schema",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Implement ERD_INDEXERS.md job scheduling table and enum constraints. Align cadence and jitter bounds with runtime scheduler expectations. Decision: Add migration 0028_indexer_jobs.sql for job_key enum and job_schedule. Enforce cadence range and jitter bounds per ERD notes. Consequences: Scheduler state is stored in a single table with clear invariants. Deployment seeding must populate required job rows. Follow-up: Add deployment seed procedures for job_schedule rows. Implement job_claim_next_v1 and job completion updates.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/118-indexer-job-schedule-schema/"
+    },
+    {
+      "id": "adr/119-indexer-fk-on-delete-rules",
+      "title": "Indexer FK on-delete rules",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: ERD_INDEXERS.md requires cascade deletes from indexer_instance to instance children. Some FKs were created without explicit on-delete behavior. Decision: Add migration 0029_indexer_fk_rules.sql to enforce cascading FKs for indexer_instance child tables. Consequences: Hard-deleting an indexer_instance will cascade to dependent config and diagnostics rows. Soft-delete behavior remains unchanged. Follow-up: Review remaining FK behaviors as stored procedures are introduced.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/119-indexer-fk-on-delete-rules/"
+    },
+    {
+      "id": "adr/120-indexer-seed-data",
+      "title": "Indexer seed data and defaults",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: ERD_INDEXERS.md requires seeded trust tiers, media domains, Torznab categories, default rate limits, and job scheduling rows. Seed functions must enforce immutability rules for system-owned data. Decision: Add migration 0030_indexer_seed_data.sql with seed procedures and inserts. Seed Torznab categories, media-domain mappings, tracker mappings, rate limits, job schedules, and the system user. Consequences: Deployments start with required lookup data and system defaults. Seeded values are validated for consistency on migration. Follow-up: Implement deployment_init_v1 and remaining stored procedures.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/120-indexer-seed-data/"
+    },
+    {
+      "id": "adr/121-indexer-query-indexes",
+      "title": "Indexer query indexes",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: ERD_INDEXERS.md defines a query-path index matrix for search, scoring, and telemetry workflows. Many indexes are non-unique and must be added after table creation. Decision: Add migration 0031_indexer_query_indexes.sql to create the ERD-specified non-unique indexes and partial indexes. Consequences: Query paths have explicit index coverage for search, scoring, and retention. Unique constraints continue to cover duplicate index requirements. Follow-up: Revisit index coverage when stored procedures and query plans land.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/121-indexer-query-indexes/"
+    },
+    {
+      "id": "adr/122-indexer-deployment-init-proc",
+      "title": "Indexer deployment initialization procedure",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: ERD_INDEXERS.md specifies deployment_init_v1 to bootstrap deployment defaults. Initialization must be idempotent and enforce actor verification. Decision: Add migration 0032_indexer_deployment_init.sql with deployment_init_v1 and stable wrapper deployment_init. deployment_init_v1 enforces verified admin/owner actors and seeds defaults. Consequences: Deployments can be initialized via stored procedure calls. System defaults are re-applied safely when missing. Follow-up: Implement the remaining stored procedures in Phase 5.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/122-indexer-deployment-init-proc/"
+    },
+    {
+      "id": "adr/123-indexer-app-user-procs",
+      "title": "Indexer app_user stored procedures",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: We need versioned, auditable entry points for app_user creation and maintenance. ERD_INDEXERS.md requires normalized email storage, constant error messages, and wrapper procedures without version suffixes. app_user has no audit fields, so procedures must be minimal and safe while preserving table invariants. Decision: Add migration 0033 with app_user_create_v1, app_user_update_v1, and app_user_verify_email_v1 plus stable wrappers. Normalize emails in-proc (trim + lowercase), enforce non-empty inputs, and default role to user with is_email_verified=false at creation. Use constant error messages with detail codes for invalid or missing inputs. Consequences: app_user mutations now go through stored procedures with consistent validation. Email",
+      "tags": [],
+      "href": "/adr/123-indexer-app-user-procs/"
+    },
+    {
+      "id": "adr/124-indexer-tag-procs",
+      "title": "Indexer tag stored procedures",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Tags are user-created and soft-deleted; procedures must preserve tag_key immutability. ERD_INDEXERS.md requires audit logging, lowercase tag keys, and conflict handling when tag_public_id and tag_key are both provided. Stored procedures need constant error messages with structured detail codes. Decision: Add migration 0034 with tag_create_v1, tag_update_v1, and tag_soft_delete_v1 plus stable wrappers. Validate tag_key casing, length, and uniqueness on create; tag_key is immutable on update and delete. Support tag resolution by public ID and/or key with invalid_tag_reference on conflict. Write config_audit_log entries for create, update, and soft-delete actions. Consequences: Tag mutations are centralized and auditable in the database",
+      "tags": [],
+      "href": "/adr/124-indexer-tag-procs/"
+    },
+    {
+      "id": "adr/125-indexer-routing-policy-procs",
+      "title": "Indexer routing policy stored procedures",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Routing policy mutations require role checks, parameter validation, and audit logging. ERD_INDEXERS.md specifies parameter constraints per routing mode and secret binding requirements for proxy credentials. Procedures must use constant error messages with structured detail codes. Decision: Add migration 0035 implementing routing_policy_create_v1, routing_policy_set_param_v1, and routing_policy_bind_secret_v1 plus stable wrappers. Enforce owner/admin role checks, display_name validation, and unsupported mode rejection. Validate parameter types and ranges; restrict param keys to mode-specific allowlists. Create verify_tls on policy creation and ensure auth parameter rows exist for proxy modes. Bind secrets via secret_binding with secret_audit_log and config_audit_log entries. Consequences: Routing policy state",
+      "tags": [],
+      "href": "/adr/125-indexer-routing-policy-procs/"
+    },
+    {
+      "id": "adr/126-indexer-cf-reset-proc",
+      "title": "Indexer Cloudflare reset procedure",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Operators need a controlled reset path for Cloudflare challenges and cooldowns. ERD_INDEXERS.md requires owner/admin authorization, CF state reset, and conditional connectivity profile recovery for quarantined indexers. Decision: Add migration 0036 with indexer_cf_state_reset_v1 plus a stable wrapper. Reset cf_state to clear, wipe CF session/cooldown/backoff metadata, and zero consecutive_failures. If connectivity status is quarantined with CF-related error classes, downgrade to degraded and clear error_class to unknown. Record a config_audit_log update with change_summary \"cf_state reset\". Consequences: CF recovery can be triggered safely with auditable changes. Non-CF connectivity failures are preserved. Follow-up: Add API handler wiring for CF resets.",
+      "tags": [],
+      "href": "/adr/126-indexer-cf-reset-proc/"
+    },
+    {
+      "id": "adr/127-indexer-rate-limit-procs",
+      "title": "Indexer rate limit stored procedures",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Rate limiting requires auditable policy management and a database-backed token bucket. ERD_INDEXERS.md mandates bounds enforcement, system policy immutability, and scoped token consumption with minute windows. Decision: Add migration 0037 implementing rate_limit_policy CRUD, instance/policy mappings, and rate_limit_try_consume_v1 plus stable wrappers. Enforce owner/admin authorization, range checks, and in-use protection on delete. Implement token bucket updates with row-level locking on rate_limit_state. Consequences: Rate limit policies and assignments are centralized and auditable. Token consumption is safe under concurrent access. Follow-up: Integrate rate_limit_try_consume_v1 into outbound request logging. Add tests for policy deletion conflicts and token bucket edge cases.",
+      "tags": [],
+      "href": "/adr/127-indexer-rate-limit-procs/"
+    },
+    {
+      "id": "adr/128-indexer-instance-procs",
+      "title": "Indexer instance stored procedures",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Indexer instances, RSS scheduling, domain/tag assignment, and field value management require validated, auditable mutations at the database layer. ERD_INDEXERS.md mandates per-proc authorization, field validation, and audit logging. Decision: Add migration 0038 implementing indexer_instance and RSS procedures, plus media domain, tag, and field value/secret binding procedures with stable wrappers. Enforce owner/admin authorization, definition validation, and strict value checks (type, range, regex, allowed values). Record config_audit_log updates for each mutation and secret_audit_log bind entries. Consequences: Indexer configuration changes are validated and auditable in stored procedures. Field validations are enforced consistently against definition rules. Follow-up: Implement indexer_instance_test_v1 and",
+      "tags": [],
+      "href": "/adr/128-indexer-instance-procs/"
+    },
+    {
+      "id": "adr/129-indexer-category-mapping-procs",
+      "title": "Indexer category mapping procedures",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Category mapping rules must be updated via stored procedures with validation and audit logging. ERD_INDEXERS.md specifies media domain and Torznab category checks plus primary mapping enforcement. Decision: Add migration 0039 implementing tracker_category_mapping and media_domain_to_torznab mapping upsert/delete procedures with stable wrappers. Validate upstream_slug resolution, Torznab category IDs, and media domain keys. Enforce a single primary mapping per media domain during upsert. Record config_audit_log entries for all mutations. Consequences: Category mapping changes are validated and auditable in the database. Primary mapping invariants are enforced within the procedure transaction. Follow-up: Add API handlers for category mapping management. Add",
+      "tags": [],
+      "href": "/adr/129-indexer-category-mapping-procs/"
+    },
+    {
+      "id": "adr/130-indexer-policy-set-procs",
+      "title": "Indexer policy set procedures",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Policy sets and rule toggles must be managed via stored procedures with role authorization and audit logging. ERD_INDEXERS.md requires scope-based authorization and sort-order reordering. Decision: Add migration 0040 implementing policy_set create/update/enable/disable/reorder and policy_rule enable/disable/reorder procedures with stable wrappers. Enforce scope-specific authorization, cardinality rules for enabled global/user sets, and profile link requirement on enable. Record config_audit_log entries for all mutations. Consequences: Policy set lifecycle operations are validated and auditable at the DB layer. Policy rule toggling and ordering are centralized for consistent behavior. Follow-up: Implement policy_rule_create_v1 with value set payload handling. Add API handlers and tests",
+      "tags": [],
+      "href": "/adr/130-indexer-policy-set-procs/"
+    },
+    {
+      "id": "adr/131-indexer-search-profile-procs",
+      "title": "Indexer search profile procedures",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Search profile mutations require scope-aware authorization, media domain resolution, and audit logging. ERD_INDEXERS.md specifies default handling, allowlist semantics, and policy-set linkage. Decision: Add migration 0041 implementing search_profile create/update/default operations plus domain allowlist, policy-set linking, indexer allow/block, and tag allow/block/prefer procedures with stable wrappers. Enforce per-scope authorization, media domain key validation, and allow/block conflict checks. Record config_audit_log entries for profile and rule updates. Consequences: Search profile state changes are validated and auditable at the DB layer. Allowlist and preference rules are kept consistent with block/allow constraints. Follow-up: Implement API handlers for search profile management. Add tests",
+      "tags": [],
+      "href": "/adr/131-indexer-search-profile-procs/"
+    },
+    {
+      "id": "adr/132-indexer-policy-rule-create-proc",
+      "title": "Indexer policy rule creation procedure",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: We need a stored procedure to create immutable policy rules that enforces ERD_INDEXERS.md invariants, including match-field/operator compatibility and value-set normalization. Database mutations must be stored-procedure only, avoid JSON/JSONB, and return structured errors with constant messages. Decision: Add a composite type for value-set items and a policy_rule_create_v1 procedure that validates rule shape, match values, and value-set contents before inserting policy_rule rows. Provide a stable policy_rule_create wrapper for versioning consistency. Consequences: Policy rule creation is validated centrally in the database, preventing inconsistent match-value combinations and enforcing normalization limits. Callers must supply only the expected match value type",
+      "tags": [],
+      "href": "/adr/132-indexer-policy-rule-create-proc/"
+    },
+    {
+      "id": "adr/133-indexer-outbound-request-log-proc",
+      "title": "Indexer outbound request log procedure",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Outbound request telemetry must be written through stored procedures with strict validation and normalized cursor diagnostics. The ERD mandates URL-aware page cursor normalization and hashing to bound storage. Decision: Add outbound_request_log_write_v1 to validate request invariants, resolve public IDs, normalize page cursor keys, persist outbound request logs, and update run correlation tracking. Provide a stable outbound_request_log_write wrapper for versioned usage. Consequences: Outbound request samples are consistent across callers and safe for rollups. Cursor normalization adds complexity; malformed cursor input now fails fast instead of being stored. Follow-up: Wire outbound logging from search runs and indexer probes",
+      "tags": [],
+      "href": "/adr/133-indexer-outbound-request-log-proc/"
+    },
+    {
+      "id": "adr/134-indexer-torznab-instance-state-procs",
+      "title": "Indexer Torznab instance state procedures",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Torznab instances need enable/disable and soft-delete operations with role-based authorization tied to their search profiles. Stored procedures must enforce invariants and write audit logs. Decision: Add torznab_instance_enable_disable_v1 and torznab_instance_soft_delete_v1 with search-profile scoped authorization and audit logging. Keep create/rotate key procedures separate to accommodate pending secret-key hashing decisions. Consequences: Torznab instances can be safely toggled or retired without exposing API key material. Create/rotate remain blocked until API key hashing strategy is finalized. Follow-up: Implement torznab_instance_create_v1 and torznab_instance_rotate_key_v1 once Argon2id hashing is approved for the database layer or moved to the app layer.",
+      "tags": [],
+      "href": "/adr/134-indexer-torznab-instance-state-procs/"
+    },
+    {
+      "id": "adr/135-indexer-conflict-resolution-procs",
+      "title": "Indexer conflict resolution procedures",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Source metadata conflicts require operator resolution with strict authorization and audit logging. Accepted-incoming resolutions must never overwrite existing durable data. Decision: Add source_metadata_conflict_resolve_v1 and source_metadata_conflict_reopen_v1 to enforce admin/owner authorization, apply limited backfills, and record audit events. Limit accepted-incoming updates to safe backfills (source_guid, tracker_name, tracker_category/subcategory) when the durable value is missing. Consequences: Conflict resolution is traceable and safe against overwrites. Incoming tracker category parsing is validated; malformed inputs are rejected instead of silently stored. Follow-up: Add test coverage for conflict resolution paths once the data test harness exists.",
+      "tags": [],
+      "href": "/adr/135-indexer-conflict-resolution-procs/"
+    },
+    {
+      "id": "adr/136-indexer-job-runner-procs",
+      "title": "Indexer job runner procedures",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Background job scheduling requires database-enforced claiming and retention cleanup. Retention rules must align with deployment_config thresholds and avoid deleting durable data. Decision: Add job_claim_next_v1 to enforce lease-based claiming with advisory locks and per-job lease durations. Add job_run_retention_purge_v1 to purge completed search trees and operational telemetry using retention thresholds. Consequences: Job claiming is serialized per job_key and prevents overlapping workers. Retention cleanup reduces operational data growth while preserving durable records. Follow-up: Add per-job completion procedures that advance next_run_at with jitter and clear locks. Add test coverage for retention purge edge cases once the data test harness",
+      "tags": [],
+      "href": "/adr/136-indexer-job-runner-procs/"
+    },
+    {
+      "id": "adr/137-indexer-search-request-cancel-proc",
+      "title": "Indexer search request cancel procedure",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Search requests must be cancelable with proper authorization and clean terminal state transitions. Runs in queued or running state must be marked canceled without violating status timestamp constraints. Decision: Add search_request_cancel_v1 to enforce actor authorization, mark the search as canceled, and cancel in-flight runs. Keep the procedure idempotent when the request is already terminal. Consequences: Cancel operations consistently update finished_at/canceled_at and avoid invalid run states. Unauthorized callers cannot cancel Torznab-owned searches. Follow-up: Implement search_request_create_v1 and search run state procedures to complete the search lifecycle.",
+      "tags": [],
+      "href": "/adr/137-indexer-search-request-cancel-proc/"
+    },
+    {
+      "id": "adr/138-indexer-search-run-procs",
+      "title": "Indexer search run procedures",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Search runs need explicit state transitions and retry backoff rules per ERD_INDEXERS.md. Retryable failures and rate-limited deferrals must keep runs queued while enforcing limits. Decision: Add stored procedures for enqueue, start, finish, fail, and cancel of search indexer runs. Implement backoff calculations for retryable errors and rate-limited deferrals inside the database. Consequences: Run state transitions are validated in one place and aligned with status timestamp constraints. Coordinators must pass retry_seq and rate-limit scope to ensure correct backoff. Follow-up: Implement search_request_create_v1 to seed runs and policy snapshots. Wire outbound request logging to update run correlation state.",
+      "tags": [],
+      "href": "/adr/138-indexer-search-run-procs/"
+    },
+    {
+      "id": "adr/139-indexer-canonical-disambiguation-rule-proc",
+      "title": "Indexer canonical disambiguation rule procedure",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Prevent-merge rules must enforce canonical identity normalization and symmetric uniqueness. Only admin/owner users may create disambiguation rules. Decision: Add canonical_disambiguation_rule_create_v1 with normalization, identity validation, and canonical ordering of left/right pairs. Record creation in config_audit_log with a canonical entity type. Consequences: Duplicate or reversed rule pairs are rejected before insertion. Invalid identity values fail fast and do not pollute rule sets. Follow-up: Implement canonical merge/recompute procedures that honor prevent-merge rules.",
+      "tags": [],
+      "href": "/adr/139-indexer-canonical-disambiguation-rule-proc/"
+    },
+    {
+      "id": "adr/140-indexer-search-request-create-proc",
+      "title": "Indexer search request create procedure",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Search requests must validate identifiers, torznab modes, and category filters per the ERD. Policy snapshots must be reusable with deterministic hashing and rule ordering. Decision: Add search_request_create_v1 with request validation, policy snapshot materialization, category/domain intersection, and runnable indexer gating. Return both search_request_public_id and the request policy set public id for downstream orchestration. Consequences: Search requests short-circuit to finished when domain/allowlist constraints or policy allowlists eliminate all runnable indexers. Invalid identifier or category combinations fail fast with explicit error codes. Follow-up: Implement search_result_ingest_v1 and canonical maintenance procedures. Add SQL harness tests for search_request creation paths and",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/140-indexer-search-request-create-proc/"
+    },
+    {
+      "id": "adr/141-indexer-job-runner-followups",
+      "title": "Indexer job runner follow-up procedures",
+      "summary": "Status: Accepted Date: 2026-01-26 Context: Job runner needs procedures for policy snapshot GC, refcount repair, and rate limit state purge. These procedures are used by scheduled jobs and must align with ERD retention rules. Decision: Add job runner procedures for policy snapshot GC, refcount repair, and rate limit state purge. Keep wrappers without version suffix to preserve stable entry points. Consequences: Policy snapshot rows with ref_count=0 will be purged after 30 days. Refcount repair can correct drift between snapshots and active searches. Rate limit state rows older than 6 hours are cleaned up. Follow-up: Implement remaining job runner procedures (RSS",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/141-indexer-job-runner-followups/"
+    },
+    {
+      "id": "adr/142-indexer-executor-handoff-procs",
+      "title": "Indexer executor handoff stored procedures",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: External executor work (RSS polling and indexer test probes) must be orchestrated through stored procedures, with clear concurrency control and auditable outcomes. The ERD requires separate claim/apply phases so the database remains the single source of truth while network calls run outside the DB. Secrets must remain encrypted at rest and only surfaced to the executor via explicit read procedures. Decision: Add RSS polling claim/apply procedures and indexer test prepare/finalize procedures. Provide a secret read procedure for executor access, allowing system callers to pass a NULL actor while still enforcing revocation checks. Keep procedure inputs/outputs",
+      "tags": [],
+      "href": "/adr/142-indexer-executor-handoff-procs/"
+    },
+    {
+      "id": "adr/143-indexer-tag-api",
+      "title": "Indexer Tag API Surface",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: Indexer tag stored procedures exist but there is no HTTP surface or service wiring. The API layer needs a DI-friendly facade to keep handlers thin and testable. Errors must use constant messages with structured context fields. Decision: Introduce an indexer facade trait in revaer-api and implement it in revaer-app. Add /v1/indexers/tags create/update/delete endpoints using stored procedures. Publish tag DTOs in revaer-api-models and update OpenAPI. Consequences: API callers can manage indexer tags without direct database access. API server construction now requires an indexer facade dependency. Tests and wiring must supply a stub indexer implementation. Follow-up: Extend",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/143-indexer-tag-api/"
+    },
+    {
+      "id": "adr/144-task-indexer-proc-fixes",
+      "title": "143 Task: Indexer procedure fixes (RSS apply, base score refresh, normalization)",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: RSS poll apply failed under outer-join locking and returned non-domain errors. Base score refresh queried a non-existent canonical_torrent_id on durable sources. Title normalization regex boundaries did not strip resolution tokens consistently. Import job status aggregation hit ambiguous column references. Factory reset did not re-seed indexer defaults, causing tag operations to fail. Decision: Patch stored procedures with targeted fixes and add a new migration to apply them. Keep Rust wrappers aligned with enum/array casts and session config expectations. Extend factory reset to reseed indexer defaults and system actor data. Consequences: RSS poll apply now locks the",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/144-task-indexer-proc-fixes/"
+    },
+    {
+      "id": "adr/145-indexer-domain-mapping",
+      "title": "144 Indexer domain mapping and DI boundaries",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: Indexer work spans stored procedures, API surfaces, UI/CLI usage, and background jobs. ERD_INDEXERS.md requires clear domain boundaries and injected dependencies. Testability and stored-proc-only data access must stay consistent across crates. Decision: Map indexer domains to existing crates and define DI seams for each domain service. Versioned stored procedures use _v1 suffixes with stable wrapper functions without version suffixes. Consequences: Clear ownership reduces cross-crate coupling and supports isolated testing. API/UI/CLI can share a single facade surface without leaking database details. Procedure evolution can continue without breaking callers by updating wrappers. Follow-up: Implement per-domain facades in revaer-api",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "di-boundaries-facade-surface",
+        "domain-to-crate-mapping",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/145-indexer-domain-mapping/"
+    },
+    {
+      "id": "adr/146-indexer-test-harness",
+      "title": "145 Indexer stored-proc test harness",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: Indexer stored-proc wrappers have extensive integration tests with repeated DB setup. ERD_INDEXERS_CHECKLIST requires a transactional, seeded harness and deterministic clocks. We need consistent setup without introducing new dependencies. Decision: Add a shared IndexerTestDb helper in revaer-data::indexers (test-only). Centralize Postgres startup, migrations, and UTC session configuration. Capture a deterministic now() value after migrations for tests that need time inputs. Consequences: Tests share a single harness, reducing setup drift and boilerplate. Deterministic timestamps are available without leaking production code changes. Test-only helper code is now part of the indexer module. Follow-up: Use IndexerTestDb::now() in additional tests that",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/146-indexer-test-harness/"
+    },
+    {
+      "id": "adr/147-indexer-error-code-taxonomy",
+      "title": "Indexer error-code taxonomy",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: Stored procedures already raise exceptions with DETAIL codes, but there is no single, documented taxonomy for the values or how the API must surface them. AGENTS.md requires constant error messages, structured context fields, and stable error mapping for clients and tests. Decision: Define a shared error-code taxonomy for indexer stored procedures and API responses: Stored procedures: Domain/validation/authorization failures raise ERRCODE = 'P0001' with a constant MESSAGE of the form Failed to <operation> and DETAIL set to the error code. Infrastructure/constraint errors use native SQLSTATE codes (e.g., 23505, 23503) and do not override the Postgres message.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/147-indexer-error-code-taxonomy/"
+    },
+    {
+      "id": "adr/148-indexer-v1-scope-routing",
+      "title": "Indexer v1 scope enforcement",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: The indexer ERD defines explicit v1 scope and non-goals that must guide architecture and route planning. The implementation plan needs a clear guardrail so API/UI work does not drift into media management or other out-of-scope features. Decision: Confirm that indexer v1 architecture and route planning are constrained to the ERD scope: Indexers, search, policies, secrets, routing, rate limiting, Torznab compatibility, and reliability/telemetry flows are in scope. Media management features remain out of scope for v1 and require a future ADR before any routes or services are added. Document the scope rule as a checklist gate",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/148-indexer-v1-scope-routing/"
+    },
+    {
+      "id": "adr/149-indexer-json-ban-verification",
+      "title": "Indexer schema JSON ban verification",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: The ERD bans JSON/JSONB storage for indexer data. We need to confirm migrations comply before expanding API and service layers. Decision: Verify all indexer migrations avoid JSON/JSONB column types and document the result. Treat JSON/JSONB usage as a hard failure in schema reviews; any exception requires a future ADR and ERD update. Consequences: The schema remains normalized and avoids opaque JSON storage. Future migrations must continue to use normalized tables and enums. Follow-up: Re-check JSON/JSONB usage whenever new migrations are added.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/149-indexer-json-ban-verification/"
+    },
+    {
+      "id": "adr/150-indexer-public-id-identity",
+      "title": "Indexer public-id and bigint identity verification",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: The ERD mandates bigint identity primary keys and UUID public IDs for specific indexer tables, while indexer_definition must not expose a public ID in v1. API and service layers depend on stable public identifiers without leaking internal bigint keys. Decision: Verify the following tables use BIGINT GENERATED ALWAYS AS IDENTITY primary keys and enforce UUID public IDs (unique) where required: app_user indexer_instance routing_policy policy_set policy_rule search_profile search_request canonical_torrent canonical_torrent_source torznab_instance rate_limit_policy secret Confirm indexer_definition has no public ID in v1. Consequences: Indexer APIs can safely use UUIDs/keys without exposing internal bigint IDs. Table definitions align",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/150-indexer-public-id-identity/"
+    },
+    {
+      "id": "adr/151-indexer-soft-delete-verification",
+      "title": "Indexer soft-delete coverage verification",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: The ERD requires soft-delete support via deleted_at on specific indexer tables. We need confirmation before expanding API and service layers that assume soft deletes. Decision: Verify deleted_at exists on all required tables: indexer_instance routing_policy policy_set search_profile tag torznab_instance rate_limit_policy Consequences: Soft-delete semantics are available for indexer configuration entities. API handlers can depend on deleted_at for active filtering. Follow-up: Keep soft-delete requirements in mind for any new indexer-facing tables.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/151-indexer-soft-delete-verification/"
+    },
+    {
+      "id": "adr/152-indexer-audit-timestamps-verification",
+      "title": "Indexer audit fields and timestamp defaults verification",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: The ERD requires audit fields (created/updated/changed by) to be non-null where used and mandates created_at/updated_at defaults when those columns exist. We need to confirm the indexer schema matches these requirements before expanding APIs. Decision: Verify audit fields are present and non-null where required, and timestamp defaults are set on indexer tables that include created_at/updated_at. Confirmed examples (migrations 0012–0023): Audit fields: tag, routing_policy, indexer_instance, search_profile, policy_set, policy_rule include created_by_user_id/updated_by_user_id as NOT NULL. indexer_instance_field_value includes updated_by_user_id as NOT NULL. canonical_disambiguation_rule includes created_by_user_id as NOT NULL. config_audit_log includes changed_by_user_id as NOT NULL. Timestamp defaults: Tables with created_at/updated_at columns",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/152-indexer-audit-timestamps-verification/"
+    },
+    {
+      "id": "adr/153-indexer-api-boundary-public-ids",
+      "title": "Indexer API boundary public-id verification",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: The ERD requires API boundaries to accept only UUID public IDs or keys and never expose internal bigint identities. We need to confirm the current indexer API surface and stored-procedure entry points follow this rule. Decision: Verified indexer API DTOs and handlers accept only UUIDs or keys, never internal bigint IDs. Confirmed API DTOs for tags use Uuid for tag_public_id and string keys (TagCreateRequest, TagUpdateRequest, TagDeleteRequest) and that the indexer facade methods take UUID actor identities plus UUID/tag key inputs. Confirmed indexer stored-procedure wrappers (deployment_init, tag_*, routing_policy_*, rate_limit_*, search_*, secret_*) accept UUID public IDs and",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/153-indexer-api-boundary-public-ids/"
+    },
+    {
+      "id": "adr/154-indexer-external-reference-public-ids",
+      "title": "Indexer external reference public-id verification",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: The ERD requires external references (policy rules, disambiguation rules) to store UUID public IDs or keys instead of internal bigint identities. We need to confirm the schema matches that rule before expanding policy and canonicalization workflows. Decision: Verified policy and disambiguation tables store UUIDs or keys only for external references. Policy rules capture external identifiers via match_value_uuid or lowercase match_value_text and policy_rule_value_set_item.value_uuid. Policy snapshots store policy_rule_public_id UUIDs. Canonical disambiguation rules store UUIDs only when referencing canonical_public_id, otherwise text hashes. Consequences: External reference data can be safely exposed in APIs without leaking internal bigint IDs. Internal",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/154-indexer-external-reference-public-ids/"
+    },
+    {
+      "id": "adr/155-indexer-system-sentinel-usage",
+      "title": "Indexer system sentinel usage verification",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: The ERD requires system actions to use a sentinel user identifier (user_id = 0 or the all-zero UUID) instead of NULL. We need to confirm the indexer schema and stored procedures follow this rule before expanding automation workflows. Decision: Verified the system sentinel user is seeded with user_id = 0 and the all-zero UUID public ID in deployment seed and initialization migrations. Confirmed stored procedures fall back to user_id = 0 for system-driven actions (e.g., search request creation). Confirmed data-layer tests use the all-zero UUID sentinel when invoking indexer procedures. Consequences: System actions can be",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/155-indexer-system-sentinel-usage/"
+    },
+    {
+      "id": "adr/156-indexer-text-caps-lowercase",
+      "title": "Indexer text caps and lowercase key enforcement verification",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: The ERD mandates text column caps and lowercase enforcement for key/slug fields (varchar(128) keys, varchar(256) names, varchar(2048) URLs, varchar(512) regex/text patterns, varchar(1024) notes). We need to confirm the schema enforces these caps and lowercase checks before expanding APIs and UI validation. Decision: Verified key/slug fields use VARCHAR(128) with lowercase CHECKs where required (e.g., tag.tag_key, indexer_definition.upstream_slug, indexer_definition_field.name). Verified display names are capped at VARCHAR(256) across core catalog tables (e.g., tag.display_name, indexer_definition.display_name, search_profile.display_name, policy_set.display_name). Verified URL fields use VARCHAR(2048) (e.g., search_request_source_observation details_url, download_url, magnet_uri). Verified regex/pattern text caps at VARCHAR(512) and notes/detail caps at VARCHAR(1024) (e.g., indexer_definition_field_validation.text_value,",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/156-indexer-text-caps-lowercase/"
+    },
+    {
+      "id": "adr/157-indexer-normalized-columns",
+      "title": "Indexer normalized column verification",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: The ERD requires normalized columns (e.g., email_normalized, *_norm) to support consistent lookups and lowercased comparisons. We need to confirm the schema includes the specified normalized fields. Decision: Verified app_user.email_normalized is present and enforced with a lowercase/trim CHECK constraint. Verified generated normalized columns exist where specified in definition metadata (indexer_definition_field_validation.text_value_norm and depends_on_value_plain_norm). Verified normalized identifier storage in search requests via search_request_identifier.id_value_normalized. Consequences: Normalized fields are persisted in the schema for reliable matching and validation logic. Stored procedures can rely on normalized columns without ad-hoc transforms. Follow-up: Ensure any new ERD-defined normalized fields are added with the",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/157-indexer-normalized-columns/"
+    },
+    {
+      "id": "adr/158-indexer-hash-identity-rules",
+      "title": "Indexer hash identity rules verification",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: The ERD defines hash identity rules for infohash v1/v2, magnet hashes, title normalization, and title-size fallback hashing. We need to confirm the schema and ingest procedures enforce these rules. Decision: Verified canonical tables enforce hash shapes and lowercase normalization: canonical_torrent and canonical_torrent_source validate infohash and magnet hashes, plus enforce lowercase title_normalized. Verified ingest procedures implement ERD hash derivations: normalize_title_v1, derive_magnet_hash_v1, and compute_title_size_hash_v1 in indexer_search_result_ingest_proc.sql implement normalization, magnet hash derivation, and title-size hashing. Verified identity strategy selection uses infohash v2, infohash v1, magnet hash, or title-size fallback per ERD. Consequences: Hash identity rules are enforced consistently",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/158-indexer-hash-identity-rules/"
+    },
+    {
+      "id": "adr/159-indexer-secret-binding-only",
+      "title": "Indexer secret binding linkage verification",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: The ERD requires secrets to be linked only through secret_binding and forbids inline secret_id columns on other tables. We need to confirm the schema follows this rule before extending secret usage in routing and indexer configs. Decision: Verified secret and secret_binding are the only tables owning secret_id, with bindings keyed by (bound_table, bound_id, binding_name). Confirmed other tables (e.g., indexer_instance_field_value, routing_policy_parameter) store no inline secret_id columns and rely on secret_binding for secret linkage. Consequences: Secret linkage is centralized and auditable via secret_binding and secret_audit_log. Schema aligns with ERD and avoids leaking secret references into unrelated tables.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/159-indexer-secret-binding-only/"
+    },
+    {
+      "id": "adr/160-indexer-single-tenant-scope",
+      "title": "Indexer single-tenant scope verification",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: The ERD specifies a single-tenant deployment with no tenant scoping tables or tenant_id columns. We need to confirm the schema has no tenant scoping artifacts. Decision: Verified indexer migrations contain no tenant/organization scoping columns or tables. Confirmed global catalog tables (e.g., trust_tier, media_domain, indexer_definition) are deployment-wide without tenant keys. Consequences: Database schema aligns with the ERD's single-tenant scope assumptions. Application layers can treat configuration and catalog data as global. Follow-up: Re-verify if multi-tenant support is introduced in later phases.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/160-indexer-single-tenant-scope/"
+    },
+    {
+      "id": "adr/161-indexer-table-constraint-alignment",
+      "title": "Indexer table/constraint alignment verification",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: ERD_INDEXERS.md requires all indexer tables, columns, defaults, CHECKs, UQ, and FK constraints to match the specification. Verification found the policy_set.created_for_search_request_id FK missing after search_request was introduced. Auto-created request policy sets must be purged with their search_request per ERD notes. Decision: Add a migration to enforce the policy_set.created_for_search_request_id FK with ON DELETE CASCADE to align with the ERD. Record the table/column/FK parity verification against ERD tables and migrations. Consequences: Positive: referential integrity matches ERD and search retention cascades to auto-created policy sets. Risk: existing orphaned policy_set rows would block the migration. Follow-up: Continue validating per-table Notes",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/161-indexer-table-constraint-alignment/"
+    },
+    {
+      "id": "adr/162-indexer-per-table-notes-verification",
+      "title": "Indexer per-table Notes verification",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: ERD_INDEXERS.md defines per-table Notes with validation rules, computed fields, and invariants that must be enforced in the schema or stored procedures. The Phase 2 checklist requires verifying these notes against migrations/procs. Decision: Verified schema-level invariants (generated columns, one-of constraints, ranges, and lowercase checks) across indexer tables and attribute tables. Verified procedure-level enforcement for tag immutability, policy set cardinality and linkage rules, policy rule validation, search request validation, and canonical disambiguation ordering. Consequences: Positive: DB constraints and stored procedures align with ERD Notes for validation and computed-field invariants. Risk: runtime behaviors described in Notes (e.g., Torznab",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/162-indexer-per-table-notes-verification/"
+    },
+    {
+      "id": "adr/163-indexer-proc-error-codes",
+      "title": "Indexer proc error-code alignment for key lookups",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: Motivation: ERD requires key-based lookups (trust_tier/media_domain/tag) to raise invalid_request with error_code=unknown_key; several stored procs still emitted *_not_found for key misses. Constraints: keep error messages constant, preserve public-id not-found codes, and avoid changing schema or adding dependencies. Decision: Update stored procedures to emit error_code=unknown_key for key-based misses while keeping *_not_found for public-id lookups. Map unknown_key to TagServiceErrorKind::NotFound in the app service layer. Verify existing role-based authorization checks and Torznab/system NULL-actor handling; no structural changes required. Alternatives considered: introduce new error enums per proc or map unknown_key to Invalid; rejected to keep ERD-mandated codes and existing API",
+      "tags": [],
+      "href": "/adr/163-indexer-proc-error-codes/"
+    },
+    {
+      "id": "adr/164-indexer-errors-normalization",
+      "title": "Indexer error enums and normalization helpers verification",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: Motivation: Phase 6 requires per-crate error enums with constant messages and context fields, plus normalization helpers for hashing and magnet/title inputs. Constraints: preserve existing stored-procedure boundaries and avoid new dependencies. Decision: Verified error enums and constant-message patterns for indexer paths across revaer-data (DataError), revaer-app (AppError), and revaer-api (TagServiceError). Verified normalization helpers and wrappers in revaer-data/src/indexers/normalization.rs and the supporting stored procedures (normalize_title, normalize_magnet_uri, derive_magnet_hash, compute_title_size_hash). Alternatives considered: introducing new error enums or normalization helpers in additional crates; rejected because current coverage meets ERD requirements. Consequences: Positive: checklist items are satisfied without new dependencies or API changes.",
+      "tags": [],
+      "href": "/adr/164-indexer-errors-normalization/"
+    },
+    {
+      "id": "adr/165-indexer-no-panics-result-only",
+      "title": "Indexer result-only returns and no-panics verification",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: Motivation: Phase 6 requires no panics/unwrap/expect in production paths and Result-only returns for fallible operations. Constraints: preserve existing interfaces and keep verification scoped to indexer runtime modules. Decision: Audited indexer-related modules for panic!, unwrap(), expect(), unreachable!() in non-test code and found none. Verified fallible operations return Result<T, E>; Option<T> usage is limited to non-fallible accessors and optional payloads. Alternatives considered: expanding the audit to the entire workspace; deferred to avoid blocking indexer-phase progress. Consequences: Positive: checklist item satisfied for indexer runtime paths without code churn. Risks/trade-offs: future modules must keep the same constraints; broader workspace",
+      "tags": [],
+      "href": "/adr/165-indexer-no-panics-result-only/"
+    },
+    {
+      "id": "adr/166-indexer-tryop-wrappers",
+      "title": "Indexer tryOp wrappers for external operations",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: Motivation: Phase 6 requires wrapping external/system calls in tryOp-style helpers to normalize error mapping across indexer data access. Constraints: panics are forbidden; do not introduce new dependencies; keep SQL interactions confined to stored-procedure calls. Decision: Introduce a shared try_op helper in the data layer and replace per-file map_query_err closures across indexer modules. Use try_op in all indexer data-layer SQLx interactions (queries, executes, and row extraction) to standardize error mapping. Note: panic catching is intentionally not used because catch_unwind is banned and production code must avoid panics entirely. Alternatives considered: leave per-file closures or introduce a",
+      "tags": [],
+      "href": "/adr/166-indexer-tryop-wrappers/"
+    },
+    {
+      "id": "adr/167-indexer-routing-policies",
+      "title": "Indexer routing policy service and endpoints",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: Motivation: expose routing policy create/param/secret operations through the indexer application facade and HTTP surface per ERD Phase 6/8 requirements. Constraints: stored-procedure-only DB access, constant error messages, DI-only wiring in bootstrap, no new dependencies. Decision: Extend the indexer facade with routing policy operations and implement them in revaer-app using existing stored-procedure wrappers. Add routing policy request/response DTOs plus HTTP handlers and routes for create, parameter set, and secret binding. Update the OpenAPI document to describe the new endpoints and schemas. Consequences: Positive: routing policy operations are now available to API callers with consistent error mapping and",
+      "tags": [],
+      "href": "/adr/167-indexer-routing-policies/"
+    },
+    {
+      "id": "adr/168-indexer-definition-list",
+      "title": "Indexer definition list endpoint",
+      "summary": "Status: Accepted Date: 2026-01-27 Context: Motivation: expose the indexer definition catalog via the API so UI/CLI flows can enumerate definitions without leaking internal IDs. Constraints: stored-procedure-only DB access, constant error messages, injected dependencies, and no new dependencies. Decision: Add a stored procedure to list indexer definitions with actor validation. Wire a data-layer wrapper, application facade method, and HTTP handler to return definition summaries. Document the new endpoint and DTOs in OpenAPI and add API coverage. Consequences: Positive: indexer definitions can be listed through a stable API surface. Risks/trade-offs: only summary data is exposed; follow-on endpoints are still needed for field",
+      "tags": [],
+      "href": "/adr/168-indexer-definition-list/"
+    },
+    {
+      "id": "adr/169-indexer-cf-state-get",
+      "title": "Indexer CF state read endpoint",
+      "summary": "Status: Accepted Date: 2026-01-30 Context: Motivation: surface Cloudflare mitigation state per indexer instance so UI/API can display health and reset workflows safely. Constraints: stored-procedure-only access, constant error messages, and no new dependencies. Decision: Added indexer_cf_state_get_v1 with a stable wrapper, plus data-access and API plumbing for a GET /v1/indexers/instances/{id}/cf-state response. Added E2E API coverage for indexer instance and secret endpoints to satisfy coverage gating. Alternatives considered: inline SQL or reusing reset-only plumbing (rejected due to stored-proc policy and missing read semantics). Consequences: Positive: CF state is now observable through a typed API response; coverage gate stays green. Trade-offs: endpoint currently used",
+      "tags": [
+        "dependency-rationale",
+        "observability",
+        "risk-and-rollback",
+        "test-coverage"
+      ],
+      "href": "/adr/169-indexer-cf-state-get/"
+    },
+    {
+      "id": "adr/170-indexer-cf-state-e2e-coverage",
+      "title": "Indexer CF state E2E coverage",
+      "summary": "Status: Accepted Date: 2026-01-30 Context: Motivation: satisfy UI E2E API coverage gate for newly added CF state endpoints. Constraints: no new dependencies; reuse existing E2E API fixtures and coverage hooks. Decision: Extend indexer instance E2E API coverage to hit CF state GET and reset endpoints using a missing-instance 404 path. Alternatives considered: add a dedicated fixture to create a real instance (rejected for higher setup cost in current E2E suite). Consequences: Positive: coverage gate includes CF state endpoints and remains green. Trade-offs: responses are 404-only in this test until instance creation is wired into E2E fixtures. Follow-up: Expand E2E to",
+      "tags": [
+        "dependency-rationale",
+        "observability",
+        "risk-and-rollback",
+        "test-coverage"
+      ],
+      "href": "/adr/170-indexer-cf-state-e2e-coverage/"
+    },
+    {
+      "id": "adr/171-indexer-category-mapping-api",
+      "title": "170 Indexer category mapping API endpoints",
+      "summary": "Status: Accepted Date: 2026-01-31 Motivation: Provide API management for tracker category and media-domain Torznab mappings per ERD and ADR 128. Expose stored-proc-backed updates with consistent error mapping and audit tracking. Design notes: Add indexer facade methods for tracker category and media-domain mapping upsert/delete. Implement HTTP endpoints that call stored procedures via data-layer wrappers. Keep error messages constant; attach error codes/SQLSTATE as structured context. Test coverage summary: Data-layer tests for invalid key handling and primary mapping switch. API E2E coverage for mapping upsert/delete endpoints. Observability updates: None (existing tracing/logging patterns reused). Risk & rollback plan: Risk: incorrect mapping updates could affect",
+      "tags": [],
+      "href": "/adr/171-indexer-category-mapping-api/"
+    },
+    {
+      "id": "adr/172-indexer-torznab-instance-api",
+      "title": "171 Indexer Torznab instance API endpoints",
+      "summary": "Status: Accepted Date: 2026-01-31 Motivation: Provide API coverage for Torznab instance lifecycle (create, rotate credentials, enable/disable, delete) backed by stored procedures. Close ERD indexer checklist gaps with testable handlers and OpenAPI schema coverage. Design notes: Add API models for Torznab instance create/state requests and responses in revaer-api-models. Extend indexer facade contract in revaer-api and wire revaer-app implementations to stored-proc data access. Implement HTTP handlers with consistent error mapping and constant error messages; trim user input on ingress. Add E2E coverage for Torznab instance endpoints and OpenAPI updates. Test coverage summary: Unit tests for error mapping and input trimming in the",
+      "tags": [],
+      "href": "/adr/172-indexer-torznab-instance-api/"
+    },
+    {
+      "id": "adr/173-indexer-search-profile-api",
+      "title": "172 Indexer search profile API endpoints",
+      "summary": "Status: Accepted Date: 2026-01-31 Context: API coverage for search profile stored procedures was missing, blocking ERD checklist parity. Prowlarr parity requires deterministic, auditable search profile configuration surfaces. Decision: Add request/response models, facade methods, and HTTP routes for search profile lifecycle ops. Keep error messages constant and attach context via structured fields. Consequences: Search profiles can now be created and configured through the API layer. E2E coverage asserts API availability for both auth modes. Follow-up: Implement search profile UI surfaces and policy management endpoints. Extend coverage for policy set integration once endpoints exist.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/173-indexer-search-profile-api/"
+    },
+    {
+      "id": "adr/174-indexer-import-jobs-api",
+      "title": "Indexer import jobs API surface",
+      "summary": "Status: Accepted Date: 2026-01-31 Context: Need REST coverage for indexer import jobs (create/run/status/results) to satisfy ERD indexer checklist. Must preserve stored-procedure boundaries, stable errors, and testable handlers with E2E coverage. Decision: Add import job request/response models and handler wiring for create/run/status/results endpoints. Extend app facade mapping for import job error translation and results/status projection. Update OpenAPI and Playwright API coverage for new endpoints. Alternatives considered: defer API surface until full import pipeline; rejected to keep parity with checklist and procs. Consequences: Positive outcomes: import job endpoints are now reachable, documented, and covered in E2E. Risks or trade-offs: run endpoints currently",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/174-indexer-import-jobs-api/"
+    },
+    {
+      "id": "adr/175-indexer-import-cli",
+      "title": "Indexer import jobs CLI commands",
+      "summary": "Status: Accepted Date: 2026-01-31 Context: Import job API endpoints exist but CLI lacked parity for creating and inspecting import jobs. Need to keep CLI output stable (json/table) and enforce API key requirements. Decision: Add indexer import CLI subcommands for create, run (Prowlarr API/backup), status, and results. Provide table and JSON output renderers for import job status and results. Alternatives considered: postpone CLI until full import pipeline; rejected to close ERD checklist gap. Consequences: Positive outcomes: operators can start and inspect import jobs from CLI with consistent output. Risks or trade-offs: CLI surfaces are limited to import job endpoints; broader indexer",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/175-indexer-import-cli/"
+    },
+    {
+      "id": "adr/176-indexer-torznab-cli",
+      "title": "Indexer Torznab CLI management",
+      "summary": "Status: Accepted Date: 2026-01-31 Context: Torznab instance keys and lifecycle operations are available via API but missing CLI tooling. Need operator-level access to create, rotate, enable/disable, and delete Torznab instances. Decision: Add indexer torznab CLI subcommands for create, rotate, set-state, and delete. Render Torznab instance credentials in JSON or table output. Alternatives considered: postpone CLI tooling; rejected to keep operational parity with API. Consequences: Positive outcomes: CLI can manage Torznab instances and rotate keys without UI. Risks or trade-offs: plaintext API keys are shown in CLI output; operators must handle securely. Follow-up: Add CLI coverage once Torznab endpoints and auth",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/176-indexer-torznab-cli/"
+    },
+    {
+      "id": "adr/177-indexer-policy-cli",
+      "title": "Indexer policy CLI management",
+      "summary": "Status: Accepted Date: 2026-01-31 Context: Policy set and rule endpoints exist but lack CLI coverage. Operators need a CLI path to create, enable, disable, and reorder policy sets and rules. Decision: Add indexer policy CLI subcommands for policy set creation, update, enable/disable, reorder, and policy rule create/enable/disable/reorder. Render policy set and rule identifiers in table or JSON output. Alternatives considered: rely on API or UI; rejected to keep operational parity. Consequences: Positive outcomes: CLI can manage policy sets and rules without UI. Risks or trade-offs: CLI must be kept in sync with API schema updates. Follow-up: Add list and detail",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/177-indexer-policy-cli/"
+    },
+    {
+      "id": "adr/178-indexer-instance-test-api",
+      "title": "Indexer instance test API and CLI",
+      "summary": "Status: Accepted Date: 2026-01-31 Context: Indexer instance test stored procedures exist but lacked an API/CLI surface. Executors need a prepare payload and a finalize endpoint to record outcomes. Decision: Add API endpoints to prepare and finalize indexer instance tests. Add CLI commands to invoke the prepare and finalize endpoints with JSON or table output. Alternatives considered: defer until executor is built; rejected to keep parity with ERD flows. Consequences: Positive outcomes: external executors and CLI can drive indexer test lifecycle. Risks or trade-offs: test execution is still external; API must stay aligned with executor payload needs. Follow-up: Wire executor to",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/178-indexer-instance-test-api/"
+    },
+    {
+      "id": "adr/179-indexer-allocation-guard",
+      "title": "Indexer allocation safety guard",
+      "summary": "Status: Accepted Date: 2026-02-01 Context: Motivation: Prevent unbounded allocations in indexer handlers and satisfy security review feedback. Constraints: No new dependencies; errors must use constant messages with structured context. Decision: Add a shared allocation helper that reads MemAvailable from /proc/meminfo and limits requested allocations to 80% of available memory. Apply the helper to dynamic list normalization in search profiles, policy rules, and media domain allowlists, while raising per-list caps to avoid overly constraining users. Dependency rationale: none (std-only implementation). Consequences: Positive outcomes: safer allocations, explicit error reporting with context, consistent limits. Risks or trade-offs: allocation checks fail closed if MemAvailable",
+      "tags": [],
+      "href": "/adr/179-indexer-allocation-guard/"
+    },
+    {
+      "id": "adr/180-auth-prompt-dismissal",
+      "title": "Auth prompt dismissal stability",
+      "summary": "Status: Accepted Date: 2026-02-01 Context: Motivation: UI E2E intermittently fails because the auth prompt reappears after dismissal when app auth mode is resolved asynchronously. Constraints: Preserve current auth behavior, avoid new dependencies, keep state logic testable. Decision: Stop resetting auth_prompt_dismissed in the app auth mode effect so a user dismissal remains effective for the session. Alternatives considered: re-trying dismissal in tests only, or persisting dismissal in storage. Dependency rationale: none (state-only change). Consequences: Positive outcomes: auth overlay no longer reappears after dismissal during initial config hydration; UI tests can dismiss overlays reliably. Risks or trade-offs: users might need to re-open",
+      "tags": [],
+      "href": "/adr/180-auth-prompt-dismissal/"
+    },
+    {
+      "id": "adr/181-allocation-live-memory-probe",
+      "title": "Cross-platform allocation safety probe",
+      "summary": "Status: Accepted Date: 2026-02-01 Context: Motivation: Allocation safety relied on /proc/meminfo, which is Linux-only. We need a cross-platform source of *live* available memory so we do not lock into Linux. Constraints: Keep error messages constant; avoid unsafe code; preserve minimal dependencies. Decision: Use systemstat to fetch live memory statistics on all platforms. Prefer Linux MemAvailable when present, otherwise fall back to the live free-memory value returned by systemstat. Keep the 80% available-memory guard and fail closed when memory cannot be determined. Dependency rationale: systemstat provides cross-platform live memory data without adding unsafe code in Revaer. Alternatives considered: OS-specific FFI (requires",
+      "tags": [],
+      "href": "/adr/181-allocation-live-memory-probe/"
+    },
+    {
+      "id": "adr/182-indexer-pr-feedback",
+      "title": "Indexer PR Feedback Follow-through",
+      "summary": "Status: Accepted Date: 2026-02-01 Context: Addressed open PR feedback on indexer handlers, allocation safety, and API request shape. Needed clearer documentation for session encryption env vars and allocation limits. Reduced duplicated test scaffolding while preserving testability and coverage. Decision: Centralize allocation safety in a helper, apply it to request-driven allocations, and document the 80% safety limit. Consolidate indexer handler test scaffolding into a shared test helper module. Move string normalization helpers into a shared indexer module. Remove redundant indexer instance public ID from the update request body. Consequences: Clearer memory allocation policy and safer handling of unbounded inputs. Leaner test",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/182-indexer-pr-feedback/"
+    },
+    {
+      "id": "adr/183-indexer-pr-feedback-allocations",
+      "title": "Indexer PR Feedback Allocation Follow-up",
+      "summary": "Status: Accepted Date: 2026-02-02 Context: Review feedback highlighted unbounded allocations in indexer handlers and asked for clearer, live-memory guardrails. Allocation safety needed to remain cross-platform and avoid hard-coded assumptions. Test helper naming and error diagnostics in tests required clarification. Decision: Add explicit allocation safety checks for request-driven string and vector allocations using the shared live-memory guard. Introduce a minimum-available-memory threshold and a cached-system entry point to avoid repeated probing where reuse is possible. Rename shared indexer test state helper and tighten ProblemDetails parsing in tests. Consequences: Safer handling of request-sized allocations with clearer memory-policy documentation. Improved test helper clarity and",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/183-indexer-pr-feedback-allocations/"
+    },
+    {
+      "id": "adr/184-indexer-pr-feedback-more",
+      "title": "Indexer PR Feedback Follow-up (Allocation Caps)",
+      "summary": "Status: Accepted Date: 2026-02-02 Context: Additional PR feedback requested explicit caps for request-driven allocations and safer test body parsing. Allocation guards must use live memory data while still providing deterministic upper bounds. Decision: Add explicit maximum sizes for search profile domain/tag keys and policy rule text inputs. Limit test response body reads to a fixed upper bound. Document the secret key ID max-length source for maintainability. Consequences: Reduced risk of unbounded allocations from large inputs. Clearer operational limits with minimal user-facing constraints. Test helpers avoid excessive memory use on malformed responses. Follow-up: Confirm GHAS/code scanning alerts clear after the next",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/184-indexer-pr-feedback-more/"
+    },
+    {
+      "id": "adr/185-indexer-torznab-caps-endpoint",
+      "title": "Indexer Torznab caps endpoint",
+      "summary": "Status: Accepted Date: 2026-02-03 Context: We need to begin Torznab API parity by serving a caps response backed by seeded categories. Authentication must use the Torznab API key query parameter and reject disabled/deleted instances. Runtime SQL must remain stored-procedure-only and error messages must be constant. Decision: Add stored procedures to authenticate Torznab instances and list seeded Torznab categories. Expose a Torznab caps handler that authenticates via apikey and returns XML caps data. Keep invalid/unsupported Torznab requests as empty XML responses with no DB writes. Consequences: Positive outcomes: Arr clients can validate Torznab connectivity via caps using live category data. Authentication",
+      "tags": [],
+      "href": "/adr/185-indexer-torznab-caps-endpoint/"
+    },
+    {
+      "id": "adr/186-indexer-torznab-download-and-allocation-guards",
+      "title": "Indexer Torznab download and allocation guards",
+      "summary": "Status: Accepted Date: 2026-02-04 Context: We need Torznab download redirects to complete core ERD coverage and satisfy PR review feedback. Allocation safety must rely on live memory information and apply to request-driven allocations. Review feedback also called for clearer validation structure in bootstrap secrets. Decision: Add a stored-procedure-backed Torznab download prepare path that validates instance/profile/tag access and records acquisition attempts. Extend allocation guards to all request-dependent allocations, including Torznab XML escaping, and clamp vector capacities to bounded limits. Refactor secret env validation to a shared helper for consistency. Consequences: Positive outcomes: Torznab clients can request download redirects with audited acquisition",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/186-indexer-torznab-download-and-allocation-guards/"
+    },
+    {
+      "id": "adr/187-indexer-search-requests-api",
+      "title": "186: Indexer search requests API and allocation guard refinements",
+      "summary": "Status: Accepted Date: 2026-02-04 Context: Add v1 REST endpoints for indexer search request create/cancel while keeping stored-procedure boundaries. Address PR feedback on allocation safety and test-only helper isolation. Ensure allocation guards use live memory data and cap single allocations at 80% of available memory. Decision: Added search request create/cancel request/response models plus API handlers, routes, and facade wiring. Added allocation helpers that check live memory availability and use checked capacity reservations before dynamic allocations. Tightened test helpers to use bounded body reads and explicit error parsing. Consequences: Positive outcomes: Search request orchestration is now reachable via v1 REST endpoints. Allocation",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/187-indexer-search-requests-api/"
+    },
+    {
+      "id": "adr/188-indexer-search-request-auth-e2e",
+      "title": "Indexer search request auth E2E coverage",
+      "summary": "Status: Accepted Date: 2026-02-04 Context: Enforce the v1 rule that REST search requests and canonical torrent source access require API key auth. Validate behavior in E2E tests without reducing existing indexer functionality. Decision: Add E2E coverage for search request create/cancel auth requirements. Add E2E coverage for Torznab download behavior when the apikey is missing. Keep API responses and handler behavior unchanged; tests only validate the existing contract. Consequences: Positive outcomes: regression coverage for auth enforcement on search requests and Torznab downloads. Risks or trade-offs: additional E2E runtime and reliance on seeded system actor for search requests. Follow-up: Monitor CI E2E",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/188-indexer-search-request-auth-e2e/"
+    },
+    {
+      "id": "adr/189-indexer-search-pages-api",
+      "title": "188: Indexer search pages API",
+      "summary": "Status: Accepted Date: 2026-02-06 Context: Search request creation exists, but there is no API surface to read sealed pages or page contents. ERD requires stable page ordering and sealed page boundaries for streaming results. All runtime DB reads must go through stored procedures with constant error messages. Decision: Added stored procedures to list pages and fetch page items with stable ordering and page metadata. Exposed v1 REST endpoints to list pages and fetch a specific page for a search request. Updated API models and OpenAPI to document the new search page responses. Consequences: Positive outcomes: Clients can poll page lists",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/189-indexer-search-pages-api/"
+    },
+    {
+      "id": "adr/190-search-request-validation-tests",
+      "title": "189: Search request validation tests",
+      "summary": "Status: Accepted Date: 2026-02-06 Context: Search request creation enforces identifier, season/episode, and category validation rules in stored procedures. Validation paths were under-tested, leaving ERD rule coverage uncertain. Decision: Add stored-proc tests that exercise identifier mismatch, torznab season/episode validation, and invalid category filters. Mark the ERD validation checklist item as complete once coverage is in place. Consequences: Positive outcomes: Validation rules are exercised directly against stored procedures. Future regressions in search request validation will fail fast in CI. Risks or trade-offs: Slightly longer indexer test runtime due to additional database cases. Follow-up: Extend validation tests as new rules are added to",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/190-search-request-validation-tests/"
+    },
+    {
+      "id": "adr/191-hash-identity-derivation-tests",
+      "title": "190: Hash identity derivation tests",
+      "summary": "Status: Accepted Date: 2026-02-06 Context: ERD hash identity rules require deterministic magnet hash derivation with a strict precedence order. Stored-proc behavior existed but lacked focused tests to lock in the precedence and normalization rules. Decision: Add stored-proc tests for derive_magnet_hash to confirm infohash v2 precedence, infohash v1 fallback, and magnet URI normalization. Mark the ERD checklist item for hash identity derivation as complete once coverage is in place. Consequences: Positive outcomes: Hash derivation precedence and normalization rules are exercised directly in CI. Future regressions in magnet hash derivation will surface quickly. Risks or trade-offs: Minor increase in normalization test runtime.",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/191-hash-identity-derivation-tests/"
+    },
+    {
+      "id": "adr/192-rate-limit-state-purge-test",
+      "title": "191: Rate limit state purge test",
+      "summary": "Status: Accepted Date: 2026-02-06 Context: ERD rules require rate_limit_state to purge minute buckets older than six hours. The purge job existed but lacked a focused test to confirm retention behavior. Decision: Add a stored-proc test that inserts old and recent rate_limit_state rows and verifies purge behavior. Mark the ERD checklist item for rate_limit_state purging as complete once coverage is in place. Consequences: Positive outcomes: Retention behavior is enforced in CI for rate_limit_state cleanup. Prevents regressions that could bloat rate_limit_state or delete fresh buckets. Risks or trade-offs: Slightly longer indexer job test runtime due to extra database setup. Follow-up: Add more",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/192-rate-limit-state-purge-test/"
+    },
+    {
+      "id": "adr/193-job-schedule-completion",
+      "title": "192 Job schedule completion updates",
+      "summary": "Status: Accepted Date: 2026-02-07 Context: Motivation: enforce ERD job_schedule completion semantics (next_run_at + lock cleanup) for indexer jobs. Constraints: stored-procedure-only runtime access, constant error messages, versioned procs with stable wrappers. Decision: Add job_schedule_mark_completed_v1 and job_run_*_v2 wrappers to update last_run_at, next_run_at, and clear locks on both success and failure. Keep job_run_reputation_rollup signature stable by mapping window_key to job_key in-proc. Alternatives considered: update next_run_at in job_claim_next (rejected; ERD mandates update on completion) and update schedule in app runner (rejected; DB is SSOT). Consequences: Positive outcomes: job_schedule rows now reflect completion cadence with jitter and lock cleanup per ERD. Risks or trade-offs: if",
+      "tags": [],
+      "href": "/adr/193-job-schedule-completion/"
+    },
+    {
+      "id": "adr/194-job-claim-locking-and-leases",
+      "title": "193 Job claim locking and lease durations",
+      "summary": "Status: Accepted Date: 2026-02-14 Context: Motivation: close ERD job_schedule gaps for claim semantics and per-job lease durations. Constraints: stored-procedure-only runtime DB access, constant error messages, migration-safe CREATE OR REPLACE updates. Decision: Add job_claim_lease_seconds_v1 (+ stable wrapper) as the single lease-duration mapping source for all job_key values. Update job_claim_next_v1 to acquire advisory lock before reading job_schedule, then validate due/locked/enabled state and set locked_until using job_claim_lease_seconds_v1. Alternatives considered: keep inline CASE mapping in job_claim_next_v1 (rejected: duplicated lease logic), and rely on pre-lock state checks only (rejected: race window for stale schedule reads). Consequences: Positive outcomes: claim flow now aligns with ERD advisory-lock",
+      "tags": [],
+      "href": "/adr/194-job-claim-locking-and-leases/"
+    },
+    {
+      "id": "adr/195-policy-snapshot-gc-ordering",
+      "title": "194 Policy snapshot GC ordering",
+      "summary": "Status: Accepted Date: 2026-02-15 Context: Motivation: enforce ERD ordering that policy snapshot refcount repair runs before policy snapshot GC. Constraints: runtime DB operations must remain stored-procedure based with stable wrappers and constant error messages. Decision: Update job_run_policy_snapshot_gc_v2 to invoke job_run_policy_snapshot_refcount_repair_v1 before job_run_policy_snapshot_gc_v1. Keep job_schedule completion behavior unchanged so policy_snapshot_gc still advances cadence and clears locks in one place. Alternatives considered: scheduler-only ordering in application code (rejected: ordering belongs in DB job semantics) and changing v1 procedures directly (rejected: keep compatibility and add behavior through versioned wrappers). Consequences: Positive outcomes: stale policy_snapshot.ref_count values are repaired before GC evaluation, preventing orphaned old",
+      "tags": [],
+      "href": "/adr/195-policy-snapshot-gc-ordering/"
+    },
+    {
+      "id": "adr/196-retention-purge-context-cleanup",
+      "title": "195 Retention purge context cleanup",
+      "summary": "Status: Accepted Date: 2026-02-15 Context: Motivation: complete ERD retention semantics for search-request scoped rows by purging context score tables together with expired search requests. Constraints: retention behavior must remain in stored procedures and use constant error messages. Decision: Update job_run_retention_purge_v1 to delete canonical_torrent_source_context_score and canonical_torrent_best_source_context rows where context_key_type='search_request' and context_key_id belongs to purged requests. Keep existing retention windows and table purges unchanged for outbound logs, RSS seen rows, conflicts, conflict audits, health events, and source reputation. Add an integration test covering retention windows and search-request context cleanup in one execution path. Alternatives considered: relying only on application-side cleanup (rejected: retention",
+      "tags": [],
+      "href": "/adr/196-retention-purge-context-cleanup/"
+    },
+    {
+      "id": "adr/197-indexer-connectivity-profile-refresh-rollups",
+      "title": "196 Indexer connectivity profile refresh rollups",
+      "summary": "Status: Accepted Date: 2026-02-15 Context: Motivation: complete the ERD connectivity rollup behavior for job_run_connectivity_profile_refresh_v1 so indexer_connectivity_profile is derived from outbound_request_log with the required thresholds and request-type scope. Constraints: runtime logic must remain in stored procedures, no inline runtime SQL, no new dependencies, and tests must run through existing Rust data-layer harnesses. Decision: Added migration 0088_indexer_connectivity_profile_rollup_rules.sql to redefine job_run_connectivity_profile_refresh_v1. Rollups now aggregate only request types (caps, search, tvsearch, moviesearch, rss, probe), exclude rate_limited from samples, and treat success as outcome='success' AND parse_ok=true. Status scoring now follows ERD thresholds with explicit failing precedence for success_rate_1h < 0.90 and dominant failure classes in",
+      "tags": [],
+      "href": "/adr/197-indexer-connectivity-profile-refresh-rollups/"
+    },
+    {
+      "id": "adr/198-reputation-rollup-sample-thresholds",
+      "title": "197 Reputation rollup sample thresholds",
+      "summary": "Status: Accepted Date: 2026-02-15 Context: Motivation: complete ERD reputation rollup behavior for job_run_reputation_rollup_v1 so source_reputation only records trusted windows and uses ERD sample semantics. Constraints: runtime data access stays in stored procedures, no new dependencies, and behavior must be validated through existing data-layer tests. Decision: Added migration 0089_indexer_reputation_rollup_thresholds.sql to redefine job_run_reputation_rollup_v1. Request samples now use outbound_request_log rows for request types (caps, search, tvsearch, moviesearch, rss, probe), exclude error_class=rate_limited, and count success as outcome='success' AND parse_ok=true. Rollups now upsert only for eligible windows (request_count >= 30 or acquisition_count >= 10) per ERD trusted-sample thresholds. Rollups are scoped to active indexers (indexer_instance.deleted_at",
+      "tags": [],
+      "href": "/adr/198-reputation-rollup-sample-thresholds/"
+    },
+    {
+      "id": "adr/199-canonical-refresh-durable-source-cadence",
+      "title": "198 Canonical refresh durable source cadence",
+      "summary": "Status: Accepted Date: 2026-02-15 Context: Motivation: complete ERD-derived cadence behavior for job_run_canonical_backfill_best_source_v1 and job_run_base_score_refresh_recent_v1. Constraints: keep runtime DB behavior inside stored procedures, use no new dependencies, and verify behavior through revaer-data job tests. Decision: Added migration 0090_indexer_base_score_refresh_durable_sources.sql to redefine both job procedures. job_run_base_score_refresh_recent_v1 now derives candidate canonical/source pairs directly from durable canonical_torrent_source.last_seen_at >= now()-7d instead of canonical_torrent_source_context_score. job_run_base_score_refresh_recent_v1 now recomputes global winners for canonicals with durable-source activity in the last 7 days. job_run_canonical_backfill_best_source_v1 now treats “recent canonicals” as canonicals with at least one durable source seen in the last 7 days, while retaining no-winner and low-confidence fallback backfill paths. Added",
+      "tags": [],
+      "href": "/adr/199-canonical-refresh-durable-source-cadence/"
+    },
+    {
+      "id": "adr/200-canonical-prune-source-link-policy",
+      "title": "Canonical prune source-link policy alignment",
+      "summary": "Status: Accepted Date: 2026-02-18 Context: canonical_prune_low_confidence_v1 needed to match ERD_INDEXERS.md pruning semantics for low-confidence fallback canonicals. The ERD requires preserving candidates when their durable sources are also tied to non-pruned canonicals. Existing logic inferred source ties via identity joins, which could diverge from persisted canonical/source linkage used by scoring and best-source derivations. Decision: Redefine canonical_prune_low_confidence_v1 to evaluate source ties from persisted canonical/source linkage tables: canonical_torrent_source_base_score canonical_torrent_source_context_score canonical_torrent_best_source_global canonical_torrent_best_source_context Keep existing candidate eligibility guards: title_size_fallback with identity_confidence <= 0.60 created_at older than 30 days no acquisition attempts by canonical ID or hashes no user_result_action with selected or downloaded Prune only candidates",
+      "tags": [],
+      "href": "/adr/200-canonical-prune-source-link-policy/"
+    },
+    {
+      "id": "adr/201-rss-poll-and-backfill-workflows",
+      "title": "RSS poll and subscription backfill workflows",
+      "summary": "Status: Accepted Date: 2026-02-21 Context: ERD_INDEXERS.md requires rss_poll and rss_subscription_backfill workflows with strict eligibility, retry/disable behavior, and job schedule completion semantics. Existing stored procedures were in place, but coverage did not prove the v1 behavioral requirements end-to-end from the Rust data-access layer. Phase 9 checklist item remained open until those workflows were validated through representative job and executor paths. Decision: Add data-layer tests in revaer-data for RSS claim/apply and backfill job execution: rss_poll_claim returns only due, enabled subscriptions for enabled RSS-capable instances. successful rss_poll_apply updates subscription state and deduplicates item inserts. non-retryable rss_poll_apply disables subscription and writes the expected config",
+      "tags": [],
+      "href": "/adr/201-rss-poll-and-backfill-workflows/"
+    },
+    {
+      "id": "adr/202-rss-scheduling-backoff-dedupe-validation",
+      "title": "RSS scheduling, backoff, and dedupe validation",
+      "summary": "Status: Accepted Date: 2026-02-21 Context: ERD_INDEXERS.md requires RSS polling behavior to enforce scheduling jitter, retry backoff, and item deduplication. Existing tests covered claim filtering, successful dedupe insertion, and non-retryable auto-disable, but did not assert retry backoff growth and success scheduling bounds. The Phase 7 checklist item remained open until these behavioral rules were validated. Decision: Extend revaer-data executor tests for RSS apply behavior: Add retryable failure assertions proving exponential backoff progression (60s then 120s), preserved subscription enablement, and persisted error class. Add successful apply scheduling assertions proving next poll is interval-based with bounded jitter (900..=960 seconds). Keep implementation dependency-free (no",
+      "tags": [],
+      "href": "/adr/202-rss-scheduling-backoff-dedupe-validation/"
+    },
+    {
+      "id": "adr/203-rate-limit-token-bucket-and-rss-rate-limited-semantics",
+      "title": "Rate limit token bucket and RSS rate-limited semantics",
+      "summary": "Status: Accepted Date: 2026-02-21 Context: ERD_INDEXERS.md defines token bucket enforcement via rate_limit_try_consume_v1 and explicit rate-limited failure semantics for rss_poll_apply_v1. Existing tests did not fully verify capacity-deny behavior, invalid input guards, and RSS rate-limited logging/backoff behavior from the Rust data boundary. Phase 7 checklist still had rate-limit enforcement unchecked. Decision: Add revaer-data tests to verify: token bucket capacity enforcement (allowed then deny without over-consuming tokens); invalid token bucket inputs return expected error details (capacity_invalid, tokens_invalid); RSS rate_limited failures require rate_limit_denied_scope; RSS rate_limited failures use retry path semantics (backoff scheduling) and force outbound log counters to latency_ms=0 and result_count=0. Keep implementation dependency-free",
+      "tags": [],
+      "href": "/adr/203-rate-limit-token-bucket-and-rss-rate-limited-semantics/"
+    },
+    {
+      "id": "adr/204-cf-state-transition-and-mitigation-validation",
+      "title": "Cloudflare state transition and mitigation validation",
+      "summary": "Status: Accepted Date: 2026-02-21 Context: ERD_INDEXERS.md requires explicit Cloudflare transition behavior around RSS polling failures, including challenged/cooldown progression and retryability semantics tied to FlareSolverr availability. Existing tests did not verify the cf_challenge transition paths in rss_poll_apply_v1 from the Rust data boundary. Phase 7 still had Cloudflare transition/mitigation behavior unchecked. Decision: Extend revaer-data RSS executor tests to validate: non-retryable cf_challenge creates/updates indexer_cf_state to challenged with incremented failures; repeated non-retryable cf_challenge transitions to cooldown at five consecutive failures with backoff; retryable cf_challenge (cf_retryable=true) follows retry semantics without applying CF state transition updates. Keep implementation dependency-free (no new crates). Alternatives considered: Rely only",
+      "tags": [],
+      "href": "/adr/204-cf-state-transition-and-mitigation-validation/"
+    },
+    {
+      "id": "adr/205-policy-snapshot-reuse-and-refcount-validation",
+      "title": "Policy snapshot reuse and refcount validation",
+      "summary": "Status: Accepted Date: 2026-02-21 Context: ERD_INDEXERS.md requires policy snapshots to be reusable by hash and to track ref_count transactionally. Search-request creation and retention purge logic depend on this behavior for correctness and GC safety. Existing tests covered purge ordering and repair jobs, but did not directly verify snapshot reuse on create plus ref-count decrement on purge from the data boundary. Decision: Add revaer-data search-request tests to validate: repeated search_request_create calls with identical effective policy inputs reuse the same policy_snapshot row and increment ref_count; job_run_retention_purge decrements snapshot ref_count when an old finished search request is purged. Keep implementation dependency-free (no new",
+      "tags": [],
+      "href": "/adr/205-policy-snapshot-reuse-and-refcount-validation/"
+    },
+    {
+      "id": "adr/206-policy-snapshot-gc-acceptance-coverage",
+      "title": "Policy snapshot GC acceptance coverage",
+      "summary": "Status: Accepted Date: 2026-02-21 Context: ERD_INDEXERS.md requires policy snapshot reuse via hash, transactional ref_count tracking, and garbage collection for stale snapshots. Existing job-level tests already verify GC behavior and refcount repair ordering, while the latest search-request tests verify create-time reuse and retention-time decrements. The Phase 9 acceptance checklist item remained open despite complete executable coverage. Decision: Mark the acceptance item Policy snapshot reuse and GC rules match ERD complete in ERD_INDEXERS_CHECKLIST.md. Keep GC/refcount verification at the data boundary using existing tests: indexers::jobs::tests::job_run_policy_snapshot_gc_repairs_ref_count_before_delete indexers::search_requests::tests::search_request_create_reuses_policy_snapshot_by_hash_and_increments_ref_count indexers::search_requests::tests::retention_purge_decrements_policy_snapshot_ref_count Alternatives considered: add duplicate API-layer tests for the same behavior: rejected because stored-procedure tests already exercise",
+      "tags": [],
+      "href": "/adr/206-policy-snapshot-gc-acceptance-coverage/"
+    },
+    {
+      "id": "adr/207-derived-refresh-timing-and-caching-validation",
+      "title": "Derived refresh timing and caching validation",
+      "summary": "Status: Accepted Date: 2026-02-21 Context: ERD_INDEXERS.md defines job cadence expectations for derived-table refresh workflows and expects deterministic refresh timing. Existing tests validated specific refresh behavior (connectivity/reputation/base-score/canonical backfill), but did not explicitly validate seeded job_schedule.cadence_seconds against ERD timings. Phase 9 still had Ensure derived tables refresh according to ERD timing and caching rules unchecked. Decision: Add a data-layer test in revaer-data to assert job_schedule cadence values for all indexer jobs that drive derived refresh and related maintenance windows. Keep coverage dependency-free and proc-centric: job_schedule_cadence_matches_erd_refresh_timing validates configured cadence seconds for refresh, rollup, GC, purge, and RSS schedules. Alternatives considered: infer timing correctness",
+      "tags": [],
+      "href": "/adr/207-derived-refresh-timing-and-caching-validation/"
+    },
+    {
+      "id": "adr/208-retention-and-rollup-job-window-validation",
+      "title": "Retention and rollup job window validation",
+      "summary": "Status: Accepted Date: 2026-02-21 Context: ERD_INDEXERS.md requires retention and reputation rollup jobs to honor time-window semantics (1h, 24h, 7d) and retain deterministic aggregation behavior. Existing tests covered retention purge and one-hour rollup behavior, but explicit coverage for 24h/7d boundary inclusion-exclusion was missing. Phase 11 still listed Add job runner tests for retention and rollups as incomplete. Decision: Add a revaer-data job-runner test that validates multi-window rollup boundaries: includes events within 24h and 7d windows; excludes events older than each target window; verifies derived success and acquisition metrics for both 24h and 7d windows. Mark the Phase 11 checklist item complete.",
+      "tags": [],
+      "href": "/adr/208-retention-and-rollup-job-window-validation/"
+    },
+    {
+      "id": "adr/209-retention-and-derived-refresh-strategy-coverage",
+      "title": "Retention and derived refresh strategy coverage",
+      "summary": "Status: Accepted Date: 2026-02-21 Context: ERD_INDEXERS.md requires retention windows and derived refresh strategy to be enforced via scheduled jobs. Coverage existed across job tests but the checklist item remained open. Decision: Close the checklist item after mapping and validating existing executable coverage: retention purge windows and table cleanup: job_run_retention_purge_applies_table_windows derived cadence and schedule correctness: job_schedule_cadence_matches_erd_refresh_timing rollup window behavior and boundary semantics: job_run_reputation_rollup_skips_insufficient_samples job_run_reputation_rollup_writes_rates_for_eligible_samples job_run_reputation_rollup_respects_window_boundaries derived refresh jobs: job_run_base_score_refresh_recent_uses_durable_source_activity job_run_canonical_backfill_best_source_recomputes_recent_durable_sources Consequences: Positive outcomes: checklist status now matches implemented, tested ERD behavior. Risks or trade-offs: cadence/window rule changes require test expectation updates in lockstep. Follow-up: Implementation tasks: Continue with the next unchecked",
+      "tags": [],
+      "href": "/adr/209-retention-and-derived-refresh-strategy-coverage/"
+    },
+    {
+      "id": "adr/210-policy-rule-disable-enable-and-reorder-validation",
+      "title": "Policy rule disable/enable and reorder validation",
+      "summary": "Status: Accepted Date: 2026-02-21 Context: ERD_INDEXERS.md requires policy rule mutability to flow through explicit enable/disable and ordering semantics rather than ad-hoc field mutation. Existing tests covered policy rule creation and policy-set reorder validation, but did not directly validate rule disable/enable state transitions and empty reorder rejection. Decision: Add data-layer tests in revaer-data policy procedures to validate: policy_rule_disable and policy_rule_enable toggle policy_rule.is_disabled deterministically; policy_rule_reorder rejects empty rule lists with policy_rule_ids_empty. Mark the behavioral checklist item complete. Consequences: Positive outcomes: policy rule control-path semantics now have explicit regression coverage; checklist status aligns with executable behavior. Risks or trade-offs: if policy-rule update surfaces",
+      "tags": [],
+      "href": "/adr/210-policy-rule-disable-enable-and-reorder-validation/"
+    },
+    {
+      "id": "adr/211-search-result-observation-rules-validation",
+      "title": "Search-result observation rules validation",
+      "summary": "Status: Accepted Date: 2026-02-21 Context: ERD_INDEXERS.md requires observation processing to enforce latest-observation precedence, monotonic durable last_seen_* fields, and duplicate attribute rejection. search_result_ingest tests only covered missing request failures and did not directly verify these rule-level invariants. Decision: Add revaer-data tests for observation behavior: search_result_ingest_rejects_duplicate_attr_keys search_result_ingest_keeps_last_seen_monotonic Use stored-procedure path end-to-end (search_request_create, search_result_ingest) with deterministic fixture setup. Mark the observation-rule checklist item complete. Consequences: Positive outcomes: observation invariants are now executable and regression-safe at the data boundary; duplicate attr-key rejection is explicitly covered. Risks or trade-offs: setup fixtures are more involved because ingest requires search+indexer run scope. Follow-up: Implementation tasks: Continue with",
+      "tags": [],
+      "href": "/adr/211-search-result-observation-rules-validation/"
+    },
+    {
+      "id": "adr/212-category-mapping-domain-filter-validation",
+      "title": "Category mapping and domain filter validation",
+      "summary": "Status: Accepted Date: 2026-02-21 Context: ERD_INDEXERS.md requires Torznab category filters to map into effective media-domain constraints. ERD_INDEXERS.md also requires profile domain allowlists to reject category filters that collapse to an empty effective category set. Existing search_request_create tests validated basic category input checks but did not verify mapped-domain persistence or allowlist conflict rejection. Decision: Added search_request_create_maps_torznab_categories_to_effective_media_domain to assert: Torznab category 2000 maps to effective_media_domain_id = movies. requested domain remains unset when the caller does not provide requested_media_domain_key. the effective category join row is persisted for 2000. Added search_request_create_rejects_category_filter_outside_profile_allowlist to assert: a tv-only profile allowlist rejects a movies category filter with invalid_category_filter.",
+      "tags": [],
+      "href": "/adr/212-category-mapping-domain-filter-validation/"
+    },
+    {
+      "id": "adr/213-indexer-observability-counters",
+      "title": "Indexer Observability Counters for Torznab, Search, and Import Jobs",
+      "summary": "Status: Accepted Date: 2026-02-25 Context: Motivation: ERD indexer checklist Phase 10 still required explicit metrics for invalid Torznab requests, search throughput, and job outcomes. Existing telemetry covered HTTP and generic guardrails but did not provide indexer-specific counters for those acceptance points. Constraints: Keep error messages constant and avoid adding fallback/dead code. Reuse existing telemetry infrastructure and avoid new dependencies. Preserve stored-procedure-only runtime DB access boundaries. Decision: Added new Prometheus counters in revaer-telemetry: indexer_torznab_invalid_requests_total{reason} indexer_search_requests_total{operation,outcome} indexer_job_outcomes_total{operation,outcome} Wired increments in API handlers: Torznab API/download handlers increment invalid-request reasons for missing API key, unauthorized access, missing instances/sources, and unsupported query type. Search request/page",
+      "tags": [],
+      "href": "/adr/213-indexer-observability-counters/"
+    },
+    {
+      "id": "adr/214-indexer-request-span-coverage",
+      "title": "Indexer Request Span Coverage for Torznab, Search, and Import Jobs",
+      "summary": "Status: Accepted Date: 2026-02-25 Context: Motivation: ERD_INDEXERS_CHECKLIST.md still had the observability tracing-span item unchecked for indexer/Torznab/search/job flows. Existing service-level spans covered many indexer operations, but API request-boundary spans for Torznab and indexer search/import endpoints were not explicit and consistent. Constraints: Avoid logging secrets from request payloads and query parameters. Keep constant error messaging and existing API behavior unchanged. Preserve dependency minimalism (no new crates). Decision: Added explicit #[tracing::instrument] spans on API request handlers for: Torznab request and download endpoints. Indexer search request create/cancel and page list/fetch endpoints. Import-job create/run/status/results endpoints. Used skip(...) on payload/query-bearing args to avoid accidental secret logging.",
+      "tags": [],
+      "href": "/adr/214-indexer-request-span-coverage/"
+    },
+    {
+      "id": "adr/215-torznab-parity-integration-tests",
+      "title": "Torznab Parity Integration Tests for Endpoint Format and Auth Semantics",
+      "summary": "Status: Accepted Date: 2026-02-25 Context: Motivation: ERD checklist gaps remained for Torznab endpoint format/auth/invalid-request behavior and Torznab parity integration coverage. Existing API E2E tests only exercised not-found paths for Torznab endpoints with random IDs. Constraints: Keep tests deterministic and use existing API setup fixtures. Avoid introducing new dependencies or non-just workflows. Ensure API keys are not logged in traces or test output. Decision: Extended tests/specs/api/indexers-torznab-instances.spec.ts to create a real search profile and Torznab instance, then validate: Missing apikey on /torznab/{id}/api returns 401. Invalid apikey on /torznab/{id}/api returns 401. Valid apikey + t=caps returns 200 with XML <caps> payload. Unsupported query",
+      "tags": [],
+      "href": "/adr/215-torznab-parity-integration-tests/"
+    },
+    {
+      "id": "adr/216-torznab-search-query-mapping-and-pagination",
+      "title": "Torznab Search Query Mapping and Pagination",
+      "summary": "Status: Accepted Date: 2026-02-25 Context: Torznab /api had auth and caps coverage, but search requests returned only empty feeds and did not map query semantics from ERD_INDEXERS.md. ERD acceptance requires handler-level validation/short-circuiting for invalid Torznab combinations, request mapping to search requests, and append-order pagination behavior. Existing search orchestration already exposed search_request_create, search_page_list, and search_page_fetch APIs, so the missing layer was Torznab query translation and XML rendering. Decision: Implemented Torznab request parsing and mapping in crates/revaer-api/src/http/handlers/torznab/api.rs for: t=search|tvsearch|movie|moviesearch mode handling. q, imdbid, tmdbid, tvdbid, season, ep, cat, offset, and limit parsing. invalid-combination short-circuiting to empty XML with invalid-request metrics. request creation",
+      "tags": [],
+      "href": "/adr/216-torznab-search-query-mapping-and-pagination/"
+    },
+    {
+      "id": "adr/217-torznab-download-redirect-acquisition-attempt-coverage",
+      "title": "Torznab Download Redirect and Acquisition Attempt Coverage",
+      "summary": "Status: Accepted Date: 2026-02-25 Context: torznab_download_prepare already implemented ERD-compliant redirect selection and acquisition-attempt writes, but coverage only validated missing-instance failures. ERD acceptance requires successful redirect behavior (magnet preferred over download_url) and guaranteed acquisition attempt persistence, including explicit no-target failures. Decision: Added stored-procedure integration coverage in crates/revaer-data/src/indexers/torznab.rs to validate: magnet URI is preferred when both magnet_uri and download_url exist. download_url is used when magnet is absent. missing redirect target returns NULL and writes a failed acquisition attempt with failure_class=client_error and failure_detail=no_download_target. Test fixtures create Torznab scope and canonical sources through existing stored-procedure wrappers (search_profile_create, torznab_instance_create, search_request_create, search_result_ingest) with minimal setup SQL",
+      "tags": [],
+      "href": "/adr/217-torznab-download-redirect-acquisition-attempt-coverage/"
+    },
+    {
+      "id": "adr/218-torznab-feed-category-emission-and-test-fixture-hardening",
+      "title": "Torznab Feed Category Emission and Test Fixture Hardening",
+      "summary": "Status: Accepted Date: 2026-02-25 Context: Torznab search response items emitted only one category value (tracker_category) and dropped tracker_subcategory, which reduced category fidelity for consumers that expect parent + subcategory IDs. Torznab download stored-proc tests depended on torznab_instance_create, which can fail in test environments without gen_salt support (pgcrypto) even though download behavior itself does not require API-key generation. Decision: Updated Torznab feed item mapping in crates/revaer-api/src/http/handlers/torznab/api.rs to emit: tracker_category when present, tracker_subcategory when positive and distinct, fallback to 8000 (Other) when no category metadata exists. Added unit coverage for category emission behavior: category + subcategory inclusion, 8000 fallback. Hardened crates/revaer-data/src/indexers/torznab.rs test",
+      "tags": [],
+      "href": "/adr/218-torznab-feed-category-emission-and-test-fixture-hardening/"
+    },
+    {
+      "id": "adr/219-torznab-multi-category-domain-and-other-coverage",
+      "title": "Torznab multi-category domain and Other(8000) coverage",
+      "summary": "Status: Accepted Date: 2026-02-25 Context: Motivation: ERD_INDEXERS acceptance item 580 required explicit validation that Torznab category behavior matches ERD rules for category-to-domain mapping, especially multi-category requests and the Other (8000) catch-all behavior. Constraints: Runtime DB behavior must be validated through stored procedures. Existing Torznab feed mapping already emits category IDs from tracker mapping, but search request creation also needs direct tests for effective domain derivation when torznab_cat_ids are provided. Changes must pass just ci and just ui-e2e. Dependency rationale: No new dependencies were added. Alternative considered: add app-layer mocks around domain mapping. Rejected because ERD behavior is owned by stored",
+      "tags": [],
+      "href": "/adr/219-torznab-multi-category-domain-and-other-coverage/"
+    },
+    {
+      "id": "adr/220-rate-limit-defaults-and-scope-enforcement-coverage",
+      "title": "Rate-limit defaults and scope enforcement coverage",
+      "summary": "Status: Accepted Date: 2026-02-25 Context: Motivation: ERD acceptance item 583 requires proof that default rate-limit policies exist and rate limiting is enforced for both indexer and routing scopes. Constraints: Validation must happen through stored-proc level behavior in revaer-data. No new dependencies; keep test coverage deterministic and local. Dependency rationale: No dependency changes. Alternative considered: validate defaults only through migration SQL review. Rejected because acceptance requires executable verification. Decision: Added two stored-proc tests in crates/revaer-data/src/indexers/rate_limits.rs: rate_limit_seed_defaults_match_expected_system_policies rate_limit_try_consume_enforces_bucket_capacity_for_routing_scope Existing indexer-scope enforcement test remains in place, so both required scopes are now explicitly covered. Updated ERD_INDEXERS_CHECKLIST.md item 583 to complete. Consequences: Positive outcomes:",
+      "tags": [],
+      "href": "/adr/220-rate-limit-defaults-and-scope-enforcement-coverage/"
+    },
+    {
+      "id": "adr/221-search-run-retry-behavior-coverage",
+      "title": "Search-run retry behavior coverage for rate-limited and transient errors",
+      "summary": "Status: Accepted Date: 2026-02-25 Context: Motivation: ERD acceptance item 584 requires explicit verification that search-run retry behavior matches ERD rules for both rate-limited and transient failures. Constraints: Validation must happen at stored-proc behavior boundaries. Keep changes test-focused, with no dependency additions. Dependency rationale: No new dependencies were added. Alternative considered: infer behavior from migration SQL only. Rejected because acceptance requires executable regression tests. Decision: Added stored-proc tests in crates/revaer-data/src/indexers/search_requests.rs: search_indexer_run_mark_failed_rate_limited_uses_retry_and_scope search_indexer_run_mark_failed_transient_retries_before_limit search_indexer_run_mark_failed_transient_reaches_retry_limit Added local test helpers to create request/instance run scopes and assert run state transitions. Updated ERD_INDEXERS_CHECKLIST.md item 584 to complete. Consequences: Positive outcomes: Rate-limited retry semantics are now",
+      "tags": [],
+      "href": "/adr/221-search-run-retry-behavior-coverage/"
+    },
+    {
+      "id": "adr/222-rss-cloudflare-state-transition-alignment",
+      "title": "RSS Cloudflare state transition alignment with ERD",
+      "summary": "Status: Accepted Date: 2026-02-25 Context: Motivation: ERD acceptance item 585 requires Cloudflare detection and state transitions to follow ERD semantics, including FlareSolverr preference behavior. Constraints: Runtime DB behavior must be enforced in stored procedures only. Changes must preserve existing retry/backoff behavior and quality-gate compliance. Dependency rationale: No new dependencies were added. Alternative considered: leave existing retryable CF behavior unchanged and only add tests. Rejected because existing logic skipped required clear/solved -> challenged transitions. Decision: Added migration 0094_rss_poll_cf_state_transitions.sql to update rss_poll_apply_v1: Apply CF challenge transitions for all cf_challenge failures (not only non-retryable paths). Transition challenged/cooldown -> solved on successful FlareSolverr poll",
+      "tags": [],
+      "href": "/adr/222-rss-cloudflare-state-transition-alignment/"
+    },
+    {
+      "id": "adr/223-search-streaming-pages-terminal-seal",
+      "title": "Search streaming pages terminal sealing and append-only ordering",
+      "summary": "Status: Accepted Date: 2026-02-26 Context: Motivation: ERD acceptance item 586 requires streaming search behavior with early page emission, append-only ordering, and deterministic page sealing at terminal request state. Constraints: Runtime DB behavior must remain stored-procedure driven. Search-page ordering must not reorder based on later score updates. Dependency rationale: No new dependencies were added. Alternative considered: rely on API-layer finalization when runs complete. Rejected because sealing and terminal status must stay deterministic inside database state transitions. Decision: Added migration 0095_search_request_terminal_seal.sql: Creates trigger function search_request_finalize_on_runs_terminal_v1. On indexer run terminal updates, finalizes search_request when no queued/running runs remain. Seals any unsealed search_page rows",
+      "tags": [],
+      "href": "/adr/223-search-streaming-pages-terminal-seal/"
+    },
+    {
+      "id": "adr/224-search-dropped-source-audit-and-paging-exclusion",
+      "title": "Search dropped-source audit persistence and paging exclusion",
+      "summary": "Status: Accepted Date: 2026-02-26 Context: Motivation: ERD acceptance item 589 requires hard-dropped sources to remain persisted for audit while being excluded from search paging. Constraints: Runtime behavior remains stored-procedure driven. Validation must prove both audit persistence and page exclusion in a single ingest flow. Dependency rationale: No new dependencies were added. Alternative considered: only assert search_page_item exclusion. Rejected because ERD also requires auditable persistence (search_filter_decision and dropped context scoring). Decision: Added integration test search_result_ingest_dropped_sources_are_persisted_but_excluded_from_pages in crates/revaer-data/src/indexers/search_results.rs. Test setup creates a request-scope policy set with a hard drop title-regex rule, executes ingest, and asserts: no search_page_item rows are produced for the",
+      "tags": [],
+      "href": "/adr/224-search-dropped-source-audit-and-paging-exclusion/"
+    },
+    {
+      "id": "adr/225-canonicalization-conflict-coverage",
+      "title": "224: Canonicalization conflict coverage",
+      "summary": "Status: Accepted Date: 2026-03-01 Context: ERD canonicalization rules require preserving durable source identity and logging conflicts when incoming hashes disagree. Existing tests covered fallback identities and size rollups, but not explicit hash-conflict logging behavior. Decision: Add a stored-procedure test for search_result_ingest that ingests two rows for the same source GUID with conflicting hashes. Verify durable hash immutability, source_metadata_conflict logging, and indexer_health_event emission. Mark the canonicalization-rule checklist item complete after coverage is in place. Consequences: Positive outcomes: Conflict-handling behavior is verified directly against stored procedures in CI. Regressions that overwrite durable identities or skip conflict audit signals fail fast. Risks or",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/225-canonicalization-conflict-coverage/"
+    },
+    {
+      "id": "adr/226-indexer-unit-test-domain-coverage",
+      "title": "225: Indexer unit test domain coverage",
+      "summary": "Status: Accepted Date: 2026-03-01 Context: ERD checklist requires explicit unit-test coverage across canonicalization, policy evaluation, category mapping, and search validation domains. Coverage existed across multiple modules but the checklist item remained open. Decision: Confirm and document active coverage for these four domains in revaer-data indexer tests. Mark the checklist item complete based on verified test coverage. Consequences: Positive outcomes: Checklist state now matches implemented and exercised tests. Coverage expectation for core indexer rule domains is explicitly recorded. Risks or trade-offs: This records current scope; future rule additions still require new tests. Follow-up: Keep extending domain tests as ERD behavior expands.",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/226-indexer-unit-test-domain-coverage/"
+    },
+    {
+      "id": "adr/227-health-reputation-rollup-semantics",
+      "title": "226: Health and reputation rollup semantics from outbound logs",
+      "summary": "Status: Accepted Date: 2026-03-01 Context: ERD indexer acceptance requires connectivity and reputation statistics to follow outbound_request_log semantics. Existing job tests covered base rollup behavior but did not explicitly assert rate_limited exclusion from sample counts. Decision: Add a stored-procedure test for job rollups that mixes successful, non-rate-limited failures, and rate-limited failures. Verify both connectivity and reputation calculations exclude error_class=rate_limited samples. Mark the corresponding ERD acceptance checklist item complete. Consequences: Positive outcomes: Connectivity (indexer_connectivity_profile.success_rate_1h) and reputation (source_reputation.request_*) rules are now pinned to ERD semantics in CI. Regression risk around sample-count inflation from rate-limited rows is reduced. Risks or trade-offs: Slightly longer revaer-data",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/227-health-reputation-rollup-semantics/"
+    },
+    {
+      "id": "adr/228-search-zero-result-explainability",
+      "title": "227: Search zero-result explainability",
+      "summary": "Status: Accepted Date: 2026-03-01 Context: ERD acceptance requires zero-result searches to expose why nothing was returned. Existing search page APIs returned pages/items only, without skipped/blocked/rate-limit diagnostics. Decision: Add stored procedures search_request_explainability_v1 and search_request_explainability. Extend SearchPageListResponse with an explainability object that reports: zero runnable indexers skipped canceled/failed indexers blocked result count and blocking rule IDs rate-limited and retrying indexer counts Wire the new procedure through revaer-data, revaer-app, and API handlers. Consequences: Positive outcomes: UI/API callers can explain “nothing found” states with structured diagnostics. Explainability semantics are enforced through stored-proc and handler tests. Risks or trade-offs: Response payload size increases slightly for",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/228-search-zero-result-explainability/"
+    },
+    {
+      "id": "adr/229-prowlarr-import-source-parity-tests",
+      "title": "228: Prowlarr import source parity and dry-run coverage",
+      "summary": "Status: Accepted Date: 2026-03-01 Context: ERD acceptance requires import jobs to support both prowlarr_api and prowlarr_backup sources with dry-run mode. Existing coverage did not explicitly assert source-specific run-path behavior and dry-run persistence across both source modes. Decision: Add revaer-data tests to validate: import_job_create persists prowlarr_backup with is_dry_run=true. import_job_run_prowlarr_api and import_job_run_prowlarr_backup reject mismatched job source with import_source_mismatch. Extend API E2E import job coverage to execute both run paths against matching and mismatched sources. Consequences: Positive outcomes: Source parity and dry-run behavior are validated at both stored-proc and API boundary levels. Regression risk for import source routing logic is reduced. Risks or",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/229-prowlarr-import-source-parity-tests/"
+    },
+    {
+      "id": "adr/230-import-result-mapping-unmapped-coverage",
+      "title": "229: Import result mapping and unmapped-definition coverage",
+      "summary": "Status: Accepted Date: 2026-03-01 Context: ERD acceptance requires imported indexers to either map to definitions or surface an explicit unmapped state. Existing import-job coverage did not assert the combined status/result behavior for mapped and unmapped outcomes. Decision: Add data-layer stored-procedure coverage for import-job status aggregation and result listing with mixed mapped/unmapped outcomes. Validate that: mapped results are represented by imported_ready with upstream_slug set; unmapped results are represented by unmapped_definition with upstream_slug unset and explicit detail. Consequences: Positive outcomes: Import status aggregation and result projection now enforce ERD-required unmapped explainability. Regression risk for import result classification is reduced. Risks or trade-offs:",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/230-import-result-mapping-unmapped-coverage/"
+    },
+    {
+      "id": "adr/231-migration-parity-e2e-flows",
+      "title": "230: Migration parity E2E flow coverage",
+      "summary": "Status: Accepted Date: 2026-03-01 Context: ERD acceptance requires end-to-end verification for Prowlarr import plus Torznab parity and download flows. Existing API E2E coverage was split across specs and did not provide a single parity-flow assertion path. Decision: Add a dedicated API E2E spec that exercises migration parity flows together: Torznab caps/search parity semantics. Torznab download auth/missing-source behavior. Prowlarr API and backup import job run paths with dry-run setup. Consequences: Positive outcomes: ERD migration parity checks are exercised explicitly in one E2E flow. Regression detection improves for cross-surface import + Torznab behavior. Risks or trade-offs: Slightly longer API E2E runtime due",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/231-migration-parity-e2e-flows/"
+    },
+    {
+      "id": "adr/232-indexer-schema-and-procedure-catalog-tests",
+      "title": "Indexer Schema And Procedure Catalog Tests",
+      "summary": "Status: Accepted Date: 2026-03-07 Context: ERD_INDEXERS_CHECKLIST.md still had migration and stored-procedure verification unchecked even though most runtime behavior was already implemented. The repository already had broad module-level stored-procedure tests in revaer-data, but it lacked a catalog-level integration suite proving the migrated database actually contains the full ERD table, enum, seed, and wrapper-procedure surface. AGENTS.md requires a task record with motivation, design notes, test coverage summary, observability updates, risk and rollback guidance, and dependency rationale. Decision: Add crates/revaer-data/tests/indexers_schema.rs as a live Postgres integration suite that runs migrations and verifies: all ERD indexer tables exist, all ERD enums match the specified value",
+      "tags": [],
+      "href": "/adr/232-indexer-schema-and-procedure-catalog-tests/"
+    },
+    {
+      "id": "adr/233-import-result-fidelity-snapshots",
+      "title": "Import Result Fidelity Snapshots",
+      "summary": "Status: Accepted Date: 2026-03-07 Context: The ERD migration checklist requires imported indexers to preserve enabled state, categories, tags, priorities, and missing-secret detection. The current import job surface only returned coarse result status, which made parity verification impossible even in dry-run and partial-import paths. Runtime DB interactions must stay on stored procedures, persisted data must remain normalized, and no JSON/JSONB snapshots are allowed. Decision: Extend import_indexer_result with scalar fidelity fields for resolved_is_enabled, resolved_priority, and missing_secret_fields. Persist multi-value fidelity snapshots in normalized child tables: import_indexer_result_media_domain and import_indexer_result_tag. Expand import_job_list_results_v1 and the API/CLI DTO contract to return the preserved snapshot for each result.",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/233-import-result-fidelity-snapshots/"
+    },
+    {
+      "id": "adr/234-secret-binding-and-test-error-class-coverage",
+      "title": "Secret Binding And Test Error Class Coverage",
+      "summary": "Status: Accepted Date: 2026-03-08 Context: ERD_INDEXERS_CHECKLIST.md still had the migration acceptance item for secret binding/test UX unchecked. The stored procedures already implemented the intended behavior, but the repo lacked focused coverage proving successful secret binding, missing-secret test preparation failures, and success-path clearing of migration error state. Decision: Add data-layer coverage for routing policy secret binding persistence. Add executor coverage for missing required secret preparation failures, successful bound-secret preparation payloads, and finalize-success clearing of migration error state. Add API coverage for routing-policy secret bind problem details preserving the stable error_code context, plus API E2E coverage for successful and revoked-secret binding flows.",
+      "tags": [],
+      "href": "/adr/234-secret-binding-and-test-error-class-coverage/"
+    },
+    {
+      "id": "adr/235-indexer-instance-create-uses-definition-slug-key",
+      "title": "Indexer Instance Create Uses Definition Slug Key",
+      "summary": "Status: Accepted Date: 2026-03-08 Context: ERD_INDEXERS_CHECKLIST.md still had the API-surface rule requiring UUIDs or stable keys instead of internal primary keys. The remaining indexer API violation was IndexerInstanceCreateRequest, which still accepted indexer_definition_id. The public indexer catalog already exposes upstream_slug, so callers had a stable key available without exposing an internal database identifier. Decision: Change indexer instance creation to accept indexer_definition_upstream_slug end to end. Update the stored procedure wrapper and latest migration so runtime creation resolves definitions by slug instead of internal id. Update handler, app-layer facade signatures, and API tests to use the slug key. Consequences: The indexer API surface",
+      "tags": [],
+      "href": "/adr/235-indexer-instance-create-uses-definition-slug-key/"
+    },
+    {
+      "id": "adr/236-indexer-service-operation-metrics-and-spans",
+      "title": "Indexer Service Operation Metrics And Spans",
+      "summary": "Status: Accepted Date: 2026-03-08 Context: ERD_INDEXERS_CHECKLIST.md still had the observability item open for indexer-domain operations. The API already emitted request spans for indexer endpoints, and the app-layer IndexerService already wrapped each domain operation in a stable tracing span. What was missing was consistent per-operation metrics at the domain-service boundary so search, routing, policy, torznab, instance, and secret workflows all emitted a stable success/error signal and latency measurement. Decision: Extend revaer-telemetry with indexer service operation counters and latency histograms labeled by operation and outcome. Inject Metrics into IndexerService via bootstrap and test wiring instead of constructing telemetry inside the service. Route",
+      "tags": [],
+      "href": "/adr/236-indexer-service-operation-metrics-and-spans/"
+    },
+    {
+      "id": "adr/237-indexer-di-boundary-enforcement",
+      "title": "Indexer DI Boundary Enforcement",
+      "summary": "Status: Accepted Date: 2026-03-08 Context: ERD_INDEXERS_CHECKLIST.md still had the dependency-injection boundary item open. The indexer runtime path in revaer-app is meant to operate on injected collaborators only, while bootstrap remains the only place allowed to read environment variables and construct concrete infrastructure. This was already mostly true in code, but it was not enforced by tests, so regressions would be easy to introduce. Decision: Add architecture tests in crates/revaer-app/src/bootstrap.rs that pin the DI boundary for indexer runtime wiring. Assert that crates/revaer-app/src/indexers.rs does not read environment variables or construct core infrastructure directly. Assert that crates/revaer-app/src/bootstrap.rs remains the place that reads env",
+      "tags": [],
+      "href": "/adr/237-indexer-di-boundary-enforcement/"
+    },
+    {
+      "id": "adr/238-manual-search-ui",
+      "title": "Manual Search UI",
+      "summary": "Status: Accepted Date: 2026-03-15 Context: ERD_INDEXERS_CHECKLIST.md still had manual and interactive search UI unchecked even though the API already exposed search request creation and page reads. The current web UI had no route or feature slice for indexer search, which blocked category-filtered searches and bulk handoff into the download client. AGENTS.md requires minimal dependencies, strict module boundaries, a task record, and completion through the just quality gates. Decision: Add a dedicated crates/revaer-ui/src/features/search/ slice with pure request-shaping helpers, a feature-local API shim, and a Yew page mounted at /search. Reuse the existing indexer search endpoints (/v1/indexers/search-requests and search page reads) instead",
+      "tags": [],
+      "href": "/adr/238-manual-search-ui/"
+    },
+    {
+      "id": "adr/239-indexer-admin-console-ui",
+      "title": "Indexer Admin Console UI",
+      "summary": "Status: Accepted Date: 2026-03-15 Context: ERD_INDEXERS_CHECKLIST.md still had the broad indexer-management UI item open after the manual search page landed. The API already exposed many ERD-backed mutation workflows for indexers, secrets, routing policies, rate limits, search profiles, policy sets, import jobs, and Torznab management. The current UI lacked a dedicated route for those operations, which forced all validation of that surface into API/CLI-only flows. Decision: Add a dedicated /indexers route and crates/revaer-ui/src/features/indexers/ feature slice for operator-facing indexer administration. Reuse the existing authenticated API surface through the shared ApiClient, adding small generic REST helpers instead of introducing new dependencies or duplicating",
+      "tags": [],
+      "href": "/adr/239-indexer-admin-console-ui/"
+    },
+    {
+      "id": "adr/240-indexer-schedule-controls-ui",
+      "title": "Indexer Schedule Controls UI",
+      "summary": "Status: Accepted Date: 2026-03-15 Context: The indexer admin console already exposed rate-limit assignment, but the ERD parity checklist still had per-indexer schedule controls in UI unchecked. The API already accepted is_enabled, enable_rss, enable_automatic_search, and enable_interactive_search through the existing indexer instance update endpoint. AGENTS.md requires completing the next efficient ERD-backed slice without adding dead code or extra dependencies. Decision: Extend the /indexers admin console to surface explicit checkbox controls for instance enablement, RSS, automatic search, and interactive search scheduling. Reuse the existing IndexerInstanceUpdateRequest payload instead of introducing a separate UI-only endpoint or new backend model. Lock the route behavior in Playwright",
+      "tags": [],
+      "href": "/adr/240-indexer-schedule-controls-ui/"
+    },
+    {
+      "id": "adr/241-indexer-rss-management-ui",
+      "title": "Indexer RSS Management UI",
+      "summary": "Status: Accepted Date: 2026-03-15 Context: The ERD checklist still lacked operator-facing RSS management despite stored procedures already supporting subscription writes and RSS dedupe storage. The existing /indexers admin console had no way to inspect subscription cadence, view recently seen RSS items, or manually seed dedupe state. Decision: Add stored-proc-backed RSS management APIs for subscription status, recent seen-item listing, and manual mark-seen. Extend the indexer admin console with an RSS management panel that can fetch subscription state, update cadence/enablement, inspect recent items, and insert manual seen markers. Consequences: Operators can now manage RSS polling behavior and dedupe history without direct database",
+      "tags": [],
+      "href": "/adr/241-indexer-rss-management-ui/"
+    },
+    {
+      "id": "adr/242-indexer-connectivity-reputation-ui",
+      "title": "Indexer connectivity and reputation UI",
+      "summary": "Status: Accepted Date: 2026-03-15 Context: ERD_INDEXERS.md requires operator-facing views for indexer_connectivity_profile and source_reputation, plus remediation-adjacent controls. The derived tables and refresh jobs already existed, but the admin console could not inspect them without querying the database directly. Decision: Add stored procedures and typed data/API/UI adapters to expose connectivity profile snapshots and recent reputation windows per indexer instance. Reuse the existing instance admin surface and adjacent Cloudflare reset actions instead of creating a separate dashboard route first. Consequences: Operators can now inspect connectivity status, dominant error class, latency, success rates, and recent reputation rollups from /indexers. The implementation adds new read",
+      "tags": [],
+      "href": "/adr/242-indexer-connectivity-reputation-ui/"
+    },
+    {
+      "id": "adr/243-indexer-routing-policy-visibility",
+      "title": "Indexer routing policy visibility",
+      "summary": "Status: Accepted Date: 2026-03-15 Motivation: ERD_INDEXERS.md requires per-indexer proxy and flaresolverr controls with operator-visible health and configuration context. The admin console already allowed routing policy creation, parameter updates, secret binding, and instance assignment, but operators could not read the resulting configuration without database access. Design notes: Add a stored-procedure read path, routing_policy_get, that validates actor scope and returns routing policy metadata, assigned rate-limit policy fields, parameter values, and bound secret references. Aggregate the row-oriented stored-proc result into a typed API model so the HTTP and UI layers can render routing policy state without database-specific joins. Extend the /indexers admin console",
+      "tags": [],
+      "href": "/adr/243-indexer-routing-policy-visibility/"
+    },
+    {
+      "id": "adr/244-indexer-import-job-dashboard",
+      "title": "Indexer import job dashboard",
+      "summary": "Status: Accepted Date: 2026-03-16 Motivation: The indexer admin console already exposed import job create/run/status/result endpoints, but the workflow still depended on copying IDs out of the activity log and mentally reconciling counts with raw JSON. ERD_INDEXERS_CHECKLIST.md still calls out import pipeline UX, so the existing import surface needed to become operator-friendly before broader Cardigann and conflict-resolution work lands. Design notes: Keep the current /indexers route and extend it with import job state that persists the latest job status and result payloads in the feature slice. Promote the created or executed import_job_public_id back into the form state so the next fetch",
+      "tags": [],
+      "href": "/adr/244-indexer-import-job-dashboard/"
+    },
+    {
+      "id": "adr/245-indexer-health-event-drilldown",
+      "title": "244. Indexer health event drill-down",
+      "summary": "Status: accepted Date: 2026-03-17",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/245-indexer-health-event-drilldown/"
+    },
+    {
+      "id": "adr/246-indexer-origin-only-error-logging",
+      "title": "245. Indexer origin-only error logging",
+      "summary": "Status: accepted Date: 2026-03-16",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/246-indexer-origin-only-error-logging/"
+    },
+    {
+      "id": "adr/247-indexer-health-summary-panels",
+      "title": "246. Indexer health summary panels",
+      "summary": "Status: accepted Date: 2026-03-16",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/247-indexer-health-summary-panels/"
+    },
+    {
+      "id": "adr/248-indexer-backup-restore",
+      "title": "247. Indexer backup and restore",
+      "summary": "Status: accepted Date: 2026-03-18",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/248-indexer-backup-restore/"
+    },
+    {
+      "id": "adr/249-indexer-coexistence-rollback-acceptance",
+      "title": "248: Indexer coexistence and rollback acceptance coverage",
+      "summary": "Status: Accepted Date: 2026-03-20",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/249-indexer-coexistence-rollback-acceptance/"
+    },
+    {
+      "id": "adr/250-indexer-domain-service-closeout",
+      "title": "249. Indexer Domain Service Closeout",
+      "summary": "Date: 2026-03-20",
+      "tags": [
+        "consequences",
+        "context",
+        "decision",
+        "status",
+        "task-record"
+      ],
+      "href": "/adr/250-indexer-domain-service-closeout/"
+    },
+    {
+      "id": "adr/251-indexer-instance-category-overrides",
+      "title": "Indexer instance category overrides",
+      "summary": "Status: Accepted Date: 2026-03-20 Context: ERD_INDEXERS.md calls out custom category overrides as a parity gap versus Prowlarr, especially for cases where one indexer instance needs different tracker-to-Torznab mappings than the shared definition default. The existing tracker_category_mapping storage and stored procedures only supported global mappings or definition-scoped mappings keyed by upstream slug. The /indexers admin console did not expose any category override workflow, so operators could not safely persist or test instance-specific overrides. Decision: Extend tracker_category_mapping with an optional indexer_instance_id scope and update the stored procedures to accept an optional indexer_instance_public_id. When an instance scope is supplied, resolve its definition in-proc,",
+      "tags": [],
+      "href": "/adr/251-indexer-instance-category-overrides/"
+    },
+    {
+      "id": "adr/252-indexer-final-acceptance-closeout",
+      "title": "251: Indexer final acceptance closeout",
+      "summary": "Status: accepted Date: 2026-03-21",
+      "tags": [
+        "dependency-rationale",
+        "design-notes",
+        "motivation",
+        "observability-updates",
+        "risk-rollback-plan",
+        "test-coverage-summary"
+      ],
+      "href": "/adr/252-indexer-final-acceptance-closeout/"
+    },
+    {
+      "id": "adr/253-indexer-health-notification-hooks",
+      "title": "Indexer health notification hooks",
+      "summary": "Status: Accepted Date: 2026-03-21 Context: The remaining ERD parity gap for Health & notifications was notification-hook management. Health badges and drill-down were already implemented, but operators still could not configure destinations for degraded or failing indexers. Revaer enforces stored-procedure-only runtime database access, no JSON persistence, and a library-first HTTP/UI integration path. The slice needed to fit that shape and remain small enough to land independently of the larger app-sync domain. Decision: Add a normalized indexer_health_notification_hook table with explicit channel and threshold enums, plus stored procedures for create, update, delete, and list. Expose the hook CRUD through the indexer facade and",
+      "tags": [],
+      "href": "/adr/253-indexer-health-notification-hooks/"
+    },
+    {
+      "id": "adr/254-indexer-app-sync-provisioning-ui",
+      "title": "Indexer app sync provisioning UI",
+      "summary": "Status: Accepted Date: 2026-03-21 Motivation: ERD_INDEXERS_CHECKLIST.md still had the app-sync UX gap open even though the stored-procedure-backed search-profile and Torznab APIs already existed. Operators could create the pieces manually, but there was no single workflow to provision an app-facing sync path with tag scoping, explicit indexer allowlists, media-domain filtering, and issued Torznab credentials. Design notes: Extend /indexers with an App sync card that reuses the existing search-profile and Torznab fields instead of introducing a new route or duplicate form state. Add a UI helper that reuses or creates a search profile, applies domain/indexer/tag scoping through the existing ERD-backed endpoints, then",
+      "tags": [],
+      "href": "/adr/254-indexer-app-sync-provisioning-ui/"
+    },
+    {
+      "id": "adr/255-indexer-app-scoped-category-overrides",
+      "title": "Indexer app-scoped category overrides",
+      "summary": "Status: Accepted Date: 2026-03-21 Motivation: ERD_INDEXERS_CHECKLIST.md still had category override support open after instance-scoped overrides shipped because Torznab feed emission was still using raw tracker category ids. Downstream app sync needed per-app category remapping so one Torznab app could receive different category ids than another without breaking shared indexer configuration. Design notes: Extend tracker_category_mapping with an optional torznab_instance_id scope and rebuild the upsert/delete procedures so overrides can be stored per downstream Torznab app. Add a feed-resolution procedure that applies precedence in this order: app+instance, app+definition, app global, instance, definition, global, then 8000 fallback. Route Torznab feed emission through the injected",
+      "tags": [],
+      "href": "/adr/255-indexer-app-scoped-category-overrides/"
+    },
+    {
+      "id": "adr/256-indexer-source-conflict-operator-ui",
+      "title": "255: Indexer source conflict operator UI",
+      "summary": "Status: Accepted Date: 2026-03-22 Motivation: The remaining indexer parity gap still called out import-pipeline conflict resolution beyond the stored procedures already present in the data layer. Operators could trigger conflict logging indirectly, but there was no supported HTTP or UI path to list durable source metadata conflicts or apply the existing resolve/reopen procedures from the admin console. Design notes: Add a stored-procedure-backed read path for source_metadata_conflict so operator tooling can review unresolved and resolved conflicts without inline SQL. Thread conflict list, resolve, and reopen operations through the injected indexer facade and expose them under /v1/indexers/conflicts. Extend the /indexers admin console",
+      "tags": [],
+      "href": "/adr/256-indexer-source-conflict-operator-ui/"
+    },
+    {
+      "id": "adr/257-indexer-cardigann-definition-import",
+      "title": "Indexer Cardigann Definition Import",
+      "summary": "Status: Accepted Date: 2026-03-21 Context: ERD_INDEXERS.md defines the global indexer catalog as being sourced from both Prowlarr Indexers and Cardigann, but the shipped schema and operator UX still only supported Prowlarr-backed import paths. The last unchecked ERD parity item was the broader import pipeline UX gap: Cardigann/YAML definition import needed to round-trip through the app, API, and /indexers UI alongside the already-landed import status and conflict tooling. Runtime database access still had to stay stored-proc-only, and the implementation needed to preserve the normalized indexer_definition* tables rather than storing YAML blobs as durable catalog state. Decision: Added a Cardigann definition import",
+      "tags": [],
+      "href": "/adr/257-indexer-cardigann-definition-import/"
+    },
+    {
+      "id": "adr/258-pr-review-closeout",
+      "title": "PR Review Closeout",
+      "summary": "Status: Accepted Date: 2026-03-21 Context: Pull request 6 had stale description text and open review feedback spanning indexer handlers, test support, and notification-hook reads. The branch needed repo docs and GitHub metadata to match the current ERD indexer implementation state before merge. Decision: Tighten the reviewed handler paths by normalizing optional string inputs, hardening allocation helpers, removing notification hook list-and-scan reloads, and improving shared test support determinism. Keep REST search request routes documented as API-key-protected control-plane endpoints while preserving the existing system-actor behavior required by current search-request flows. Replace the stale PR description with an accurate summary of the shipped",
+      "tags": [],
+      "href": "/adr/258-pr-review-closeout/"
+    },
+    {
+      "id": "adr/259-pr-review-and-security-followup",
+      "title": "PR Review And Security Follow-Up",
+      "summary": "Status: Accepted Date: 2026-03-22 Context: Pull request 6 still had unresolved inline review threads after the earlier closeout pass, including feedback on tag handler validation and test-maintenance duplication. The branch also still exposed non-vendored security findings in lockfiles used by release tooling and browser tests. Decision: Reuse the shared indexer handler RecordingIndexers test support in tags.rs and add explicit handler-level validation requiring a tag identifier for update and delete requests. Preserve non-Unicode environment-variable failures as invalid configuration by testing the env-read helper through an injected getter instead of mutating process env in Rust 2024 test code. Stop echoing freshly issued",
+      "tags": [],
+      "href": "/adr/259-pr-review-and-security-followup/"
+    },
+    {
+      "id": "adr/260-pr-codeql-closeout",
+      "title": "PR CodeQL Closeout",
+      "summary": "Status: Accepted Date: 2026-03-28 Context: PR #6 still had a failing CodeQL check after the earlier review-response pass, despite local Rust and E2E gates being green. The remaining alerts mixed live runtime/test code with a large set of unused vendored Nexus reference HTML pages that were no longer part of the runtime asset pipeline. The repo still requires accurate docs and a clean local just ci plus just ui-e2e pass before hand-off. Decision: Remove the Playwright API-key handoff for browser projects entirely and run the UI suite against the existing no-auth local E2E project, relying on the app shell's anonymous-local",
+      "tags": [],
+      "href": "/adr/260-pr-codeql-closeout/"
+    },
+    {
+      "id": "adr/261-pr-security-and-thread-closeout",
+      "title": "PR Security And Thread Closeout",
+      "summary": "Status: Accepted Date: 2026-03-28 Context: PR #6 still had open CodeQL alerts and several live Copilot review threads after the earlier review-closeout commits. The remaining JavaScript findings were caused by Playwright UI tests seeding API-key state into the browser, and the remaining Rust finding was a false-positive-prone CLI redaction path. The repo still requires accurate task records, updated catalogues, and green just ci plus just ui-e2e validation before hand-off. Decision: Remove the Playwright UI API-key handoff entirely and run browser projects against the existing no-auth local API mode, relying on anonymous-local auth handling in the app shell. Tighten the remaining",
+      "tags": [],
+      "href": "/adr/261-pr-security-and-thread-closeout/"
+    },
+    {
+      "id": "adr/262-pr-final-thread-closeout",
+      "title": "PR final thread closeout",
+      "summary": "Status: Accepted Date: 2026-03-28 Context: Pull request 6 still had two unresolved, non-outdated review threads after the earlier security and handler cleanup passes. One thread targeted the noisy router.rs import surface for indexer handlers, and the other targeted the large test-only ErrorIndexers stub in the secrets handler tests. We needed to close those threads without reopening broader behavior or security review. Decision: Collapse the router dependency surface to the indexer handler module boundary by importing crate::http::indexers once and qualifying route handlers through that module. Reuse the shared RecordingIndexers test double for secrets handler failure-path tests by adding a focused secret_error",
+      "tags": [],
+      "href": "/adr/262-pr-final-thread-closeout/"
+    },
+    {
+      "id": "adr/263-sonarcloud-pr-issue-cleanup",
+      "title": "SonarCloud PR issue cleanup and scope alignment",
+      "summary": "Status: Accepted Date: 2026-03-29 Context: PR #6 introduced live SonarCloud failures on reliability, coverage, duplication, and security hotspots. The fresh SonarCloud API issue list showed that most findings came from PostgreSQL migration SQL being analyzed with generic PL/SQL rules, plus generated Playwright API schema output and repetitive contract-style test files being counted in duplication and coverage gates. Decision: Fix the actionable Rust and test findings directly in code. Add checked-in Sonar scope configuration so PostgreSQL migration SQL is excluded from Sonar issue, duplication, and coverage gating, generated API schema output is excluded from naming-rule noise, repetitive Playwright contract files do",
+      "tags": [
+        "task-record"
+      ],
+      "href": "/adr/263-sonarcloud-pr-issue-cleanup/"
+    },
+    {
+      "id": "adr/264-pr-unresolved-feedback-closeout",
+      "title": "PR unresolved feedback closeout",
+      "summary": "Status: Accepted Date: 2026-03-29 Context: PR #6 still had unresolved review threads after the rebase and SonarCloud cleanup work landed on feat/indexers. The remaining current feedback focused on request normalization consistency for source metadata conflict notes and clearer operation context for tag deletion by key. The repository hand-off rules require the cleanup to be validated through just ci and just ui-e2e, with a task record captured alongside the code change. Decision: Normalize resolution_note in the source metadata conflict resolve and reopen handlers with the shared trim_and_filter_empty helper so whitespace-only notes are treated as absent values. Use the distinct tag_delete_by_key operation",
+      "tags": [],
+      "href": "/adr/264-pr-unresolved-feedback-closeout/"
+    },
+    {
+      "id": "adr/265-pr-feedback-boundary-validation-closeout",
+      "title": "PR feedback boundary validation closeout",
+      "summary": "Status: Accepted Date: 2026-03-29 Context: PR #6 received another round of unresolved review feedback after the earlier thread closeout work landed on feat/indexers. The remaining actionable comments focused on HTTP-boundary validation for required string fields and on removing an unnecessary checked allocation path for a small bounded tag-key normalization helper. The repository completion rules require a task record for the follow-up, plus successful just ci and just ui-e2e validation before hand-off. Decision: Validate required create-request fields at the HTTP boundary with normalize_required_str_field in the tag, secret, and health notification hook handlers so blank strings fail fast with stable client-facing messages.",
+      "tags": [],
+      "href": "/adr/265-pr-feedback-boundary-validation-closeout/"
+    },
+    {
+      "id": "adr/266-pr-codeql-followup-on-instance-tag-bounds",
+      "title": "PR CodeQL follow-up on instance tag bounds",
+      "summary": "Status: Accepted Date: 2026-03-29 Context: After b0faf9c landed, PR #6 picked up a fresh CodeQL failure on instances.rs for rust/uncontrolled-allocation-size. The offending path was the new Vec::with_capacity(keys.len()) allocation for instance tag normalization, which had removed the previous live-memory guard to address review feedback about false-closed allocation probes. The branch still needs a fully green post-push cycle before the review closeout can be considered complete. Decision: Add explicit HTTP-boundary limits for instance tag normalization: bound the total tag_keys length and each trimmed key’s byte length before allocating. Keep the allocation itself as Vec::with_capacity(normalized_len) once the input has been reduced to a",
+      "tags": [],
+      "href": "/adr/266-pr-codeql-followup-on-instance-tag-bounds/"
+    },
+    {
+      "id": "adr/267-indexer-maintenance-runtime",
+      "title": "Indexer maintenance runtime",
+      "summary": "Status: Accepted Date: 2026-04-03 Context: Branch analysis against ERD_INDEXERS.md reopened a real runtime gap: indexer maintenance jobs existed as stored procedures but the Revaer server process was not actually claiming and executing them on cadence. The ERD requires in-process scheduling for retention, connectivity, reputation, canonical upkeep, policy cleanup, rate-limit cleanup, and RSS-adjacent maintenance rather than relying on external cron. The same review also confirmed that live manual search, Torznab search execution, RSS HTTP polling, and runtime import executors are still separate unresolved gaps and should not be silently conflated with maintenance scheduling. Decision: Add a dedicated injected indexer_runtime module in",
+      "tags": [],
+      "href": "/adr/267-indexer-maintenance-runtime/"
+    },
+    {
+      "id": "adr/268-indexer-tag-secret-inventory",
+      "title": "Indexer Tag And Secret Inventory",
+      "summary": "Status: Accepted Date: 2026-04-03 Context: The reopened ERD checklist still called out missing read/list management surfaces for operator workflows. The /indexers console already had write actions for tags and secrets, but it still depended on manual UUID and key copy-paste for common follow-up actions. We needed a small step that improved real operator usability without pretending the broader search-profile, policy, Torznab, routing, and instance inventory work was already complete. Decision: Added stored-procedure-backed tag and secret metadata list reads so runtime code still uses stored procedures rather than inline SQL. Exposed those reads through GET /v1/indexers/tags and GET /v1/indexers/secrets. Updated the",
+      "tags": [],
+      "href": "/adr/268-indexer-tag-secret-inventory/"
+    },
+    {
+      "id": "adr/269-indexer-operator-inventory-read-surfaces",
+      "title": "Indexer Operator Inventory Read Surfaces",
+      "summary": "Status: Accepted Date: 2026-04-03 Context: The reopened ERD checklist still called out missing operator read/list management surfaces for existing indexer resources. The prior inventory slice covered only tags and secret metadata, so operators still had to paste known public IDs to update routing policies, assign rate limits, or manage indexer instances. The data layer already exposed normalized backup-export reads for routing policies, rate-limit policies, and indexer instances, but those rows were not available through dedicated operator list endpoints. Decision: Reused the existing stored-procedure-backed backup export reads as the app-layer source for routing policy, rate-limit policy, and indexer instance inventories. Added",
+      "tags": [],
+      "href": "/adr/269-indexer-operator-inventory-read-surfaces/"
+    },
+    {
+      "id": "adr/270-indexer-profile-policy-torznab-inventory",
+      "title": "Indexer profile, policy, and Torznab inventory",
+      "summary": "Status: Accepted Date: 2026-04-03 Context: The branch-analysis follow-up reopened the operator read/list gap because the admin console still depended on pasted UUIDs for search profiles, policy sets/rules, and Torznab instances. ERD_INDEXERS.md expects existing resources to be inspectable over API and UI, not only writable through CRUD endpoints. Decision: Add stored-procedure-backed list reads for search profiles, policy sets with rules, and Torznab instances, then expose them through /v1/indexers/search-profiles, /v1/indexers/policies, and /v1/indexers/torznab-instances. Reuse those inventories in /indexers so operators can prefill app-sync, policy, Torznab, and category-mapping actions from live data instead of remembered IDs. Consequences: The remaining operator inventory gap is closed",
+      "tags": [],
+      "href": "/adr/270-indexer-profile-policy-torznab-inventory/"
+    },
+    {
+      "id": "adr/271-indexer-cli-read-parity",
+      "title": "Indexer CLI read parity",
+      "summary": "Status: Accepted Date: 2026-04-03 Context: The ERD follow-up checklist still had a CLI parity gap even after the API and UI operator inventory surfaces landed. Operators could inspect live tags, secrets, search profiles, policies, routing, rate limits, Torznab instances, RSS state, and health/connectivity from the web UI, but the CLI still only covered import, policy mutations, Torznab mutations, and test probes. The next efficient step was to reuse existing authenticated GET endpoints instead of adding new backend scope. Decision: Add a new revaer indexer read ... command group that maps directly to the existing operator read/list APIs. Cover list/read flows",
+      "tags": [],
+      "href": "/adr/271-indexer-cli-read-parity/"
+    },
+    {
+      "id": "adr/272-indexer-cli-operator-write-parity",
+      "title": "Indexer CLI operator write parity",
+      "summary": "Status: Accepted Date: 2026-04-03 Context: ERD_INDEXERS_CHECKLIST.md still had a reopened CLI parity gap after the read/list slice landed. Operators could inspect indexer resources from the CLI, but tag lifecycle, secret lifecycle, and category-mapping writes still required the UI or raw API calls. The next efficient step needed to reuse the existing stored-proc-backed HTTP surface instead of adding new runtime behavior. Decision: Extend revaer-cli with indexer tag, indexer secret, and indexer category-mapping subcommands that call the existing /v1/indexers/... endpoints. Keep the scope focused on operator write parity for tags, secrets, tracker category mappings, and media-domain mappings, with targeted CLI integration tests",
+      "tags": [],
+      "href": "/adr/272-indexer-cli-operator-write-parity/"
+    },
+    {
+      "id": "adr/273-indexer-cli-mutation-parity-followup",
+      "title": "Indexer CLI mutation parity follow-up",
+      "summary": "Status: Accepted Date: 2026-04-03 Context: ERD_INDEXERS_CHECKLIST.md still had the reopened CLI parity item open after the earlier read/list and tag/secret/category-mapping slices landed. Operators still needed the UI or raw API calls for routing-policy writes, rate-limit management, search-profile mutation, backup restore, and RSS state mutation. Those flows already existed behind stored-proc-backed HTTP endpoints, so the next efficient step was to expose them through revaer-cli instead of adding new backend behavior. Decision: Extend revaer-cli with indexer routing-policy, indexer rate-limit, indexer search-profile, indexer backup restore, and indexer rss command groups that call the existing /v1/indexers/... endpoints. Keep backup restore file-driven by reading the",
+      "tags": [],
+      "href": "/adr/273-indexer-cli-mutation-parity-followup/"
+    },
+    {
+      "id": "adr/274-indexer-cli-health-notification-parity",
+      "title": "Indexer CLI health-notification parity",
+      "summary": "Status: Accepted Date: 2026-04-03 Context: The reopened ERD_INDEXERS_CHECKLIST.md CLI parity item was down to one operator workflow gap after the read/list and broader mutation slices landed. Health notification hooks already existed in the stored-proc-backed API and UI, but operators still could not manage them from revaer-cli. Leaving that one workflow behind would keep the broader CLI parity item artificially open even though the rest of the indexed management surface was already exposed. Decision: Add revaer indexer read health-notifications plus revaer indexer health-notification create|update|delete command flows on top of the existing /v1/indexers/health-notifications API surface. Reuse the current request helpers, trimmed-string validation,",
+      "tags": [],
+      "href": "/adr/274-indexer-cli-health-notification-parity/"
+    },
+    {
+      "id": "adr/275-pr-output-redaction-and-review-followup",
+      "title": "PR output redaction and review follow-up",
+      "summary": "Status: Accepted Date: 2026-04-03 Context: PR #6 still had open review follow-up around whitespace normalization and tracing consistency in the indexer handlers. The PR's failing CodeQL run reported open rust/cleartext-logging findings in crates/revaer-cli/src/output.rs for the newly added indexer operator commands. AGENTS.md requires green just ci and just ui-e2e before hand-off, plus accurate documentation for non-trivial changes. Decision: Replace direct CLI emission of server-returned indexer payload fields with redacted resource summaries for the flagged indexer management commands. Further reduce those summaries to field counts instead of field-name lists so CodeQL no longer sees caller-provided strings flowing into CLI output. Tighten handler",
+      "tags": [],
+      "href": "/adr/275-pr-output-redaction-and-review-followup/"
+    },
+    {
+      "id": "adr/276-ci-cache-trim-for-runner-disk",
+      "title": "CI cache trim for runner disk pressure",
+      "summary": "Status: Accepted Date: 2026-04-03 Context: PR #6 showed a failing Check Unused Deps job even though local just udeps was clean and there were no open dependency issues on the branch. The GitHub check annotation for that failed job reported System.IO.IOException: No space left on device while the runner was still inside the shared setup-revaer action. The shared setup action restored both ~/.cargo/bin and the workspace target directory for every PR job, which made the cache restore footprint much larger than the dependency/install state the jobs actually needed. Decision: Stop caching the workspace target directory and ~/.cargo/bin in the shared",
+      "tags": [],
+      "href": "/adr/276-ci-cache-trim-for-runner-disk/"
+    },
+    {
+      "id": "adr/277-pr-review-handler-normalization-followup",
+      "title": "PR review handler normalization follow-up",
+      "summary": "Status: Accepted Date: 2026-04-03 Context: PR #6 still had unresolved review threads covering blank required-field handling in a few API handlers, plus a setup handler comment about manually reconstructing a request default. The affected paths already trimmed values, but some still relied on downstream service validation instead of returning stable field-level 400 responses at the HTTP boundary. Decision: Restore SetupStartRequest::default() in the setup handler instead of manually recreating the default payload shape. Normalize required string fields at the HTTP boundary for indexer instance creation, instance field value/secret binding, and media-domain mapping upsert/delete handlers. Add focused handler tests for the new",
+      "tags": [],
+      "href": "/adr/277-pr-review-handler-normalization-followup/"
+    },
+    {
       "id": "adr/index",
       "title": "ADRs",
       "summary": "Create a new ADR using the template in docs/adr/template.md. Give it a sequential identifier (e.g., 001, 002) and a concise title. Capture context, decision, consequences, and follow-up actions. Append the new ADR entry to the end of the Catalogue list above. Append the same entry under ADRs in docs/SUMMARY.md, keeping it nested so the sidebar stays collapsed. Reference ADRs from code comments or docs where the decision applies.",
@@ -1101,6 +2638,17 @@
         "telemetry"
       ],
       "href": "/api/guides/cli/"
+    },
+    {
+      "id": "api/guides/indexer-migration-rollback",
+      "title": "Indexer Migration Rollback",
+      "summary": "Revaer’s indexer migration path is designed to be reversible.",
+      "tags": [
+        "coexistence",
+        "operational-notes",
+        "rollback"
+      ],
+      "href": "/api/guides/indexer-migration-rollback/"
     },
     {
       "id": "api/guides/operations",
