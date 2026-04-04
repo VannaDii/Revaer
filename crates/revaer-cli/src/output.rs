@@ -994,14 +994,14 @@ fn print_redacted_resource_json(resource: &str, available_fields: &[&str]) -> Cl
     print_json_value(&json!({
         "resource": resource,
         "payload_status": REDACTED_STATUS,
-        "available_fields": available_fields,
+        "field_count": available_fields.len(),
     }))
 }
 
 fn print_redacted_resource_table(resource: &str, available_fields: &[&str]) {
     println!("resource: {resource}");
     println!("payload_status: {REDACTED_STATUS}");
-    println!("available_fields: {}", available_fields.join(", "));
+    println!("field_count: {}", available_fields.len());
 }
 
 fn build_prepare_field_preview(
@@ -1212,5 +1212,19 @@ mod tests {
         assert!(rendered.contains(REDACTED_STATUS));
         assert!(!rendered.contains("super-secret"));
         assert!(!rendered.contains("api_key_plaintext"));
+    }
+
+    #[test]
+    fn redacted_resource_json_omits_field_names() {
+        let field_count = ["secret_public_id", "secret_plaintext"].len();
+        let rendered = serde_json::to_string(&json!({
+            "resource": "secret",
+            "payload_status": REDACTED_STATUS,
+            "field_count": field_count,
+        }))
+        .expect("redacted resource preview should serialize");
+        assert!(rendered.contains("\"field_count\":2"));
+        assert!(!rendered.contains("secret_public_id"));
+        assert!(!rendered.contains("secret_plaintext"));
     }
 }

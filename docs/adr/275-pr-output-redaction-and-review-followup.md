@@ -8,11 +8,14 @@
   - `AGENTS.md` requires green `just ci` and `just ui-e2e` before hand-off, plus accurate documentation for non-trivial changes.
 - Decision:
   - Replace direct CLI emission of server-returned indexer payload fields with redacted resource summaries for the flagged indexer management commands.
+  - Further reduce those summaries to field counts instead of field-name lists so CodeQL no longer sees caller-provided strings flowing into CLI output.
   - Tighten handler normalization so blank tag and rate-limit display names fail fast, and align search handler documentation/tracing with current behavior.
+  - Harden Torznab request handling by requiring identifier-only `q` values for identifier searches, URL-encoding generated download links, avoiding invalid parent category `0`, and fetching only the page windows needed for `offset`/`limit`.
   - Avoid adding dependencies; the change reuses existing `serde_json` helpers and small local formatting helpers.
 - Consequences:
   - Positive outcomes:
     - The CLI no longer echoes potentially sensitive or user-controlled indexer payload fields for the flagged commands.
+    - Torznab search requests do less unnecessary page fetching and avoid malformed download links or invalid synthesized parent categories.
     - Review nits around blank-input handling and trace field formatting are closed with small, test-backed changes.
     - The fix stays within the repo's current dependency and architecture constraints.
   - Risks or trade-offs:

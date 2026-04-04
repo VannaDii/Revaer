@@ -15,6 +15,7 @@ use axum::{
     response::Response,
 };
 use serde::Deserialize;
+use url::form_urlencoded;
 use uuid::Uuid;
 
 use crate::app::indexers::{
@@ -23,7 +24,7 @@ use crate::app::indexers::{
 use crate::app::state::ApiState;
 use crate::http::errors::ApiError;
 use crate::http::handlers::indexers::SYSTEM_ACTOR_PUBLIC_ID;
-use crate::models::SearchPageItemResponse;
+use crate::models::{SearchPageItemResponse, SearchPageSummaryResponse};
 
 use super::xml::{
     TorznabFeedItem, build_caps_response, build_empty_search_response, build_search_response,
@@ -346,10 +347,12 @@ fn parse_identifier_from_query(
         return Ok(None);
     }
 
-    let mut candidates = IdentifierCandidates::default();
-    for token in raw.split_whitespace() {
-        candidates.push_token(token);
+    if raw.split_whitespace().count() != 1 {
+        return Ok(None);
     }
+
+    let mut candidates = IdentifierCandidates::default();
+    candidates.push_token(raw);
 
     if candidates.is_invalid() {
         return Err("invalid_identifier_combo");
@@ -479,6 +482,8 @@ async fn execute_torznab_search(
     api_key: &str,
     search: ParsedTorznabSearch,
 ) -> Result<String, TorznabSearchFailure> {
+    let limit_usize = usize::try_from(search.limit).unwrap_or(0);
+    let offset_usize = usize::try_from(search.offset).unwrap_or(usize::MAX);
     let identifier_types = search
         .identifier_input
         .as_ref()
@@ -524,14 +529,16 @@ async fn execute_torznab_search(
         .map_err(|_| TorznabSearchFailure::Internal)?
         .pages;
 
+    let total = search_result_total(&page_summaries);
+    let page_numbers = page_numbers_for_window(&page_summaries, offset_usize, limit_usize);
     let mut items = Vec::new();
-    for summary in page_summaries {
+    for page_number in page_numbers {
         let Ok(page) = state
             .indexers
             .search_page_fetch(
                 SYSTEM_ACTOR_PUBLIC_ID,
                 search_request.search_request_public_id,
-                summary.page_number,
+                page_number,
             )
             .await
         else {
@@ -541,15 +548,47 @@ async fn execute_torznab_search(
     }
 
     let feed_items = map_feed_items(state, items, torznab_instance_public_id, api_key).await?;
-    let total = i32::try_from(feed_items.len()).unwrap_or(i32::MAX);
-    let start = usize::try_from(search.offset)
-        .ok()
-        .map_or(feed_items.len(), |value| value.min(feed_items.len()));
-    let limit_usize = usize::try_from(search.limit).unwrap_or(0);
+    let start = if limit_usize == 0 {
+        0
+    } else {
+        (offset_usize % limit_usize).min(feed_items.len())
+    };
     let end = start.saturating_add(limit_usize).min(feed_items.len());
 
     build_search_response(&feed_items[start..end], search.offset, total)
         .map_err(|_| TorznabSearchFailure::Internal)
+}
+
+fn search_result_total(page_summaries: &[SearchPageSummaryResponse]) -> i32 {
+    let exact_total = page_summaries.iter().fold(0usize, |total, summary| {
+        total.saturating_add(usize::try_from(summary.item_count).unwrap_or(0))
+    });
+    i32::try_from(exact_total).unwrap_or(i32::MAX)
+}
+
+fn page_numbers_for_window(
+    page_summaries: &[SearchPageSummaryResponse],
+    offset: usize,
+    limit: usize,
+) -> Vec<i32> {
+    if page_summaries.is_empty() || limit == 0 {
+        return Vec::new();
+    }
+
+    let start = offset;
+    let end = offset.saturating_add(limit);
+    let mut page_start = 0usize;
+    let mut selected = Vec::new();
+    for summary in page_summaries {
+        let item_count = usize::try_from(summary.item_count).unwrap_or(0);
+        let page_end = page_start.saturating_add(item_count);
+        if page_end > start && page_start < end {
+            selected.push(summary.page_number);
+        }
+        page_start = page_end;
+    }
+
+    selected
 }
 
 const fn map_search_request_failure(kind: SearchRequestServiceErrorKind) -> TorznabSearchFailure {
@@ -588,9 +627,7 @@ async fn map_feed_items(
             leechers: item.leechers.unwrap_or(0),
             download_volume_factor: 1,
             infohash: item.infohash_v2.or(item.infohash_v1),
-            download_link: format!(
-                "/torznab/{torznab_instance_public_id}/download/{source_id}?apikey={api_key}"
-            ),
+            download_link: build_download_link(torznab_instance_public_id, source_id, api_key),
         });
     }
 
@@ -629,7 +666,9 @@ fn expand_torznab_categories(category_ids: &[i32]) -> Vec<i32> {
         }
 
         let parent_category_id = (category_id / 1000) * 1000;
-        expanded.insert(parent_category_id);
+        if parent_category_id > 0 {
+            expanded.insert(parent_category_id);
+        }
         expanded.insert(category_id);
     }
 
@@ -638,6 +677,13 @@ fn expand_torznab_categories(category_ids: &[i32]) -> Vec<i32> {
     }
 
     expanded.into_iter().collect()
+}
+
+fn build_download_link(torznab_instance_public_id: Uuid, source_id: Uuid, api_key: &str) -> String {
+    let query = form_urlencoded::Serializer::new(String::new())
+        .append_pair("apikey", api_key)
+        .finish();
+    format!("/torznab/{torznab_instance_public_id}/download/{source_id}?{query}")
 }
 
 fn xml_response(status: StatusCode, body: String) -> Result<Response, ApiError> {
@@ -709,13 +755,19 @@ mod tests {
     #[test]
     fn parse_identifier_from_query_rejects_mixed_types() {
         let parsed = parse_identifier_from_query(Some("tt1234567 tmdb:42"));
-        assert_eq!(parsed, Err("invalid_identifier_combo"));
+        assert_eq!(parsed, Ok(None));
     }
 
     #[test]
     fn parse_identifier_from_query_parses_single_identifier() {
         let parsed = parse_identifier_from_query(Some("tt1234567")).expect("parsed");
         assert_eq!(parsed, Some(("imdb", "tt1234567".to_string())));
+    }
+
+    #[test]
+    fn parse_identifier_from_query_ignores_identifier_plus_text() {
+        let parsed = parse_identifier_from_query(Some("tt1234567 dune")).expect("parsed");
+        assert_eq!(parsed, None);
     }
 
     #[test]
@@ -731,6 +783,12 @@ mod tests {
     }
 
     #[test]
+    fn expand_torznab_categories_does_not_insert_zero_parent() {
+        let categories = expand_torznab_categories(&[500]);
+        assert_eq!(categories, vec![500]);
+    }
+
+    #[test]
     fn expand_torznab_categories_deduplicates_existing_parent() {
         let categories = expand_torznab_categories(&[2000, 2010, 2010]);
         assert_eq!(categories, vec![2000, 2010]);
@@ -740,5 +798,38 @@ mod tests {
     fn expand_torznab_categories_falls_back_to_other() {
         let categories = expand_torznab_categories(&[]);
         assert_eq!(categories, vec![OTHER_CATEGORY_ID]);
+    }
+
+    #[test]
+    fn build_download_link_url_encodes_api_key() {
+        let link = build_download_link(Uuid::from_u128(1), Uuid::from_u128(2), "a&b=1+2%");
+        assert_eq!(
+            link,
+            "/torznab/00000000-0000-0000-0000-000000000001/download/00000000-0000-0000-0000-000000000002?apikey=a%26b%3D1%2B2%25"
+        );
+    }
+
+    #[test]
+    fn page_numbers_for_window_limits_fetches_to_requested_slice() {
+        let pages = vec![
+            SearchPageSummaryResponse {
+                page_number: 1,
+                item_count: 50,
+                sealed_at: None,
+            },
+            SearchPageSummaryResponse {
+                page_number: 2,
+                item_count: 50,
+                sealed_at: None,
+            },
+            SearchPageSummaryResponse {
+                page_number: 3,
+                item_count: 10,
+                sealed_at: None,
+            },
+        ];
+
+        let selected = page_numbers_for_window(&pages, 55, 20);
+        assert_eq!(selected, vec![2]);
     }
 }
